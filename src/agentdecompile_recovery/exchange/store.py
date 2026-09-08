@@ -217,6 +217,12 @@ class WorkUnit:
     lease_token: str | None = None
     lease_expires_at: float | None = None
     submission: dict[str, Any] | None = None
+    # Set only on the pending -> {failed, awaiting-verification} transition in
+    # submit(). This is what _prune_terminal keys on: without it, max_units is
+    # a lifetime cap rather than a concurrency bound, because nothing else
+    # marks a unit as safe to drop once the coordinator has had a chance to
+    # see its outcome.
+    resolved_at: float | None = None
 
     def offer_view(self) -> dict[str, Any]:
         """The unit as shipped to a fulfiller: a value, and nothing about the lease."""
@@ -240,6 +246,7 @@ class WorkUnit:
             "claimedBy": self.claimed_by,
             "leaseExpiresAt": self.lease_expires_at,
             "submission": self.submission,
+            "resolvedAt": self.resolved_at,
         }
 
 
@@ -285,12 +292,19 @@ class ExchangeStore:
         rate_limit_calls: int = 120,
         rate_limit_window: float = 60.0,
         enroll_limit_calls: int = 60,
+        terminal_retention_seconds: float = 3600.0,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.state_path = Path(state_path)
         self.lease_seconds = int(lease_seconds)
         self.max_workers = int(max_workers)
         self.max_units = int(max_units)
+        # Without pruning, a terminal unit (failed or awaiting-verification)
+        # sits in _units forever -- nothing else ever removes one -- so
+        # max_units caps units ever offered, not units concurrently pending.
+        # An hour gives the coordinator a generous window to read a
+        # submission's outcome via roster()/unit_state() before it is dropped.
+        self.terminal_retention_seconds = float(terminal_retention_seconds)
         self.rate_limit_calls = int(rate_limit_calls)
         self.rate_limit_window = float(rate_limit_window)
         self.enroll_limit_calls = int(enroll_limit_calls)
@@ -374,6 +388,7 @@ class ExchangeStore:
                     status=status,
                     fence=int(row.get("fence") or 0),
                     submission=row["submission"] if isinstance(row.get("submission"), dict) else None,
+                    resolved_at=float(row["resolvedAt"]) if isinstance(row.get("resolvedAt"), (int, float)) else None,
                 )
                 if status == STATUS_CLAIMED:
                     # A lease cannot survive the process that granted it: the
@@ -466,24 +481,42 @@ class ExchangeStore:
         return self._fence
 
     def _reap(self, now: float) -> bool:
-        """Return expired leases to `pending`, fencing the vanished holder out.
+        """Return expired leases to `pending`, fencing the vanished holder out,
+        and prune terminal units past their retention window.
 
         Called at the top of every mutating path, not just `claim`: a submit
         arriving after its lease expired must be rejected even when nobody
         claimed the unit in the interim.
+
+        Pruning lives here rather than a separate call site because every
+        mutating path already runs this unconditionally. Without it, nothing
+        ever removes a unit from self._units -- max_units would cap units
+        ever offered for the life of the state file, not units concurrently
+        pending, and a corpus-wide campaign that offers thousands of rewrite
+        candidates would eventually make every future offer() fail permanently.
         """
 
         changed = False
-        for unit in self._units.values():
-            if unit.status != STATUS_CLAIMED:
+        stale_units = []
+        for unit_id, unit in self._units.items():
+            if unit.status == STATUS_CLAIMED:
+                if unit.lease_expires_at is not None and unit.lease_expires_at > now:
+                    continue
+                unit.status = STATUS_PENDING
+                unit.claimed_by = None
+                unit.lease_token = None
+                unit.lease_expires_at = None
+                unit.fence = self._next_fence()
+                changed = True
                 continue
-            if unit.lease_expires_at is not None and unit.lease_expires_at > now:
-                continue
-            unit.status = STATUS_PENDING
-            unit.claimed_by = None
-            unit.lease_token = None
-            unit.lease_expires_at = None
-            unit.fence = self._next_fence()
+            if (
+                unit.status in (STATUS_FAILED, STATUS_AWAITING_VERIFICATION)
+                and unit.resolved_at is not None
+                and now - unit.resolved_at >= self.terminal_retention_seconds
+            ):
+                stale_units.append(unit_id)
+        for unit_id in stale_units:
+            del self._units[unit_id]
             changed = True
         return changed
 
@@ -725,6 +758,7 @@ class ExchangeStore:
             if unit is None or unit.fence != int(fence):
                 raise LeaseRejected("lease expired or fenced out by a newer claim; the result was discarded")
             unit.status = STATUS_FAILED if str(verdict) in FAILURE_VERDICTS else STATUS_AWAITING_VERIFICATION
+            unit.resolved_at = now
             unit.submission = {
                 "workerId": worker_id,
                 "verdict": str(verdict),

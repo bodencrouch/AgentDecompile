@@ -743,19 +743,6 @@ def main() -> None:
         help="Disable HTTP Basic auth enforcement even when --ghidra-server-username is set",
     )
     g_server.add_argument(
-        "--enable-exchange",
-        dest="enable_exchange",
-        action="store_true",
-        default=None,
-        help="EXPERIMENTAL: serve the donated-compute work exchange on the proxy. Env: AGENT_DECOMPILE_EXCHANGE_ENABLED",
-    )
-    g_server.add_argument(
-        "--no-enable-exchange",
-        dest="enable_exchange",
-        action="store_false",
-        help="Disable the experimental work exchange even when AGENT_DECOMPILE_EXCHANGE_ENABLED is set",
-    )
-    g_server.add_argument(
         "--tls-cert",
         dest="tls_certfile",
         type=str,
@@ -990,6 +977,19 @@ def proxy_main() -> None:
     parser.add_argument("--ghidra-server-username", type=str, default=None, help="Auth: Ghidra server username")
     parser.add_argument("--ghidra-server-password", type=str, default=None, help="Auth: Ghidra server password")
     parser.add_argument("--ghidra-server-repository", type=str, default=None, help="Auth: Ghidra server repository")
+    parser.add_argument(
+        "--enable-exchange",
+        dest="enable_exchange",
+        action="store_true",
+        default=None,
+        help="EXPERIMENTAL: serve the donated-compute work exchange on this proxy. Env: AGENT_DECOMPILE_EXCHANGE_ENABLED",
+    )
+    parser.add_argument(
+        "--no-enable-exchange",
+        dest="enable_exchange",
+        action="store_false",
+        help="Disable the experimental work exchange even when AGENT_DECOMPILE_EXCHANGE_ENABLED is set",
+    )
     args = parser.parse_args()
 
     backend_url = _resolve_proxy_backend_url(

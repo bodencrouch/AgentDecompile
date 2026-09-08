@@ -17,14 +17,23 @@ with many spectators will contend for the same executor they already saturate.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from .producers import drain_spool
 from .store import ExchangeError, ExchangeStore, default_state_path
+
+# Every full-snapshot write re-serializes every stored submission's artifact,
+# so an unbounded artifact from one open-enrollment contributor makes every
+# subsequent claim/heartbeat/submit call more expensive and grows the state
+# file without bound. 64 KiB is generous for a candidate C source plus a short
+# verdict and small enough that a flood of submissions cannot grow the
+# snapshot unboundedly.
+MAX_ARTIFACT_BYTES = 64 * 1024
 
 
 class EnrollBody(BaseModel):
@@ -50,6 +59,22 @@ class SubmitBody(BaseModel):
     idempotencyKey: str = Field(min_length=1, max_length=128)
     artifact: dict[str, Any] = Field(default_factory=dict)
     verdict: str = Field(min_length=1, max_length=64)
+
+    @field_validator("artifact")
+    @classmethod
+    def _bound_artifact_size(cls, value: dict[str, Any]) -> dict[str, Any]:
+        """Reject an artifact whose serialized form exceeds MAX_ARTIFACT_BYTES.
+
+        Field's min/max bounds only constrain scalars; artifact is a nested
+        structure, so its size can only be checked after serializing it.
+        """
+
+        size = len(json.dumps(value, default=str).encode("utf-8"))
+        if size > MAX_ARTIFACT_BYTES:
+            raise ValueError(
+                f"artifact exceeds {MAX_ARTIFACT_BYTES} bytes when serialized (got {size})"
+            )
+        return value
 
 
 def _refusal(exc: ExchangeError) -> JSONResponse:

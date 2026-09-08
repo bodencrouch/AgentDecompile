@@ -48,6 +48,7 @@ import logging
 import os
 import re
 import secrets
+import threading
 import time
 from collections import deque
 from contextlib import contextmanager
@@ -324,6 +325,14 @@ class ExchangeStore:
         # is built, not at the moment it reaches the disk.
         self._generation = 0
         self._committed_generation = 0
+        # _write_snapshot runs off the event loop via asyncio.to_thread, so
+        # concurrent mutations reach it on separate OS threads of the default
+        # executor. fcntl.flock (see _file_lock) only keeps a second *process*
+        # from seeing a torn write -- it does nothing for two threads inside
+        # this one process, and nothing at all on Windows where fcntl is
+        # absent. This lock is what actually serializes the generation
+        # check/write/commit sequence for local threads.
+        self._write_lock = threading.Lock()
         self._recent: deque[tuple[float, str]] = deque(maxlen=1024)
 
     # -- durability ---------------------------------------------------------
@@ -453,18 +462,35 @@ class ExchangeStore:
         # Unique tmp name per writer, as in state.atomic_write_json: concurrent
         # writers must not replace each other's in-progress temporary file.
         tmp = path.with_name(f"{path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp")
-        with _file_lock(path.with_name(f"{path.name}.lock")):
-            # Snapshot text is built under the asyncio lock but written outside
-            # it, so two mutations can reach this point in either order. Without
-            # this check an older complete snapshot can overwrite a newer one,
-            # and a submitted unit reloads as pending after a restart -- which
-            # is duplicate execution arriving through the durability layer
-            # rather than the lease layer.
-            if generation <= self._committed_generation:
-                return
-            tmp.write_text(text, encoding="utf-8")
-            tmp.replace(path)
-            self._committed_generation = generation
+        # self._write_lock is the OUTER guard and _file_lock the inner one: a
+        # thread must win the local lock before it may even attempt the
+        # cross-process file lock, so no thread ever blocks on flock() while
+        # holding nothing, and no two threads in this process ever race each
+        # other for it. Reversing the order -- taking _file_lock first --
+        # would let one thread hold the OS-level lock while waiting on
+        # self._write_lock for a peer thread, serializing nothing extra and
+        # adding a needless cross-process hold time for no benefit, since only
+        # one thread here can be inside _file_lock at a time either way.
+        with self._write_lock:
+            with _file_lock(path.with_name(f"{path.name}.lock")):
+                # Snapshot text is built under the asyncio lock but written
+                # outside it, so two mutations can reach this point in either
+                # order. fcntl.flock only excludes *other processes*; it does
+                # not order these two local threads (and is a no-op entirely
+                # on Windows), so without self._write_lock above, both threads
+                # could pass this check before either commits, and the one
+                # carrying the older generation could write last and silently
+                # revert the snapshot -- the exact hazard this check exists to
+                # prevent, arriving through the thread scheduler instead of
+                # through disk ordering. self._write_lock makes the check,
+                # write, and commit atomic with respect to every thread in
+                # this process; _file_lock is what still matters for a
+                # hypothetical second process on the same host.
+                if generation <= self._committed_generation:
+                    return
+                tmp.write_text(text, encoding="utf-8")
+                tmp.replace(path)
+                self._committed_generation = generation
 
     async def _persist(self, text: str | None, generation: int | None = None) -> None:
         if text is None or self.read_only:

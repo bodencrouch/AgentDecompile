@@ -1057,8 +1057,16 @@ def proxy_main() -> None:
     _enable_exchange = (
         bool(_exchange_flag)
         if _exchange_flag is not None
-        else os.environ.get("AGENT_DECOMPILE_EXCHANGE_ENABLED", "").lower() in ("true", "1", "yes", "on")
+        else os.environ.get("AGENT_DECOMPILE_EXCHANGE_ENABLED", "").strip().lower() in ("true", "1", "yes", "on")
     )
+    # Pipeline stages that produce work units run as subprocesses and read
+    # this var directly (exchange/producers.py:exchange_enabled), inheriting
+    # the parent's environment wholesale (isolated_job_env copies os.environ).
+    # --enable-exchange alone would otherwise mount the routes here without
+    # ever reaching the producer side: routes serve an exchange nothing feeds.
+    # Exporting the resolved decision is what makes the CLI flag and the env
+    # var the same switch rather than two switches that can disagree.
+    os.environ["AGENT_DECOMPILE_EXCHANGE_ENABLED"] = "true" if _enable_exchange else "false"
 
     proxy_server = AgentDecompileMcpProxyServer(
         ProxyServerConfig(

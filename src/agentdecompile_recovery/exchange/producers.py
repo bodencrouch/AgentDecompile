@@ -149,9 +149,15 @@ async def drain_spool(store: ExchangeStore, *, limit: int = MAX_DRAIN_PER_CALL) 
     single-writer. An accepted file moves to ``accepted/`` rather than being
     deleted: its ``routing`` is how the coordinator later maps a submitted
     proposal back to the work dir and rewrite-queue request it answers.
+
+    Derives the spool location from `store.state_path`, not the module-level
+    `spool_dir()` default -- `routes.create_exchange_router` accepts an
+    injected store, and draining a directory unrelated to the store it was
+    handed would silently drain the wrong queue for any caller that injects
+    one (a test, or a second store on the same host).
     """
 
-    directory = spool_dir()
+    directory = store.state_path.parent / SPOOL_DIRNAME
     if not directory.is_dir():
         return 0
 

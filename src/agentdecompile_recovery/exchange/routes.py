@@ -8,8 +8,11 @@ orders of magnitude less than it cost to fabricate. What the store does enforce
 is a per-worker rate limit and hard caps, so one broken client cannot drain the
 queue.
 
-The router is not mounted by `router.py` yet. Mounting it is a separate
-decision that depends on the observer-path fixes in the design doc's §6b.
+Mounted only by the proxy (`proxy_server.py`), and only behind the experimental
+`--enable-exchange` flag; the dashboard's own `router.py` does not mount it. The
+design doc's §6b observer-path fixes -- one shared SSE snapshot, a connection
+cap, hidden-tab gating -- are still outstanding, so enabling this on a server
+with many spectators will contend for the same executor they already saturate.
 """
 
 from __future__ import annotations

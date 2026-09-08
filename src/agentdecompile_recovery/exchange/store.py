@@ -44,6 +44,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import re
 import secrets
@@ -58,6 +59,8 @@ try:  # pragma: no cover - platform dependent
     import fcntl
 except ImportError:  # Windows. See module docstring: the lock is advisory here.
     fcntl = None  # type: ignore[assignment]
+
+logger = logging.getLogger(__name__)
 
 SCHEMA = "agentdecompile.work-exchange.v1"
 CLAIM_BOUNDARY = (
@@ -169,7 +172,12 @@ def assert_portable_payload(payload: Any, *, _depth: int = 0) -> None:
     if _depth > 8:
         raise ValueError("work unit payload nests too deeply to be a value")
     if isinstance(payload, dict):
-        for value in payload.values():
+        for key, value in payload.items():
+            # Keys too, not just values. The design doc's R1 names path-keyed
+            # maps (identity_lock_key) as exactly the thing that makes state
+            # machine-local, so a path as a dict key is the likely spelling,
+            # not a contrived one.
+            assert_portable_payload(key, _depth=_depth + 1)
             assert_portable_payload(value, _depth=_depth + 1)
         return
     if isinstance(payload, (list, tuple)):
@@ -276,6 +284,7 @@ class ExchangeStore:
         max_units: int = 4096,
         rate_limit_calls: int = 120,
         rate_limit_window: float = 60.0,
+        enroll_limit_calls: int = 60,
         clock: Callable[[], float] = time.time,
     ) -> None:
         self.state_path = Path(state_path)
@@ -284,6 +293,9 @@ class ExchangeStore:
         self.max_units = int(max_units)
         self.rate_limit_calls = int(rate_limit_calls)
         self.rate_limit_window = float(rate_limit_window)
+        self.enroll_limit_calls = int(enroll_limit_calls)
+        self._enroll_window_started = 0.0
+        self._enroll_calls = 0
         self.clock = clock
         self.quarantined_path: Path | None = None
         self.read_only = False
@@ -293,6 +305,11 @@ class ExchangeStore:
         self._workers: dict[str, Worker] = {}
         self._receipts: dict[str, dict[str, Any]] = {}
         self._fence = 0
+        # Monotonic snapshot ordering. _snapshot_text bumps it under the
+        # asyncio lock so a write's generation is fixed at the moment its text
+        # is built, not at the moment it reaches the disk.
+        self._generation = 0
+        self._committed_generation = 0
         self._recent: deque[tuple[float, str]] = deque(maxlen=1024)
 
     # -- durability ---------------------------------------------------------
@@ -308,56 +325,89 @@ class ExchangeStore:
 
         if self._loaded:
             return
-        self._loaded = True
         path = self.state_path
         if not path.exists():
+            self._loaded = True
             return
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             raw = None
         if not isinstance(raw, dict) or raw.get("schema") != SCHEMA or not isinstance(raw.get("units"), dict) or not isinstance(raw.get("workers"), dict):
+            self._loaded = True
             self._quarantine(path)
             return
-        self._fence = int(raw.get("fence") or 0)
-        self._receipts = {str(key): value for key, value in (raw.get("receipts") or {}).items() if isinstance(value, dict)}
-        for worker_id, row in raw["workers"].items():
-            if not isinstance(row, dict):
-                continue
-            self._workers[str(worker_id)] = Worker(
-                worker_id=str(worker_id),
-                agent=str(row.get("agent") or ""),
-                capabilities=frozenset(str(cap) for cap in row.get("capabilities") or ()),
-                enrolled_at=float(row.get("enrolledAt") or 0.0),
-                last_seen=float(row.get("lastSeen") or 0.0),
-                submissions=int(row.get("submissions") or 0),
-            )
-        for unit_id, row in raw["units"].items():
-            if not isinstance(row, dict):
-                continue
-            status = str(row.get("status") or STATUS_PENDING)
-            unit = WorkUnit(
-                unit_id=str(unit_id),
-                lane=str(row.get("lane") or ""),
-                payload=row["payload"] if isinstance(row.get("payload"), dict) else {},
-                required_capabilities=frozenset(str(cap) for cap in row.get("requiredCapabilities") or ()),
-                offered_at=float(row.get("offeredAt") or 0.0),
-                status=status,
-                fence=int(row.get("fence") or 0),
-                submission=row["submission"] if isinstance(row.get("submission"), dict) else None,
-            )
-            if status == STATUS_CLAIMED:
-                # A lease cannot survive the process that granted it: the token
-                # is gone, so fence the old holder out and re-offer the work.
-                unit.status = STATUS_PENDING
-                unit.fence = self._next_fence()
-            self._units[unit.unit_id] = unit
+
+        # Hydrate into locals and commit only on success. Assigning to self as
+        # we go, with _loaded already latched, is how a single bad field type
+        # turns into data loss: the raise leaves the store half-populated but
+        # "loaded", and the next mutation persists that truncated state over an
+        # intact file. A schema-valid file with an ISO-string timestamp -- the
+        # shape rewrite_queue itself writes -- is enough to trigger it.
+        try:
+            fence = int(raw.get("fence") or 0)
+            receipts = {str(key): value for key, value in (raw.get("receipts") or {}).items() if isinstance(value, dict)}
+            workers: dict[str, Worker] = {}
+            for worker_id, row in raw["workers"].items():
+                if not isinstance(row, dict):
+                    continue
+                workers[str(worker_id)] = Worker(
+                    worker_id=str(worker_id),
+                    agent=str(row.get("agent") or ""),
+                    capabilities=frozenset(str(cap) for cap in row.get("capabilities") or ()),
+                    enrolled_at=float(row.get("enrolledAt") or 0.0),
+                    last_seen=float(row.get("lastSeen") or 0.0),
+                    submissions=int(row.get("submissions") or 0),
+                )
+            units: dict[str, WorkUnit] = {}
+            restored: list[WorkUnit] = []
+            for unit_id, row in raw["units"].items():
+                if not isinstance(row, dict):
+                    continue
+                status = str(row.get("status") or STATUS_PENDING)
+                unit = WorkUnit(
+                    unit_id=str(unit_id),
+                    lane=str(row.get("lane") or ""),
+                    payload=row["payload"] if isinstance(row.get("payload"), dict) else {},
+                    required_capabilities=frozenset(str(cap) for cap in row.get("requiredCapabilities") or ()),
+                    offered_at=float(row.get("offeredAt") or 0.0),
+                    status=status,
+                    fence=int(row.get("fence") or 0),
+                    submission=row["submission"] if isinstance(row.get("submission"), dict) else None,
+                )
+                if status == STATUS_CLAIMED:
+                    # A lease cannot survive the process that granted it: the
+                    # token is gone, so fence the old holder out and re-offer.
+                    unit.status = STATUS_PENDING
+                    restored.append(unit)
+                units[unit.unit_id] = unit
+        except (TypeError, ValueError, AttributeError):
+            logger.warning("exchange: state at %s failed to hydrate; quarantining", path, exc_info=True)
+            self._loaded = True
+            self._quarantine(path)
+            return
+
+        self._fence = fence
+        self._receipts = receipts
+        self._workers = workers
+        self._units = units
+        # Fence every restored lease out, now that the counter is authoritative.
+        for unit in restored:
+            unit.fence = self._next_fence()
+        self._loaded = True
 
     def _quarantine(self, path: Path) -> None:
-        target = path.with_name(f"{path.name}.corrupt-{int(self.clock())}")
+        # Random suffix, not a second-granular timestamp: Path.replace
+        # overwrites silently, so two quarantines in the same second would
+        # destroy the first preserved copy -- in the code whose whole purpose
+        # is not losing those bytes.
+        target = path.with_name(f"{path.name}.corrupt-{int(self.clock())}-{secrets.token_hex(4)}")
         try:
             path.replace(target)
         except OSError:
+            # Latch read-only so no snapshot can land on top of live work, and
+            # say so: silent permanent non-durability is the worst outcome here.
+            logger.error("exchange: could not quarantine %s; store is now read-only", path, exc_info=True)
             self.read_only = True
             return
         self.quarantined_path = target
@@ -377,22 +427,37 @@ class ExchangeStore:
             "workers": {worker_id: worker.state_view() for worker_id, worker in self._workers.items()},
             "receipts": self._receipts,
         }
+        # Called only under the asyncio lock, so this ordering stamp is fixed
+        # against the state it describes.
+        self._generation += 1
         return json.dumps(state, indent=2, sort_keys=True, default=str) + "\n"
 
-    def _write_snapshot(self, text: str) -> None:
+    def _write_snapshot(self, text: str, generation: int) -> None:
         path = self.state_path
         path.parent.mkdir(parents=True, exist_ok=True)
         # Unique tmp name per writer, as in state.atomic_write_json: concurrent
         # writers must not replace each other's in-progress temporary file.
-        tmp = path.with_suffix(f"{path.suffix}.{os.getpid()}.{secrets.token_hex(4)}.tmp")
-        with _file_lock(path.with_suffix(f"{path.suffix}.lock")):
+        tmp = path.with_name(f"{path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp")
+        with _file_lock(path.with_name(f"{path.name}.lock")):
+            # Snapshot text is built under the asyncio lock but written outside
+            # it, so two mutations can reach this point in either order. Without
+            # this check an older complete snapshot can overwrite a newer one,
+            # and a submitted unit reloads as pending after a restart -- which
+            # is duplicate execution arriving through the durability layer
+            # rather than the lease layer.
+            if generation <= self._committed_generation:
+                return
             tmp.write_text(text, encoding="utf-8")
             tmp.replace(path)
+            self._committed_generation = generation
 
-    async def _persist(self, text: str | None) -> None:
+    async def _persist(self, text: str | None, generation: int | None = None) -> None:
         if text is None or self.read_only:
             return
-        await asyncio.to_thread(self._write_snapshot, text)
+        if generation is None:
+            self._generation += 1
+            generation = self._generation
+        await asyncio.to_thread(self._write_snapshot, text, generation)
 
     # -- housekeeping -------------------------------------------------------
 
@@ -462,7 +527,8 @@ class ExchangeStore:
                 offered_at=now,
             )
             text = self._snapshot_text()
-        await self._persist(text)
+            generation = self._generation
+        await self._persist(text, generation)
         return unit_id
 
     async def unit_state(self, unit_id: str) -> dict[str, Any] | None:
@@ -495,16 +561,34 @@ class ExchangeStore:
                 "throughput": {"windowSeconds": THROUGHPUT_WINDOW_SECONDS, "submissions": len(window), "byLane": per_lane},
             }
             text = self._snapshot_text() if changed else None
-        await self._persist(text)
+            generation = self._generation
+        await self._persist(text, generation)
         return snapshot
 
     # -- fulfiller side -----------------------------------------------------
 
     async def enroll(self, *, capabilities: Any, agent: str) -> dict[str, Any]:
+        """Register a fulfiller.
+
+        Metered globally, not per worker. The per-worker limiter cannot bound
+        enrollment by construction: a client that hits 429 just enrolls again
+        and gets a fresh budget, so without this the effective ceiling is
+        max_workers * rate_limit_calls from a single unauthenticated client,
+        and each of those enrollments writes a full snapshot to disk.
+        """
+
         async with self._lock:
             self._load()
             now = self.clock()
             self._reap(now)
+            if now - self._enroll_window_started >= self.rate_limit_window:
+                self._enroll_window_started = now
+                self._enroll_calls = 0
+            self._enroll_calls += 1
+            if self._enroll_calls > self.enroll_limit_calls:
+                raise RateLimited(
+                    f"exchange exceeded {self.enroll_limit_calls} enrollments per {self.rate_limit_window:g}s",
+                )
             if len(self._workers) >= self.max_workers:
                 self._evict_idle_workers(now)
             if len(self._workers) >= self.max_workers:
@@ -519,7 +603,8 @@ class ExchangeStore:
                 window_started=now,
             )
             text = self._snapshot_text()
-        await self._persist(text)
+            generation = self._generation
+        await self._persist(text, generation)
         return {"workerId": worker_id, "leaseSeconds": self.lease_seconds, "lanes": list(LANES)}
 
     def _evict_idle_workers(self, now: float) -> None:
@@ -575,7 +660,8 @@ class ExchangeStore:
             # An empty claim is the common case for a polling worker; only a
             # real state change is worth a disk write.
             text = self._snapshot_text() if changed or lease is not None else None
-        await self._persist(text)
+            generation = self._generation
+        await self._persist(text, generation)
         return lease
 
     async def heartbeat(self, *, worker_id: str, lease_token: str) -> dict[str, Any]:
@@ -593,7 +679,8 @@ class ExchangeStore:
             # survive a restart anyway (a reloaded claim is re-offered), so only
             # a reclaim is worth persisting here.
             text = self._snapshot_text() if changed else None
-        await self._persist(text)
+            generation = self._generation
+        await self._persist(text, generation)
         return result
 
     def _unit_for_lease(self, worker_id: str, lease_token: str) -> WorkUnit | None:
@@ -657,5 +744,6 @@ class ExchangeStore:
             response = {"accepted": True, "state": unit.status, "unitId": unit.unit_id, "verdict": str(verdict)}
             self._receipts[idempotency_key] = {"fingerprint": fingerprint, "response": response}
             text = self._snapshot_text()
-        await self._persist(text)
+            generation = self._generation
+        await self._persist(text, generation)
         return dict(response)

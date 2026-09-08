@@ -1,8 +1,9 @@
 """Work exchange: capability-labeled recovery units leased to donated compute.
 
-`store` holds the lifecycle; `routes` exposes it over the dashboard's FastAPI
-app. The router is deliberately not mounted anywhere yet -- the observer path
-has to stop starving the executor before strangers are invited to connect.
+`store` holds the lifecycle, `routes` exposes it over FastAPI, and `producers`
+publishes units from the recovery pipeline. The proxy mounts the router behind
+the experimental `--enable-exchange` flag. Note the observer path still has to
+stop starving the executor before strangers are invited to connect at scale.
 """
 
 from __future__ import annotations

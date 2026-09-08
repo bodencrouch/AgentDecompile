@@ -743,6 +743,19 @@ def main() -> None:
         help="Disable HTTP Basic auth enforcement even when --ghidra-server-username is set",
     )
     g_server.add_argument(
+        "--enable-exchange",
+        dest="enable_exchange",
+        action="store_true",
+        default=None,
+        help="EXPERIMENTAL: serve the donated-compute work exchange on the proxy. Env: AGENT_DECOMPILE_EXCHANGE_ENABLED",
+    )
+    g_server.add_argument(
+        "--no-enable-exchange",
+        dest="enable_exchange",
+        action="store_false",
+        help="Disable the experimental work exchange even when AGENT_DECOMPILE_EXCHANGE_ENABLED is set",
+    )
+    g_server.add_argument(
         "--tls-cert",
         dest="tls_certfile",
         type=str,
@@ -1038,6 +1051,15 @@ def proxy_main() -> None:
                     pass
         return
 
+    # EXPERIMENTAL: work exchange is off by default. An explicit --enable-exchange
+    # / --no-enable-exchange wins over the env var; absent both, it stays off.
+    _exchange_flag = getattr(args, "enable_exchange", None)
+    _enable_exchange = (
+        bool(_exchange_flag)
+        if _exchange_flag is not None
+        else os.environ.get("AGENT_DECOMPILE_EXCHANGE_ENABLED", "").lower() in ("true", "1", "yes", "on")
+    )
+
     proxy_server = AgentDecompileMcpProxyServer(
         ProxyServerConfig(
             host=host,
@@ -1045,6 +1067,7 @@ def proxy_main() -> None:
             backend_url=backend_url,
             tls_certfile=tls_certfile,
             tls_keyfile=tls_keyfile,
+            enable_exchange=_enable_exchange,
         ),
         auth_config=auth_config,
     )

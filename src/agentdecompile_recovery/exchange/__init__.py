@@ -7,6 +7,7 @@ has to stop starving the executor before strangers are invited to connect.
 
 from __future__ import annotations
 
+from .producers import drain_spool, exchange_enabled, offer_rewrite_unit, spool_dir
 from .store import (
     CLAIM_BOUNDARY,
     LANE_CAPABILITIES,
@@ -45,4 +46,8 @@ __all__ = [
     "UnknownWorker",
     "WorkUnit",
     "derive_unit_id",
+    "drain_spool",
+    "exchange_enabled",
+    "offer_rewrite_unit",
+    "spool_dir",
 ]

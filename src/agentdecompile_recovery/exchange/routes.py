@@ -20,6 +20,7 @@ from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from .producers import drain_spool
 from .store import ExchangeError, ExchangeStore, default_state_path
 
 
@@ -75,6 +76,10 @@ def create_exchange_router(store: ExchangeStore | None = None) -> APIRouter:
 
     @router.post("/dashboard/api/exchange/claim")
     async def claim(body: ClaimBody):
+        # Pipeline stages are subprocesses and cannot touch the snapshot, so
+        # they spool units instead. Ingesting on claim is what makes a
+        # producer's work visible without a background sweeper.
+        await drain_spool(_store())
         try:
             lease = await _store().claim(worker_id=body.workerId, lanes=body.lanes)
         except ExchangeError as exc:
@@ -105,6 +110,9 @@ def create_exchange_router(store: ExchangeStore | None = None) -> APIRouter:
 
     @router.get("/dashboard/api/exchange/roster")
     async def roster():
+        # Drain here too, so the roster reports queued work the pipeline has
+        # produced even when no contributor has claimed anything yet.
+        await drain_spool(_store())
         return await _store().roster()
 
     return router

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from agentdecompile_recovery.corpus.dashboard.preparation import _matching_inventory_progress_kwargs
+from agentdecompile_recovery.corpus.dashboard.preparation import (
+    _action_prior_for_retry,
+    _matching_inventory_progress_kwargs,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -27,6 +30,20 @@ def test_matching_inventory_progress_keeps_pair_total() -> None:
     }
     assert 'k2.exe' in progress['_reason_detail']
     assert '12,000' in progress['_reason_detail']
+
+
+def test_match_pair_failed_prior_is_cleared_for_retry() -> None:
+    prior = {
+        'status': 'failed',
+        'attempts': 3,
+        'result': {'ok': False, 'error': 'ImportError: cannot import name mizuchi_tools_cli'},
+    }
+    assert _action_prior_for_retry('corpus.match-pair', prior) == {}
+
+
+def test_non_match_pair_failed_prior_is_preserved() -> None:
+    prior = {'status': 'failed', 'result': {'ok': False, 'error': 'permanent'}}
+    assert _action_prior_for_retry('corpus.ghidra-bulk', prior) is prior
 
 
 def test_matching_inventory_progress_without_source_detail() -> None:

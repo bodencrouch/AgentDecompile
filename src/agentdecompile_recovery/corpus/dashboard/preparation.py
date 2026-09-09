@@ -513,6 +513,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         # in flight — the retry loop below is never reached, so that pair
         # can never complete for the life of the run.
         safe_replay = name in {'mcp.analyze-program', 'mcp.execute-script', 'corpus.match-pair'}
+        prior = _action_prior_for_retry(name, prior)
         prior_job = jobs.get_job(prior.get('jobId', '')) if prior.get('jobId') else None
         unavailable = prior_job is None or getattr(prior_job, 'history_only', False) or getattr(prior_job, 'owner_unavailable', False) or prior_job.status == 'interrupted'
         if prior.get('status') in {'submitting', 'queued', 'running'} and unavailable and not safe_replay:
@@ -1063,6 +1064,18 @@ finally:
     if client is not None:
         client.close()
 """
+
+
+def _action_prior_for_retry(name: str, prior: dict[str, Any]) -> dict[str, Any]:
+    """Allow idempotent corpus.match-pair to retry prior terminal failures.
+
+    propagate.run_pair() deletes existing rows for the run/pair before insert,
+    so a failed attempt from an earlier infra outage does not permanently block
+    the pair when comparison receipts are still absent.
+    """
+    if name == 'corpus.match-pair' and prior.get('status') == 'failed':
+        return {}
+    return prior
 
 
 def _matching_inventory_progress_kwargs(

@@ -4,89 +4,76 @@
 
 ## Diff Summary
 
-- Atlas work-context: persisted expandable workflow panel (preparation + recovery brief), sticky chrome, separate Recover CTA, PrefDetails, Activity dock left=explorer width, UnifiedActivity scroll/filter stability, Section `minHeight`.
-- Dogfood find+fix: URL/`open()` session refresh was forcing `view` back to overview (Recover & verify appeared broken).
-- Built `static/react/` assets served live on `:8080` without process restart.
-- Broader branch corpus fusion matcher: not browser-exercised beyond prep “Match related builds” status.
+- Atlas Vite shell: StageTrace pipeline theater, live explorer helpers, analysis auto-open, compact prep; Vite mounts Atlas only.
+- Router: `/dashboard` serves static `workbench-app.js`; `/dashboard?mode=atlas` serves Vite Atlas assets.
+- Atlas handoffs link to static workbench windows (`?window=wb-pipeline` / `wb-fnbrowse`), not a React `?mode=workbench` shell.
+- Matching/fusion backend changes exist on the branch but are out of this UI dogfood scope unless they surface in the StageTrace/prep feed.
 
 ## Personas
 
-- **Recovery operator** (inferred from AGENTS/STRATEGY) — needs live matching status readable while jobs poll; Recover CTA must stick.
-- **Atlas power user** — Compare builds without chrome that resets under them.
+Inferred from STRATEGY.md / recovery product use (no dedicated persona doc for Atlas):
+
+- **Recovery operator** — wants to watch prepare→match→verify without nested chrome; open a live project fast; escape to dense workbench only for advanced recover/compare.
+- **RE analyst** — needs function source/evidence quickly after selecting a binary; ranking is secondary once a function is open.
 
 ## Flows Tested
 
 ```mermaid
 flowchart TD
-  A[Open /dashboard?mode=atlas] --> B[Open live workflow / locator]
-  B --> C[Work-context Match related builds]
-  C --> D{Expand workflow}
-  D -->|Yes| E[Preparation + Live recovery region]
-  E --> F[Scroll panel during poll]
-  F --> G{Still open + scroll kept?}
-  C --> H[Recover and verify CTA]
-  H --> I{view=recovery after poll?}
-  B --> J[Activity dock select match-pair]
-  J --> K[Dock left equals explorer width]
+  A["Open /dashboard"] --> B{Static workbench?}
+  B -->|yes| C["Menubar + sessions + explorer chrome"]
+  B -->|no / wrong shell| Z1["Fail: React Atlas leaked onto default"]
+  C --> D["Open /dashboard?mode=atlas"]
+  D --> E["StageTrace + explorer visible"]
+  E --> F["Select/open project or live run"]
+  F --> G["Function ranking or editor"]
+  G --> H["Click Workbench / Recover handoff"]
+  H --> I["Lands on static /dashboard with window="]
+```
+
+```mermaid
+flowchart TD
+  A2["Vite :5174 Atlas DEV"] --> B2["API proxied to backend"]
+  B2 --> C2["Same StageTrace happy path"]
+  C2 --> D2["Handoff absolute /dashboard static"]
 ```
 
 ## Test Matrix & Results
 
 | # | Flow | Journey / Scenario | Status | Issue | Fix | Commit |
 |---|------|--------------------|--------|-------|-----|--------|
-| 1 | Workflow | Atlas shell loads with work-context controls | Pass | - | - | - |
-| 2 | Workflow | Expand persists across reload (pref true) | Pass | - | - | - |
-| 3 | Workflow | Scroll panel mid-poll; stays open at scrollTop | Pass | - | - | - |
-| 4 | Workflow | Recover & verify navigates and survives poll | Fixed | `open()` effect reset view on sessions refresh | Guard openKey + only reset view on project change | `282cc71` |
-| 5 | Activity | Select corpus.match-pair; dock usable | Pass | Short log; Follow release N/A | - | - |
-| 6 | Activity | Dock left matches explorer width (320px) | Pass | - | - | - |
-| 7 | Analysis | PrefDetails on embeddings with binary selected | Skipped | Project-only selection had no AtlasAnalysis | Needs binary tree member | - |
-| 8 | Feel/a11y | Toggle aria-label; panel region; summary aria-expanded | Fixed | Glyph-only name; unmount broke aria-controls | aria-label, keep panel `hidden`, dual ARIA, hit targets | `282cc71` |
+| 1 | Static default | `/dashboard` is static workbench (`workbench-app.js` / `#wb-sessions`), not Vite `#root` Atlas | Pass | - | - | - |
+| 2 | Atlas route | `/dashboard?mode=atlas` loads Atlas (`StageTrace` / AD chrome) | Pass | - | - | - |
+| 3 | Atlas empty | Empty Atlas landing shows StageTrace STANDBY + explorer affordances | Pass | - | - | - |
+| 4 | Atlas project | Open known dogfood project (bioware) — explorer expands / stage rail updates | Pass | - | - | - |
+| 5 | Handoff | Atlas “Workbench ↗” / Recover link opens static `/dashboard` (no `mode=workbench`) | Pass | - | - | - |
+| 6 | Console | No hard JS errors on Atlas load / handoff | Pass | - | - | - |
 
 ## What Was Fixed
 
-### Session refresh forced overview — `282cc71`
-- **Symptom:** Recover & verify click left Compare builds; DOM click set recovery then poll restored overview.
-- **Root cause:** `useEffect([open, sessions.loading])` re-called `open()` whenever `open` identity changed; `open` always `setView(overview)`.
-- **Fix:** `AtlasApp.tsx` — skip re-open when `openKey` matches; only change view when project identity changes (or addr targets functions).
-- **Regression test:** Browser replay (agent-browser): recover → wait 4–5s → `viewAfterPoll=recovery`. No meaningful unit extract without pulling `open` into a pure helper; replay documented here.
-
-### Workflow disclosure a11y/feel — `282cc71`
-- **Symptom:** Toggle announced as “▾”; panel unmounted when collapsed; Recover hidden ≤1000px in an earlier draft.
-- **Fix:** `aria-label` on toggle; summary `aria-expanded`/`aria-controls`; panel stays mounted with `hidden`; 40px hit targets; tabular-nums on live counters; activity muted contrast bump.
-- **Regression test:** Browser eval of `aria-label` / `summaryExpanded` / Recover CTA present.
+- Preserved the static workbench as the default `/dashboard` route and kept Atlas behind `?mode=atlas`.
+- Verified Atlas project expansion, live workflow visibility, and the absolute handoff to `/dashboard?window=wb-pipeline`.
 
 ## Paper Cuts (by persona)
 
-- **Recovery operator** — dual disclosure controls (chevron + summary) — low — deferred (intentional discoverability).
-- **Recovery operator** — embeddings PrefDetails not covered without binary — deferred.
-- **Atlas power user** — activity list re-anchor disabled after any scroll — low — deferred (stability preferred).
+None observed in the tested flows.
 
 ## Console Errors
 
-None observed on Atlas recover path in agent-browser `errors` samples. Lighthouse separately reported favicon 404 (pre-existing / infra).
+No page errors reported by `agent-browser` during route load, project expansion, or handoff.
 
 ## Human Verifications
 
-Not applicable.
+Not applicable (no OAuth/email/payments).
 
 ## Decisions for a Human
 
-### Gzip + immutable cache for hashed React assets
-- **What's broken:** Lab LH reports ~356 KiB savings; assets served without Content-Encoding; `Cache-Control: no-cache` despite hashes.
-- **Why escalated:** Server middleware / `react_api.py` trade-offs affect all surfaces.
-- **Options:** Starlette GZipMiddleware + immutable hashed paths vs reverse-proxy compression only.
-- **Recommendation:** Enable gzip/brotli at the HTTP layer serving `static/react/assets/*` with long-cache on content-hashed filenames.
-
-### ResizeBar `aria-valuenow`
-- Shared separator control lacks valuemin/max/now — product decision on announcing pixel sizes vs omit role.
+_(escalations only)_
 
 ## Learnings
 
-- Atlas is `?mode=atlas` (production); bare `/dashboard` is workbench App — dogfood must force the mode under test.
-- Preferential `open()` tied to callback identity + polling is a silent UX killer (view thrash).
-- Expanding workflow into a primary panel is the right fix for “collapsed strip”; still need not to remount it.
+- UI proof for this product is browser dogfood (`agent-browser` + `/ce-dogfood`), not filesystem pytest of the Vite tree. Existing pytest files stay untouched.
 
 ## Final Status
 
-**Ready with fixes** for the Atlas collapse/workflow UX scoped in this dogfood. Matrix items 1–6 and 8 pass after fix; 7 skipped. Automated frontend vitest (`activityDisplay`, `preparationProgress`) green. Full corpus matcher suite not re-run (out of browser scope). Lab Lighthouse desktop Perf 99 / A11y 87 — compression and contrast follow-ups escalated.
+Complete — browser matrix executed against the local dashboard server.

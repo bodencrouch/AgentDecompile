@@ -230,7 +230,50 @@ def detect_pe_compiler_hint(path: Path) -> dict[str, Any] | None:
     return rich_header_compiler_hint(decode_pe_rich_header(BinaryView(path, path.read_bytes())))
 
 
-def build_binary_inventory(target: TargetIdentity) -> dict[str, Any]:
+def nds_inventory(target: TargetIdentity, *, analysis_target: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Inventory for extracted NDS CPU images (typically ARM9 primary)."""
+    payload = analysis_target or {}
+    container = payload.get("container") if isinstance(payload.get("container"), dict) else {}
+    primary = container.get("primary") if isinstance(container.get("primary"), dict) else {}
+    load_address = primary.get("loadAddress")
+    entry_point = primary.get("entryPoint")
+    image_size = int(primary.get("size") or target.size or 0)
+    if isinstance(load_address, str):
+        load_address = int(load_address, 0)
+    if isinstance(entry_point, str):
+        entry_point = int(entry_point, 0)
+    code_ranges: list[dict[str, Any]] = []
+    if load_address is not None and image_size > 0:
+        code_ranges.append(
+            {
+                "name": str(primary.get("role") or "arm9"),
+                "address": int(load_address),
+                "size": image_size,
+                "fileOffset": 0,
+                "fileSize": image_size,
+            }
+        )
+    return {
+        "schema": "agentdecompile.binary-inventory.v1",
+        "target": target.to_json(),
+        "format": "nds",
+        "status": "complete" if code_ranges else "container-format",
+        "entryVa": int(entry_point) if entry_point is not None else None,
+        "imageBase": int(load_address) if load_address is not None else None,
+        "sections": [],
+        "imports": [],
+        "symbols": [],
+        "codeRanges": code_ranges,
+        "dataRanges": [],
+        "summary": {
+            "note": "NDS extracted CPU image; function discovery uses entry point and executable range until Ghidra analysis.",
+            "containerTitle": container.get("title"),
+            "productCode": container.get("productCode"),
+        },
+    }
+
+
+def build_binary_inventory(target: TargetIdentity, *, analysis_target: dict[str, Any] | None = None) -> dict[str, Any]:
     view = BinaryView(target.binary_path, target.binary_path.read_bytes())
     if target.format == "pe":
         return pe_inventory(target, view)
@@ -238,6 +281,8 @@ def build_binary_inventory(target: TargetIdentity) -> dict[str, Any]:
         return elf_inventory(target, view)
     if target.format == "macho":
         return macho_inventory(target, view)
+    if target.format == "nds":
+        return nds_inventory(target, analysis_target=analysis_target)
     return {
         "schema": "agentdecompile.binary-inventory.v1",
         "target": target.to_json(),

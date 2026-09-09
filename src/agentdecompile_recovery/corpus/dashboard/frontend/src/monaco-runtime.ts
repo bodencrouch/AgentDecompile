@@ -3,7 +3,31 @@ import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker.js?worker';
 import 'monaco-editor/esm/vs/editor/contrib/find/browser/findController.js';
 import 'monaco-editor/esm/vs/editor/contrib/folding/browser/folding.js';
 import 'monaco-editor/esm/vs/editor/contrib/bracketMatching/browser/bracketMatching.js';
-import 'monaco-editor/esm/vs/basic-languages/cpp/cpp.contribution.js';
+
+const contributionByMonacoId: Record<string, () => Promise<unknown>> = {
+  c: () => import('monaco-editor/esm/vs/basic-languages/cpp/cpp.contribution.js'),
+  cpp: () => import('monaco-editor/esm/vs/basic-languages/cpp/cpp.contribution.js'),
+  rust: () => import('monaco-editor/esm/vs/basic-languages/rust/rust.contribution.js'),
+  go: () => import('monaco-editor/esm/vs/basic-languages/go/go.contribution.js'),
+  csharp: () => import('monaco-editor/esm/vs/basic-languages/csharp/csharp.contribution.js'),
+  java: () => import('monaco-editor/esm/vs/basic-languages/java/java.contribution.js'),
+};
+
+const loadedContributions = new Set<string>();
+
+export async function ensureMonacoLanguage(monacoId: string): Promise<void> {
+  const loader = contributionByMonacoId[monacoId];
+  if (!loader || loadedContributions.has(monacoId)) {
+    return;
+  }
+  await loader();
+  loadedContributions.add(monacoId);
+  if (monacoId === 'c' || monacoId === 'cpp') {
+    loadedContributions.add('c');
+    loadedContributions.add('cpp');
+  }
+}
+
 (globalThis as typeof globalThis & {MonacoEnvironment: unknown}).MonacoEnvironment={getWorker:()=>new EditorWorker()};
 export {monaco};
 monaco.languages.register({id:'agentdecompile-asm'});

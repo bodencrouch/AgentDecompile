@@ -2,7 +2,7 @@
 
 AgentDecompile serves the built workbench at `/dashboard` on its MCP HTTP server. The installed Python package includes the assets; serving them does not require Node.
 
-The MCP-served interface defaults to the dense workbench. Vite defaults to the Atlas project manager, with project preparation, build comparisons, and focused function exploration. Both include the same Code Browser, recovery surfaces, guide workflows, action catalog, and persistent jobs. `?mode=workbench` and `?mode=atlas` select either presentation explicitly.
+The operator workbench is the **static** page at `/dashboard` (`workbench-app.js`). The Vite frontend is **Atlas only**, built into `static/react` and served at `/dashboard?mode=atlas` (and at the Vite DEV server on `:5174`). Keep `/dashboard` as the static fallback until the server-side route rollout makes a different default explicit.
 
 For frontend development, run these commands from this directory:
 
@@ -13,6 +13,8 @@ AGENTDECOMPILE_BACKEND=http://127.0.0.1:8080 npm run dev
 ```
 
 Vite runs on `http://127.0.0.1:5174/`. It fails if 5174 is occupied. It proxies API requests to AgentDecompile; credentials stay on the backend. The production build writes to `../static/react` and is served by both full and proxy MCP servers.
+
+`AGENTDECOMPILE_BACKEND` is the preferred development proxy target; `VITE_AGENTDECOMPILE_BACKEND` is accepted for compatibility. Vite emits entry chunks, dynamically loaded Monaco language chunks, the Monaco editor worker, and fonts below `/dashboard/static/react/`. There is no current WASM import in this package. Node is needed only to check or package the frontend, never by the installed server. Do not hand-edit `static/react`; rebuild it as the release artifact when a packaging run is authorized.
 
 ```mermaid
 flowchart LR
@@ -56,7 +58,7 @@ Project preparation checks existing analysis, extracts missing function features
 
 ## Verify the running interfaces
 
-Build with `npm run build`. Browser acceptance must exercise both MCP production delivery and Vite against actual handler paths. Use inline Playwright or browser tools to open/import projects, inspect functions, follow references, edit justified analysis, save state, resize panes, run recovery/export operations, and inspect their evidence. Verify installed-wheel serving with Node absent from the server's environment.
+Run `npm run check` for the frontend type gate. A packaging run uses `npm run build` and rewrites `static/react`; do not substitute stale generated assets for that release step. Browser acceptance must exercise both MCP production delivery and Vite against actual handler paths. Use inline Playwright or browser tools to open/import projects, inspect functions, follow references, edit justified analysis, save state, resize panes, run recovery/export operations, and inspect their evidence. Verify installed-wheel serving with Node absent from the server's environment.
 
 For this implementation session, do not run saved test files or create or modify tests. Browser screenshots and JSON interaction receipts are evidence of the observed workflows, not corpus-recovery proof.
 

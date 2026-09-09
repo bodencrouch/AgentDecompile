@@ -5,25 +5,88 @@ from __future__ import annotations
 import asyncio
 import copy
 from contextlib import contextmanager
+from html import escape
 import hashlib
 import json
 import os
+import re
 import socket
 import threading
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 
 from agentdecompile_recovery.corpus.dashboard.actions import jobs
 from agentdecompile_recovery.corpus.dashboard.actions.catalog import action_by_id
 from agentdecompile_recovery.corpus.dashboard.common import live_root
 
 ASSETS = Path(__file__).parent / "static" / "react"
+ASSET_BASE_PATH = "/dashboard/static/react/"
+_ENTRY_ASSET_RE = re.compile(r"""(?:src|href)\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
+_ASSET_HEADERS = {
+    "Cache-Control": "no-cache",
+    "X-Content-Type-Options": "nosniff",
+}
 _LOCK = threading.RLock()
 _ACTIVE: set[str] = set()
 _CHAINING: set[str] = set()
+
+
+def _react_delivery_failure(
+    reason: str,
+    *,
+    status_code: int,
+    fallback_url: str = "/dashboard",
+) -> HTMLResponse:
+    response = HTMLResponse(
+        (
+            "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
+            "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+            "<title>Atlas delivery unavailable</title></head><body>"
+            "<main><h1>Atlas delivery unavailable</h1>"
+            f"<p>{escape(reason)}</p>"
+            f"<p><a id=\"static-workbench-fallback\" href=\"{escape(fallback_url, quote=True)}\">"
+            "Open the static workbench</a></p>"
+            "</main><script>document.getElementById('static-workbench-fallback').hash=window.location.hash;</script>"
+            "</body></html>"
+        ),
+        status_code=status_code,
+        headers=_ASSET_HEADERS,
+    )
+    return response
+
+
+def _missing_entry_asset(entry: Path) -> str | None:
+    asset_root = ASSETS.resolve()
+    for reference in _ENTRY_ASSET_RE.findall(entry.read_text(encoding="utf-8")):
+        path = urlsplit(reference).path
+        if not path.startswith(ASSET_BASE_PATH):
+            continue
+        target = (ASSETS / path.removeprefix(ASSET_BASE_PATH)).resolve()
+        if not target.is_relative_to(asset_root) or not target.is_file():
+            return path
+    return None
+
+
+def react_index_response(*, fallback_url: str = "/dashboard") -> Response:
+    """Serve a complete Vite entrypoint or a visible static-fallback result."""
+    entry = ASSETS / "index.html"
+    if not entry.is_file():
+        return _react_delivery_failure(
+            "The Atlas build is not installed on this server.",
+            status_code=503,
+            fallback_url=fallback_url,
+        )
+    if missing_asset := _missing_entry_asset(entry):
+        return _react_delivery_failure(
+            f"The Atlas build is incomplete: {missing_asset} is unavailable.",
+            status_code=503,
+            fallback_url=fallback_url,
+        )
+    return FileResponse(entry, headers=_ASSET_HEADERS)
 
 
 def _root() -> Path:
@@ -303,10 +366,7 @@ def create_react_router() -> APIRouter:
         Asset delivery also exposes ``index.html`` directly, but a browser
         opening the Vite-compatible base path must not receive a 404.
         """
-        entry = ASSETS / "index.html"
-        if not entry.is_file():
-            return JSONResponse({"error": "React workbench assets are not built"}, status_code=503)
-        return FileResponse(entry, headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"})
+        return react_index_response()
 
     @router.post("/dashboard/api/workbench/prepare")
     async def prepare(request: Request):
@@ -334,8 +394,11 @@ def create_react_router() -> APIRouter:
     def asset(asset: str):
         target = (ASSETS / asset).resolve()
         if not target.is_relative_to(ASSETS.resolve()) or not target.is_file() or "\\" in asset:
-            return JSONResponse({"error": "Asset not found"}, status_code=404)
-        return FileResponse(target, headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "no-cache"})
+            return _react_delivery_failure(
+                f"The Atlas asset {asset!r} is unavailable.",
+                status_code=404,
+            )
+        return FileResponse(target, headers=_ASSET_HEADERS)
 
     @router.get("/dashboard/api/workbench/types")
     def types(slug: str = "", q: str = "", source: str = "ghidra", offset: int = 0, limit: str = "all"):

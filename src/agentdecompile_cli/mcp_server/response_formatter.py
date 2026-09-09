@@ -923,11 +923,17 @@ def _next_steps_match_function(data: dict[str, Any]) -> list[str]:
 
 TOOL_GUIDANCE: dict[str, tuple[str, Callable[[dict[str, Any]], list[str]]]] = {
     "decompile": (
-        "Converts machine code into C-like pseudocode using Ghidra's decompiler engine. The decompiled output shows control flow, variable usage, function calls, and data access patterns. Read the signature line first to understand parameters and return type.",
+        "Converts machine code into high-level pseudocode using Ghidra's decompiler engine. "
+        "Ghidra emits structured pseudocode; recovery presentation language is configurable via the "
+        "recovery profile (not only C-like syntax). Output shows control flow, variables, calls, and data access. "
+        "Read the signature line first to understand parameters and return type.",
         _next_steps_decompile,
     ),
     "decompilefunction": (
-        "Converts machine code into C-like pseudocode using Ghidra's decompiler engine. The decompiled output shows control flow, variable usage, function calls, and data access patterns. Read the signature line first to understand parameters and return type.",
+        "Converts machine code into high-level pseudocode using Ghidra's decompiler engine. "
+        "Ghidra emits structured pseudocode; recovery presentation language is configurable via the "
+        "recovery profile (not only C-like syntax). Output shows control flow, variables, calls, and data access. "
+        "Read the signature line first to understand parameters and return type.",
         _next_steps_decompile,
     ),
     "executescript": (
@@ -1035,7 +1041,8 @@ TOOL_GUIDANCE: dict[str, tuple[str, Callable[[dict[str, Any]], list[str]]]] = {
         _next_steps_import_export,
     ),
     "export": (
-        "Exports analysis results in various formats (C/C++, GZF, SARIF, XML, HTML).",
+        "Exports analysis results in various Ghidra exporter formats (high-level source via CppExporter, GZF, SARIF, XML, HTML). "
+        "Exporter format is separate from recovery source language (see recoveryLanguage).",
         _next_steps_import_export,
     ),
     "analyzeprogram": (

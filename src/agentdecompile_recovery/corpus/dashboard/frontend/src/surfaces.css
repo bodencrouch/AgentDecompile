@@ -194,3 +194,30 @@
   margin-top: 12px;
   padding-top: 8px;
 }
+@media (max-width: 700px) {
+  .source-columns,
+  .source-split {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .source-split > .resize-bar {
+    display: none;
+  }
+  .call-graph,
+  .call-graph svg {
+    min-width: 0;
+  }
+  .call-graph {
+    overflow-x: auto;
+  }
+  .call-graph svg {
+    width: 700px;
+  }
+  .claim-summary,
+  .listing-meta,
+  .code-tools,
+  .type-filters {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 6px;
+  }
+}

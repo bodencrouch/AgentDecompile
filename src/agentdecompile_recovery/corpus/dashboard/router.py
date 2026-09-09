@@ -89,12 +89,26 @@ def create_dashboard_router() -> APIRouter:
     router.include_router(create_react_router())
 
     @router.get("/dashboard", response_class=HTMLResponse)
-    async def dashboard_home() -> HTMLResponse:
+    async def dashboard_home(request: Request) -> Response:
         from agentdecompile_recovery.corpus.dashboard.workbench import render_workbench
 
-        from agentdecompile_recovery.corpus.dashboard.react_api import ASSETS
-        entry = ASSETS / "index.html"
-        response = HTMLResponse(entry.read_text(encoding="utf-8") if entry.is_file() else render_workbench())
+        from agentdecompile_recovery.corpus.dashboard.react_api import react_index_response
+
+        # Static workbench is the default /dashboard. Vite Atlas is only ?mode=atlas.
+        if request.query_params.get("mode") == "atlas":
+            fallback_query = [
+                (key, value)
+                for key, value in request.query_params.multi_items()
+                if key != "mode"
+            ]
+            fallback_url = "/dashboard"
+            if fallback_query:
+                fallback_url += "?" + urlencode(fallback_query)
+            response = react_index_response(fallback_url=fallback_url)
+            for key, value in SECURITY_HEADERS.items():
+                response.headers[key] = value
+            return response
+        response = HTMLResponse(render_workbench())
         for key, value in SECURITY_HEADERS.items():
             response.headers[key] = value
         return response
@@ -110,7 +124,7 @@ def create_dashboard_router() -> APIRouter:
 
     @router.get("/dashboard/overview")
     async def dashboard_overview(request: Request) -> RedirectResponse:
-        """Keep session tabs on the React workbench; overview is embedded there."""
+        """Keep session tabs on the static workbench; overview is a window there."""
         qs = str(request.query_params)
         target = "/dashboard?window=wb-overview"
         if qs:
@@ -321,6 +335,26 @@ def create_dashboard_router() -> APIRouter:
 
         payload = write_sessions(await request.json())
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
+
+    @router.get("/dashboard/api/workbench/workspace-state")
+    async def workbench_workspace_state() -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard.workspace_state import load_state
+
+        return JSONResponse({"ok": True, **load_state()})
+
+    @router.patch("/dashboard/api/workbench/workspace-state")
+    async def workbench_patch_workspace_state(request: Request) -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard.workspace_state import patch_state
+
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "JSON object required"}, status_code=400)
+        payload = patch_state(body)
+        if payload.get("ok"):
+            return JSONResponse(payload, status_code=200)
+        error = str(payload.get("error") or "workspace state update failed")
+        status = 413 if "exceeds" in error.lower() or "miB" in error else 400
+        return JSONResponse(payload, status_code=status)
 
     @router.post("/dashboard/api/workbench/programs")
     async def workbench_import_program(request: Request) -> JSONResponse:

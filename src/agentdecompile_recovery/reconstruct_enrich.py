@@ -126,6 +126,50 @@ def load_work_dir_va_bands(work_dir: Path) -> list[tuple[int, str]]:
     return []
 
 
+def _analysis_target_payload(work_dir: Path) -> dict[str, Any]:
+    analysis_path = work_dir / "analysis-target.json"
+    if not analysis_path.is_file():
+        return {}
+    try:
+        payload = json.loads(analysis_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _nds_container_primary(work_dir: Path) -> dict[str, Any] | None:
+    payload = _analysis_target_payload(work_dir)
+    container = payload.get("container") if isinstance(payload.get("container"), dict) else {}
+    primary = container.get("primary") if isinstance(container.get("primary"), dict) else {}
+    if container.get("format") != "nds" or not primary:
+        return None
+    return primary
+
+
+def _expand_boundaries_from_discovered(
+    boundaries: list[dict[str, Any]],
+    discovered: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Prefer Ghidra-discovered functions over coarse static seeds."""
+    if not discovered:
+        return boundaries
+    if len(discovered) <= len(boundaries):
+        return boundaries
+    expanded: list[dict[str, Any]] = []
+    for row in discovered:
+        entry = int(row["entry"])
+        expanded.append(
+            {
+                "entry": entry,
+                "length": row.get("length"),
+                "name": row.get("name"),
+                "section": None,
+                "provenance": "ghidra-discovered",
+            }
+        )
+    return expanded
+
+
 def run_reconstruct_enrich(
     *,
     binary: Path,
@@ -207,96 +251,130 @@ def run_reconstruct_enrich(
     summary: dict[str, Any]
 
     try:
-        with pyghidra.open_program(
-            binary,
-            project_location=project_root,
-            project_name=project_name,
-            analyze=True,
-        ) as flat_api:
+        nds_primary = _nds_container_primary(work_dir)
+        flat_api = None
+        open_ctx = None
+        if nds_primary is not None:
+            pyghidra.start()
+            from ghidra.base.project import GhidraProject  # pyright: ignore[reportMissingImports]
+            from ghidra.program.flatapi import FlatProgramAPI  # pyright: ignore[reportMissingImports]
+
+            from agentdecompile_cli.mcp_utils.container_import import import_raw_binary_slice
+            from agentdecompile_cli.mcp_utils.program_analysis import blocking_ensure_analyzed
+
+            load_address = int(str(nds_primary.get("loadAddress") or "0"), 0)
+            entry_point = int(str(nds_primary.get("entryPoint") or "0"), 0)
+            language_id = str(nds_primary.get("languageId") or "ARM:LE:32:v5t")
+            role = str(nds_primary.get("role") or "arm9")
+            gp = GhidraProject.createProject(str(project_root.resolve()), project_name, False)
+            program = import_raw_binary_slice(
+                gp,
+                binary,
+                language_id=language_id,
+                base_address=load_address,
+                block_name=role,
+                program_name=binary.name,
+                dest_folder_path="/",
+                entry_point=entry_point or None,
+            )
+            analyze_tx = program.startTransaction("nds-auto-analysis")
+            try:
+                blocking_ensure_analyzed(program, force=True)
+            finally:
+                program.endTransaction(analyze_tx, True)
+            flat_api = FlatProgramAPI(program)
+        else:
+            open_ctx = pyghidra.open_program(
+                binary,
+                project_location=project_root,
+                project_name=project_name,
+                analyze=True,
+            )
+            flat_api = open_ctx.__enter__()
             program = flat_api.getCurrentProgram()
-            function_manager = program.getFunctionManager()
-            reference_manager = program.getReferenceManager()
-            listing = program.getListing()
-            for function in function_manager.getFunctions(True):
-                body = function.getBody()
-                discovered.append(
-                    {
-                        "entry": int(function.getEntryPoint().getOffset()),
-                        "name": str(function.getName()),
-                        "length": int(body.getNumAddresses()) if body is not None else None,
-                    }
-                )
-            for data in listing.getDefinedData(True):
-                try:
-                    value = str(data.getValue() or "")
-                except Exception:  # noqa: BLE001
-                    continue
-                lowered = value.lower()
-                if not (
-                    "/code/" in lowered
-                    or "\\code\\" in lowered
-                    or lowered.endswith((".cpp", ".c", ".cc", ".cxx", ".h", ".hpp"))
-                ):
-                    continue
-                for reference in reference_manager.getReferencesTo(data.getAddress()):
-                    function = function_manager.getFunctionContaining(reference.getFromAddress())
-                    if function is None:
-                        continue
-                    entry = int(function.getEntryPoint().getOffset())
-                    resolver.assert_paths_by_entry[entry] = value
 
-            ghidra_classes = extract_ghidra_rtti_classes(program)
-            rtti_classes = merge_rtti_classes(ghidra_classes, string_classes)
-
-            names_by_entry = build_names_by_entry(
-                discovered=discovered,
-                rtti_classes=rtti_classes,
-                corpus=None,
-                curated_names=load_curated_names(work_dir),
-            )
-            from .symbol_provenance import load_symbol_provenance_names
-
-            for entry_hex, prov_name in load_symbol_provenance_names(work_dir).items():
-                try:
-                    entry = int(entry_hex, 16)
-                except (TypeError, ValueError):
-                    continue
-                if entry not in names_by_entry:
-                    names_by_entry[entry] = (prov_name, "symbol-provenance")
-            # Prefer candidate names only when they are not Ghidra/autogen defaults
-            # (FUN_*, sub_*, LAB_*, …). Treating `sub_*` as real names previously
-            # flooded names_by_entry with function-candidate and blocked curated
-            # names from mattering after a stale enrich.
-            for row in boundaries:
-                entry = int(row["entry"])
-                name = str(row.get("name") or "")
-                if (
-                    name
-                    and not is_default_ghidra_name(name)
-                    and entry not in names_by_entry
-                ):
-                    names_by_entry[entry] = (name, "function-candidate")
-
-            for row in boundaries:
-                entry = int(row["entry"])
-                evidence = resolver.resolve(entry)
-                module_by_entry[entry] = evidence.module
-                module_entries[f"{entry:08x}"] = {
-                    "module": evidence.module,
-                    "moduleProvenance": evidence.provenance,
-                    "score": evidence.score,
+        function_manager = program.getFunctionManager()
+        reference_manager = program.getReferenceManager()
+        listing = program.getListing()
+        for function in function_manager.getFunctions(True):
+            body = function.getBody()
+            discovered.append(
+                {
+                    "entry": int(function.getEntryPoint().getOffset()),
+                    "name": str(function.getName()),
+                    "length": int(body.getNumAddresses()) if body is not None else None,
                 }
-
-            summary = run_enrich_pipeline(
-                boundaries=boundaries,
-                corpus=None,
-                rtti_classes=rtti_classes,
-                out_facts=facts_path,
-                program_factory=lambda: PyGhidraEnrichProgram(flat_api),
-                module_by_entry=module_by_entry,
-                names_by_entry=names_by_entry,
-                signatures_by_entry=trusted_curated_signatures(work_dir, boundaries),
             )
+        for data in listing.getDefinedData(True):
+            try:
+                value = str(data.getValue() or "")
+            except Exception:  # noqa: BLE001
+                continue
+            lowered = value.lower()
+            if not (
+                "/code/" in lowered
+                or "\\code\\" in lowered
+                or lowered.endswith((".cpp", ".c", ".cc", ".cxx", ".h", ".hpp"))
+            ):
+                continue
+            for reference in reference_manager.getReferencesTo(data.getAddress()):
+                function = function_manager.getFunctionContaining(reference.getFromAddress())
+                if function is None:
+                    continue
+                entry = int(function.getEntryPoint().getOffset())
+                resolver.assert_paths_by_entry[entry] = value
+
+        ghidra_classes = extract_ghidra_rtti_classes(program)
+        rtti_classes = merge_rtti_classes(ghidra_classes, string_classes)
+        boundaries = _expand_boundaries_from_discovered(boundaries, discovered)
+
+        names_by_entry = build_names_by_entry(
+            discovered=discovered,
+            rtti_classes=rtti_classes,
+            corpus=None,
+            curated_names=load_curated_names(work_dir),
+        )
+        from .symbol_provenance import load_symbol_provenance_names
+
+        for entry_hex, prov_name in load_symbol_provenance_names(work_dir).items():
+            try:
+                entry = int(entry_hex, 16)
+            except (TypeError, ValueError):
+                continue
+            if entry not in names_by_entry:
+                names_by_entry[entry] = (prov_name, "symbol-provenance")
+        for row in boundaries:
+            entry = int(row["entry"])
+            name = str(row.get("name") or "")
+            if (
+                name
+                and not is_default_ghidra_name(name)
+                and entry not in names_by_entry
+            ):
+                names_by_entry[entry] = (name, "function-candidate")
+
+        for row in boundaries:
+            entry = int(row["entry"])
+            evidence = resolver.resolve(entry)
+            module_by_entry[entry] = evidence.module
+            module_entries[f"{entry:08x}"] = {
+                "module": evidence.module,
+                "moduleProvenance": evidence.provenance,
+                "score": evidence.score,
+            }
+
+        summary = run_enrich_pipeline(
+            boundaries=boundaries,
+            corpus=None,
+            rtti_classes=rtti_classes,
+            out_facts=facts_path,
+            program_factory=lambda: PyGhidraEnrichProgram(flat_api),
+            module_by_entry=module_by_entry,
+            names_by_entry=names_by_entry,
+            signatures_by_entry=trusted_curated_signatures(work_dir, boundaries),
+        )
+        if open_ctx is not None:
+            open_ctx.__exit__(None, None, None)
     except Exception as exc:  # noqa: BLE001 - soft degrade; reconstruct continues
         receipt = {
             "schema": SCHEMA,

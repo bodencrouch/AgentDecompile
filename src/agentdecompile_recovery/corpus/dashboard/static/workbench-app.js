@@ -2674,6 +2674,33 @@
       }
     }, [sessionRevision]);
 
+    const sessionsRef = useRef([]);
+    const activeSessionRef = useRef("");
+    const sessionRevisionRef = useRef(0);
+    useEffect(function () { sessionsRef.current = sessions; }, [sessions]);
+    useEffect(function () { activeSessionRef.current = activeSession; }, [activeSession]);
+    useEffect(function () { sessionRevisionRef.current = sessionRevision; }, [sessionRevision]);
+    useEffect(function () {
+      function flushSessions() {
+        fetch(API.sessions, {
+          method: "PUT",
+          headers: { "content-type": "application/json", "X-Requested-With": "fetch" },
+          body: JSON.stringify({
+            active: activeSessionRef.current,
+            sessions: sessionsRef.current,
+            revision: sessionRevisionRef.current
+          }),
+          keepalive: true
+        });
+      }
+      window.addEventListener("pagehide", flushSessions);
+      window.addEventListener("beforeunload", flushSessions);
+      return function () {
+        window.removeEventListener("pagehide", flushSessions);
+        window.removeEventListener("beforeunload", flushSessions);
+      };
+    }, []);
+
     const persistSessions = useCallback(async function (nextSessions, nextActive) {
       setSessions(nextSessions);
       setActiveSession(nextActive);

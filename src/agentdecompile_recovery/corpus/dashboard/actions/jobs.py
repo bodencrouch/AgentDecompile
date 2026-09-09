@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from agentdecompile_recovery.languages import SourceLanguage, default_source_language, language_spec
+
 from agentdecompile_recovery.corpus.dashboard.actions.catalog import (
     ActionSpec,
     action_by_id,
@@ -30,6 +32,34 @@ MAX_JOBS = 50
 MAX_CONCURRENT = 4
 MAX_LOG_BYTES = 2 * 1024 * 1024
 POLL_S = 0.25
+
+_DASHBOARD_AUTO_CHECKIN_TOOLS = frozenset(
+    {
+        "managesymbols",
+        "managefunction",
+        "managecomments",
+        "managestructures",
+        "manageenums",
+        "managedatatypes",
+        "applydatatype",
+        "managebookmarks",
+        "managefunctiontags",
+        "managestrings",
+        "matchfunction",
+    }
+)
+
+
+def _auto_checkin_enabled() -> bool:
+    for var_name in ("AGENTDECOMPILE_AUTO_CHECKIN", "AGENT_DECOMPILE_AUTO_CHECKIN"):
+        value = os.getenv(var_name)
+        if value and value.strip().lower() in {"1", "true", "yes", "on"}:
+            return True
+    return False
+
+
+def _tool_key(name: str) -> str:
+    return re.sub(r"[^a-z]", "", (name or "").lower())
 
 IDENTITY_WRITERS = frozenset({
     "corpus.logical-build",
@@ -145,7 +175,7 @@ class JobStore:
     def _persist_locked(self, job: JobRecord, *, force: bool = False) -> None:
         from . import job_history
         now = time.monotonic()
-        if not force and now - self._persisted_at.get(job.id, 0) < .5:
+        if not force and now - self._persisted_at.get(job.id, 0) < .1:
             return
         payload = job.to_dict()
         payload.update(job_history.owner())
@@ -289,7 +319,7 @@ class JobStore:
                 def archive_progress(text: str) -> None:
                     with self._lock:
                         self._jobs[job_id].log = text[-MAX_LOG_BYTES:]
-                        self._persist_locked(self._jobs[job_id])
+                        self._persist_locked(self._jobs[job_id], force=True)
                 def export_program(output_path: Path, context: dict[str, Any]) -> dict[str, Any]:
                     return _export_archive_program(output_path, context, cancel)
                 result = build_archive(dict(job.params), cancel, archive_progress, export_program=export_program)
@@ -300,7 +330,7 @@ class JobStore:
                 def publish_log(text: str) -> None:
                     with self._lock:
                         self._jobs[job_id].log = text[-MAX_LOG_BYTES:]
-                        self._persist_locked(self._jobs[job_id])
+                        self._persist_locked(self._jobs[job_id], force=True)
                 if self.executor:
                     code, log = self.executor(argv, cwd, cancel)
                 else:
@@ -385,6 +415,13 @@ def _from_history(payload: dict) -> JobRecord:
                      log_reason=payload.get('logReason') or '', log_truncated=bool(payload.get('logTruncated')))
 
 
+def _ghidra_export_format_for(language: SourceLanguage) -> str:
+    ext = language_spec(language).default_export_extension.lower()
+    if ext in {".cpp", ".cxx", ".cc", ".hpp", ".hh", ".hxx"}:
+        return "cpp"
+    return "c"
+
+
 def _export_archive_program(output_path: Path, context: dict[str, Any], cancel: threading.Event) -> dict[str, Any]:
     export, inspect = action_by_id("mcp.export"), action_by_id("mcp.execute-script")
     if export is None or inspect is None:
@@ -410,7 +447,12 @@ def _export_archive_program(output_path: Path, context: dict[str, Any], cancel: 
             return {"ok": False, "error": "The selected Ghidra program's fingerprint could not be matched to this binary.", "observation": observed}
         if observed.get("needsAnalysis") is not False:
             return {"ok": False, "error": "Analysis is pending. Whole-program source export will be available after analysis completes.", "observation": observed}
-        code, log = _mcp_executor_in_context(export, {**target, "outputPath": str(output_path), "format": "c", "createHeader": True}, cancel)
+        export_format = _ghidra_export_format_for(default_source_language())
+        code, log = _mcp_executor_in_context(
+            export,
+            {**target, "outputPath": str(output_path), "format": export_format, "createHeader": True},
+            cancel,
+        )
         data = payload(log)
     accepted = code == 0 and data.get("success") is True and output_path.is_file()
     return {"ok": accepted, "tool": "export", "data": data, "observation": observed,
@@ -472,6 +514,20 @@ def _mcp_executor_in_context(action: ActionSpec, params: dict[str, Any], cancel:
             invalidate(params)
         except OSError as exc:
             log_parts.append(f'Function evidence refresh could not be recorded: {exc}\n')
+    if (hit.get('ok') and action.mutating and _auto_checkin_enabled()
+            and not params.get('_preparationProbe')
+            and _tool_key(action.command) in _DASHBOARD_AUTO_CHECKIN_TOOLS
+            and action.command not in {'checkin-program', 'checkout-program', 'open', 'connect-shared-project', 'close'}):
+        program = str(params.get('programPath') or params.get('program') or '')
+        if not program:
+            log_parts.append('checkin-program skipped: no programPath in job params\n')
+        else:
+            checkin = call_tool('checkin-program', {'programPath': program}, timeout=120.0)
+            if checkin.get('ok'):
+                log_parts.append('checkin-program: project changes saved\n')
+            else:
+                error = checkin.get('error') or 'checkin-program failed'
+                log_parts.append(f'checkin-program warning: {error}\n')
     if cancel.is_set():
         return 1, "".join(log_parts) + "[cancelled]\n"
     return (0 if hit.get("ok") else 1), "".join(log_parts)

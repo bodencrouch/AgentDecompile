@@ -8,6 +8,20 @@ from typing import Any, cast
 import pytest
 
 from agentdecompile_cli.mcp_server.providers.import_export import ImportExportToolProvider
+from agentdecompile_cli.registry import Tool
+from agentdecompile_recovery.languages import default_source_language, language_spec
+
+
+@pytest.mark.unit
+def test_export_tool_advertises_recovery_language_separate_from_format() -> None:
+    provider = ImportExportToolProvider()
+    export_tool = next(tool for tool in provider.list_tools() if tool.name == Tool.EXPORT.value)
+    schema = export_tool.inputSchema
+    assert schema is not None
+    props = schema["properties"]
+    assert "recoveryLanguage" in props
+    assert "Ghidra exporter format" in props["format"]["description"]
+    assert language_spec(default_source_language()).display_name in export_tool.description
 
 
 @pytest.mark.unit

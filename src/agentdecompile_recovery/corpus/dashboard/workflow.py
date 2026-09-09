@@ -205,7 +205,11 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
             'input': str(original), 'work-dir': str(work / 'proof'), 'project': row['locator'],
             'project-program': program, 'autonomous': True,
             **({'autonomous-max-wall-seconds': remaining} if remaining is not None else {}),
-            'resume': True, 'skip-enrichment': True, 'dump-source': str(work / 'readable'),
+            # Recovery must enrich the current Ghidra program before emitting
+            # a source candidate.  Skipping this made later compilation work
+            # from weaker pseudocode even when the pipeline had already
+            # collected names, types, and shared identity evidence.
+            'resume': True, 'dump-source': str(work / 'readable'),
         }, context)
         fallback = None
         if not recovered['ok']:

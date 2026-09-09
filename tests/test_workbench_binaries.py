@@ -32,8 +32,13 @@ def test_workbench_has_dropzone_and_manage_controls() -> None:
     assert page.status_code == 200
     react_entry = ASSETS / "index.html"
     if react_entry.is_file():
-        assert 'id="root"' in page.text
-        assert "/dashboard/static/react/assets/" in page.text
+        # /dashboard is the static workbench; Vite Atlas is ?mode=atlas only.
+        assert 'id="wb-drop"' in page.text or 'id="wb-sessions"' in page.text
+        assert "workbench-app.js" in page.text
+        atlas = TestClient(app).get("/dashboard?mode=atlas")
+        assert atlas.status_code == 200
+        assert 'id="root"' in atlas.text
+        assert "/dashboard/static/react/assets/" in atlas.text
     else:
         assert 'id="wb-drop"' in page.text
         assert 'id="wb-sessions"' in page.text

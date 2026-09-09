@@ -1,7 +1,7 @@
 """Import/Export Tool Provider - import-binary, export, analyze-program, checkin/checkout, etc.
 
   - import-binary: Load a file or folder into the project (language/compiler optional; analyzeAfterImport, enableVersionControl).
-  - export: Write C/C++/gzf/sarif/xml/html from the project (createHeader, includeTypes, includeGlobals, tags filter).
+  - export: Ghidra exporter output (c/cpp CppExporter, gzf/sarif/xml/html/ascii); recovery source language is separate (recoveryLanguage).
   - analyze-program: Run or re-run Ghidra auto-analysis on an already-imported program.
   - changeprocessor / listprocessors: Processor/language and compiler-spec management.
   - checkin-program / checkout-program / checkout-status: Version-control operations for shared projects.
@@ -47,6 +47,12 @@ from agentdecompile_cli.mcp_server.tool_providers import (
     create_success_response,
 )
 from agentdecompile_cli.registry import Tool
+from agentdecompile_recovery.languages import (
+    SourceLanguage,
+    default_source_language,
+    language_spec,
+    parse_source_language,
+)
 
 if TYPE_CHECKING:
     from ghidra.app.decompiler import DecompInterface as GhidraDecompInterface  # pyright: ignore[reportMissingModuleSource, reportMissingImports]
@@ -432,8 +438,22 @@ class ImportExportToolProvider(ToolProvider):
         except Exception:
             return False
 
+    @staticmethod
+    def _resolve_recovery_language(args: dict[str, Any]) -> SourceLanguage:
+        raw = ToolProvider._get_str(args, "recoverylanguage", "sourcelanguage")
+        return parse_source_language(raw or None, default=default_source_language())
+
+    @staticmethod
+    def _recovery_language_fields(language: SourceLanguage) -> dict[str, str]:
+        spec = language_spec(language)
+        return {
+            "recoveryLanguage": language.value,
+            "recoveryLanguageDisplayName": spec.display_name,
+        }
+
     def list_tools(self) -> list[types.Tool]:
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider.list_tools")
+        default_recovery = language_spec(default_source_language())
         return [
             types.Tool(
                 name=Tool.IMPORT_BINARY.value,
@@ -470,7 +490,12 @@ class ImportExportToolProvider(ToolProvider):
             ),
             types.Tool(
                 name=Tool.EXPORT.value,
-                description="Export your reverse engineering work directly out of the project. This allows you to generate C code files, HTML summaries, or binary save files (like `.gzf`) from your modified data.",
+                description=(
+                    "Export reverse-engineering artifacts from the project using Ghidra exporters "
+                    f"(CppExporter pseudocode, GZF, SARIF, XML, HTML). The `format` parameter selects "
+                    f"the Ghidra exporter only; recovery source language defaults to "
+                    f"{default_recovery.display_name} and is configured separately via recoveryLanguage."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -480,12 +505,31 @@ class ImportExportToolProvider(ToolProvider):
                             "type": "string",
                             "enum": ["c", "cpp", "cxx", "gzf", "sarif", "xml", "html", "ascii"],
                             "default": "cpp",
-                            "description": "What type of file to export. 'c'/'cpp' creates a single massive header/pseudocode file. 'gzf' creates a packed Ghidra Zip File archive.",
+                            "description": (
+                                "Ghidra exporter format (not recovery source language). "
+                                "'c'/'cpp'/'cxx' use CppExporter for a single pseudocode/header file; "
+                                "'gzf' packs the program; other values select SARIF, XML, HTML, or ASCII exporters."
+                            ),
+                        },
+                        "recoveryLanguage": {
+                            "type": "string",
+                            "description": (
+                                f"Recovery pipeline source language (registry aliases such as c, cpp, cxx, rust, go; "
+                                f"default {default_recovery.display_name}). Separate from Ghidra exporter `format`."
+                            ),
+                        },
+                        "recovery_language": {
+                            "type": "string",
+                            "description": "snake_case alias for recoveryLanguage.",
+                        },
+                        "sourceLanguage": {
+                            "type": "string",
+                            "description": "camelCase alias for recoveryLanguage.",
                         },
                         "createHeader": {
                             "type": "boolean",
                             "default": True,
-                            "description": "Whether to build a standard C/C++ header block at the top containing environment types.",
+                            "description": "When format is c/cpp/cxx: include a Ghidra C/C++ environment header block.",
                         },
                         "includeTypes": {"type": "boolean", "default": True, "description": "Whether to inject custom struct and typedef definitions."},
                         "includeGlobals": {"type": "boolean", "default": True, "description": "Whether to output discovered global variables."},
@@ -1397,9 +1441,9 @@ class ImportExportToolProvider(ToolProvider):
             raise ValueError(f"File not found: {source}")
 
         if enable_version_control and source.is_file():
-            from agentdecompile_recovery.corpus.dashboard.protection import prepare_protected_binary
+            from agentdecompile_recovery.corpus.dashboard.protection import prepare_analysis_binary
             from agentdecompile_recovery.corpus.dashboard.common import live_root
-            protection = await _native_call(prepare_protected_binary, source, live_root() or Path(tempfile.gettempdir()) / 'agentdecompile')
+            protection = await _native_call(prepare_analysis_binary, source, live_root() or Path(tempfile.gettempdir()) / 'agentdecompile')
             if protection.get('handling') == 'blocked':
                 return create_error_response(f"protection-unavailable: {protection.get('reason')}")
             original_source = source
@@ -1479,9 +1523,11 @@ class ImportExportToolProvider(ToolProvider):
                 discovered_count += 1
                 name = (prog_name or item.name or "").strip() or item.name
                 try:
-                    from agentdecompile_recovery.corpus.dashboard.protection import prepare_protected_binary
+                    from agentdecompile_recovery.corpus.dashboard.protection import prepare_analysis_binary
                     from agentdecompile_recovery.corpus.dashboard.common import live_root
-                    protection = await _native_call(prepare_protected_binary, item, live_root() or Path(tempfile.gettempdir()) / 'agentdecompile')
+
+                    work_root = live_root() or Path(tempfile.gettempdir()) / 'agentdecompile'
+                    protection = await _native_call(prepare_analysis_binary, item, work_root)
                     if protection.get('handling') == 'blocked':
                         raise ValueError(f"protection-unavailable: {protection.get('reason')}")
                     analysis_item = Path(protection['analysisPath'])
@@ -1515,7 +1561,47 @@ class ImportExportToolProvider(ToolProvider):
                             raise RuntimeError("Existing program could not be opened")
                         final_name = reused[1]
                     else:
-                        program = await _native_call(ghidra_project.importProgram, File(str(analysis_item)))
+                        if protection.get("handling") == "container-extract":
+                            from agentdecompile_cli.mcp_utils.container_import import import_raw_binary_slice
+
+                            container_info = protection.get("container") if isinstance(protection.get("container"), dict) else {}
+                            primary_info = container_info.get("primary") if isinstance(container_info.get("primary"), dict) else {}
+                            role = str(primary_info.get("role") or "arm9")
+                            language_id = str(protection.get("languageId") or primary_info.get("languageId") or "").strip()
+                            if not language_id:
+                                raise ValueError("container-extract import missing languageId")
+                            load_address = protection.get("loadAddress", primary_info.get("loadAddress"))
+                            if load_address is None:
+                                raise ValueError("container-extract import missing loadAddress")
+                            if isinstance(load_address, str):
+                                load_address = int(load_address, 0)
+                            entry_point = protection.get("entryPoint", primary_info.get("entryPoint"))
+                            if isinstance(entry_point, str):
+                                entry_point = int(entry_point, 0)
+
+                            program = await _native_call(
+                                import_raw_binary_slice,
+                                ghidra_project,
+                                analysis_item,
+                                language_id=language_id,
+                                base_address=int(load_address),
+                                block_name=role,
+                                program_name=name,
+                                dest_folder_path=dest_folder,
+                                entry_point=int(entry_point) if entry_point else None,
+                            )
+                            overlay_payload = protection.get("overlays")
+                            if isinstance(overlay_payload, list) and overlay_payload:
+                                from agentdecompile_cli.mcp_utils.container_import import apply_extracted_overlays
+
+                                applied_overlays = await _native_call(
+                                    apply_extracted_overlays,
+                                    program,
+                                    overlay_payload,
+                                )
+                                protection["appliedOverlays"] = applied_overlays
+                        else:
+                            program = await _native_call(ghidra_project.importProgram, File(str(analysis_item)))
                         if program is None:
                             raise RuntimeError("importProgram returned None")
                         try:
@@ -1525,7 +1611,17 @@ class ImportExportToolProvider(ToolProvider):
                                 setattr(program, "name", name)
                         except Exception:
                             pass
-                        await _native_call(ghidra_project.saveAs, program, dest_folder, name, True)
+                        needs_save_as = protection.get("handling") != "container-extract"
+                        if not needs_save_as:
+                            def _domain_file_missing() -> bool:
+                                try:
+                                    return program.getDomainFile() is None
+                                except Exception:
+                                    return True
+
+                            needs_save_as = await _native_call(_domain_file_missing)
+                        if needs_save_as:
+                            await _native_call(ghidra_project.saveAs, program, dest_folder, name, True)
                         final_name = name
                     path_in_project = ""
                     try:
@@ -1536,17 +1632,22 @@ class ImportExportToolProvider(ToolProvider):
                         pass
                     if not path_in_project:
                         path_in_project = f"/{final_name}" if dest_folder in ("/", "") else f"{dest_folder}/{final_name}"
-                    imported_programs.append(
-                        {
-                            "sourcePath": str(item),
-                            "analysisPath": str(analysis_item),
-                            "reused": bool(reused),
-                            "sha256": digest,
-                            "protection": protection,
-                            "programName": final_name,
-                            "programPath": path_in_project,
-                        },
-                    )
+                    import_entry: dict[str, Any] = {
+                        "sourcePath": str(item),
+                        "analysisPath": str(analysis_item),
+                        "reused": bool(reused),
+                        "sha256": digest,
+                        "protection": protection,
+                        "programName": final_name,
+                        "programPath": path_in_project,
+                    }
+                    if isinstance(protection, dict):
+                        if protection.get("container"):
+                            import_entry["container"] = protection["container"]
+                        overlays = protection.get("overlays")
+                        if overlays:
+                            import_entry["containerOverlays"] = overlays
+                    imported_programs.append(import_entry)
                     self._merge_imported_program_into_session_binaries(
                         session_id,
                         program_name=final_name,
@@ -1621,6 +1722,11 @@ class ImportExportToolProvider(ToolProvider):
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_export")
         self._require_program()
         assert self.program_info is not None
+        recovery_fields = self._recovery_language_fields(self._resolve_recovery_language(args))
+
+        def _export_payload(payload: dict[str, Any]) -> dict[str, Any]:
+            return {**recovery_fields, **payload}
+
         output_path = self._get_str(args, "outputpath", "output", "file", "path")
         fmt = self._get_str(args, "format", default="cpp")
         fmt = (fmt or "cpp").strip().lower()
@@ -1628,12 +1734,14 @@ class ImportExportToolProvider(ToolProvider):
         supported_formats: list[str] = ["c", "cpp", "cxx", "gzf", "sarif", "xml", "html", "ascii"]
         if fmt not in supported_formats:
             return create_success_response(
-                {
-                    "action": "export",
-                    "success": False,
-                    "error": f"Unsupported format: {fmt}",
-                    "supportedFormats": supported_formats,
-                },
+                _export_payload(
+                    {
+                        "action": "export",
+                        "success": False,
+                        "error": f"Unsupported format: {fmt}",
+                        "supportedFormats": supported_formats,
+                    },
+                ),
             )
 
         if output_path:
@@ -1647,38 +1755,44 @@ class ImportExportToolProvider(ToolProvider):
                 project = getattr(self._manager, "ghidra_project", None) if self._manager is not None else None
                 if project is None:
                     return create_success_response(
-                        {
-                            "action": "export",
-                            "format": fmt,
-                            "outputPath": str(out),
-                            "success": False,
-                            "error": "No Ghidra project is active for GZF export",
-                            "apiClass": "ghidra.app.util.exporter.GzfExporter",
-                        },
+                        _export_payload(
+                            {
+                                "action": "export",
+                                "format": fmt,
+                                "outputPath": str(out),
+                                "success": False,
+                                "error": "No Ghidra project is active for GZF export",
+                                "apiClass": "ghidra.app.util.exporter.GzfExporter",
+                            },
+                        ),
                     )
                 try:
                     from java.io import File as JavaFile  # pyright: ignore[reportMissingImports]
 
                     project.saveAsPackedFile(program, JavaFile(str(out)), True)
                     return create_success_response(
-                        {
-                            "action": "export",
-                            "format": fmt,
-                            "outputPath": str(out),
-                            "success": True,
-                            "apiClass": "ghidra.app.util.exporter.GzfExporter",
-                        },
+                        _export_payload(
+                            {
+                                "action": "export",
+                                "format": fmt,
+                                "outputPath": str(out),
+                                "success": True,
+                                "apiClass": "ghidra.app.util.exporter.GzfExporter",
+                            },
+                        ),
                     )
                 except Exception as exc:
                     return create_success_response(
-                        {
-                            "action": "export",
-                            "format": fmt,
-                            "outputPath": str(out),
-                            "success": False,
-                            "error": str(exc),
-                            "apiClass": "ghidra.app.util.exporter.GzfExporter",
-                        },
+                        _export_payload(
+                            {
+                                "action": "export",
+                                "format": fmt,
+                                "outputPath": str(out),
+                                "success": False,
+                                "error": str(exc),
+                                "apiClass": "ghidra.app.util.exporter.GzfExporter",
+                            },
+                        ),
                     )
 
             if fmt in {"c", "cpp", "cxx"}:
@@ -1708,24 +1822,28 @@ class ImportExportToolProvider(ToolProvider):
                     # transaction around this read-only operation.
                     await _native_call(_run_cpp_export)
                     return create_success_response(
-                        {
-                            "action": "export",
-                            "format": fmt,
-                            "outputPath": str(out),
-                            "success": True,
-                            "apiClass": "ghidra.app.util.exporter.CppExporter",
-                        },
+                        _export_payload(
+                            {
+                                "action": "export",
+                                "format": fmt,
+                                "outputPath": str(out),
+                                "success": True,
+                                "apiClass": "ghidra.app.util.exporter.CppExporter",
+                            },
+                        ),
                     )
                 except Exception as exc:
                     return create_success_response(
-                        {
-                            "action": "export",
-                            "format": fmt,
-                            "outputPath": str(out),
-                            "success": False,
-                            "error": str(exc),
-                            "apiClass": "ghidra.app.util.exporter.CppExporter",
-                        },
+                        _export_payload(
+                            {
+                                "action": "export",
+                                "format": fmt,
+                                "outputPath": str(out),
+                                "success": False,
+                                "error": str(exc),
+                                "apiClass": "ghidra.app.util.exporter.CppExporter",
+                            },
+                        ),
                     )
 
             if fmt == "sarif":
@@ -1896,26 +2014,30 @@ class ImportExportToolProvider(ToolProvider):
                     }
                     out.write_text(json.dumps(sarif_doc, indent=2), encoding="utf-8")
                     return create_success_response(
-                        {
-                            "action": "export",
-                            "format": fmt,
-                            "outputPath": str(out),
-                            "success": True,
-                            "resultsCollected": len(results),
-                            "apiClass": "SARIF 2.1.0",
-                        },
+                        _export_payload(
+                            {
+                                "action": "export",
+                                "format": fmt,
+                                "outputPath": str(out),
+                                "success": True,
+                                "resultsCollected": len(results),
+                                "apiClass": "SARIF 2.1.0",
+                            },
+                        ),
                     )
                 except Exception as exc:
                     logger.error("Error generating SARIF report: %s", exc)
                     return create_success_response(
-                        {
-                            "action": "export",
-                            "format": fmt,
-                            "outputPath": str(out),
-                            "success": False,
-                            "error": str(exc),
-                            "apiClass": "SARIF 2.1.0",
-                        },
+                        _export_payload(
+                            {
+                                "action": "export",
+                                "format": fmt,
+                                "outputPath": str(out),
+                                "success": False,
+                                "error": str(exc),
+                                "apiClass": "SARIF 2.1.0",
+                            },
+                        ),
                     )
 
             if fmt == "ascii":
@@ -1948,13 +2070,15 @@ class ImportExportToolProvider(ToolProvider):
                     ascii_content = _generate_program_ascii_fallback(program, self._get_function_manager)
                     out.write_text(ascii_content, encoding="utf-8")
                 return create_success_response(
-                    {
-                        "action": "export",
-                        "format": fmt,
-                        "outputPath": str(out),
-                        "success": True,
-                        "apiClass": "ghidra.app.util.exporter.AsciiExporter or fallback",
-                    },
+                    _export_payload(
+                        {
+                            "action": "export",
+                            "format": fmt,
+                            "outputPath": str(out),
+                            "success": True,
+                            "apiClass": "ghidra.app.util.exporter.AsciiExporter or fallback",
+                        },
+                    ),
                 )
 
             if fmt == "xml":
@@ -1987,13 +2111,15 @@ class ImportExportToolProvider(ToolProvider):
                     xml_content = _generate_program_xml(program, self._get_function_manager)
                     out.write_text(xml_content, encoding="utf-8")
                 return create_success_response(
-                    {
-                        "action": "export",
-                        "format": fmt,
-                        "outputPath": str(out),
-                        "success": True,
-                        "apiClass": "ghidra.app.util.exporter.XmlExporter or fallback",
-                    },
+                    _export_payload(
+                        {
+                            "action": "export",
+                            "format": fmt,
+                            "outputPath": str(out),
+                            "success": True,
+                            "apiClass": "ghidra.app.util.exporter.XmlExporter or fallback",
+                        },
+                    ),
                 )
 
             if fmt == "html":
@@ -2026,13 +2152,15 @@ class ImportExportToolProvider(ToolProvider):
                     html_content = _generate_program_html(program, self._get_function_manager)
                     out.write_text(html_content, encoding="utf-8")
                 return create_success_response(
-                    {
-                        "action": "export",
-                        "format": fmt,
-                        "outputPath": str(out),
-                        "success": True,
-                        "apiClass": "ghidra.app.util.exporter.HtmlExporter or generated report",
-                    },
+                    _export_payload(
+                        {
+                            "action": "export",
+                            "format": fmt,
+                            "outputPath": str(out),
+                            "success": True,
+                            "apiClass": "ghidra.app.util.exporter.HtmlExporter or generated report",
+                        },
+                    ),
                 )
 
             payload: dict[str, Any] = {
@@ -2044,16 +2172,18 @@ class ImportExportToolProvider(ToolProvider):
                 "format": fmt,
             }
             out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-            return create_success_response({"action": "export", "format": fmt, "outputPath": str(out), "success": True})
+            return create_success_response(_export_payload({"action": "export", "format": fmt, "outputPath": str(out), "success": True}))
 
         return create_success_response(
-            {
-                "action": "export",
-                "format": fmt,
-                "outputPath": output_path or "(stdout)",
-                "note": "No output path provided; returning metadata only",
-                "supportedFormats": supported_formats,
-            },
+            _export_payload(
+                {
+                    "action": "export",
+                    "format": fmt,
+                    "outputPath": output_path or "(stdout)",
+                    "note": "No output path provided; returning metadata only",
+                    "supportedFormats": supported_formats,
+                },
+            ),
         )
 
     async def _handle_analyze(self, args: dict[str, Any]) -> list[types.TextContent]:

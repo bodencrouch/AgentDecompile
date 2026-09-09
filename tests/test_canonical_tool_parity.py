@@ -341,6 +341,13 @@ def test_decompile_function_is_advertised_by_default() -> None:
     assert "decompile-function" in tool_names
 
 
+def test_decompile_function_description_mentions_recovery_profile() -> None:
+    provider = DecompilerToolProvider()
+    tool = provider.list_tools()[0]
+    assert "recovery source language profile" in tool.description
+    assert "C-like pseudocode" not in tool.description
+
+
 def test_default_surface_advertises_all_non_gui_canonical_tools(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in (
         "AGENTDECOMPILE_TOOL_SURFACE",

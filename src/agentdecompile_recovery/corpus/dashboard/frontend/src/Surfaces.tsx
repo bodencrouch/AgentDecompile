@@ -1,4 +1,6 @@
 import {PreparationProgress,selectPreparation} from './PreparationActivity';
+import {PreparationFeedProvider,usePreparationFeed} from './preparationFeed';
+import {matchingStageSummary,stageDisplayProgress,stageProgressLabel} from './preparationProgress';
 import {SourceEditor,sourceWitness,sourceExtent,useFunctionEvidence} from './SourceEditor';
 import { AtlasAnalysis } from "./AtlasAnalysis";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -11,6 +13,7 @@ import {
   useData,
   usePref,
 } from "./ui";
+import { useWorkspacePref, workspaceKey } from "./workspaceState";
 import "./surfaces.css";
 function useNear(id: string) {
   const [near, setNear] = useState(false);
@@ -1066,13 +1069,20 @@ export function RecoveryWorkspace({props,catalog=[],liveRun}:{props:SurfaceProps
     <p className="recovery-target">{scoped?props.selection.locator||props.selection.program||props.selection.slug||'Select a project or binary':'All registered corpora'}</p>
     <ErrorLine error={data.error}/>
     {!scopeConfirmed&&!data.loading&&<p role="status">This server has not supplied project-scoped recovery evidence. Global reports are not substituted for the selected project.</p>}
-    {scoped&&<PreparationProgress run={run} selection={props.selection} notify={props.notify} error={data.error} loading={data.loading&&!run} />}
+    {scoped && run && <p className="recovery-workflow-link" role="status">Automatic workflow · {matchingStageSummary(run) || run.status} · <button type="button" onClick={() => document.getElementById("preparation")?.scrollIntoView({ behavior: "smooth" })}>Open preparation panel</button></p>}
+    {scoped && !run && <PreparationProgress run={run} selection={props.selection} notify={props.notify} error={data.error} loading={data.loading} compact />}
     {!scoped&&<p>This view combines registered corpora. Return to the current project to follow its automatic workflow.</p>}
     <p>Function inventory, readable source, compilation and byte verification are separate properties. Completed analysis and similarity indexing do not establish recovered source or byte parity.</p>
     <h3>{scoped?'Project binary evidence':'Registered binary evidence'}</h3>
     <Table rows={builds} columns={[["slug","Binary"],["func_count","Recorded functions"],["named_count","Recorded names"],["bound","Identity bindings"],["real_c","Real-C records"]]} onRow={inspectBuild}/>
     {!builds.length&&<p>{data.loading?'Reading project inventory…':data.data.scope?.reason||'No binary inventory is recorded for this scope yet. Current workflow status remains available above.'}</p>}
-    <h3>Cross-match observations</h3><p>{match.reason||'Comparison outcomes are advisory observations. They do not establish byte verification.'}</p><Table rows={Object.entries(match.byStatus||{}).map(([status,count])=>({status:matchLabels[status]||status,count}))} columns={[["status","Match category"],["count",match.unit||"Recorded observations"]]}/>
+    <h3>Cross-match observations</h3>
+    {run && (() => {
+      const matching = run.stages?.find((stage: Data) => stage.key === "matching");
+      const { primary } = stageDisplayProgress(matching);
+      return primary ? <p className="recovery-match-progress" role="status">Workflow comparisons · {stageProgressLabel(primary)}</p> : null;
+    })()}
+    <p>{match.reason||'Comparison outcomes are advisory observations. They do not establish byte verification.'}</p><Table rows={Object.entries(match.byStatus||{}).map(([status,count])=>({status:matchLabels[status]||status,count}))} columns={[["status","Match category"],["count",match.unit||"Recorded observations"]]}/>
     <dl className="facts"><div><dt>Recorded assembly-free source</dt><dd>{data.data.recovery?.sourceAvailability?.count!=null?`${data.data.recovery.sourceAvailability.count} functions${data.data.recovery.sourceAvailability.total!=null?` of ${data.data.recovery.sourceAvailability.total}`:''} · source witness, not proof`:(liveRun?.stages||[]).find((stage:Data)=>stage.key==='recover-source')?.reason||'Source recovery is queued behind the current workflow stage.'}{data.data.recovery?.sourceAvailability?.reason&&<><br/><small>{data.data.recovery.sourceAvailability.reason}</small></>}</dd></div><div><dt>Compilation</dt><dd>{data.data.recovery?.compilation?.summary||data.data.recovery?.compilation?.reason||(liveRun?.stages||[]).find((stage:Data)=>stage.key==='recover-source')?.reason||'Compilation starts after a source candidate is produced.'}</dd></div><div><dt>Byte verification</dt><dd>{data.data.recovery?.verification?.summary||data.data.recovery?.verification?.reason||(liveRun?.stages||[]).find((stage:Data)=>stage.key==='verify-byte-accuracy')?.reason||'Byte audit is queued: compiled output will be compared with the original binary and an independent receipt will be stored.'}</dd></div></dl>
     {(report.by_build||[]).length>0&&<><h3>Recorded source outputs</h3><Table rows={report.by_build} columns={[["slug","Binary"],["artifacts","Artifacts"],["logical","Logical functions"],["concrete","Concrete instances"]]}/></>}
     <details><summary>Historical reports and evidence availability</summary><p>These optional reports describe the run that produced them. Their absence does not mean the current project has stopped, and their presence does not prove current byte parity.</p>{evidence.length?<Table rows={evidence} columns={[["path","Evidence source"],["status","Availability"],["reason","Meaning"]]}/>:<p>No historical report availability records were supplied.</p>}<Messages data={data.data}/><Messages data={report}/><Messages data={data.data.ladder||{}}/></details>
@@ -1368,7 +1378,13 @@ function Context({
   detail: Data;
   catalog: Data[];
 }) {
-  const [note, setNote] = usePref("context-notes", "");
+  const noteKey = workspaceKey(
+    "context",
+    props.selection.locator,
+    props.selection.program,
+    props.selection.addr,
+  );
+  const [note, setNote] = useWorkspacePref("notes", noteKey, "");
   const [copied, setCopied] = useState(false);
   const near = useNear("context");
   const context = useData(
@@ -1465,7 +1481,7 @@ export function BinaryEvidenceWorkspace(props:SurfaceProps) {
   return <div className="binary-evidence-workspace"><Logical props={props} catalog={actions}/><Review props={props} data={corpus.data} catalog={actions}/><Graph props={props} detail={detail.data} catalog={actions}/><Types props={props} catalog={actions}/><Knowledge props={props} catalog={actions}/><Context props={props} detail={detail.data} catalog={actions}/></div>;
 }
 
-export function WorkbenchSurfaces(props: SurfaceProps & { inspectTools?: ReactNode; preparationTools?: ReactNode }) {
+function WorkbenchSurfacesBody(props: SurfaceProps & { inspectTools?: ReactNode; preparationTools?: ReactNode }) {
   const near = useNear("overview");
   const corpus = useData(near ? `${API}/corpus-status?${query(props.selection)}` : null, props.revision);
   const catalog = useData("/dashboard/api/actions", props.revision);
@@ -1477,6 +1493,8 @@ export function WorkbenchSurfaces(props: SurfaceProps & { inspectTools?: ReactNo
     ? { ...detail.data, ...detail.data.listing, function: detail.data.selected }
     : detail.data;
   const actions = catalog.data.actions || [];
+  const { runs } = usePreparationFeed();
+  const liveRun = selectPreparation(runs, props.selection);
   return (
     <>
       <div id="compare-builds" className="work-surface-group" tabIndex={-1} role="region" aria-labelledby="compare-builds-heading">
@@ -1500,9 +1518,17 @@ export function WorkbenchSurfaces(props: SurfaceProps & { inspectTools?: ReactNo
       </div>
       <div id="recover-verify" className="work-surface-group" tabIndex={-1} role="region" aria-labelledby="recover-verify-heading">
         <h2 id="recover-verify-heading">Recover and verify</h2>
-        <RecoveryWorkspace props={props} catalog={actions} />
+        <RecoveryWorkspace props={props} catalog={actions} liveRun={liveRun} />
       </div>
     </>
+  );
+}
+
+export function WorkbenchSurfaces(props: SurfaceProps & { inspectTools?: ReactNode; preparationTools?: ReactNode }) {
+  return (
+    <PreparationFeedProvider>
+      <WorkbenchSurfacesBody {...props} />
+    </PreparationFeedProvider>
   );
 }
 

@@ -1,17 +1,24 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap");
+
 .atlas-app {
-  --atlas-bg: #080d1b;
-  --atlas-panel: #10192c;
-  --atlas-line: #253148;
-  --atlas-muted: #94a5bf;
-  --atlas-cyan: #4de0de;
-  --atlas-pink: #ef78b5;
+  --atlas-bg: #14181e;
+  --atlas-panel: #1c232c;
+  --atlas-line: #2e3845;
+  --atlas-muted: #8b96a5;
+  --atlas-ink: #c8d0d8;
+  --atlas-phosphor: #d4a017;
+  --atlas-matched: #5fa8a0;
+  --atlas-fault: #c45c4a;
+  --atlas-cyan: var(--atlas-phosphor);
+  --atlas-pink: var(--atlas-fault);
   position: fixed;
   inset: 0;
   display: flex;
   background: var(--atlas-bg);
-  color: #edf2ff;
+  color: var(--atlas-ink);
   font:
-    14px Inter,
+    14px "IBM Plex Sans",
+    "Segoe UI",
     system-ui,
     sans-serif;
   overflow: auto;
@@ -903,20 +910,276 @@
 .atlas-explorer-column{position:relative;flex-shrink:0;display:flex;min-width:0;overflow:hidden}
 .atlas-explorer-column>.persistent-explorer{flex:1;min-width:0}
 .atlas-explorer-column>.resize-bar{position:absolute;top:0;right:0;bottom:0;z-index:2}
-.atlas-preparation-primary{margin-block-end:12px;border:1px solid var(--atlas-line);background:var(--atlas-panel);max-height:min(42vh,520px);overflow:auto;overflow-anchor:none}
-.atlas-preparation-primary .preparation-progress{padding:8px 10px}
-.atlas-preparation-primary .preparation-rail{grid-template-columns:repeat(5,minmax(110px,1fr))}
-.atlas-preparation-primary .preparation-rail li{min-width:0}
-.atlas-preparation-primary .preparation-rail li p{overflow-wrap:anywhere}
+.atlas-preparation-primary{margin-block-end:8px;border:1px solid var(--atlas-line);background:var(--atlas-panel);max-height:none;overflow:visible}
+.atlas-preparation-primary .preparation-progress{padding:6px 10px}
+.atlas-preparation-primary .preparation-compact .preparation-status{font-size:12px}
 .atlas-preparation-primary .atlas-recovery-brief{margin:0;border:0;border-top:1px solid var(--atlas-line)}
 @media (max-width: 900px) { .atlas-preparation-primary .preparation-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) {
+  .atlas-explorer-column {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: min(86vw, 360px) !important;
+    z-index: 70;
+    box-shadow: 8px 0 24px #02061099;
+  }
+  .atlas-explorer-column > .resize-bar {
+    display: none;
+  }
+}
+
+/* Stage Trace — signature pipeline rail (hero status narrative) */
+.stage-trace{
+  margin:0 0 10px;
+  border:1px solid color-mix(in srgb, var(--atlas-phosphor) 22%, var(--atlas-line));
+  background:linear-gradient(180deg,#1c2430 0%,var(--atlas-panel) 72%);
+  padding:10px 12px 12px;
+  box-shadow:inset 0 1px 0 color-mix(in srgb, var(--atlas-phosphor) 12%, transparent);
+}
+.stage-trace-banner{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px 12px;
+  margin-bottom:10px;
+  font-family:"IBM Plex Sans Condensed", "IBM Plex Sans", sans-serif;
+}
+.stage-trace-live{
+  font:600 10px/1 "IBM Plex Sans Condensed", sans-serif;
+  letter-spacing:.12em;
+  color:var(--atlas-phosphor);
+  border:1px solid color-mix(in srgb, var(--atlas-phosphor) 45%, transparent);
+  padding:2px 6px;
+}
+.stage-trace[data-live] .stage-trace-live{
+  animation:stage-live-pulse 1.6s ease-in-out infinite;
+}
+.stage-trace-banner strong{font-size:16px;font-weight:600;color:#e7edf3;letter-spacing:.01em}
+.stage-trace-banner code{
+  font:12px/1.4 "IBM Plex Mono", ui-monospace, monospace;
+  color:var(--atlas-matched);
+}
+.stage-trace-banner em{
+  font-style:normal;
+  color:var(--atlas-muted);
+  font-size:12px;
+}
+.stage-trace-chips{
+  display:inline-flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:6px 8px;
+  margin-inline-start:auto;
+}
+.stage-trace-chip{
+  font:500 11px/1.3 "IBM Plex Sans Condensed", sans-serif;
+  letter-spacing:.03em;
+  color:var(--atlas-muted);
+  border:1px solid color-mix(in srgb, var(--atlas-line) 80%, transparent);
+  padding:2px 7px;
+  border-radius:2px;
+  background:color-mix(in srgb, var(--atlas-panel) 70%, #0d1117);
+}
+.stage-trace-related{color:var(--atlas-ink)}
+.stage-trace-chip.atlas-byte-chip{
+  border-style:solid;
+  border-bottom-style:solid;
+  border-color:color-mix(in srgb, var(--atlas-matched) 40%, var(--atlas-line));
+}
+.stage-trace-chip.atlas-byte-chip.state-blocked,
+.stage-trace-chip.atlas-byte-chip.state-failed{
+  border-color:color-mix(in srgb, var(--atlas-fault) 45%, var(--atlas-line));
+}
+.stage-trace-chip.atlas-byte-chip.state-running{
+  border-color:color-mix(in srgb, var(--atlas-phosphor) 45%, var(--atlas-line));
+}
+.stage-trace-controls{
+  display:inline-flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:4px;
+}
+.stage-trace-control{
+  min-height:24px;
+  font:600 11px/1 "IBM Plex Sans Condensed", sans-serif;
+  letter-spacing:.04em;
+  padding:2px 8px;
+  border:1px solid var(--atlas-line);
+  border-radius:2px;
+  background:transparent;
+  color:var(--atlas-ink);
+  cursor:pointer;
+}
+.stage-trace-control:hover{
+  border-color:color-mix(in srgb, var(--atlas-phosphor) 50%, var(--atlas-line));
+  color:var(--atlas-phosphor);
+}
+.stage-trace-control:focus-visible{
+  outline:2px solid color-mix(in srgb, var(--atlas-phosphor) 55%, transparent);
+  outline-offset:1px;
+}
+.stage-trace-rail{
+  list-style:none;
+  margin:0;
+  padding:0;
+  display:flex;
+  gap:0;
+  overflow-x:auto;
+}
+.stage-node{
+  position:relative;
+  flex:1 1 0;
+  min-width:96px;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:4px;
+  padding:2px 10px 0 0;
+}
+.stage-node-mark{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  border:2px solid var(--atlas-line);
+  background:transparent;
+  z-index:1;
+}
+.stage-node-link{
+  position:absolute;
+  top:6px;
+  left:12px;
+  right:0;
+  height:1px;
+  background:var(--atlas-line);
+}
+.stage-node:last-child .stage-node-link{display:none}
+.stage-node-copy{
+  display:flex;
+  flex-direction:column;
+  gap:1px;
+  min-width:0;
+}
+.stage-node-copy strong{
+  font:600 12px/1.3 "IBM Plex Sans Condensed", sans-serif;
+  color:#d7dee6;
+}
+.stage-node-copy span,
+.stage-node-copy small{
+  font-size:10px;
+  color:var(--atlas-muted);
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+.stage-node-copy code{
+  font:10px/1.3 "IBM Plex Mono", ui-monospace, monospace;
+  color:var(--atlas-ink);
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.stage-node.state-queued .stage-node-mark{border-color:var(--atlas-muted)}
+.stage-node.state-running .stage-node-mark{
+  border-color:var(--atlas-phosphor);
+  background:var(--atlas-phosphor);
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--atlas-phosphor) 25%, transparent);
+  animation:stage-node-pulse 1.2s ease-in-out infinite;
+}
+.stage-node.state-waiting .stage-node-mark{
+  border-style:dashed;
+  border-color:var(--atlas-phosphor);
+}
+.stage-node.state-completed .stage-node-mark{
+  border-color:var(--atlas-matched);
+  background:var(--atlas-matched);
+}
+.stage-node.state-fault .stage-node-mark{
+  border-color:var(--atlas-fault);
+  background:var(--atlas-fault);
+  animation:stage-fault-flash .45s ease-out 1;
+}
+.stage-node.is-current .stage-node-copy strong{color:var(--atlas-phosphor)}
+.atlas-recovery-strip{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px 16px;
+  margin:0 0 8px;
+  padding:4px 2px;
+  font-size:12px;
+  color:var(--atlas-muted);
+}
+.atlas-recovery-strip strong{color:var(--atlas-ink);font-weight:500}
+.atlas-byte-chip{
+  color:var(--atlas-matched);
+  border-bottom:1px dotted color-mix(in srgb, var(--atlas-matched) 50%, transparent);
+}
+.atlas-byte-chip.state-blocked,
+.atlas-byte-chip.state-failed{color:var(--atlas-fault)}
+.atlas-byte-chip.state-running{color:var(--atlas-phosphor)}
+.atlas-workbench-link{
+  font-size:11px;
+  color:var(--atlas-phosphor) !important;
+  white-space:nowrap;
+  text-decoration:none;
+  border-bottom:1px solid color-mix(in srgb, var(--atlas-phosphor) 35%, transparent);
+}
+.atlas-tools-handoff{margin:12px 0 0;color:var(--atlas-muted);font-size:13px;line-height:1.5}
+.atlas-edge-strip{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-top:12px;
+  padding-top:10px;
+  border-top:1px solid var(--atlas-line);
+}
+.atlas-edge-strip > div{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.atlas-edge-strip > div > span{
+  font:600 10px/1 "IBM Plex Sans Condensed", sans-serif;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--atlas-muted);
+  width:100%;
+}
+.atlas-edge-strip button{
+  min-height:26px;
+  font-size:11px;
+  padding:2px 8px;
+  border-radius:2px;
+  background:transparent;
+}
+.atlas-edge-strip em{font-style:normal;color:var(--atlas-muted);font-size:12px}
+@keyframes stage-node-pulse{
+  0%,100%{box-shadow:0 0 0 2px color-mix(in srgb, var(--atlas-phosphor) 20%, transparent)}
+  50%{box-shadow:0 0 0 5px color-mix(in srgb, var(--atlas-phosphor) 30%, transparent)}
+}
+@keyframes stage-live-pulse{
+  0%,100%{opacity:1}
+  50%{opacity:.55}
+}
+@keyframes stage-fault-flash{
+  0%{filter:brightness(1.8)}
+  100%{filter:brightness(1)}
+}
+@media (prefers-reduced-motion: reduce){
+  .stage-trace[data-live] .stage-trace-live,
+  .stage-node.state-running .stage-node-mark,
+  .stage-node.state-fault .stage-node-mark{animation:none}
+}
+@media (max-width: 800px){
+  .atlas-edge-strip{grid-template-columns:1fr}
+}
 
 /* The central workspace keeps one context row and lets the document lead. */
 .atlas-app .atlas-shell{min-width:0}
 .atlas-app .atlas-top.atlas-context-toolbar{position:sticky;top:0;z-index:20;height:40px;min-height:40px;padding:4px 10px;gap:8px;flex-wrap:nowrap;background:var(--atlas-bg);justify-content:flex-start}
 .atlas-context-toolbar .atlas-wordmark{font-size:12px;letter-spacing:0;white-space:nowrap;color:var(--atlas-muted)}
 .atlas-wordmark span{color:var(--atlas-line)}
-.atlas-context-toolbar select{width:140px;flex-shrink:0;min-height:26px;font-size:12px;padding:2px 5px}
+.atlas-context-toolbar .atlas-home-link{width:auto;flex-shrink:0;min-height:26px;font-size:12px;padding:2px 8px;border:1px solid var(--atlas-line);background:transparent;color:inherit;border-radius:2px}
+button.atlas-home-link{cursor:pointer}
+button.atlas-home-link:hover{background:var(--atlas-selection,#233d57)}
+span.atlas-home-link{display:inline-flex;align-items:center;opacity:.85}
+.atlas-browser-back{margin:0 0 10px}
+.atlas-recovery-details{margin-top:10px}
 .atlas-current-context{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
 .atlas-connection{font-size:10px;color:var(--atlas-muted);white-space:nowrap}
 .atlas-app .atlas-context-toolbar button{font-size:11px;min-height:26px;padding:3px 8px;border-radius:2px}

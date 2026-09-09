@@ -58,7 +58,12 @@ class DecompilerToolProvider(ToolProvider):
         return [
             types.Tool(
                 name=Tool.DECOMPILE_FUNCTION.value,
-                description="Convert machine code representing a function into high-level, human-readable C-like pseudocode. Use this tool to easily read and understand what a function does without having to read assembly instructions.",
+                description=(
+                    "Convert machine code representing a function into high-level, human-readable pseudocode "
+                    "using Ghidra's decompiler. Ghidra emits structured pseudocode; presentation style for "
+                    "recovery workflows follows the configured recovery source language profile (not only C-like "
+                    "syntax). Use this tool to read and understand what a function does without reading assembly."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -111,17 +116,14 @@ class DecompilerToolProvider(ToolProvider):
                 target_func = self._resolve_function(target, program=program)
                 if target_func is None:
                     raise ValueError(f"Function not found: {target}")
-                results.append(
-                    self.decompile_function_payload(
-                        target_func,
-                        program,
-                        timeout,
-                        include_callees=include_callees,
-                        include_strings=include_strings,
-                        include_xrefs=include_xrefs,
-                        show_unreachable=self._get_bool(args, "showunreachable") if "showunreachable" in args else None,
-                    )
-                )
+                payload_kwargs = {
+                    "include_callees": include_callees,
+                    "include_strings": include_strings,
+                    "include_xrefs": include_xrefs,
+                }
+                if "showunreachable" in args:
+                    payload_kwargs["show_unreachable"] = self._get_bool(args, "showunreachable")
+                results.append(self.decompile_function_payload(target_func, program, timeout, **payload_kwargs))
             except Exception as exc:
                 results.append(
                     merge_decompile_dict_keys(
@@ -166,7 +168,15 @@ class DecompilerToolProvider(ToolProvider):
         show_unreachable: bool | None = None,
     ) -> dict[str, Any]:
         logger.debug("diag.enter %s", "mcp_server/providers/decompiler.py:DecompilerToolProvider.decompile_function_payload")
-        response = self._decompile_with_ghidra_api(target_func, program, timeout, show_unreachable=show_unreachable)
+        if show_unreachable is None:
+            response = self._decompile_with_ghidra_api(target_func, program, timeout)
+        else:
+            response = self._decompile_with_ghidra_api(
+                target_func,
+                program,
+                timeout,
+                show_unreachable=show_unreachable,
+            )
         payload: dict[str, Any] = {}
         if response:
             try:

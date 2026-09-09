@@ -893,6 +893,14 @@ class PyGhidraContext:
         #     return None
 
         logger.debug("diag.enter %s", "launcher.py:PyGhidraContext._detect_binary_format")
+        if path.suffix.lower() == ".nds":
+            try:
+                from agentdecompile_recovery.containers import is_nds_binary
+
+                if is_nds_binary(path):
+                    return "NDS"
+            except Exception:
+                pass
         magic_table: dict[bytes, str] = {
             b"\x7fELF": "ELF",
             b"MZ": "PE",

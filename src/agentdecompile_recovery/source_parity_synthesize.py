@@ -23,6 +23,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
+from agentdecompile_recovery.languages import SourceLanguage, compiler_lane_for, parse_source_language
+
 from .package_verify import build_shim, compile_with_msvc
 
 ROOT = Path.cwd()
@@ -123,6 +125,13 @@ def detect_compiler_lane(row: dict[str, Any], source: str | None = None) -> str:
 
     Member-function / class-qualified names and C++ tokens select cxx.
     """
+    raw_source_language = row.get("sourceLanguage") or row.get("source_language")
+    if raw_source_language is not None and str(raw_source_language).strip():
+        parsed = parse_source_language(raw_source_language, default=None)
+        if parsed is not SourceLanguage.UNKNOWN:
+            lane = compiler_lane_for(parsed)
+            if lane:
+                return lane
     explicit = str(row.get("compilerLane") or row.get("language") or "").lower()
     if explicit in {"c", "cxx", "c++", "cpp"}:
         return "cxx" if explicit in {"cxx", "c++", "cpp"} else "c"

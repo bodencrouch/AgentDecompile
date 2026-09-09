@@ -13,6 +13,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from agentdecompile_recovery.languages import language_from_metadata, verify_language_id
+
 from .state import atomic_write_json
 
 
@@ -427,11 +429,10 @@ def clang_command(clang: str, source: Path, clang_target: str | None, clang_args
 
 
 def source_language_for(source: Path, meta: dict[str, Any]) -> str:
-    language = str(meta.get("sourceLanguage") or "").lower()
-    if language in {"c++", "cpp", "cxx"}:
-        return "c++"
-    if source.suffix.lower() in {".cc", ".cpp", ".cxx"}:
-        return "c++"
+    language = language_from_metadata(meta, source)
+    verify_id = verify_language_id(language)
+    if verify_id in {"c", "c++"}:
+        return verify_id
     return "c"
 
 

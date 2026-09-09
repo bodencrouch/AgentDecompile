@@ -4,7 +4,21 @@ import { usePreparationFeed } from "./preparationFeed";
 import { ErrorLine, PrefDetails, Section } from "./ui";
 import { stageDisplayProgress, stageProgressLabel } from "./preparationProgress";
 import "./preparation.css";
-const active = (status: string) => ["queued", "running", "waiting", "cancelling"].includes(status);
+const active = (status: string) => ["queued", "running", "waiting", "cancelling", "disconnected", "resync"].includes(status);
+const statusLabels: Record<string, string> = {
+  queued: "Preparation queued",
+  running: "Preparing project",
+  paused: "Preparation paused",
+  disconnected: "Preparation disconnected · saved state retained",
+  resync: "Preparation resynchronizing saved state",
+  resumable: "Preparation can resume from its recorded checkpoint",
+  cancelling: "Stopping preparation",
+  cancelled: "Preparation cancelled",
+  blocked: "Preparation blocked",
+  failed: "Preparation failed",
+  completed: "Preparation completed",
+  partial: "Preparation needs attention",
+};
 function ProgressMessage({message}: {message: unknown}) {
   const text = String(message || "");
   if (text.length <= 220 && !text.includes("\n")) return <>{text}</>;
@@ -15,7 +29,7 @@ export function selectPreparation(runs: Data[], selection: Selection): Data | un
   const applicable = runs.filter(run => selection.locator ? run.locator === selection.locator && (!selection.program || !run.program || run.program === selection.program || run.programs?.includes(selection.program)) : Boolean(selection.slug) && run.slug === selection.slug);
   return applicable.sort((a, b) => Number(active(b.status)) - Number(active(a.status)) || Number(b.updatedAt || 0) - Number(a.updatedAt || 0))[0];
 }
-function WorkflowControls({run,selection,notify}:{run:Data;selection:Selection;notify:Notify}) {
+function WorkflowControls({run,selection,notify,compact=false}:{run:Data;selection:Selection;notify:Notify;compact?:boolean}) {
   const [busy,setBusy]=useState(''),[error,setError]=useState(''),[hours,setHours]=useState(24),[budgetMode,setBudgetMode]=useState('unlimited');
   useEffect(()=>{setBudgetMode(run.budgetSeconds==null?'unlimited':'finite');if(typeof run.budgetSeconds==='number')setHours(Math.max(1,Math.ceil(run.budgetSeconds/3600)));},[run.id]);
   async function control(operation:string){
@@ -23,7 +37,7 @@ function WorkflowControls({run,selection,notify}:{run:Data;selection:Selection;n
     try {const result=await request('/dashboard/api/jobs',{method:'POST',body:JSON.stringify({action:'workbench.workflow-control',params:{preparation_id:run.id,operation,...(operation==='budget'?{seconds:budgetMode==='unlimited'?null:Math.round(hours*3600)}:{})},context:selection,confirm:true})});notify(`${operation==='budget'?'Budget change':operation==='pause'?'Pause':operation==='resume'?'Resume':'Stop'} requested`, 'info',{jobId:result.job?.id,target:run.locator||run.slug});}
     catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy('');}
   }
-  return <div className="workflow-controls">{active(run.status)&&<><button disabled={Boolean(busy)} onClick={()=>void control('pause')}>Pause workflow</button><button disabled={Boolean(busy)} onClick={()=>void control('stop')}>Stop workflow</button></>}{run.status==='paused'&&(!run.deadline||run.deadline>Date.now()/1000)&&<button disabled={Boolean(busy)} onClick={()=>void control('resume')}>Resume workflow</button>}<details><summary>Execution budget · {run.deadline==null?'Unlimited':'Limited'}</summary><p>Unlimited work has no wall-clock deadline. Per-function attempt limits and prerequisite checks still apply. A budget is not an estimate of completion.</p>{run.deadline!=null?<p>{Math.max(0,Math.ceil((run.deadline-Date.now()/1000)/60))} minutes remaining</p>:<p>No execution deadline</p>}<label>Budget <select aria-label="Workflow execution budget" value={budgetMode} onChange={e=>setBudgetMode(e.target.value)}><option value="unlimited">Unlimited</option><option value="finite">Time allowance</option></select></label>{budgetMode==='finite'&&<label>Hours from now <input aria-label="Workflow execution budget hours" type="number" min={1} max={168} value={hours} onChange={e=>setHours(Number(e.target.value))}/></label>}<button disabled={Boolean(busy)||(budgetMode==='finite'&&(!Number.isFinite(hours)||hours<1||hours>168))} onClick={()=>void control('budget')}>{budgetMode==='unlimited'?'Use unlimited budget':'Set time allowance'}</button></details>{busy&&<span role="status">Submitting {busy}…</span>}<ErrorLine error={error}/></div>;
+  return <div className="workflow-controls">{active(run.status)&&<><button type="button" disabled={Boolean(busy)} onClick={()=>void control('pause')}>Pause</button><button type="button" disabled={Boolean(busy)} onClick={()=>void control('stop')}>Stop</button></>}{run.status==='paused'&&(!run.deadline||run.deadline>Date.now()/1000)&&<button type="button" disabled={Boolean(busy)} onClick={()=>void control('resume')}>Resume</button>}{!compact&&<details><summary>Execution budget · {run.deadline==null?'Unlimited':'Limited'}</summary><p>Unlimited work has no wall-clock deadline. Per-function attempt limits and prerequisite checks still apply. A budget is not an estimate of completion.</p>{run.deadline!=null?<p>{Math.max(0,Math.ceil((run.deadline-Date.now()/1000)/60))} minutes remaining</p>:<p>No execution deadline</p>}<label>Budget <select name="workflow-budget" aria-label="Workflow execution budget" value={budgetMode} onChange={e=>setBudgetMode(e.target.value)}><option value="unlimited">Unlimited</option><option value="finite">Time allowance</option></select></label>{budgetMode==='finite'&&<label>Hours from now <input name="workflow-budget-hours" aria-label="Workflow execution budget hours" type="number" min={1} max={168} value={hours} onChange={e=>setHours(Number(e.target.value))}/></label>}<button type="button" disabled={Boolean(busy)||(budgetMode==='finite'&&(!Number.isFinite(hours)||hours<1||hours>168))} onClick={()=>void control('budget')}>{budgetMode==='unlimited'?'Use unlimited budget':'Set time allowance'}</button></details>}{busy&&<span role="status">Submitting {busy}…</span>}<ErrorLine error={error}/></div>;
 }
 export function PreparationProgress({ run, selection, notify, error = "", loading = false, lastConnectedAt, now = Date.now(), compact = false }: {
   run?: Data; selection: Selection; notify: Notify; error?: string; loading?: boolean; lastConnectedAt?: number; now?: number; compact?: boolean;
@@ -46,21 +60,32 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
   const executionDeadline = Number(current?.executionDeadlineAt || 0);
   const executionLimit = Number(current?.executionLimitSeconds || 0);
   const deadlineRemaining = executionDeadline ? Math.max(0, Math.ceil((executionDeadline - now / 1000) / 60)) : null;
+  const statusLabel = run
+    ? (statusLabels[String(run.status)] || `Preparation ${run.status}`)
+    : loading ? "Checking preparation status…" : selection.locator || selection.slug ? "No preparation job reported for this selection" : "Open a project to prepare its binaries";
   return <div className={`preparation-progress${compact ? " preparation-compact" : ""}`} aria-busy={loading}>
-    <div className="preparation-status" role="status" aria-live="polite">
-      <strong>{run ? ({queued: "Preparation queued", running: "Preparing project", completed: "Preparation completed", partial: "Preparation needs attention", cancelling: "Stopping preparation"}[run.status as string] || `Preparation ${run.status}`) : loading ? "Checking preparation status…" : selection.locator || selection.slug ? "No preparation job reported for this selection" : "Open a project to prepare its binaries"}</strong>
-      <span>{stale ? "Connection lost · retrying; showing last received state" : run ? "Connected" : ""}</span>
-    </div>
-    {run && <>
-      <p className="preparation-scope">{run.program ? `Program · ${run.program}` : `Project-wide · ${run.locator || selection.locator}`}</p>
-      <div className="preparation-current">
-        <span>{state === "queued" ? "Waiting for a worker" : state === "cancelling" ? "Waiting for accepted work to stop" : current?.title || "Recorded result"}</span>
-        {program && <code title={program}>{program}</code>}
-        {operation && <span title={actionName}>{operation}</span>}
-        <span>{run.programs?.length ?? 0} programs</span>
-        {elapsed !== null && active(state) && <span>Current job {elapsed}s elapsed</span>}
-        {deadlineRemaining !== null && active(state) && <span title="Execution bound, not a completion estimate">Execution limit: {deadlineRemaining}m remaining{executionLimit ? ` of ${Math.ceil(executionLimit / 60)}m` : ""}</span>}
+    {!compact ? (
+      <div className="preparation-status" role="status" aria-live="polite">
+        <strong>{statusLabel}</strong>
+        <span>{stale ? "Connection lost · retrying; showing last received state" : run ? "Connected" : ""}</span>
       </div>
+    ) : (!run || stale) ? (
+      <div className="preparation-status preparation-status-compact" role="status" aria-live="polite">
+        <strong>{!run ? statusLabel : stale ? "Connection lost · retrying" : null}</strong>
+      </div>
+    ) : null}
+    {run && <>
+      {!compact && <>
+        <p className="preparation-scope">{run.program ? `Program · ${run.program}` : `Project-wide · ${run.locator || selection.locator}`}</p>
+        <div className="preparation-current">
+          <span>{state === "queued" ? "Waiting for a worker" : state === "cancelling" ? "Waiting for accepted work to stop" : state === "disconnected" ? "Connection unavailable; saved workflow state is retained" : state === "resync" ? "Reconciling saved workflow state" : state === "resumable" ? "Resume from the recorded checkpoint" : current?.title || "Recorded result"}</span>
+          {program && <code title={program}>{program}</code>}
+          {operation && <span title={actionName}>{operation}</span>}
+          <span>{run.programs?.length ?? 0} programs</span>
+          {elapsed !== null && active(state) && <span>Current job {elapsed}s elapsed</span>}
+          {deadlineRemaining !== null && active(state) && <span title="Execution bound, not a completion estimate">Execution limit: {deadlineRemaining}m remaining{executionLimit ? ` of ${Math.ceil(executionLimit / 60)}m` : ""}</span>}
+        </div>
+      </>}
       {workMeasured && currentProgress.secondary && <div className="preparation-live-work" role="status"><strong>{current?.title}: {stageProgressLabel(currentProgress.secondary)}</strong><progress value={currentProgress.secondary.completed} max={currentProgress.secondary.total} aria-label={`${current?.title}: ${currentProgress.secondary.completed} of ${currentProgress.secondary.total} ${currentProgress.secondary.unit}`}/>{currentProgress.secondary.currentTarget && <code>{currentProgress.secondary.currentTarget}</code>}</div>}
       {!compact && <ol className="preparation-rail" aria-label="Preparation stages">
         {stages.map(stage => {
@@ -78,13 +103,14 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
       </ol>}
       {run.admissionPending&&<p role="status">Waiting for a project worker. Work starts automatically when one becomes available.</p>}
       {run.status==='paused'&&<p>Workflow paused. Accepted native operations may finish before the pause takes effect.</p>}
+      {["disconnected","resync","resumable"].includes(String(run.status))&&<p role="status">No new completion is implied while this workflow is recovering. Refreshing this view reconciles the durable record.</p>}
       {(run.error || run.reason) && <p className="error">{run.error || run.reason}</p>}
       {recent && <div className="preparation-latest"><time>{new Date(recent.at * 1000).toLocaleTimeString()}</time> <ProgressMessage message={recent.message} /></div>}
       <div className="preparation-footer">
-        {updated && <time dateTime={updated.toISOString()}>Last change {updated.toLocaleTimeString()}{active(run.status) ? ` · ${Math.max(0, Math.floor((now - updated.getTime()) / 1000))}s ago` : ""}</time>}
-        {lastConnectedAt ? <span>Last received {Math.max(0, Math.floor((now - lastConnectedAt) / 1000))}s ago</span> : null}
-        <span>Stage completion is not byte verification.</span>
-        <WorkflowControls run={run} selection={selection} notify={notify}/>
+        {!compact && updated && <time dateTime={updated.toISOString()}>Last change {updated.toLocaleTimeString()}{active(run.status) ? ` · ${Math.max(0, Math.floor((now - updated.getTime()) / 1000))}s ago` : ""}</time>}
+        {!compact && lastConnectedAt ? <span>Last received {Math.max(0, Math.floor((now - lastConnectedAt) / 1000))}s ago</span> : null}
+        {!compact && <span>Stage completion is not byte verification.</span>}
+        <WorkflowControls run={run} selection={selection} notify={notify} compact={compact}/>
       </div>
       {!compact && <PrefDetails pref="prep.events-open" className="preparation-events" summary={`Activity history (${run.events?.length || 0})`}><ol>{(run.events || []).map((event: Data, index: number) => <li key={`${event.at}:${index}`}><time>{new Date(event.at * 1000).toLocaleTimeString()}</time><div><ProgressMessage message={event.message} /></div></li>)}</ol></PrefDetails>}
     </>}

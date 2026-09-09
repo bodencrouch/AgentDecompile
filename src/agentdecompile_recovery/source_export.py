@@ -7,6 +7,8 @@ import json
 from pathlib import Path
 from typing import Any, Iterable
 
+from agentdecompile_recovery.languages import SourceLanguage, language_from_path
+
 
 def iter_rows(path: Path) -> Iterable[dict[str, Any]]:
     with path.open("r", encoding="utf-8") as fh:
@@ -70,12 +72,12 @@ def export_suffix_for(candidate_path: Path) -> str:
 
 
 def source_language_for(candidate_path: Path) -> str:
-    suffix = candidate_path.suffix.lower()
-    if suffix == ".c":
+    language = language_from_path(candidate_path)
+    if language in {SourceLanguage.C, SourceLanguage.CXX}:
         return "c"
-    if suffix == ".asm":
+    if language is SourceLanguage.MASM:
         return "masm"
-    if suffix == ".s":
+    if language is SourceLanguage.GAS:
         return "gas"
     return "text"
 

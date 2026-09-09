@@ -647,6 +647,51 @@ def render_artifact(*, work_dir: Path | None, rel: str) -> tuple[str, int]:
 _ATLAS: AtlasServerState | None = None
 
 
+def _format_from_receipt(data: dict[str, Any]) -> str | None:
+    for key in ("format", "binaryFormat"):
+        raw = str(data.get(key) or "").strip().lower()
+        if raw:
+            return raw
+    if str(data.get("craftPlatform") or "").strip().lower() == "nds":
+        return "nds"
+    return None
+
+
+def _infer_atlas_target_format(*, work_dir: Path | None, atlas_root: Path) -> str | None:
+    """Best-effort container format for craft_prompt platform mapping (e.g. nds)."""
+    if work_dir is not None and work_dir.is_dir():
+        for name in ("target.json", "analysis-target.json"):
+            path = work_dir / name
+            if path.is_file():
+                try:
+                    inferred = _format_from_receipt(read_json(path))
+                except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                    inferred = None
+                if inferred:
+                    return inferred
+        for path in sorted(work_dir.glob("**/target.json"))[:8]:
+            try:
+                inferred = _format_from_receipt(read_json(path))
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                continue
+            if inferred:
+                return inferred
+    repo_root = Path(__file__).resolve().parents[2]
+    spo_root = repo_root / "target" / "source-parity-one-shot"
+    if spo_root.is_dir():
+        for state_path in sorted(spo_root.glob("*/state.json"), reverse=True)[:8]:
+            try:
+                inferred = _format_from_receipt(read_json(state_path))
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                continue
+            if inferred:
+                return inferred
+    for part in atlas_root.parts:
+        if part.lower().startswith("nds-"):
+            return "nds"
+    return None
+
+
 def _atlas_state() -> AtlasServerState | None:
     global _ATLAS
     root = _discover_atlas_root()
@@ -654,18 +699,29 @@ def _atlas_state() -> AtlasServerState | None:
         return None
     prompts = _env_path("AGENT_DECOMPILE_ATLAS_PROMPTS_DIR") or (root / "prompts")
     platform = (os.environ.get("AGENT_DECOMPILE_ATLAS_PLATFORM") or "unknown").strip()
+    work_dir = _env_path("AGENT_DECOMPILE_CORPUS_WORK_DIR", "AGENT_DECOMPILE_CORPUS_ROOT")
+    target_format = (os.environ.get("AGENT_DECOMPILE_TARGET_FORMAT") or "").strip() or None
+    if target_format is None:
+        target_format = _infer_atlas_target_format(work_dir=work_dir, atlas_root=root)
     map_file = _env_path("AGENT_DECOMPILE_ATLAS_MAP_FILE")
     if (
         _ATLAS is None
         or _ATLAS.project_root != root
         or _ATLAS.prompts_dir != prompts
         or _ATLAS.map_file_path != map_file
+        or _ATLAS.target_format != target_format
     ):
         _ATLAS = AtlasServerState(
-            project_root=root, prompts_dir=prompts, platform=platform, map_file_path=map_file
+            project_root=root,
+            prompts_dir=prompts,
+            platform=platform,
+            map_file_path=map_file,
+            target_format=target_format,
         )
     elif platform and platform != "unknown":
         _ATLAS.platform = platform
+    if target_format:
+        _ATLAS.target_format = target_format
     return _ATLAS
 
 

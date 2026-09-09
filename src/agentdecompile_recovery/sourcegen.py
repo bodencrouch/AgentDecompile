@@ -14,6 +14,10 @@ from pathlib import Path
 from typing import Any
 
 from .curated_enrichment import msvc_thiscall_to_fastcall
+from .languages.sourcegen_defaults import active_generator_fields, generator_task_fields
+
+# Per-run generator language defaults; set at the start of generate_source_candidates().
+_GEN: dict[str, str] = generator_task_fields()
 
 
 def _publish_advisory_candidate(out_dir: Path, task: dict[str, Any], source_path: Path) -> None:
@@ -75,6 +79,8 @@ def generate_source_candidates(
     limit: int = 500,
     offset: int = 0,
 ) -> dict[str, Any]:
+    global _GEN
+    _GEN = active_generator_fields(target)
     out_dir.mkdir(parents=True, exist_ok=True)
     slices_dir = out_dir / "target-slices"
     facts = load_function_facts(function_facts_jsonl) if function_facts_jsonl else {}
@@ -148,11 +154,13 @@ def generate_source_candidates(
                 # C++; `__fastcall` with a dead EDX argument is the same 32-bit
                 # ABI and does compile. No-op for every other candidate.
                 source = msvc_thiscall_to_fastcall(str(fact["decompiled"])).rstrip() + "\n"
-                source_path = case_dir / "candidate.c"
+                source_path = case_dir / f"candidate.{_GEN['extension']}"
                 source_path.write_text(source, encoding="utf-8")
-                source_quality = "high-level-c"
+                source_quality = _GEN["sourceQuality"]
                 source_recovery_scope = "whole-function"
-                generated_by_language["c"] = generated_by_language.get("c", 0) + 1
+                generated_by_language[_GEN["sourceLanguage"]] = (
+                    generated_by_language.get(_GEN["sourceLanguage"], 0) + 1
+                )
                 generated_by_source_quality[source_quality] = generated_by_source_quality.get(source_quality, 0) + 1
                 generated_by_recovery_scope[source_recovery_scope] = (
                     generated_by_recovery_scope.get(source_recovery_scope, 0) + 1
@@ -162,7 +170,7 @@ def generate_source_candidates(
                         "status": "generated-unverified",
                         "source": str(source_path),
                         "sourceSha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
-                        "sourceLanguage": "c",
+                        "sourceLanguage": _GEN["sourceLanguage"],
                         "sourceQuality": source_quality,
                         "sourceRecoveryScope": source_recovery_scope,
                         "sourceOrigin": "external decompiler output; automatically exported, not manually authored",
@@ -3098,7 +3106,7 @@ def import_tail_jump_candidate(task: dict[str, Any], data: bytes) -> dict[str, A
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -3619,7 +3627,7 @@ def stack_arg_range_global_mode_setter_candidate(task: dict[str, Any], data: byt
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -3948,7 +3956,7 @@ def inc_abs_global_candidate(task: dict[str, Any], data: bytes) -> dict[str, Any
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -3994,7 +4002,7 @@ def virtual_tailcall_candidate(task: dict[str, Any], data: bytes) -> dict[str, A
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4038,7 +4046,7 @@ def unsigned_field_less_than_candidate(task: dict[str, Any], data: bytes) -> dic
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4075,7 +4083,7 @@ def zero_return_candidate(task: dict[str, Any], data: bytes) -> dict[str, Any] |
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4116,7 +4124,7 @@ def zero_return_stdcall_candidate(task: dict[str, Any], data: bytes) -> dict[str
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4155,7 +4163,7 @@ def immediate_return_candidate(task: dict[str, Any], data: bytes) -> dict[str, A
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4198,7 +4206,7 @@ def immediate_return_stdcall_candidate(task: dict[str, Any], data: bytes) -> dic
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4240,7 +4248,7 @@ def x86_64_zero_return_candidate(task: dict[str, Any], data: bytes) -> dict[str,
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4275,7 +4283,7 @@ def x86_64_immediate_return_candidate(task: dict[str, Any], data: bytes) -> dict
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4308,7 +4316,7 @@ def x86_64_one_return_candidate(task: dict[str, Any], data: bytes) -> dict[str, 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4343,7 +4351,7 @@ def framed_zero_return_candidate(task: dict[str, Any], data: bytes) -> dict[str,
     style = x86_frame_style(body)
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 frame-pointer byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4377,7 +4385,7 @@ def framed_immediate_return_candidate(task: dict[str, Any], data: bytes) -> dict
     style = x86_frame_style(body)
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 frame-pointer byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4448,7 +4456,7 @@ def framed_return_first_stack_arg_candidate(task: dict[str, Any], data: bytes) -
         }
     return {
         "source": "\n".join(source_lines),
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 frame-pointer byte-pattern lift from target slice; not manually authored",
         "semanticSource": True,
@@ -4492,7 +4500,7 @@ def x86_64_framed_zero_return_candidate(task: dict[str, Any], data: bytes) -> di
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 frame-pointer byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4525,7 +4533,7 @@ def x86_64_framed_immediate_return_candidate(task: dict[str, Any], data: bytes) 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 frame-pointer byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4558,7 +4566,7 @@ def x86_64_return_first_arg_candidate(task: dict[str, Any], data: bytes) -> dict
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4591,7 +4599,7 @@ def x86_64_return_first_arg64_candidate(task: dict[str, Any], data: bytes) -> di
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4633,7 +4641,7 @@ def x86_64_return_second_arg_candidate(task: dict[str, Any], data: bytes) -> dic
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4670,7 +4678,7 @@ def x86_64_add_two_args_candidate(task: dict[str, Any], data: bytes) -> dict[str
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4725,7 +4733,7 @@ def x86_64_three_args_arithmetic_candidate(task: dict[str, Any], data: bytes) ->
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4785,7 +4793,7 @@ def x86_64_three_args_bitwise_candidate(task: dict[str, Any], data: bytes) -> di
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4849,7 +4857,7 @@ def x86_64_three_args_select_candidate(task: dict[str, Any], data: bytes) -> dic
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4908,7 +4916,7 @@ def x86_64_three_args_arithmetic64_candidate(task: dict[str, Any], data: bytes) 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -4974,7 +4982,7 @@ def x86_64_three_args_bitwise64_candidate(task: dict[str, Any], data: bytes) -> 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -5038,7 +5046,7 @@ def x86_64_three_args_select64_candidate(task: dict[str, Any], data: bytes) -> d
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -5137,7 +5145,7 @@ def x86_64_two_args_affine_lea_candidate(task: dict[str, Any], data: bytes) -> d
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -5238,7 +5246,7 @@ def x86_64_two_args_affine_lea64_candidate(task: dict[str, Any], data: bytes) ->
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -5290,7 +5298,7 @@ def x86_64_two_args_binary_op_candidate(task: dict[str, Any], data: bytes) -> di
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -5340,7 +5348,7 @@ def x86_64_two_args_binary_op64_candidate(task: dict[str, Any], data: bytes) -> 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -5388,7 +5396,7 @@ def x86_64_two_args_min_max_candidate(task: dict[str, Any], data: bytes) -> dict
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -5447,7 +5455,7 @@ def x86_64_two_args_absdiff_candidate(task: dict[str, Any], data: bytes) -> dict
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -5498,7 +5506,7 @@ def x86_64_two_args_min_max64_candidate(task: dict[str, Any], data: bytes) -> di
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -5548,7 +5556,7 @@ def x86_64_two_args_absdiff64_candidate(task: dict[str, Any], data: bytes) -> di
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -5612,7 +5620,7 @@ def x86_64_arg_lea_multiply_candidate(task: dict[str, Any], data: bytes) -> dict
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -5663,7 +5671,7 @@ def x86_64_arg64_lea_multiply_candidate(task: dict[str, Any], data: bytes) -> di
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -5747,7 +5755,7 @@ def x86_64_arg_const_min_max_candidate(task: dict[str, Any], data: bytes) -> dic
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -5793,7 +5801,7 @@ def x86_64_const_minus_arg_candidate(task: dict[str, Any], data: bytes) -> dict[
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -5840,7 +5848,7 @@ def x86_64_arg_signbit_zero_compare_candidate(task: dict[str, Any], data: bytes)
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -5887,7 +5895,7 @@ def x86_64_arg_sign_mask_candidate(task: dict[str, Any], data: bytes) -> dict[st
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -6008,7 +6016,7 @@ def x86_64_arg_bitmask_bool_candidate(task: dict[str, Any], data: bytes) -> dict
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -6146,7 +6154,7 @@ def x86_64_arg64_bitmask_bool_candidate(task: dict[str, Any], data: bytes) -> di
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -6201,7 +6209,7 @@ def x86_64_arg_udiv_pow2_candidate(task: dict[str, Any], data: bytes) -> dict[st
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -6261,7 +6269,7 @@ def x86_64_arg_urem_pow2_candidate(task: dict[str, Any], data: bytes) -> dict[st
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -6323,7 +6331,7 @@ def x86_64_arg_udiv_magic_candidate(task: dict[str, Any], data: bytes) -> dict[s
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -6386,7 +6394,7 @@ def x86_64_arg_urem_magic_candidate(task: dict[str, Any], data: bytes) -> dict[s
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -6453,7 +6461,7 @@ def x86_64_arg_sdiv_pow2_candidate(task: dict[str, Any], data: bytes) -> dict[st
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -6528,7 +6536,7 @@ def x86_64_arg_srem_pow2_candidate(task: dict[str, Any], data: bytes) -> dict[st
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -6592,7 +6600,7 @@ def x86_64_arg_sdiv_magic_candidate(task: dict[str, Any], data: bytes) -> dict[s
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -6655,7 +6663,7 @@ def x86_64_arg_srem_magic_candidate(task: dict[str, Any], data: bytes) -> dict[s
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -6704,7 +6712,7 @@ def x86_64_arg_bswap32_candidate(task: dict[str, Any], data: bytes) -> dict[str,
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -6750,7 +6758,7 @@ def x86_64_arg_bswap64_candidate(task: dict[str, Any], data: bytes) -> dict[str,
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -6811,7 +6819,7 @@ def x86_64_arg_rotate_candidate(task: dict[str, Any], data: bytes) -> dict[str, 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -6875,7 +6883,7 @@ def x86_64_arg64_rotate_candidate(task: dict[str, Any], data: bytes) -> dict[str
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -6943,7 +6951,7 @@ def x86_64_arg_shift_imm8_candidate(task: dict[str, Any], data: bytes) -> dict[s
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -7011,7 +7019,7 @@ def x86_64_arg64_shift_imm8_candidate(task: dict[str, Any], data: bytes) -> dict
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -7142,7 +7150,7 @@ def x86_64_arg_imm8_binary_op_candidate(task: dict[str, Any], data: bytes) -> di
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -7265,7 +7273,7 @@ def x86_64_arg_imm32_binary_op64_candidate(task: dict[str, Any], data: bytes) ->
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -7315,7 +7323,7 @@ def x86_64_arg_unary_op_candidate(task: dict[str, Any], data: bytes) -> dict[str
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -7361,7 +7369,7 @@ def x86_64_arg64_unary_op_candidate(task: dict[str, Any], data: bytes) -> dict[s
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -7407,7 +7415,7 @@ def x86_64_arg_neg_cmov_candidate(task: dict[str, Any], data: bytes) -> dict[str
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -7456,7 +7464,7 @@ def x86_64_arg64_neg_cmov_candidate(task: dict[str, Any], data: bytes) -> dict[s
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -7507,7 +7515,7 @@ def x86_64_arg_cast_candidate(task: dict[str, Any], data: bytes) -> dict[str, An
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -7556,7 +7564,7 @@ def x86_64_arg64_sign_extend_candidate(task: dict[str, Any], data: bytes) -> dic
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -7647,7 +7655,7 @@ def x86_64_arg_narrow_imm8_compare_candidate(task: dict[str, Any], data: bytes) 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -7729,7 +7737,7 @@ def x86_64_arg_narrow_movzx_imm8_compare_candidate(task: dict[str, Any], data: b
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -7836,7 +7844,7 @@ def x86_64_arg_unsigned_imm8_compare_candidate(task: dict[str, Any], data: bytes
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -7883,7 +7891,7 @@ def x86_64_arg_signed_imm8_compare_candidate(task: dict[str, Any], data: bytes) 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -7960,7 +7968,7 @@ def x86_64_two_args_unsigned_compare_candidate(task: dict[str, Any], data: bytes
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8000,7 +8008,7 @@ def x86_64_two_args_signed_compare_candidate(task: dict[str, Any], data: bytes) 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8055,7 +8063,7 @@ def x86_64_two_args_unsigned_compare64_candidate(task: dict[str, Any], data: byt
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8095,7 +8103,7 @@ def x86_64_two_args_signed_compare64_candidate(task: dict[str, Any], data: bytes
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8157,7 +8165,7 @@ def x86_64_arg_signed_zero_compare_candidate(task: dict[str, Any], data: bytes) 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8232,7 +8240,7 @@ def x86_64_arg_nonzero_const_select_candidate(task: dict[str, Any], data: bytes)
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8303,7 +8311,7 @@ def x86_64_arg_nonzero_cmov_const_select_candidate(task: dict[str, Any], data: b
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8428,7 +8436,7 @@ def x86_64_arg_mask_candidate(task: dict[str, Any], data: bytes) -> dict[str, An
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8470,7 +8478,7 @@ def x86_64_arg_nonzero_candidate(task: dict[str, Any], data: bytes) -> dict[str,
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8504,7 +8512,7 @@ def x86_64_arg_zero_candidate(task: dict[str, Any], data: bytes) -> dict[str, An
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8548,7 +8556,7 @@ def x86_64_arg64_zero_nonzero_candidate(task: dict[str, Any], data: bytes) -> di
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8586,7 +8594,7 @@ def x86_64_framed_return_first_arg_candidate(task: dict[str, Any], data: bytes) 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 frame-pointer byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8620,7 +8628,7 @@ def x86_64_framed_add_two_args_candidate(task: dict[str, Any], data: bytes) -> d
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86_64 frame-pointer byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8702,7 +8710,7 @@ def one_return_candidate(task: dict[str, Any], data: bytes) -> dict[str, Any] | 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8738,7 +8746,7 @@ def one_return_stdcall_candidate(task: dict[str, Any], data: bytes) -> dict[str,
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8773,7 +8781,7 @@ def return_first_stack_arg_candidate(task: dict[str, Any], data: bytes) -> dict[
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8808,7 +8816,7 @@ def return_first_stack_arg_stdcall_candidate(task: dict[str, Any], data: bytes) 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8847,7 +8855,7 @@ def add_two_stack_args_candidate(task: dict[str, Any], data: bytes) -> dict[str,
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8887,7 +8895,7 @@ def add_two_stack_args_stdcall_candidate(task: dict[str, Any], data: bytes) -> d
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8952,7 +8960,7 @@ def two_stack_args_binary_op_candidate(task: dict[str, Any], data: bytes) -> dic
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -8988,7 +8996,7 @@ def two_stack_args_binary_op_stdcall_candidate(task: dict[str, Any], data: bytes
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9093,7 +9101,7 @@ def two_stack_args_affine_candidate(task: dict[str, Any], data: bytes) -> dict[s
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9131,7 +9139,7 @@ def two_stack_args_affine_stdcall_candidate(task: dict[str, Any], data: bytes) -
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9207,7 +9215,7 @@ def three_stack_args_commutative_op_candidate(task: dict[str, Any], data: bytes)
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9245,7 +9253,7 @@ def three_stack_args_commutative_op_stdcall_candidate(task: dict[str, Any], data
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9336,7 +9344,7 @@ def three_stack_args_add_sub_candidate(task: dict[str, Any], data: bytes) -> dic
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9372,7 +9380,7 @@ def three_stack_args_add_sub_stdcall_candidate(task: dict[str, Any], data: bytes
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9437,7 +9445,7 @@ def three_stack_args_mul_add_candidate(task: dict[str, Any], data: bytes) -> dic
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9476,7 +9484,7 @@ def three_stack_args_mul_add_stdcall_candidate(task: dict[str, Any], data: bytes
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9551,7 +9559,7 @@ def two_stack_args_min_max_candidate(task: dict[str, Any], data: bytes) -> dict[
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9593,7 +9601,7 @@ def two_stack_args_min_max_stdcall_candidate(task: dict[str, Any], data: bytes) 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9698,7 +9706,7 @@ def two_stack_args_unsigned_compare_candidate(task: dict[str, Any], data: bytes)
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9735,7 +9743,7 @@ def two_stack_args_signed_compare_candidate(task: dict[str, Any], data: bytes) -
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9772,7 +9780,7 @@ def two_stack_args_unsigned_compare_stdcall_candidate(task: dict[str, Any], data
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9810,7 +9818,7 @@ def two_stack_args_signed_compare_stdcall_candidate(task: dict[str, Any], data: 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9882,7 +9890,7 @@ def stack_arg_sdiv_magic_candidate(task: dict[str, Any], data: bytes) -> dict[st
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9921,7 +9929,7 @@ def stack_arg_sdiv_magic_stdcall_candidate(task: dict[str, Any], data: bytes) ->
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -9987,7 +9995,7 @@ def stack_arg_srem_magic_candidate(task: dict[str, Any], data: bytes) -> dict[st
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10026,7 +10034,7 @@ def stack_arg_srem_magic_stdcall_candidate(task: dict[str, Any], data: bytes) ->
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10097,7 +10105,7 @@ def stack_arg_sdiv_pow2_candidate(task: dict[str, Any], data: bytes) -> dict[str
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10136,7 +10144,7 @@ def stack_arg_sdiv_pow2_stdcall_candidate(task: dict[str, Any], data: bytes) -> 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10209,7 +10217,7 @@ def stack_arg_srem_pow2_candidate(task: dict[str, Any], data: bytes) -> dict[str
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10249,7 +10257,7 @@ def stack_arg_srem_pow2_stdcall_candidate(task: dict[str, Any], data: bytes) -> 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10327,7 +10335,7 @@ def stack_arg_udiv_magic_candidate(task: dict[str, Any], data: bytes) -> dict[st
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10366,7 +10374,7 @@ def stack_arg_udiv_magic_stdcall_candidate(task: dict[str, Any], data: bytes) ->
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10432,7 +10440,7 @@ def stack_arg_urem_magic_candidate(task: dict[str, Any], data: bytes) -> dict[st
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10471,7 +10479,7 @@ def stack_arg_urem_magic_stdcall_candidate(task: dict[str, Any], data: bytes) ->
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10537,7 +10545,7 @@ def stack_arg_udiv_pow2_candidate(task: dict[str, Any], data: bytes) -> dict[str
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10575,7 +10583,7 @@ def stack_arg_udiv_pow2_stdcall_candidate(task: dict[str, Any], data: bytes) -> 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10637,7 +10645,7 @@ def stack_arg_urem_pow2_candidate(task: dict[str, Any], data: bytes) -> dict[str
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10676,7 +10684,7 @@ def stack_arg_urem_pow2_stdcall_candidate(task: dict[str, Any], data: bytes) -> 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10751,7 +10759,7 @@ def stack_arg_signed_zero_compare_candidate(task: dict[str, Any], data: bytes) -
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10788,7 +10796,7 @@ def stack_arg_signed_zero_compare_stdcall_candidate(task: dict[str, Any], data: 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10848,7 +10856,7 @@ def stack_arg_neg_cmov_candidate(task: dict[str, Any], data: bytes) -> dict[str,
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10886,7 +10894,7 @@ def stack_arg_neg_cmov_stdcall_candidate(task: dict[str, Any], data: bytes) -> d
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10959,7 +10967,7 @@ def stack_arg_nonzero_cmov_const_select_candidate(task: dict[str, Any], data: by
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -10997,7 +11005,7 @@ def stack_arg_nonzero_cmov_const_select_stdcall_candidate(task: dict[str, Any], 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11076,7 +11084,7 @@ def stack_arg_nonzero_const_select_candidate(task: dict[str, Any], data: bytes) 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11117,7 +11125,7 @@ def stack_arg_nonzero_const_select_stdcall_candidate(task: dict[str, Any], data:
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11228,7 +11236,7 @@ def stack_arg_const_min_max_candidate(task: dict[str, Any], data: bytes) -> dict
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11273,7 +11281,7 @@ def stack_arg_const_min_max_stdcall_candidate(task: dict[str, Any], data: bytes)
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11357,7 +11365,7 @@ def stack_arg_signed_imm8_compare_candidate(task: dict[str, Any], data: bytes) -
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11397,7 +11405,7 @@ def stack_arg_signed_imm8_compare_stdcall_candidate(task: dict[str, Any], data: 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11466,7 +11474,7 @@ def stack_arg_unsigned_imm8_compare_candidate(task: dict[str, Any], data: bytes)
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11506,7 +11514,7 @@ def stack_arg_unsigned_imm8_compare_stdcall_candidate(task: dict[str, Any], data
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11575,7 +11583,7 @@ def stack_arg_bitmask_predicate_candidate(task: dict[str, Any], data: bytes) -> 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11614,7 +11622,7 @@ def stack_arg_bitmask_predicate_stdcall_candidate(task: dict[str, Any], data: by
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11695,7 +11703,7 @@ def stack_arg_lea_multiply_candidate(task: dict[str, Any], data: bytes) -> dict[
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11732,7 +11740,7 @@ def stack_arg_lea_multiply_stdcall_candidate(task: dict[str, Any], data: bytes) 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11801,7 +11809,7 @@ def stack_arg_imm8_binary_op_candidate(task: dict[str, Any], data: bytes) -> dic
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11841,7 +11849,7 @@ def stack_arg_imm8_binary_op_stdcall_candidate(task: dict[str, Any], data: bytes
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11911,7 +11919,7 @@ def stack_arg_unary_op_candidate(task: dict[str, Any], data: bytes) -> dict[str,
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -11948,7 +11956,7 @@ def stack_arg_unary_op_stdcall_candidate(task: dict[str, Any], data: bytes) -> d
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -12012,7 +12020,7 @@ def stack_arg_inc_dec_candidate(task: dict[str, Any], data: bytes) -> dict[str, 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -12050,7 +12058,7 @@ def stack_arg_inc_dec_stdcall_candidate(task: dict[str, Any], data: bytes) -> di
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -12117,7 +12125,7 @@ def stack_arg_shift_imm8_candidate(task: dict[str, Any], data: bytes) -> dict[st
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -12159,7 +12167,7 @@ def stack_arg_shift_imm8_stdcall_candidate(task: dict[str, Any], data: bytes) ->
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -12197,7 +12205,7 @@ def stack_arg_nonzero_bool_candidate(task: dict[str, Any], data: bytes) -> dict[
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -12234,7 +12242,7 @@ def stack_arg_zero_bool_candidate(task: dict[str, Any], data: bytes) -> dict[str
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -12271,7 +12279,7 @@ def stack_arg_nonzero_bool_stdcall_candidate(task: dict[str, Any], data: bytes) 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -12309,7 +12317,7 @@ def stack_arg_zero_bool_stdcall_candidate(task: dict[str, Any], data: bytes) -> 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -12354,7 +12362,7 @@ def increment_field_return_stack4_candidate(task: dict[str, Any], data: bytes) -
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -12395,7 +12403,7 @@ def byte_nonzero_candidate(task: dict[str, Any], data: bytes) -> dict[str, Any] 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -12431,7 +12439,7 @@ def byte_nonzero_deref_candidate(task: dict[str, Any], data: bytes) -> dict[str,
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -12466,7 +12474,7 @@ def nested_u32_getter_candidate(task: dict[str, Any], data: bytes) -> dict[str, 
         )
         return {
             "source": source,
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {
@@ -12502,7 +12510,7 @@ def pair_u32_getter_candidate(task: dict[str, Any], data: bytes) -> dict[str, An
         )
         return {
             "source": source,
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {
@@ -12539,7 +12547,7 @@ def fastcall_store_two_u32_candidate(task: dict[str, Any], data: bytes) -> dict[
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -12579,7 +12587,7 @@ def zero_four_u32s_candidate(task: dict[str, Any], data: bytes) -> dict[str, Any
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -12600,7 +12608,7 @@ def field_getter_u32_u8_candidate(task: dict[str, Any], data: bytes) -> dict[str
         offset = signed_disp8(data[2])
         return {
             "source": f"unsigned int __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    return *(unsigned int *)({self_offset(offset)});\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-u32-u8", "bodyBytes": len(data), "fieldOffset": offset},
@@ -12614,7 +12622,7 @@ def field_getter_u8_u8_candidate(task: dict[str, Any], data: bytes) -> dict[str,
         offset = signed_disp8(data[2])
         return {
             "source": f"unsigned char __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    return *(unsigned char *)({self_offset(offset)});\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-u8-u8", "bodyBytes": len(data), "fieldOffset": offset},
@@ -12628,7 +12636,7 @@ def field_getter_u16_u8_candidate(task: dict[str, Any], data: bytes) -> dict[str
         offset = signed_disp8(data[3])
         return {
             "source": f"unsigned int __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    return *(unsigned short *)({self_offset(offset)});\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-u16-u8", "bodyBytes": len(data), "fieldOffset": offset},
@@ -12642,7 +12650,7 @@ def field_getter_s16_u8_candidate(task: dict[str, Any], data: bytes) -> dict[str
         offset = signed_disp8(data[3])
         return {
             "source": f"int __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    return *(short *)({self_offset(offset)});\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-s16-u8", "bodyBytes": len(data), "fieldOffset": offset},
@@ -12656,7 +12664,7 @@ def field_getter_u32_u32_candidate(task: dict[str, Any], data: bytes) -> dict[st
         offset = int.from_bytes(data[2:6], "little")
         return {
             "source": f"unsigned int __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    return *(unsigned int *)({self_offset(offset)});\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-u32-u32", "bodyBytes": len(data), "fieldOffset": offset},
@@ -12670,7 +12678,7 @@ def field_getter_u8_u32_candidate(task: dict[str, Any], data: bytes) -> dict[str
         offset = int.from_bytes(data[2:6], "little")
         return {
             "source": f"unsigned char __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    return *(unsigned char *)({self_offset(offset)});\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-u8-u32", "bodyBytes": len(data), "fieldOffset": offset},
@@ -12684,7 +12692,7 @@ def u64_field_getter_candidate(task: dict[str, Any], data: bytes) -> dict[str, A
         offset = signed_disp8(data[2])
         return {
             "source": f"unsigned __int64 __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    return *(unsigned __int64 *)({self_offset(offset)});\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-u64-u8", "bodyBytes": len(data), "fieldOffset": offset},
@@ -12698,7 +12706,7 @@ def field_array_getter_candidate(task: dict[str, Any], data: bytes) -> dict[str,
         offset = signed_disp8(data[2])
         return {
             "source": f"void *__fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self, int unused, unsigned int index) {{\n    void **items = *(void ***)({self_offset(offset)});\n    return items[index];\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-array-get-u32-index", "bodyBytes": len(data), "pointerOffset": offset},
@@ -12740,7 +12748,7 @@ def nullable_indexed_field_array_getter_stdcall_candidate(task: dict[str, Any], 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -12809,7 +12817,7 @@ def nullable_field_setter_u32_stdcall_candidate(task: dict[str, Any], data: byte
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -12849,7 +12857,7 @@ def field_pointer_u8_candidate(task: dict[str, Any], data: bytes) -> dict[str, A
         offset = signed_disp8(data[2])
         return {
             "source": f"void *__fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    return (char *)self + 0x{offset:x};\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-pointer-u8", "bodyBytes": len(data), "fieldOffset": offset},
@@ -12863,7 +12871,7 @@ def field_pointer_u32_candidate(task: dict[str, Any], data: bytes) -> dict[str, 
         offset = int.from_bytes(data[2:6], "little")
         return {
             "source": f"void *__fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    return (char *)self + 0x{offset:x};\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-pointer-u32", "bodyBytes": len(data), "fieldOffset": offset},
@@ -12878,7 +12886,7 @@ def field_set_u8_u8_candidate(task: dict[str, Any], data: bytes) -> dict[str, An
         value = data[3]
         return {
             "source": f"void __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    *(unsigned char *)({self_offset(offset)}) = 0x{value:02x};\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-set-u8-u8", "bodyBytes": len(data), "fieldOffset": offset, "value": value},
@@ -12893,7 +12901,7 @@ def field_set_u8_u32_candidate(task: dict[str, Any], data: bytes) -> dict[str, A
         value = data[6]
         return {
             "source": f"void __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    *(unsigned char *)({self_offset(offset)}) = 0x{value:02x};\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-set-u8-u32", "bodyBytes": len(data), "fieldOffset": offset, "value": value},
@@ -12907,7 +12915,7 @@ def field_set_u32_u8_candidate(task: dict[str, Any], data: bytes) -> dict[str, A
         value = int.from_bytes(data[2:6], "little")
         return {
             "source": f"void __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    *(unsigned int *)self = 0x{value:08x}u;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-set-u32-zero", "bodyBytes": len(data), "value": value},
@@ -12918,7 +12926,7 @@ def field_set_u32_u8_candidate(task: dict[str, Any], data: bytes) -> dict[str, A
         value = int.from_bytes(data[3:7], "little")
         return {
             "source": f"void __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    *(unsigned int *)({self_offset(offset)}) = 0x{value:08x}u;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-set-u32-u8", "bodyBytes": len(data), "fieldOffset": offset, "value": value},
@@ -12929,7 +12937,7 @@ def field_set_u32_u8_candidate(task: dict[str, Any], data: bytes) -> dict[str, A
         value = int.from_bytes(data[6:10], "little")
         return {
             "source": f"void __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    *(unsigned int *)({self_offset(offset)}) = 0x{value:08x}u;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-set-u32-u32", "bodyBytes": len(data), "fieldOffset": offset, "value": value},
@@ -12944,7 +12952,7 @@ def field_or_u8_imm8_candidate(task: dict[str, Any], data: bytes) -> dict[str, A
         mask = data[3]
         return {
             "source": f"void __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    *(unsigned int *)({self_offset(offset)}) |= 0x{mask:x}u;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-or-u8-imm8", "bodyBytes": len(data), "fieldOffset": offset, "mask": mask},
@@ -12959,7 +12967,7 @@ def field_or_u8_imm32_candidate(task: dict[str, Any], data: bytes) -> dict[str, 
         mask = int.from_bytes(data[3:7], "little")
         return {
             "source": f"void __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    *(unsigned int *)({self_offset(offset)}) |= 0x{mask:x}u;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-or-u8-imm32", "bodyBytes": len(data), "fieldOffset": offset, "mask": mask},
@@ -12974,7 +12982,7 @@ def field_or_u32_imm8_candidate(task: dict[str, Any], data: bytes) -> dict[str, 
         mask = data[6]
         return {
             "source": f"void __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    *(unsigned int *)({self_offset(offset)}) |= 0x{mask:x}u;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-or-u32-imm8", "bodyBytes": len(data), "fieldOffset": offset, "mask": mask},
@@ -12989,7 +12997,7 @@ def field_or_u32_imm32_candidate(task: dict[str, Any], data: bytes) -> dict[str,
         mask = int.from_bytes(data[6:10], "little")
         return {
             "source": f"void __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    *(unsigned int *)({self_offset(offset)}) |= 0x{mask:x}u;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-or-u32-imm32", "bodyBytes": len(data), "fieldOffset": offset, "mask": mask},
@@ -13005,7 +13013,7 @@ def field_and_u8_imm8_candidate(task: dict[str, Any], data: bytes) -> dict[str, 
         mask = imm | 0xFFFFFF00 if imm & 0x80 else imm
         return {
             "source": f"void __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    *(unsigned int *)({self_offset(offset)}) &= 0x{mask:08x}u;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-and-u8-imm8", "bodyBytes": len(data), "fieldOffset": offset, "mask": mask},
@@ -13018,7 +13026,7 @@ def field_add_u8_imm8_candidate(task: dict[str, Any], data: bytes) -> dict[str, 
     if len(data) == 7 and data[:2] == b"\x8b\x41" and data[3:5] == b"\x83\xc0" and data[6] == 0xC3:
         return {
             "source": f"unsigned int __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    return *(unsigned int *)({self_offset(signed_disp8(data[2]))}) + 0x{data[5]:x}u;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-add-u8-imm8", "bodyBytes": len(data), "fieldOffset": signed_disp8(data[2]), "value": data[5]},
@@ -13031,7 +13039,7 @@ def field_add_u8_imm32_candidate(task: dict[str, Any], data: bytes) -> dict[str,
     if len(data) == 9 and data[:2] == b"\x8b\x41" and data[3] == 0x05 and data[8] == 0xC3:
         return {
             "source": f"unsigned int __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    return *(unsigned int *)({self_offset(signed_disp8(data[2]))}) + 0x{int.from_bytes(data[4:8], 'little'):x}u;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-field-add-u8-imm32", "bodyBytes": len(data), "fieldOffset": signed_disp8(data[2]), "value": int.from_bytes(data[4:8], 'little')},
@@ -13044,7 +13052,7 @@ def fastcall_self_candidate(task: dict[str, Any], data: bytes) -> dict[str, Any]
     if data == b"\x8b\xc1\xc3":
         return {
             "source": f"void *__fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    return self;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-self", "bodyBytes": len(data)},
@@ -13058,7 +13066,7 @@ def fastcall_store_one_stack_arg_candidate(task: dict[str, Any], data: bytes) ->
         offset = signed_disp8(data[6])
         return {
             "source": f"void __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self, int unused, unsigned int value) {{\n    *(unsigned int *)({self_offset(offset)}) = value;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-store-one-stack-u32-u8", "bodyBytes": len(data), "fieldOffset": offset},
@@ -13071,7 +13079,7 @@ def fastcall_store_one_stack_arg_zero_candidate(task: dict[str, Any], data: byte
     if len(data) == 9 and data[:4] == b"\x8b\x44\x24\x04" and data[4:6] == b"\x89\x01" and data[6:] == b"\xc2\x04\x00":
         return {
             "source": f"void __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self, int unused, unsigned int value) {{\n    *(unsigned int *)self = value;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-store-one-stack-u32-zero", "bodyBytes": len(data)},
@@ -13084,7 +13092,7 @@ def fastcall_store_pair_from_pointer_candidate(task: dict[str, Any], data: bytes
     if data == b"\x8b\x44\x24\x04\x8b\x10\x89\x11\x8b\x40\x04\x89\x41\x04\xc2\x04\x00":
         return {
             "source": f"void __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self, int unused, unsigned int *value) {{\n    *(unsigned int *)self = value[0];\n    *(unsigned int *)((char *)self + 4) = value[1];\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-store-pair-from-pointer", "bodyBytes": len(data)},
@@ -13099,7 +13107,7 @@ def copy_field_return_candidate(task: dict[str, Any], data: bytes) -> dict[str, 
         dst = signed_disp8(data[5])
         return {
             "source": f"unsigned int __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    unsigned int value = *(unsigned int *)({self_offset(src)});\n    *(unsigned int *)({self_offset(dst)}) = value;\n    return value;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-copy-field-return-u8", "bodyBytes": len(data), "sourceOffset": src, "targetOffset": dst},
@@ -13114,7 +13122,7 @@ def clear_two_fields_return_zero_candidate(task: dict[str, Any], data: bytes) ->
         second = signed_disp8(data[7])
         return {
             "source": f"unsigned int __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    *(unsigned int *)({self_offset(first)}) = 0;\n    *(unsigned int *)({self_offset(second)}) = 0;\n    return 0;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-clear-two-u32-return-zero-u8", "bodyBytes": len(data), "firstOffset": first, "secondOffset": second},
@@ -13129,7 +13137,7 @@ def add_two_fields_candidate(task: dict[str, Any], data: bytes) -> dict[str, Any
         second = int.from_bytes(data[8:12], "little")
         return {
             "source": f"unsigned int __fastcall {c_identifier(str(task.get('name') or 'recovered_function'))}(void *self) {{\n    return *(unsigned int *)({self_offset(first)}) + *(unsigned int *)({self_offset(second)});\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "fastcall-add-two-fields-u32", "bodyBytes": len(data), "firstOffset": first, "secondOffset": second},
@@ -13143,7 +13151,7 @@ def global_getter_u32_cdecl_candidate(task: dict[str, Any], data: bytes) -> dict
         address = int.from_bytes(data[1:5], "little")
         return {
             "source": f"unsigned int {c_identifier(str(task.get('name') or 'recovered_function'))}(void) {{\n    return *(unsigned int volatile *)0x{address:08x};\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "global-getter-u32-cdecl", "bodyBytes": len(data), "address": f"0x{address:08x}"},
@@ -13157,7 +13165,7 @@ def global_getter_u8_cdecl_candidate(task: dict[str, Any], data: bytes) -> dict[
         address = int.from_bytes(data[1:5], "little")
         return {
             "source": f"unsigned char {c_identifier(str(task.get('name') or 'recovered_function'))}(void) {{\n    return *(unsigned char volatile *)0x{address:08x};\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "global-getter-u8-cdecl", "bodyBytes": len(data), "address": f"0x{address:08x}"},
@@ -13172,7 +13180,7 @@ def global_setter_u8_cdecl_candidate(task: dict[str, Any], data: bytes) -> dict[
         value = data[6]
         return {
             "source": f"void {c_identifier(str(task.get('name') or 'recovered_function'))}(void) {{\n    *(unsigned char volatile *)0x{address:08x} = 0x{value:02x};\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "global-setter-u8-cdecl", "bodyBytes": len(data), "address": f"0x{address:08x}", "value": value},
@@ -13187,7 +13195,7 @@ def global_setter_u32_cdecl_candidate(task: dict[str, Any], data: bytes) -> dict
         value = int.from_bytes(data[6:10], "little")
         return {
             "source": f"void {c_identifier(str(task.get('name') or 'recovered_function'))}(void) {{\n    *(unsigned int volatile *)0x{address:08x} = 0x{value:08x}u;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "global-setter-u32-cdecl", "bodyBytes": len(data), "address": f"0x{address:08x}", "value": value},
@@ -13216,7 +13224,7 @@ def global_setter_u32_stdcall_candidate(task: dict[str, Any], data: bytes) -> di
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
         "generator": {
@@ -13241,7 +13249,7 @@ def global_setter_two_u32_cdecl_candidate(task: dict[str, Any], data: bytes) -> 
         second_address = int.from_bytes(data[11:15], "little")
         return {
             "source": f"unsigned int {c_identifier(str(task.get('name') or 'recovered_function'))}(void) {{\n    *(unsigned int volatile *)0x{first_address:08x} = 0x{value:08x}u;\n    *(unsigned int volatile *)0x{second_address:08x} = 0x{value:08x}u;\n    return 0x{value:08x}u;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "global-setter-two-u32-cdecl", "bodyBytes": len(data), "firstAddress": f"0x{first_address:08x}", "secondAddress": f"0x{second_address:08x}", "value": value},
@@ -13252,7 +13260,7 @@ def global_setter_two_u32_cdecl_candidate(task: dict[str, Any], data: bytes) -> 
         second_address = int.from_bytes(data[8:12], "little")
         return {
             "source": f"unsigned int {c_identifier(str(task.get('name') or 'recovered_function'))}(void) {{\n    *(unsigned int volatile *)0x{first_address:08x} = 0;\n    *(unsigned int volatile *)0x{second_address:08x} = 0;\n    return 0;\n}}\n",
-            "extension": "c",
+            "extension": _GEN["extension"],
             "language": "c",
             "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
             "generator": {"rule": "global-setter-two-u32-cdecl", "bodyBytes": len(data), "firstAddress": f"0x{first_address:08x}", "secondAddress": f"0x{second_address:08x}", "value": 0},
@@ -13285,7 +13293,7 @@ def stdcall_copy_cstr_to_global_candidate(task: dict[str, Any], data: bytes) -> 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -13365,7 +13373,7 @@ def stdcall_indirect_global_callback_loop_candidate(task: dict[str, Any], data: 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -13437,7 +13445,7 @@ def stdcall_nullable_field_tailjmp_candidate(task: dict[str, Any], data: bytes) 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -13546,7 +13554,7 @@ def stdcall_clamped_count_copy_to_global_candidate(task: dict[str, Any], data: b
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -13673,7 +13681,7 @@ def stdcall_global_callback_install_candidate(task: dict[str, Any], data: bytes)
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -13784,7 +13792,7 @@ def stdcall_track_method_forwarder_candidate(task: dict[str, Any], data: bytes) 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -13907,7 +13915,7 @@ def stdcall_store_two_stack_args_to_globals_candidate(task: dict[str, Any], data
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -13954,7 +13962,7 @@ def stdcall_store_three_stack_args_to_globals_candidate(task: dict[str, Any], da
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -14009,7 +14017,7 @@ def global_callback_nonzero_return_one_candidate(task: dict[str, Any], data: byt
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -14059,7 +14067,7 @@ def global_two_cmp_return_1_or_3_candidate(task: dict[str, Any], data: bytes) ->
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -14210,7 +14218,7 @@ def u32_add_store_wrap_flag_candidate(task: dict[str, Any], data: bytes) -> dict
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -16627,7 +16635,7 @@ def stdcall_yuv_blit_format_wrapper_candidate(task: dict[str, Any], data: bytes)
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -16707,7 +16715,7 @@ def stdcall_yuv_blit_alpha_wrapper_candidate(task: dict[str, Any], data: bytes) 
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -16817,7 +16825,7 @@ def stdcall_yuv_blit_packed_wrapper_candidate(task: dict[str, Any], data: bytes)
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -16901,7 +16909,7 @@ def stdcall_yuv_blit_mask_format_prefix_candidate(task: dict[str, Any], data: by
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target-slice prefix; not manually authored",
         "semanticSource": True,
@@ -16986,7 +16994,7 @@ def stdcall_yuv_blit_mask_alpha_prefix_candidate(task: dict[str, Any], data: byt
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target-slice prefix; not manually authored",
         "semanticSource": True,
@@ -17126,7 +17134,7 @@ def rep_stos_global_clear_candidate(task: dict[str, Any], data: bytes) -> dict[s
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -17198,7 +17206,7 @@ def small_zero_scan_bool_candidate(task: dict[str, Any], data: bytes) -> dict[st
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -17278,7 +17286,7 @@ def small_copy_loop_candidate(task: dict[str, Any], data: bytes) -> dict[str, An
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -17356,7 +17364,7 @@ def u96_left_shift_one_candidate(task: dict[str, Any], data: bytes) -> dict[str,
     )
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -17411,7 +17419,7 @@ def semantic_call_wrapper_candidate(
         generator.update(extra_generator_fields)
     return {
         "source": source,
-        "extension": "c",
+        "extension": _GEN["extension"],
         "language": "c",
         "origin": "automatic x86 byte-pattern semantic lift from target slice; not manually authored",
         "semanticSource": True,
@@ -17434,7 +17442,7 @@ def global_param_store_u32_cdecl_candidate(task: dict[str, Any], data: bytes) ->
             args = ", ".join(f"unsigned int a{i}" for i in range(arg_index + 1))
             return {
                 "source": f"void {c_identifier(str(task.get('name') or 'recovered_function'))}({args}) {{\n    *(unsigned int volatile *)0x{address:08x} = a{arg_index};\n}}\n",
-                "extension": "c",
+                "extension": _GEN["extension"],
                 "language": "c",
                 "origin": "automatic x86 byte-pattern lift from target slice; not manually authored",
                 "generator": {"rule": "global-param-store-u32-cdecl", "bodyBytes": len(data), "address": f"0x{address:08x}", "stackOffset": stack_offset},

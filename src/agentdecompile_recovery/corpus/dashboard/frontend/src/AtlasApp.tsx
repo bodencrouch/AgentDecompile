@@ -13,18 +13,16 @@ import {
   type Selection,
   type ActionRequest,
 } from "./contracts";
-import { Commands, ActionRunner, DialogFrame } from "./Actions";
+import { ActionRunner, DialogFrame } from "./Actions";
 import { ProjectDialog } from "./ProjectDialog";
-import { PrefDetails, RecordView, ResizeBar, useData, usePref } from "./ui";
+import { RecordView, ResizeBar, useData, usePref } from "./ui";
 import "./atlas.css";
-import { GuideWorkflows } from "./GuideWorkflows";
-import { CodeBrowser } from "./CodeBrowser";
-import { BinaryEvidenceWorkspace, RecoveryWorkspace } from "./Surfaces";
 import { useLibraryTransfer } from "./BinaryLibrary";
 import { AtlasAnalysis } from "./AtlasAnalysis";
 import { PersistentExplorer } from "./PersistentExplorer";
 import { PreparationProgress, selectPreparation } from "./PreparationActivity";
 import { matchingStageSummary, stageDisplayProgress, stageProgressLabel } from "./preparationProgress";
+import { StageTrace } from "./StageTrace";
 import {
   installSessionFlush,
   queueSessionSave,
@@ -38,56 +36,52 @@ import {
   canonicalProjectLocator,
   projectLocatorsMatch,
 } from "./projectLocator";
-const isActiveStage = (stage?: Data) =>
-  Boolean(stage && ["queued", "running", "waiting", "cancelling"].includes(String(stage.status)));
 const measuredStage = (stage?: Data) => stageDisplayProgress(stage).primary;
-function RecoveryBrief({run, related}: {run?: Data; related: Data[]}) {
+function workbenchUrl(selection: Selection, windowId = "") {
+  // Static workbench page (workbench-app.js) — not the Vite React shell.
+  const params = new URLSearchParams(query(selection));
+  if (windowId) {
+    const id = windowId.startsWith("wb-") ? windowId : `wb-${windowId}`;
+    params.set("window", id);
+  }
+  const qs = params.toString();
+  return `/dashboard${qs ? `?${qs}` : ""}`;
+}
+
+function RecoveryStrip({ run, related }: { run?: Data; related: Data[] }) {
   const stages: Data[] = run?.stages || [];
-  const current = stages.find(stage => ["running", "waiting", "cancelling"].includes(String(stage.status))) ||
-    stages.find(stage => stage.status === "queued");
-  const next = stages.find(stage => stage !== current && stage.status === "queued");
-  const matching = stages.find(stage => stage.key === "matching");
-  const byteAudit = stages.find(stage => stage.key === "verify-byte-accuracy");
-  const progress = measuredStage(current);
+  const current =
+    stages.find((stage) => ["running", "waiting", "cancelling"].includes(String(stage.status))) ||
+    stages.find((stage) => stage.status === "queued");
+  const next = stages.find((stage) => stage !== current && stage.status === "queued");
+  const matching = stages.find((stage) => stage.key === "matching");
+  const byteAudit = stages.find((stage) => stage.key === "verify-byte-accuracy");
   const auditStatus = String(byteAudit?.status || "queued");
-  const auditLabel = auditStatus === "completed" ? "Byte audit completed — review its receipt" :
-    auditStatus === "running" ? "Byte audit running" :
-    auditStatus === "blocked" || auditStatus === "failed" ? "Byte audit blocked" :
-    "Byte audit queued";
-  const auditDetail = auditStatus === "completed"
-    ? "A completion record exists. Byte identity is established only by an accepted comparison receipt."
-    : auditStatus === "blocked" || auditStatus === "failed"
-      ? String(byteAudit?.reason || byteAudit?.error || "A required compiler, comparison input, or receipt is unavailable.")
-      : "It will compile the recovered source, compare the result with original bytes, and store an independent comparison receipt.";
-  const matchingProgress = measuredStage(matching);
-  const matchingSubProgress = stageDisplayProgress(matching).secondary;
-  return <>
-    <section className="atlas-recovery-brief" aria-label="Live recovery status">
-      <header>
-        <div><span>LIVE RECOVERY</span><strong>{run ? "Workflow state from the active coordinator" : "Waiting for a workflow record"}</strong></div>
-        <span className={`atlas-stage-badge state-${String(current?.status || run?.status || "unknown")}`}>{current?.status || run?.status || "waiting"}</span>
-      </header>
-      <div className="atlas-recovery-grid">
-        <article>
-          <span>NOW</span>
-          <strong>{current?.title || "Checking project state"}</strong>
-          {current?.currentProgram || run?.currentProgram ? <code>{current?.currentProgram || run?.currentProgram}</code> : <small>{current?.reason || "The coordinator will reuse recorded analysis before scheduling new work."}</small>}
-          {progress ? <><progress value={progress.completed} max={progress.total} aria-label={`${current?.title}: ${progress.completed} of ${progress.total}`} /><small>{progress.completed} / {progress.total} {progress.unit || "items"}{progress.currentTarget ? ` · ${progress.currentTarget}` : ""}</small></> : isActiveStage(current) ? <><progress aria-label={`${current?.title || "Current stage"}: activity in progress`} /><small>{current?.reason || "Work is active; this operation does not expose a completed/total count yet."}</small></> : <small>{current?.reason || "No work has been admitted for this selection."}</small>}
-        </article>
-        <article>
-          <span>RELATIONSHIPS</span>
-          <strong>{matching?.status === "completed" ? `${related.length} related build${related.length === 1 ? "" : "s"} available` : matching?.status === "running" ? "Cross-matching in progress" : "Cross-matching queued"}</strong>
-          {matchingProgress ? <><progress value={matchingProgress.completed} max={matchingProgress.total} aria-label={`Cross-matching: ${matchingProgress.completed} of ${matchingProgress.total}`} /><small>{stageProgressLabel(matchingProgress)}{matchingSubProgress ? ` · ${stageProgressLabel(matchingSubProgress)}` : ""}</small></> : <small>{matching?.reason || "Function facts and stable identities are collected before related builds are compared."}</small>}
-        </article>
-        <article className={`atlas-byte-gate state-${auditStatus}`}>
-          <span>BYTE PROOF GATE</span>
-          <strong>{auditLabel}</strong>
-          <small>{auditDetail}</small>
-        </article>
-      </div>
-      {next && <footer>Next: <strong>{next.title}</strong>{next.reason ? ` · ${next.reason}` : ""}</footer>}
-    </section>
-  </>;
+  const relatedLabel =
+    matching?.status === "completed"
+      ? `${related.length} related build${related.length === 1 ? "" : "s"}`
+      : matching?.status === "running"
+        ? "matching"
+        : "match queued";
+  const gateLabel =
+    auditStatus === "completed"
+      ? "byte audit recorded"
+      : auditStatus === "running"
+        ? "byte audit running"
+        : auditStatus === "blocked" || auditStatus === "failed"
+          ? "byte audit blocked"
+          : "byte gate waiting";
+  return (
+    <p className="atlas-recovery-strip" role="status">
+      <span>
+        Now <strong>{current?.title || "Waiting for workflow"}</strong>
+        {measuredStage(current) ? ` · ${stageProgressLabel(measuredStage(current)!)}` : ""}
+      </span>
+      <span>{relatedLabel}</span>
+      <span className={`atlas-byte-chip state-${auditStatus}`}>{gateLabel}</span>
+      {next ? <span>Next {next.title}</span> : null}
+    </p>
+  );
 }
 function ActivityJob({
   summary,
@@ -208,11 +202,11 @@ function atlasUrl(selection?: Selection) {
 export function AtlasApp() {
   const [selection, setSelection] = usePref<Selection>("atlas.selection",emptySelection),
     [loaded, setLoaded] = useState(false),
-    [view, setView] = useState("overview"),
     [search, setSearch] = useState(""),
     [offset, setOffset] = useState(0),
     [revision, setRevision] = useState(0);
   const [explorerWidth,setExplorerWidth]=usePref("atlas.explorer-width",320);
+  const [explorerOpen,setExplorerOpen]=usePref("atlas.explorer-open",true);
   const loadedRef = useRef(false);
   const selectionRef = useRef<Selection>(emptySelection);
   loadedRef.current = loaded;
@@ -231,8 +225,6 @@ export function AtlasApp() {
   const [messages,setMessages]=usePref<Data[]>('atlas.activity',[]);
   const [activityOpen,setActivityOpen]=usePref('atlas.dock-open',true);
   const [dockHeight,setDockHeight]=usePref('atlas.dock-height',220);
-  const [workflowOpen,setWorkflowOpen]=usePref('atlas.workflow-panel',true);
-  const [dockTab,setDockTab]=usePref('atlas.dock-tab','logs');
   const explorerColumnWidth=Math.max(240,Math.min(560,explorerWidth));
   const dockOccupied=activityOpen?Math.max(120,dockHeight):36;
   const [seenAt,setSeenAt]=usePref('atlas.activity-seen',0);
@@ -313,11 +305,6 @@ export function AtlasApp() {
       openKey.current = key;
       setSelection(next);
       setLoaded(true);
-      // Keep the operator's workspace view when the same project is re-admitted
-      // from URL/session refresh. Only jump when the project identity changes
-      // or a function address is newly targeted.
-      if (selectionChanged) setView(next.addr ? "functions" : "overview");
-      else if (next.addr) setView("functions");
       setOffset(0);
       setSearch("");
       setRecordFilter("all");
@@ -513,7 +500,7 @@ export function AtlasApp() {
   }, [refresh,notify]);
   useEffect(() => {
     document.querySelector(".atlas-shell")?.scrollTo({ top: 0 });
-  }, [view, loaded]);
+  }, [loaded, selection.addr, selection.locator]);
   const builds: Data[] = binaries.data.binaries || [];
   const liveLocators = useMemo(
     () =>
@@ -599,8 +586,8 @@ export function AtlasApp() {
     const url=atlasUrl(next);
     if(url!==location.pathname+location.search){
       const scroll=document.querySelector('.atlas-shell')?.scrollTop||0;
-      history.replaceState({...history.state,atlas:{view,search,offset,recordFilter,scroll}},'',location.href);
-      history.pushState({atlas:{view,search:changed?'':search,offset:changed?0:offset,recordFilter,scroll}},'',url);
+      history.replaceState({...history.state,atlas:{search,offset,recordFilter,scroll}},'',location.href);
+      history.pushState({atlas:{search:changed?'':search,offset:changed?0:offset,recordFilter,scroll}},'',url);
     }
     setSelection(next);
   };
@@ -610,7 +597,7 @@ export function AtlasApp() {
       const next=normalizeSelection({slug:params.get('slug')||'',program:params.get('program')||'',locator:params.get('locator')||'',addr:params.get('addr')||'',logicalId:params.get('logical_id')||''});
       setSelection(next);setLoaded(Boolean(next.slug||next.program||next.locator));
       const saved=event.state?.atlas;
-      if(saved){setView(saved.view||'overview');setSearch(saved.search||'');setOffset(saved.offset||0);setRecordFilter(saved.recordFilter||'all');requestAnimationFrame(()=>document.querySelector('.atlas-shell')?.scrollTo({top:saved.scroll||0}));}
+      if(saved){setSearch(saved.search||'');setOffset(saved.offset||0);setRecordFilter(saved.recordFilter||'all');requestAnimationFrame(()=>document.querySelector('.atlas-shell')?.scrollTo({top:saved.scroll||0}));}
       // Navigation restores context only. Previously admitted work keeps running.
     };
     window.addEventListener('popstate',restore);return()=>window.removeEventListener('popstate',restore);
@@ -635,7 +622,7 @@ export function AtlasApp() {
   const surfaceProps = {
     selection,
     onSelect: selectContext,
-    onInspectSource: () => setView("functions"),
+    onInspectSource: () => undefined,
     onAction: (id: string, params: Data = {}, targets?: Selection[]) =>
       setAction({ id, params, targets: targets || [{ ...selection }] }),
     notify,
@@ -646,7 +633,7 @@ export function AtlasApp() {
       locator?: string;
       filter: "all" | "named" | "bound" | "real-c";
     }) => {
-      setSelection({
+      selectContext({
         ...emptySelection,
         slug: scope.slugs[0] || "",
         program: scope.program || "",
@@ -655,150 +642,143 @@ export function AtlasApp() {
       setSearch("");
       setOffset(0);
       setRecordFilter(scope.filter);
-      setView("functions");
     },
   };
   const [editorSurface,setEditorSurface]=usePref('atlas.editor-surface','source');
-  const activeStage=run?.stages?.find((stage:Data)=>['running','waiting','cancelling'].includes(stage.status));
-  const workflowSummary=activeStage?.title||run?.stages?.find((stage:Data)=>stage.status==='blocked')?.reason||run?.status||'Reading workflow…';
   async function saveWorkspace(){try{const snapshot=await request(API+'/sessions');const existing=(snapshot.sessions||[]).find((item:Data)=>projectLocatorsMatch(item.locator, selection.locator)&&(selection.locator||item.selection?.slug===selection.slug));const record={...(existing||{id:crypto.randomUUID(),title:title(selection),locator:selection.locator}),selection,program:selection.program,hidden:false,imports:[...new Set([...(existing?.imports||[]),selection.slug].filter(Boolean))]};await queueSessionSave({active:record.id,sessions:[...(snapshot.sessions||[]).filter((item:Data)=>item.id!==record.id),record]});notify('Workspace saved. Project selection and imports retained.','info',{target:selection.locator||selection.slug});refresh();}catch(error){notify(String(error),'error');}}
   const goHome = () => {
     setLoaded(false);
+    setSelection(emptySelection);
     history.replaceState(null, "", atlasUrl());
   };
+  const callers = (graph.callers || detail.callers || []) as Data[];
+  const callees = (graph.callees || detail.callees || []) as Data[];
   return (
     <div className="atlas-app">
-      <div className="atlas-explorer-column" style={{width:explorerColumnWidth,height:`calc(100dvh - ${dockOccupied}px)`}}>
-        <PersistentExplorer onProjectVisibility={projectVisibility} notify={notify} libraryLoading={binaries.loading} libraryError={binaries.error} liveLocators={liveLocators} builds={builds} projects={sessions.data.sessions||[]} unresolved={binaries.data.unresolvedBinaries||[]} selection={selection} onSelect={patch=>{if(patch.slug!==undefined||patch.locator!==undefined)requestOpen({...selection,...patch});else{selectContext(patch);setView("functions");setLoaded(true);}}} onAdd={libraryTransfer.stage} dropProps={libraryTransfer.dropProps} revision={revision} recordFilter={recordFilter} onRecordFilterChange={setRecordFilter} onImport={()=>setDialog("import")} onCreate={()=>setDialog("create")}/>
+      {explorerOpen && <div id="atlas-explorer" className="atlas-explorer-column" style={{width:explorerColumnWidth,height:`calc(100dvh - ${dockOccupied}px)`}}>
+        <PersistentExplorer onProjectVisibility={projectVisibility} notify={notify} libraryLoading={binaries.loading} libraryError={binaries.error} liveLocators={liveLocators} builds={builds} projects={sessions.data.sessions||[]} unresolved={binaries.data.unresolvedBinaries||[]} selection={selection} onSelect={patch=>{if(patch.slug!==undefined||patch.locator!==undefined)requestOpen({...selection,...patch});else{selectContext(patch);setLoaded(true);}}} onAdd={libraryTransfer.stage} dropProps={libraryTransfer.dropProps} revision={revision} recordFilter={recordFilter} onRecordFilterChange={setRecordFilter} onImport={()=>setDialog("import")} onCreate={()=>setDialog("create")}/>
         <ResizeBar axis="x" label="Resize binary explorer" onResize={delta=>setExplorerWidth(w=>Math.max(240,Math.min(560,w+delta)))}/>
-      </div>
+      </div>}
       <div className="atlas-shell" style={{height:`calc(100dvh - ${dockOccupied}px)`,overflow:'auto',paddingBottom:16}}>
         {libraryTransfer.confirmation}
         <header className="atlas-top atlas-context-toolbar">
           <strong className="atlas-wordmark" title="AgentDecompile">AD<span> / </span></strong>
-          <select aria-label="Workspace view" value={loaded?view:'home'} onChange={event=>{if(event.target.value==='home')goHome();else setView(event.target.value);}}><option value="home">Workspace</option>{loaded&&<><option value="overview">Compare builds</option><option value="functions">Inspect function</option><option value="browser">Program data</option><option value="recovery">Recover & verify</option></>}</select>
+          {loaded?<button type="button" className="atlas-home-link" onClick={goHome} title="Clear selection and return to workspace home">Workspace</button>:<span className="atlas-home-link" aria-current="page">Workspace</span>}
           <span className="atlas-current-context" title={selection.locator||selection.program||selection.slug}>{loaded?title(selection):'Choose a project in the explorer'}</span>
           <span className="atlas-connection" title={'Backend '+connection}>{connection}</span>
-          <button onClick={()=>setToolsOpen(true)} aria-label="Tools and workspace commands">Tools</button>
+          <button type="button" aria-controls="atlas-explorer" aria-expanded={explorerOpen} onClick={()=>setExplorerOpen(open=>!open)}>{explorerOpen?"Hide navigator":"Show navigator"}</button>
+          <a className="atlas-workbench-link" href={workbenchUrl(selection, "pipeline")}>Workbench ↗</a>
+          <button onClick={()=>setToolsOpen(true)} aria-label="Project tools">Tools</button>
         </header>
         {!loaded ? (
-          <main className="atlas-landing atlas-workspace-empty"><h1>Workspace</h1><p>Select a project or binary in the explorer. Its existing analysis and recorded evidence stay available while missing work progresses.</p><p>Use <strong>＋ Project</strong> or <strong>Add binaries</strong> above the tree to bring in more files. Drag checked binaries onto a project to link them.</p>{runs.filter(item=>["queued","running","paused"].includes(String(item.status))&&item.locator).map(item=><button key={item.id} className="atlas-live-run" type="button" onClick={()=>{void ensureLiveProjectVisible(String(item.locator)).finally(()=>requestOpen({locator:item.locator,slug:item.slug||"",program:item.program||""}));}}>Open live workflow · {(item.locator||"").split("/").pop()} · {matchingStageSummary(item)||item.status}</button>)}{binaries.error&&<p role="alert">{binaries.error}</p>}</main>
+          <main className="atlas-landing atlas-workspace-empty">
+            <StageTrace run={undefined} loading={!lastPreparationAt && !preparationFeedError} />
+            <h1>Workspace</h1>
+            <p>Select a project or binary in the explorer. The stage trace arms when a workflow is admitted.</p>
+            <p>Dense recover, compare, and program-browser controls live on the <a href={workbenchUrl(emptySelection)}>workbench</a>.</p>
+            {runs.filter(item=>["queued","running","paused"].includes(String(item.status))&&item.locator).map(item=>
+              <button key={item.id} className="atlas-live-run" type="button" onClick={()=>{void ensureLiveProjectVisible(String(item.locator)).finally(()=>requestOpen({locator:item.locator,slug:item.slug||"",program:item.program||""}));}}>
+                Open live workflow · {(item.locator||"").split("/").pop()} · {matchingStageSummary(item)||item.status}
+              </button>
+            )}
+            {binaries.error&&<p role="alert">{binaries.error}</p>}
+          </main>
         ) : (
-          <main className={"atlas-work atlas-view-"+view}>
+          <main className="atlas-work atlas-view-work">
+            <StageTrace run={run} loading={!lastPreparationAt && !preparationFeedError} />
+            <RecoveryStrip run={run} related={related} />
             <div className="atlas-work-context">
-              <button type="button" className="atlas-workflow-toggle" aria-expanded={workflowOpen} aria-controls="atlas-workflow-panel" aria-label={workflowOpen?'Collapse workflow status':'Expand workflow status'} onClick={()=>setWorkflowOpen(open=>!open)}>{workflowOpen?'▾':'▸'}</button>
-              <span className="atlas-context-platform">{build?.platform||'Project evidence'}</span>
-              <button type="button" className="atlas-workflow-summary" aria-expanded={workflowOpen} aria-controls="atlas-workflow-panel" onClick={()=>setWorkflowOpen(open=>!open)} title={workflowSummary}>{workflowSummary}</button>
-              <button type="button" className="atlas-workflow-open-recovery" onClick={()=>setView('recovery')}>Recover & verify</button>
-              {(selection.slug||selection.program)&&<SourceDownload selection={selection} notify={notify}/>}
+              <span className="atlas-context-platform">{build?.platform || "Project evidence"}</span>
+              <a className="atlas-workbench-link" href={workbenchUrl(selection, "pipeline")}>Recover &amp; verify on workbench ↗</a>
+              {(selection.slug || selection.program) && <SourceDownload selection={selection} notify={notify} />}
             </div>
-            <div id="atlas-workflow-panel" className="atlas-preparation-primary" role="region" aria-label="Workflow and preparation status" hidden={!workflowOpen}>
-              <PreparationProgress run={run} selection={selection} notify={notify} error={preparationFeedError} loading={!lastPreparationAt&&!preparationFeedError} lastConnectedAt={lastPreparationAt} />
-              <RecoveryBrief run={run} related={related} />
+            <div className="atlas-preparation-primary" role="region" aria-label="Workflow controls">
+              <PreparationProgress
+                run={run}
+                selection={selection}
+                notify={notify}
+                error={preparationFeedError}
+                loading={!lastPreparationAt && !preparationFeedError}
+                lastConnectedAt={lastPreparationAt}
+                compact
+              />
             </div>
             {prepareError && (
               <div className="atlas-error" role="alert">
                 Preparation admission: {prepareError}
-                <span>Accepted work keeps running. Admission and dependency details appear in the activity feed.</span>
+                <span>Accepted work keeps running. Admission details stay in the activity dock.</span>
               </div>
             )}
 
-            {view === "browser" ? (
-              <div className="atlas-native-browser">
-                <CodeBrowser {...surfaceProps} /><BinaryEvidenceWorkspace {...surfaceProps}/>
-              </div>
-            ) : view === "recovery" ? (
-              <div className="atlas-native-evidence">
-                <RecoveryWorkspace props={surfaceProps} liveRun={run} />
-              </div>
-            ) : view === "overview" ? (
-              <>
-                {(selection.slug||selection.program)&&<AtlasAnalysis {...surfaceProps}/>}
-              </>
-            ) : (
-              <div className="atlas-function-layout">
-                <section className="atlas-function-detail">
-                  {!selection.addr ? (
-                    <div className="atlas-function-empty">
-                      <span>ƒ</span>
-                      <h2>Select a function</h2>
-                      <p>
-                        Inspect source, relationships, and the evidence behind
-                        its identity.
-                      </p>
+            <div className="atlas-function-layout">
+              <section className="atlas-function-detail">
+                {!selection.addr ? (
+                  <div className="atlas-function-empty">
+                    {(selection.slug || selection.program) ? (
+                      <AtlasAnalysis {...surfaceProps} />
+                    ) : (
+                      <>
+                        <span>ƒ</span>
+                        <h2>Select a binary or function</h2>
+                        <p>Use the explorer to open a build, then pick a function. Pipeline stages keep updating above.</p>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <header className="atlas-function-heading">
+                      <code>{selection.addr}</code>
+                      <h1 title={selectedName}>{selectedName}</h1>
+                      <select aria-label="Editor evidence surface" value={editorSurface} onChange={(event) => setEditorSurface(event.target.value)}>
+                        <option value="source">Source</option>
+                        <option value="assembly">Assembly</option>
+                        <option value="compare">Source + assembly</option>
+                      </select>
+                    </header>
+                    {detailResponse.error && <p role="alert">{detailResponse.error}</p>}
+                    {detailResponse.loading && <p role="status">Loading evidence…</p>}
+                    <div className={"atlas-code-grid editor-surface-" + editorSurface}>
+                      <article className="atlas-source-pane" hidden={editorSurface === "assembly"}>
+                        <SourceEditor selection={selection} value={source} loading={detailResponse.loading} extent={sourceExtent(detail)} />
+                      </article>
+                      <article className="atlas-assembly-pane" hidden={editorSurface === "source"}>
+                        <SourceEditor selection={selection} value={detail.assembly?.text || detail.disassembly?.text || ""} kind="assembly" loading={detailResponse.loading} />
+                      </article>
                     </div>
-                  ) : (
-                    <>
-                      <header className="atlas-function-heading"><code>{selection.addr}</code><h1 title={selectedName}>{selectedName}</h1><select aria-label="Editor evidence surface" value={editorSurface} onChange={event=>setEditorSurface(event.target.value)}><option value="source">Source</option><option value="assembly">Assembly</option><option value="compare">Source + assembly</option></select></header>
-                      {detailResponse.error && (
-                        <p role="alert">{detailResponse.error}</p>
-                      )}
-                      {detailResponse.loading && (
-                        <p role="status">Loading evidence…</p>
-                      )}
-                      <div className={"atlas-code-grid editor-surface-"+editorSurface}>
-                        <article className="atlas-source-pane" hidden={editorSurface==='assembly'}>
-                          <SourceEditor selection={selection} value={source} loading={detailResponse.loading} extent={sourceExtent(detail)}/>
-                        </article>
-                        <article className="atlas-assembly-pane" hidden={editorSurface==='source'}>
-                          <SourceEditor selection={selection} value={detail.assembly?.text||detail.disassembly?.text||''} kind="assembly" loading={detailResponse.loading}/>
-                        </article>
-                      </div>
-                      <PrefDetails pref="atlas.callers-open" className="atlas-related-details" summary="Callers and callees"><div className="atlas-relationships">
-                        {[
-                          ["Callers", graph.callers || detail.callers || []],
-                          ["Callees", graph.callees || detail.callees || []],
-                        ].map(([label, rows]) => (
-                          <article key={String(label)}>
-                            <h3>{String(label)}</h3>
-                            {(rows as Data[]).map((r: Data, i: number) => (
-                              <button
-                                key={i}
-                                onClick={() =>
-                                  setSelection((s) => ({
-                                    ...s,
-                                    addr: String(r.addr || r.address),
-                                    logicalId: "",
-                                  }))
-                                }
-                              >
-                                <code>{r.addr || r.address}</code>
-                                {r.name || "Unnamed"}
-                              </button>
-                            ))}
-                            {!(rows as Data[]).length && (
-                              <p>No recorded edges.</p>
-                            )}
-                          </article>
+                    <div className="atlas-edge-strip" aria-label="Callers and callees">
+                      <div>
+                        <span>Callers</span>
+                        {callers.slice(0, 8).map((r: Data, i: number) => (
+                          <button key={`caller-${i}`} type="button" onClick={() => selectContext({addr: String(r.addr || r.address), logicalId: ""})}>
+                            <code>{r.addr || r.address}</code> {r.name || "Unnamed"}
+                          </button>
                         ))}
+                        {!callers.length && <em>None recorded</em>}
                       </div>
-                      </PrefDetails>
-                      {(graph.callersTruncated || graph.calleesTruncated) && (
-                        <p>Additional edges were omitted by the server.</p>
-                      )}
-                      <PrefDetails pref="atlas.identity-open" summary="Cross-build identity and provenance">
-                        <RecordView
-                          value={
-                            detail.siblings ||
-                            detail.bindings ||
-                            detail.provenance
-                          }
-                        />
-                      </PrefDetails>
-                      <p className="atlas-proof-note">
-                        No byte-verification claim is inferred from source text,
-                        names, or job completion.
-                      </p>
-                    </>
-                  )}
-                </section>
-              </div>
-            )}
+                      <div>
+                        <span>Callees</span>
+                        {callees.slice(0, 8).map((r: Data, i: number) => (
+                          <button key={`callee-${i}`} type="button" onClick={() => selectContext({addr: String(r.addr || r.address), logicalId: ""})}>
+                            <code>{r.addr || r.address}</code> {r.name || "Unnamed"}
+                          </button>
+                        ))}
+                        {!callees.length && <em>None recorded</em>}
+                      </div>
+                      {(graph.callersTruncated || graph.calleesTruncated) && <p>Additional edges omitted by the server.</p>}
+                    </div>
+                    <p className="atlas-proof-note">
+                      No byte-verification claim is inferred from source text, names, or job completion.{" "}
+                      <a href={workbenchUrl(selection, "fnbrowse")}>Inspect on workbench ↗</a>
+                    </p>
+                  </>
+                )}
+              </section>
+            </div>
           </main>
         )}
 
       </div>
-      <section className={'atlas-activity-dock '+(activityOpen?'expanded':'collapsed')} style={{height:activityOpen?Math.max(120,dockHeight):36,left:explorerColumnWidth}} aria-label="Activity dock">
+      <section className={'atlas-activity-dock '+(activityOpen?'expanded':'collapsed')} style={{height:activityOpen?Math.max(120,dockHeight):36,left:explorerOpen?explorerColumnWidth:0}} aria-label="Activity dock">
         {activityOpen&&<ResizeBar axis="y" label="Resize activity dock" onResize={delta=>setDockHeight(h=>Math.max(120,Math.min(window.innerHeight*.65,h-delta)))}/>}
         <UnifiedActivity jobs={activityJobs} events={messages} batches={batches} expanded={activityOpen} onToggle={()=>setActivityOpen(v=>!v)} notify={notify} onRetry={job=>setAction({id:job.actionId,params:job.params,targets:[recordedSelection(job,selection)]})} onRetryBatch={batch=>setAction({id:batch.action,params:batch.results[0]?.params,targets:batch.results.filter((row:Data)=>row.status!=='ok').map((row:Data)=>row.context)})}/>
       </section>
@@ -811,34 +791,22 @@ export function AtlasApp() {
       />
       {toolsOpen && (
         <DialogFrame
-          title="Tools for this context"
+          title="Project tools"
           onClose={() => setToolsOpen(false)}
         >
           <div className="atlas-tools">
-            <div className="atlas-workspace-commands"><button onClick={()=>{setToolsOpen(false);setDialog('open');}}>Open existing project</button><button onClick={()=>{setToolsOpen(false);setDialog('create');}}>Create project</button><button onClick={()=>{setToolsOpen(false);setDialog('import');}}>Add binaries</button><button onClick={()=>void saveWorkspace()}>Save workspace</button><button disabled={!selection.locator} onClick={()=>{setToolsOpen(false);setDialog('copy');}}>Copy project…</button><button onClick={()=>{setToolsOpen(false);setDialog('connection');}}>Save connection…</button><a href="/dashboard?mode=workbench">Advanced workbench ↗</a></div>
-            <GuideWorkflows
-              selection={selection}
-              onSelect={(patch) => setSelection((s) => ({ ...s, ...patch }))}
-              onAction={(id, params, targets) => {
-                setAction({ id, params, targets });
-                setToolsOpen(false);
-              }}
-              notify={notify}
-              revision={revision}
-            />
-            <details>
-              <summary>All catalogue actions</summary>
-              <Commands
-                selection={selection}
-                onSelect={(patch) => setSelection((s) => ({ ...s, ...patch }))}
-                onAction={(id, params, targets) => {
-                  setAction({ id, params, targets });
-                  setToolsOpen(false);
-                }}
-                notify={notify}
-                revision={revision}
-              />
-            </details>
+            <div className="atlas-workspace-commands">
+              <button onClick={()=>{setToolsOpen(false);setDialog('open');}}>Open existing project</button>
+              <button onClick={()=>{setToolsOpen(false);setDialog('create');}}>Create project</button>
+              <button onClick={()=>{setToolsOpen(false);setDialog('import');}}>Add binaries</button>
+              <button onClick={()=>void saveWorkspace()}>Save workspace</button>
+              <button disabled={!selection.locator} onClick={()=>{setToolsOpen(false);setDialog('copy');}}>Copy project…</button>
+              <button onClick={()=>{setToolsOpen(false);setDialog('connection');}}>Save connection…</button>
+            </div>
+            <p className="atlas-tools-handoff">
+              Compare builds, recover forms, program listings, reversing guides, and the full action catalogue stay on the{" "}
+              <a href={workbenchUrl(selection)}>workbench</a>.
+            </p>
           </div>
         </DialogFrame>
       )}

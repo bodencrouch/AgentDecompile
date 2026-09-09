@@ -1,7 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type Data, type SurfaceProps } from "./contracts";
 import { ErrorLine, RecordView } from "./ui";
 import { useTool } from "./CodeBrowser";
+import {
+  ensureWorkspaceState,
+  patchWorkspaceState,
+  workspaceKey,
+} from "./workspaceState";
 export function FunctionEditor({
   props,
   address,
@@ -23,17 +28,20 @@ export function FunctionEditor({
     selected,
     open && Boolean(address),
   );
-  const targetKey = JSON.stringify([
+  const storageKey = workspaceKey(
+    "function",
     props.selection.locator,
     props.selection.program,
     address,
-  ]);
+  );
   const [baseline, setBaseline] = useState<{
     target: string;
     data: Data;
   } | null>(null);
+  const targetKey = storageKey;
   const [pending, setPending] = useState<Data | null>(null);
   const [dirty, setDirty] = useState(false);
+  const restoredDraftRef = useRef(false);
   const value = baseline?.target === targetKey ? baseline.data : {};
   function adopt(data: Data) {
     setBaseline({ target: targetKey, data });
@@ -50,7 +58,36 @@ export function FunctionEditor({
     setStorage([]);
     setReturnType("");
     setDirty(false);
+    restoredDraftRef.current = false;
   }, [targetKey]);
+  useEffect(() => {
+    if (!open || !address) return;
+    let alive = true;
+    void ensureWorkspaceState().then((state) => {
+      const saved = state.drafts?.[storageKey];
+      if (!alive || !saved || typeof saved !== "object" || !saved.draft) return;
+      setDraft(saved.draft as Data);
+      setStorage((saved.storage as Data[]) || []);
+      setReturnType(String(saved.returnType || ""));
+      setDirty(true);
+      restoredDraftRef.current = true;
+    });
+    return () => {
+      alive = false;
+    };
+  }, [storageKey, open, address]);
+  useEffect(() => {
+    if (!dirty || !open) return;
+    const timer = setTimeout(() => {
+      patchWorkspaceState("drafts", storageKey, {
+        draft,
+        storage,
+        returnType,
+        updatedAt: Date.now(),
+      });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [storageKey, draft, storage, returnType, dirty, open]);
   useEffect(() => {
     if (
       info.status !== "loaded" ||
@@ -59,6 +96,11 @@ export function FunctionEditor({
     )
       return;
     const incoming = info.data.properties || info.data;
+    if (restoredDraftRef.current && !baseline) {
+      setBaseline({ target: targetKey, data: incoming });
+      restoredDraftRef.current = false;
+      return;
+    }
     if (dirty && baseline?.target === targetKey) {
       if (JSON.stringify(incoming) !== JSON.stringify(baseline.data))
         setPending(incoming);

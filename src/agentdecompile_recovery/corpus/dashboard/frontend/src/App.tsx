@@ -30,7 +30,15 @@ import { GuideWorkflows } from "./GuideWorkflows";
 import { useLibraryTransfer } from "./BinaryLibrary";
 import { PersistentExplorer } from "./PersistentExplorer";
 import { ProjectDialog } from "./ProjectDialog";
+import {
+  installSessionFlush,
+  queueSessionSave,
+  setSessionRevision,
+} from "./sessionSync";
+import { ensureWorkspaceState, patchWorkspaceState } from "./workspaceState";
+import { projectLocatorsMatch } from "./projectLocator";
 import { SourceDownload } from "./SourceDownload";
+import { WorkbenchIntegration } from "./integration/WorkbenchIntegration";
 import "./actions.css";
 const sectionNames: Record<string,string> = {
   overview: "Project overview", preparation: "Preparation status", listing: "Source and assembly",
@@ -38,6 +46,7 @@ const sectionNames: Record<string,string> = {
   logical: "Equivalent functions", review: "Review evidence", pipeline: "Pipeline progress",
   knowledge: "Shared names and types", types: "Types and debug information", recovery: "Recover and verify source",
   exports: "Exports and reports", context: "Assemble context", commands: "All commands",
+  "evidence-first-ai": "Evidence-bounded assistance", "matching-workspace": "Candidate matching",
 };
 const workspaceNavigation = [
   { id: "compare-builds", label: "Compare builds" },
@@ -98,16 +107,21 @@ export function App() {
   const sessionsRef = useRef<Data[]>([]);
   sessionsRef.current = sessions;
   const [active, setActive] = useState("");
+  const activeRef = useRef("");
+  activeRef.current = active;
   const [ready, setReady] = useState(false);
   const preparedContexts = useRef(new Set<string>());
   const revisionRef = useRef(0);
   const [revision, setRevision] = useState(0);
   const refresh = useCallback(() => setRevision((x) => x + 1), []);
   const [events, setEvents] = usePref<Data[]>("activity", []);
+  const persistEvents = useCallback((rows: Data[]) => {
+    patchWorkspaceState("meta", "activity", rows.slice(-500));
+  }, []);
   const notify: Notify = useCallback(
     (message, level = "info", details = {}) =>
-      setEvents((old) =>
-        [
+      setEvents((old) => {
+        const next = [
           ...old,
           {
             id: crypto.randomUUID(),
@@ -116,9 +130,11 @@ export function App() {
             level,
             ...details,
           },
-        ].slice(-500),
-      ),
-    [setEvents],
+        ].slice(-500);
+        persistEvents(next);
+        return next;
+      }),
+    [setEvents, persistEvents],
   );
   const [layout, setLayout] = usePref("layout", {
     explorer: 320,
@@ -161,14 +177,13 @@ export function App() {
   const [connection, setConnection] = useState("Connecting");
   const jobsSnapshot = useRef<Record<string, string>>({});
   const pollRef = useRef(false);
-  const saveRef = useRef(Promise.resolve());
   const [sessionError, setSessionError] = useState("");
   const binaries = useData(API + "/binaries", revision);
   const libraryTransfer = useLibraryTransfer(binaries.data.binaries || [], notify);
   const catalog = useData("/dashboard/api/actions");
   const activateContext = useCallback((next: Selection) => {
     const found = sessionsRef.current.find(s => next.locator
-      ? s.locator === next.locator
+      ? projectLocatorsMatch(s.locator, next.locator)
       : !s.locator && s.selection?.slug === next.slug);
     if (found) { if(found.hidden){sessionsRef.current=sessionsRef.current.map(s=>s.id===found.id?{...s,hidden:false}:s);setSessions(sessionsRef.current);}setActive(found.id); return; }
     if (!next.locator && !next.slug) { setActive(""); return; }
@@ -182,7 +197,7 @@ export function App() {
   }, []);
   const select = useCallback((patch: Partial<Selection>) => {
     const prior = selectionRef.current;
-    const next = { ...prior, ...patch };
+    const next = normalizeSelection({ ...prior, ...patch });
     if (
       (patch.slug !== undefined && patch.slug !== prior.slug) ||
       (patch.program !== undefined && patch.program !== prior.program) ||
@@ -226,9 +241,9 @@ export function App() {
       history.replaceState(null,'',location.pathname+'?mode=workbench&'+query(nextSelection));
     }
     sessionsRef.current=next;setSessions(next);
-    const operation=saveRef.current.catch(()=>{}).then(async()=>{const response=await request(API+'/sessions',{method:'PUT',body:JSON.stringify({active:nextActive,sessions:next,revision:revisionRef.current})});revisionRef.current=response.revision||revisionRef.current;});
-    saveRef.current=operation.catch(()=>{});
-    await operation;notify(hidden?'Project removed from workspace. Files and background work remain available.':'Project restored to workspace.','info',{target:locator});
+    await queueSessionSave({ active: nextActive, sessions: next }).then((response) => {
+      if (response?.revision != null) revisionRef.current = Number(response.revision);
+    });notify(hidden?'Project removed from workspace. Files and background work remain available.':'Project restored to workspace.','info',{target:locator});
   }
   const onAction = useCallback(
     (id: string, params: Data = {}, targets?: Selection[]) =>
@@ -239,7 +254,7 @@ export function App() {
     (patch: Partial<Selection>) => {
       const next = normalizeSelection(patch);
       const found = sessionsRef.current.find(
-        (s) => s.locator === next.locator && next.locator,
+        (s) => next.locator && projectLocatorsMatch(s.locator, next.locator),
       );
       const id = found?.id || crypto.randomUUID();
       if (!found) {
@@ -265,16 +280,28 @@ export function App() {
     [sessions, select, refresh, notify],
   );
   useEffect(() => {
+    let alive = true;
+    void ensureWorkspaceState().then((state) => {
+      const stored = state.meta?.activity;
+      if (!alive || !Array.isArray(stored) || !stored.length) return;
+      setEvents((old) => (old.length ? old : stored));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [setEvents]);
+  useEffect(() => {
     let dead = false;
     request(API + "/sessions")
       .then((data) => {
         if (dead) return;
         revisionRef.current = data.revision || 0;
+        setSessionRevision(revisionRef.current);
         const list: Data[] = data.sessions || [];
         const explicit = route();
         const linked = Boolean(explicit.slug || explicit.locator || explicit.program);
         let current = linked
-          ? list.find(s => explicit.locator ? s.locator === explicit.locator : (explicit.slug ? s.projectSlug === explicit.slug : s.program === explicit.program))
+          ? list.find(s => explicit.locator ? projectLocatorsMatch(s.locator, explicit.locator) : (explicit.slug ? s.projectSlug === explicit.slug : s.program === explicit.program))
           : list.find(s => s.id === data.active) || list[0];
         if (linked && !current) {
           current = {id: crypto.randomUUID(), title: explicit.locator.split("/").pop() || explicit.program || explicit.slug,
@@ -298,6 +325,21 @@ export function App() {
     };
   }, []);
   useEffect(() => {
+    if (!ready) return;
+    installSessionFlush(() => ({
+      active: activeRef.current,
+      sessions: sessionsRef.current,
+    }));
+  }, [ready, active]);
+  useEffect(() => {
+    if (!ready) return;
+    void ensureWorkspaceState().then((state) => {
+      const saved = state.meta?.activity;
+      if (Array.isArray(saved) && saved.length)
+        setEvents((old) => (old.length ? old : saved));
+    });
+  }, [ready, setEvents]);
+  useEffect(() => {
     if (!ready || (!selection.locator && !selection.slug)) return;
     const context = {locator: selection.locator, program: selection.program, slug: selection.slug};
     const key = JSON.stringify(context);
@@ -313,9 +355,9 @@ export function App() {
   }, [ready, filter]);
   useEffect(() => {
     if (!ready || !active) return;
-    setSessions((old) =>
-      old.map((s) =>
-        s.id === active && (!s.locator || s.locator === selection.locator)
+    setSessions((old) => {
+      const next = old.map((s) =>
+        s.id === active && (!s.locator || projectLocatorsMatch(s.locator, selection.locator))
           ? {
               ...s,
               locator: selection.locator || s.locator,
@@ -326,24 +368,28 @@ export function App() {
               ),
             }
           : s,
-      ),
-    );
+      );
+      sessionsRef.current = next;
+      return next;
+    });
   }, [selection, active, ready]);
   useEffect(() => {
     if (!ready) return;
     const timer = setTimeout(() => {
-      const payload = { active, sessions };
-      saveRef.current = saveRef.current.then(async () => {
-        try {
-          const result = await request(API + "/sessions", {
-            method: "PUT",
-            body: JSON.stringify({ ...payload, revision: revisionRef.current }),
-          });
-          revisionRef.current = result.revision || revisionRef.current;
+      void queueSessionSave({ active, sessions }).then(
+        (result) => {
+          if (!result) return;
+          revisionRef.current = Number(result.revision || revisionRef.current);
+          setSessionRevision(revisionRef.current);
           setSessionError("");
-          if (result.merged || !payload.sessions.length) {
+          const remote: Data[] = result.sessions || [];
+          const remoteActive = String(result.active || active);
+          const changed =
+            Boolean(result.merged) ||
+            remoteActive !== active ||
+            JSON.stringify(remote) !== JSON.stringify(sessions);
+          if (changed && remote.length) {
             setSessions((old) => {
-              const remote: Data[] = result.sessions || [];
               const ids = new Set(old.map((s) => s.id));
               const next = [
                 ...old.map((s) => {
@@ -363,16 +409,20 @@ export function App() {
                 }),
                 ...remote.filter((s) => !ids.has(s.id)),
               ];
+              sessionsRef.current = next;
               return JSON.stringify(next) === JSON.stringify(old) ? old : next;
             });
-            if (!payload.sessions.length && result.active)
-              setActive(result.active);
+            if (remoteActive && remoteActive !== active) {
+              activeRef.current = remoteActive;
+              setActive(remoteActive);
+            }
+          } else if (!sessions.length && result.active) {
+            setActive(result.active);
           }
-        } catch (e) {
-          setSessionError(String(e));
-        }
-      });
-    }, 350);
+        },
+        (e) => setSessionError(String(e)),
+      );
+    }, 100);
     return () => clearTimeout(timer);
   }, [sessions, active, ready]);
   useEffect(() => {
@@ -514,25 +564,22 @@ export function App() {
     });
   }
   async function save() {
-    const snapshot = { active, sessions: sessionsRef.current };
-    saveRef.current = saveRef.current.then(async () => {
-      try {
-        const result = await request(API + "/sessions", {
-          method: "PUT",
-          body: JSON.stringify({ ...snapshot, revision: revisionRef.current }),
-        });
-        revisionRef.current = result.revision || revisionRef.current;
-        setSessionError("");
-        notify("Workspace saved.", "info", {
-          target: selection.locator || selection.slug,
-          result: { revision: result.revision },
-        });
-      } catch (e) {
-        setSessionError(String(e));
-        notify(String(e), "error");
-      }
-    });
-    await saveRef.current;
+    try {
+      const result = await queueSessionSave({
+        active,
+        sessions: sessionsRef.current,
+      });
+      if (result?.revision != null)
+        revisionRef.current = Number(result.revision);
+      setSessionError("");
+      notify("Workspace saved.", "info", {
+        target: selection.locator || selection.slug,
+        result: { revision: result?.revision },
+      });
+    } catch (e) {
+      setSessionError(String(e));
+      notify(String(e), "error");
+    }
   }
   function selectedSession(id: string) {
     setActive(id);
@@ -751,8 +798,52 @@ export function App() {
         </div>
       )}
       {libraryTransfer.confirmation}
+      <nav className="region-controls" aria-label="Workspace regions">
+        <button
+          aria-controls="project-explorer"
+          aria-expanded={layout.showExplorer}
+          onClick={() =>
+            setLayout((current) => ({
+              ...current,
+              showExplorer: !current.showExplorer,
+            }))
+          }
+        >
+          {layout.showExplorer ? "Hide navigator" : "Show navigator"}
+        </button>
+        <button
+          aria-controls="workspace"
+          onClick={() => document.getElementById("workspace")?.focus()}
+        >
+          Analysis
+        </button>
+        <button
+          aria-controls="evidence-inspector"
+          aria-expanded={layout.showInspector}
+          onClick={() =>
+            setLayout((current) => ({
+              ...current,
+              showInspector: !current.showInspector,
+            }))
+          }
+        >
+          {layout.showInspector ? "Hide evidence" : "Show evidence"}
+        </button>
+        <button
+          aria-controls="activity-dock"
+          aria-expanded={layout.showDock}
+          onClick={() =>
+            setLayout((current) => ({
+              ...current,
+              showDock: !current.showDock,
+            }))
+          }
+        >
+          {layout.showDock ? "Hide activity" : "Show activity"}
+        </button>
+      </nav>
       <div className="work-area">
-        <aside className="explorer" hidden={!layout.showExplorer}>
+        <aside id="project-explorer" className="explorer" aria-label="Project and function navigator" hidden={!layout.showExplorer}>
           <PersistentExplorer onProjectVisibility={projectVisibility} notify={notify} libraryLoading={binaries.loading} libraryError={binaries.error} builds={binaries.data.binaries || []} projects={sessions} unresolved={binaries.data.unresolvedBinaries || []}
             selection={selection} onSelect={select} onAdd={libraryTransfer.stage} dropProps={libraryTransfer.dropProps} revision={revision} recordFilter={recordFilter} onRecordFilterChange={setRecordFilter} functionQuery={filter} onFunctionQueryChange={setFilter}
             onImport={()=>setDialog("import")} onCreate={()=>setDialog("create")}
@@ -777,13 +868,20 @@ export function App() {
             }
           />
         )}
-        <main>
+        <main id="workspace" tabIndex={-1} aria-label="Analysis workspace">
           <nav className="section-index" aria-label="Workspace sections">
             {workspaceNavigation.map(({id,label})=><button key={id} onClick={()=>jump(id)}>{label}</button>)}
             {selection.slug && <SourceDownload selection={selection} notify={notify} />}
           </nav>
           <WorkbenchSurfaces {...surfaceProps} inspectTools={<CodeBrowser {...surfaceProps} />} preparationTools={<PreparationActivity {...surfaceProps} />} />
-          <details className="workspace-reference"><summary>Reversing workflows</summary><section id="guide">
+          <WorkbenchIntegration
+            selection={selection}
+            revision={revision}
+            catalog={catalog.data.actions || []}
+            onSelect={select}
+            notify={notify}
+          />
+          <details id="wb-more" className="workspace-reference"><summary>Reversing workflows</summary><section id="guide">
             <GuideWorkflows {...surfaceProps} />
           </section>
           </details><details className="workspace-reference"><summary>All commands</summary><section id="commands" tabIndex={-1}>
@@ -802,7 +900,7 @@ export function App() {
                 }))
               }
             />
-            <aside className="inspector">
+            <aside id="evidence-inspector" className="inspector" aria-label="Evidence inspector">
               <header>
                 <h2>Evidence inspector</h2>
                 <button
@@ -830,7 +928,7 @@ export function App() {
           }))
         }
       />
-      <section className="activity" aria-label="Activity dock"><UnifiedActivity jobs={jobs} events={events} batches={batches} expanded={layout.showDock} onToggle={()=>setLayout(x=>({...x,showDock:!x.showDock}))} notify={notify} onRetry={job=>setAction({id:job.actionId,params:job.params,targets:[recordedSelection(job,selection)]})} onRetryBatch={batch=>setAction({id:batch.action,params:batch.results[0]?.params,targets:batch.results.filter((row:Data)=>row.status!=='ok').map((row:Data)=>row.context)})}/></section>
+      <section id="activity-dock" className="activity" aria-label="Activity dock"><UnifiedActivity jobs={jobs} events={events} batches={batches} expanded={layout.showDock} onToggle={()=>setLayout(x=>({...x,showDock:!x.showDock}))} notify={notify} onRetry={job=>setAction({id:job.actionId,params:job.params,targets:[recordedSelection(job,selection)]})} onRetryBatch={batch=>setAction({id:batch.action,params:batch.results[0]?.params,targets:batch.results.filter((row:Data)=>row.status!=='ok').map((row:Data)=>row.context)})}/></section>
       <footer>
         <span>
           {selection.program || selection.slug || "No program selected"}

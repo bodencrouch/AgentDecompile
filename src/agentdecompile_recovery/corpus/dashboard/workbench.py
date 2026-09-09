@@ -916,14 +916,14 @@ def import_program_into_project(
     """Keep project selection and import in the same Ghidra session transaction."""
     from .mcp_bridge import CONTEXT_LOCK
 
-    from .protection import prepare_protected_binary
+    from .protection import prepare_analysis_binary
     from agentdecompile_recovery.corpus.ghidra_project import classify_locator
 
     with CONTEXT_LOCK:
         protection = None
         source_path = path
         if classify_locator(path).get("kind") == "binary":
-            protection = prepare_protected_binary(path, live_root() or Path(path).parent)
+            protection = prepare_analysis_binary(path, live_root() or Path(path).parent)
             if protection.get("handling") == "blocked":
                 return {"ok": False, "error": protection.get("reason") or protection.get("blocker") or "Protection handling is unavailable", "protection": protection}
             path = protection.get("analysisPath") or path
@@ -1234,11 +1234,14 @@ def list_sessions() -> dict[str, Any]:
 
 
 def write_sessions(payload: dict[str, Any]) -> dict[str, Any]:
-    from agentdecompile_recovery.corpus.ghidra_project import fresh_draft_session, save_sessions_merged
+    from agentdecompile_recovery.corpus.ghidra_project import load_sessions, save_sessions_merged
 
     sessions = list((payload or {}).get("sessions") or [])
     if not sessions:
-        return fresh_draft_session(live_root())
+        stored = load_sessions(live_root())
+        if stored.get("sessions"):
+            return {"ok": True, **stored, "ignored": True}
+        return {"ok": True, **stored}
     return save_sessions_merged(live_root(), payload)
 
 

@@ -32,6 +32,7 @@ from .state import RunState, atomic_write_json, config_fingerprint, now
 from .strategy import build_strategy
 from .snapshot import snapshot_existing_recovery
 from .targets import TargetIdentity, identify_binary
+from .languages import RecoveryLanguageProfile
 from .tools import (
     ASSETRIPPER_ENV,
     ILSPYCMD_ENV,
@@ -463,11 +464,27 @@ class RecoveryRunner:
         target = self.load_target()
         analysis_path = target.binary_path
         analysis_file = self.run_dir / "analysis-target.json"
+        analysis_data: dict[str, Any] = {}
         if analysis_file.exists():
-            data = json.loads(analysis_file.read_text(encoding="utf-8"))
-            analysis_path = Path(data.get("analysisBinaryPath") or analysis_path)
+            analysis_data = json.loads(analysis_file.read_text(encoding="utf-8"))
+            analysis_path = Path(analysis_data.get("analysisBinaryPath") or analysis_path)
         if analysis_path == target.binary_path:
             return target
+        container = analysis_data.get("container") if isinstance(analysis_data.get("container"), dict) else {}
+        primary = container.get("primary") if isinstance(container.get("primary"), dict) else {}
+        container_format = str(container.get("format") or analysis_data.get("craftPlatform") or target.format)
+        if container_format == "nds" and primary:
+            from .targets import sha256_file
+
+            return TargetIdentity(
+                input_path=target.input_path,
+                binary_path=analysis_path,
+                sha256=sha256_file(analysis_path),
+                size=analysis_path.stat().st_size,
+                format="nds",
+                architecture_hint=str(primary.get("architectureHint") or target.architecture_hint or "armv5te"),
+                stable_id=target.stable_id,
+            )
         analysis = identify_binary(analysis_path, analysis_path.name)
         return TargetIdentity(
             input_path=target.input_path,
@@ -481,10 +498,16 @@ class RecoveryRunner:
 
     def stage_discover(self, _stage: Stage) -> dict[str, Any]:
         self.target = identify_binary(self.config.input_path, self.config.preferred_name)
-        atomic_write_json(self.run_dir / "target.json", self.target.to_json())
-        self.state.data["target"] = self.target.to_json()
+        target_json = self.target.to_json()
+        from .prompt_builder import craft_platform_for_target_format
+
+        craft_platform = craft_platform_for_target_format(self.target.format)
+        if craft_platform:
+            target_json["craftPlatform"] = craft_platform
+        atomic_write_json(self.run_dir / "target.json", target_json)
+        self.state.data["target"] = target_json
         self.state.save()
-        return self.target.to_json()
+        return target_json
 
     def stage_inspect_capabilities(self, _stage: Stage) -> dict[str, Any]:
         capabilities = inspect_capabilities(ROOT)
@@ -503,6 +526,27 @@ class RecoveryRunner:
             "terminalStatus": None,
             "claimBoundary": "analysis image is for static recovery inputs; target identity remains the original binary",
         }
+        if target.format == "nds":
+            from .containers import prepare_container_for_analysis
+
+            container = prepare_container_for_analysis(target.binary_path, self.run_dir)
+            if container and container.get("analysisPath"):
+                analysis_path = Path(str(container["analysisPath"]))
+                summary.update(
+                    {
+                        "analysisBinaryPath": str(analysis_path),
+                        "status": "transformed",
+                        "transform": container.get("handling") or "container-extract",
+                        "analysisSha256": sha256_file(analysis_path),
+                        "analysisSize": analysis_path.stat().st_size,
+                        "container": container.get("container"),
+                        "craftPlatform": "nds",
+                    }
+                )
+                if container.get("overlays"):
+                    summary["containerOverlays"] = container["overlays"]
+            atomic_write_json(out_path, summary)
+            return summary
         if target.format == "pe":
             capabilities = json.loads((self.run_dir / "capabilities.json").read_text(encoding="utf-8"))
             mono = ((capabilities.get("tools") or {}).get("mono") or {}).get("available")
@@ -620,7 +664,11 @@ class RecoveryRunner:
 
     def stage_inventory_binary(self, _stage: Stage) -> dict[str, Any]:
         target = self.load_analysis_target()
-        inventory = build_binary_inventory(target)
+        analysis_payload: dict[str, Any] = {}
+        analysis_file = self.run_dir / "analysis-target.json"
+        if analysis_file.exists():
+            analysis_payload = json.loads(analysis_file.read_text(encoding="utf-8"))
+        inventory = build_binary_inventory(target, analysis_target=analysis_payload)
         write_inventory(self.run_dir / "binary-inventory.json", inventory)
         summary = inventory.get("summary", {})
         return {
@@ -765,7 +813,7 @@ class RecoveryRunner:
         inventory = json.loads((self.run_dir / "binary-inventory.json").read_text(encoding="utf-8"))
         facts_jsonl = self.resolve_acquisition_facts_source(target.to_json()) or default_function_facts_path(self.run_dir)
         summary = generate_source_candidates(
-            target=target.to_json(),
+            target=RecoveryLanguageProfile.merge_into_target(target.to_json()),
             function_candidates=candidates,
             out_dir=self.run_dir / "source-generation",
             inventory=inventory,
@@ -1328,6 +1376,8 @@ def resolve_source_synthesis_mode(
         # clang-cl is the fallback rather than clang: it at least matches MSVC
         # calling conventions and name decoration.
         return "msvc" if vc_root_available else "clang-cl"
+    if (target_format or "").strip().lower() == "nds":
+        return "clang"
     return "clang"
 
 

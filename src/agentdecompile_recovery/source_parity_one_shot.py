@@ -31,6 +31,8 @@ from .elf_target import (
     is_elf_binary,
     resolve_elf_binary,
 )
+from .languages import RecoveryLanguageProfile
+from .containers import is_nds_binary, prepare_container_for_analysis
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -87,6 +89,7 @@ class ProfileConfig:
     match_root: Path
     binary_format: str = "pe"
     default_compiler: str = "msvc"
+    language_profile: RecoveryLanguageProfile | None = None
 
     @staticmethod
     def for_slug(slug: str, *, binary: Path | None = None) -> "ProfileConfig":
@@ -96,17 +99,26 @@ class ProfileConfig:
         default_compiler = "msvc"
         text_section = ".text"
         if binary is not None and binary.is_file():
-            if is_elf_binary(binary, min_bytes=0):
+            if is_nds_binary(binary):
+                binary_format = "nds"
+                default_compiler = "clang"
+                text_section = ".text"
+            elif is_elf_binary(binary, min_bytes=0):
                 binary_format = "elf"
                 default_compiler = "clang"
                 text_section = detect_primary_text_section_elf(binary) or ".text"
             elif is_pe_binary(binary, min_bytes=0):
                 binary_format = "pe"
                 default_compiler = "msvc"
+        elif prefix.startswith("nds"):
+            binary_format = "nds"
+            default_compiler = "clang"
+            text_section = ".text"
         elif prefix.startswith("elf"):
             binary_format = "elf"
             default_compiler = "clang"
             text_section = ".text"
+        language_profile = RecoveryLanguageProfile.for_binary_format(binary_format)
         return ProfileConfig(
             slug=prefix,
             default_binary=None,
@@ -130,6 +142,7 @@ class ProfileConfig:
             match_root=ROOT / f"target/{prefix}-match",
             binary_format=binary_format,
             default_compiler=default_compiler,
+            language_profile=language_profile,
         )
 
 
@@ -221,6 +234,8 @@ def resolve_profile_binary(input_path: Path, profile_slug: str) -> Path:
     """Resolve the analysis binary for a profile from a file or install directory."""
     path = input_path.expanduser().resolve()
     slug = profile_slug.replace("_", "-").lower()
+    if slug.startswith("nds") or (path.is_file() and is_nds_binary(path)):
+        return path if path.is_file() else resolve_target(path)
     if slug.startswith("elf") or (path.is_file() and is_elf_binary(path, min_bytes=0)):
         try:
             return resolve_elf_binary(path)
@@ -281,6 +296,11 @@ def stage_discover(binary: Path, profile: ProfileConfig, state: dict[str, Any]) 
             raise ValueError(
                 f"profile {profile.slug} expects an ELF binary (>=50KB); got: {target}"
             )
+    elif profile.binary_format == "nds":
+        if not is_nds_binary(target):
+            raise ValueError(
+                f"profile {profile.slug} expects a Nintendo DS (.nds) ROM; got: {target}"
+            )
     elif profile.binary_format == "pe":
         if not is_pe_binary(target):
             raise ValueError(
@@ -291,6 +311,10 @@ def stage_discover(binary: Path, profile: ProfileConfig, state: dict[str, Any]) 
     state["binaryPath"] = str(target)
     state["binarySha256"] = digest
     state["binaryFormat"] = profile.binary_format
+    if profile.binary_format == "nds":
+        state["craftPlatform"] = "nds"
+    if profile.language_profile is not None:
+        state.update(profile.language_profile.to_target_fields())
     mark_stage(
         state,
         "discover",
@@ -482,6 +506,25 @@ def stage_prepare(
         shutil.copy2(target, dest)
 
     extra: dict[str, Any] = {"unpackDir": str(unpack), "copiedTo": str(dest)}
+    if profile.binary_format == "nds" or is_nds_binary(dest):
+        container = prepare_container_for_analysis(dest, unpack)
+        if container is None or not container.get("analysisPath"):
+            mark_stage(state, "prepare", "failed", **extra)
+            raise RuntimeError(
+                f"NDS container extraction failed for {dest}; expected a valid .nds ROM header."
+            )
+        analysis_path = Path(str(container["analysisPath"]))
+        extra["transform"] = container.get("handling") or "container-extract"
+        extra["analysisBinary"] = str(analysis_path)
+        extra["analysisBinarySha256"] = sha256_file(analysis_path)
+        extra["container"] = container.get("container")
+        if container.get("overlays"):
+            extra["containerOverlays"] = container["overlays"]
+        state["textSection"] = profile.text_section
+        extra["textSection"] = profile.text_section
+        mark_stage(state, "prepare", "complete", **extra)
+        return
+
     if profile.binary_format == "elf" or is_elf_binary(dest, min_bytes=0):
         # ELF targets are already analysis-ready; never run Steamless.
         extra["transform"] = "none-elf-unpacked"
@@ -1757,6 +1800,9 @@ def write_report(profile: ProfileConfig, state: dict[str, Any], report_path: Pat
         "profile": profile.slug,
         "binaryPath": state.get("binaryPath"),
         "binarySha256": state.get("binarySha256"),
+        "defaultSourceLanguage": state.get("defaultSourceLanguage"),
+        "allowedLanguages": state.get("allowedLanguages"),
+        "sourceLanguageProfile": state.get("sourceLanguageProfile"),
         "stages": state.get("stages", {}),
         "coverage": coverage,
         "verifiedRatio": coverage.get("verifiedRatio"),

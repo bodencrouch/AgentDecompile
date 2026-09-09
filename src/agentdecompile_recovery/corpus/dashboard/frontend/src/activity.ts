@@ -132,7 +132,11 @@ export function useEntityActivity(locator: string, slug: string) {
       source.onerror = () => {
         if (!current()) return;
         connected = false;
-        setState(old => ({ ...old, connection: 'polling', error: 'Live feed reconnecting; checking saved activity.' }));
+        // EventSource can be buffered by a local proxy even while the bounded
+        // snapshot request is succeeding.  Polling is still live state, so do
+        // not present it as a broken workspace when we already have a usable
+        // snapshot.
+        setState(old => ({ ...old, connection: 'polling', error: old.revision ? '' : 'Live feed reconnecting; checking saved activity.' }));
         void poll();
       };
     };
@@ -143,7 +147,9 @@ export function useEntityActivity(locator: string, slug: string) {
       if (disposed) return;
       if (eventSource && Date.now() - lastSignal > 20000) {
         connected = false;
-        setState(old => ({ ...old, connection: 'disconnected', error: 'Activity updates stopped. Reconnecting; keeping the last state.' }));
+        setState(old => old.revision
+          ? { ...old, connection: 'polling', error: '' }
+          : { ...old, connection: 'disconnected', error: 'Activity updates have not supplied an initial snapshot yet.' });
         connect();
       }
       void poll();

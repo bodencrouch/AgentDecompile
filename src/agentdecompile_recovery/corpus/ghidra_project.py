@@ -12,6 +12,7 @@ import getpass
 import json
 import os
 import shutil
+import threading
 import time
 from pathlib import Path
 from urllib.parse import urlparse
@@ -1246,15 +1247,42 @@ def session_store_path(work_dir: Path | None) -> Path | None:
     return Path(work_dir) / "workbench-sessions.json"
 
 
-def load_sessions(work_dir: Path | None) -> dict[str, object]:
-    path = session_store_path(work_dir)
-    empty = {"revision": 0, "active": "", "sessions": []}
-    if path is None or not path.is_file():
+_SESSION_LOCK = threading.RLock()
+
+
+def _atomic_json_write(path: Path, payload: dict[str, object]) -> None:
+    import os
+    import threading
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(f".{os.getpid()}.{threading.get_ident()}.tmp")
+    temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    temporary.replace(path)
+
+
+def _load_session_json(path: Path, empty: dict[str, object]) -> dict[str, object]:
+    if not path.is_file():
         return empty
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
+        backup = path.with_suffix(path.suffix + f".corrupt-{int(time.time())}.bak")
+        try:
+            path.replace(backup)
+        except OSError:
+            pass
+        return dict(empty)
+    if not isinstance(data, dict):
+        return dict(empty)
+    return data
+
+
+def load_sessions(work_dir: Path | None) -> dict[str, object]:
+    path = session_store_path(work_dir)
+    empty: dict[str, object] = {"revision": 0, "active": "", "sessions": []}
+    if path is None:
         return empty
+    data = _load_session_json(path, empty)
     sessions = list(data.get("sessions") or [])
     active = str(data.get("active") or "")
     if sessions and not any(item.get("id") == active for item in sessions):
@@ -1351,6 +1379,78 @@ def _normalize_session_imports(sessions: list[dict[str, object]]) -> list[dict[s
     return normalized
 
 
+def _canonical_session_locator(value: object) -> str:
+    """Return one durable key for a project locator without requiring it exists.
+
+    Browser clients can reach the same Ghidra project through a symlink, a
+    trailing slash, or an old path spelling.  Session ids are client-local and
+    therefore cannot be used as project identity.
+    """
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        return str(Path(text).expanduser().resolve(strict=False))
+    except (OSError, RuntimeError, ValueError):
+        return text.rstrip("/\\") or text
+
+
+def _dedupe_project_sessions(sessions: list[dict[str, object]], active: str) -> tuple[list[dict[str, object]], str]:
+    """Coalesce duplicate project records and leave one project visibly loaded.
+
+    Draft sessions are retained, but hidden while a concrete project is active.
+    Older projects remain as hidden recent-project records instead of rendering
+    as competing open projects in the explorer.
+    """
+    project_by_locator: dict[str, dict[str, object]] = {}
+    other: list[dict[str, object]] = []
+    active_locator = ""
+    for source in sessions:
+        item = dict(source)
+        locator = _canonical_session_locator(item.get("locator"))
+        project_slug = str(item.get("projectSlug") or "").strip()
+        # Imported library selections made before a project database exists
+        # still identify one project by their stable project slug.  Coalesce
+        # those records too; otherwise a click on a function can manufacture
+        # another apparent project in the explorer.
+        key = locator or (f"slug:{project_slug}" if project_slug else "")
+        if not key:
+            other.append(item)
+            continue
+        item["locator"] = locator
+        prior = project_by_locator.get(key)
+        if prior is None:
+            project_by_locator[key] = item
+        else:
+            # Keep the newest client-facing record while retaining imports and
+            # provenance accumulated by either representation.
+            imports: dict[str, object] = {}
+            for candidate in [*(prior.get("imports") or []), *(item.get("imports") or [])]:
+                imports[_import_key(candidate)] = candidate
+            merged_from = [*(prior.get("mergedFrom") or []), *(item.get("mergedFrom") or [])]
+            winner = dict(prior)
+            winner.update(item)
+            winner["imports"] = _coerce_imports(list(imports.values()))
+            if merged_from:
+                winner["mergedFrom"] = list(dict.fromkeys(str(value) for value in merged_from if value))
+            project_by_locator[key] = winner
+        if str(source.get("id") or "") == active:
+            active_locator = key
+
+    projects = list(project_by_locator.values())
+    if not active_locator and active:
+        active_item = next((item for item in sessions if str(item.get("id") or "") == active), {})
+        active_locator = _canonical_session_locator(active_item.get("locator")) or (f"slug:{str(active_item.get('projectSlug') or '').strip()}" if active_item.get("projectSlug") else "")
+    visible_project = active_locator if active_locator in project_by_locator else (next(reversed(project_by_locator), ""))
+    for key, project in project_by_locator.items():
+        project["hidden"] = key != visible_project
+    for item in other:
+        item["hidden"] = bool(visible_project) or bool(item.get("hidden"))
+    ordered = [*other, *projects]
+    active_id = str(project_by_locator[visible_project].get("id") or "") if visible_project else active
+    return ordered, active_id
+
+
 def save_sessions(work_dir: Path | None, payload: dict[str, object]) -> dict[str, object]:
     path = session_store_path(work_dir)
     if path is None:
@@ -1364,7 +1464,7 @@ def save_sessions(work_dir: Path | None, payload: dict[str, object]) -> dict[str
         "sessions": sessions,
     }
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(out, indent=2), encoding="utf-8")
+    _atomic_json_write(path, out)
     return {"ok": True, **out}
 
 
@@ -1372,25 +1472,27 @@ def save_sessions_merged(work_dir: Path | None, payload: dict[str, object]) -> d
     path = session_store_path(work_dir)
     if path is None:
         return {"ok": False, "error": "AGENT_DECOMPILE_CORPUS_WORK_DIR is unset"}
-    stored = load_sessions(work_dir)
-    stored_revision = int(stored.get("revision") or 0)
-    client_revision = payload.get("revision")
-    sessions = list(payload.get("sessions") or [])
-    active = str(payload.get("active") or stored.get("active") or "")
-    merged = False
-    if client_revision is not None and int(client_revision) != stored_revision:
-        sessions = merge_session_records(list(stored.get("sessions") or []), sessions)
-        merged = True
-    else:
-        sessions = _normalize_session_imports(sessions)
-    revision = stored_revision + 1
-    out = {"revision": revision, "active": active, "sessions": sessions}
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(out, indent=2), encoding="utf-8")
-    result: dict[str, object] = {"ok": True, **out}
-    if merged:
-        result["merged"] = True
-    return result
+    with _SESSION_LOCK:
+        stored = load_sessions(work_dir)
+        stored_revision = int(stored.get("revision") or 0)
+        client_revision = payload.get("revision")
+        sessions = list(payload.get("sessions") or [])
+        active = str(payload.get("active") or stored.get("active") or "")
+        merged = False
+        if client_revision is not None and int(client_revision) != stored_revision:
+            sessions = merge_session_records(list(stored.get("sessions") or []), sessions)
+            merged = True
+        else:
+            sessions = _normalize_session_imports(sessions)
+        sessions, active = _dedupe_project_sessions(sessions, active)
+        revision = stored_revision + 1
+        out = {"revision": revision, "active": active, "sessions": sessions}
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _atomic_json_write(path, out)
+        result: dict[str, object] = {"ok": True, **out}
+        if merged:
+            result["merged"] = True
+        return result
 
 
 def _draft_session_item() -> dict[str, object]:

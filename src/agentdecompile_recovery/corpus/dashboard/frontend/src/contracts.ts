@@ -1,10 +1,46 @@
 export type Data = Record<string, any>;
+export {
+  ANALYSIS_SCHEMA_VERSION,
+  unsupportedCapability,
+  type Address,
+  type ActionDescriptor,
+  type AnalysisJob,
+  type ArtifactFormat,
+  type ArtifactRecord,
+  type BasicBlockRecord,
+  type BinaryRecord,
+  type CapabilityStatus,
+  type ClaimBoundary,
+  type DecompilerResult,
+  type EvidenceRecord,
+  type FindingRecord,
+  type Freshness,
+  type FreshnessState,
+  type FunctionRecord,
+  type InstructionRecord,
+  type NormalizedAnalysisModel,
+  type Pagination,
+  type ProviderCapability,
+  type ProviderResult,
+  type ProviderResultStatus,
+  type Region,
+  type Revision,
+  type RevisionConflict,
+  type SharedContext,
+  type StructuredFailure,
+  type XrefRecord,
+} from "./analysis/contracts";
 export interface Selection {
   slug: string;
   program: string;
   addr: string;
   logicalId: string;
   locator: string;
+  projectId?: string;
+  binaryHash?: string;
+  functionId?: string;
+  region?: import("./analysis/contracts").Region;
+  evidenceIds?: string[];
 }
 export const emptySelection: Selection = {
   slug: "",
@@ -110,7 +146,12 @@ export function functionKey(selection: Selection): string {
     selection.locator,
     selection.slug,
     selection.program,
+    selection.binaryHash,
+    selection.functionId,
     selection.addr,
+    selection.logicalId,
+    selection.region?.start.offset,
+    selection.region?.end?.offset,
   ].join("\u001f");
 }
 

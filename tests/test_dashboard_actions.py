@@ -201,7 +201,10 @@ def test_overview_has_run_work_and_no_actions_page() -> None:
     assert "AgentDecompile" in home.text
     react_entry = ASSETS / "index.html"
     if react_entry.is_file():
-        assert 'id="root"' in home.text
+        assert 'id="wb-sessions"' in home.text or "workbench-app.js" in home.text
+        atlas = client.get("/dashboard?mode=atlas")
+        assert atlas.status_code == 200
+        assert 'id="root"' in atlas.text
     else:
         assert 'id="wb-sessions"' in home.text
     assert "action-catalog" not in home.text
@@ -213,17 +216,14 @@ def test_overview_has_run_work_and_no_actions_page() -> None:
     workbench = client.get("/dashboard")
     assert workbench.status_code == 200
     assert "AgentDecompile" in workbench.text
-    if react_entry.is_file():
-        assert 'id="root"' in workbench.text
-    else:
-        assert 'id="wb-sessions"' in workbench.text
+    assert 'id="wb-sessions"' in workbench.text or "workbench-app.js" in workbench.text
+    if not react_entry.is_file():
         assert 'role="tablist"' in workbench.text
         assert "wb-strip" not in workbench.text
-    assert "/docs" in workbench.text or react_entry.is_file()
+    assert "/docs" in workbench.text or "workbench-app.js" in workbench.text
     assert "CommandPalette" in Path(
         "src/agentdecompile_recovery/corpus/dashboard/static/workbench-app.js"
     ).read_text(encoding="utf-8")
-
 
 def test_browse_surfaces_are_workbench_windows_not_a_second_page() -> None:
     """Functions, logical identities, review, graph and builds share one page."""
@@ -240,10 +240,7 @@ def test_browse_surfaces_are_workbench_windows_not_a_second_page() -> None:
         "src/agentdecompile_recovery/corpus/dashboard/static/workbench-app.js"
     ).read_text(encoding="utf-8")
     for surface in ("wb-fnbrowse", "wb-logical", "wb-review", "wb-graph", "wb-corpus"):
-        if react_entry.is_file():
-            assert f'id="{surface}"' in js or f'id={surface}' in js
-        else:
-            assert f'id="{surface}"' in workbench.text
+        assert f'id="{surface}"' in js or f"id={surface}" in js or f'id=\\"{surface}\\"' in js
     # The old five-block browse page must not be nested inside the workbench.
     assert "workspace-nav" not in workbench.text
     for block in ("logical", "review", "graph", "builds"):

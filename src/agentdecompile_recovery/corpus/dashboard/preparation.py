@@ -432,6 +432,14 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 stage = {'key': key, 'title': title, 'status': 'queued', 'completed': 0, 'total': None, 'reason': ''}
                 row['stages'].append(stage)
             stage.update(status=status, reason=reason, **values)
+            # A completed/partial terminal must not keep rendering its last
+            # child as an active stage. Preserve the link for the activity
+            # inspector, but remove it from the live-stage projection.
+            if status in {'completed', 'partial', 'blocked', 'cancelled'} and 'jobId' not in values:
+                if stage.get('jobId'):
+                    stage['lastJobId'] = stage['jobId']
+                stage.pop('jobId', None)
+                stage.pop('jobStatus', None)
             row.update(currentStage=key, currentProgram=values.get('currentProgram', stage.get('currentProgram', '')), currentAction=values.get('currentAction', stage.get('currentAction', '')))
             if reason:
                 row['events'].append({'at': time.time(), 'stage': key, 'message': reason})
@@ -506,6 +514,12 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 previous_status = None
                 wait_limit = float(fields.get('workflowWaitSeconds') or (900 if probe else 0))
                 wait_deadline = time.monotonic() + wait_limit if wait_limit else None
+                if wait_limit:
+                    # This is an execution bound, not a completion ETA.  The
+                    # UI uses it to distinguish an active bounded operation
+                    # from an unbounded spinner.
+                    update(key, 'running', executionDeadlineAt=time.time() + wait_limit,
+                           executionLimitSeconds=int(wait_limit))
                 while True:
                     job = jobs.get_job(job_id)
                     progress_path = row.get('functionProgressFile')
@@ -530,7 +544,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                         break
                     if wait_deadline is not None and time.monotonic() >= wait_deadline:
                         jobs.cancel_job(job_id)
-                        outcome = {'ok': False, 'error': f'{key}-timeout: the read-only probe exceeded {int(wait_limit)} seconds; it was cancelled before the next program was admitted.', 'jobId': job_id}
+                        outcome = {'ok': False, 'error': f'{key}-timeout: the {"read-only probe" if probe else "bounded operation"} exceeded {int(wait_limit)} seconds; it was cancelled before the next program was admitted.', 'jobId': job_id}
                         break
                     if job.status != previous_status:
                         previous_status = job.status
@@ -666,7 +680,19 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                     analyzed += 1
                     update('analysis', 'running', f'Reusing completed analysis for {program}.', completed=analyzed, total=len(programs))
                     continue
-                result = action('analysis', 'mcp.analyze-program', {'programPath': program}, context)
+                # Full analysis is materially longer than a read-only probe,
+                # especially for mobile executables.  It still needs a
+                # durable upper bound: an unbounded job can otherwise hold a
+                # project lease forever while the UI misleadingly reports it
+                # as active.  The range is deliberately conservative and the
+                # terminal names the timeout rather than retrying unchanged
+                # analysis indefinitely.
+                work_size = int(checkpoint.get('workSize') or 0)
+                analysis_wait_seconds = max(1800, min(14400, 900 + work_size // 2))
+                result = action('analysis', 'mcp.analyze-program', {
+                    'programPath': program,
+                    'workflowWaitSeconds': analysis_wait_seconds,
+                }, context)
                 if result['ok'] or (result.get('data') or {}).get('alreadyAnalyzed'):
                     checkpoint.update(analysisConfirmed=True, analysisCheckedAt=time.time(), needsAnalysis=False)
                     analyzed += 1

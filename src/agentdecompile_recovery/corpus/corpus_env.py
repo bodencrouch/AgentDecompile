@@ -1,7 +1,9 @@
-"""Required-path helpers for corpus writers.
+"""Path helpers for corpus writers.
 
-No default database or product tree. Callers pass Path arguments, or set
-the documented environment variables.
+Every path defaults under ``./agentdecompile_projects`` (the same default
+project root the server and CLI already use) so the corpus tooling works
+out of the box. Callers pass a Path argument, or set the documented
+environment variable, only to deviate from that default.
 """
 
 from __future__ import annotations
@@ -9,9 +11,12 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+#: Default project root shared with the server/CLI ``agentdecompile_projects`` default.
+DEFAULT_PROJECT_ROOT = Path("agentdecompile_projects")
+
 
 class MissingCorpusPath(ValueError):
-    """Raised when a required corpus path was neither passed nor configured."""
+    """Raised when a corpus path was neither passed, configured, nor defaultable."""
 
 
 def env_path(name: str) -> Path | None:
@@ -19,29 +24,31 @@ def env_path(name: str) -> Path | None:
     return Path(value) if value else None
 
 
-def require_env_path(name: str) -> Path:
+def require_env_path(name: str, default: Path | None = None) -> Path:
     path = env_path(name)
-    if path is None:
-        raise MissingCorpusPath(f"{name} is required")
-    return path
+    if path is not None:
+        return path
+    if default is not None:
+        return default
+    raise MissingCorpusPath(f"{name} is required")
 
 
 def corpus_db_path(*, path: Path | str | None = None) -> Path:
     if path is not None:
         return Path(path)
-    return require_env_path("AGENT_DECOMPILE_CORPUS_DB")
+    return require_env_path("AGENT_DECOMPILE_CORPUS_DB", DEFAULT_PROJECT_ROOT / "corpus.db")
 
 
 def corpus_work_dir(*, path: Path | str | None = None) -> Path:
     if path is not None:
         return Path(path)
-    return require_env_path("AGENT_DECOMPILE_CORPUS_WORK_DIR")
+    return require_env_path("AGENT_DECOMPILE_CORPUS_WORK_DIR", DEFAULT_PROJECT_ROOT / "corpus_work")
 
 
 def external_recovery_root(*, path: Path | str | None = None) -> Path:
     if path is not None:
         return Path(path)
-    return require_env_path("AGENT_DECOMPILE_EXTERNAL_RECOVERY_ROOT")
+    return require_env_path("AGENT_DECOMPILE_EXTERNAL_RECOVERY_ROOT", DEFAULT_PROJECT_ROOT / "external_recovery")
 
 
 def knowledge_db_path(*, path: Path | str | None = None) -> Path | None:
@@ -53,7 +60,5 @@ def knowledge_db_path(*, path: Path | str | None = None) -> Path | None:
 def recovered_source_root(*, path: Path | str | None = None) -> Path:
     if path is not None:
         return Path(path)
-    root = env_path("AGENT_DECOMPILE_EXTERNAL_RECOVERY_ROOT")
-    if root is not None:
-        return root / "recovered-source"
-    return Path("/work") / "recovered-source"
+    root = env_path("AGENT_DECOMPILE_EXTERNAL_RECOVERY_ROOT") or DEFAULT_PROJECT_ROOT / "external_recovery"
+    return root / "recovered-source"

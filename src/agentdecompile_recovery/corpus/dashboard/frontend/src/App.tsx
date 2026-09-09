@@ -39,6 +39,7 @@ import { ensureWorkspaceState, patchWorkspaceState } from "./workspaceState";
 import { projectLocatorsMatch } from "./projectLocator";
 import { SourceDownload } from "./SourceDownload";
 import { WorkbenchIntegration } from "./integration/WorkbenchIntegration";
+import { CorpusDbPicker } from "./CorpusDbPicker";
 import "./actions.css";
 const sectionNames: Record<string,string> = {
   overview: "Project overview", preparation: "Preparation status", listing: "Source and assembly",
@@ -797,6 +798,7 @@ export function App() {
           <button onClick={() => setSessions([...sessions])}>Retry save</button>
         </div>
       )}
+      <CorpusDbPicker notify={notify} />
       {libraryTransfer.confirmation}
       <nav className="region-controls" aria-label="Workspace regions">
         <button

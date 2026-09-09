@@ -2237,12 +2237,12 @@ def missing_html(msg: str) -> str:
 
 def _work_dir() -> Path | None:
     raw = (os.environ.get("AGENT_DECOMPILE_CORPUS_WORK_DIR") or "").strip()
-    if not raw:
-        return None
-    try:
-        return Path(raw).expanduser()
-    except (OSError, RuntimeError, ValueError):
-        return None
+    if raw:
+        try:
+            return Path(raw).expanduser()
+        except (OSError, RuntimeError, ValueError):
+            return None
+    return live_root()
 
 
 def _func_source_sql() -> str:

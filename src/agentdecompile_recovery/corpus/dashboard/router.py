@@ -401,6 +401,61 @@ def create_dashboard_router() -> APIRouter:
         )
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 
+    @router.get("/dashboard/api/workbench/corpus-db")
+    async def workbench_corpus_db() -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard.common import find_candidate_dbs, live_db
+
+        def _collect() -> dict:
+            current = live_db()
+            return {
+                "ok": True,
+                "current": str(current) if current is not None else None,
+                "exists": bool(current is not None and current.exists()),
+                "candidates": [str(p) for p in find_candidate_dbs()],
+            }
+
+        payload = await asyncio.to_thread(_collect)
+        return JSONResponse(payload)
+
+    @router.post("/dashboard/api/workbench/corpus-db")
+    async def workbench_select_corpus_db(request: Request) -> JSONResponse:
+        from agentdecompile_recovery.corpus.dashboard.common import find_candidate_dbs, live_db, set_runtime_db_path
+
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"ok": False, "error": "JSON object required"}, status_code=400)
+        if not isinstance(body, dict):
+            return JSONResponse({"ok": False, "error": "JSON object required"}, status_code=400)
+        raw_path = str(body.get("path") or "").strip()
+        if not raw_path:
+            return JSONResponse({"ok": False, "error": "path is required"}, status_code=400)
+
+        def _select() -> dict:
+            import sqlite3
+            from pathlib import Path
+
+            candidate = Path(raw_path).expanduser()
+            if not candidate.is_file():
+                return {"ok": False, "error": f"not a file: {candidate}"}
+            try:
+                con = sqlite3.connect(f"file:{candidate}?mode=ro", uri=True, timeout=5)
+                con.execute("PRAGMA schema_version")
+                con.close()
+            except sqlite3.Error as exc:
+                return {"ok": False, "error": f"not a readable sqlite db: {exc}"}
+            set_runtime_db_path(candidate)
+            current = live_db()
+            return {
+                "ok": True,
+                "current": str(current) if current is not None else None,
+                "exists": True,
+                "candidates": [str(p) for p in find_candidate_dbs()],
+            }
+
+        payload = await asyncio.to_thread(_select)
+        return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
+
     @router.get("/dashboard/api/workbench/binaries")
     async def workbench_binaries() -> JSONResponse:
         from agentdecompile_recovery.corpus.dashboard.workbench import list_binaries

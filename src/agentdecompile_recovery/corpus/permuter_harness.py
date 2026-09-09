@@ -38,9 +38,9 @@ import sys
 import tempfile
 import time
 
-from . import store
+from . import corpus_env, store
 
-EXTERNAL_ROOT = pathlib.Path(os.environ.get("AGENT_DECOMPILE_EXTERNAL_RECOVERY_ROOT") or ".")
+EXTERNAL_ROOT = corpus_env.external_recovery_root()
 CONTEXT_CACHE: dict[str, str] = {}
 
 # Types ctx.h defines, plus C primitives. Anything else in a global declaration
@@ -273,7 +273,7 @@ def ghidra_c_for(repo_path: str) -> dict[str, str]:
         except sqlite3.Error:
             rows = []
         con.close()
-        main = store.connect(pathlib.Path(os.environ['AGENT_DECOMPILE_CORPUS_DB']))
+        main = store.connect(corpus_env.corpus_db_path())
         b = main.execute("SELECT id FROM binary WHERE repo_path=?",
                          (repo_path,)).fetchone()
         if b:
@@ -663,7 +663,7 @@ def run_from_ghidra_bulk(args) -> int:
     from . import genproject as gp
 
     program = args.from_ghidra_bulk
-    con = store.connect(pathlib.Path(os.environ['AGENT_DECOMPILE_CORPUS_DB']))
+    con = store.connect(corpus_env.corpus_db_path())
     repo = args.repo if getattr(args, "repo", None) else program
     src_dir = GHIDRA_SRC / program
     files = sorted(p for p in src_dir.glob("*.c") if not p.name.startswith("_"))

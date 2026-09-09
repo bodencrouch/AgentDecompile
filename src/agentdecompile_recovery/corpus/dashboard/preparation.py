@@ -9,7 +9,7 @@ import sqlite3
 import threading
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -892,7 +892,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 with ThreadPoolExecutor(max_workers=workers, thread_name_prefix=f'match-{run_id[:8]}') as pool:
                     futures = [pool.submit(_run_pair, item) for item in to_run]
                     try:
-                        for future in futures:
+                        for future in as_completed(futures):
                             src, dst, result = future.result()
                             with progress_lock:
                                 if result['ok']:

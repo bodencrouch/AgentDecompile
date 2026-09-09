@@ -57,6 +57,12 @@ The MCP endpoint is `http://127.0.0.1:8080/mcp`. `/` and `/api` are metadata onl
 uv run agentdecompile-cli --server-url http://127.0.0.1:8080/mcp tool --list-tools
 ```
 
+**Development:** run the HTTP server under `watchfiles` so it reloads on save instead of needing a manual restart after every edit:
+
+```bash
+sudo -E /home/brunner56/.local/bin/uv run --with watchfiles watchfiles "agentdecompile-server -t streamable-http"
+```
+
 Success: the CLI prints the advertised tool list.
 
 From source:

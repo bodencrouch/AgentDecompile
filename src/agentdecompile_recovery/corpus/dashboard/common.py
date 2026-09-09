@@ -1,7 +1,9 @@
 """Shared helpers for the corpus dashboard.
 
-ROOT and DB_PATH come only from AgentDecompile environment variables.
-There is no kotorxid repo default and no db/kotorxid.sqlite fallback.
+ROOT and DB_PATH come from AgentDecompile environment variables when set,
+falling back to the same ``./agentdecompile_projects`` default as the rest
+of the corpus tooling (see ``corpus_env``). There is no kotorxid repo
+default and no db/kotorxid.sqlite fallback.
 """
 
 from __future__ import annotations
@@ -14,8 +16,10 @@ import sqlite3
 import time
 from pathlib import Path
 
-_UNSET_ROOT = Path("/nonexistent-agentdecompile-corpus")
-_UNSET_EXTERNAL = Path("/nonexistent-agentdecompile-external-recovery")
+from .. import corpus_env as _corpus_env
+
+_UNSET_ROOT = _corpus_env.corpus_work_dir()
+_UNSET_EXTERNAL = _corpus_env.external_recovery_root()
 
 
 def _env_root() -> Path | None:
@@ -88,10 +92,10 @@ def _env_paths(name: str, default: tuple[str, ...] = ()) -> tuple[str, ...]:
     return tuple(dict.fromkeys(out))
 
 
-ROOT = _env_root()
-DB_PATH = _env_path_optional("AGENT_DECOMPILE_CORPUS_DB")
+ROOT = _env_root() or _corpus_env.corpus_work_dir()
+DB_PATH = _env_path_optional("AGENT_DECOMPILE_CORPUS_DB") or _corpus_env.corpus_db_path()
 KNOWLEDGE_DB = _env_path_optional("AGENT_DECOMPILE_KNOWLEDGE_DB")
-MIZUCHI_R = _env_path_optional("AGENT_DECOMPILE_EXTERNAL_RECOVERY_ROOT")
+MIZUCHI_R = _env_path_optional("AGENT_DECOMPILE_EXTERNAL_RECOVERY_ROOT") or _corpus_env.external_recovery_root()
 GHIDRA_SERVER_HOST = _env_host("AGENT_DECOMPILE_GHIDRA_SERVER_HOST", "127.0.0.1")
 GHIDRA_SERVER_PORT = _env_port("AGENT_DECOMPILE_GHIDRA_SERVER_PORT", 0)
 DRM_EXCLUDED = _env_paths("AGENT_DECOMPILE_EXCLUDED_REPO_PATHS", ())
@@ -99,11 +103,43 @@ _DEFAULT_DRM_EXCLUDED = ()
 
 
 def live_root() -> Path | None:
-    return _env_root()
+    return _env_root() or ROOT
+
+
+_RUNTIME_DB_PATH: Path | None = None
+
+
+def set_runtime_db_path(path: Path | str | None) -> None:
+    """Select a corpus db for this running server, overriding env/default.
+
+    Used by the frontend's "pick an existing db" flow when no db exists at
+    the env-var/default location yet.
+    """
+    global _RUNTIME_DB_PATH
+    _RUNTIME_DB_PATH = Path(path).expanduser() if path else None
+
+
+def find_candidate_dbs() -> list[Path]:
+    """Scan conventional locations for an existing corpus sqlite file."""
+    seen: dict[str, Path] = {}
+    search_dirs = [Path("agentdecompile_projects"), Path.cwd(), Path.home() / "agentdecompile_projects"]
+    for directory in search_dirs:
+        try:
+            if not directory.is_dir():
+                continue
+            for pattern in ("*.db", "*.sqlite", "*.sqlite3"):
+                for candidate in directory.glob(pattern):
+                    if candidate.is_file():
+                        seen.setdefault(str(candidate.resolve()), candidate)
+        except OSError:
+            continue
+    return sorted(seen.values(), key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
 
 
 def live_db() -> Path | None:
-    return _env_path_optional("AGENT_DECOMPILE_CORPUS_DB")
+    if _RUNTIME_DB_PATH is not None:
+        return _RUNTIME_DB_PATH
+    return _env_path_optional("AGENT_DECOMPILE_CORPUS_DB") or DB_PATH
 
 
 def as_root() -> Path:

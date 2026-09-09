@@ -513,6 +513,25 @@ footer span:last-child {
   color: var(--fg-muted);
   padding: 8px;
 }
+.corpus-db-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.corpus-db-picker-candidates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.corpus-db-picker-custom {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.corpus-db-picker-custom input {
+  flex: 1;
+  min-width: 200px;
+}
 .facts {
   margin: 0;
   overflow-wrap: anywhere;

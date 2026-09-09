@@ -31,6 +31,7 @@ import { useLibraryTransfer } from "./BinaryLibrary";
 import { PersistentExplorer } from "./PersistentExplorer";
 import { ProjectDialog } from "./ProjectDialog";
 import { SourceDownload } from "./SourceDownload";
+import { CorpusDbPicker } from "./CorpusDbPicker";
 import "./actions.css";
 const sectionNames: Record<string,string> = {
   overview: "Project overview", preparation: "Preparation status", listing: "Source and assembly",
@@ -750,6 +751,7 @@ export function App() {
           <button onClick={() => setSessions([...sessions])}>Retry save</button>
         </div>
       )}
+      <CorpusDbPicker notify={notify} />
       {libraryTransfer.confirmation}
       <div className="work-area">
         <aside className="explorer" hidden={!layout.showExplorer}>

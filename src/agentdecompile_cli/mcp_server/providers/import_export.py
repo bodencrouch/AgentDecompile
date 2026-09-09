@@ -2230,6 +2230,13 @@ class ImportExportToolProvider(ToolProvider):
                     force=force,
                 )
 
+            # A prior tool call (import's batch transaction, or a leftover from a
+            # different native thread) can leave the program mid-transaction; a
+            # fresh startTransaction() here then fails with "Unable to lock due to
+            # active transaction" even though nothing is currently mutating the
+            # program. Drain any open transaction first, same as the version-control
+            # save/checkin paths already do.
+            await _native_call(self._end_all_open_transactions_on_program, program)
             await _native_call(self._run_program_transaction, program, "auto-analysis", _run_auto_analysis)
             project = getattr(self._manager, "ghidra_project", None) if self._manager else None
             if project is not None:

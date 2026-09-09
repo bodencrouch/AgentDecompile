@@ -367,10 +367,10 @@ hr {
 .widget {
   display: flex;
   flex-direction: column;
-  min-height: 120px;
+  min-height: 160px;
   border-bottom: 1px solid var(--border);
   scroll-margin-top: 54px;
-  overflow: hidden;
+  overflow: visible;
 }
 .widget > header {
   padding: 6px 10px;
@@ -512,6 +512,19 @@ footer span:last-child {
 .empty {
   color: var(--fg-muted);
   padding: 8px;
+}
+.recovery-workflow-link,
+.recovery-match-progress {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+.recovery-workflow-link button {
+  margin-left: 4px;
+}
+.recovery-match-progress {
+  color: var(--accent);
 }
 .facts {
   margin: 0;

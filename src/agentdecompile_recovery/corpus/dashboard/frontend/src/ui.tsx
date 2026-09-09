@@ -109,6 +109,34 @@ export function ResizeBar({
     />
   );
 }
+export function PrefDetails({
+  pref,
+  summary,
+  children,
+  className,
+  defaultOpen = false,
+}: {
+  pref: string;
+  summary: ReactNode;
+  children: ReactNode;
+  className?: string;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = usePref(pref, defaultOpen);
+  return (
+    <details
+      className={className}
+      open={open}
+      onToggle={(event) => {
+        const next = event.currentTarget.open;
+        if (next !== open) setOpen(next);
+      }}
+    >
+      <summary>{summary}</summary>
+      {children}
+    </details>
+  );
+}
 export function Section({
   id,
   title,
@@ -128,7 +156,7 @@ export function Section({
       ref={ref}
       className="widget"
       tabIndex={-1}
-      style={height ? { height } : undefined}
+      style={height ? { minHeight: height } : undefined}
     >
       <header>
         <h2>{title}</h2>
@@ -139,7 +167,7 @@ export function Section({
         axis="y"
         label={"Resize " + title}
         onResize={(delta) =>
-          setHeight(Math.max(120, (ref.current?.offsetHeight || 240) + delta))
+          setHeight(Math.max(160, (ref.current?.offsetHeight || 240) + delta))
         }
       />
     </section>

@@ -854,7 +854,7 @@
   border: 1px solid var(--atlas-line);
   border-radius: 8px;
   margin-bottom: 22px;
-  overflow: hidden;
+  overflow: visible;
 }
 .atlas-native-evidence .widget > header,
 .atlas-native-browser .widget > header {
@@ -897,13 +897,18 @@
   padding: 8px;
   border-radius: 5px;
 }
-.atlas-activity-dock{position:fixed;bottom:0;left:88px;right:0;z-index:60;background:#0e182a;border-top:1px solid var(--atlas-line);display:flex;flex-direction:column;min-height:36px;box-shadow:0 -8px 25px #02061055}.atlas-activity-dock>header{display:flex;justify-content:space-between;align-items:center;height:36px;flex-shrink:0;padding:0 15px;background:#111d32;border-bottom:1px solid var(--atlas-line);gap:15px}.atlas-activity-dock>header>span{color:var(--atlas-muted);font-size:10px}.atlas-activity-dock header button{font-size:11px;min-height:28px;border:0;background:transparent;padding:4px 12px;border-radius:0}.atlas-activity-dock [aria-selected=true]{color:var(--atlas-cyan);border-bottom:2px solid var(--atlas-cyan)}.atlas-activity-dock [role=tab] span{margin-left:6px;color:var(--atlas-pink)}.atlas-activity-dock>.resize-bar{height:5px;min-height:5px;cursor:ns-resize;background:#243550;flex-shrink:0}.atlas-dock-body{padding:10px 18px;overflow:auto;min-height:0;flex:1;overflow-anchor:none;font-size:12px}.atlas-dock-body[hidden]{display:none}.atlas-dock-body>details{margin-top:8px;padding-top:8px}.atlas-dock-body pre{max-height:none;margin:10px 0;overflow:visible}.atlas-log-lines{list-style:none;padding:0;margin:0}.atlas-log-lines li{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;border-bottom:1px solid #1c2940;padding:7px 0;line-height:1.6}.atlas-log-lines time{color:var(--atlas-muted);font:10px ui-monospace,monospace}.atlas-log-lines li.error>span{color:#ffa0cd}.atlas-log-lines button{font-size:10px;min-height:22px;padding:2px 6px}.atlas-log-lines details{padding:0;margin:0;border:0;font-size:10px}.atlas-activity-dock.collapsed>header{border:0}@media(max-width:700px){.atlas-activity-dock{left:60px}.atlas-activity-dock>header>span{display:none}}
+.atlas-activity-dock{position:fixed;bottom:0;left:0;right:0;z-index:60;background:#0e182a;border-top:1px solid var(--atlas-line);display:flex;flex-direction:column;min-height:36px;box-shadow:0 -8px 25px #02061055}.atlas-activity-dock>header{display:flex;justify-content:space-between;align-items:center;height:36px;flex-shrink:0;padding:0 15px;background:#111d32;border-bottom:1px solid var(--atlas-line);gap:15px}.atlas-activity-dock>header>span{color:var(--atlas-muted);font-size:10px}.atlas-activity-dock header button{font-size:11px;min-height:28px;border:0;background:transparent;padding:4px 12px;border-radius:0}.atlas-activity-dock [aria-selected=true]{color:var(--atlas-cyan);border-bottom:2px solid var(--atlas-cyan)}.atlas-activity-dock [role=tab] span{margin-left:6px;color:var(--atlas-pink)}.atlas-activity-dock>.resize-bar{height:5px;min-height:5px;cursor:ns-resize;background:#243550;flex-shrink:0}.atlas-dock-body{padding:10px 18px;overflow:auto;min-height:0;flex:1;overflow-anchor:none;font-size:12px}.atlas-dock-body[hidden]{display:none}.atlas-dock-body>details{margin-top:8px;padding-top:8px}.atlas-dock-body pre{max-height:none;margin:10px 0;overflow:visible}.atlas-log-lines{list-style:none;padding:0;margin:0}.atlas-log-lines li{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;border-bottom:1px solid #1c2940;padding:7px 0;line-height:1.6}.atlas-log-lines time{color:var(--atlas-muted);font:10px ui-monospace,monospace}.atlas-log-lines li.error>span{color:#ffa0cd}.atlas-log-lines button{font-size:10px;min-height:22px;padding:2px 6px}.atlas-log-lines details{padding:0;margin:0;border:0;font-size:10px}.atlas-activity-dock.collapsed>header{border:0}@media(max-width:700px){.atlas-activity-dock>header>span{display:none}}
 
 /* Show active work before secondary inventories and proof totals. */
-.atlas-preparation-primary { margin-block-end: 20px; }
-.atlas-preparation-primary .preparation-rail { grid-template-columns: repeat(5, minmax(110px, 1fr)); }
-.atlas-preparation-primary .preparation-rail li { min-width: 0; }
-.atlas-preparation-primary .preparation-rail li p { overflow-wrap: anywhere; }
+.atlas-explorer-column{position:relative;flex-shrink:0;display:flex;min-width:0;overflow:hidden}
+.atlas-explorer-column>.persistent-explorer{flex:1;min-width:0}
+.atlas-explorer-column>.resize-bar{position:absolute;top:0;right:0;bottom:0;z-index:2}
+.atlas-preparation-primary{margin-block-end:12px;border:1px solid var(--atlas-line);background:var(--atlas-panel);max-height:min(42vh,520px);overflow:auto;overflow-anchor:none}
+.atlas-preparation-primary .preparation-progress{padding:8px 10px}
+.atlas-preparation-primary .preparation-rail{grid-template-columns:repeat(5,minmax(110px,1fr))}
+.atlas-preparation-primary .preparation-rail li{min-width:0}
+.atlas-preparation-primary .preparation-rail li p{overflow-wrap:anywhere}
+.atlas-preparation-primary .atlas-recovery-brief{margin:0;border:0;border-top:1px solid var(--atlas-line)}
 @media (max-width: 900px) { .atlas-preparation-primary .preparation-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* The central workspace keeps one context row and lets the document lead. */
@@ -916,9 +921,14 @@
 .atlas-connection{font-size:10px;color:var(--atlas-muted);white-space:nowrap}
 .atlas-app .atlas-context-toolbar button{font-size:11px;min-height:26px;padding:3px 8px;border-radius:2px}
 .atlas-app .atlas-work{padding:0 10px 14px;max-width:none;margin:0}
-.atlas-work-context{display:flex;align-items:center;gap:8px;min-height:34px;border-bottom:1px solid var(--atlas-line);margin-bottom:8px;min-width:0}
+.atlas-work-context{display:flex;align-items:center;gap:8px;min-height:34px;border-bottom:1px solid var(--atlas-line);margin-bottom:8px;min-width:0;position:sticky;top:40px;z-index:15;background:var(--atlas-bg);padding:2px 0}
+.atlas-workflow-toggle{flex-shrink:0;min-width:40px!important;min-height:40px!important;padding:2px 6px!important;font-size:12px!important;border:1px solid var(--atlas-line)!important;background:#152039!important}
 .atlas-context-platform{font-size:10px;color:var(--atlas-muted);white-space:nowrap}
-.atlas-app .atlas-workflow-summary{flex:1;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;border:0;background:transparent;font-size:10px;color:var(--atlas-muted);padding:3px 0}
+.atlas-app .atlas-workflow-summary{flex:1;min-width:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;border:1px solid transparent;background:transparent;font-size:10px;color:var(--atlas-muted);padding:8px 6px;min-height:40px}
+.atlas-app .atlas-workflow-summary:hover,.atlas-app .atlas-workflow-summary[aria-expanded=true]{color:var(--atlas-cyan);border-color:var(--atlas-line);background:#152039}
+.atlas-workflow-open-recovery{flex-shrink:0;font-size:10px!important;min-height:40px!important;padding:3px 10px!important}
+.atlas-preparation-primary[hidden]{display:none!important}
+.atlas-preparation-primary progress,.atlas-recovery-brief progress,.atlas-recovery-grid small,.preparation-progress time,.preparation-live-work strong{font-variant-numeric:tabular-nums}
 .atlas-work-context .source-download{margin-left:auto;flex-shrink:0}
 .atlas-work-context .source-download button{font-size:10px;min-height:24px;padding:3px 6px}
 .atlas-app .atlas-function-detail{padding:0;border:0;background:transparent}
@@ -938,6 +948,7 @@
 .atlas-app .atlas-workspace-empty{padding:24px;max-width:640px;margin:0}
 .atlas-workspace-empty h1{font-size:18px;margin:0 0 12px;font-weight:500}
 .atlas-workspace-empty p{font-size:13px;line-height:1.65;color:var(--atlas-muted)}
+.atlas-live-run{display:block;margin:14px 0 0;padding:10px 12px;text-align:left;overflow-wrap:anywhere}
 .atlas-workspace-commands{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:12px;border-bottom:1px solid var(--atlas-line)}
 .atlas-app .atlas-work .atlas-panel{padding:10px;border-radius:0}
 .atlas-app .atlas-work .atlas-metrics{gap:0;margin:8px 0}
@@ -946,7 +957,6 @@
 .atlas-app .atlas-native-evidence{padding:0;border:0;background:transparent}
 @media(max-width:1000px){.atlas-context-toolbar .atlas-wordmark{display:none}.atlas-context-toolbar .atlas-connection{max-width:58px;overflow:hidden;text-overflow:ellipsis}.atlas-context-platform{display:none}.atlas-app .atlas-work{padding:0 7px 10px}.atlas-app .atlas-code-grid.editor-surface-compare{grid-template-columns:minmax(0,1fr);}.atlas-app .atlas-work .atlas-metrics{grid-template-columns:1fr 1fr}.atlas-app .atlas-function-heading h1{font-size:12px}.atlas-workflow-summary{max-width:180px}}
 
-.atlas-workflow-details{margin:8px 0;padding:7px 0;border-top:1px solid var(--atlas-line);border-bottom:1px solid var(--atlas-line)}.atlas-workflow-details>summary{font-size:12px;color:var(--atlas-muted)}
 .atlas-recovery-brief{margin:10px 0;border:1px solid var(--atlas-line);background:var(--atlas-panel)}
 .atlas-recovery-brief>header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-bottom:1px solid var(--atlas-line)}
 .atlas-recovery-brief header>div{display:flex;align-items:baseline;gap:9px;min-width:0}.atlas-recovery-brief header span,.atlas-recovery-grid article>span{font-size:9px;letter-spacing:1px;color:var(--atlas-muted)}.atlas-recovery-brief header strong{font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

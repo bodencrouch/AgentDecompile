@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { API, request, type Data, type SurfaceProps, type Selection, type Notify } from "./contracts";
-import { ErrorLine, Section } from "./ui";
+import { usePreparationFeed } from "./preparationFeed";
+import { ErrorLine, PrefDetails, Section } from "./ui";
+import { stageDisplayProgress, stageProgressLabel } from "./preparationProgress";
 import "./preparation.css";
 const active = (status: string) => ["queued", "running", "waiting", "cancelling"].includes(status);
 function ProgressMessage({message}: {message: unknown}) {
@@ -29,8 +31,8 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
   const stages: Data[] = run?.stages || [];
   const current = active(run?.status) ? stages.find(stage => stage.status === "running" || stage.status === "waiting" || stage.status === "cancelling") || stages.find(stage => stage.status === "queued") : undefined;
   const recent = run?.events?.at(-1);
-  const work=current?.workProgress;
-  const workMeasured=Number.isFinite(work?.total)&&work.total>0&&Number.isFinite(work?.completed)&&work.completed>=0&&work.completed<=work.total;
+  const currentProgress = stageDisplayProgress(current);
+  const workMeasured = Boolean(currentProgress.secondary);
   const stale = Boolean(error) || Boolean(lastConnectedAt && now - lastConnectedAt > 10000);
   const currentJob = run?.currentJob;
   const startedAt = currentJob?.startedAt || currentJob?.started_at || current?.startedAt;
@@ -41,6 +43,9 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
   const operation = /execute script/i.test(actionName) ? ({analysis: "Check existing analysis", facts: "Index functions and relationships", bsim: "Build similarity signatures"} as Record<string,string>)[current?.key] || actionName : /analyze program/i.test(actionName) ? "Analyze binary" : /match pair/i.test(actionName) ? "Compare related builds" : actionName;
   const state = currentJob?.status || current?.jobStatus || run?.status;
   const updated = run?.updatedAt ? new Date(run.updatedAt * 1000) : null;
+  const executionDeadline = Number(current?.executionDeadlineAt || 0);
+  const executionLimit = Number(current?.executionLimitSeconds || 0);
+  const deadlineRemaining = executionDeadline ? Math.max(0, Math.ceil((executionDeadline - now / 1000) / 60)) : null;
   return <div className={`preparation-progress${compact ? " preparation-compact" : ""}`} aria-busy={loading}>
     <div className="preparation-status" role="status" aria-live="polite">
       <strong>{run ? ({queued: "Preparation queued", running: "Preparing project", completed: "Preparation completed", partial: "Preparation needs attention", cancelling: "Stopping preparation"}[run.status as string] || `Preparation ${run.status}`) : loading ? "Checking preparation status…" : selection.locator || selection.slug ? "No preparation job reported for this selection" : "Open a project to prepare its binaries"}</strong>
@@ -54,16 +59,18 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
         {operation && <span title={actionName}>{operation}</span>}
         <span>{run.programs?.length ?? 0} programs</span>
         {elapsed !== null && active(state) && <span>Current job {elapsed}s elapsed</span>}
+        {deadlineRemaining !== null && active(state) && <span title="Execution bound, not a completion estimate">Execution limit: {deadlineRemaining}m remaining{executionLimit ? ` of ${Math.ceil(executionLimit / 60)}m` : ""}</span>}
       </div>
-      {workMeasured&&<div className="preparation-live-work" role="status"><strong>{current?.title}: {work.completed} / {work.total} {work.unit||'items'}</strong><progress value={work.completed} max={work.total} aria-label={`${current?.title}: ${work.completed} of ${work.total} ${work.unit||'items'}`}/>{work.currentTarget&&<code>{work.currentTarget}</code>}</div>}
+      {workMeasured && currentProgress.secondary && <div className="preparation-live-work" role="status"><strong>{current?.title}: {stageProgressLabel(currentProgress.secondary)}</strong><progress value={currentProgress.secondary.completed} max={currentProgress.secondary.total} aria-label={`${current?.title}: ${currentProgress.secondary.completed} of ${currentProgress.secondary.total} ${currentProgress.secondary.unit}`}/>{currentProgress.secondary.currentTarget && <code>{currentProgress.secondary.currentTarget}</code>}</div>}
       {!compact && <ol className="preparation-rail" aria-label="Preparation stages">
         {stages.map(stage => {
-          const stepProgress=stage.workProgress||stage;
-          const measured = Number.isFinite(stepProgress.total) && stepProgress.total > 0 && Number.isFinite(stepProgress.completed) && stepProgress.completed >= 0 && stepProgress.completed <= stepProgress.total;
+          const { primary, secondary } = stageDisplayProgress(stage);
+          const measured = Boolean(primary);
           return <li key={stage.key} data-state={stage.status} aria-current={stage === current ? "step" : undefined}>
             <div><strong>{stage.title}</strong><span>{stage.status}</span></div>
-            {measured ? <progress max={stepProgress.total} value={stepProgress.completed} aria-label={`${stage.title}: ${stepProgress.completed} of ${stepProgress.total}`} /> : active(stage.status) && stage.status !== "queued" ? <progress aria-label={`${stage.title}: progress not yet measured`} /> : <div className="preparation-track" />}
-            <small>{measured ? `${stepProgress.completed} / ${stepProgress.total} ${stepProgress.unit||'completed'}` : stage.total === 0 ? "No applicable items" : stage.status === "queued" ? "Waiting for preceding work" : "Awaiting a measured counter from the active operation"}</small>
+            {measured && primary ? <progress max={primary.total} value={primary.completed} aria-label={`${stage.title}: ${primary.completed} of ${primary.total}`} /> : active(stage.status) && stage.status !== "queued" ? <progress aria-label={`${stage.title}: progress not yet measured`} /> : <div className="preparation-track" />}
+            <small>{measured && primary ? stageProgressLabel(primary) : stage.total === 0 ? "No applicable items" : stage.status === "queued" ? "Waiting for preceding work" : "Awaiting a measured counter from the active operation"}</small>
+            {secondary && <small className="preparation-subprogress">{stageProgressLabel(secondary)}</small>}
             {stage.nextFallback&&<small>{stage.nextFallback}{stage.retryAt?` · next attempt ${new Date(stage.retryAt*1000).toLocaleTimeString()}`:''}{stage.attempts?` · attempt ${stage.attempts}`:''}</small>}
             {stage.reason && <div className="preparation-reason"><ProgressMessage message={stage.reason} /></div>}
           </li>;
@@ -79,25 +86,13 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
         <span>Stage completion is not byte verification.</span>
         <WorkflowControls run={run} selection={selection} notify={notify}/>
       </div>
-      {!compact && <details className="preparation-events"><summary>Activity history ({run.events?.length || 0})</summary><ol>{(run.events || []).map((event: Data, index: number) => <li key={`${event.at}:${index}`}><time>{new Date(event.at * 1000).toLocaleTimeString()}</time><div><ProgressMessage message={event.message} /></div></li>)}</ol></details>}
+      {!compact && <PrefDetails pref="prep.events-open" className="preparation-events" summary={`Activity history (${run.events?.length || 0})`}><ol>{(run.events || []).map((event: Data, index: number) => <li key={`${event.at}:${index}`}><time>{new Date(event.at * 1000).toLocaleTimeString()}</time><div><ProgressMessage message={event.message} /></div></li>)}</ol></PrefDetails>}
     </>}
     <ErrorLine error={error} />
   </div>;
 }
 export function PreparationActivity({ selection, notify }: SurfaceProps) {
-  const [runs, setRuns] = useState<Data[]>([]), [error, setError] = useState(""), [loading, setLoading] = useState(true), [lastConnectedAt, setLastConnectedAt] = useState(0), [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    let alive = true, timer: ReturnType<typeof setTimeout>;
-    async function poll() {
-      try {
-        const data = await request(API + "/preparations", {signal: AbortSignal.timeout(8000)});
-        if (alive) { setRuns(data.runs || []); setLastConnectedAt(Date.now()); setError(""); }
-      } catch (e) { if (alive) setError(String(e)); }
-      finally { if (alive) { setLoading(false); setNow(Date.now()); timer = setTimeout(poll, 2000); } }
-    }
-    void poll();
-    return () => { alive = false; clearTimeout(timer); };
-  }, []);
+  const { runs, error, loading, lastConnectedAt, now } = usePreparationFeed();
   const run = selectPreparation(runs, selection);
   const [childJob, setChildJob] = useState<Data | undefined>();
   const childId = run?.stages?.find((stage: Data) => stage.status === "running")?.jobId;

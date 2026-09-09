@@ -15,7 +15,7 @@ import {
 } from "./contracts";
 import { Commands, ActionRunner, DialogFrame } from "./Actions";
 import { ProjectDialog } from "./ProjectDialog";
-import { RecordView, ResizeBar, useData, usePref } from "./ui";
+import { PrefDetails, RecordView, ResizeBar, useData, usePref } from "./ui";
 import "./atlas.css";
 import { GuideWorkflows } from "./GuideWorkflows";
 import { CodeBrowser } from "./CodeBrowser";
@@ -24,18 +24,23 @@ import { useLibraryTransfer } from "./BinaryLibrary";
 import { AtlasAnalysis } from "./AtlasAnalysis";
 import { PersistentExplorer } from "./PersistentExplorer";
 import { PreparationProgress, selectPreparation } from "./PreparationActivity";
+import { matchingStageSummary, stageDisplayProgress, stageProgressLabel } from "./preparationProgress";
+import {
+  installSessionFlush,
+  queueSessionSave,
+  setSessionRevision,
+} from "./sessionSync";
 const number = (value: unknown) =>
   typeof value === "number" ? value.toLocaleString() : "—";
 const title = (s: Partial<Selection>) =>
   (s.program || s.locator || s.slug || "Project").split("/").pop();
+import {
+  canonicalProjectLocator,
+  projectLocatorsMatch,
+} from "./projectLocator";
 const isActiveStage = (stage?: Data) =>
   Boolean(stage && ["queued", "running", "waiting", "cancelling"].includes(String(stage.status)));
-const measuredStage = (stage?: Data) => {
-  const progress = stage?.workProgress || stage || {};
-  return Number.isFinite(progress.total) && progress.total > 0 &&
-    Number.isFinite(progress.completed) && progress.completed >= 0 && progress.completed <= progress.total
-    ? progress as Data : undefined;
-};
+const measuredStage = (stage?: Data) => stageDisplayProgress(stage).primary;
 function RecoveryBrief({run, related}: {run?: Data; related: Data[]}) {
   const stages: Data[] = run?.stages || [];
   const current = stages.find(stage => ["running", "waiting", "cancelling"].includes(String(stage.status))) ||
@@ -55,6 +60,7 @@ function RecoveryBrief({run, related}: {run?: Data; related: Data[]}) {
       ? String(byteAudit?.reason || byteAudit?.error || "A required compiler, comparison input, or receipt is unavailable.")
       : "It will compile the recovered source, compare the result with original bytes, and store an independent comparison receipt.";
   const matchingProgress = measuredStage(matching);
+  const matchingSubProgress = stageDisplayProgress(matching).secondary;
   return <>
     <section className="atlas-recovery-brief" aria-label="Live recovery status">
       <header>
@@ -71,7 +77,7 @@ function RecoveryBrief({run, related}: {run?: Data; related: Data[]}) {
         <article>
           <span>RELATIONSHIPS</span>
           <strong>{matching?.status === "completed" ? `${related.length} related build${related.length === 1 ? "" : "s"} available` : matching?.status === "running" ? "Cross-matching in progress" : "Cross-matching queued"}</strong>
-          {matchingProgress ? <><progress value={matchingProgress.completed} max={matchingProgress.total} aria-label={`Cross-matching: ${matchingProgress.completed} of ${matchingProgress.total}`} /><small>{matchingProgress.completed} / {matchingProgress.total} {matchingProgress.unit || "comparisons"}</small></> : <small>{matching?.reason || "Function facts and stable identities are collected before related builds are compared."}</small>}
+          {matchingProgress ? <><progress value={matchingProgress.completed} max={matchingProgress.total} aria-label={`Cross-matching: ${matchingProgress.completed} of ${matchingProgress.total}`} /><small>{stageProgressLabel(matchingProgress)}{matchingSubProgress ? ` · ${stageProgressLabel(matchingSubProgress)}` : ""}</small></> : <small>{matching?.reason || "Function facts and stable identities are collected before related builds are compared."}</small>}
         </article>
         <article className={`atlas-byte-gate state-${auditStatus}`}>
           <span>BYTE PROOF GATE</span>
@@ -225,7 +231,10 @@ export function AtlasApp() {
   const [messages,setMessages]=usePref<Data[]>('atlas.activity',[]);
   const [activityOpen,setActivityOpen]=usePref('atlas.dock-open',true);
   const [dockHeight,setDockHeight]=usePref('atlas.dock-height',220);
+  const [workflowOpen,setWorkflowOpen]=usePref('atlas.workflow-panel',true);
   const [dockTab,setDockTab]=usePref('atlas.dock-tab','logs');
+  const explorerColumnWidth=Math.max(240,Math.min(560,explorerWidth));
+  const dockOccupied=activityOpen?Math.max(120,dockHeight):36;
   const [seenAt,setSeenAt]=usePref('atlas.activity-seen',0);
   const [selectedJob,setSelectedJob]=useState('');
   const jobStatuses=useRef<Record<string,string>>({});
@@ -246,6 +255,22 @@ export function AtlasApp() {
   const refresh = useCallback(() => setRevision((v) => v + 1), []);
   const binaries = useData(API + "/binaries", revision),
     sessions = useData(API + "/sessions", revision);
+  const sessionsRef = useRef<Data[]>([]);
+  sessionsRef.current = sessions.data.sessions || [];
+  const atlasActiveRef = useRef("");
+  useEffect(() => {
+    if (sessions.data.active) {
+      atlasActiveRef.current = String(sessions.data.active);
+    }
+  }, [sessions.data.active]);
+  useEffect(() => {
+    if (sessions.loading) return;
+    setSessionRevision(Number(sessions.data.revision || 0));
+    installSessionFlush(() => ({
+      active: atlasActiveRef.current || String(sessions.data.active || ""),
+      sessions: sessionsRef.current,
+    }));
+  }, [sessions.loading, sessions.data.revision, sessions.data.active]);
   const detailResponse = useFunctionEvidence(
     loaded && selection.addr ? API + "/function?" + query(selection) : null,
     revision,
@@ -260,14 +285,39 @@ export function AtlasApp() {
   const open = useCallback(
     (patch: Partial<Selection>, force = false) => {
       const next = normalizeSelection(patch);
-      if (!force && loadedRef.current && selectionRef.current.locator && next.locator && next.locator !== selectionRef.current.locator) {
+      const savedSessions: Data[] = sessions.data.sessions || [];
+      const savedActive = savedSessions.find((item) => item.id === sessions.data.active && !item.hidden && item.locator);
+      const currentLocator = selectionRef.current.locator || String(savedActive?.locator || "");
+      if (!force && currentLocator && next.locator && !projectLocatorsMatch(next.locator, currentLocator)) {
+        // A direct deep link is still an attempt to load a different project.
+        // Restore the saved project first so the operator can decide whether
+        // to combine it; otherwise a reload bypasses the merge dialog.
+        if (!loadedRef.current && savedActive) {
+          const restored = normalizeSelection({
+            ...(savedActive.selection || {}),
+            locator: String(savedActive.locator),
+            slug: String(savedActive.projectSlug || savedActive.slug || ""),
+            program: String(savedActive.program || ""),
+            addr: "",
+            logicalId: "",
+          });
+          setSelection(restored);
+          setLoaded(true);
+          history.replaceState(null, "", atlasUrl(restored));
+        }
         setPendingProject(next);
         return;
       }
-      openKey.current = JSON.stringify([next.locator, next.program, next.slug]);
+      const key = JSON.stringify([next.locator, next.program, next.slug]);
+      const selectionChanged = openKey.current !== key;
+      openKey.current = key;
       setSelection(next);
       setLoaded(true);
-      setView(next.addr?"functions":"overview");
+      // Keep the operator's workspace view when the same project is re-admitted
+      // from URL/session refresh. Only jump when the project identity changes
+      // or a function address is newly targeted.
+      if (selectionChanged) setView(next.addr ? "functions" : "overview");
+      else if (next.addr) setView("functions");
       setOffset(0);
       setSearch("");
       setRecordFilter("all");
@@ -277,13 +327,16 @@ export function AtlasApp() {
         request(API + "/sessions")
           .then((data) => {
             const list: Data[] = data.sessions || [];
-            const existing = list.find((s) => s.locator === next.locator);
+            const existing = list.find((s) => projectLocatorsMatch(s.locator, next.locator));
             const id = existing?.id || crypto.randomUUID();
             const item = {
               ...existing,
               hidden: false,
               id,
-              title: existing?.title || title(next),
+              // Session `title` from older versions often contains the last
+              // selected binary.  A project locator is the reliable display
+              // identity unless the operator explicitly assigned a label.
+              title: existing?.userLabel || existing?.label || title(next),
               locator: next.locator,
               program: next.program,
               projectSlug: existing?.projectSlug || next.slug,
@@ -294,13 +347,10 @@ export function AtlasApp() {
                 ),
               ),
             };
-            return request(API + "/sessions", {
-              method: "PUT",
-              body: JSON.stringify({
-                revision: data.revision,
-                active: id,
-                sessions: [...list.filter((s) => s.id !== id), item],
-              }),
+            atlasActiveRef.current = id;
+            return queueSessionSave({
+              active: id,
+              sessions: [...list.filter((s) => s.id !== id), item],
             });
           })
           .then(refresh)
@@ -311,7 +361,6 @@ export function AtlasApp() {
               "error",
             ),
           );
-      const key = JSON.stringify([next.locator, next.program, next.slug]);
       if (!prepared.current.has(key)) {
         prepared.current.add(key);
         request(API + "/prepare", {
@@ -326,7 +375,7 @@ export function AtlasApp() {
           });
       }
     },
-    [refresh, notify],
+    [refresh, notify, sessions.data],
   );
   const requestOpen = useCallback((patch: Partial<Selection>) => open(patch), [open]);
   async function combineAndOpen() {
@@ -337,20 +386,49 @@ export function AtlasApp() {
     try {
       const snapshot = await request(API + "/sessions");
       const sessions: Data[] = snapshot.sessions || [];
-      const currentSession = sessions.find(item => item.locator === current.locator);
-      const incomingSession = sessions.find(item => item.locator === incoming.locator);
+      const currentSession = sessions.find(item => projectLocatorsMatch(item.locator, current.locator));
+      const incomingSession = sessions.find(item => projectLocatorsMatch(item.locator, incoming.locator));
+      const currentImports = [...new Set((currentSession?.imports || []).map(String).filter(Boolean))];
+      const incomingImports = [...new Set((incomingSession?.imports || []).map(String).filter(Boolean))];
+      const addedImports = incomingImports.filter(item => !currentImports.includes(item));
+      const retainedImports = incomingImports.filter(item => currentImports.includes(item));
+      const mergedImports = [...new Set([...currentImports, ...incomingImports, current.slug, incoming.slug].filter(Boolean))];
       const merged = {
         ...(incomingSession || {}),
         id: incomingSession?.id || crypto.randomUUID(),
         title: incomingSession?.title || title(incoming),
         locator: incoming.locator,
         hidden: false,
-        imports: [...new Set([...(currentSession?.imports || []), ...(incomingSession?.imports || []), current.slug, incoming.slug].filter(Boolean))],
+        imports: mergedImports,
         mergedFrom: [...new Set([...(incomingSession?.mergedFrom || []), current.locator].filter(Boolean))],
       };
-      await request(API + "/sessions", {method:"PUT", body:JSON.stringify({revision:snapshot.revision, active:merged.id, sessions:[...sessions.filter(item => item.id !== merged.id), merged]})});
+      atlasActiveRef.current = String(merged.id);
+      await queueSessionSave({
+        active: merged.id,
+        sessions: [...sessions.filter((item) => item.id !== merged.id), merged],
+      });
       open(incoming, true);
-      notify("Project data combined. Existing imports and recorded work remain available.", "info", {target: incoming.locator});
+      const detailLines = [
+        `Loaded project: ${incoming.locator || title(incoming)}`,
+        `Merged workspace record from: ${current.locator || title(current)}`,
+        `Imports retained: ${mergedImports.length}`,
+        `Imports newly linked from requested project: ${addedImports.length}${addedImports.length ? ` (${addedImports.join(", ")})` : ""}`,
+        `Imports already present in both: ${retainedImports.length}${retainedImports.length ? ` (${retainedImports.join(", ")})` : ""}`,
+        "Preserved: project-session imports and the link to the prior workspace record.",
+        "Not merged: the two Ghidra databases, program files, or proof receipts. They remain separate and unchanged.",
+      ];
+      notify("Project workspace records combined", "info", {
+        target: incoming.locator,
+        details: detailLines.join("\n"),
+        merge: {
+          loadedProject: incoming.locator || title(incoming),
+          retainedProject: current.locator || title(current),
+          importsRetained: mergedImports.length,
+          importsNewlyLinked: addedImports,
+          importsAlreadyShared: retainedImports,
+          scope: "Workspace imports and provenance link only; Ghidra databases and proof receipts remain separate.",
+        },
+      });
     } catch (error) {
       notify("Could not combine project data: " + (error instanceof Error ? error.message : String(error)), "error");
     }
@@ -358,19 +436,26 @@ export function AtlasApp() {
   useEffect(() => {
     mounted.current = true;
     const q = new URLSearchParams(location.search);
-    if (q.get("slug") || q.get("program") || q.get("locator"))
-      open({
+    if (sessions.loading) return;
+    if (q.get("slug") || q.get("program") || q.get("locator")) {
+      const patch = {
         slug: q.get("slug") || "",
         program: q.get("program") || "",
         locator: q.get("locator") || "",
         addr: q.get("addr") || "",
         logicalId: q.get("logical_id") || "",
-      });
-    else if(selection.slug||selection.program||selection.locator) open(selection);
+      };
+      const key = JSON.stringify([patch.locator, patch.program, patch.slug]);
+      // Re-binding the same project from a sessions refresh must not re-enter
+      // open() — that used to force the workspace view back to overview.
+      if (!loadedRef.current || openKey.current !== key) open(patch);
+    } else if (!loadedRef.current && (selection.slug || selection.program || selection.locator)) {
+      open(selection);
+    }
     return () => {
       mounted.current = false;
     };
-  }, [open]);
+  }, [open, sessions.loading]);
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -442,6 +527,24 @@ export function AtlasApp() {
     if(activeIndex>=0 && index>activeIndex && stage.status==='running') return {...stage,status:'queued',reason:stage.reason||`Waiting for ${stages[activeIndex].title||matchedRun.currentStage} to complete.`};
     return stage;
   })}:undefined;
+  // The durable preparation feed is intentionally independent of the job
+  // output endpoint.  Under a heavy Ghidra operation that endpoint can be
+  // slow, but the dock must still show the admitted work rather than saying
+  // there are no active jobs.
+  const workflowJobs: Data[] = (run?.stages || [])
+    .filter((stage: Data) => stage.jobId && ["queued", "running", "waiting", "cancelling"].includes(String(stage.status)))
+    .map((stage: Data) => ({
+      id: String(stage.jobId),
+      actionId: String(stage.currentAction || stage.key || "workflow-stage"),
+      title: String(stage.currentAction || stage.title || stage.key || "Workflow stage"),
+      status: stage.jobStatus || stage.status,
+      startedAt: stage.startedAt || run?.startedAt,
+      params: {locator: selection.locator, program: stage.currentProgram || run?.currentProgram || selection.program},
+      logState: "pending",
+      logReason: "Live workflow status is available; job output is still being collected.",
+      workflowDerived: true,
+    }));
+  const activityJobs = [...jobs, ...workflowJobs.filter((candidate) => !jobs.some((job) => job.id === candidate.id))];
   const source = sourceWitness(detail);
   const graph = detail.graph || {};
   const selectedName =
@@ -474,12 +577,14 @@ export function AtlasApp() {
   async function projectVisibility(record:Data,hidden:boolean) {
     const snapshot=await request(API+'/sessions');
     const items:Data[]=snapshot.sessions||[];
-    const next=items.map(item=>item.locator===record.locator?{...item,hidden}:item);
-    if(!next.some(item=>item.locator===record.locator))next.push({...record,id:record.id||crypto.randomUUID(),hidden});
+    const recordKey=canonicalProjectLocator(record.locator);
+    const next=items.map(item=>canonicalProjectLocator(item.locator)===recordKey?{...item,hidden}:item);
+    if(!next.some(item=>canonicalProjectLocator(item.locator)===recordKey))next.push({...record,id:record.id||crypto.randomUUID(),hidden});
     let nextActive=snapshot.active;
-    if(hidden&&items.find(item=>item.id===snapshot.active)?.locator===record.locator){let fallback=next.find(item=>!item.hidden);if(!fallback){fallback={id:crypto.randomUUID(),title:'Untitled',locator:'',imports:[],selection:emptySelection};next.push(fallback);}nextActive=fallback.id;}
-    await request(API+'/sessions',{method:'PUT',body:JSON.stringify({revision:snapshot.revision,active:nextActive,sessions:next})});
-    if(hidden&&selection.locator===record.locator){setSelection(emptySelection);setLoaded(false);history.replaceState(null,'',atlasUrl());}
+    const activeItem=items.find(item=>item.id===snapshot.active);
+    if(hidden&&activeItem&&canonicalProjectLocator(activeItem.locator)===recordKey){let fallback=next.find(item=>!item.hidden);if(!fallback){fallback={id:crypto.randomUUID(),title:'Untitled',locator:'',imports:[],selection:emptySelection};next.push(fallback);}nextActive=fallback.id;}
+    await queueSessionSave({active:nextActive,sessions:next});
+    if(hidden&&projectLocatorsMatch(selection.locator, record.locator)){setSelection(emptySelection);setLoaded(false);history.replaceState(null,'',atlasUrl());}
     refresh();notify(hidden?'Project removed from workspace. Files and background work remain available.':'Project restored to workspace.','info',{target:record.locator});
   }
   const submitted = (data: Data) => {
@@ -515,18 +620,18 @@ export function AtlasApp() {
   const [editorSurface,setEditorSurface]=usePref('atlas.editor-surface','source');
   const activeStage=run?.stages?.find((stage:Data)=>['running','waiting','cancelling'].includes(stage.status));
   const workflowSummary=activeStage?.title||run?.stages?.find((stage:Data)=>stage.status==='blocked')?.reason||run?.status||'Reading workflow…';
-  async function saveWorkspace(){try{const snapshot=await request(API+'/sessions');const existing=(snapshot.sessions||[]).find((item:Data)=>item.locator===selection.locator&&(selection.locator||item.selection?.slug===selection.slug));const record={...(existing||{id:crypto.randomUUID(),title:title(selection),locator:selection.locator}),selection,program:selection.program,hidden:false,imports:[...new Set([...(existing?.imports||[]),selection.slug].filter(Boolean))]};await request(API+'/sessions',{method:'PUT',body:JSON.stringify({revision:snapshot.revision,active:record.id,sessions:[...(snapshot.sessions||[]).filter((item:Data)=>item.id!==record.id),record]})});notify('Workspace saved. Project selection and imports retained.','info',{target:selection.locator||selection.slug});refresh();}catch(error){notify(String(error),'error');}}
+  async function saveWorkspace(){try{const snapshot=await request(API+'/sessions');const existing=(snapshot.sessions||[]).find((item:Data)=>projectLocatorsMatch(item.locator, selection.locator)&&(selection.locator||item.selection?.slug===selection.slug));const record={...(existing||{id:crypto.randomUUID(),title:title(selection),locator:selection.locator}),selection,program:selection.program,hidden:false,imports:[...new Set([...(existing?.imports||[]),selection.slug].filter(Boolean))]};await queueSessionSave({active:record.id,sessions:[...(snapshot.sessions||[]).filter((item:Data)=>item.id!==record.id),record]});notify('Workspace saved. Project selection and imports retained.','info',{target:selection.locator||selection.slug});refresh();}catch(error){notify(String(error),'error');}}
   const goHome = () => {
     setLoaded(false);
     history.replaceState(null, "", atlasUrl());
   };
   return (
     <div className="atlas-app">
-      <div className="atlas-explorer-column" style={{width:Math.max(240,Math.min(560,explorerWidth)),height:`calc(100dvh - ${activityOpen?Math.max(120,dockHeight):36}px)`}}>
+      <div className="atlas-explorer-column" style={{width:explorerColumnWidth,height:`calc(100dvh - ${dockOccupied}px)`}}>
         <PersistentExplorer onProjectVisibility={projectVisibility} notify={notify} libraryLoading={binaries.loading} libraryError={binaries.error} builds={builds} projects={sessions.data.sessions||[]} unresolved={binaries.data.unresolvedBinaries||[]} selection={selection} onSelect={patch=>{if(patch.slug!==undefined||patch.locator!==undefined)requestOpen({...selection,...patch});else{selectContext(patch);setView("functions");setLoaded(true);}}} onAdd={libraryTransfer.stage} dropProps={libraryTransfer.dropProps} revision={revision} recordFilter={recordFilter} onRecordFilterChange={setRecordFilter} onImport={()=>setDialog("import")} onCreate={()=>setDialog("create")}/>
         <ResizeBar axis="x" label="Resize binary explorer" onResize={delta=>setExplorerWidth(w=>Math.max(240,Math.min(560,w+delta)))}/>
       </div>
-      <div className="atlas-shell" style={{height:`calc(100dvh - ${activityOpen?Math.max(120,dockHeight):36}px)`,overflow:'auto',paddingBottom:16}}>
+      <div className="atlas-shell" style={{height:`calc(100dvh - ${dockOccupied}px)`,overflow:'auto',paddingBottom:16}}>
         {libraryTransfer.confirmation}
         <header className="atlas-top atlas-context-toolbar">
           <strong className="atlas-wordmark" title="AgentDecompile">AD<span> / </span></strong>
@@ -536,10 +641,20 @@ export function AtlasApp() {
           <button onClick={()=>setToolsOpen(true)} aria-label="Tools and workspace commands">Tools</button>
         </header>
         {!loaded ? (
-          <main className="atlas-landing atlas-workspace-empty"><h1>Workspace</h1><p>Select a project or binary in the explorer. Its existing analysis and recorded evidence stay available while missing work progresses.</p><p>Use <strong>＋ Project</strong> or <strong>Add binaries</strong> above the tree to bring in more files. Drag checked binaries onto a project to link them.</p>{binaries.error&&<p role="alert">{binaries.error}</p>}</main>
+          <main className="atlas-landing atlas-workspace-empty"><h1>Workspace</h1><p>Select a project or binary in the explorer. Its existing analysis and recorded evidence stay available while missing work progresses.</p><p>Use <strong>＋ Project</strong> or <strong>Add binaries</strong> above the tree to bring in more files. Drag checked binaries onto a project to link them.</p>{runs.filter(item=>["queued","running","paused"].includes(String(item.status))&&item.locator).map(item=><button key={item.id} className="atlas-live-run" type="button" onClick={()=>requestOpen({locator:item.locator,slug:item.slug||"",program:item.program||""})}>Open live workflow · {(item.locator||"").split("/").pop()} · {matchingStageSummary(item)||item.status}</button>)}{binaries.error&&<p role="alert">{binaries.error}</p>}</main>
         ) : (
           <main className={"atlas-work atlas-view-"+view}>
-            <div className="atlas-work-context"><span className="atlas-context-platform">{build?.platform||'Project evidence'}</span><button className="atlas-workflow-summary" onClick={()=>setView('recovery')} title={workflowSummary}>{workflowSummary}</button>{(selection.slug||selection.program)&&<SourceDownload selection={selection} notify={notify}/>}</div>
+            <div className="atlas-work-context">
+              <button type="button" className="atlas-workflow-toggle" aria-expanded={workflowOpen} aria-controls="atlas-workflow-panel" aria-label={workflowOpen?'Collapse workflow status':'Expand workflow status'} onClick={()=>setWorkflowOpen(open=>!open)}>{workflowOpen?'▾':'▸'}</button>
+              <span className="atlas-context-platform">{build?.platform||'Project evidence'}</span>
+              <button type="button" className="atlas-workflow-summary" aria-expanded={workflowOpen} aria-controls="atlas-workflow-panel" onClick={()=>setWorkflowOpen(open=>!open)} title={workflowSummary}>{workflowSummary}</button>
+              <button type="button" className="atlas-workflow-open-recovery" onClick={()=>setView('recovery')}>Recover & verify</button>
+              {(selection.slug||selection.program)&&<SourceDownload selection={selection} notify={notify}/>}
+            </div>
+            <div id="atlas-workflow-panel" className="atlas-preparation-primary" role="region" aria-label="Workflow and preparation status" hidden={!workflowOpen}>
+              <PreparationProgress run={run} selection={selection} notify={notify} error={preparationFeedError} loading={!lastPreparationAt&&!preparationFeedError} lastConnectedAt={lastPreparationAt} />
+              <RecoveryBrief run={run} related={related} />
+            </div>
             {prepareError && (
               <div className="atlas-error" role="alert">
                 Preparation admission: {prepareError}
@@ -558,10 +673,6 @@ export function AtlasApp() {
             ) : view === "overview" ? (
               <>
                 {(selection.slug||selection.program)&&<AtlasAnalysis {...surfaceProps}/>}
-                <details className="atlas-workflow-details"><summary>Workflow stages and prerequisites</summary>
-                  <PreparationProgress run={run} selection={selection} notify={notify} error={preparationFeedError} loading={!lastPreparationAt&&!preparationFeedError} lastConnectedAt={lastPreparationAt} />
-                </details>
-                <RecoveryBrief run={run} related={related} />
               </>
             ) : (
               <div className="atlas-function-layout">
@@ -592,7 +703,7 @@ export function AtlasApp() {
                           <SourceEditor selection={selection} value={detail.assembly?.text||detail.disassembly?.text||''} kind="assembly" loading={detailResponse.loading}/>
                         </article>
                       </div>
-                      <details className="atlas-related-details"><summary>Callers and callees</summary><div className="atlas-relationships">
+                      <PrefDetails pref="atlas.callers-open" className="atlas-related-details" summary="Callers and callees"><div className="atlas-relationships">
                         {[
                           ["Callers", graph.callers || detail.callers || []],
                           ["Callees", graph.callees || detail.callees || []],
@@ -620,12 +731,11 @@ export function AtlasApp() {
                           </article>
                         ))}
                       </div>
-                      </details>
+                      </PrefDetails>
                       {(graph.callersTruncated || graph.calleesTruncated) && (
                         <p>Additional edges were omitted by the server.</p>
                       )}
-                      <details>
-                        <summary>Cross-build identity and provenance</summary>
+                      <PrefDetails pref="atlas.identity-open" summary="Cross-build identity and provenance">
                         <RecordView
                           value={
                             detail.siblings ||
@@ -633,7 +743,7 @@ export function AtlasApp() {
                             detail.provenance
                           }
                         />
-                      </details>
+                      </PrefDetails>
                       <p className="atlas-proof-note">
                         No byte-verification claim is inferred from source text,
                         names, or job completion.
@@ -647,9 +757,9 @@ export function AtlasApp() {
         )}
 
       </div>
-      <section className={'atlas-activity-dock '+(activityOpen?'expanded':'collapsed')} style={{height:activityOpen?Math.max(120,dockHeight):36}} aria-label="Activity dock">
+      <section className={'atlas-activity-dock '+(activityOpen?'expanded':'collapsed')} style={{height:activityOpen?Math.max(120,dockHeight):36,left:explorerColumnWidth}} aria-label="Activity dock">
         {activityOpen&&<ResizeBar axis="y" label="Resize activity dock" onResize={delta=>setDockHeight(h=>Math.max(120,Math.min(window.innerHeight*.65,h-delta)))}/>}
-        <UnifiedActivity jobs={jobs} events={messages} batches={batches} expanded={activityOpen} onToggle={()=>setActivityOpen(v=>!v)} notify={notify} onRetry={job=>setAction({id:job.actionId,params:job.params,targets:[recordedSelection(job,selection)]})} onRetryBatch={batch=>setAction({id:batch.action,params:batch.results[0]?.params,targets:batch.results.filter((row:Data)=>row.status!=='ok').map((row:Data)=>row.context)})}/>
+        <UnifiedActivity jobs={activityJobs} events={messages} batches={batches} expanded={activityOpen} onToggle={()=>setActivityOpen(v=>!v)} notify={notify} onRetry={job=>setAction({id:job.actionId,params:job.params,targets:[recordedSelection(job,selection)]})} onRetryBatch={batch=>setAction({id:batch.action,params:batch.results[0]?.params,targets:batch.results.filter((row:Data)=>row.status!=='ok').map((row:Data)=>row.context)})}/>
       </section>
       <ActionRunner
         request={action}
@@ -702,7 +812,7 @@ export function AtlasApp() {
       {pendingProject && <DialogFrame title="Load another project?" onClose={()=>setPendingProject(null)}>
         <p>A project is already loaded.</p>
         <div className="project-merge-summary"><strong>Current project</strong><code>{selection.locator || title(selection)}</code><strong>Requested project</strong><code>{pendingProject.locator || title(pendingProject)}</code></div>
-        <p>Loading the requested project will combine its recorded imports and workspace metadata with the current session before switching to it. Existing files and background work are preserved.</p>
+        <p>Combine recorded imports, evidence links, and workspace metadata, then load the requested project. The original Ghidra databases remain preserved; this action never deletes or silently overwrites either project.</p>
         <div className="dialog-actions"><button onClick={()=>setPendingProject(null)}>Keep current project</button><button onClick={()=>void combineAndOpen()}>Combine data and load requested project</button></div>
       </DialogFrame>}
     </div>

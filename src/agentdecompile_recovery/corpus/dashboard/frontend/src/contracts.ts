@@ -64,7 +64,21 @@ export async function request<T = Data>(
       ...init.headers,
     },
   });
-  const data = await response.json();
+  const raw = await response.text();
+  let data: Data = {};
+  if (raw.trim()) {
+    try {
+      data = JSON.parse(raw) as Data;
+    } catch {
+      throw new Error(
+        raw.trim().length < 80
+          ? `Incomplete JSON from server (${response.status})`
+          : `Invalid JSON from server (${response.status})`,
+      );
+    }
+  } else if (!response.ok) {
+    throw new Error(`Request failed (${response.status})`);
+  }
   if (!response.ok || data.ok === false) {
     const detail = Array.isArray(data.detail)
       ? data.detail

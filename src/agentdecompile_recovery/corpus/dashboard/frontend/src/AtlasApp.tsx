@@ -1,7 +1,7 @@
 import {UnifiedActivity} from './UnifiedActivity';
 import {SourceDownload} from './SourceDownload';
 import {SourceEditor,sourceWitness,sourceExtent,useFunctionEvidence} from './SourceEditor';
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   API,
   emptySelection,
@@ -515,6 +515,47 @@ export function AtlasApp() {
     document.querySelector(".atlas-shell")?.scrollTo({ top: 0 });
   }, [view, loaded]);
   const builds: Data[] = binaries.data.binaries || [];
+  const liveLocators = useMemo(
+    () =>
+      [
+        ...new Set(
+          runs
+            .filter((item) => ["queued", "running", "paused"].includes(String(item.status)) && item.locator)
+            .map((item) => canonicalProjectLocator(item.locator)),
+        ),
+      ].filter(Boolean),
+    [runs],
+  );
+  const ensureLiveProjectVisible = useCallback(
+    async (locator: string) => {
+      const key = canonicalProjectLocator(locator);
+      if (!key) return;
+      try {
+        const snapshot = await request(API + "/sessions");
+        const items: Data[] = snapshot.sessions || [];
+        const existing = items.find((item) => projectLocatorsMatch(item.locator, key));
+        if (existing && !existing.hidden) return;
+        const record = existing
+          ? { ...existing, hidden: false, locator: key }
+          : {
+              id: crypto.randomUUID(),
+              title: key.split("/").pop() || "Project",
+              locator: key,
+              hidden: false,
+              imports: [],
+              selection: { ...emptySelection, locator: key },
+            };
+        await queueSessionSave({
+          active: record.id,
+          sessions: [...items.filter((item) => item.id !== record.id), record],
+        });
+        refresh();
+      } catch (error) {
+        notify(String(error), "error");
+      }
+    },
+    [refresh, notify],
+  );
   const libraryTransfer = useLibraryTransfer(builds, notify);
   const build = builds.find((b) => b.slug === selection.slug);
   const related = build ? builds.filter((b) => b.game === build.game) : [];
@@ -628,7 +669,7 @@ export function AtlasApp() {
   return (
     <div className="atlas-app">
       <div className="atlas-explorer-column" style={{width:explorerColumnWidth,height:`calc(100dvh - ${dockOccupied}px)`}}>
-        <PersistentExplorer onProjectVisibility={projectVisibility} notify={notify} libraryLoading={binaries.loading} libraryError={binaries.error} builds={builds} projects={sessions.data.sessions||[]} unresolved={binaries.data.unresolvedBinaries||[]} selection={selection} onSelect={patch=>{if(patch.slug!==undefined||patch.locator!==undefined)requestOpen({...selection,...patch});else{selectContext(patch);setView("functions");setLoaded(true);}}} onAdd={libraryTransfer.stage} dropProps={libraryTransfer.dropProps} revision={revision} recordFilter={recordFilter} onRecordFilterChange={setRecordFilter} onImport={()=>setDialog("import")} onCreate={()=>setDialog("create")}/>
+        <PersistentExplorer onProjectVisibility={projectVisibility} notify={notify} libraryLoading={binaries.loading} libraryError={binaries.error} liveLocators={liveLocators} builds={builds} projects={sessions.data.sessions||[]} unresolved={binaries.data.unresolvedBinaries||[]} selection={selection} onSelect={patch=>{if(patch.slug!==undefined||patch.locator!==undefined)requestOpen({...selection,...patch});else{selectContext(patch);setView("functions");setLoaded(true);}}} onAdd={libraryTransfer.stage} dropProps={libraryTransfer.dropProps} revision={revision} recordFilter={recordFilter} onRecordFilterChange={setRecordFilter} onImport={()=>setDialog("import")} onCreate={()=>setDialog("create")}/>
         <ResizeBar axis="x" label="Resize binary explorer" onResize={delta=>setExplorerWidth(w=>Math.max(240,Math.min(560,w+delta)))}/>
       </div>
       <div className="atlas-shell" style={{height:`calc(100dvh - ${dockOccupied}px)`,overflow:'auto',paddingBottom:16}}>
@@ -641,7 +682,7 @@ export function AtlasApp() {
           <button onClick={()=>setToolsOpen(true)} aria-label="Tools and workspace commands">Tools</button>
         </header>
         {!loaded ? (
-          <main className="atlas-landing atlas-workspace-empty"><h1>Workspace</h1><p>Select a project or binary in the explorer. Its existing analysis and recorded evidence stay available while missing work progresses.</p><p>Use <strong>＋ Project</strong> or <strong>Add binaries</strong> above the tree to bring in more files. Drag checked binaries onto a project to link them.</p>{runs.filter(item=>["queued","running","paused"].includes(String(item.status))&&item.locator).map(item=><button key={item.id} className="atlas-live-run" type="button" onClick={()=>requestOpen({locator:item.locator,slug:item.slug||"",program:item.program||""})}>Open live workflow · {(item.locator||"").split("/").pop()} · {matchingStageSummary(item)||item.status}</button>)}{binaries.error&&<p role="alert">{binaries.error}</p>}</main>
+          <main className="atlas-landing atlas-workspace-empty"><h1>Workspace</h1><p>Select a project or binary in the explorer. Its existing analysis and recorded evidence stay available while missing work progresses.</p><p>Use <strong>＋ Project</strong> or <strong>Add binaries</strong> above the tree to bring in more files. Drag checked binaries onto a project to link them.</p>{runs.filter(item=>["queued","running","paused"].includes(String(item.status))&&item.locator).map(item=><button key={item.id} className="atlas-live-run" type="button" onClick={()=>{void ensureLiveProjectVisible(String(item.locator)).finally(()=>requestOpen({locator:item.locator,slug:item.slug||"",program:item.program||""}));}}>Open live workflow · {(item.locator||"").split("/").pop()} · {matchingStageSummary(item)||item.status}</button>)}{binaries.error&&<p role="alert">{binaries.error}</p>}</main>
         ) : (
           <main className={"atlas-work atlas-view-"+view}>
             <div className="atlas-work-context">

@@ -1,0 +1,1 @@
+import{_ as r}from"./index-D2TYXDDr.js";import{r as a}from"./_.contribution-DfvxmKAn.js";import"./monaco-runtime-BABy4ML1.js";a({id:"csharp",extensions:[".cs",".csx",".cake"],aliases:["C#","csharp"],loader:()=>r(()=>import("./csharp-Co3qMtFm.js"),[])});

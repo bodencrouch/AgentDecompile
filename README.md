@@ -60,8 +60,10 @@ uv run agentdecompile-cli --server-url http://127.0.0.1:8080/mcp tool --list-too
 **Development:** run the HTTP server under `watchfiles` so it reloads on save instead of needing a manual restart after every edit:
 
 ```bash
-sudo -E /home/brunner56/.local/bin/uv run --with watchfiles watchfiles "agentdecompile-server -t streamable-http"
+uv run --with watchfiles watchfiles --ignore-permission-denied "agentdecompile-server -t streamable-http" src
 ```
+
+Notes: quote the target command as one argument — `watchfiles TARGET [PATHS...]` is positional, so an unquoted `-t streamable-http` is parsed as (nonexistent) watch paths instead of server flags, and nothing gets watched. Scope watching to `src` rather than the whole repo: this tree has a `vendor/` wine-prefix/container-storage path that a non-root user can't stat, which otherwise crashes the watcher (`--ignore-permission-denied` also covers this). Don't run this with `sudo` — it resets `HOME`, so `uv` resolves an unrelated ephemeral venv under `/root/.cache` instead of this project's `.venv`, and edits silently stop being picked up.
 
 Success: the CLI prints the advertised tool list.
 

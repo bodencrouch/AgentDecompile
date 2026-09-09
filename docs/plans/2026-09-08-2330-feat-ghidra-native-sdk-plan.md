@@ -205,7 +205,7 @@ Status legend: a box is checked only after the named verification ran and its ou
 - [ ] Ghidra 12.1.3 release installed; SHA-256 checked against the release page.
 - [ ] `uv pip install "$GHIDRA_INSTALL_DIR/Ghidra/Features/PyGhidra/pypkg"` into `.venv` (matches `test-headless.yml`).
 - [ ] Versions recorded in `native/bench/environment.json`.
-- **Verification:** `git -C vendor/ghidra describe --tags` prints `Ghidra_12.1.3_build`; `grep application.version $GHIDRA_INSTALL_DIR/Ghidra/application.properties` prints `12.1.3`; `pyghidra.start()` against 12.1.3 works.
+- **Verification:** `git -C vendor/ghidra describe --tags --abbrev=0` prints `Ghidra_12.1.3_build` (plain `describe --tags` gains a `-N-g<sha>` suffix once `native-sdk/cmake-standalone` has commits); `grep application.version $GHIDRA_INSTALL_DIR/Ghidra/application.properties` prints `12.1.3`; `pyghidra.start()` against 12.1.3 works.
 - **Note:** `git submodule status` in the worktree may report the linked worktree as uninitialized. That is expected and belongs in `native/README.md`.
 
 ### WP1. Upstream-facing standalone CMake (P01 core)
@@ -239,7 +239,7 @@ Owner: `native/sdk`, `native/CMakeLists.txt`, presets, `native/tests/sdk`, `gnsd
 - [ ] One live session per process; second create returns `GNSDK_BUSY`.
 - [ ] States `CREATED`, `CONFIGURED`, `READY`, `BUSY`, `POISONED`, `DESTROYED`. Reset per function mirrors `IfcDecompile::execute`; reset per program is destroy plus create.
 - [ ] Error mapping: `LowlevelError` in a request stays `READY`; init or restore failures poison; `bad_alloc` poisons and the worker exits 4 after replying; signals kill the process.
-- [ ] Status classes per `native/conformance/status_codes.json`. Version info: abi triple, `sla_format_version`, `ghidra_version`, `source` = `git describe` of the vendor tree at configure (must print `Ghidra_12.1.3_build`), `build_flags`.
+- [ ] Status classes per `native/conformance/status_codes.json`. Version info: abi triple, `sla_format_version`, `ghidra_version`, `source` = `git describe --tags` of the vendor tree at configure (must start with `Ghidra_12.1.3_build`), `build_flags`.
 - [ ] Cancel: checkpoints before followFlow, perform, and print; optional in-loop action hook behind cap bit `CANCEL_IN_ACTION_LOOP`. Hard wall-clock is the supervisor's job.
 - [ ] Boundary rules: every export `noexcept`; upstream included through one `upstream.hpp` with `-isystem`; never `using namespace ghidra`; `-Werror` only on `gnsdk*` targets.
 - [ ] `gnsdk-selftest`: init, list languages, decompile smoke bytes, print version and caps.
@@ -371,12 +371,19 @@ Commit slices on `feat/native-sdk`, each message carrying the test command and r
 
 Dated deltas. Newest first. A delta names what was verified and how; it does not check boxes above unless the named verification ran.
 
+### 2026-09-09 (first run interrupted; packages restarted)
+
+- **WP0, verified on disk:** worktree HEAD is `2db9f47` "wip: native SDK contracts and protocol codec snapshot" on `feat/native-sdk`, on top of `85e0238` (the pointer move) and master `22cbd8a`. `vendor/ghidra` is a linked worktree on `native-sdk/cmake-standalone`; `git describe --tags --abbrev=0` prints `Ghidra_12.1.3_build`, plain `describe --tags` prints `Ghidra_12.1.3_build-1-gf323dec82f` because the branch now carries one commit (`f323dec82f` "wip: standalone CMake helper modules"). HEAD records that commit as the gitlink. `/home/brunner56/ghidra-install/ghidra_12.1.3_PUBLIC/Ghidra/application.properties` has `application.version=12.1.3`. `.venv` still reports pyghidra 3.0.2. `native/bench/environment.json` does not exist. WP0 boxes stay open until the `pypkg` install and the environment file are verified.
+- **First agent run interrupted.** WP1, WP2, WP3, WP4, WP8, and WP10 were restarted on 2026-09-09 and are in progress. No box in those packages is checked; no verification command from those packages has been recorded here.
+- **On disk at the time of this delta (unverified, not built):** upstream subtree has `cpp/cmake/{CheckMakefileManifest,GhidraDecompSources,NoJvmCheck,SleighCompileSpecs}.cmake`, `GhidraDecompilerConfig.cmake.in`, and `cmake/smoke/`; no `cpp/CMakeLists.txt` yet. AgentDecompile side has `native/conformance/status_codes.json`, `native/sdk/include/gnsdk/gnsdk.h`, `native/worker/{protocol.hpp,protocol.cpp,json_min.hpp,json_min.cpp,CMakeLists.txt}`. Missing: `native/CMakeLists.txt`, `src/agentdecompile_recovery/native_snapshot/`, `src/agentdecompile_cli/mcp_utils/parallel_decompile.py`, `scripts/bench_native_sdk.py`, `.github/workflows/native-sdk.yml`, and every `tests/test_native_*` and `tests/test_parallel_decompile_*` file.
+- **Docs landed in this delta:** the row for this plan in `docs/plans/README.md`, `docs/brainstorms/2026-09-08-ghidra-native-sdk-requirements.md`, and the STRATEGY track "Native decompiler tier (JVM-free replay)". The priority ladder is unchanged and the ladder plan stays the `active_living_plan`. Still owed by the owning agents: README/USAGE subsection, the Tier 1 line in `src/agentdecompile_cli/CLAUDE.md` section 20 and the tiered-re-analysis skill, `native/README.md`, upstream `cpp/cmake/README.md`.
+
 ### 2026-09-08 (plan opened)
 
 - **WP0, verified on disk:** worktree `.claude/worktrees/native-sdk` is on `feat/native-sdk`; HEAD `85e0238` "chore: pin vendor/ghidra to Ghidra_12.1.3_build for the native SDK series" on top of master `22cbd8a`. `vendor/ghidra/.git` is a file (linked worktree of the module repo, no second clone), branch `native-sdk/cmake-standalone`, `git describe --tags` prints `Ghidra_12.1.3_build` (`8b4c91d4d5`). Ghidra 12.1.3 is installed at `/home/brunner56/ghidra-install/ghidra_12.1.3_PUBLIC` (`application.version=12.1.3`, build date 2026-Aug-17).
 - **WP0, not yet verified:** `.venv` still reports pyghidra 3.0.2 (the 12.1.3 `pypkg` install has not been confirmed); `native/bench/environment.json` does not exist yet. Boxes stay open.
 - **In progress by parallel agents:** WP1, WP2 (upstream subtree), WP3 (sdk), WP4 (protocol), WP8 (exporter), WP10 (Java batch and bench). At the time of this delta the only file under `native/` in the worktree is `native/.gitignore`; no `CMakeLists.txt` exists yet in the upstream subtree and `src/agentdecompile_recovery/native_snapshot/` does not exist yet.
-- **Docs landed in this delta:** this plan, its row in `docs/plans/README.md`, `docs/brainstorms/2026-09-08-ghidra-native-sdk-requirements.md`, and the STRATEGY track "Native decompiler tier (JVM-free replay)". The ladder stays unchanged and stays the `active_living_plan`.
+- **Docs in this delta:** this plan was opened. The row in `docs/plans/README.md`, `docs/brainstorms/2026-09-08-ghidra-native-sdk-requirements.md`, and the STRATEGY track had not landed when the first agent run was interrupted; see the 2026-09-09 delta.
 - **Host recorded for the bench environment file (to be written by WP0/WP10):** cmake 4.3.0, ninja 1.13.2, gcc 16.2.1, clang 22.1.8, OpenJDK 21.0.11, podman 5.8.4, 12 CPUs, 31 GB RAM, system pyghidra 3.1.0, `.venv` pyghidra 3.0.2.
 
 ---

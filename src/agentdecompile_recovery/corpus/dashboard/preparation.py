@@ -9,6 +9,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,23 @@ _ADMISSION_THREAD: threading.Thread | None = None
 _STAGES = [('inspect', 'Read project'), ('protection', 'Prepare analysis image'),
            ('analysis', 'Analyze missing programs'), ('facts', 'Extract function facts'),
            ('bsim', 'Index similarity signatures'), ('matching', 'Match related builds')] + RECOVERY_STAGES
+
+
+def _matching_concurrency() -> int:
+    # corpus.match-pair is a standalone subprocess that only reads/writes the
+    # sqlite corpus DB — it never touches the shared PyGhidra JVM/project, so
+    # it isn't bound by Ghidra's single-session limitation the way analysis
+    # and bsim are. Bounded (not unbounded) because the host also runs a
+    # single shared Ghidra JVM and other preparation runs concurrently, and
+    # this box has a history of OOM under combined memory pressure.
+    raw = os.environ.get('AGENT_DECOMPILE_MATCH_CONCURRENCY', '')
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        value = 0
+    if value > 0:
+        return value
+    return max(1, min(6, (os.cpu_count() or 4)))
 
 
 def _budget_expired(deadline: Any) -> bool:
@@ -470,8 +488,9 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             identity_parts.append(_comparison_inventory(str(fields.get('src') or ''), str(fields.get('dst') or ''), comparison_inputs))
         identity = json.dumps(identity_parts, sort_keys=True)
         action_id = hashlib.sha256(identity.encode()).hexdigest()
-        history = row.setdefault('actions', {})
-        prior = history.get(action_id, {})
+        with _LOCK:
+            history = row.setdefault('actions', {})
+            prior = dict(history.get(action_id, {}))
         if probe or (prior.get('status') == 'ok' and key in {'facts', 'calibrate-global', 'verify-byte-accuracy'}):
             prior = {}
         if not probe and prior.get('status') == 'ok' and key not in {'facts', 'calibrate-global', 'verify-byte-accuracy'}:
@@ -488,18 +507,20 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         for attempt in range(int(prior.get('attempts', 0)), 3):
             if stopped():
                 raise InterruptedError('Workflow stopped or its execution budget was reached.')
-            history[action_id] = {'status': 'submitting', 'action': name, 'params': fields, 'target': context.get('program') or context.get('locator'), 'attempts': attempt + 1, 'at': time.time()}
-            _write(row)
+            with _LOCK:
+                history[action_id] = {'status': 'submitting', 'action': name, 'params': fields, 'target': context.get('program') or context.get('locator'), 'attempts': attempt + 1, 'at': time.time()}
+                _write(row)
             response, status = jobs.start_job(name, fields, context=context, confirm=True)
             if status >= 400:
                 outcome = {'ok': False, 'error': response.get('error')}
             else:
                 job_id = response['job']['id']
-                history[action_id].update(status='queued', jobId=job_id)
-                checkpoint = row['checkpoints'].get(context.get('program', ''), {})
-                row.setdefault('jobTimingContexts', {})[job_id] = {key: checkpoint.get(key) for key in ('architecture', 'ghidraVersion', 'workSize', 'toolchain')}
-                row['jobTimingContexts'][job_id].update(actionId=name, createdAt=time.time())
-                _write(row)
+                with _LOCK:
+                    history[action_id].update(status='queued', jobId=job_id)
+                    checkpoint = row['checkpoints'].get(context.get('program', ''), {})
+                    row.setdefault('jobTimingContexts', {})[job_id] = {key: checkpoint.get(key) for key in ('architecture', 'ghidraVersion', 'workSize', 'toolchain')}
+                    row['jobTimingContexts'][job_id].update(actionId=name, createdAt=time.time())
+                    _write(row)
                 target = str(fields.get('programPath') or fields.get('program') or context.get('program') or fields.get('src') or context.get('locator') or '')
                 update(key, 'running', f'{name}: {target}' if target else name, jobId=job_id,
                        currentProgram=target, currentAction=name, jobStatus=response['job'].get('status', 'queued'), startedAt=time.time(), attempts=attempt + 1)
@@ -534,7 +555,8 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                         break
                     if job.status != previous_status:
                         previous_status = job.status
-                        history[action_id]['status'] = job.status
+                        with _LOCK:
+                            history[action_id]['status'] = job.status
                         update(key, 'running', jobStatus=job.status, lastJobUpdateAt=time.time())
                     if job.status not in {'queued', 'running', 'cancelling'}:
                         data = None
@@ -548,12 +570,14 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                                     pass
                         except (ValueError, TypeError):
                             pass
-                        row['jobTimingContexts'][job_id].update(status=job.status, startedAt=job.started_at, finishedAt=job.finished_at)
+                        with _LOCK:
+                            row['jobTimingContexts'][job_id].update(status=job.status, startedAt=job.started_at, finishedAt=job.finished_at)
                         outcome = {'ok': job.status == 'ok', 'data': data, 'log': text[-4000:], 'jobId': job_id, 'finishedAt': job.finished_at, 'error': job.error}
                         break
                     cancel.wait(.25)
-            history[action_id].update(status='ok' if outcome['ok'] else 'failed', result=outcome)
-            _write(row)
+            with _LOCK:
+                history[action_id].update(status='ok' if outcome['ok'] else 'failed', result=outcome)
+                _write(row)
             if outcome['ok'] or not transient_failure(outcome) or attempt == 2:
                 return outcome
             delay = 2 ** (attempt + 1)
@@ -803,18 +827,42 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             matched = 0
             admitted = 0
             deferred = 0
+            to_run = []
             for src, dst, note in pairs:
                 existing = read_comparison_receipt(run_id, src, dst, comparison_inputs)
                 if existing:
                     matched += 1
                     update('matching', 'running', f'Reusing completed comparison receipt: {Path(src).name} → {Path(dst).name}.', completed=matched, total=len(pairs))
                     continue
-                admitted += 1
+                to_run.append((src, dst, note))
+            admitted = len(to_run)
+            # Each corpus.match-pair call is a standalone subprocess reading
+            # sqlite-persisted facts; it never opens the shared PyGhidra
+            # project, so these comparisons are independent and safe to run
+            # concurrently up to _matching_concurrency() workers.
+            progress_lock = threading.Lock()
+
+            def _run_pair(item: tuple[str, str, str]) -> tuple[str, str, dict[str, Any]]:
+                src, dst, note = item
                 result = action('matching', 'corpus.match-pair', {'db': str(live_db()), 'src': src, 'dst': dst, 'run': f'prepare-{run_id}', 'note': note}, row)
-                if result['ok']:
-                    record_comparison_receipt(run_id, src, dst, result, comparison_inputs)
-                    matched += 1
-                update('matching', 'running', result.get('error') or f'{Path(src).name} → {Path(dst).name}: {"compared" if result["ok"] else "failed"}.', completed=matched, total=len(pairs))
+                return src, dst, result
+
+            if to_run:
+                workers = min(_matching_concurrency(), len(to_run))
+                with ThreadPoolExecutor(max_workers=workers, thread_name_prefix=f'match-{run_id[:8]}') as pool:
+                    futures = [pool.submit(_run_pair, item) for item in to_run]
+                    try:
+                        for future in futures:
+                            src, dst, result = future.result()
+                            with progress_lock:
+                                if result['ok']:
+                                    record_comparison_receipt(run_id, src, dst, result, comparison_inputs)
+                                    matched += 1
+                                update('matching', 'running', result.get('error') or f'{Path(src).name} → {Path(dst).name}: {"compared" if result["ok"] else "failed"}.', completed=matched, total=len(pairs))
+                    except InterruptedError:
+                        for pending in futures:
+                            pending.cancel()
+                        raise
             update('matching', 'completed' if matched == len(pairs) else 'partial', f'{matched} of {len(pairs)} pairs compared. {deferred} comparisons await admission.' if deferred else f'{matched} of {len(pairs)} pairs compared.', completed=matched, total=len(pairs), deferred=deferred)
         if pairs and matched:
             merged = action('matching', 'workbench.merge-evidence', {'db': str(live_db()), 'run': f'prepare-{run_id}'}, row)

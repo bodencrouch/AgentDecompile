@@ -12,12 +12,13 @@ def test_compatible_arity_boosts_but_alone_not_identity():
     assert status_for(score, 1.0, "same_platform", content=0) != "auto"
 
 
-def test_incompatible_arity_zeros_score():
+def test_incompatible_arity_soft_penalizes_not_hard_zero():
     fa = {"strings": ["rare_unique_string_xyz"], "consts": [0x12345], "ext_calls": [], "canon_arity": 1}
     fb = {"strings": ["rare_unique_string_xyz"], "consts": [0x12345], "ext_calls": [], "canon_arity": 4}
     score, ev = score_features(fa, fb)
     assert ev.get("abi") == 0.0
-    assert score == 0.0
+    # Strong content channels must survive arity noise (cross-compiler / STABS vs Ghidra).
+    assert score > 0.0
 
 
 def test_abi_none_when_missing():

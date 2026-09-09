@@ -45,16 +45,17 @@ def is_authentic_symbol(row: Mapping[str, Any]) -> bool:
     origin = normalize_origin(row.get("name_origin") or row.get("symbol_provenance"))
     if origin in INFERRED_ORIGINS or origin.startswith("matcher"):
         return False
+    # Default Ghidra FUN_ / untitled names are never channel-I authentic,
+    # even when origin is analysis / plate.
+    name = str(row.get("name") or row.get("canon_key") or "")
+    if name.startswith("FUN_") or name.startswith("unnamed_function"):
+        return False
     source = str(row.get("source") or "").upper()
     if origin in AUTHENTIC_ORIGINS:
         return True
     if source in {"USER_DEFINED", "IMPORTED"}:
         return True
-    # Default Ghidra FUN_ / untitled analysis names are not authentic identity.
-    name = str(row.get("name") or row.get("canon_key") or "")
-    if name.startswith("FUN_") or name.startswith("unnamed_function"):
-        return False
-    if origin in {"analysis"} and name and not name.startswith("FUN_"):
+    if origin in {"analysis"} and name:
         return True
     return False
 

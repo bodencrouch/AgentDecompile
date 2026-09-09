@@ -127,8 +127,13 @@ class Binary:
                 ("hash_mnemonic", self.by_hash_mnemonic),
             ):
                 digest = f.get(field)
-                if digest:
-                    index[digest].append(addr)
+                if not digest:
+                    continue
+                # Auto-seed indexes require non-tiny bodies; mnemonic stays
+                # candidate-generation only (never absorb_anchors).
+                if field != "hash_mnemonic" and (f.get("n_instr") or 0) < 8:
+                    continue
+                index[digest].append(addr)
         for addr, d in self.decomp.items():
             h = d.get("skeleton_hash")
             if h:
@@ -203,8 +208,13 @@ def _classify_store(sa: Binary, sb: Binary) -> str:
     return classify_pair(sa.meta, sb.meta)
 
 
-def _fuse_bsim(con, sa: Binary, sb: Binary, mapping: dict[int, int], results: dict, pair_class: str) -> None:
-    """Optional BSim significance corroboration when a bsim table exists."""
+def _fuse_bsim(con, sa: Binary, sb: Binary, mapping: dict[int, int], results: dict, pair_class: str) -> dict:
+    """Optional BSim significance corroboration when a bsim_hit table exists.
+
+    Returns a skip/ok receipt. Missing table is explicit skip, not silent green.
+    Similarity is normalized to [0,1]. kind=bsim (PINNED) with status=verify.
+    """
+    receipt: dict = {"ok": False, "skipped": False, "hits_used": 0}
     try:
         from agentdecompile_recovery.symbol_map import BSIM_TRUSTED_SIGNIFICANCE
     except Exception:
@@ -215,12 +225,16 @@ def _fuse_bsim(con, sa: Binary, sb: Binary, mapping: dict[int, int], results: di
                FROM bsim_hit WHERE src_binary=? AND dst_binary=?""",
             (sa.id, sb.id),
         ).fetchall()
-    except Exception:
-        return
+    except Exception as exc:
+        receipt.update(skipped=True, reason="missing_bsim_hit_table", error=type(exc).__name__)
+        return receipt
     taken = set(mapping.values())
     by_src: dict[int, list] = defaultdict(list)
     for src, dst, sim, sig in rows:
-        by_src[int(src)].append((int(dst), float(sim or 0), float(sig or 0)))
+        sim_f = float(sim or 0)
+        if sim_f > 1.0:
+            sim_f = sim_f / 100.0
+        by_src[int(src)].append((int(dst), max(0.0, min(1.0, sim_f)), float(sig or 0)))
     for src, hits in by_src.items():
         if src in mapping or src not in sa.funcs:
             continue
@@ -251,13 +265,16 @@ def _fuse_bsim(con, sa: Binary, sb: Binary, mapping: dict[int, int], results: di
                 {"bsim": sim, "bsim_significance": sig, "channel": "S"},
                 kind="bsim",
                 status="verify",
-                code_equality=None,
                 identity_claim=True,
             ),
             "round": "bsim",
-            "kind": "anchor",
+            "kind": "bsim",
             "status": "verify",
         }
+        receipt["hits_used"] += 1
+    receipt["ok"] = True
+    receipt["row_count"] = len(rows)
+    return receipt
 
 
 def match_binaries(
@@ -304,11 +321,16 @@ def match_binaries(
     for left_idx, right_idx in (
         (sa.by_hash_reloc, sb.by_hash_reloc),
         (sa.by_hash_instr, sb.by_hash_instr),
-        (sa.by_hash_mnemonic, sb.by_hash_mnemonic),
     ):
         absorb_anchors(
             mapping,
-            unique_index_anchors(left_idx, right_idx, src_eligible=src_eligible, dst_eligible=dst_eligible),
+            unique_index_anchors(
+                left_idx,
+                right_idx,
+                src_eligible=src_eligible,
+                dst_eligible=dst_eligible,
+                key_ok=lambda key: bool(key) and len(str(key)) >= 16,
+            ),
         )
     absorb_anchors(
         mapping,
@@ -367,12 +389,12 @@ def match_binaries(
         pair_class=pair_class,
     )
     taken = set(mapping.values())
-    _fuse_bsim(con, sa, sb, mapping, results, pair_class)
+    bsim_receipt = _fuse_bsim(con, sa, sb, mapping, results, pair_class)
     taken = set(mapping.values())
 
     for rnd in range(rounds):
         new = 0
-        scored: list[tuple[float, float, int, int, dict]] = []
+        scored: list[tuple[float, float, int, int, dict, float, int | None]] = []
         for a in src_addrs:
             if a in mapping:
                 continue
@@ -383,6 +405,7 @@ def match_binaries(
             fa = sa.funcs[a]
             best = second = 0.0
             best_b = None
+            second_b = None
             best_ev: dict = {}
             for b in cands:
                 fb = dict(sb.funcs[b])
@@ -399,15 +422,15 @@ def match_binaries(
                 s, ev = score_features(fa_score, fb, same_arch=same_arch, mapping=int_map)
                 ev = dict(ev)
                 if s > best:
-                    second, best, best_b, best_ev = best, s, b, ev
+                    second, second_b, best, best_b, best_ev = best, best_b, s, b, ev
                 elif s > second:
-                    second = s
+                    second, second_b = s, b
             if best_b is not None:
                 margin = candidate_margin(best, second, len(cands))
-                scored.append((best, margin, a, best_b, best_ev))
+                scored.append((best, margin, a, best_b, best_ev, second, second_b))
 
         scored.sort(key=lambda t: (-t[0], -t[1]))
-        for best, margin, a, b, ev in scored:
+        for best, margin, a, b, ev, second, second_b in scored:
             if a in mapping or b in taken:
                 continue
             if _passes(policy["verify"], best, margin, ev.get("_content", 0)) and ev.get("compunit") != 0.0:
@@ -421,9 +444,10 @@ def match_binaries(
                     "round": rnd,
                 }
                 new += 1
-            elif a not in results or (results[a].get("kind") not in {"callgraph", "anchor"} and best > results[a]["score"]):
+            elif a not in results or (results[a].get("kind") not in {"callgraph", "anchor", "bsim"} and best > results[a]["score"]):
                 alts = [{"dst": b, "score": best}]
-                if second > 0 and abs(best - second) < 0.05:
+                if second_b is not None and second > 0 and abs(best - second) < 0.05:
+                    alts.append({"dst": second_b, "score": second})
                     results[a] = {
                         "dst": b,
                         "score": best,
@@ -508,6 +532,9 @@ def match_binaries(
             "kind": "inline",
             "status": "review",
         }
+    from .binexport import binexport_available
+    from .emulate_verify import unicorn_available
+
     return {
         "mapping": mapping,
         "results": results,
@@ -515,6 +542,13 @@ def match_binaries(
         "dst": sb,
         "pair_class": pair_class,
         "inlines": inlines,
+        "optional_channels": {
+            "bsim": bsim_receipt,
+            "binexport": {"skipped": True, "reason": "prep_only", "available": binexport_available()},
+            "emulate": {"skipped": True, "reason": "residue_path_not_configured", "available": unicorn_available()},
+            "donor_schedule": {"skipped": True, "reason": "use spanning_forest_pairs at pair-prep"},
+            "channel_confidence": {"wired": True, "note": "consult allows_auto/allows_verify when promoting auto"},
+        },
     }
 
 

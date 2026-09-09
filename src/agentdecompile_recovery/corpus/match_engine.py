@@ -227,17 +227,16 @@ def score_features(
     abi = abi_compatibility(fa, fb)
     if abi is not None:
         ev["abi"] = abi
-        if abi <= 0.0:
-            # Hard-incompatible prototypes: keep evidence but zero the aggregate.
-            ev["_content"] = float(_content_count(ev))
-            return 0.0, ev
 
     num = sum(WEIGHTS.get(k, 0.0) * v for k, v in ev.items() if not str(k).startswith("_"))
     den = sum(WEIGHTS.get(k, 0.0) for k in ev if not str(k).startswith("_") and k in WEIGHTS)
-    # Include abi as a light discriminator weight when present.
+    # ABI is a soft discriminator: mismatch penalizes but must not erase
+    # strong content channels (cross-compiler / STABS vs Ghidra arity noise).
     if "abi" in ev:
         num += 0.4 * ev["abi"]
         den += 0.4
+        if ev["abi"] <= 0.0 and den:
+            num *= 0.55
     ev["_content"] = float(_content_count(ev))
     return (num / den if den else 0.0), ev
 
@@ -382,16 +381,10 @@ def match_binaries(
         if not fn.get("is_thunk") and (fn.get("n_instr") or 0) >= 4
     }
     src_eligible = set(src_ids)
-    left_names: dict[str, list[str]] = defaultdict(list)
-    right_names: dict[str, list[str]] = defaultdict(list)
-    for fid, fn in left_index.funcs.items():
-        key = fn.get("canon_key")
-        if key:
-            left_names[str(key)].append(fid)
-    for fid, fn in index.funcs.items():
-        key = fn.get("canon_key")
-        if key:
-            right_names[str(key)].append(fid)
+    from .symbol_provenance import authentic_named_index
+
+    left_names = {k: [str(x) for x in v] for k, v in authentic_named_index(left_index.funcs).items()}
+    right_names = {k: [str(x) for x in v] for k, v in authentic_named_index(index.funcs).items()}
     absorb_anchors(mapping, unique_index_anchors(left_names, right_names, src_eligible=src_eligible, dst_eligible=dst_eligible))
     absorb_anchors(
         mapping,

@@ -12,6 +12,12 @@ def test_export_debug_name_is_authentic():
     assert is_authentic_symbol({"name": "Init", "canon_key": "Init", "source": "IMPORTED", "name_origin": "export"})
 
 
+def test_fun_default_name_not_authentic_even_with_analysis_origin():
+    assert not is_authentic_symbol(
+        {"name": "FUN_00401000", "canon_key": "FUN_00401000", "name_origin": "analysis"}
+    )
+
+
 def test_authentic_index_excludes_inferred():
     funcs = {
         1: {"canon_key": "A", "name": "A", "name_origin": "matcher_inferred"},

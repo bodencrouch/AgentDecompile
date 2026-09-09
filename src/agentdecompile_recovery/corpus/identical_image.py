@@ -1,6 +1,6 @@
 """Identical-image short-circuit before function matching.
 
-Content digests only — never filename, timestamp, or version strings alone.
+Content digests only — never filename, timestamp, version strings, or MD5 alone.
 """
 
 from __future__ import annotations
@@ -27,16 +27,16 @@ def content_digest(path: str | Path | None) -> str | None:
 
 
 def images_identical(meta_a: Mapping[str, Any], meta_b: Mapping[str, Any]) -> bool:
-    """True only when both sides share a non-empty content digest."""
+    """True only when both sides share a non-empty SHA-256 content digest.
+
+    MD5 (including Ghidra ExecutableMD5) is advisory elsewhere — never enough
+    alone to short-circuit the cascade.
+    """
     for key in ("content_sha256", "sha256"):
-        a = (meta_a.get(key) or "").strip()
-        b = (meta_b.get(key) or "").strip()
-        if a and b and a == b:
+        a = (meta_a.get(key) or "").strip().lower()
+        b = (meta_b.get(key) or "").strip().lower()
+        if a and b and a == b and len(a) >= 16:
             return True
-    a_md5 = (meta_a.get("md5") or "").strip().lower()
-    b_md5 = (meta_b.get("md5") or "").strip().lower()
-    if a_md5 and b_md5 and a_md5 == b_md5 and len(a_md5) >= 32:
-        return True
     return False
 
 
@@ -59,31 +59,43 @@ def identical_image_mapping(
     return mapping
 
 
+def _eligible_non_thunk(funcs: Mapping[int, Mapping[str, Any]]) -> set[int]:
+    return {int(a) for a, f in funcs.items() if not f.get("is_thunk")}
+
+
 def short_circuit_match(sa, sb) -> dict[str, Any] | None:
-    """Return a match_binaries-shaped result when images are content-identical."""
+    """Return a match_binaries-shaped result when images are content-identical.
+
+    Falls through (None) when digests match but the address map is empty or
+    incomplete — reloc/hash cascade must still run for residuals / rebases.
+    Identity claim only: status=verify via enrich_evidence, never code_equality=raw
+    without per-function byte proof / objdiff 0.
+    """
     if not images_identical(sa.meta, sb.meta):
         return None
+    from .correspondence import enrich_evidence
     from .match_engine import classify_pair
 
     mapping = identical_image_mapping(sa.funcs, sb.funcs)
+    eligible = _eligible_non_thunk(sa.funcs)
+    if not mapping or (eligible and len(mapping) < len(eligible)):
+        return None
     results: dict[int, dict] = {}
     for src, dst in mapping.items():
         results[src] = {
             "dst": dst,
             "score": 1.0,
             "margin": 1.0,
-            "evidence": {
-                "identical_image": 1.0,
-                "code_equality": "raw",
-                "relation": "one_to_one",
-                "status_band": "verified",
-                "identity_claim": True,
-                "behavior_checked": False,
-                "alternatives": [],
-            },
+            "evidence": enrich_evidence(
+                {"identical_image": 1.0, "channel": "I"},
+                kind="anchor",
+                status="verify",
+                identity_claim=True,
+                behavior_checked=False,
+            ),
             "round": "identical_image",
             "kind": "anchor",
-            "status": "auto",
+            "status": "verify",
         }
     return {
         "mapping": mapping,

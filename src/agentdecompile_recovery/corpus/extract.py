@@ -15,7 +15,8 @@ from .corpus_config import load_maps
 from .features import merge_tiers, tier1, tier2
 from .io import write_json
 from .fingerprint_hashes import attach_hashes
-from .store import ensure_func_columns, j
+from .identical_image import content_digest
+from .store import ensure_binary_columns, ensure_func_columns, j
 
 
 def slugify(repo_path: str) -> str:
@@ -70,6 +71,7 @@ def functions_from_program(program, monitor=None) -> list[dict[str, Any]]:
 
 def upsert_binary(con, *, repo_path: str, slug: str, program=None, meta: dict[str, Any] | None = None) -> int:
     """Insert or update a binary row. *meta* supplies game/platform/arch when known."""
+    ensure_binary_columns(con)
     info = dict(meta or {})
     if program is not None:
         ld = program.getLanguage().getLanguageDescription()
@@ -79,15 +81,18 @@ def upsert_binary(con, *, repo_path: str, slug: str, program=None, meta: dict[st
         info.setdefault("format", str(program.getExecutableFormat()))
         info.setdefault("md5", str(program.getExecutableMD5()))
         info.setdefault("image_base", int(program.getImageBase().getOffset()))
+    digest = info.get("content_sha256") or content_digest(repo_path)
+    if digest:
+        info["content_sha256"] = digest
     con.execute(
         """INSERT INTO binary(repo_path, slug, game, platform, variant, language_id,
-                              arch, bits, format, md5, image_base, role)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+                              arch, bits, format, md5, content_sha256, image_base, role)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
            ON CONFLICT(repo_path) DO UPDATE SET
              slug=excluded.slug, game=excluded.game, platform=excluded.platform,
              language_id=excluded.language_id, arch=excluded.arch, bits=excluded.bits,
-             format=excluded.format, md5=excluded.md5, image_base=excluded.image_base,
-             role=excluded.role""",
+             format=excluded.format, md5=excluded.md5, content_sha256=excluded.content_sha256,
+             image_base=excluded.image_base, role=excluded.role""",
         (
             repo_path,
             slug,
@@ -99,6 +104,7 @@ def upsert_binary(con, *, repo_path: str, slug: str, program=None, meta: dict[st
             info.get("bits"),
             info.get("format"),
             info.get("md5"),
+            info.get("content_sha256"),
             info.get("image_base"),
             info.get("role"),
         ),

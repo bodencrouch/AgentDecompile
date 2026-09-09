@@ -11,10 +11,27 @@ PINNED_KINDS = frozenset({"structural", "inline", "callgraph", "anchor", "bsim"}
 
 
 def persist_status(result: dict, pair_class: str, src_key, dst_key) -> str:
-    """Honor cascade-pinned status; otherwise recompute from score policy."""
+    """Honor cascade-pinned status; otherwise recompute from score policy.
+
+    PINNED means do not re-score — not ignore independent name contradictions.
+    Conflicting authentic canon_keys always demote to verify before bind.
+    """
+    if src_key and dst_key and src_key != dst_key:
+        return "verify"
     kind = result.get("kind")
     pinned = result.get("status")
     if kind in PINNED_KINDS and pinned:
+        if pinned == "auto":
+            from .channel_confidence import allows_auto, channel_confidence
+
+            conf = channel_confidence(
+                primary=str(kind or "anchor"),
+                evidence=result.get("evidence"),
+                margin=float(result.get("margin") or 0),
+                unique=True,
+            )
+            if not allows_auto(conf, unique=True):
+                return "verify"
         return pinned
     ev = result.get("evidence") or {}
     return match.status_for(
@@ -23,7 +40,7 @@ def persist_status(result: dict, pair_class: str, src_key, dst_key) -> str:
         pair_class,
         ev.get("_content", result.get("content", 0)),
         ev.get("compunit"),
-        bool(src_key and dst_key and src_key != dst_key),
+        False,
     )
 
 
@@ -214,5 +231,6 @@ def run_registry_pairs(con, pairs: list[tuple[str, str, str]], run: str = "v1") 
     summary = []
     for src, dst, note in pairs:
         summary.append(run_pair(con, src, dst, note, run))
+    downgrade_named_conflicts(con, run)
     bind_identities(con, run)
     return summary

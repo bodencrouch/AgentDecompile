@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS func (
     strings           TEXT,
     consts            TEXT,
     ext_calls         TEXT,
+    block_hashes      TEXT,
     canon_class       TEXT,
     canon_method      TEXT,
     canon_key         TEXT,
@@ -161,6 +162,7 @@ def connect(path: pathlib.Path | str) -> sqlite3.Connection:
     con = sqlite3.connect(dest)
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)
+    ensure_func_columns(con)
     return con
 
 
@@ -195,6 +197,27 @@ def remove_binary(
         "repo_path": row["repo_path"],
         "deleted": deleted,
     }
+
+
+def ensure_func_columns(con: sqlite3.Connection) -> None:
+    cols = {row[1] for row in con.execute("PRAGMA table_info(func)")}
+    for col, decl in (
+        ("block_hashes", "TEXT"),
+        ("hash_reloc", "TEXT"),
+        ("hash_instr", "TEXT"),
+        ("hash_mnemonic", "TEXT"),
+        ("hash_raw", "TEXT"),
+        ("symbol_provenance", "TEXT"),
+    ):
+        if col not in cols:
+            con.execute(f"ALTER TABLE func ADD COLUMN {col} {decl}")
+    ensure_binary_columns(con)
+
+
+def ensure_binary_columns(con: sqlite3.Connection) -> None:
+    cols = {row[1] for row in con.execute("PRAGMA table_info(binary)")}
+    if "content_sha256" not in cols:
+        con.execute("ALTER TABLE binary ADD COLUMN content_sha256 TEXT")
 
 
 def ensure_priority_index(con: sqlite3.Connection) -> None:

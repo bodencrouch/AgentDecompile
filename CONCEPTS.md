@@ -51,7 +51,16 @@ The registered binary that still carries STABS or DWARF source paths. It owns th
 Do not redo a step whose receipt or Ghidra state already exists. Opening an analyzed project uses the functions already there. `analyze-program` runs only when that program has no analysis yet. `--force` is the retry.
 
 ### Portable signature
-The evidence that should find the same `logical_id` on every registered build. Preference: debug/STABS name + compilation unit, then strings/constants/imports + decompiled shape (`match_engine`), then BSim, then a unique byte window. A workbench "signature" that is just the first C prototype line is not this.
+The single signature family exported in a hook pack so a host can resolve a site without the corpus. Preference: debug/STABS name + compilation unit, then strings/constants/imports + decompiled shape, then BSim, then a unique byte window. Binding a `logical_id` may fuse several independent evidence channels; the pack still exports one family. A workbench "signature" that is just the first C prototype line is not this.
+
+### Evidence-fusion cascade
+Corpus matching that binds `logical_id` by independent channels in failover order (authentic provenance/symbols → unique exact/reloc hashes → rare refs → CFG/call-graph → BSim significance → ABI → optional second opinion → optional emulation), requiring uniqueness and a margin. Auto-accept prefers precision over recall. Structural islands stay `verify`; inlines stay `review`. Candidate generation is not acceptance. A `verify` bind is identity evidence, not objdiff-0 byte proof, and does not by itself authorize copying types or recovered source.
+
+### Cross-build identity
+The claim that two code instances occupy the same logical role / descend from the same source function. Distinct from **code equality** (identical bytes or a named normalization) and **behavioral equivalence** (same observable behavior under stated assumptions). Version tracking optimizes for identity; a patched function can change behavior and remain the same `logical_id`.
+
+### Correspondence
+A stored relation between code instances (or regions) with evidence, alternatives, status, and assumptions. Must represent ordinary 1↔1 matches, clones, inlines, thunks, split regions, and folded/aliased implementations—not only `src_addr → dst_addr, confidence=0.99`.
 
 ### Byte-window search
 Copy a short unique instruction run from one image and hunt it in another. That is how a person finds a function by hand. The matcher does not start there (`match_engine` compares no raw bytes and no absolute addresses). A hook host may use a recorded window (`expected_bytes`) to resolve or verify a site when the VA is missing or stale.

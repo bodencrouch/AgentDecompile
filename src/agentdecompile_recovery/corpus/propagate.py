@@ -7,6 +7,25 @@ from collections import Counter
 
 from . import match
 
+PINNED_KINDS = frozenset({"structural", "inline", "callgraph", "anchor", "bsim"})
+
+
+def persist_status(result: dict, pair_class: str, src_key, dst_key) -> str:
+    """Honor cascade-pinned status; otherwise recompute from score policy."""
+    kind = result.get("kind")
+    pinned = result.get("status")
+    if kind in PINNED_KINDS and pinned:
+        return pinned
+    ev = result.get("evidence") or {}
+    return match.status_for(
+        result["score"],
+        result["margin"],
+        pair_class,
+        ev.get("_content", result.get("content", 0)),
+        ev.get("compunit"),
+        bool(src_key and dst_key and src_key != dst_key),
+    )
+
 
 def bid(con, path: str) -> int:
     row = con.execute("SELECT id FROM binary WHERE repo_path=?", (path,)).fetchone()
@@ -29,15 +48,7 @@ def run_pair(con, src_path: str, dst_path: str, note: str, run: str) -> dict:
     for addr, result in res["results"].items():
         src_key = sa.funcs[addr]["canon_key"]
         dst_key = sb.funcs[result["dst"]]["canon_key"]
-        canonical_name_conflict = bool(src_key and dst_key and src_key != dst_key)
-        status = match.status_for(
-            result["score"],
-            result["margin"],
-            res["pair_class"],
-            result["evidence"].get("_content", 0),
-            result["evidence"].get("compunit"),
-            canonical_name_conflict,
-        )
+        status = persist_status(result, res["pair_class"], src_key, dst_key)
         counts[status] += 1
         rows.append(
             (
@@ -65,14 +76,7 @@ def run_pair(con, src_path: str, dst_path: str, note: str, run: str) -> dict:
         for addr, result in res["results"].items()
         if sa.funcs[addr]["canon_key"]
         and not sb.funcs[result["dst"]]["canon_key"]
-        and match.status_for(
-            result["score"],
-            result["margin"],
-            res["pair_class"],
-            result["evidence"].get("_content", 0),
-            result["evidence"].get("compunit"),
-            False,
-        )
+        and persist_status(result, res["pair_class"], sa.funcs[addr]["canon_key"], None)
         in ("auto", "verify")
     )
     return {
@@ -85,6 +89,7 @@ def run_pair(con, src_path: str, dst_path: str, note: str, run: str) -> dict:
         "src_funcs": len(sa.funcs),
         "dst_funcs": len(sb.funcs),
         "dst_already_named": sum(1 for f in sb.funcs.values() if f["canon_key"]),
+        "inlines": res.get("inlines") or [],
     }
 
 

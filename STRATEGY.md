@@ -1,6 +1,6 @@
 ---
 name: AgentDecompile
-last_updated: 2026-09-08
+last_updated: 2026-09-09
 charter: VISION.md
 active_living_plan: docs/plans/2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md
 ---
@@ -15,7 +15,7 @@ A Ghidra project holds dozens of builds of the same codebase. Each build has its
 
 ## Our approach
 
-Link the builds, recover on the easiest one, and propagate. Bind every function to a `logical_id` from evidence that survives a rebase, not from a virtual address. Prefer one signature family that hits every registered build: debug/STABS names and compilation unit, then strings/constants/imports and decompiled shape, then BSim, then a unique byte window only when those fail. Copying a nearby instruction blob from one exe into another is the last-resort signal, not the matcher. Do not re-run Ghidra analysis on a program that already has it. Solve compiler, ABI, and global layout once before per-function spend. Scaffold with a linking assembly floor, bulk-replace with compiling Ghidra C, place that C on siblings, spend agent compute only on leftovers, then audit bytes last. Export the identity as a Phasor-shaped hook pack. One catalog on 8080.
+Link the builds, recover on the easiest one, and propagate. Treat **cross-build identity**, **code equality**, and **behavioral equivalence** as separate claims—never collapse them into one similarity score. Extract fingerprints once; reuse them. Prefer authoritative debug/provenance and unique exact evidence, then rare refs and neighborhood propagation, then structure/BSim, then optional second-opinion tools and emulation only on the residue. Require uniqueness and a margin; keep ambiguity and alternatives instead of inventing a pair. When inlining or fission breaks one-to-one boundaries, match regions—not forced 1↔1. A `logical_id` bind does not by itself authorize copying types, layouts, or recovered source; those have their own gates. Hook-pack export still picks one portable signature family. Do not re-run Ghidra analysis on a program that already has it. Calibrate compiler/ABI/layout once, scaffold, compile C, cross-place, leftover AI, objdiff last. One catalog on 8080.
 
 ## Who it's for
 
@@ -28,7 +28,7 @@ Link the builds, recover on the easiest one, and propagate. Bind every function 
 - **Verified readable C:** distinct logical functions with objdiff 0 (coverage or isolated audit receipts). Can regress on audit. Not the same as `real_c`.
 - **Compiling Ghidra C share:** functions whose decompiled C is assembly-free and compiles (`ghidra-bulk` tally, `real_c=1`). Leading indicator, not proof.
 - **Cross-placed compiling C:** compiling functions placed on sibling builds via `logical_id` (`cross-place` receipts).
-- **Identity coverage:** inventoried functions bound to a logical function (`identity` table). Must stay high before propagation claims.
+- **Identity coverage:** inventoried functions bound to a logical function (`identity` table). Must stay high before propagation claims. Auto-accept precision matters more than forcing 100% paired; unresolved/ambiguous counts should stay visible.
 - **Portable resolve:** share of those `logical_id`s that resolve on every registered build from one signature family, not a per-build VA. Can regress when a rebuild changes the window.
 - **Loop completion:** catalog jobs from `/dashboard` end with named files on disk, not hang or silence.
 
@@ -42,7 +42,7 @@ _Why it serves the approach:_ Agents and humans must share one catalog and one p
 
 ### Corpus recovery pipeline
 
-Extract facts → `logical_id` → global calibration → scaffolding (assembly floor) → readable C (`ghidra-bulk`) → propagation (`cross-place`) → targeted AI on leftovers → parity (objdiff) last. Skip a step when its receipt or Ghidra state already exists. Parallelize analysis, evidence extract, bulk C, and matching. Serialize `logical_id` writes, mutations to one Ghidra project, and isolated compiler/objdiff environments.
+Extract facts → `logical_id` (evidence-fusion cascade) → global calibration → scaffolding (assembly floor) → readable C (`ghidra-bulk`) → propagation (`cross-place`) → targeted AI on leftovers → parity (objdiff) last. Skip a step when its receipt or Ghidra state already exists. Parallelize analysis, evidence extract, bulk C, and cheap index queries; run pairwise graph or emulation only on the residue. Serialize `logical_id` writes, mutations to one Ghidra project, and isolated compiler/objdiff environments.
 
 _Why it serves the approach:_ Recover once on the easy build and share the win. Do not reverse twenty versions independently.
 
@@ -54,20 +54,20 @@ _Why it serves the approach:_ Cross-match metadata only works if Ghidra state an
 
 ### Portable identity / hook-pack export
 
-`corpus.export-hookpack` writes a Phasor-shaped pack: logical site names, the preferred signature family, and per-build addrs only as a cache. KotorPhasor (or a clone for another corpus) resolves by unique `expected_bytes` when the recorded VA is missing or stale. Game names stay in data packs, not the resolver.
+`corpus.export-hookpack` writes a Phasor-shaped pack: logical site names, the preferred signature family, and per-build addrs only as a cache. Binding a `logical_id` may use several independent channels; the pack still exports one family a host can resolve without the corpus. KotorPhasor (or a clone for another corpus) resolves by unique `expected_bytes` when the recorded VA is missing or stale. Game names stay in data packs, not the resolver.
 
 _Why it serves the approach:_ The matcher already refuses raw addresses. A hook host that still keys on `0x005D45D0` per exe repeats the hunt the corpus just finished.
 
 ## Priority ladder (do not reorder)
 
-1. **Identity:** extract facts, then bind `logical_id` (debug names, compilation unit, strings/constants/imports and decompiled shape, BSim, then unique byte window). Do not re-analyze a program that already has Ghidra analysis unless the previous analysis is incomplete or corrupted.
+1. **Identity:** extract facts once; short-circuit identical images; then bind `logical_id` by independent channels (authentic symbols/provenance → unique exact/reloc hashes → rare refs / C++ metadata → neighborhood propagation → CFG/SPP → BSim significance → ABI → optional BinDiff/BinExport → optional emulation). Candidate generation is not acceptance. Preserve ambiguity; quarantine bad seeds. Do not re-analyze a program that already has Ghidra analysis unless incomplete or corrupted.
 2. **Global calibration:** compiler versions, flags, ABIs, and global struct layouts before per-function recovery.
 3. **Scaffolding:** donor workspace: one file per function, exact inline asm if no C, must link.
 4. **Readable C:** `ghidra-bulk` replaces asm when C compiles; keep asm on failure.
-5. **Propagation:** only after compile succeeds; sibling `.c` via `logical_id`.
-6. **Targeted AI:** leftovers only, leaves before callers; not before tiers 4–5 for functions Ghidra C already compiles.
-7. **Parity:** objdiff 0 per function when claiming verified; isolated toolchain; separate from "compiles."
+5. **Propagation:** only after compile succeeds; sibling `.c` via `logical_id`. Identity match does not auto-copy ABI-sensitive types or unrevalidated source.
+6. **Targeted AI:** leftovers only, leaves before callers; not before tiers 4–5 for functions Ghidra C already compiles. LLM output never creates a trusted identity edge alone.
+7. **Parity:** objdiff 0 per function when claiming verified readable C; isolated toolchain; rebuild-validation stage—not a cross-architecture identity oracle.
 
 ## Marketing
 
-**Key message:** Identity first, and identity is not an address. Skip work that is already done. Calibrate once. Recover on the easy build. Propagate. Export the hook pack. Byte-exactness is a last audit, not a compile receipt.
+**Key message:** Identity first—and identity is not an address, not byte equality, and not a single score. Extract once. Fuse independent evidence. Keep ambiguity. Separate gates for types, source, and byte audit. One catalog.

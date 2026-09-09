@@ -14,7 +14,8 @@ from .canon import canonicalize
 from .corpus_config import load_maps
 from .features import merge_tiers, tier1, tier2
 from .io import write_json
-from .store import j
+from .fingerprint_hashes import attach_hashes
+from .store import ensure_func_columns, j
 
 
 def slugify(repo_path: str) -> str:
@@ -108,10 +109,13 @@ def upsert_binary(con, *, repo_path: str, slug: str, program=None, meta: dict[st
 
 
 def persist_functions(con, binary_id: int, functions: list[dict[str, Any]]) -> int:
+    ensure_func_columns(con)
     payload = []
     edges = []
     for row in functions:
         addr = int(row.get("addr") or 0)
+        row = attach_hashes(row)
+        provenance = row.get("symbol_provenance") or row.get("name_origin")
         payload.append(
             (
                 binary_id,
@@ -144,11 +148,17 @@ def persist_functions(con, binary_id: int, functions: list[dict[str, Any]]) -> i
                 j(row.get("strings")),
                 j(row.get("consts")),
                 j(row.get("ext_calls")),
+                j(row.get("block_hashes")),
+                row.get("hash_reloc") or None,
+                row.get("hash_instr") or None,
+                row.get("hash_mnemonic") or None,
+                row.get("hash_raw") or None,
                 row.get("canon_class"),
                 row.get("canon_method"),
                 row.get("canon_key"),
                 row.get("canon_arity"),
                 row.get("name_origin"),
+                provenance,
             )
         )
         for callee in row.get("callees") or row.get("callee_addrs") or []:
@@ -161,9 +171,10 @@ def persist_functions(con, binary_id: int, functions: list[dict[str, Any]]) -> i
                calling_convention, return_type, param_count, param_types,
                stack_frame_size, stack_param_size, stack_local_size, plate, signature,
                n_instr, n_blocks, n_edges, back_edges, cyclomatic, n_callees,
-               indirect_calls, data_refs, mnem, strings, consts, ext_calls,
-               canon_class, canon_method, canon_key, canon_arity, name_origin
-           ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+               indirect_calls, data_refs, mnem, strings, consts, ext_calls, block_hashes,
+               hash_reloc, hash_instr, hash_mnemonic, hash_raw,
+               canon_class, canon_method, canon_key, canon_arity, name_origin, symbol_provenance
+           ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         payload,
     )
     if edges:

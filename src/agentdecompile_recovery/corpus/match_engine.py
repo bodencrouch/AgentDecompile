@@ -11,6 +11,16 @@ import math
 from collections import Counter, defaultdict
 from typing import Any, Iterable
 
+from .callgraph_propagate import (
+    absorb_anchors,
+    record_pairs,
+    interesting_const,
+    interesting_string,
+    propagate_call_graph,
+    unique_index_anchors,
+)
+from .match_islands import island_evidence, leftover_inlines, unique_structural_pairs
+
 MAX_STRING_DF = 12
 MAX_CONST_DF = 12
 
@@ -108,6 +118,11 @@ def _content_count(ev: dict[str, float]) -> int:
 def _passes(tier: tuple, score: float, margin: float, content: int) -> bool:
     smin, mmin, cmin = tier
     return score >= smin and margin >= mmin and (content or 0) >= cmin
+
+
+def candidate_margin(best: float, second: float, n_cands: int) -> float:
+    """Sole candidate uses its score as margin; otherwise best minus second."""
+    return (best - second) if n_cands > 1 else best
 
 
 def status_for(
@@ -209,10 +224,46 @@ def score_features(
     if fa.get("canon_arity") is not None and fb.get("canon_arity") is not None:
         ev["arity"] = 1.0 if fa["canon_arity"] == fb["canon_arity"] else 0.0
 
-    num = sum(WEIGHTS[k] * v for k, v in ev.items())
-    den = sum(WEIGHTS[k] for k in ev)
+    abi = abi_compatibility(fa, fb)
+    if abi is not None:
+        ev["abi"] = abi
+        if abi <= 0.0:
+            # Hard-incompatible prototypes: keep evidence but zero the aggregate.
+            ev["_content"] = float(_content_count(ev))
+            return 0.0, ev
+
+    num = sum(WEIGHTS.get(k, 0.0) * v for k, v in ev.items() if not str(k).startswith("_"))
+    den = sum(WEIGHTS.get(k, 0.0) for k in ev if not str(k).startswith("_") and k in WEIGHTS)
+    # Include abi as a light discriminator weight when present.
+    if "abi" in ev:
+        num += 0.4 * ev["abi"]
+        den += 0.4
     ev["_content"] = float(_content_count(ev))
     return (num / den if den else 0.0), ev
+
+
+def abi_compatibility(fa: dict[str, Any], fb: dict[str, Any]) -> float | None:
+    """Return 1.0 compatible, 0.0 hard-incompatible, or None when insufficient data.
+
+    ABI alone never auto-matches; it only bonuses or rejects candidates.
+    """
+    ca, cb = fa.get("canon_arity"), fb.get("canon_arity")
+    pa, pb = fa.get("param_count"), fb.get("param_count")
+    arity_a = ca if ca is not None else pa
+    arity_b = cb if cb is not None else pb
+    if arity_a is None or arity_b is None:
+        cc_a = (fa.get("calling_convention") or "").strip().lower()
+        cc_b = (fb.get("calling_convention") or "").strip().lower()
+        if cc_a and cc_b and cc_a != "unknown" and cc_b != "unknown":
+            return 1.0 if cc_a == cc_b else 0.0
+        return None
+    if int(arity_a) != int(arity_b):
+        return 0.0
+    cc_a = (fa.get("calling_convention") or "").strip().lower()
+    cc_b = (fb.get("calling_convention") or "").strip().lower()
+    if cc_a and cc_b and cc_a != "unknown" and cc_b != "unknown" and cc_a != cc_b:
+        return 0.0
+    return 1.0
 
 
 def _fid(fn: dict[str, Any]) -> str:
@@ -323,8 +374,69 @@ def match_binaries(
     src_ids = [
         fid
         for fid, fn in left_index.funcs.items()
-        if not fn.get("is_thunk") and (fn.get("n_instr") or 4) >= 4
+        if not fn.get("is_thunk") and (fn.get("n_instr") or 0) >= 4
     ]
+    dst_eligible = {
+        fid
+        for fid, fn in index.funcs.items()
+        if not fn.get("is_thunk") and (fn.get("n_instr") or 0) >= 4
+    }
+    src_eligible = set(src_ids)
+    left_names: dict[str, list[str]] = defaultdict(list)
+    right_names: dict[str, list[str]] = defaultdict(list)
+    for fid, fn in left_index.funcs.items():
+        key = fn.get("canon_key")
+        if key:
+            left_names[str(key)].append(fid)
+    for fid, fn in index.funcs.items():
+        key = fn.get("canon_key")
+        if key:
+            right_names[str(key)].append(fid)
+    absorb_anchors(mapping, unique_index_anchors(left_names, right_names, src_eligible=src_eligible, dst_eligible=dst_eligible))
+    absorb_anchors(
+        mapping,
+        unique_index_anchors(
+            left_index.by_string,
+            index.by_string,
+            src_eligible=src_eligible,
+            dst_eligible=dst_eligible,
+            key_ok=interesting_string,
+        ),
+    )
+    absorb_anchors(
+        mapping,
+        unique_index_anchors(
+            left_index.by_const,
+            index.by_const,
+            src_eligible=src_eligible,
+            dst_eligible=dst_eligible,
+            key_ok=interesting_const,
+        ),
+    )
+    record_pairs(
+        results,
+        [(src, dst, "anchor") for src, dst in mapping.items()],
+        left_lookup=left_index.funcs,
+        right_lookup=index.funcs,
+        round_label="anchor",
+        pair_class=pair_class,
+    )
+    record_pairs(
+        results,
+        propagate_call_graph(
+            left_index.callees,
+            left_index.callers,
+            index.callees,
+            index.callers,
+            mapping,
+            src_eligible=src_eligible,
+            dst_eligible=dst_eligible,
+        ),
+        left_lookup=left_index.funcs,
+        right_lookup=index.funcs,
+        pair_class=pair_class,
+    )
+    taken = set(mapping.values())
 
     for rnd in range(rounds):
         scored: list[tuple[float, float, str, str, dict[str, float]]] = []
@@ -345,7 +457,7 @@ def match_binaries(
                 elif score > second:
                     second = score
             if best_b is not None:
-                margin = (best - second) if len(cands) > 1 else best
+                margin = candidate_margin(best, second, len(cands))
                 scored.append((best, margin, sid, best_b, best_ev))
 
         scored.sort(key=lambda row: (-row[0], -row[1]))
@@ -384,6 +496,8 @@ def match_binaries(
                 mapping[sid] = bid
                 taken.add(bid)
                 new += 1
+            if sid in results and results[sid].get("kind") in {"callgraph", "anchor"}:
+                continue
             results[sid] = {
                 "left_id": left_index.funcs[sid].get("id"),
                 "right_id": index.funcs[bid].get("id"),
@@ -395,9 +509,66 @@ def match_binaries(
                 "signals": {k: v for k, v in ev.items() if not k.startswith("_")},
                 "kind": "identity",
             }
+        if new:
+            grown = record_pairs(
+                results,
+                propagate_call_graph(
+                    left_index.callees,
+                    left_index.callers,
+                    index.callees,
+                    index.callers,
+                    mapping,
+                    src_eligible=src_eligible,
+                    dst_eligible=dst_eligible,
+                ),
+                left_lookup=left_index.funcs,
+                right_lookup=index.funcs,
+                round_label=rnd,
+                pair_class=pair_class,
+            )
+            taken = set(mapping.values())
+            new += grown
         if new == 0:
             break
 
+    unmatched_src = [left_index.funcs[sid] for sid in src_ids if sid not in mapping]
+    unmatched_dst = [index.funcs[did] for did in dst_eligible if did not in taken]
+    for sid, bid in unique_structural_pairs(unmatched_src, unmatched_dst, id_of=_fid):
+        if sid in mapping or bid in taken:
+            continue
+        mapping[sid] = bid
+        taken.add(bid)
+        fa, fb = left_index.funcs[sid], index.funcs[bid]
+        ev = island_evidence(fa, fb)
+        results[sid] = {
+            "left_id": fa.get("id"),
+            "right_id": fb.get("id"),
+            "score": 0.8,
+            "margin": 1.0,
+            "content": int(ev.get("_content") or 1),
+            "pair_class": pair_class,
+            "status": "verify",
+            "signals": {k: v for k, v in ev.items() if not str(k).startswith("_")},
+            "kind": "structural",
+        }
+    for hit in leftover_inlines(
+        [left_index.funcs[sid] for sid in src_ids if sid not in mapping],
+        [index.funcs[did] for did in taken],
+    ):
+        results.setdefault(
+            str(hit["missing_id"]),
+            {
+                "left_id": hit["missing_id"],
+                "right_id": hit["host_id"],
+                "score": 0.5,
+                "margin": 1.0,
+                "content": 1,
+                "pair_class": pair_class,
+                "status": "review",
+                "signals": {"inline": 1.0, "block_count": hit["block_count"]},
+                "kind": "inline",
+            },
+        )
     accepted = [row for row in results.values() if row["status"] != "unresolved"]
     if tier == "auto":
         accepted = [row for row in accepted if row["status"] == "auto"]

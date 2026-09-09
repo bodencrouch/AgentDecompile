@@ -1,4 +1,8 @@
-"""Independent BinDiff and Diaphora evidence. Never creates canonical identities."""
+"""Independent BinDiff and Diaphora evidence. Never creates canonical identities.
+
+Optional BinExport generation lives in ``binexport`` (prep helper, skip if missing).
+Imports here remain ``status=verify`` under a distinct ``run=`` namespace.
+"""
 
 from __future__ import annotations
 

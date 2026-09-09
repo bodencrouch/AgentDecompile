@@ -37,21 +37,21 @@ flowchart TD
 | 1 | Workflow | Atlas shell loads with work-context controls | Pass | - | - | - |
 | 2 | Workflow | Expand persists across reload (pref true) | Pass | - | - | - |
 | 3 | Workflow | Scroll panel mid-poll; stays open at scrollTop | Pass | - | - | - |
-| 4 | Workflow | Recover & verify navigates and survives poll | Fixed | `open()` effect reset view on sessions refresh | Guard openKey + only reset view on project change | _(this commit)_ |
+| 4 | Workflow | Recover & verify navigates and survives poll | Fixed | `open()` effect reset view on sessions refresh | Guard openKey + only reset view on project change | `282cc71` |
 | 5 | Activity | Select corpus.match-pair; dock usable | Pass | Short log; Follow release N/A | - | - |
 | 6 | Activity | Dock left matches explorer width (320px) | Pass | - | - | - |
 | 7 | Analysis | PrefDetails on embeddings with binary selected | Skipped | Project-only selection had no AtlasAnalysis | Needs binary tree member | - |
-| 8 | Feel/a11y | Toggle aria-label; panel region; summary aria-expanded | Fixed | Glyph-only name; unmount broke aria-controls | aria-label, keep panel `hidden`, dual ARIA, hit targets | _(this commit)_ |
+| 8 | Feel/a11y | Toggle aria-label; panel region; summary aria-expanded | Fixed | Glyph-only name; unmount broke aria-controls | aria-label, keep panel `hidden`, dual ARIA, hit targets | `282cc71` |
 
 ## What Was Fixed
 
-### Session refresh forced overview — _(pending SHA)_
+### Session refresh forced overview — `282cc71`
 - **Symptom:** Recover & verify click left Compare builds; DOM click set recovery then poll restored overview.
 - **Root cause:** `useEffect([open, sessions.loading])` re-called `open()` whenever `open` identity changed; `open` always `setView(overview)`.
 - **Fix:** `AtlasApp.tsx` — skip re-open when `openKey` matches; only change view when project identity changes (or addr targets functions).
 - **Regression test:** Browser replay (agent-browser): recover → wait 4–5s → `viewAfterPoll=recovery`. No meaningful unit extract without pulling `open` into a pure helper; replay documented here.
 
-### Workflow disclosure a11y/feel — _(pending SHA)_
+### Workflow disclosure a11y/feel — `282cc71`
 - **Symptom:** Toggle announced as “▾”; panel unmounted when collapsed; Recover hidden ≤1000px in an earlier draft.
 - **Fix:** `aria-label` on toggle; summary `aria-expanded`/`aria-controls`; panel stays mounted with `hidden`; 40px hit targets; tabular-nums on live counters; activity muted contrast bump.
 - **Regression test:** Browser eval of `aria-label` / `summaryExpanded` / Recover CTA present.

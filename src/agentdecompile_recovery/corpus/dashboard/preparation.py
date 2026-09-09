@@ -845,11 +845,17 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         def input_progress(completed: int, total: int, source: str = '', functions_read: int = 0) -> None:
             if stopped():
                 raise InterruptedError('Workflow stopped while reading comparison inputs.')
-            detail = f' {Path(source).name}: {functions_read:,} functions read.' if source else ''
+            progress = _matching_inventory_progress_kwargs(
+                pair_count=len(pairs),
+                inventory_completed=completed,
+                inventory_total=total,
+                current_program=programs[0] if len(programs) == 1 else '',
+                source=source,
+                functions_read=functions_read,
+            )
+            detail = progress.pop('_reason_detail')
             update('matching', 'running', f'Reading comparison evidence: {completed} of {total} inventories.{detail}',
-                   completed=completed, total=total, progressUnit='binary inventories',
-                   currentProgram=programs[0] if len(programs) == 1 else '',
-                   workProgress={'completed': completed, 'total': total, 'unit': 'binary inventories'})
+                   **progress)
         comparison_inputs.update(_matching_input_digests({path for src, dst, _ in pairs for path in (src, dst)}, input_progress))
         row['comparisonInputs'] = comparison_inputs
         update('matching', 'running', 'Comparison targets and input evidence frozen.', completed=0, total=len(pairs), progressUnit='comparisons', workProgress=None)
@@ -1057,6 +1063,31 @@ finally:
     if client is not None:
         client.close()
 """
+
+
+def _matching_inventory_progress_kwargs(
+    *,
+    pair_count: int,
+    inventory_completed: int,
+    inventory_total: int,
+    current_program: str = '',
+    source: str = '',
+    functions_read: int = 0,
+) -> dict[str, Any]:
+    """Keep matching stage totals on pair count while inventory digest runs."""
+    detail = f' {Path(source).name}: {functions_read:,} functions read.' if source else ''
+    return {
+        'completed': 0,
+        'total': pair_count,
+        'progressUnit': 'comparisons',
+        'currentProgram': current_program,
+        'workProgress': {
+            'completed': inventory_completed,
+            'total': inventory_total,
+            'unit': 'binary inventories',
+        },
+        '_reason_detail': detail,
+    }
 
 
 def _comparison_path(run_id: str, src: str, dst: str) -> Path:

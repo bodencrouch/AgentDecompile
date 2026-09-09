@@ -504,8 +504,15 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         if not probe and prior.get('status') == 'ok' and key not in {'facts', 'calibrate-global', 'verify-byte-accuracy'}:
             return prior['result']
         # Inventory and analysis are idempotent under the owning native lock;
-        # external subprocess mutations need a recovered terminal receipt.
-        safe_replay = name in {'mcp.analyze-program', 'mcp.execute-script'}
+        # most external subprocess mutations need a recovered terminal
+        # receipt before replay. corpus.match-pair is the one exception:
+        # propagate.run_pair() opens with `DELETE FROM match WHERE run=?
+        # AND src_binary=? AND dst_binary=?` before inserting, so replaying
+        # it is a clean overwrite, not a duplicate-write risk. Without this,
+        # a single dead owner process permanently wedges every pair it had
+        # in flight — the retry loop below is never reached, so that pair
+        # can never complete for the life of the run.
+        safe_replay = name in {'mcp.analyze-program', 'mcp.execute-script', 'corpus.match-pair'}
         prior_job = jobs.get_job(prior.get('jobId', '')) if prior.get('jobId') else None
         unavailable = prior_job is None or getattr(prior_job, 'history_only', False) or getattr(prior_job, 'owner_unavailable', False) or prior_job.status == 'interrupted'
         if prior.get('status') in {'submitting', 'queued', 'running'} and unavailable and not safe_replay:

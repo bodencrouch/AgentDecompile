@@ -1676,10 +1676,10 @@ class ProjectToolProvider(ToolProvider):
             len(binaries),
         )
 
-        # Always use a dedicated on-disk Ghidra project for shared-server mode. If we reused the HTTP
-        # server's empty --project-path project, RepositoryAdapter.checkout often leaves DomainFile handles
-        # that are not version-controlled for checkin/checkout-status (stale local stubs).
-        if self._manager is not None:
+        # Only mutation-capable work needs an on-disk shared checkout. Read-only inspection opens the
+        # repository object directly below, avoiding local checkout setup and its file-system mutations.
+        checkout_exclusive = self._get_bool(args, "exclusive", default=False)
+        if self._manager is not None and checkout_exclusive:
             try:
                 import tempfile
 
@@ -1768,7 +1768,12 @@ class ProjectToolProvider(ToolProvider):
                     break
             if matched:
                 try:
-                    checked_out_program = await self._checkout_shared_program(repository_adapter, matched, session_id)
+                    checked_out_program = await self._checkout_shared_program(
+                        repository_adapter,
+                        matched,
+                        session_id,
+                        exclusive=checkout_exclusive,
+                    )
                 except Exception as exc:
                     checkout_error = str(exc)
                     logger.warning("Checkout of '%s' failed: %s", matched, exc)

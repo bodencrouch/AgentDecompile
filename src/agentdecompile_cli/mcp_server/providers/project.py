@@ -5568,7 +5568,7 @@ class ProjectToolProvider(ToolProvider):
         # Ensure RemoteFileSystem link before resolving DomainFiles (createProject is private by default).
         mgr_early = getattr(self, "_manager", None)
         ghidra_project_early: GhidraProject | None = getattr(mgr_early, "ghidra_project", None) if mgr_early is not None else None
-        if ghidra_project_early is not None:
+        if exclusive and ghidra_project_early is not None:
             linked_early = self._ensure_ghidra_project_linked_to_repository(ghidra_project_early, repository_adapter)
             if linked_early is not None and self._manager is not None:
                 self._manager.ghidra_project = linked_early
@@ -5750,8 +5750,23 @@ class ProjectToolProvider(ToolProvider):
         # Keep a ProgramDB fallback for environments where GhidraDomainFile checkout is
         # unavailable.
         program = None
+        domain_file: GhidraDomainFile | None = None
         domain_object_consumer: GhidraDomainFile | None = None  # ProgramDB / low-level open consumer for Program.release()
         program_opened_via_program_db: bool = False  # True only for outer repo_item ProgramDB fallback (not createFile path)
+        read_only_shared_snapshot = not exclusive
+
+        if read_only_shared_snapshot:
+            try:
+                version = int(repo_item.getVersion()) if hasattr(repo_item, "getVersion") else -1
+                managed_db = repository_adapter.openDatabase(adapter_folder_path, item_name, version, 0)
+                db_handle = DBHandle(managed_db)
+                snapshot_consumer = JavaObject()
+                program = GhidraProgramDB(db_handle, GhidraOpenMode.IMMUTABLE, monitor, snapshot_consumer)
+                domain_object_consumer = snapshot_consumer
+                program_opened_via_program_db = True
+                logger.info("Opened shared program '%s' as immutable inspection snapshot", program_path)
+            except Exception as exc:
+                raise ValueError(f"Failed to open immutable shared snapshot '{program_path}': {exc}") from exc
 
         # Open / checkout the file via the project data
         # We need to use the project's GhidraDomainFile which can be retrieved
@@ -5778,7 +5793,7 @@ class ProjectToolProvider(ToolProvider):
 
         checkout_link_domain_file: GhidraDomainFile | None = None
 
-        if project_data is not None:
+        if project_data is not None and program is None:
             # Prefer RepositoryAdapter.checkout() so the file is versioned and supports checkin.
             domain_file = self._resolve_shared_checkout_domain_file(project_data, program_path, item_name)
             # Import-binary may leave a local GhidraDomainFile that is not server-checked-out; getFile is
@@ -6158,7 +6173,7 @@ class ProjectToolProvider(ToolProvider):
         if program is None:
             raise ValueError(f"Failed to open '{program_path}' from repository")
 
-        if checkout_link_domain_file is None and project_data is not None:
+        if checkout_link_domain_file is None and project_data is not None and not read_only_shared_snapshot:
             checkout_link_domain_file = self._resolve_shared_checkout_domain_file(project_data, program_path, item_name)
             if checkout_link_domain_file is not None:
                 self._ensure_shared_domain_file_registered_for_version_control(
@@ -6168,7 +6183,7 @@ class ProjectToolProvider(ToolProvider):
 
         # Private analyzeHeadless stubs hide RemoteFileSystem items even after convertProjectToShared.
         # Promote before opening ProgramInfo so checkin sees a versioned DomainFile (LFG step 5).
-        if ghidra_project is not None:
+        if ghidra_project is not None and not read_only_shared_snapshot:
             try:
                 needs_promote = True
                 if checkout_link_domain_file is not None and hasattr(checkout_link_domain_file, "isVersioned"):
@@ -6186,7 +6201,6 @@ class ProjectToolProvider(ToolProvider):
             except Exception as promote_exc:
                 logger.warning("Shared versioned promote failed for %s: %s", program_path, promote_exc)
 
-        read_only_shared_snapshot = False
         try:
             final_df = checkout_link_domain_file
             if final_df is None and project_data is not None:
@@ -6213,7 +6227,12 @@ class ProjectToolProvider(ToolProvider):
 
         # If PyGhidra opened a Program whose getDomainFile() is not the versioned project GhidraDomainFile,
         # checkin-program and checkout-status see a non-versioned stub. Re-open from the versioned file.
-        if checkout_link_domain_file is not None and ghidra_project is not None and program is not None:
+        if (
+            checkout_link_domain_file is not None
+            and ghidra_project is not None
+            and program is not None
+            and not read_only_shared_snapshot
+        ):
             try:
                 vdf = checkout_link_domain_file
                 if bool(vdf.isVersioned()):
@@ -6304,7 +6323,8 @@ class ProjectToolProvider(ToolProvider):
             self._manager.set_program_info(program_info)
         else:
             self.set_program_info(program_info)
-        self._blocking_ensure_program_analyzed(program, program_path, program_info)
+        if not read_only_shared_snapshot:
+            self._blocking_ensure_program_analyzed(program, program_path, program_info)
 
         # Record JVM generation beside the project marker even when RepositoryAdapter.checkout threw and we
         # fell back to createFile/ProgramDB (epoch write inside the adapter try would be skipped).

@@ -50,6 +50,7 @@ import re
 import secrets
 import threading
 import time
+
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -219,10 +220,8 @@ class WorkUnit:
     lease_expires_at: float | None = None
     submission: dict[str, Any] | None = None
     # Set only on the pending -> {failed, awaiting-verification} transition in
-    # submit(). This is what _prune_terminal keys on: without it, max_units is
-    # a lifetime cap rather than a concurrency bound, because nothing else
-    # marks a unit as safe to drop once the coordinator has had a chance to
-    # see its outcome.
+    # submit(). Only failed units use it for retention: an awaiting proposal
+    # has no coordinator acknowledgement path yet, so it is not safe to drop.
     resolved_at: float | None = None
 
     def offer_view(self) -> dict[str, Any]:
@@ -300,11 +299,9 @@ class ExchangeStore:
         self.lease_seconds = int(lease_seconds)
         self.max_workers = int(max_workers)
         self.max_units = int(max_units)
-        # Without pruning, a terminal unit (failed or awaiting-verification)
-        # sits in _units forever -- nothing else ever removes one -- so
-        # max_units caps units ever offered, not units concurrently pending.
-        # An hour gives the coordinator a generous window to read a
-        # submission's outcome via roster()/unit_state() before it is dropped.
+        # Failed work can be retried or inspected for a bounded interval.
+        # Awaiting-verification proposals are deliberately retained until a
+        # future coordinator acknowledgement/resolution path exists.
         self.terminal_retention_seconds = float(terminal_retention_seconds)
         self.rate_limit_calls = int(rate_limit_calls)
         self.rate_limit_window = float(rate_limit_window)
@@ -493,8 +490,10 @@ class ExchangeStore:
                 self._committed_generation = generation
 
     async def _persist(self, text: str | None, generation: int | None = None) -> None:
-        if text is None or self.read_only:
+        if text is None:
             return
+        if self.read_only:
+            raise OSError("exchange store is read-only; snapshot not persisted")
         if generation is None:
             self._generation += 1
             generation = self._generation
@@ -508,7 +507,7 @@ class ExchangeStore:
 
     def _reap(self, now: float) -> bool:
         """Return expired leases to `pending`, fencing the vanished holder out,
-        and prune terminal units past their retention window.
+        and prune failed units past their retention window.
 
         Called at the top of every mutating path, not just `claim`: a submit
         arriving after its lease expired must be rejected even when nobody
@@ -518,8 +517,9 @@ class ExchangeStore:
         mutating path already runs this unconditionally. Without it, nothing
         ever removes a unit from self._units -- max_units would cap units
         ever offered for the life of the state file, not units concurrently
-        pending, and a corpus-wide campaign that offers thousands of rewrite
-        candidates would eventually make every future offer() fail permanently.
+        pending. Awaiting-verification proposals intentionally remain until a
+        future coordinator acknowledgement/resolution path can retain their
+        artifacts elsewhere.
         """
 
         changed = False
@@ -536,13 +536,19 @@ class ExchangeStore:
                 changed = True
                 continue
             if (
-                unit.status in (STATUS_FAILED, STATUS_AWAITING_VERIFICATION)
+                unit.status == STATUS_FAILED
                 and unit.resolved_at is not None
                 and now - unit.resolved_at >= self.terminal_retention_seconds
             ):
                 stale_units.append(unit_id)
         for unit_id in stale_units:
             del self._units[unit_id]
+            # Receipts are tied to the unit they accepted. Retaining one after
+            # pruning a failed unit would turn a stale delivery into a false
+            # acknowledgement with no surviving proposal behind it.
+            for receipt_id, receipt in list(self._receipts.items()):
+                if isinstance(receipt, dict) and receipt.get("unitId") == unit_id:
+                    del self._receipts[receipt_id]
             changed = True
         return changed
 
@@ -748,6 +754,34 @@ class ExchangeStore:
                 return unit
         return None
 
+    @staticmethod
+    def _receipt_id(worker_id: str, idempotency_key: str) -> str:
+        """A v2 receipt key that cannot collide across workers.
+
+        v1 stored receipts directly under a client-selected idempotency key.
+        Keep those rows loadable, but never look them up as replay receipts:
+        they do not bind a worker or lease safely enough to acknowledge work.
+        """
+
+        identity = json.dumps([worker_id, idempotency_key], separators=(",", ":"))
+        return "v2:" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _valid_receipt(receipt: Any, *, worker_id: str, idempotency_key: str) -> bool:
+        """Whether a persisted v2 receipt can safely answer a replay."""
+
+        return (
+            isinstance(receipt, dict)
+            and receipt.get("workerId") == worker_id
+            and receipt.get("idempotencyKey") == idempotency_key
+            and isinstance(receipt.get("unitId"), str)
+            and isinstance(receipt.get("leaseToken"), str)
+            and isinstance(receipt.get("fence"), int)
+            and isinstance(receipt.get("fingerprint"), str)
+            and isinstance(receipt.get("response"), dict)
+            and receipt["response"].get("unitId") == receipt["unitId"]
+        )
+
     async def submit(
         self,
         *,
@@ -761,12 +795,11 @@ class ExchangeStore:
         """Record a proposal against a leased unit. Commits nothing.
 
         Idempotency copies `react_api.submit_batch`: the client chooses the key,
-        the server derives the fingerprint from the content. Replaying a key
-        with the same content is a no-op success -- duplicate delivery is
-        expected under lease reissue and must be harmless -- while reusing it
-        for different content is a conflict. The receipt is consulted *before*
-        the lease is validated, so a retry that outlived its lease still
-        reports its original outcome instead of a confusing 410.
+        the server derives the fingerprint from the content. A receipt is scoped
+        to that worker and bound to its original lease/unit, so duplicate
+        delivery is harmless but key reuse cannot acknowledge different work.
+        The receipt is consulted before the active lease is validated, so an
+        exact retry that outlived its lease reports its original outcome.
         """
 
         fingerprint = hashlib.sha256(json.dumps({"artifact": artifact, "verdict": verdict}, sort_keys=True, default=str).encode("utf-8")).hexdigest()
@@ -774,12 +807,26 @@ class ExchangeStore:
             self._load()
             now = self.clock()
             worker = self._require_worker(worker_id, now)
-            receipt = self._receipts.get(idempotency_key)
+            self._reap(now)
+            receipt = self._receipts.get(self._receipt_id(worker_id, idempotency_key))
+            if receipt is not None:
+                if not self._valid_receipt(receipt, worker_id=worker_id, idempotency_key=idempotency_key):
+                    # v1 rows are intentionally not idempotent: their global,
+                    # key-only identity cannot prove which lease created them.
+                    receipt = None
             if receipt is not None:
                 if receipt.get("fingerprint") != fingerprint:
                     raise IdempotencyConflict("submission key already belongs to different work")
+                if receipt["leaseToken"] != lease_token or receipt["fence"] != int(fence):
+                    raise IdempotencyConflict("submission key already belongs to a different lease")
+                # The initial write may have failed after mutating memory. A
+                # replay must make the current state durable before confirming
+                # success, while holding the lock so no later mutation races
+                # this submission's snapshot.
+                text = self._snapshot_text()
+                generation = self._generation
+                await self._persist(text, generation)
                 return dict(receipt["response"])
-            self._reap(now)
             unit = self._unit_for_lease(worker_id, lease_token)
             if unit is None or unit.fence != int(fence):
                 raise LeaseRejected("lease expired or fenced out by a newer claim; the result was discarded")
@@ -802,8 +849,19 @@ class ExchangeStore:
             worker.submissions += 1
             self._recent.append((now, unit.lane))
             response = {"accepted": True, "state": unit.status, "unitId": unit.unit_id, "verdict": str(verdict)}
-            self._receipts[idempotency_key] = {"fingerprint": fingerprint, "response": response}
+            self._receipts[self._receipt_id(worker_id, idempotency_key)] = {
+                "workerId": worker_id,
+                "idempotencyKey": idempotency_key,
+                "unitId": unit.unit_id,
+                "leaseToken": lease_token,
+                "fence": int(fence),
+                "fingerprint": fingerprint,
+                "response": response,
+            }
             text = self._snapshot_text()
             generation = self._generation
-        await self._persist(text, generation)
-        return dict(response)
+            # Submission success is an external acknowledgement. Do not return
+            # it until this exact snapshot reaches disk; lock scope also keeps
+            # another mutation from overtaking it while the write runs off-loop.
+            await self._persist(text, generation)
+            return dict(response)

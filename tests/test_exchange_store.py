@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+
 from pathlib import Path
 
 import pytest
@@ -263,6 +264,156 @@ async def test_submit_is_idempotent_by_key_and_fingerprint(tmp_path: Path) -> No
 
 
 @pytest.mark.asyncio
+async def test_awaiting_proposal_and_receipt_outlive_terminal_retention(tmp_path: Path) -> None:
+    clock = FakeClock()
+    store = make_store(tmp_path, clock, terminal_retention_seconds=10)
+    unit_id = await store.offer(lane="rewrite", payload=REWRITE_PAYLOAD)
+    worker = await enroll(store, "llm")
+    lease = await store.claim(worker_id=worker)
+    artifact = {"source": "int f(void) { return 1; }"}
+
+    accepted = await store.submit(
+        worker_id=worker,
+        lease_token=lease["leaseToken"],
+        fence=lease["fence"],
+        idempotency_key="keep-proposal",
+        artifact=artifact,
+        verdict="candidate",
+    )
+    clock.advance(11)
+
+    # Roster triggers the retention reaper. There is still no coordinator
+    # acknowledgement API, so this proposal cannot be safely discarded.
+    assert (await store.roster())["units"]["byStatus"] == {STATUS_AWAITING_VERIFICATION: 1}
+    assert (await store.unit_state(unit_id))["status"] == STATUS_AWAITING_VERIFICATION
+    assert (
+        await store.submit(
+            worker_id=worker,
+            lease_token=lease["leaseToken"],
+            fence=lease["fence"],
+            idempotency_key="keep-proposal",
+            artifact=dict(artifact),
+            verdict="candidate",
+        )
+    ) == accepted
+
+
+@pytest.mark.asyncio
+async def test_pruning_failed_work_removes_its_bound_receipt(tmp_path: Path) -> None:
+    clock = FakeClock()
+    store = make_store(tmp_path, clock, terminal_retention_seconds=10)
+    unit_id = await store.offer(lane="rewrite", payload=REWRITE_PAYLOAD)
+    worker = await enroll(store, "llm")
+    lease = await store.claim(worker_id=worker)
+    await store.submit(
+        worker_id=worker,
+        lease_token=lease["leaseToken"],
+        fence=lease["fence"],
+        idempotency_key="failed-work",
+        artifact={"source": "unusable"},
+        verdict="error",
+    )
+    clock.advance(11)
+
+    await store.roster()
+    assert await store.unit_state(unit_id) is None
+    with pytest.raises(LeaseRejected):
+        await store.submit(
+            worker_id=worker,
+            lease_token=lease["leaseToken"],
+            fence=lease["fence"],
+            idempotency_key="failed-work",
+            artifact={"source": "unusable"},
+            verdict="error",
+        )
+
+
+@pytest.mark.asyncio
+async def test_same_key_from_two_workers_records_each_workers_own_unit(tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    await store.offer(lane="rewrite", payload=REWRITE_PAYLOAD)
+    await store.offer(lane="rewrite", payload={**REWRITE_PAYLOAD, "functionName": "FUN_00402000"})
+    first_worker = await enroll(store, "llm", agent="first")
+    second_worker = await enroll(store, "llm", agent="second")
+    first_lease = await store.claim(worker_id=first_worker)
+    second_lease = await store.claim(worker_id=second_worker)
+    artifact = {"source": "int f(void) { return 1; }"}
+
+    first = await store.submit(
+        worker_id=first_worker,
+        lease_token=first_lease["leaseToken"],
+        fence=first_lease["fence"],
+        idempotency_key="shared-client-key",
+        artifact=artifact,
+        verdict="candidate",
+    )
+    second = await store.submit(
+        worker_id=second_worker,
+        lease_token=second_lease["leaseToken"],
+        fence=second_lease["fence"],
+        idempotency_key="shared-client-key",
+        artifact=dict(artifact),
+        verdict="candidate",
+    )
+
+    assert first["unitId"] == first_lease["unit"]["unitId"]
+    assert second["unitId"] == second_lease["unit"]["unitId"]
+    assert first["unitId"] != second["unitId"]
+    assert (await store.unit_state(second["unitId"]))["submission"]["workerId"] == second_worker
+
+
+@pytest.mark.asyncio
+async def test_submit_retry_persists_after_the_initial_snapshot_write_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = tmp_path / "state" / "work-exchange.json"
+    store = ExchangeStore(path, clock=FakeClock())
+    unit_id = await store.offer(lane="rewrite", payload=REWRITE_PAYLOAD)
+    worker = await enroll(store, "llm")
+    lease = await store.claim(worker_id=worker)
+    artifact = {"source": "int f(void) { return 1; }"}
+    persist = store._persist
+    failed = False
+
+    async def fail_first_submit_snapshot(text: str | None, generation: int | None = None) -> None:
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise OSError("simulated disk write failure")
+        await persist(text, generation)
+
+    monkeypatch.setattr(store, "_persist", fail_first_submit_snapshot)
+    with pytest.raises(OSError, match="simulated disk write failure"):
+        await store.submit(
+            worker_id=worker,
+            lease_token=lease["leaseToken"],
+            fence=lease["fence"],
+            idempotency_key="persist-after-retry",
+            artifact=artifact,
+            verdict="candidate",
+        )
+
+    accepted = await store.submit(
+        worker_id=worker,
+        lease_token=lease["leaseToken"],
+        fence=lease["fence"],
+        idempotency_key="persist-after-retry",
+        artifact=dict(artifact),
+        verdict="candidate",
+    )
+    reloaded = ExchangeStore(path, clock=FakeClock())
+    assert (await reloaded.unit_state(unit_id))["status"] == STATUS_AWAITING_VERIFICATION
+    assert (
+        await reloaded.submit(
+            worker_id=worker,
+            lease_token=lease["leaseToken"],
+            fence=lease["fence"],
+            idempotency_key="persist-after-retry",
+            artifact=dict(artifact),
+            verdict="candidate",
+        )
+    ) == accepted
+
+
+@pytest.mark.asyncio
 async def test_corrupt_state_is_quarantined_and_never_overwritten_by_an_empty_queue(tmp_path: Path) -> None:
     path = tmp_path / "state" / "work-exchange.json"
     path.parent.mkdir(parents=True)
@@ -355,9 +506,9 @@ async def test_router_maps_refusals_to_status_codes(tmp_path: Path) -> None:
     """204 for no work, 409 for a reused key, 410 for a retired lease, 404 for a stranger."""
 
     import httpx
-    from fastapi import FastAPI
 
     from agentdecompile_recovery.exchange.routes import create_exchange_router
+    from fastapi import FastAPI
 
     store = make_store(tmp_path)
     app = FastAPI()

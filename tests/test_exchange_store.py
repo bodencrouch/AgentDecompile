@@ -116,11 +116,11 @@ async def test_drain_spool_retries_an_offer_after_its_first_snapshot_write_fails
     monkeypatch.setattr(store, "_persist", fail_first_offer_snapshot)
     assert await producers.drain_spool(store) == 0
     assert spool_file.is_file()
-    assert not (path.parent / producers.ACCEPTED_DIRNAME / spool_file.name).exists()
+    assert not (spool_file.parent / producers.ACCEPTED_DIRNAME / spool_file.name).exists()
 
     assert await producers.drain_spool(store) == 1
     assert not spool_file.exists()
-    assert (path.parent / producers.ACCEPTED_DIRNAME / spool_file.name).is_file()
+    assert (spool_file.parent / producers.ACCEPTED_DIRNAME / spool_file.name).is_file()
 
     reloaded = ExchangeStore(path, clock=FakeClock())
     assert (await reloaded.unit_state(unit_id))["status"] == STATUS_PENDING

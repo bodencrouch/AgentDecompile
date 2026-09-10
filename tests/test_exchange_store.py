@@ -363,6 +363,41 @@ async def test_same_key_from_two_workers_records_each_workers_own_unit(tmp_path:
 
 
 @pytest.mark.asyncio
+async def test_same_worker_reusing_key_for_another_lease_is_rejected(tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    await store.offer(lane="rewrite", payload=REWRITE_PAYLOAD)
+    await store.offer(lane="rewrite", payload={**REWRITE_PAYLOAD, "functionName": "FUN_00402000"})
+    worker = await enroll(store, "llm")
+    first_lease = await store.claim(worker_id=worker)
+    second_lease = await store.claim(worker_id=worker)
+    artifact = {"source": "int f(void) { return 1; }"}
+
+    await store.submit(
+        worker_id=worker,
+        lease_token=first_lease["leaseToken"],
+        fence=first_lease["fence"],
+        idempotency_key="reused-key",
+        artifact=artifact,
+        verdict="candidate",
+    )
+
+    with pytest.raises(IdempotencyConflict):
+        await store.submit(
+            worker_id=worker,
+            lease_token=second_lease["leaseToken"],
+            fence=second_lease["fence"],
+            idempotency_key="reused-key",
+            artifact=dict(artifact),
+            verdict="candidate",
+        )
+
+    second_state = await store.unit_state(second_lease["unit"]["unitId"])
+    assert second_state["status"] == "claimed"
+    assert second_state["leaseToken"] == second_lease["leaseToken"]
+    assert second_state["submission"] is None
+
+
+@pytest.mark.asyncio
 async def test_submit_retry_persists_after_the_initial_snapshot_write_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     path = tmp_path / "state" / "work-exchange.json"
     store = ExchangeStore(path, clock=FakeClock())

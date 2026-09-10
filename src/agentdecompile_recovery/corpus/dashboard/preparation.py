@@ -404,6 +404,21 @@ def _execution_program_bindings(locator: str, info: dict[str, Any], programs: li
         return str(value or '').replace('\\', '/').strip().lstrip('/')
 
     requested = {program: normalized(program) for program in programs}
+
+    def binding_matches_requested(source_key: str, actual: str) -> bool:
+        """Reject an old binding when its selected Ghidra object is unrelated.
+
+        ``program_binding`` predates shared-folder routing and can contain a
+        source path paired with whichever program happened to be active.  Its
+        locator alone is therefore not proof that the selected object is the
+        same binary.  A local project often prefixes the imported filename
+        (``NWN-Diamond__nwmain.exe``), so accept that harmless naming form but
+        never let a Jade Empire source path select ``nwmain.exe``.
+        """
+        expected = Path(source_key).name.casefold()
+        observed = Path(normalized(actual)).name.casefold()
+        return bool(expected and observed and (observed == expected or observed.endswith(expected) or expected.endswith(observed)))
+
     bindings: dict[str, list[tuple[str, str]]] = {program: [] for program in programs}
     rows, _ = query_db('SELECT source_path, locator, program FROM program_binding ORDER BY updated DESC')
     for source, project_locator, project_program in rows:
@@ -417,7 +432,7 @@ def _execution_program_bindings(locator: str, info: dict[str, Any], programs: li
     for root in (live_root(), _directory().parent):
         if root:
             base = Path(root)
-            for pattern in ('native-checkouts/**/*.gpr', 'copied-projects/*.gpr', 'ghidra-projects/*.gpr'):
+            for pattern in ('workspace/*.gpr', 'native-checkouts/**/*.gpr', 'copied-projects/*.gpr', 'ghidra-projects/*.gpr'):
                 found = [str(path.resolve()) for path in base.glob(pattern)]
                 candidates.extend(found)
 
@@ -443,7 +458,7 @@ def _execution_program_bindings(locator: str, info: dict[str, Any], programs: li
         for candidate, bound_program in bindings[program]:
             programs_by_path = available.get(candidate, {})
             actual = programs_by_path.get(normalized(bound_program))
-            if actual:
+            if actual and binding_matches_requested(source_key, actual):
                 # The Ghidra session accepts the program path recorded in its
                 # own project inventory.  A shared-folder path may carry a
                 # grouping prefix (for example ``/TSL/...``) that is absent
@@ -478,7 +493,7 @@ def _execution_program_bindings(locator: str, info: dict[str, Any], programs: li
             routes[program] = (candidate, actual)
         elif leaf:
             candidate, actual = sorted(leaf)[0]
-            routes[program] = (candidate, program if candidate in native_candidates else actual)
+            routes[program] = (candidate, actual)
         else:
             routes[program] = ('', '')
     return routes

@@ -78,6 +78,20 @@ bool parse_limit(const char* text, rlim_t& out) {
   return true;
 }
 
+bool parse_size(const char* text, std::size_t& out) {
+  if (text == nullptr || *text == '\0') return false;
+  char* end = nullptr;
+  errno = 0;
+  const unsigned long long value = std::strtoull(text, &end, 10);
+  if (errno != 0 || end == text || *end != '\0' ||
+      value < proto::kPreHandshakeMaxFrame ||
+      value > static_cast<unsigned long long>(std::numeric_limits<std::size_t>::max())) {
+    return false;
+  }
+  out = static_cast<std::size_t>(value);
+  return true;
+}
+
 bool set_limit(int resource, rlim_t value) {
   if (value == 0) return true;
   const rlimit limit{value, value};
@@ -111,7 +125,8 @@ struct Worker {
   unsigned long test_decompile_delay_ms = 0;
 #endif
 
-  Worker() {
+  explicit Worker(std::size_t max_frame = proto::kDefaultMaxFrame) {
+    local.max_frame = static_cast<std::uint32_t>(max_frame);
     local.capabilities = {"open_raw", "open_snapshot", "disasm", "lift", "decompile", "cancel"};
     gnsdk_version_info version{};
     GNSDK_INIT_STRUCT(&version);
@@ -345,6 +360,7 @@ int main(int argc, char** argv) {
   const char* sleigh_home = nullptr;
   rlim_t address_limit = 0;
   rlim_t cpu_limit = 0;
+  std::size_t max_frame = proto::kDefaultMaxFrame;
 #if defined(GNSDK_ENABLE_TEST_HOOKS)
   unsigned long test_decompile_delay_ms = 0;
 #endif
@@ -354,6 +370,8 @@ int main(int argc, char** argv) {
       if (!parse_limit(argv[++i], address_limit)) return 64;
     } else if (std::strcmp(argv[i], "--rlimit-cpu") == 0 && i + 1 < argc) {
       if (!parse_limit(argv[++i], cpu_limit)) return 64;
+    } else if (std::strcmp(argv[i], "--max-frame") == 0 && i + 1 < argc) {
+      if (!parse_size(argv[++i], max_frame)) return 64;
 #if defined(GNSDK_ENABLE_TEST_HOOKS)
     } else if (std::strcmp(argv[i], "--test-decompile-delay-ms") == 0 && i + 1 < argc) {
       char* end = nullptr;
@@ -361,7 +379,7 @@ int main(int argc, char** argv) {
       if (end == nullptr || *end != '\0') return 64;
 #endif
     } else if (std::strcmp(argv[i], "--help") == 0) {
-      std::puts("usage: gnsdk-worker --sleigh-home DIR [--rlimit-as BYTES] [--rlimit-cpu SECONDS]");
+      std::puts("usage: gnsdk-worker --sleigh-home DIR [--rlimit-as BYTES] [--rlimit-cpu SECONDS] [--max-frame BYTES]");
       return 0;
     } else return 64;
   }
@@ -374,7 +392,7 @@ int main(int argc, char** argv) {
   if (!expected_parent_matches()) return 5;
   gnsdk_init_options init{}; GNSDK_INIT_STRUCT(&init); init.sleigh_home = sleigh_home;
   if (gnsdk_init(&init) != GNSDK_OK) return 5;
-  Worker worker;
+  Worker worker(max_frame);
 #if defined(GNSDK_ENABLE_TEST_HOOKS)
   worker.test_decompile_delay_ms = test_decompile_delay_ms;
 #endif

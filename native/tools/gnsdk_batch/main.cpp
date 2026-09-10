@@ -50,6 +50,7 @@ void write_record(std::ostream& output, const Job& job, const proto::Message& re
 int main(int argc, char** argv) {
   std::string sleigh_home, input_path, snapshot_path, output_path;
   unsigned long timeout_s = 60;
+  unsigned long workers = 1;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
     if (arg == "--version") { std::cout << "gnsdk-batch 0.1.0\n"; return 0; }
@@ -60,9 +61,11 @@ int main(int argc, char** argv) {
     else if (arg == "--snapshot") snapshot_path = value;
     else if (arg == "--output") output_path = value;
     else if (arg == "--timeout") { try { timeout_s = std::stoul(value); } catch (...) { return 2; } }
+    else if (arg == "--workers") { try { workers = std::stoul(value); } catch (...) { return 2; } }
     else return 2;
   }
-  if (sleigh_home.empty() || output_path.empty() || (input_path.empty() == snapshot_path.empty()) || timeout_s == 0) return 2;
+  if (sleigh_home.empty() || output_path.empty() || (input_path.empty() == snapshot_path.empty()) ||
+      timeout_s == 0 || workers == 0) return 2;
   try {
     std::vector<Job> jobs;
     if (!snapshot_path.empty()) jobs = snapshot_jobs(snapshot_path);
@@ -74,7 +77,8 @@ int main(int argc, char** argv) {
     std::ofstream output(output_path); if (!output) throw std::runtime_error("cannot open output");
     // Snapshot restore owns a single process-global session. Keep it on one
     // worker until full affinity scheduling is implemented in Supervisor.
-    gnsdk::pool::Config config; config.worker = GNSDK_WORKER_PATH; config.sleigh_home = sleigh_home; config.workers = 1;
+    gnsdk::pool::Config config; config.worker = GNSDK_WORKER_PATH; config.sleigh_home = sleigh_home;
+    config.workers = snapshot_path.empty() ? static_cast<std::size_t>(workers) : 1;
     gnsdk::pool::Supervisor pool(std::move(config)); pool.start();
     std::uint64_t request = 1;
     for (const Job& job : jobs) {

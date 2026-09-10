@@ -57,6 +57,15 @@ add_dependencies(pool_midframe_cleanup fake-worker)
 add_test(NAME pool_midframe_cleanup COMMAND pool_midframe_cleanup)
 set_tests_properties(pool_midframe_cleanup PROPERTIES LABELS "pool;fault")
 
+add_executable(pool_respawn_retry respawn_retry.cpp)
+target_include_directories(pool_respawn_retry PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../.. ${CMAKE_CURRENT_SOURCE_DIR}/../worker)
+target_link_libraries(pool_respawn_retry PRIVATE gnsdk::pool gnsdk_protocol Threads::Threads)
+target_compile_features(pool_respawn_retry PRIVATE cxx_std_20)
+target_compile_definitions(pool_respawn_retry PRIVATE GNSDK_FAKE_WORKER_PATH="$<TARGET_FILE:fake-worker>")
+add_dependencies(pool_respawn_retry fake-worker)
+add_test(NAME pool_respawn_retry COMMAND pool_respawn_retry)
+set_tests_properties(pool_respawn_retry PROPERTIES LABELS "pool;fault")
+
 add_test(NAME gnsdk_batch_version COMMAND gnsdk-batch --version)
 set_tests_properties(gnsdk_batch_version PROPERTIES
   LABELS "pool;batch"

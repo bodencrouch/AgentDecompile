@@ -4,6 +4,7 @@
 #include <cstring>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <fcntl.h>
 #include <poll.h>
@@ -31,7 +32,7 @@ struct Child {
   }
 };
 
-Child spawn() {
+Child spawn(const std::vector<std::string>& extra_args = {}) {
   int to[2]; int from[2];
   REQUIRE(::pipe2(to, O_CLOEXEC) == 0);
   REQUIRE(::pipe2(from, O_CLOEXEC) == 0);
@@ -43,12 +44,16 @@ Child spawn() {
     const std::string expected_parent = std::to_string(::getppid());
     REQUIRE(::setenv("GNSDK_EXPECTED_PPID", expected_parent.c_str(), 1) == 0);
 #if defined(GNSDK_ENABLE_TEST_HOOKS)
-    ::execl(GNSDK_WORKER_PATH, GNSDK_WORKER_PATH, "--sleigh-home", GNSDK_SLEIGH_HOME,
-            "--test-decompile-delay-ms", "200", static_cast<char*>(nullptr));
+    std::vector<char*> args{const_cast<char*>(GNSDK_WORKER_PATH), const_cast<char*>("--sleigh-home"),
+                            const_cast<char*>(GNSDK_SLEIGH_HOME), const_cast<char*>("--test-decompile-delay-ms"),
+                            const_cast<char*>("200")};
 #else
-    ::execl(GNSDK_WORKER_PATH, GNSDK_WORKER_PATH, "--sleigh-home", GNSDK_SLEIGH_HOME,
-            static_cast<char*>(nullptr));
+    std::vector<char*> args{const_cast<char*>(GNSDK_WORKER_PATH), const_cast<char*>("--sleigh-home"),
+                            const_cast<char*>(GNSDK_SLEIGH_HOME)};
 #endif
+    for (const auto& arg : extra_args) args.push_back(const_cast<char*>(arg.c_str()));
+    args.push_back(nullptr);
+    ::execv(GNSDK_WORKER_PATH, args.data());
     _exit(127);
   }
   ::close(to[0]); ::close(from[1]);
@@ -88,10 +93,31 @@ proto::Message receive(proto::FrameReader& reader, const Child& child, std::uint
   }
 }
 
+void negotiates_cli_max_frame() {
+  Child child = spawn({"--max-frame", std::to_string(proto::kPreHandshakeMaxFrame)});
+  proto::FrameReader reader(proto::kPreHandshakeMaxFrame);
+  proto::FrameWriter writer(child.in);
+  proto::HelloInfo hello; hello.capabilities = {"test"}; hello.engine_source = "worker-e2e";
+  hello.max_frame = proto::kDefaultMaxFrame;
+  REQUIRE(writer.write_json(proto::Kind::Hello, 0, proto::make_hello(hello)));
+  proto::Frame ack;
+  pollfd pfd{child.out, POLLIN, 0};
+  REQUIRE(::poll(&pfd, 1, 10000) > 0);
+  REQUIRE(reader.read(child.out) == proto::ReadStatus::Progress);
+  REQUIRE(reader.next(ack));
+  proto::HelloInfo remote; REQUIRE(proto::parse_hello(ack.payload_view(), remote));
+  REQUIRE(remote.max_frame == proto::kPreHandshakeMaxFrame);
+  REQUIRE(writer.write_empty(proto::Kind::Bye));
+  ::close(child.in); child.in = -1;
+  int status = 0; REQUIRE(::waitpid(child.pid, &status, 0) == child.pid); child.pid = -1;
+  REQUIRE(WIFEXITED(status)); REQUIRE(WEXITSTATUS(status) == 0);
+}
+
 }  // namespace
 
 int main() {
   rejects_wrong_parent();
+  negotiates_cli_max_frame();
   Child child = spawn();
   proto::FrameReader reader(proto::kPreHandshakeMaxFrame);
   proto::HelloInfo hello; hello.capabilities = {"test"}; hello.engine_source = "worker-e2e";

@@ -111,7 +111,7 @@ export function PersistentExplorer({builds,projects,unresolved=[],selection,onSe
   useEffect(()=>{if(!menu)return;menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus();const close=(event:PointerEvent)=>{if(!menuRef.current?.contains(event.target as globalThis.Node))setMenu(null);};window.addEventListener('pointerdown',close);return()=>window.removeEventListener('pointerdown',close);},[menu]);
   const [refreshToken,setRefreshToken]=useState(0);
   const [workflowRuns,setWorkflowRuns]=useState<Data[]>([]);
-  const [workflowJobs,setWorkflowJobs]=useState<Data[]>([]);
+  const [workflowJobs,setWorkflowJobs]=useState<Data[] | null>(null);
   const loadingRef=useRef(false),latestRevision=useRef(revision),appliedRevision=useRef(revision);
   latestRevision.current=revision;
   useEffect(()=>{const timer=setInterval(()=>{if(!loadingRef.current&&latestRevision.current!==appliedRevision.current)setRefreshToken(n=>n+1);},5000);return()=>clearInterval(timer);},[]);
@@ -154,7 +154,7 @@ export function PersistentExplorer({builds,projects,unresolved=[],selection,onSe
     for(const [key,items] of groups){const id=parent+':'+key;const g=items[0]?.variant_group;binaryNodes.push({id,parent,level,name:key==='unmatched'?'Awaiting cross-match evidence':g?.label||'Separate variant group',kind:'group',record:{count:items.length},expanded:open(id)});if(!open(id))continue;
       const parentDigest=(b:Data)=>b.containerSha256||b.container?.sha256;
       const seen=new Set<string>();
-      const append=(b:Data,parentId:string,depth:number)=>{if(seen.has(binaryKey(b)))return;seen.add(binaryKey(b));const nodeId=parentId+':'+binaryKey(b),binding=(b.projectBindings||[]).find((p:Data)=>p.locator===locator),children=items.filter(c=>parentDigest(c)&&parentDigest(c)===b.sha256);binaryNodes.push({id:nodeId,parent:parentId,level:depth,name:binding?.program?.replace(/^\//,'')||label(b),kind:'binary',locator,record:{...b,...(binding?{program:binding.program}: {})},entity:entity('binary',b,locator)||b.workflowActivity,...(children.length?{expanded:open(nodeId)}:{})});if(open(nodeId))for(const child of children)append(child,nodeId,depth+1);};
+      const append=(b:Data,parentId:string,depth:number)=>{if(seen.has(binaryKey(b)))return;seen.add(binaryKey(b));const nodeId=parentId+':'+binaryKey(b),binding=(b.projectBindings||[]).find((p:Data)=>p.locator===locator),children=items.filter(c=>parentDigest(c)&&parentDigest(c)===b.sha256);binaryNodes.push({id:nodeId,parent:parentId,level:depth,name:binding?.program?.replace(/^\//,'')||label(b),kind:'binary',locator,record:{...b,...(binding?{program:binding.program}: {})},entity:b.workflowActivity||entity('binary',b,locator),...(children.length?{expanded:open(nodeId)}:{})});if(open(nodeId))for(const child of children)append(child,nodeId,depth+1);};
       for(const b of items)if(!parentDigest(b)||!items.some(p=>p.sha256===parentDigest(b)&&p!==b))append(b,id,level+1);
     }
   }

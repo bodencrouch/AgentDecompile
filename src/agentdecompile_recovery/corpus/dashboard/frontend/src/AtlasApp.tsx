@@ -585,7 +585,9 @@ export function AtlasApp() {
   const activeWorkflowJob = matchedRun && jobs
     .filter((job: Data) => job.params?.run === `prepare-${matchedRun.id}` && ["queued", "running", "cancelling"].includes(job.status))
     .sort((left: Data, right: Data) => (left.status === "running" ? -1 : right.status === "running" ? 1 : Number(right.createdAt || 0) - Number(left.createdAt || 0)))[0];
-  const run: Data | undefined = matchedRun ? {...matchedRun, stages:(matchedRun.stages||[]).map((stage:Data)=>{
+  const run: Data | undefined = matchedRun ? {...matchedRun,
+    ...(activeWorkflowJob ? {currentStage: "matching", currentProgram: jobTarget(activeWorkflowJob, matchedRun.currentProgram), currentPair: {source: activeWorkflowJob.params?.src, target: activeWorkflowJob.params?.dst}} : {}),
+    stages:(matchedRun.stages||[]).map((stage:Data)=>{
     const job=(stage.key === "matching" ? activeWorkflowJob : undefined) || jobs.find((item)=>item.id===stage.jobId);
     return job?{...stage,jobStatus:job.status,currentAction:job.title||job.actionId,currentProgram:jobTarget(job,stage.currentProgram),startedAt:job.startedAt||stage.startedAt}:stage;
   }).map((stage:Data, index:number, stages:Data[])=>{

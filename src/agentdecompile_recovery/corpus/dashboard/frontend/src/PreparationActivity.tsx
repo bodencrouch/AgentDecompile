@@ -60,7 +60,7 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
   const pair = currentJob?.params?.src && currentJob?.params?.dst
     ? `${currentJob.params.src} → ${currentJob.params.dst}` : '';
   const program = pair || currentJob?.params?.programPath || currentJob?.params?.program || current?.currentProgram || run?.program;
-  const action = current?.currentAction || currentJob?.title || currentJob?.actionId;
+  const action = currentJob?.title || currentJob?.actionId || current?.currentAction;
   const actionName = String(action || "").replace(/^mcp\./, "").replace(/[-_]/g, " ");
   const operation = /execute script/i.test(actionName) ? ({analysis: "Check existing analysis", facts: "Index functions and relationships", bsim: "Build similarity signatures"} as Record<string,string>)[current?.key] || actionName : /analyze program/i.test(actionName) ? "Analyze binary" : /match pair/i.test(actionName) ? "Compare related builds" : actionName;
   const state = currentJob?.status || current?.jobStatus || run?.status;

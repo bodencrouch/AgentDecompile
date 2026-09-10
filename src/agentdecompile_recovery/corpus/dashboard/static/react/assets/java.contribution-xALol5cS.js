@@ -1,1 +1,0 @@
-import{_ as a}from"./index-Ci8UsgKq.js";import{r as e}from"./_.contribution-DnjroHMa.js";import"./monaco-runtime-CVZQeAs2.js";e({id:"java",extensions:[".java",".jav"],aliases:["Java","java"],mimetypes:["text/x-java-source","text/x-java"],loader:()=>a(()=>import("./java-CXBNlu9o.js"),[])});

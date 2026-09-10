@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import errno
+import hashlib
 import json
 import os
 import stat
@@ -229,6 +230,22 @@ def test_process_death_after_mkdir_recovers_anchor_before_first_snapshot(tmp_pat
     assert synced == [tmp_path, path.parent, path.parent.parent, tmp_path, tmp_path, path.parent]
     assert not list(tmp_path.glob(".exchange-init-*.pending"))
     assert json.loads(path.read_text()) == {}
+
+
+def test_store_recovers_pending_producer_directory_anchor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = tmp_path / "state" / "exchange.json"
+    path.parent.mkdir()
+    spool = path.parent / "exchange-spool"
+    marker = tmp_path / (".exchange-spool-init-" + hashlib.sha256(os.fsencode(spool.absolute())).hexdigest() + ".pending")
+    marker.write_text("", encoding="utf-8")
+    synced: list[Path] = []
+    monkeypatch.setattr(exchange, "_sync_directory", synced.append)
+
+    exchange.ExchangeStore(path)._write_snapshot("{}", 1)
+
+    assert path.parent in synced
+    assert tmp_path in synced
+    assert not marker.exists()
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX directory synchronization")

@@ -505,14 +505,24 @@ class ExchangeStore:
             return
         directory = self.state_path.absolute().parent
         marker_name = ".exchange-init-" + hashlib.sha256(os.fsencode(self.state_path.absolute())).hexdigest() + ".pending"
+        # The pipeline can create the sibling spool hierarchy first. Its marker
+        # has the same parent-anchoring obligation as ours; recognize it before
+        # treating a merely visible state directory as operator-provisioned.
+        spool_marker_name = ".exchange-spool-init-" + hashlib.sha256(
+            os.fsencode(directory / "exchange-spool")
+        ).hexdigest() + ".pending"
         ancestors = (directory, *directory.parents)
-        anchor = next((parent for parent in ancestors if (parent / marker_name).exists()), None)
+        marker = next(
+            (parent / name for parent in ancestors for name in (marker_name, spool_marker_name) if (parent / name).exists()),
+            None,
+        )
+        anchor = marker.parent if marker is not None else None
         if anchor is None:
             anchor = next(parent for parent in ancestors if parent.is_dir())
             if anchor == directory:
                 self._directory_ready = True
                 return
-        marker = anchor / marker_name
+        marker = marker or (anchor / marker_name)
         with marker.open("a", encoding="utf-8") as handle:
             handle.flush()
             os.fsync(handle.fileno())

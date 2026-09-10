@@ -20551,7 +20551,7 @@ _REWRITE_CONTENT_DISALLOWED_RE = re.compile(
     # shallow regular expression.
     r"|__declspec\s*\("
     r"|__attribute__?\s*\("
-    r"|\[\["
+    r"|\[\s*\["
     r"|\.incbin\b",
     re.MULTILINE,
 )
@@ -20575,7 +20575,10 @@ def _normalize_rewrite_source_for_content_check(source: str) -> str:
     # it away, and normalize old-Mac CR line endings so MULTILINE directive
     # anchors retain their meaning.
     source = source.removeprefix("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
-    source = _REWRITE_LINE_CONTINUATION_RE.sub("", source.replace("??=", "#"))
+    # Also normalize bracket digraphs before checking C++/GNU attributes:
+    # `<:<:` and `:>:>` are accepted spellings of `[[` and `]]` by Clang.
+    source = source.replace("??=", "#").replace("<:", "[").replace(":>", "]")
+    source = _REWRITE_LINE_CONTINUATION_RE.sub("", source)
     normalized: list[str] = []
     index = 0
     while index < len(source):

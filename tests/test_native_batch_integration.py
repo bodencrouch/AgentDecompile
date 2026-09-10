@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from pathlib import Path
 
@@ -17,10 +16,9 @@ FIXTURE = Path(__file__).parent / "fixtures" / "native_snapshot" / "test_x86_64"
 
 
 @pytest.mark.integration
-def test_checked_in_snapshot_replays_through_native_batch(tmp_path: Path) -> None:
-    root = Path(os.environ.get("GNSDK_BUILD_DIR", ""))
-    batch = root / "tools" / "gnsdk_batch" / "gnsdk-batch"
-    sleigh_home = root / "ghidra-decomp" / "sleigh-home"
+def test_checked_in_snapshot_replays_through_native_batch(tmp_path: Path, gnsdk_build_dir: Path) -> None:
+    batch = gnsdk_build_dir / "tools" / "gnsdk_batch" / "gnsdk-batch"
+    sleigh_home = gnsdk_build_dir / "ghidra-decomp" / "sleigh-home"
     if not batch.is_file() or not sleigh_home.is_dir():
         pytest.skip("set GNSDK_BUILD_DIR to a native SDK build to exercise gnsdk-batch")
     output = tmp_path / "results.jsonl"

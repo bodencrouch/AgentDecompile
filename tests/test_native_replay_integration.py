@@ -6,7 +6,6 @@ Python test runs must remain useful on machines that do not build the SDK.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import pytest
@@ -19,11 +18,7 @@ from agentdecompile_recovery.native_snapshot.replay import ConsoleReplayer
 FIXTURE = Path(__file__).parent / "fixtures" / "native_snapshot" / "test_x86_64"
 
 
-def _native_tools() -> tuple[Path, Path] | None:
-    build = os.environ.get("GNSDK_BUILD_DIR", "").strip()
-    if not build:
-        return None
-    root = Path(build)
+def _native_tools(root: Path) -> tuple[Path, Path] | None:
     console = root / "ghidra-decomp" / "decomp_console"
     sleigh_home = root / "ghidra-decomp" / "sleigh-home"
     if not console.is_file() or not sleigh_home.is_dir():
@@ -32,8 +27,8 @@ def _native_tools() -> tuple[Path, Path] | None:
 
 
 @pytest.mark.integration
-def test_checked_in_snapshot_replays_as_exact_native_matches() -> None:
-    tools = _native_tools()
+def test_checked_in_snapshot_replays_as_exact_native_matches(gnsdk_build_dir: Path) -> None:
+    tools = _native_tools(gnsdk_build_dir)
     if tools is None:
         pytest.skip("set GNSDK_BUILD_DIR to a native SDK build to exercise console replay")
     console, sleigh_home = tools

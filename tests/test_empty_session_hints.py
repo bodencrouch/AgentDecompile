@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -61,7 +62,7 @@ async def test_list_project_files_empty_session_includes_bootstrap(monkeypatch: 
     provider._manager = cast(Any, SimpleNamespace(ghidra_project=None))
     provider.program_info = None
 
-    async def _noop_ensure(_args: dict[str, Any]) -> None:
+    async def _noop_ensure(_args: dict[str, Any], *, program_info) -> None:
         return None
 
     monkeypatch.setattr(provider, "_ensure_program_loaded_for_stateless_request", _noop_ensure)
@@ -74,7 +75,7 @@ async def test_list_project_files_empty_session_includes_bootstrap(monkeypatch: 
         lambda _sid: None,
     )
 
-    result = await provider._handle_list({})
+    result = await provider.call_tool("list-project-files", {"format": "json"}, program_info=None)
     payload = json.loads(result[0].text)
 
     assert payload.get("count") == 0
@@ -90,7 +91,7 @@ async def test_get_current_program_empty_session_includes_bootstrap(monkeypatch:
     provider._manager = cast(Any, SimpleNamespace(ghidra_project=None))
     provider.program_info = None
 
-    async def _noop_ensure(_args: dict[str, Any]) -> None:
+    async def _noop_ensure(_args: dict[str, Any], *, program_info) -> None:
         return None
 
     monkeypatch.setattr(provider, "_ensure_program_loaded_for_stateless_request", _noop_ensure)
@@ -99,7 +100,7 @@ async def test_get_current_program_empty_session_includes_bootstrap(monkeypatch:
         lambda _sid, fallback_to_latest=True: [],
     )
 
-    result = await provider._handle_get_current_program({})
+    result = await provider.call_tool("get-current-program", {"format": "json"}, program_info=None)
     payload = json.loads(result[0].text)
 
     assert payload.get("loaded") is False

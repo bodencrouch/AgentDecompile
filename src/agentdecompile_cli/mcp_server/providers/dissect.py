@@ -14,6 +14,8 @@ from itertools import islice
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 if TYPE_CHECKING:
+    from types import SimpleNamespace
+
     from ghidra.program.model.address import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
         Address as GhidraAddress,
         AddressSetView as GhidraAddressSetView,
@@ -28,6 +30,8 @@ if TYPE_CHECKING:
     from ghidra.program.model.symbol import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
         ReferenceManager as GhidraReferenceManager,
     )
+
+    from agentdecompile_cli.launcher import ProgramInfo
 
 from mcp import types
 
@@ -187,9 +191,9 @@ class GetFunctionAioToolProvider(ToolProvider):
     # Main handler
     # ------------------------------------------------------------------
 
-    async def _handle(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/dissect.py:GetFunctionAioToolProvider._handle")
-        self._require_program()
+        self._require_program(program_info=program_info)
 
         func_id = self._get_address_or_symbol(args)
         if not func_id:
@@ -227,15 +231,15 @@ class GetFunctionAioToolProvider(ToolProvider):
         max_related_callers = self._normalize_non_negative(self._get_int(args, "maxrelatedcallers", "maxcallerdetails", default=legacy_max_nodes if legacy_max_nodes is not None else 9), default=9)
         max_related_callees = self._normalize_non_negative(self._get_int(args, "maxrelatedcallees", "maxcalleedetails", default=legacy_max_nodes if legacy_max_nodes is not None else 9), default=9)
 
-        assert self.program_info is not None, "program_info should be set by _require_program()"
-        program = self.program_info.program
+        assert program_info is not None, "program_info should be set by _require_program()"
+        program = program_info.program
         if program is None:
             raise ValueError("No program loaded")
         program = cast("GhidraProgram", program)
 
-        target = self._resolve_function(func_id, program=program)
+        target = self._resolve_function(func_id, program=program, program_info=program_info)
         if target is None:
-            program_path = getattr(self.program_info, "file_path", None) or getattr(self.program_info, "path", None)
+            program_path = getattr(program_info, "file_path", None) or getattr(program_info, "path", None)
             if not program_path and program is not None:
                 try:
                     df = program.getDomainFile()
@@ -397,6 +401,7 @@ class GetFunctionAioToolProvider(ToolProvider):
             data_flow_address=data_flow_address,
             data_flow_max_ops=data_flow_max_ops,
             data_flow_max_depth=data_flow_max_depth,
+            program_info=program_info,
         )
         caller_tree, caller_funcs = self._collect_related_tree(
             target,
@@ -427,6 +432,7 @@ class GetFunctionAioToolProvider(ToolProvider):
                 data_flow_max_depth=0,
                 relationship="caller",
                 include_code=False,
+                program_info=program_info,
             )
             for func in caller_funcs
         ]
@@ -445,6 +451,7 @@ class GetFunctionAioToolProvider(ToolProvider):
                 data_flow_max_depth=0,
                 relationship="callee",
                 include_code=False,
+                program_info=program_info,
             )
             for func in callee_funcs
         ]
@@ -508,6 +515,7 @@ class GetFunctionAioToolProvider(ToolProvider):
         data_flow_max_depth: int,
         relationship: str | None = None,
         include_code: bool = True,
+        program_info: ProgramInfo | SimpleNamespace | None,
     ) -> dict[str, Any]:
         logger.debug("diag.enter %s", "mcp_server/providers/dissect.py:GetFunctionAioToolProvider._collect_function_details")
         entry = func.getEntryPoint()
@@ -520,7 +528,7 @@ class GetFunctionAioToolProvider(ToolProvider):
 
         if include_code:
             try:
-                _decompilation = self._decompile(func, program, timeout or DEFAULT_TIMEOUT_SECONDS)
+                _decompilation = self._decompile(func, program, timeout or DEFAULT_TIMEOUT_SECONDS, program_info=program_info)
             except RuntimeError as _decompile_err:
                 _decompilation = f"[decompilation unavailable: {_decompile_err}]"
             _disassembly = self._disassemble(func, program, max_instructions)
@@ -533,7 +541,7 @@ class GetFunctionAioToolProvider(ToolProvider):
             seed_address = entry
             if data_flow_address:
                 try:
-                    resolved_seed_address = self._resolve_address(data_flow_address, program=program)
+                    resolved_seed_address = self._resolve_address(data_flow_address, program=program, program_info=program_info)
                     if resolved_seed_address is not None:
                         seed_address = resolved_seed_address
                 except Exception:
@@ -546,7 +554,7 @@ class GetFunctionAioToolProvider(ToolProvider):
                 max_ops=data_flow_max_ops,
                 max_depth=data_flow_max_depth,
                 timeout_s=timeout or DEFAULT_TIMEOUT_SECONDS,
-                session_decompiler=getattr(self.program_info, "decompiler", None) if self.program_info is not None else None,
+                session_decompiler=getattr(program_info, "decompiler", None) if program_info is not None else None,
             )
 
         details: dict[str, Any] = {
@@ -687,12 +695,12 @@ class GetFunctionAioToolProvider(ToolProvider):
             "segments": parts,
         }
 
-    def _decompile(self, func: GhidraFunction, program: GhidraProgram, timeout: int | None = None) -> str:
+    def _decompile(self, func: GhidraFunction, program: GhidraProgram, timeout: int | None = None, *, program_info: ProgramInfo | SimpleNamespace | None) -> str:
         logger.debug("diag.enter %s", "mcp_server/providers/dissect.py:GetFunctionAioToolProvider._decompile")
         from agentdecompile_cli.mcp_server.providers.decompiler import DecompilerToolProvider
 
-        provider = DecompilerToolProvider(cast(Any, self.program_info))
-        response = provider.decompile_function_payload(func, program, timeout or DEFAULT_TIMEOUT_SECONDS)
+        provider = DecompilerToolProvider()
+        response = provider.decompile_function_payload(func, program, timeout or DEFAULT_TIMEOUT_SECONDS, program_info=program_info)
         code = str(response.get("decompilation") or response.get("code") or "")
         if code.strip():
             return code

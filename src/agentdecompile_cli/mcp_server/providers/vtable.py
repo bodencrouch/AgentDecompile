@@ -14,22 +14,26 @@ from typing import TYPE_CHECKING, Any, cast
 
 from mcp import types
 
+from agentdecompile_cli.mcp_server.providers._collectors import collect_vtable_candidates
 from agentdecompile_cli.mcp_server.tool_providers import (
     DEFAULT_MAX_ENTRIES,
     DEFAULT_PAGE_LIMIT,
     ToolProvider,
     create_success_response,
 )
-from agentdecompile_cli.mcp_server.providers._collectors import collect_vtable_candidates
 from agentdecompile_cli.registry import Tool
 
 if TYPE_CHECKING:
+    from types import SimpleNamespace
+
     from ghidra.program.model.listing import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
         FunctionManager as GhidraFunctionManager,
         Listing as GhidraListing,
         Program as GhidraProgram,
     )
     from ghidra.program.model.mem import Memory as GhidraMemory  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
+
+    from agentdecompile_cli.launcher import ProgramInfo
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +74,13 @@ class VtableToolProvider(ToolProvider):
             ),
         ]
 
-    async def _handle(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/vtable.py:VtableToolProvider._handle")
-        self._require_program()
+        self._require_program(program_info=program_info)
         mode = self._get_str(args, "mode", default="analyze")
         addr_str = self._get_address_or_symbol(args)
         logger.info("analyze-vtables mode=%s addressOrSymbol=%s", mode, addr_str or "(none)")
-        assert self.program_info is not None  # for type checker
+        assert program_info is not None  # for type checker
         # Shared context for all mode handlers: program, listing, memory, fm, address string, pagination
         return await self._dispatch_handler(
             args,
@@ -86,14 +90,15 @@ class VtableToolProvider(ToolProvider):
                 "analyze": "_handle_analyze",
                 "callers": "_handle_callers",
             },
-            program=self.program_info.program,
-            listing=self._get_listing(self.program_info.program),
-            memory=self._get_memory(self.program_info.program),
-            fm=self._get_function_manager(self.program_info.program),
+            program=program_info.program,
+            listing=self._get_listing(program_info.program, program_info=program_info),
+            memory=self._get_memory(program_info.program, program_info=program_info),
+            fm=self._get_function_manager(program_info.program, program_info=program_info),
             addr_str=self._get_address_or_symbol(args),
             max_entries=self._get_int(args, "maxentries", default=DEFAULT_MAX_ENTRIES),
             offset=self._get_pagination_params(args, default_limit=DEFAULT_PAGE_LIMIT)[0],
             max_results=self._get_pagination_params(args, default_limit=DEFAULT_PAGE_LIMIT)[1],
+            program_info=program_info,
         )
 
     async def _handle_containing(
@@ -125,12 +130,13 @@ class VtableToolProvider(ToolProvider):
         max_entries: int,
         offset: int,
         max_results: int,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/vtable.py:VtableToolProvider._handle_analyze")
         if not addr_str:
             raise ValueError("addressOrSymbol required for analyze mode")
 
-        addr = self._resolve_address(addr_str, program=program)
+        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
         assert addr is not None, "addr should be set after _resolve_address()"
 
         import jpype  # noqa: PLC0415
@@ -183,12 +189,13 @@ class VtableToolProvider(ToolProvider):
         max_entries: int,
         offset: int,
         max_results: int,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/vtable.py:VtableToolProvider._handle_callers")
         if not addr_str:
             raise ValueError("addressOrSymbol required for callers mode")
 
-        addr = self._resolve_address(addr_str, program=program)
+        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
 
         # Who references this vtable address? (code that loads or uses the vtable pointer)
         ref_mgr = program.getReferenceManager()

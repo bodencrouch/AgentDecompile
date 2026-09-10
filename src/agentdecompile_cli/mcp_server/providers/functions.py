@@ -18,6 +18,8 @@ import re
 from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
+    from types import SimpleNamespace
+
     from ghidra.program.model.address import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
         AddressSetView as GhidraAddressSetView,
     )
@@ -26,6 +28,8 @@ if TYPE_CHECKING:
         Listing as GhidraListing,
         Program as GhidraProgram,
     )
+
+    from agentdecompile_cli.launcher import ProgramInfo
 
 from mcp import types
 
@@ -103,7 +107,7 @@ class FunctionToolProvider(ToolProvider):
             ),
         ]
 
-    async def _handle_list(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_list(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """List functions in the current program, with optional filtering and pagination.
 
         Iterates through all functions in the active program, optionally filtering by regex
@@ -131,12 +135,12 @@ class FunctionToolProvider(ToolProvider):
         Paginated response with functions, count, total, hasMore
         """
         logger.debug("diag.enter %s", "mcp_server/providers/functions.py:FunctionToolProvider._handle_list")
-        self._require_program()
+        self._require_program(program_info=program_info)
         pattern = self._get_str(args, "namepattern", "pattern", "filter", "regex")
         include_ext = self._get_bool(args, "includeexternals", "externals", default=True)
         offset, max_results = self._get_pagination_params(args, default_limit=100)
 
-        program = self.program_info.program
+        program = program_info.program
         if program is None or not hasattr(program, "getFunctionManager"):
             raise ValueError("No program loaded")
 
@@ -152,8 +156,8 @@ class FunctionToolProvider(ToolProvider):
             raise ValueError("Function sizes cannot be negative")
         if min_size is not None and max_size is not None and min_size > max_size:
             raise ValueError("minSize cannot exceed maxSize")
-        lower = self._resolve_address(self._get_str(args, "addressmin"), program=program) if self._get_str(args, "addressmin") else None
-        upper = self._resolve_address(self._get_str(args, "addressmax"), program=program) if self._get_str(args, "addressmax") else None
+        lower = self._resolve_address(self._get_str(args, "addressmin"), program=program, program_info=program_info) if self._get_str(args, "addressmin") else None
+        upper = self._resolve_address(self._get_str(args, "addressmax"), program=program, program_info=program_info) if self._get_str(args, "addressmax") else None
         if lower is not None and upper is not None and lower.compareTo(upper) > 0:
             raise ValueError("addressMin cannot exceed addressMax")
 
@@ -210,10 +214,10 @@ class FunctionToolProvider(ToolProvider):
             return {}
         return data if isinstance(data, dict) else {}
 
-    async def _handle_get(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_get(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Get detailed views (info/decompile/disassemble/calls) for one or more functions. Batch via 'functions' array."""
         logger.debug("diag.enter %s", "mcp_server/providers/functions.py:FunctionToolProvider._handle_get")
-        self._require_program()
+        self._require_program(program_info=program_info)
 
         # Collect all function identifiers: 'functions' array, or single 'function' / 'addressOrSymbol' / etc.
         func_ids: list[str] = []
@@ -237,26 +241,26 @@ class FunctionToolProvider(ToolProvider):
         max_results: int = self._get_int(args, "limit", "maxresults", default=100)
         timeout: int = self._get_int(args, "timeout", "decompiletimeout", default=60)
 
-        program = self.program_info.program
+        program = program_info.program
         if program is None or not hasattr(program, "getFunctionManager"):
             raise ValueError("No program loaded")
 
         # If no function specified, list all
         if not func_ids:
-            return await self._handle_list(args)
+            return await self._handle_list(args, program_info=program_info)
 
         # Single function path (existing behavior)
         if len(func_ids) == 1:
             func_id = func_ids[0]
-            target_func = self._resolve_function(func_id, program=program)
+            target_func = self._resolve_function(func_id, program=program, program_info=program_info)
             if target_func is None:
                 raise ValueError(f"Function not found: {func_id}")
 
             if not view:
                 info_resp = await self._handle_info(args, target_func=target_func, program=program, max_results=max_results, timeout=timeout)
                 calls_resp = await self._handle_calls(args, target_func=target_func, program=program, max_results=max_results, timeout=timeout)
-                decompile_resp = await self._handle_decompile(args, target_func=target_func, program=program, max_results=max_results, timeout=timeout)
-                disassemble_resp = await self._handle_disassemble(args, target_func=target_func, program=program, max_results=max_results, timeout=timeout)
+                decompile_resp = await self._handle_decompile(args, target_func=target_func, program=program, max_results=max_results, timeout=timeout, program_info=program_info)
+                disassemble_resp = await self._handle_disassemble(args, target_func=target_func, program=program, max_results=max_results, timeout=timeout, program_info=program_info)
 
                 return create_success_response(
                     {
@@ -286,6 +290,7 @@ class FunctionToolProvider(ToolProvider):
                 program=program,
                 max_results=max_results,
                 timeout=timeout,
+                program_info=program_info,
             )
 
         # Batch path: multiple functions requested
@@ -293,15 +298,15 @@ class FunctionToolProvider(ToolProvider):
         errors: list[dict[str, str]] = []
         for func_id in func_ids:
             try:
-                target_func = self._resolve_function(func_id, program=program)
+                target_func = self._resolve_function(func_id, program=program, program_info=program_info)
                 if target_func is None:
                     errors.append({"identifier": func_id, "error": "Function not found"})
                     continue
                 if not view:
                     info_resp = await self._handle_info(args, target_func=target_func, program=program, max_results=max_results, timeout=timeout)
                     calls_resp = await self._handle_calls(args, target_func=target_func, program=program, max_results=max_results, timeout=timeout)
-                    decompile_resp = await self._handle_decompile(args, target_func=target_func, program=program, max_results=max_results, timeout=timeout)
-                    disassemble_resp = await self._handle_disassemble(args, target_func=target_func, program=program, max_results=max_results, timeout=timeout)
+                    decompile_resp = await self._handle_decompile(args, target_func=target_func, program=program, max_results=max_results, timeout=timeout, program_info=program_info)
+                    disassemble_resp = await self._handle_disassemble(args, target_func=target_func, program=program, max_results=max_results, timeout=timeout, program_info=program_info)
                     batch_results.append(
                         {
                             "identifier": func_id,
@@ -331,6 +336,7 @@ class FunctionToolProvider(ToolProvider):
                         program=program,
                         max_results=max_results,
                         timeout=timeout,
+                        program_info=program_info,
                     )
                     payload = self._response_to_payload(single_resp)
                     payload["identifier"] = func_id
@@ -383,7 +389,7 @@ class FunctionToolProvider(ToolProvider):
         }
         return create_success_response(result)
 
-    async def _handle_decompile(self, args: dict[str, Any], target_func: GhidraFunction, program: GhidraProgram, max_results: int, timeout: int) -> list[types.TextContent]:
+    async def _handle_decompile(self, args: dict[str, Any], target_func: GhidraFunction, program: GhidraProgram, max_results: int, timeout: int, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/functions.py:FunctionToolProvider._handle_decompile")
         result: dict[str, Any] = {
             "name": target_func.getName(),
@@ -392,17 +398,18 @@ class FunctionToolProvider(ToolProvider):
             "view": "decompile",
         }
         try:
+            from ghidra.util.task import ConsoleTaskMonitor  # pyright: ignore[reportMissingModuleSource]
+
             from agentdecompile_cli.mcp_utils.decompiler_util import (
                 acquire_decompiler_for_program,
                 get_decompiled_function_from_results,
                 merge_decompile_dict_keys,
                 open_decompiler_for_program,
             )
-            from ghidra.util.task import ConsoleTaskMonitor  # pyright: ignore[reportMissingModuleSource]
 
             monitor = ConsoleTaskMonitor()
 
-            session_decomp = getattr(self.program_info, "decompiler", None)
+            session_decomp = getattr(program_info, "decompiler", None)
             with acquire_decompiler_for_program(session_decomp, program) as lease:
                 decomp = lease.decompiler
                 dr = decomp.decompileFunction(target_func, timeout, monitor)
@@ -465,10 +472,10 @@ class FunctionToolProvider(ToolProvider):
 
         return create_success_response(merge_decompile_dict_keys(result))
 
-    async def _handle_disassemble(self, args: dict[str, Any], target_func: GhidraFunction, program: GhidraProgram, max_results: int, timeout: int) -> list[types.TextContent]:
+    async def _handle_disassemble(self, args: dict[str, Any], target_func: GhidraFunction, program: GhidraProgram, max_results: int, timeout: int, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/functions.py:FunctionToolProvider._handle_disassemble")
         instructions: list[dict[str, Any]] = []
-        listing: GhidraListing = self._get_listing(program)
+        listing: GhidraListing = self._get_listing(program, program_info=program_info)
         body: GhidraAddressSetView = target_func.getBody()
         if body:
             instr_iter = listing.getInstructions(body, True)

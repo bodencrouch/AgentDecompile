@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -22,7 +23,7 @@ async def test_import_binary_fails_without_open_project(tmp_path: Path, monkeypa
     provider = ImportExportToolProvider()
     provider._manager = cast(Any, SimpleNamespace(ghidra_project=None))
 
-    result = await provider._handle_import({"path": str(binary)})
+    result = await provider._handle_import({"path": str(binary)}, program_info=getattr(provider, "program_info", None))
     payload = json.loads(result[0].text)
 
     assert payload["success"] is False

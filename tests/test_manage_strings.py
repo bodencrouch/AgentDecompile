@@ -100,6 +100,7 @@ async def test_manage_strings_create_persists_in_program(ghidra_initialized, str
             n("addressOrSymbol"): AddressUtil.format_address(target),
             n("value"): "CreatedByTest",
         },
+        program_info=provider.program_info,
     )
     payload = json.loads(result[0].text)
     assert payload["success"] is True

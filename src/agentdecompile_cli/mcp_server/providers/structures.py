@@ -29,11 +29,15 @@ from agentdecompile_cli.mcp_server.tool_providers import (
 from agentdecompile_cli.registry import Tool
 
 if TYPE_CHECKING:
+    from types import SimpleNamespace
+
     from ghidra.program.model.data import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
         DataTypeManager as GhidraDataTypeManager,
         Structure as GhidraStructure,
     )
     from ghidra.util.data import DataTypeParser as GhidraDataTypeParser  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
+
+    from agentdecompile_cli.launcher import ProgramInfo
 
 logger = logging.getLogger(__name__)
 
@@ -41,15 +45,15 @@ logger = logging.getLogger(__name__)
 class StructureToolProvider(ToolProvider):
     HANDLERS = {"managestructures": "_handle"}
 
-    def _find_structure(self, dtm: GhidraDataTypeManager, name: str) -> GhidraStructure | None:
+    def _find_structure(self, dtm: GhidraDataTypeManager, name: str, *, program_info: ProgramInfo | SimpleNamespace | None) -> GhidraStructure | None:
         """Return a structure by exact name, or ``None`` when not found.
 
         **Performance**: O(n) where n = number of structures in the data type manager.
         For programs with many structures, this may be slow. Consider caching if needed.
         """
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._find_structure")
-        assert self.program_info is not None
-        for row in collect_structures(self.program_info.program):
+        assert program_info is not None
+        for row in collect_structures(program_info.program):
             struct = row.get("structure")
             if struct is not None and struct.getName() == name:
                 return struct
@@ -112,9 +116,9 @@ class StructureToolProvider(ToolProvider):
             ),
         ]
 
-    async def _handle(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._handle")
-        self._require_program()
+        self._require_program(program_info=program_info)
         action = self._get_str(args, "mode", "action", "operation", default="list")
 
         dispatch = {
@@ -131,13 +135,13 @@ class StructureToolProvider(ToolProvider):
             "apply": self._apply,
             "delete": self._delete,
         }
-        handler = self._dispatch_handler(dispatch, action, "action")
+        handler = self._dispatch_handler(dispatch, action, "action", program_info=program_info)
         return await handler(args)
 
-    async def _list(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _list(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._list")
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
         max_results = self._get_int(args, "maxresults", "limit", default=100)
         cat_path = self._get_str(args, "categorypath", "category")
         name_filter = self._get_str(args, "namefilter", "query", "filter", "search", "pattern").strip().lower()
@@ -161,14 +165,14 @@ class StructureToolProvider(ToolProvider):
             )
         return create_success_response({"action": "list", "structures": results, "count": len(results)})
 
-    async def _info(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _info(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._info")
         name = self._require_str(args, "name", "structurename", "structure", name="name")
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
-        dt = self._find_structure(dtm, name)
+        dt = self._find_structure(dtm, name, program_info=program_info)
         if dt is None:
             raise ValueError(f"Structure not found: {name}")
 
@@ -188,19 +192,19 @@ class StructureToolProvider(ToolProvider):
             },
         )
 
-    async def _create(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _create(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._create")
         name = self._require_str(args, "name", "structurename", name="name")
         size = self._get_int(args, "size", default=0)
         cat_path = self._get_str(args, "categorypath", "category", default="/")
         is_union = self._get_bool(args, "isunion", default=False)
 
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
         if not args.get(FORCE_APPLY_CONFLICT_ID_KEY):
-            existing = self._find_structure(dtm, name)
+            existing = self._find_structure(dtm, name, program_info=program_info)
             if existing is not None:
                 from agentdecompile_cli.mcp_server.conflict_store import store as conflict_store_store
                 from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
@@ -208,7 +212,7 @@ class StructureToolProvider(ToolProvider):
                 conflict_id = str(uuid.uuid4())
                 conflict_summary = f"Create structure would overwrite existing structure with the same name:\n\nStructure **{name}** already exists."
                 next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                program_path = args.get(n("programPath")) or getattr(self.program_info, "path", None) or getattr(self.program_info, "file_path", None)
+                program_path = args.get(n("programPath")) or getattr(program_info, "path", None) or getattr(program_info, "file_path", None)
                 store_args = dict(args)
                 store_args["mode"] = "create"
                 conflict_store_store(
@@ -238,14 +242,14 @@ class StructureToolProvider(ToolProvider):
 
         return create_success_response({"action": "create", "name": name, "size": size, "isUnion": is_union, "success": True})
 
-    async def _add_field(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _add_field(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._add_field")
         struct_name = self._require_str(args, "name", "structurename", "structure", name="name")
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
-        dt = self._find_structure(dtm, struct_name)
+        dt = self._find_structure(dtm, struct_name, program_info=program_info)
         if dt is None:
             raise ValueError(f"Structure not found: {struct_name}")
 
@@ -284,7 +288,7 @@ class StructureToolProvider(ToolProvider):
         self._run_program_transaction(program, "add-field", _add_field)
         return create_success_response({"action": "add_field", "structure": struct_name, "field": field_name, "type": field_type, "success": True})
 
-    async def _modify_field(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _modify_field(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._modify_field")
         struct_name = self._require_str(args, "name", "structurename", name="name")
         field_offset = self._get_int(args, "fieldoffset", "offset")
@@ -292,11 +296,11 @@ class StructureToolProvider(ToolProvider):
         field_type = self._get_str(args, "fieldtype", "type")
         field_comment = self._get_str(args, "fieldcomment", "comment")
 
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
-        dt = self._find_structure(dtm, struct_name)
+        dt = self._find_structure(dtm, struct_name, program_info=program_info)
         if dt is None:
             raise ValueError(f"Structure not found: {struct_name}")
 
@@ -318,11 +322,11 @@ class StructureToolProvider(ToolProvider):
         self._run_program_transaction(program, "modify-field", _modify_field)
         return create_success_response({"action": "modify_field", "structure": struct_name, "offset": field_offset, "success": True})
 
-    async def _modify_from_c(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _modify_from_c(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._modify_from_c")
         c_def = self._require_str(args, "cdefinition", "headercontent", "definition", "code", "c", name="cDefinition")
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
         try:
@@ -346,19 +350,19 @@ class StructureToolProvider(ToolProvider):
         except ImportError:
             raise ValueError("CParser not available in this environment")
 
-    async def _parse(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _parse(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._parse")
-        return await self._modify_from_c(args)
+        return await self._modify_from_c(args, program_info=program_info)
 
-    async def _parse_header(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _parse_header(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._parse_header")
-        return await self._modify_from_c(args)
+        return await self._modify_from_c(args, program_info=program_info)
 
-    async def _validate(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _validate(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._validate")
         c_def = self._require_str(args, "cdefinition", "headercontent", "definition", "code", name="cDefinition")
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
         try:
@@ -370,15 +374,15 @@ class StructureToolProvider(ToolProvider):
         except Exception as e:
             return create_success_response({"action": "validate", "valid": False, "error": str(e)})
 
-    async def _apply(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _apply(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._apply")
         struct_name = self._require_str(args, "name", "structurename", "structure", name="name")
         addr_str = self._require_str(args, "addressorsymbol", "address", "addr", name="addressOrSymbol")
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
-        dt = self._find_structure(dtm, struct_name)
+        dt = self._find_structure(dtm, struct_name, program_info=program_info)
         if dt is None:
             raise ValueError(f"Structure not found: {struct_name}")
 
@@ -388,10 +392,10 @@ class StructureToolProvider(ToolProvider):
             results = []
 
             def _batch_apply_struct() -> None:
-                listing = self._get_listing(program)
+                listing = self._get_listing(program, program_info=program_info)
                 for a in addr_list:
                     try:
-                        addr = self._resolve_address(str(a), program=program)
+                        addr = self._resolve_address(str(a), program=program, program_info=program_info)
                         listing.clearCodeUnits(addr, addr.add(dt.getLength() - 1), False)
                         listing.createData(addr, dt)
                         results.append({"address": str(addr), "success": True})
@@ -401,8 +405,8 @@ class StructureToolProvider(ToolProvider):
             self._run_program_transaction(program, "batch-apply-struct", _batch_apply_struct)
             return create_success_response({"action": "apply", "batch": True, "results": results})
 
-        addr = self._resolve_address(addr_str, program=program)
-        listing = self._get_listing(program)
+        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
+        listing = self._get_listing(program, program_info=program_info)
 
         if not args.get(FORCE_APPLY_CONFLICT_ID_KEY):
             existing_data = listing.getDataAt(addr)
@@ -415,7 +419,7 @@ class StructureToolProvider(ToolProvider):
                     conflict_id = str(uuid.uuid4())
                     conflict_summary = f"Apply structure would overwrite existing data at address:\n\n```diff\n- (existing) {existing_type}\n+ {struct_name}\n```"
                     next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                    program_path = args.get(n("programPath")) or getattr(self.program_info, "path", None) or getattr(self.program_info, "file_path", None)
+                    program_path = args.get(n("programPath")) or getattr(program_info, "path", None) or getattr(program_info, "file_path", None)
                     store_args = dict(args)
                     store_args["mode"] = "apply"
                     conflict_store_store(
@@ -435,14 +439,14 @@ class StructureToolProvider(ToolProvider):
         self._run_program_transaction(program, "apply-struct", _apply_struct)
         return create_success_response({"action": "apply", "structure": struct_name, "address": str(addr), "success": True})
 
-    async def _delete(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _delete(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._delete")
         name = self._require_str(args, "name", "structurename", name="name")
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
-        dt = self._find_structure(dtm, name)
+        dt = self._find_structure(dtm, name, program_info=program_info)
         if dt is None:
             raise ValueError(f"Structure not found: {name}")
 

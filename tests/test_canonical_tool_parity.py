@@ -5,11 +5,11 @@ import json
 from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
+import agentdecompile_cli.mcp_server.program_metadata as program_metadata_module
 import agentdecompile_cli.mcp_server.providers.dissect as dissect_module
 import pytest
 
 from agentdecompile_cli.bridge import AgentDecompileMcpClient, ClientError
-from agentdecompile_cli.registry import DISABLED_GUI_ONLY_TOOLS, Tool, _build_advertised_tools, get_active_tool_surface_profile, get_advertised_tools_for_list, resolve_tool_name
 from agentdecompile_cli.mcp_server.providers.dataflow import DataFlowToolProvider
 from agentdecompile_cli.mcp_server.providers.decompiler import DecompilerToolProvider
 from agentdecompile_cli.mcp_server.providers.dissect import GetFunctionAioToolProvider
@@ -17,14 +17,15 @@ from agentdecompile_cli.mcp_server.providers.script import ScriptToolProvider
 from agentdecompile_cli.mcp_server.providers.search_everything import SearchEverythingToolProvider
 from agentdecompile_cli.mcp_server.response_formatter import _render_execute_script, _render_get_function
 from agentdecompile_cli.mcp_server.tool_providers import ToolProvider, ToolProviderManager, create_success_response
+from agentdecompile_cli.registry import DISABLED_GUI_ONLY_TOOLS, Tool, _build_advertised_tools, get_active_tool_surface_profile, get_advertised_tools_for_list, resolve_tool_name
 from mcp import types
 
 if TYPE_CHECKING:
+    from agentdecompile_cli.launcher import ProgramInfo  # pyright: ignore[reportMissingImports]
     from ghidra.program.model.listing import (  # pyright: ignore[reportMissingTypeStubs, reportMissingImports, reportMissingModuleSource]  # noqa: F401, E408
         Function as GhidraFunction,
         Program as GhidraProgram,
     )
-    from agentdecompile_cli.launcher import ProgramInfo  # pyright: ignore[reportMissingImports]
 
 
 class DummyResponseFormatProvider(ToolProvider):
@@ -95,8 +96,7 @@ class DummyRequestedProgramProvider(ToolProvider):
             )
         ]
 
-    async def _handle(self, args: dict[str, object]) -> list[types.TextContent]:
-        program_info = self.program_info
+    async def _handle(self, _arguments: dict[str, object], *, program_info=None) -> list[types.TextContent]:
         return create_success_response(
             {
                 "success": True,
@@ -104,6 +104,70 @@ class DummyRequestedProgramProvider(ToolProvider):
                 "programName": str(getattr(program_info, "name", "")),
             }
         )
+
+
+@pytest.mark.asyncio
+async def test_direct_provider_call_uses_lifecycle_fallback_and_preserves_explicit_none(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    domain_file = SimpleNamespace(
+        getPathname=lambda: "/prog/lifecycle.exe",
+        getSharedProjectURL=lambda _ref: None,
+        getProjectLocator=lambda: None,
+    )
+    lifecycle_info = SimpleNamespace(
+        program=SimpleNamespace(getDomainFile=lambda: domain_file),
+        file_path="/prog/lifecycle.exe",
+    )
+    provider = DummyResponseFormatProvider(program_info=lifecycle_info)
+    monkeypatch.setattr(
+        program_metadata_module,
+        "collect_project_context",
+        lambda _session_id: {"activeProgram": "/prog/session.exe"},
+    )
+
+    lifecycle_result = await provider.call_tool(
+        "dummy-response-format",
+        {"responseFormat": "json"},
+    )
+    none_result = await provider.call_tool(
+        "dummy-response-format",
+        {"responseFormat": "json"},
+        program_info=None,
+    )
+
+    lifecycle_context = json.loads(lifecycle_result[0].text)["projectContext"]
+    assert lifecycle_context["scope"] == "target-program"
+    assert lifecycle_context["activeProgram"] == "/prog/lifecycle.exe"
+    assert "projectContext" not in json.loads(none_result[0].text)
+
+
+@pytest.mark.asyncio
+async def test_manager_override_without_program_path_binds_response_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = ToolProviderManager()
+    manager._register(DummyResponseFormatProvider())
+    override_info = SimpleNamespace(
+        program=None,
+        path="/prog/override.exe",
+        name="override.exe",
+    )
+    monkeypatch.setattr(
+        program_metadata_module,
+        "collect_project_context",
+        lambda _session_id: {"activeProgram": "/prog/session.exe"},
+    )
+
+    result = await manager.call_tool(
+        "dummy-response-format",
+        {"responseFormat": "json"},
+        program_info=override_info,
+    )
+
+    context = json.loads(result[0].text)["projectContext"]
+    assert context["scope"] == "target-program"
+    assert context["activeProgram"] == "/prog/override.exe"
 
 
 class FakeProgram:
@@ -194,10 +258,10 @@ async def test_analyze_data_flow_falls_back_to_resolved_function_entry(monkeypat
     func: FakeFunction = FakeFunction(entry=entry)
     provider: DataFlowToolProvider = DataFlowToolProvider(program_info=SimpleNamespace(program=object(), decompiler=None))  # pyright: ignore[reportArgumentType]
 
-    monkeypatch.setattr(provider, "_require_program", lambda: None)
-    monkeypatch.setattr(provider, "_get_function_manager", lambda program: FakeFunctionManager(entry, func))
-    monkeypatch.setattr(provider, "_resolve_address", lambda value, program=None: None)
-    monkeypatch.setattr(provider, "_resolve_function", lambda value, program=None: func)
+    monkeypatch.setattr(provider, "_require_program", lambda **kwargs: None)
+    monkeypatch.setattr(provider, "_get_function_manager", lambda program, **kwargs: FakeFunctionManager(entry, func))
+    monkeypatch.setattr(provider, "_resolve_address", lambda value, program=None, **kwargs: None)
+    monkeypatch.setattr(provider, "_resolve_function", lambda value, program=None, **kwargs: func)
 
     captured: dict[str, object] = {}
 
@@ -207,7 +271,7 @@ async def test_analyze_data_flow_falls_back_to_resolved_function_entry(monkeypat
 
     monkeypatch.setattr(provider, "_dispatch_handler", fake_dispatch_handler)
 
-    result: list[str] | Any = await provider._handle({"addressorsymbol": "entry", "direction": "backward"})
+    result: list[str] | Any = await provider._handle({"addressorsymbol": "entry", "direction": "backward"}, program_info=provider.program_info)
 
     assert result == ["ok"], "Expected to get result from fake_dispatch_handler"
     assert captured["addr"] == entry, "Expected to fall back to function entry address"
@@ -219,7 +283,7 @@ def test_get_function_data_flow_uses_entry_when_seed_address_cannot_resolve(monk
     func: GhidraFunction = cast("GhidraFunction", FakeFunction(entry=entry))
     provider: GetFunctionAioToolProvider = GetFunctionAioToolProvider(program_info=SimpleNamespace(program=None, decompiler=None)) # pyright: ignore[reportArgumentType]
 
-    monkeypatch.setattr(provider, "_resolve_address", lambda value, program=None: None)
+    monkeypatch.setattr(provider, "_resolve_address", lambda value, program=None, **kwargs: None)
     monkeypatch.setattr(provider, "_collect_metadata", lambda current_func: {"size": 1, "returnType": "undefined", "callingConvention": "unknown"})
     monkeypatch.setattr(provider, "_collect_callers", lambda current_func, limit: [])
     monkeypatch.setattr(provider, "_collect_callees", lambda current_func, limit: [])
@@ -261,6 +325,7 @@ def test_get_function_data_flow_uses_entry_when_seed_address_cannot_resolve(monk
         data_flow_max_ops=25,
         data_flow_max_depth=4,
         include_code=False,
+        program_info=provider.program_info,
     )
 
     assert captured["seed_address"] == entry, "Expected to fall back to function entry address"
@@ -412,12 +477,12 @@ async def test_decompile_function_supports_batch_and_rich_flags(monkeypatch: pyt
     }
     provider = DecompilerToolProvider(program_info=SimpleNamespace(program=program, decompiler=None))  # pyright: ignore[reportArgumentType]
 
-    monkeypatch.setattr(provider, "_require_program", lambda: None)
-    monkeypatch.setattr(provider, "_resolve_function", lambda identifier, program=None: functions.get(identifier))
+    monkeypatch.setattr(provider, "_require_program", lambda **kwargs: None)
+    monkeypatch.setattr(provider, "_resolve_function", lambda identifier, program=None, **kwargs: functions.get(identifier))
     monkeypatch.setattr(
         provider,
         "_decompile_with_ghidra_api",
-        lambda func, current_program, timeout: create_success_response(
+        lambda func, current_program, timeout, **kwargs: create_success_response(
             {
                 "function": func.getName(),
                 "name": func.getName(),
@@ -465,7 +530,7 @@ def test_get_function_decompile_uses_decompile_function_provider(monkeypatch: py
 
     monkeypatch.setattr(DecompilerToolProvider, "decompile_function_payload", fake_decompile_payload)
 
-    assert provider._decompile(func, program, 17) == "void entry(void) {}"
+    assert provider._decompile(func, program, 17, program_info=provider.program_info) == "void entry(void) {}"
     assert captured == {"function": func, "program": program, "timeout": 17}
 
 
@@ -481,7 +546,7 @@ async def test_execute_script_reports_executed_program_in_json() -> None:
         )
     )
 
-    result = await provider._handle_execute({"code": "__result__ = currentProgram.getName()", "programPath": "/prog/sample_target_b.exe"})
+    result = await provider._handle_execute({"code": "__result__ = currentProgram.getName()", "programPath": "/prog/sample_target_b.exe"}, program_info=getattr(provider, "program_info", None))
 
     assert len(result) == 1
     assert '"executedProgram": {"path": "/prog/sample_target_b.exe", "name": "sample_target_b.exe"}' in result[0].text
@@ -502,7 +567,7 @@ async def test_execute_script_ignores_gpr_path_argument_for_program_resolution()
 
     result = await provider._handle_execute(
         {"code": "__result__ = currentProgram.getName()", "path": r"C:\Users\boden\my_project.gpr"}
-    )
+    , program_info=getattr(provider, "program_info", None))
 
     assert len(result) == 1
     assert '"executedProgram": {"path": "/prog/sample_target_b.exe", "name": "sample_target_b.exe"}' in result[0].text

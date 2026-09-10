@@ -28,6 +28,8 @@ from agentdecompile_cli.mcp_utils.decompiler_util import (
 from agentdecompile_cli.registry import Tool
 
 if TYPE_CHECKING:
+    from types import SimpleNamespace
+
     from ghidra.app.decompiler import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
         DecompInterface as GhidraDecompInterface,
         DecompileResults as GhidraDecompileResults,
@@ -91,12 +93,12 @@ class DecompilerToolProvider(ToolProvider):
             ),
         ]
 
-    async def _handle(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/decompiler.py:DecompilerToolProvider._handle")
-        self._require_program()
+        self._require_program(program_info=program_info)
         timeout: int = self._get_int(args, "timeout", default=DEFAULT_TIMEOUT_SECONDS)  # pyright: ignore[reportAssignmentType]
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
         targets = self._get_targets(args)
         if not targets:
             raise ValueError("function, addressOrSymbol, functionIdentifier, nameOrAddress, or functions required")
@@ -108,7 +110,7 @@ class DecompilerToolProvider(ToolProvider):
         results: list[dict[str, Any]] = []
         for target in targets:
             try:
-                target_func = self._resolve_function(target, program=program)
+                target_func = self._resolve_function(target, program=program, program_info=program_info)
                 if target_func is None:
                     raise ValueError(f"Function not found: {target}")
                 results.append(
@@ -120,6 +122,7 @@ class DecompilerToolProvider(ToolProvider):
                         include_strings=include_strings,
                         include_xrefs=include_xrefs,
                         show_unreachable=self._get_bool(args, "showunreachable") if "showunreachable" in args else None,
+                        program_info=program_info,
                     )
                 )
             except Exception as exc:
@@ -164,9 +167,10 @@ class DecompilerToolProvider(ToolProvider):
         include_strings: bool = False,
         include_xrefs: bool = False,
         show_unreachable: bool | None = None,
+        program_info: ProgramInfo | SimpleNamespace | None,
     ) -> dict[str, Any]:
         logger.debug("diag.enter %s", "mcp_server/providers/decompiler.py:DecompilerToolProvider.decompile_function_payload")
-        response = self._decompile_with_ghidra_api(target_func, program, timeout, show_unreachable=show_unreachable)
+        response = self._decompile_with_ghidra_api(target_func, program, timeout, show_unreachable=show_unreachable, program_info=program_info)
         payload: dict[str, Any] = {}
         if response:
             try:
@@ -251,6 +255,7 @@ class DecompilerToolProvider(ToolProvider):
         timeout: int,
         *,
         show_unreachable: bool | None = None,
+        program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         """Decompile a function using Ghidra's DecompInterface."""
         logger.debug("diag.enter %s", "mcp_server/providers/decompiler.py:DecompilerToolProvider._decompile_with_ghidra_api")
@@ -258,7 +263,7 @@ class DecompilerToolProvider(ToolProvider):
             from ghidra.util.task import ConsoleTaskMonitor  # pyright: ignore[reportMissingModuleSource]
 
             monitor = ConsoleTaskMonitor()
-            session_decomp = getattr(self.program_info, "decompiler", None) if show_unreachable is None else None
+            session_decomp = getattr(program_info, "decompiler", None) if show_unreachable is None else None
 
             with self._setup_decompiler(session_decomp, program) as lease:
                 if show_unreachable is not None:

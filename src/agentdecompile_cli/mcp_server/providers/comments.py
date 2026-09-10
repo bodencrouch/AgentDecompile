@@ -14,12 +14,16 @@ import uuid
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from types import SimpleNamespace
+
     from ghidra.program.model.address import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
         Address as GhidraAddress,
     )
     from ghidra.program.model.listing import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
         Listing as GhidraListing,
     )
+
+    from agentdecompile_cli.launcher import ProgramInfo
 
 from mcp import types
 
@@ -117,9 +121,9 @@ class CommentToolProvider(ToolProvider):
         logger.debug("diag.enter %s", "mcp_server/providers/comments.py:CommentToolProvider._resolve_comment_type")
         return _COMMENT_TYPES.get(n(type_str), 0)
 
-    async def _handle(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/comments.py:CommentToolProvider._handle")
-        self._require_program()
+        self._require_program(program_info=program_info)
         mode = self._get_str(args, "mode", "action", "operation", default="get")
 
         return await self._dispatch_handler(
@@ -136,13 +140,14 @@ class CommentToolProvider(ToolProvider):
                 "search_decomp": "_handle_search_decomp",
                 "searchdecomp": "_handle_search_decomp",  # alias
             },
+            program_info=program_info,
         )
 
-    async def _handle_set(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_set(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/comments.py:CommentToolProvider._handle_set")
-        assert self.program_info is not None, "Program info is required to set comments"
-        program = self.program_info.program
-        listing = self._get_listing(program)
+        assert program_info is not None, "Program info is required to set comments"
+        program = program_info.program
+        listing = self._get_listing(program, program_info=program_info)
 
         # Batch support
         batch = self._get_list(args, "comments")
@@ -156,7 +161,7 @@ class CommentToolProvider(ToolProvider):
                     text = self._get_str(ni, "comment", "text")
                     ctype = self._get_str(ni, "type", "commenttype", default="eol")
                     try:
-                        addr = self._resolve_address(addr_str, program=program)
+                        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
                         listing.setComment(addr, self._resolve_comment_type(ctype), text)
                         results.append({"address": addr_str, "success": True})
                     except Exception as e:
@@ -170,7 +175,7 @@ class CommentToolProvider(ToolProvider):
         text = self._require_str(args, "comment", "text", name="comment")
         ctype = self._get_str(args, "type", "commenttype", default="eol")
 
-        addr = self._resolve_address(addr_str, program=program)
+        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
         comment_type_code = self._resolve_comment_type(ctype)
 
         if not args.get(FORCE_APPLY_CONFLICT_ID_KEY):
@@ -182,7 +187,7 @@ class CommentToolProvider(ToolProvider):
                 conflict_id = str(uuid.uuid4())
                 conflict_summary = f"Set comment would overwrite existing comment at (address, type):\n\n```diff\n- {existing}\n+ {text}\n```"
                 next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                program_path = args.get(n("programPath")) or getattr(self.program_info, "path", None) or getattr(self.program_info, "file_path", None)
+                program_path = args.get(n("programPath")) or getattr(program_info, "path", None) or getattr(program_info, "file_path", None)
                 conflict_store_store(
                     get_current_mcp_session_id(),
                     conflict_id,
@@ -199,13 +204,13 @@ class CommentToolProvider(ToolProvider):
         self._run_program_transaction(program, "set-comment", _set_comment)
         return create_success_response({"action": "set", "address": str(addr), "type": ctype, "comment": text, "success": True})
 
-    async def _handle_get(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_get(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/comments.py:CommentToolProvider._handle_get")
-        assert self.program_info is not None, "Program info is required to get comments"
-        program = self.program_info.program
-        listing = self._get_listing(program)
+        assert program_info is not None, "Program info is required to get comments"
+        program = program_info.program
+        listing = self._get_listing(program, program_info=program_info)
         addr_str = self._require_str(args, "addressorsymbol", "address", "addr", "symbol", "function", name="addressOrSymbol")
-        addr = self._resolve_address(addr_str, program=program)
+        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
         comments = {}
         for name, code in _COMMENT_TYPES.items():
             c = _get_listing_comment(listing, code, addr)
@@ -213,15 +218,15 @@ class CommentToolProvider(ToolProvider):
                 comments[name] = c
         return create_success_response({"action": "get", "address": str(addr), "comments": comments})
 
-    async def _handle_remove(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_remove(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/comments.py:CommentToolProvider._handle_remove")
-        assert self.program_info is not None, "Program info is required to remove comments"
-        program = self.program_info.program
-        listing = self._get_listing(program)
+        assert program_info is not None, "Program info is required to remove comments"
+        program = program_info.program
+        listing = self._get_listing(program, program_info=program_info)
         addr_str = self._require_str(args, "addressorsymbol", "address", "addr", "symbol", "function", name="addressOrSymbol")
         ctype = self._get_str(args, "type", "commenttype", default="eol")
 
-        addr = self._resolve_address(addr_str, program=program)
+        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
 
         def _remove_comment() -> None:
             listing.setComment(addr, self._resolve_comment_type(ctype), None)
@@ -229,7 +234,7 @@ class CommentToolProvider(ToolProvider):
         self._run_program_transaction(program, "remove-comment", _remove_comment)
         return create_success_response({"action": "remove", "address": str(addr), "type": ctype, "success": True})
 
-    async def _handle_search(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_search(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Search for comments in the program by text content.
 
         Iterates through all code units in the program, checking all comment types
@@ -256,8 +261,8 @@ class CommentToolProvider(ToolProvider):
         Paginated response with matching comments
         """
         logger.debug("diag.enter %s", "mcp_server/providers/comments.py:CommentToolProvider._handle_search")
-        assert self.program_info is not None, "Program info is required to search comments"
-        program = self.program_info.program
+        assert program_info is not None, "Program info is required to search comments"
+        program = program_info.program
         query = self._get_str(args, "searchtext", "query", "search", "text", "pattern")
         offset, max_results = self._get_pagination_params(args, default_limit=100)
         query_lower = query.lower() if query else ""
@@ -275,11 +280,11 @@ class CommentToolProvider(ToolProvider):
         paginated, has_more = self._paginate_results(all_results, offset, max_results)
         return self._create_paginated_response(paginated, offset, max_results, total=len(all_results), mode="search", query=query)
 
-    async def _handle_search_decomp(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_search_decomp(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Search comments in decompiled output."""
         logger.debug("diag.enter %s", "mcp_server/providers/comments.py:CommentToolProvider._handle_search_decomp")
-        assert self.program_info is not None, "Program info is required for decomp search"
-        program = self.program_info.program
+        assert program_info is not None, "Program info is required for decomp search"
+        program = program_info.program
         query = self._get_str(args, "searchtext", "query", "search", "text", "pattern")
         max_results = self._get_int(args, "maxresults", "limit", "maxcount", default=50)
 
@@ -291,7 +296,7 @@ class CommentToolProvider(ToolProvider):
 
             decomp = DecompInterface()
             decomp.openProgram(program)
-            fm = self._get_function_manager(program)
+            fm = self._get_function_manager(program, program_info=program_info)
             from ghidra.util.task import ConsoleTaskMonitor  # pyright: ignore[reportMissingModuleSource]
 
             monitor = ConsoleTaskMonitor()

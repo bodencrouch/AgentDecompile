@@ -78,6 +78,7 @@ async def test_manage_data_types_create_typedef_persists(ghidra_initialized, dat
             n("name"): "AgentTestUInt",
             n("categoryPath"): "/",
         },
+        program_info=provider.program_info,
     )
     payload = json.loads(result[0].text)
     assert payload["success"] is True
@@ -95,6 +96,7 @@ async def test_manage_data_types_create_typedef_persists(ghidra_initialized, dat
             n("categoryPath"): "/",
             n("newName"): "AgentTestUIntRenamed",
         },
+        program_info=provider.program_info,
     )
     update_payload = json.loads(update_result[0].text)
     assert update_payload["success"] is True
@@ -105,6 +107,7 @@ async def test_manage_data_types_create_typedef_persists(ghidra_initialized, dat
 
     delete_result = await provider._delete(
         {n("mode"): "delete", n("name"): "AgentTestUIntRenamed", n("categoryPath"): "/"},
+        program_info=provider.program_info,
     )
     delete_payload = json.loads(delete_result[0].text)
     assert delete_payload["success"] is True

@@ -83,7 +83,7 @@ async def test_rename_variable_persists_in_decompiled_output(
         file_path="VarRenameIntegrationProgram",
     )
 
-    hfunc = provider._decompile_high_function(program, func)
+    hfunc = provider._decompile_high_function(program, func, program_info=provider.program_info)
     original_name = _first_default_local_name(hfunc)
     new_name = "slotIndex"
 
@@ -95,6 +95,7 @@ async def test_rename_variable_persists_in_decompiled_output(
             "newName": new_name,
             "format": "json",
         },
+        program_info=provider.program_info,
     )
     assert len(result) == 1
     payload = json.loads(result[0].text)

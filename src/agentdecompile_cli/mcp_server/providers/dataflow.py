@@ -13,6 +13,8 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from types import SimpleNamespace
+
     from ghidra.program.model.address import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
         Address as GhidraAddress,
     )
@@ -21,13 +23,15 @@ if TYPE_CHECKING:
         Program as GhidraProgram,
     )
 
+    from agentdecompile_cli.launcher import ProgramInfo
+
 from mcp import types
 
+from agentdecompile_cli.mcp_server.providers._collectors import collect_function_data_flow
 from agentdecompile_cli.mcp_server.tool_providers import (
     ToolProvider,
     create_success_response,
 )
-from agentdecompile_cli.mcp_server.providers._collectors import collect_function_data_flow
 from agentdecompile_cli.registry import Tool
 
 logger = logging.getLogger(__name__)
@@ -108,9 +112,9 @@ class DataFlowToolProvider(ToolProvider):
             ),
         ]
 
-    async def _handle(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/dataflow.py:DataFlowToolProvider._handle")
-        self._require_program()
+        self._require_program(program_info=program_info)
         addr_str = self._get_address_or_symbol(args)
         if not addr_str:
             raise ValueError("addressOrSymbol or functionIdentifier required")
@@ -120,17 +124,17 @@ class DataFlowToolProvider(ToolProvider):
         max_depth = self._get_int(args, "maxdepth", default=10)
         timeout_s = self._get_int(args, "timeout", default=30)
 
-        assert self.program_info is not None, "program_info should be set by _require_program()"
-        program = self.program_info.program
+        assert program_info is not None, "program_info should be set by _require_program()"
+        program = program_info.program
         assert program is not None, "program should be loaded after _require_program()"
-        fm = self._get_function_manager(program)
+        fm = self._get_function_manager(program, program_info=program_info)
         assert fm is not None, "function manager should be available for loaded program"
-        addr = self._resolve_address(addr_str, program=program)
+        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
         func = None
         if addr is not None:
             func = fm.getFunctionContaining(addr)
         if func is None:
-            func = self._resolve_function(addr_str, program=program)
+            func = self._resolve_function(addr_str, program=program, program_info=program_info)
             if func is not None:
                 addr = func.getEntryPoint()
         assert addr is not None, "addr should be set after resolving address or function"
@@ -153,21 +157,22 @@ class DataFlowToolProvider(ToolProvider):
             max_ops=max_ops,
             max_depth=max_depth,
             timeout_s=timeout_s,
+            program_info=program_info,
         )
 
-    async def _handle_backward(self, args: dict[str, Any], program: GhidraProgram, addr: GhidraAddress, func: GhidraFunction, max_ops: int, max_depth: int, timeout_s: int) -> list[types.TextContent]:
+    async def _handle_backward(self, args: dict[str, Any], program: GhidraProgram, addr: GhidraAddress, func: GhidraFunction, max_ops: int, max_depth: int, timeout_s: int, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/dataflow.py:DataFlowToolProvider._handle_backward")
-        return await self._analyze_data_flow("backward", program, addr, func, max_ops, max_depth, timeout_s)
+        return await self._analyze_data_flow("backward", program, addr, func, max_ops, max_depth, timeout_s, program_info=program_info)
 
-    async def _handle_forward(self, args: dict[str, Any], program: GhidraProgram, addr: GhidraAddress, func: GhidraFunction, max_ops: int, max_depth: int, timeout_s: int) -> list[types.TextContent]:
+    async def _handle_forward(self, args: dict[str, Any], program: GhidraProgram, addr: GhidraAddress, func: GhidraFunction, max_ops: int, max_depth: int, timeout_s: int, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/dataflow.py:DataFlowToolProvider._handle_forward")
-        return await self._analyze_data_flow("forward", program, addr, func, max_ops, max_depth, timeout_s)
+        return await self._analyze_data_flow("forward", program, addr, func, max_ops, max_depth, timeout_s, program_info=program_info)
 
-    async def _handle_variable_accesses(self, args: dict[str, Any], program: GhidraProgram, addr: GhidraAddress, func: GhidraFunction, max_ops: int, max_depth: int, timeout_s: int) -> list[types.TextContent]:
+    async def _handle_variable_accesses(self, args: dict[str, Any], program: GhidraProgram, addr: GhidraAddress, func: GhidraFunction, max_ops: int, max_depth: int, timeout_s: int, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/dataflow.py:DataFlowToolProvider._handle_variable_accesses")
-        return await self._analyze_data_flow("variable_accesses", program, addr, func, max_ops, max_depth, timeout_s)
+        return await self._analyze_data_flow("variable_accesses", program, addr, func, max_ops, max_depth, timeout_s, program_info=program_info)
 
-    async def _analyze_data_flow(self, direction: str, program: GhidraProgram, addr: GhidraAddress, func: GhidraFunction, max_ops: int, max_depth: int, timeout_s: int) -> list[types.TextContent]:
+    async def _analyze_data_flow(self, direction: str, program: GhidraProgram, addr: GhidraAddress, func: GhidraFunction, max_ops: int, max_depth: int, timeout_s: int, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/dataflow.py:DataFlowToolProvider._analyze_data_flow")
         try:
             payload = collect_function_data_flow(
@@ -178,7 +183,7 @@ class DataFlowToolProvider(ToolProvider):
                 max_ops=max_ops,
                 max_depth=max_depth,
                 timeout_s=timeout_s,
-                session_decompiler=getattr(self.program_info, "decompiler", None) if self.program_info is not None else None,
+                session_decompiler=getattr(program_info, "decompiler", None) if program_info is not None else None,
             )
             return create_success_response(payload)
         except Exception as e:

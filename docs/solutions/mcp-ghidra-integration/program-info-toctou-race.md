@@ -9,7 +9,7 @@ symptoms:
   - not yet observed in production; found via targeted concurrency investigation
   - would manifest as a tool call silently resolving against the wrong program under concurrent same-session requests
 root_cause: shared_mutable_state
-resolution_type: documented_risk
+resolution_type: code_fix
 severity: high
 tags:
   - concurrency
@@ -22,14 +22,15 @@ tags:
 
 ## Problem
 
-`ToolProviderManager.call_tool` (`tool_providers.py:2527`) resolves `effective_program_info`
-correctly as a **local variable** per call, but then mutates a **shared field on a
+Before the 2026-09-10 refactor, `ToolProviderManager.call_tool` resolved `effective_program_info`
+correctly as a **local variable** per call, but then mutated a **shared field on a
 long-lived provider singleton** (`provider.set_program_info(effective_program_info)`,
 `tool_providers.py:2748`), awaits `wait_for_program_analysis_ready`
 (`tool_providers.py:2762-2768`), and only then dispatches
 (`provider.call_tool(...)`, `tool_providers.py:2780`) — whose internal handlers read
 `self.program_info.program`, the shared field, not the local variable.
 
+The line references in this diagnosis describe the original 2026-09-08 tree.
 If a second request targeting a **different program** on the **same provider**
 interleaves during that `await`, it silently redirects the first request's
 dispatch to the wrong program. No exception, no log line — the tool call just
@@ -76,36 +77,45 @@ was scoped and then ruled out by two independent, verified findings:
 Both are structural (base-class and manager-wide), not confined to one
 provider that could be carved out of the fix.
 
-## What an actual fix requires
+## Implemented fix (2026-09-10)
 
-Threading `program_info` as an explicit call-scoped parameter through provider
-dispatch, so handlers read a passed-in value instead of shared mutable state —
-eliminating the TOCTOU at its root. This touches every one of the ~31 provider
-classes and their handler methods (the pattern at
-`tool_providers.py:1355,1408,1491,1510,1524,1538,1552` and equivalents across
-every `providers/*.py` file). It is a real architectural refactor, not a
-contained patch, and has not been designed here.
+The manager passes its resolved `effective_program_info` explicitly to provider
+dispatch after the analysis wait. Per-call dispatch no longer calls
+`provider.set_program_info`. Handlers, nested modes, native callbacks,
+prerequisite retries, conflict replay, persistence, and cleanup carry the same
+context through explicit arguments. Wrappers and graph renderers are built for
+the supplied context. Activation and shared checkout return their newly opened
+context so callers can retain it across lifecycle changes.
 
-A narrower alternative exists but does not solve the problem that motivated
-this investigation: a manager-wide, reentrancy-safe lock (tracking the owning
-asyncio task to permit the same task to re-enter, since `asyncio` has no
-built-in `RLock`) covering both the fan-out write and the dispatch sequence
-would close the race, but it reintroduces full serialization at the server
-layer — the same shape as today's `CONTEXT_LOCK`, just relocated. It would be
-a genuine correctness improvement in its own right (the race is real today
-even without any donated-compute work, exploitable by ordinary concurrent
-dashboard usage), but it delivers no concurrency gain, so it does not unlock
-anything `CONTEXT_LOCK` doesn't already prevent.
+Manager-wide `set_program_info` fan-out remains for activation/startup, including
+the resource callback. Direct two-argument `provider.call_tool(name, args)` keeps
+its lifecycle fallback. An explicit `program_info=None` stays empty. No dispatch
+lock or `ContextVar` was added, and `CONTEXT_LOCK` is unchanged.
+
+Static review covered the base/manager module and all 35 provider-directory
+modules. No provider handler reads `self.program_info` or `self.ghidra_tools`.
+Remaining base reads belong to lifecycle initialization, guarded omitted-context
+compatibility, and the unused `_require_ghidra` helper. The unused
+`_handle_paginated_search` also retains its legacy guard; neither helper has a
+caller in the current source tree. The manager's default context read remains
+at initial resolution, before dispatch; it is not reread after the analysis wait.
+
+Focused verification: **254 passed, 2 integration cases deselected**, across 23
+test files with `-m 'not integration and not e2e and not slow'`. This includes
+deterministic two-program interleaving, lifecycle fan-out during a paused call,
+same-provider prerequisite recursion, explicit None, real provider payloads,
+shared-checkout return propagation, and persistence argument coverage.
+The execution report records the exact command and audit findings at
+`.superpowers/sdd/2026-09-10-program-info-call-scoped-refactor/task-5-report.md`.
 
 ## Current status
 
-**Not fixed. `CONTEXT_LOCK` stays as-is.** This is recorded as a known,
-independently-verified architectural finding rather than an open TODO with no
-evidence behind it. Revisit only alongside a genuine plan to thread
-`program_info` through provider dispatch — do not attempt a narrow lock-based
-patch without re-deriving whether it closes both the fan-out path and the
-`_run_prerequisite_call` reentrancy above; both are easy to overlook from a
-first read of `ToolProviderManager.call_tool` alone.
+**Fixed in the source tree, with focused non-server verification.
+`CONTEXT_LOCK` stays as-is.** No live server, e2e, integration, or slow tests were
+run for this verification. This resolves the identified provider-context TOCTOU;
+it does not establish concurrent safety for Ghidra mutation, program disposal,
+project switching, session inventory changes, or dashboard lock narrowing.
+Those require their own lifecycle review and live validation.
 
 ## Related
 

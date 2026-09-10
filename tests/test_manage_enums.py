@@ -89,12 +89,13 @@ async def test_create_enum_alias_presets_mode() -> None:
     provider = EnumToolProvider()
     captured: dict[str, Any] = {}
 
-    async def fake_handle(args: dict[str, Any]) -> list[types.TextContent]:
+    async def fake_handle(args: dict[str, Any], *, program_info) -> list[types.TextContent]:
+        assert program_info is None
         captured.update(args)
         return create_success_response({"action": "create", "success": True})
 
     provider._handle = fake_handle  # type: ignore[method-assign]
-    await provider._handle_create_alias({})
+    await provider.call_tool("create-enum", {}, program_info=None)
     assert captured.get("mode") == "create"
 
 

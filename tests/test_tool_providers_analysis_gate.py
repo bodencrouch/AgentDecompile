@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
+
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import agentdecompile_cli.mcp_server.program_metadata as program_metadata_module
 import pytest
-from mcp import types
 
 from agentdecompile_cli.mcp_server.tool_providers import (
+    ActionableError,
     ToolProvider,
     ToolProviderManager,
     analysis_timeout_error_response,
@@ -17,13 +20,18 @@ from agentdecompile_cli.mcp_server.tool_providers import (
     resolve_domain_program_path,
 )
 from agentdecompile_cli.mcp_utils.program_analysis import ProgramAnalysisTimeout
+from mcp import types
 
 
 class _GateProbeProvider(ToolProvider):
     """Minimal provider for list-functions, list-project-files, and open."""
 
     HANDLERS = {
+        "listfunctions": "_handle_probe",
+        "listprojectfiles": "_handle_list_project_files",
+        "checkoutprogram": "_handle_checkout_program",
         "open": "_handle_open",
+        "scopeerror": "_handle_scope_error",
     }
 
     def list_tools(self) -> list[types.Tool]:
@@ -48,20 +56,40 @@ class _GateProbeProvider(ToolProvider):
                 description="probe exempt open",
                 inputSchema={"type": "object", "properties": {}, "required": []},
             ),
+            types.Tool(
+                name="scope-error",
+                description="probe recursive scope",
+                inputSchema={"type": "object", "properties": {}, "required": []},
+            ),
         ]
 
     async def _handle_open(self, _args: dict):
         raise ProgramAnalysisTimeout("Ghidra auto-analysis did not complete during open")
 
-    async def call_tool(self, name: str, arguments: dict):
-        norm = name.replace("-", "").replace("_", "").lower()
-        if norm == "open":
-            return await super().call_tool(name, arguments)
-        if norm == "listprojectfiles":
-            return create_success_response({"programs": []})
-        if norm == "checkoutprogram":
-            return create_success_response({"checkedOut": True})
-        return create_success_response({"ok": True})
+    async def _handle_probe(self, _args: dict, *, program_info=None):
+        return create_success_response(
+            {
+                "ok": True,
+                "programPath": str(getattr(program_info, "file_path", "")),
+            }
+        )
+
+    async def _handle_list_project_files(self, _args: dict, *, program_info=None):
+        return create_success_response(
+            {
+                "programs": [],
+                "programPath": str(getattr(program_info, "file_path", "")),
+            }
+        )
+
+    async def _handle_checkout_program(self, _args: dict):
+        return create_success_response({"checkedOut": True})
+
+    async def _handle_scope_error(self, _args: dict, *, program_info=None):
+        raise ActionableError(
+            "scope probe failed",
+            next_steps=["Call `list-project-files` to inspect the same program scope."],
+        )
 
 
 @pytest.fixture
@@ -78,6 +106,159 @@ def program_info() -> SimpleNamespace:
     df.getPathname.return_value = "/repo/other.exe"
     program.getDomainFile.return_value = df
     return SimpleNamespace(program=program, ghidra_analysis_complete=False)
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_call_scoped_program_survives_two_program_interleaving(
+    gate_manager: ToolProviderManager,
+) -> None:
+    program_a = MagicMock()
+    program_a.getDomainFile.return_value.getPathname.return_value = "/repo/a.exe"
+    info_a = SimpleNamespace(
+        program=program_a,
+        file_path="/repo/a.exe",
+        ghidra_analysis_complete=False,
+    )
+    program_b = MagicMock()
+    program_b.getDomainFile.return_value.getPathname.return_value = "/repo/b.exe"
+    info_b = SimpleNamespace(
+        program=program_b,
+        file_path="/repo/b.exe",
+        ghidra_analysis_complete=False,
+    )
+    a_waiting = asyncio.Event()
+    release_a = asyncio.Event()
+
+    async def gate_wait(_func, _program, info, **_kwargs):
+        if info is info_a:
+            a_waiting.set()
+            await release_a.wait()
+
+    def get_program_info(_session_id: str, key: str | None):
+        return {"/repo/a.exe": info_a, "/repo/b.exe": info_b}.get(key)
+
+    with (
+        patch(
+            "agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.get_program_info",
+            side_effect=get_program_info,
+        ),
+        patch(
+            "agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.get_active_program_info",
+            return_value=None,
+        ),
+        patch("agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.add_tool_history"),
+        patch(
+            "agentdecompile_cli.mcp_server.tool_providers.asyncio.to_thread",
+            side_effect=gate_wait,
+        ),
+    ):
+        call_a = asyncio.create_task(
+            gate_manager.call_tool(
+                "list-functions",
+                {"programPath": "/repo/a.exe", "responseFormat": "json"},
+            )
+        )
+        await a_waiting.wait()
+        result_b = await gate_manager.call_tool(
+            "list-functions",
+            {"programPath": "/repo/b.exe", "responseFormat": "json"},
+        )
+        release_a.set()
+        result_a = await call_a
+
+    assert json.loads(result_a[0].text)["programPath"] == "/repo/a.exe"
+    assert json.loads(result_b[0].text)["programPath"] == "/repo/b.exe"
+    assert gate_manager.providers[-1].program_info is None
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_explicit_none_does_not_borrow_lifecycle_program(
+    gate_manager: ToolProviderManager,
+) -> None:
+    lifecycle_info = SimpleNamespace(program=MagicMock(), file_path="/repo/lifecycle.exe")
+    gate_manager.set_program_info(lifecycle_info)
+
+    with (
+        patch(
+            "agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.get_active_program_info",
+            return_value=lifecycle_info,
+        ),
+        patch("agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.add_tool_history"),
+    ):
+        result = await gate_manager.call_tool(
+            "list-project-files",
+            {"responseFormat": "json"},
+            program_info=None,
+        )
+
+    assert json.loads(result[0].text)["programPath"] == ""
+    assert gate_manager.program_info is lifecycle_info
+    assert gate_manager.providers[-1].program_info is lifecycle_info
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_prerequisite_recursion_preserves_call_scoped_program(
+    gate_manager: ToolProviderManager,
+) -> None:
+    scoped_info = SimpleNamespace(
+        program=MagicMock(),
+        file_path="/repo/scoped.exe",
+        ghidra_analysis_complete=False,
+    )
+
+    with (
+        patch("agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.add_tool_history"),
+        patch(
+            "agentdecompile_cli.mcp_server.tool_providers.asyncio.to_thread",
+            AsyncMock(return_value=None),
+        ),
+    ):
+        result = await gate_manager.call_tool(
+            "scope-error",
+            {"responseFormat": "json"},
+            program_info=scoped_info,
+        )
+
+    payload = json.loads(result[0].text)
+    prerequisite = payload["context"]["prerequisiteCalls"][0]
+    assert prerequisite["tool"] == "list-project-files"
+    assert prerequisite["output"]["programPath"] == "/repo/scoped.exe"
+    assert gate_manager.providers[-1].program_info is None
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_error_response_context_preserves_explicit_program_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    domain_file = SimpleNamespace(
+        getPathname=lambda: "/repo/scoped.exe",
+        getSharedProjectURL=lambda _ref: None,
+        getProjectLocator=lambda: None,
+    )
+    scoped_info = SimpleNamespace(
+        program=SimpleNamespace(getDomainFile=lambda: domain_file),
+        file_path="/repo/scoped.exe",
+    )
+    provider = _GateProbeProvider()
+    monkeypatch.setattr(
+        program_metadata_module,
+        "collect_project_context",
+        lambda _session_id: {"activeProgram": "/repo/session.exe"},
+    )
+
+    scoped_result = await provider.call_tool("scope-error", {}, program_info=scoped_info)
+    none_result = await provider.call_tool("scope-error", {}, program_info=None)
+    fallback_result = await provider.call_tool("scope-error", {})
+
+    scoped_context = json.loads(scoped_result[0].text)["projectContext"]
+    assert scoped_context["scope"] == "target-program"
+    assert scoped_context["activeProgram"] == "/repo/scoped.exe"
+    assert "projectContext" not in json.loads(none_result[0].text)
+    assert json.loads(fallback_result[0].text)["projectContext"]["activeProgram"] == "/repo/session.exe"
 
 
 @pytest.mark.unit
@@ -223,6 +404,9 @@ async def test_analysis_timeout_returns_structured_error(
     gate_manager: ToolProviderManager,
     program_info: SimpleNamespace,
 ) -> None:
+    lifecycle_info = SimpleNamespace(program=MagicMock(), file_path="/repo/lifecycle.exe")
+    gate_manager.set_program_info(lifecycle_info)
+
     async def _raise_timeout(*_args, **_kwargs):
         raise ProgramAnalysisTimeout("Ghidra analysis did not finish within 600s")
 
@@ -249,6 +433,8 @@ async def test_analysis_timeout_returns_structured_error(
     assert len(result) == 1
     assert "analysis-timeout" in result[0].text
     assert "600s" in result[0].text
+    assert gate_manager.program_info is lifecycle_info
+    assert gate_manager.providers[-1].program_info is lifecycle_info
 
 
 @pytest.mark.unit

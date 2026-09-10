@@ -28,8 +28,6 @@ from agentdecompile_cli.mcp_server.tool_providers import (
 from agentdecompile_cli.registry import Tool
 
 if TYPE_CHECKING:
-    from agentdecompile_cli.context import ProgramInfo
-
     from ghidra.app.decompiler import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]  # noqa: F401
         DecompInterface as GhidraDecompInterface,
     )
@@ -47,6 +45,8 @@ if TYPE_CHECKING:
         SymbolType as GhidraSymbolType,
     )
     from ghidra.util.task import TaskMonitor as GhidraTaskMonitor  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]  # noqa: F401
+
+    from agentdecompile_cli.context import ProgramInfo
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +138,7 @@ class ScriptToolProvider(ToolProvider):
 
     # ------------------------------------------------------------------
 
-    def _build_namespace(self, program_info: ProgramInfo | SimpleNamespace | None = None) -> dict[str, Any]:
+    def _build_namespace(self, program_info: ProgramInfo | SimpleNamespace | None) -> dict[str, Any]:
         """Build the execution namespace for Ghidra script execution.
 
         Populates a Python namespace with Ghidra API equivalents so that script
@@ -186,7 +186,7 @@ class ScriptToolProvider(ToolProvider):
         flat_api = None
         decompiler = None
 
-        effective_program_info = program_info if program_info is not None else self.program_info
+        effective_program_info = program_info
         if effective_program_info is not None:
             program = effective_program_info.program
             flat_api = getattr(effective_program_info, "flat_api", None)
@@ -336,7 +336,7 @@ class ScriptToolProvider(ToolProvider):
 
     # ------------------------------------------------------------------
 
-    async def _handle_execute(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_execute(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Execute Python code in the Ghidra script context.
 
         **Execution Flow:**
@@ -372,7 +372,7 @@ class ScriptToolProvider(ToolProvider):
         # Treating "path" as a program alias causes .gpr project markers to be
         # misclassified as programs during script execution.
         requested_program_path = self._get_str(args, "programpath", "program_path", default="")
-        effective_program_info = self.program_info
+        effective_program_info = program_info
         ns: dict[str, Any] = self._build_namespace(effective_program_info)
         executed_program = ns.get("currentProgram")
 

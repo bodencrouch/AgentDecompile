@@ -50,9 +50,9 @@ async def test_nonvisual_modes_return_structured_call_relationships(
     target = FakeFunction("Target", "00401000")
     provider = CallGraphToolProvider(program_info=SimpleNamespace(program=object()))
 
-    monkeypatch.setattr(provider, "_require_program", lambda: None)
-    monkeypatch.setattr(provider, "_resolve_function", lambda _value, program=None: target)
-    monkeypatch.setattr(provider, "_get_function_manager", lambda _program: object())
+    monkeypatch.setattr(provider, "_require_program", lambda**_context: None)
+    monkeypatch.setattr(provider, "_resolve_function", lambda _value, program=None, **_context: target)
+    monkeypatch.setattr(provider, "_get_function_manager", lambda _program, **_context: object())
 
     visual_calls: list[dict[str, object]] = []
 
@@ -61,9 +61,9 @@ async def test_nonvisual_modes_return_structured_call_relationships(
             visual_calls.append(_kwargs)
             raise AssertionError("nonvisual call-graph modes must use structured handlers")
 
-    monkeypatch.setattr(provider, "_get_callgraph_tool", lambda: VisualGraphMustNotRun())
+    monkeypatch.setattr(provider, "_get_callgraph_tool", lambda**_context: VisualGraphMustNotRun())
 
-    result = await provider._handle({"function": "0x00401000", **arguments})
+    result = await provider._handle({"function": "0x00401000", **arguments}, program_info=getattr(provider, "program_info", None))
     payload = json.loads(result[0].text)
 
     assert payload["mode"] == expected_mode
@@ -79,7 +79,7 @@ async def test_visual_modes_still_use_callgraph_renderer(
     mode: str,
 ) -> None:
     provider = CallGraphToolProvider(program_info=SimpleNamespace(program=object()))
-    monkeypatch.setattr(provider, "_require_program", lambda: None)
+    monkeypatch.setattr(provider, "_require_program", lambda**_context: None)
     visual_calls: list[dict[str, object]] = []
 
     class VisualGraph:
@@ -93,9 +93,9 @@ async def test_visual_modes_still_use_callgraph_renderer(
                 mermaid_url=None,
             )
 
-    monkeypatch.setattr(provider, "_get_callgraph_tool", lambda: VisualGraph())
+    monkeypatch.setattr(provider, "_get_callgraph_tool", lambda**_context: VisualGraph())
 
-    result = await provider._handle({"function": "0x00401000", "mode": mode})
+    result = await provider._handle({"function": "0x00401000", "mode": mode}, program_info=getattr(provider, "program_info", None))
     payload = json.loads(result[0].text)
 
     assert payload["graph"] == "graph output"

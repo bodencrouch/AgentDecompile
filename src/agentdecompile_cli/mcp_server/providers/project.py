@@ -6186,17 +6186,24 @@ class ProjectToolProvider(ToolProvider):
             except Exception as promote_exc:
                 logger.warning("Shared versioned promote failed for %s: %s", program_path, promote_exc)
 
+        read_only_shared_snapshot = False
         try:
             final_df = checkout_link_domain_file
             if final_df is None and project_data is not None:
                 final_df = self._resolve_shared_checkout_domain_file(project_data, program_path, item_name)
             if final_df is None or not bool(final_df.isVersioned()):
-                raise ValueError(
-                    f"Shared checkout of '{program_path}' left a non-versioned DomainFile. "
-                    "The local project still has a private stub (often from analyzeHeadless import). "
-                    "Delete the private file, re-run checkout-program, then checkin-program."
+                if exclusive:
+                    raise ValueError(
+                        f"Shared checkout of '{program_path}' left a non-versioned DomainFile. "
+                        "An exclusive checkout requires a versioned shared DomainFile."
+                    )
+                read_only_shared_snapshot = True
+                logger.info(
+                    "Activated '%s' as a read-only shared snapshot; no versioned DomainFile is available for checkin",
+                    program_path,
                 )
-            checkout_link_domain_file = final_df
+            else:
+                checkout_link_domain_file = final_df
         except ValueError:
             raise
         except Exception as ver_exc:
@@ -6259,7 +6266,18 @@ class ProjectToolProvider(ToolProvider):
             program=program,
             flat_api=None,
             decompiler=decompiler,
-            metadata={},
+            metadata=(
+                {
+                    "sharedSnapshot": {
+                        "repositoryPath": program_path,
+                        "mode": "read-only",
+                        "versionedDomainFile": False,
+                        "mutationsAllowed": False,
+                    }
+                }
+                if read_only_shared_snapshot
+                else {}
+            ),
             ghidra_analysis_complete=False,
             file_path=None,
             load_time=time.time(),
@@ -6275,7 +6293,7 @@ class ProjectToolProvider(ToolProvider):
         if link_domain_file is None:
             link_domain_file = domain_file
 
-        if link_domain_file is not None:
+        if link_domain_file is not None and not read_only_shared_snapshot:
             program_info.domain_file = link_domain_file
         if domain_object_consumer is not None:
             program_info.domain_object_consumer = domain_object_consumer

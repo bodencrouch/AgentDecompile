@@ -39,7 +39,7 @@ from itertools import islice
 from pathlib import Path
 from typing import Any
 
-from .store import ExchangeStore, default_state_path, derive_unit_id
+from .store import ExchangeStore, _sync_directory, default_state_path, derive_unit_id
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +79,42 @@ def _spool_filename(unit_id: str, routing: dict[str, str]) -> str:
     destination = hashlib.sha256(json.dumps(routing, sort_keys=True).encode("utf-8")).hexdigest()
     # Unit ids contain ``:``; that is not a legal filename on Windows.
     return f"{unit_id.replace(':', '-')}-{destination}.json"
+
+
+def _ensure_directory(directory: Path) -> list[Path]:
+    """Create ``directory`` and return entries whose creation needs syncing."""
+
+    created: list[Path] = []
+    current = directory
+    while not current.exists():
+        created.append(current)
+        current = current.parent
+    directory.mkdir(parents=True, exist_ok=True)
+    return created
+
+
+def _sync_directory_tree(directory: Path, created: list[Path]) -> None:
+    """Sync a changed directory, then entries which made it reachable."""
+
+    _sync_directory(directory)
+    for ancestor in created:
+        if ancestor != directory:
+            _sync_directory(ancestor)
+
+
+def _write_record(path: Path, record: dict[str, Any], created: list[Path]) -> None:
+    """Write a spool record before making its route visible to the server."""
+
+    tmp = path.parent / f".{path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp"
+    try:
+        with tmp.open("x", encoding="utf-8") as stream:
+            stream.write(json.dumps(record, sort_keys=True))
+            stream.flush()
+            os.fsync(stream.fileno())
+        tmp.replace(path)
+        _sync_directory_tree(path.parent, created)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def offer_rewrite_unit(
@@ -126,16 +162,14 @@ def offer_rewrite_unit(
         routing = {"workDir": str(Path(work_dir).resolve()), "requestId": request_id}
         record = {"lane": "rewrite", "unitId": unit_id, "payload": payload, "routing": routing}
         target = spool_dir()
-        target.mkdir(parents=True, exist_ok=True)
+        created = _ensure_directory(target)
         path = target / _spool_filename(unit_id, routing)
         if path.exists():
             # This exact destination already has an offer. Another work dir
             # or request still needs its own routing record for the same unit.
+            _sync_directory_tree(target, created)
             return unit_id
-        # Write-then-rename: a drain must never observe a half-written file.
-        tmp = target / f".{path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp"
-        tmp.write_text(json.dumps(record, sort_keys=True), encoding="utf-8")
-        tmp.replace(path)
+        _write_record(path, record, created)
     except OSError:
         # Publishing is best-effort. A recovery campaign must not fail because
         # the spool is unwritable.
@@ -193,8 +227,8 @@ async def drain_spool(store: ExchangeStore, *, limit: int = MAX_DRAIN_PER_CALL) 
             # Capacity or transient failure: leave the file to be retried.
             logger.warning("exchange: could not ingest %s", path.name, exc_info=True)
             continue
-        await asyncio.to_thread(_archive, path)
-        accepted += 1
+        if await asyncio.to_thread(_archive, path) is not False:
+            accepted += 1
     return accepted
 
 
@@ -212,13 +246,44 @@ def _read_record(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _archive(path: Path) -> None:
+def _archive(path: Path) -> bool:
+    """Anchor a routing record in ``accepted`` before removing its spool copy."""
+
     try:
         destination = path.parent / ACCEPTED_DIRNAME
-        destination.mkdir(parents=True, exist_ok=True)
-        path.replace(destination / path.name)
+        created = _ensure_directory(destination)
+        archived = destination / path.name
+        if archived.exists():
+            if archived.read_bytes() != path.read_bytes():
+                raise OSError(f"refusing to overwrite different accepted record {archived}")
+            _sync_directory_tree(destination, created)
+        else:
+            # Do not rename the sole routing record. A crash after rename and
+            # before the accepted directory is synced strands an otherwise
+            # durable store offer with no local destination to consume.
+            tmp = destination / f".{archived.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp"
+            try:
+                with path.open("rb") as source, tmp.open("xb") as output:
+                    while chunk := source.read(1024 * 1024):
+                        output.write(chunk)
+                    output.flush()
+                    os.fsync(output.fileno())
+                tmp.replace(archived)
+                _sync_directory_tree(destination, created)
+            finally:
+                tmp.unlink(missing_ok=True)
+        try:
+            path.unlink()
+            _sync_directory(path.parent)
+        except OSError:
+            # The accepted copy is durable. A retained pending copy can be
+            # re-offered idempotently after a crash, so it is safe to report
+            # this unit accepted while surfacing cleanup trouble.
+            logger.warning("exchange: could not remove archived spool record %s", path.name, exc_info=True)
+        return True
     except OSError:
         logger.warning("exchange: could not archive %s", path.name, exc_info=True)
+        return False
 
 
 def _quarantine(path: Path) -> None:

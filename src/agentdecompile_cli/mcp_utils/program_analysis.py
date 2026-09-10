@@ -180,15 +180,20 @@ def program_needs_analysis(program: GhidraProgram, *, force: bool = False) -> bo
         return False
     if force:
         return True
+    pending = _ghidra_utilities_pending(program)
+    # ``getAnalysisState().isDone()`` can remain false after a completed
+    # headless save, particularly for imported Mach-O and PE programs.  The
+    # persisted Ghidra analyzed flag is the durable observation in that case;
+    # treating the transient state as stronger makes a completed run roll its
+    # own transaction back and prevents the corpus coordinator from advancing.
+    if pending is False:
+        return False
     state_done = _analysis_state_done(program)
     if state_done is False:
         return True
     if state_done is True:
         return False
-    pending = _ghidra_utilities_pending(program)
-    if pending is None:
-        return True
-    return pending
+    return True if pending is None else pending
 
 
 def _program_analysis_still_running(program: GhidraProgram) -> bool:

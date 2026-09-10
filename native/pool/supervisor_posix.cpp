@@ -19,8 +19,6 @@ extern char** environ;
 namespace gnsdk::pool {
 namespace proto = gnsdk::proto;
 namespace {
-constexpr int kWorkerStartupTimeoutMs = 30000;
-
 int open_pidfd(pid_t pid) noexcept {
 #ifdef SYS_pidfd_open
   return static_cast<int>(::syscall(SYS_pidfd_open, pid, 0));
@@ -89,7 +87,9 @@ Supervisor::Impl::Child Supervisor::Impl::spawn_child(const Config& config) {
   proto::HelloInfo local; local.capabilities = {"pool"}; local.engine_source = "gnsdk-pool"; proto::FrameWriter writer(child.in);
   if (!writer.write_json(proto::Kind::Hello, 0, proto::make_hello(local))) { cleanup(); throw std::runtime_error("write worker HELLO"); }
   proto::Frame frame;
-  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kWorkerStartupTimeoutMs);
+  const auto startup_grace =
+      config.startup_grace.count() > 0 ? config.startup_grace : std::chrono::milliseconds(1);
+  const auto deadline = std::chrono::steady_clock::now() + startup_grace;
   for (;;) {
     if (child.reader.next(frame)) break;
     const auto now = std::chrono::steady_clock::now();

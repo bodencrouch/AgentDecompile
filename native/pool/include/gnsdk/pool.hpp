@@ -25,6 +25,7 @@ struct Config {
   std::size_t workers = 1;
   std::size_t max_queue = 64;
   std::size_t max_queue_bytes = 64u * 1024 * 1024;
+  std::chrono::milliseconds startup_grace{30000};
   std::chrono::milliseconds cancel_grace{500};
   std::chrono::milliseconds term_grace{1000};
   std::uint64_t rlimit_as = 0;

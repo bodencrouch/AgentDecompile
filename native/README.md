@@ -51,3 +51,28 @@ Ghidra's native engine has process-global state and supports exactly one live
 session per process. Use `gnsdk-worker`/the pool for concurrency. Do not use a
 shared library session from multiple threads or assume `gnsdk_shutdown()`
 frees native registries; it is a logical state transition only.
+
+## Snapshot replay
+
+Export still uses Ghidra and Java once per function. Replay does not: the
+checked-in fixture demonstrates the intended two-stage workflow.
+
+```sh
+# Java/PyGhidra producer (writes savefiles, options, and Java C oracles)
+GHIDRA_INSTALL_DIR=/path/to/ghidra \
+  uv run python -m agentdecompile_recovery.native_snapshot export binary \
+  --out snapshot --project-location /scratch/project --project-name replay
+
+# JVM-free native validation (requires the native build's SLEIGH home)
+uv run python -m agentdecompile_recovery.native_snapshot diff snapshot \
+  --console native/build/relwithdebinfo/ghidra-decomp/decomp_console \
+  --sleigh-home native/build/relwithdebinfo/ghidra-decomp/sleigh-home
+
+native/build/relwithdebinfo/tools/gnsdk_batch/gnsdk-batch \
+  --sleigh-home native/build/relwithdebinfo/ghidra-decomp/sleigh-home \
+  --snapshot snapshot --output results.jsonl --timeout 60
+```
+
+`diff` is strict: only line-ending and trailing-whitespace normalization may
+produce `match`. A layout-only or content mismatch remains a result to
+investigate, never a successful replay.

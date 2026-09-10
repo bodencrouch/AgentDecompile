@@ -3,8 +3,10 @@
 #include <cerrno>
 #include <csignal>
 #include <cstring>
+#include <fstream>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <utility>
 
 #include <fcntl.h>
@@ -36,6 +38,26 @@ bool reaped(pid_t pid, std::chrono::milliseconds grace) noexcept {
     timespec nap{0, 5'000'000}; (void)::nanosleep(&nap, nullptr);
   } while (std::chrono::steady_clock::now() < end);
   return false;
+}
+
+void validate_tmpdir(const std::filesystem::path& tmpdir) {
+  if (tmpdir.empty()) return;
+  std::error_code ec;
+  std::filesystem::create_directories(tmpdir, ec);
+  if (ec) throw std::runtime_error("create pool tmpdir: " + ec.message());
+  if (!std::filesystem::is_directory(tmpdir, ec) || ec) {
+    throw std::runtime_error("pool tmpdir is not a directory");
+  }
+  const auto probe = tmpdir / (".gnsdk-pool-probe-" + std::to_string(::getpid()));
+  {
+    std::ofstream out(probe, std::ios::binary | std::ios::trunc);
+    if (!out) throw std::runtime_error("write pool tmpdir probe");
+    out << "gnsdk\n";
+    out.flush();
+    if (!out) throw std::runtime_error("flush pool tmpdir probe");
+  }
+  std::filesystem::remove(probe, ec);
+  if (ec) throw std::runtime_error("remove pool tmpdir probe: " + ec.message());
 }
 }  // namespace
 
@@ -120,6 +142,7 @@ Supervisor& Supervisor::operator=(Supervisor&&) noexcept = default;
 void Supervisor::start() {
   if (!impl_->children.empty()) throw std::logic_error("supervisor already started");
   std::signal(SIGPIPE, SIG_IGN);
+  validate_tmpdir(impl_->config.tmpdir);
   try { for (std::size_t count = 0; count < impl_->config.workers; ++count) {
     impl_->children.push_back(Impl::spawn_child(impl_->config));
   }} catch (...) { stop(); throw; }
@@ -128,6 +151,7 @@ void Supervisor::start() {
 proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std::uint64_t id, std::chrono::milliseconds timeout) {
   if (impl_->children.empty()) throw std::logic_error("supervisor is not started");
   if (id == 0 || proto::is_connection_kind(proto::to_u16(kind))) throw std::invalid_argument("request must have a nonzero request id");
+  if (json.size() > impl_->config.max_queue_bytes) throw std::runtime_error("pool request exceeds max_queue_bytes");
   const std::size_t slot = impl_->next++ % impl_->children.size();
   Impl::Child& child = impl_->children[slot];
   const auto retire = [&child, this]() noexcept {

@@ -1,0 +1,8 @@
+add_library(gnsdk_pool STATIC supervisor_posix.cpp)
+add_library(gnsdk::pool ALIAS gnsdk_pool)
+target_include_directories(gnsdk_pool PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(gnsdk_pool PUBLIC gnsdk::protocol)
+target_compile_features(gnsdk_pool PUBLIC cxx_std_20)
+if(TARGET gnsdk_common)
+  target_link_libraries(gnsdk_pool PUBLIC gnsdk_common)
+endif()

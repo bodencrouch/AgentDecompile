@@ -11,6 +11,7 @@
 
 #include <sys/prctl.h>
 #include <sys/resource.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "gnsdk/gnsdk.h"
@@ -24,8 +25,9 @@ namespace {
 
 gnsdk_session* g_session = nullptr;
 volatile std::sig_atomic_t g_terminating = 0;
+volatile std::sig_atomic_t g_cancel_requested = 0;
 
-void on_cancel(int) { if (g_session != nullptr) gnsdk_session_cancel(g_session); }
+void on_cancel(int) { g_cancel_requested = 1; if (g_session != nullptr) gnsdk_session_cancel(g_session); }
 void on_term(int) { g_terminating = 1; on_cancel(0); }
 
 proto::ErrorCode error_code(gnsdk_status status) {
@@ -89,6 +91,9 @@ struct Worker {
   proto::HelloInfo local;
   bool handshaken = false;
   int exit_after_reply = 0;
+#if defined(GNSDK_ENABLE_TEST_HOOKS)
+  unsigned long test_decompile_delay_ms = 0;
+#endif
 
   Worker() {
     local.capabilities = {"open_raw", "open_snapshot", "disasm", "lift", "decompile", "cancel"};
@@ -253,6 +258,19 @@ struct Worker {
     bool tokens = false;
     (void)request.get_bool("tokens", tokens);
     options.want_tokens = tokens ? 1u : 0u;
+#if defined(GNSDK_ENABLE_TEST_HOOKS)
+    // Deterministic signal window for worker e2e only; compiled out of
+    // production workers and never exposed by the public SDK ABI.
+    if (test_decompile_delay_ms != 0) {
+      timespec delay{static_cast<time_t>(test_decompile_delay_ms / 1000),
+                     static_cast<long>((test_decompile_delay_ms % 1000) * 1000000UL)};
+      (void)::nanosleep(&delay, nullptr);
+    }
+    if (g_cancel_requested) {
+      g_cancel_requested = 0;
+      return reply_error(message.request_id, GNSDK_CANCELLED, "cancelled during test delay");
+    }
+#endif
     gnsdk_decompile_out output{};
     GNSDK_INIT_STRUCT(&output);
     const gnsdk_status status = gnsdk_decompile(g_session, address, &options, &output);
@@ -311,12 +329,21 @@ int main(int argc, char** argv) {
   const char* sleigh_home = nullptr;
   rlim_t address_limit = 0;
   rlim_t cpu_limit = 0;
+#if defined(GNSDK_ENABLE_TEST_HOOKS)
+  unsigned long test_decompile_delay_ms = 0;
+#endif
   for (int i = 1; i < argc; ++i) {
     if (std::strcmp(argv[i], "--sleigh-home") == 0 && i + 1 < argc) sleigh_home = argv[++i];
     else if (std::strcmp(argv[i], "--rlimit-as") == 0 && i + 1 < argc) {
       if (!parse_limit(argv[++i], address_limit)) return 64;
     } else if (std::strcmp(argv[i], "--rlimit-cpu") == 0 && i + 1 < argc) {
       if (!parse_limit(argv[++i], cpu_limit)) return 64;
+#if defined(GNSDK_ENABLE_TEST_HOOKS)
+    } else if (std::strcmp(argv[i], "--test-decompile-delay-ms") == 0 && i + 1 < argc) {
+      char* end = nullptr;
+      test_decompile_delay_ms = std::strtoul(argv[++i], &end, 10);
+      if (end == nullptr || *end != '\0') return 64;
+#endif
     } else if (std::strcmp(argv[i], "--help") == 0) {
       std::puts("usage: gnsdk-worker --sleigh-home DIR [--rlimit-as BYTES] [--rlimit-cpu SECONDS]");
       return 0;
@@ -331,6 +358,9 @@ int main(int argc, char** argv) {
   gnsdk_init_options init{}; GNSDK_INIT_STRUCT(&init); init.sleigh_home = sleigh_home;
   if (gnsdk_init(&init) != GNSDK_OK) return 5;
   Worker worker;
+#if defined(GNSDK_ENABLE_TEST_HOOKS)
+  worker.test_decompile_delay_ms = test_decompile_delay_ms;
+#endif
   const int result = worker.run();
   if (g_session != nullptr) gnsdk_session_destroy(g_session);
   return result;

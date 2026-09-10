@@ -17,12 +17,12 @@ const statusLabels: Record<string, string> = {
   blocked: "Preparation needs attention",
   failed: "Preparation failed",
   completed: "Preparation completed",
-  partial: "Preparation needs attention",
+  partial: "Preparation completed with gaps",
 };
 const stageStatusLabels: Record<string, string> = {
   queued: "waiting", running: "running", waiting: "waiting",
   cancelling: "stopping", cancelled: "stopped", completed: "complete",
-  partial: "needs attention", blocked: "needs attention", interrupted: "recovering",
+  partial: "incomplete", blocked: "needs attention", interrupted: "recovering",
 };
 function ProgressMessage({message}: {message: unknown}) {
   const text = String(message || "");

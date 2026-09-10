@@ -133,7 +133,34 @@ def test_first_write_retries_ancestor_directory_sync(tmp_path: Path, monkeypatch
     fail = False
     synced.clear()
     store._write_snapshot("{}", 1)
-    assert ancestor in synced
+    assert synced == [ancestor / "state", ancestor, tmp_path]
+    assert store._committed_generation == 1
+    synced.clear()
+    store._write_snapshot("{}", 2)
+    assert synced == [ancestor / "state"]
+
+
+@pytest.mark.parametrize("existing_directory", [False, True])
+def test_snapshot_syncs_only_created_entries_and_state_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, existing_directory: bool
+) -> None:
+    state_directory = tmp_path / "new" / "state"
+    if existing_directory:
+        state_directory.mkdir(parents=True)
+    store = exchange.ExchangeStore(state_directory / "exchange.json")
+    expected = [state_directory] if existing_directory else [state_directory, state_directory.parent, tmp_path]
+    synced = []
+
+    def sync_directory(path: Path) -> None:
+        if path not in expected:
+            # Existing ancestors may allow traversal but forbid opening for
+            # directory fsync; their unchanged entries do not need a sync.
+            raise PermissionError(errno.EACCES, "traverse-only ancestor")
+        synced.append(path)
+
+    monkeypatch.setattr(exchange, "_sync_directory", sync_directory)
+    store._write_snapshot("{}", 1)
+    assert synced == expected
     assert store._committed_generation == 1
 
 

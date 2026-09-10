@@ -345,7 +345,7 @@ class ExchangeStore:
         # is built, not at the moment it reaches the disk.
         self._generation = 0
         self._committed_generation = 0
-        self._directory_tree_synced = False
+        self._pending_directory_sync: list[Path] = []
         # _write_snapshot runs off the event loop via asyncio.to_thread, so
         # concurrent mutations reach it on separate OS threads of the default
         # executor. fcntl.flock (see _file_lock) only keeps a second *process*
@@ -479,7 +479,6 @@ class ExchangeStore:
 
     def _write_snapshot(self, text: str, generation: int) -> None:
         path = self.state_path
-        path.parent.mkdir(parents=True, exist_ok=True)
         # Unique tmp name per writer, as in state.atomic_write_json: concurrent
         # writers must not replace each other's in-progress temporary file.
         tmp = path.with_name(f"{path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp")
@@ -493,6 +492,22 @@ class ExchangeStore:
         # adding a needless cross-process hold time for no benefit, since only
         # one thread here can be inside _file_lock at a time either way.
         with self._write_lock:
+            # Record only directory entries we create, retaining their parents
+            # for retry if creation or snapshot synchronization fails.
+            to_create = [path.parent]
+            while to_create:
+                directory = to_create[-1]
+                try:
+                    directory.mkdir()
+                except FileNotFoundError:
+                    to_create.append(directory.parent)
+                except FileExistsError:
+                    if not directory.is_dir():
+                        raise
+                    to_create.pop()
+                else:
+                    self._pending_directory_sync.append(directory.parent)
+                    to_create.pop()
             with _file_lock(path.with_name(f"{path.name}.lock")):
                 # Snapshot text is built under the asyncio lock but written
                 # outside it, so two mutations can reach this point in either
@@ -516,14 +531,9 @@ class ExchangeStore:
                         os.fsync(handle.fileno())
                     tmp.replace(path)
                     _sync_directory(path.parent)
-                    if not self._directory_tree_synced:
-                        # mkdir(parents=True) may have created the state
-                        # directory and its ancestors. Persist their names,
-                        # too, before acknowledging the first snapshot. Keep
-                        # retrying this chain after any failed synchronization.
-                        for ancestor in path.parent.absolute().parents:
-                            _sync_directory(ancestor)
-                        self._directory_tree_synced = True
+                    for directory in reversed(self._pending_directory_sync):
+                        _sync_directory(directory)
+                    self._pending_directory_sync.clear()
                 finally:
                     # A failed file sync leaves an uncommitted temporary file.
                     # Cleanup must not mask the original persistence error.

@@ -410,19 +410,22 @@ def _register_path_binary(
         name = (slug or src.name).strip()
     if not name:
         return {"ok": False, "error": "slug is required"}
-    if kind == "binary" or kind not in ("shared-project", "shared-fs", "ghidra-project"):
-        # An explicitly requested slug is the caller's key for every later call
-        # (DELETE/PATCH/select), so it is kept verbatim. Only derive a slug — including
-        # the platform suffix that keeps sibling builds apart — when none was requested.
-        name = name if slug else _slug_from_disk_path(Path(repo), "")
+    if kind in ("shared-project", "shared-fs", "ghidra-project"):
+        return {
+            "ok": False,
+            "error": "This is a project locator, not an executable. Open it as a project instead of registering it as a binary.",
+        }
+    # An explicitly requested slug is the caller's key for every later call
+    # (DELETE/PATCH/select), so it is kept verbatim. Only derive a slug — including
+    # the platform suffix that keeps sibling builds apart — when none was requested.
+    name = name if slug else _slug_from_disk_path(Path(repo), "")
     con, err = _open_store()
     if err:
         return err
     try:
         from .library_identity import binary_sha256
-        is_binary = kind not in ("shared-project", "shared-fs", "ghidra-project")
-        digest = binary_sha256(repo) if is_binary else ""
-        if is_binary and not digest:
+        digest = binary_sha256(repo)
+        if not digest:
             return {"ok": False, "error": "Cannot confirm binary identity. The source must remain readable and unchanged during hashing."}
         con.execute("CREATE TABLE IF NOT EXISTS binary_content_identity (source_path TEXT PRIMARY KEY, sha256 TEXT NOT NULL)")
         previous_identity = con.execute("SELECT sha256 FROM binary_content_identity WHERE source_path=?", (repo,)).fetchone()
@@ -442,7 +445,7 @@ def _register_path_binary(
                 return {"ok": True, "binary": _binary_row(name), "reused": True, "sha256": digest}
         existing = con.execute("SELECT slug FROM binary WHERE repo_path=?", (repo,)).fetchone()
         collision = next((item for item in candidates if item[0] == name and item[1] != repo), None)
-        if collision and is_binary:
+        if collision:
             prior_digest = binary_sha256(collision[1] or "")
             if not prior_digest:
                 return {"ok": False, "error": "An entry with this name has unavailable bytes. Resolve its identity or choose an explicit distinct name before importing."}
@@ -580,7 +583,13 @@ def record_import_bindings(payload: dict[str, Any]) -> None:
         for item in imported:
             source, program = item.get("sourcePath"), item.get("programPath")
             if source and program:
-                con.execute("INSERT INTO program_binding VALUES(?,?,?,?) ON CONFLICT(source_path,locator) DO UPDATE SET program=excluded.program,updated=excluded.updated", (str(Path(source).resolve()), locator, program, time.time()))
+                source_path = Path(str(source)).expanduser()
+                # MCP may report a Ghidra DomainFile path (for example,
+                # /K1/game.exe) here.  It is not an original executable path
+                # and must never become source metadata for target binding.
+                if not source_path.is_file():
+                    continue
+                con.execute("INSERT INTO program_binding VALUES(?,?,?,?) ON CONFLICT(source_path,locator) DO UPDATE SET program=excluded.program,updated=excluded.updated", (str(source_path.resolve()), locator, program, time.time()))
         con.commit()
     finally:
         con.close()
@@ -589,7 +598,7 @@ def record_import_bindings(payload: dict[str, Any]) -> None:
 
 def list_binaries() -> dict[str, Any]:
     rows, err = query_db(
-        "SELECT id, slug, repo_path, role, variant, func_count, named_count, game, platform "
+        "SELECT id, slug, repo_path, role, variant, func_count, named_count, game, platform, format, content_sha256 "
         "FROM binary ORDER BY slug"
     )
     binaries: list[dict[str, Any]] = []
@@ -604,9 +613,16 @@ def list_binaries() -> dict[str, Any]:
         bindings.setdefault(source_path, (project_locator, project_program))
         all_bindings.setdefault(source_path, []).append({"locator": project_locator, "program": project_program})
 
-    for binary_id, slug, repo, role, variant, funcs, named, game, platform in rows:
+    registered_identities: dict[str, str] = {}
+    for binary_id, slug, repo, role, variant, funcs, named, game, platform, binary_format, content_sha256 in rows:
         total = int(funcs or 0)
         source = describe_source(repo or "")
+        if source.get("kind") in ("shared-project", "shared-fs", "ghidra-project"):
+            # Older dashboard versions stored opened projects in the binary
+            # table. They are workspace locators, not matching inputs.
+            continue
+        if repo and content_sha256:
+            registered_identities[str(repo)] = str(content_sha256)
         binaries.append(
             {
                 "id": int(binary_id),
@@ -619,6 +635,7 @@ def list_binaries() -> dict[str, Any]:
                 "named": int(named or 0),
                 "game": game or "",
                 "platform": platform or "",
+                "format": binary_format or "",
                 "kind": source.get("kind") or "binary",
                 "programs": source.get("programs") or [],
                 "locator": bindings[repo][0] if repo in bindings else source.get("locator") or repo or "",
@@ -630,6 +647,8 @@ def list_binaries() -> dict[str, Any]:
         )
     from .library_identity import canonical_library
     canonical, unresolved = canonical_library(binaries)
+    identities, _ = query_db("SELECT source_path,sha256 FROM binary_content_identity")
+    registered_identities.update(dict(identities))
     aliases, _ = query_db("SELECT source_path,binary_slug,sha256 FROM binary_source_alias")
     for row in canonical:
         for path, alias_slug, digest in aliases:
@@ -642,6 +661,9 @@ def list_binaries() -> dict[str, Any]:
     for row in canonical:
         if row["projectBindings"] and not row["imported"]:
             row.update(imported=True, locator=row["projectBindings"][0]["locator"], program=row["projectBindings"][0]["program"])
+    from .binary_coverage import annotate_binary_coverage
+    annotate_binary_coverage(canonical, registered_identities)
+    annotate_binary_coverage(unresolved, registered_identities)
     from .protection import inspect_protection
     for row in canonical:
         row["protection"] = inspect_protection(row["repo"]) if row["kind"] == "binary" else {"status": "unknown", "encryption": "unknown", "drm": "unknown"}

@@ -114,16 +114,9 @@ export function ProjectDialog({
   }
   async function open(value: string, inspected?: Data) {
     const data = inspected || (await inspect(value));
-    const remote = /^(?:ghidra|https?):\/\//i.test(value);
-    const registration = await post(`${API}/binaries`, {
-      path: remote ? "" : value,
-      url: remote ? value : "",
-      slug: data.slug,
-      role: "member",
-    });
     const selected = {
       locator: data.locator || value,
-      slug: registration.binary?.slug || data.slug || "",
+      slug: data.slug || "",
       program: data.program_paths?.[programName(data.programs?.[0])] || programName(data.programs?.[0]),
     };
     projectRef.current = { locator: selected.locator, slug: selected.slug };

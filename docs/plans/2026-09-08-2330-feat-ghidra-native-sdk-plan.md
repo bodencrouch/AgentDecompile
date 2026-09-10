@@ -374,6 +374,7 @@ Dated deltas. Newest first. A delta names what was verified and how; it does not
 ### 2026-09-10 (checked-in three-function native replay fixture)
 
 - **WP8/WP9 evidence added locally:** the official PyGhidra exporter created `tests/fixtures/native_snapshot/test_x86_64` from the existing x86-64 fixture on the installed Ghidra 12.1.3 runtime. Its manifest validates and contains exactly three successful savefiles and Java oracles (`_add`, `_multiply`, `entry`). `tests/test_native_replay_integration.py` is opt-in through `GNSDK_BUILD_DIR` so ordinary Python runs remain native-build-free; against `native/build/relwithdebinfo`, the replay unit, differential unit, and three-function real console lane passed 5/5 with every classification exactly `match`. The fixture is a reproducible exporter product, not a hand-authored C baseline.
+- **WP6 JVM-free evidence added locally:** `tests/test_native_batch_integration.py` feeds that same fixture through `gnsdk-batch` and strictly classifies all emitted C against the Java oracles. The real batch and console tests passed 2/2. Separately, `env -i PATH=/usr/bin HOME=/nonexistent LANG=C gnsdk-batch --snapshot ...` completed all three functions, so this replay path does not need a Java runtime. `native/bench/environment.json` records the host/tool versions for forthcoming measurements.
 
 ### 2026-09-10 (first end-to-end native snapshot batch result)
 

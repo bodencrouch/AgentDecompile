@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import stat
 
 import pytest
 
@@ -76,20 +77,49 @@ async def test_malformed_source_stays_awaiting(tmp_path, monkeypatch, artifact):
     assert "forwarded" not in (await store.unit_state(unit_id))["submission"]
 
 
-async def test_queue_fsync_failure_never_acknowledges_and_retry_recovers(tmp_path, monkeypatch):
+@pytest.mark.parametrize("fail_directory_sync", [False, True])
+async def test_queue_fsync_failure_never_acknowledges_and_retry_recovers(tmp_path, monkeypatch, fail_directory_sync):
     store, unit_id, work_dir, request_id = await prepare(tmp_path, monkeypatch)
     real_sync = rewrite_queue.os.fsync
 
     def fail_sync(fd):
-        raise OSError("injected queue fsync failure")
+        if stat.S_ISDIR(rewrite_queue.os.fstat(fd).st_mode) == fail_directory_sync:
+            raise OSError("injected queue fsync failure")
+        real_sync(fd)
 
     monkeypatch.setattr(rewrite_queue.os, "fsync", fail_sync)
     assert await RewriteConsumer(store).drain() == 0
     assert "forwarded" not in (await store.unit_state(unit_id))["submission"]
-    # The atomic queue replacement happened, but no durable receipt was sent.
-    assert rewrite_queue.find_entry(work_dir, request_id)["status"] == "completed"
+    # Failed file sync preserves the old queue; failed directory sync leaves a
+    # visible receipt whose durable acknowledgement still needs retrying.
+    assert rewrite_queue.find_entry(work_dir, request_id)["status"] == ("completed" if fail_directory_sync else "pending")
     monkeypatch.setattr(rewrite_queue.os, "fsync", real_sync)
     assert await RewriteConsumer(store).drain() == 1
+
+
+async def test_later_queue_replacement_preserves_forwarded_result_on_sync_failure(tmp_path, monkeypatch):
+    store, unit_id, work_dir, request_id = await prepare(tmp_path, monkeypatch)
+    assert await RewriteConsumer(store).drain() == 1
+    forwarded_entry = rewrite_queue.find_entry(work_dir, request_id)
+    path = rewrite_queue.queue_path(work_dir)
+    before = path.read_bytes()
+    real_sync = rewrite_queue.os.fsync
+
+    def fail_sync(fd):
+        raise OSError("injected later queue fsync failure")
+
+    monkeypatch.setattr(rewrite_queue.os, "fsync", fail_sync)
+    with pytest.raises(OSError, match="later queue fsync"):
+        rewrite_queue.write_rewrite_request(work_dir, **{**REQUEST, "function_name": "second"})
+    assert path.read_bytes() == before
+    assert not list(path.parent.glob("*.tmp"))
+    monkeypatch.setattr(rewrite_queue.os, "fsync", real_sync)
+    second_id = rewrite_queue.write_rewrite_request(work_dir, **{**REQUEST, "function_name": "second"})
+    assert rewrite_queue.find_entry(work_dir, request_id) == forwarded_entry
+    assert rewrite_queue.find_entry(work_dir, second_id)["status"] == "pending"
+    restored = ExchangeStore(store.state_path)
+    assert len((await restored.unit_state(unit_id))["submission"]["forwarded"]) == 1
+    assert await RewriteConsumer(restored).drain() == 0
 
 
 async def test_exchange_ack_failure_replays_queue_receipt_after_restart(tmp_path, monkeypatch):

@@ -31,16 +31,19 @@ applies.
 from __future__ import annotations
 
 import ast
+import errno
 import fcntl
 import hashlib
+import json
 import os
 
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
-from .state import atomic_write_json, now, read_json
+from .state import now, read_json
 
 SCHEMA = "agentdecompile.rewrite-queue.v1"
 CLAIM_BOUNDARY = (
@@ -54,6 +57,37 @@ STATUS_COMPLETED = "completed"
 STATUS_FAILED = "failed"
 
 DEFAULT_CLAIM_STALENESS_SECONDS = 1800
+
+
+def atomic_write_json(path: Path, data: dict[str, Any], *, require_directory_sync: bool = False) -> None:
+    """Preserve acknowledged proposals across every later queue replacement.
+
+    Callers hold the queue lock. Sync the replacement before publishing it:
+    syncing only after replace can discard the previous durable queue on a
+    crash. Forwarding requires directory sync; ordinary queue writers retain
+    compatibility with platforms that do not support directory fsync.
+    """
+
+    tmp = path.with_suffix(f"{path.suffix}.{os.getpid()}.{os.urandom(4).hex()}.tmp")
+    try:
+        with tmp.open("x", encoding="utf-8") as stream:
+            stream.write(json.dumps(data, indent=2, sort_keys=True) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        tmp.replace(path)
+        if os.name == "nt" and not require_directory_sync:
+            return
+        try:
+            descriptor = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+        except OSError as exc:
+            if require_directory_sync or exc.errno not in {errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP}:
+                raise
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def queue_path(work_dir: Path) -> Path:
@@ -336,17 +370,8 @@ def import_exchange_result(
                 return False
         elif entry.get("status") == STATUS_PENDING:
             entry.update(status=STATUS_COMPLETED, source=source, resolvedAt=now(), exchangeReceipt=receipt)
-            atomic_write_json(path, queue)
         else:
             return False
-        # Existing writers use atomic replacement only. Synchronize the actual
-        # queue while its lock is held, including on receipt replay. Unsupported
-        # directory fsync raises: the exchange must retain unacknowledged work.
-        with path.open("rb") as stream:
-            os.fsync(stream.fileno())
-        descriptor = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-        try:
-            os.fsync(descriptor)
-        finally:
-            os.close(descriptor)
+        # Receipt replay must also retry a previously failed directory sync.
+        atomic_write_json(path, queue, require_directory_sync=True)
         return True

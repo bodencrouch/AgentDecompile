@@ -5,6 +5,7 @@ receipts and target prerequisites decide the visible result of each stage.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -164,25 +165,37 @@ def _extract_advisory_witnesses(
 
 def continue_recovery(row: dict[str, Any], root: Path, db: Path,
                       action: Callable[..., dict[str, Any]], update: Callable[..., None],
-                      execution_routes: dict[str, tuple[str, str]] | None = None) -> None:
-    """Keep every stage visible and execute only the capabilities we can supply."""
-    programs = row.get('programs') or []
+                      execution_routes: dict[str, tuple[str, str]] | None = None,
+                      recovery_family: str = '', programs: list[str] | None = None,
+                      all_programs: list[str] | None = None) -> None:
+    """Recover one explicit family while projecting stages across the project."""
+    all_programs = list(all_programs or row.get('programs') or [])
+    programs = list(programs or all_programs)
     execution_routes = execution_routes or {}
-    totals = {key: 0 for key, _ in STAGES}
+    family_key = hashlib.sha256(recovery_family.encode()).hexdigest()[:16] if recovery_family else 'legacy'
+    family_receipt = row.setdefault('recoveryFamilies', {}).setdefault(recovery_family or 'legacy', {'family': recovery_family or 'legacy', 'programs': programs})
+    family_receipt.update(state='running', updatedAt=time.time())
+
+    def aggregate(key: str) -> tuple[int, str, list[str]]:
+        outcomes = [row['checkpoints'].get(item, {}).get('workflow', {}).get(key, {}) for item in all_programs]
+        completed = sum(outcome.get('status') == 'completed' for outcome in outcomes)
+        status = 'completed' if all_programs and completed == len(all_programs) else ('partial' if any(outcome.get('status') in {'partial', 'completed'} for outcome in outcomes) else 'blocked')
+        reasons = list(dict.fromkeys(str(outcome.get('reason') or '') for outcome in outcomes if outcome.get('status') != 'completed'))
+        return completed, status, reasons
     for program in programs:
         checkpoint = row['checkpoints'].setdefault(program, {})
         states = checkpoint.setdefault('workflow', {})
-        work = root / 'recovery' / row['id'] / str(checkpoint.get('binaryId') or 'unresolved')
+        work = root / 'recovery' / row['id'] / family_key / str(checkpoint.get('binaryId') or 'unresolved')
         execution_locator, execution_program = execution_routes.get(program, (row['locator'], program))
         context = {'locator': execution_locator, 'program': execution_program,
                    'slug': checkpoint.get('slug') or '', 'repo': checkpoint.get('repoPath') or ''}
 
         def result(key: str, status: str, reason: str, **details: Any) -> None:
             states[key] = {'status': status, 'reason': reason, 'updatedAt': time.time(), **details}
-            if status == 'completed':
-                totals[key] += 1
-            update(key, 'running', f'{program}: {reason}', completed=totals[key], total=len(programs),
-                   currentProgram=program, outcomes={p: row['checkpoints'].get(p, {}).get('workflow', {}).get(key, {}) for p in programs})
+            completed, _, _ = aggregate(key)
+            update(key, 'running', f'{program}: {reason}', completed=completed, total=len(all_programs),
+                   currentProgram=program, recoveryFamily=recovery_family,
+                   outcomes={p: row['checkpoints'].get(p, {}).get('workflow', {}).get(key, {}) for p in all_programs})
 
         def block_after(start: str, reason: str) -> None:
             keys = [key for key, _ in STAGES]
@@ -390,12 +403,11 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
                jobId=audit.get('jobId'), verifiedFunctions=verified, byteExact=False,
                targetImageReceipt=target_image['receiptPath'], targetSha256=target_image['targetSha256'])
 
+    family_outcomes = [row['checkpoints'].get(program, {}).get('workflow', {}).get('verify-byte-accuracy', {}) for program in programs]
+    family_receipt.update(state='completed' if family_outcomes and all(item.get('status') == 'completed' for item in family_outcomes) else 'partial', updatedAt=time.time(), outcomes={program: row['checkpoints'].get(program, {}).get('workflow', {}) for program in programs})
     for key, _ in STAGES:
-        outcomes = [row['checkpoints'].get(p, {}).get('workflow', {}).get(key, {}) for p in programs]
-        completed = totals[key]
-        status = 'completed' if programs and completed == len(programs) else ('partial' if any(r.get('status') in {'partial', 'completed'} for r in outcomes) else 'blocked')
-        reasons = list(dict.fromkeys(r.get('reason', '') for r in outcomes if r.get('status') != 'completed'))
-        update(key, status, '; '.join(reasons[:3]) or f'{completed} programs completed this stage.', completed=completed, total=len(programs), currentProgram='', currentAction='')
+        completed, status, reasons = aggregate(key)
+        update(key, status, '; '.join(reasons[:3]) or f'{completed} programs completed this stage.', completed=completed, total=len(all_programs), currentProgram='', currentAction='', recoveryFamily='')
 
 
 def merge_evidence(db: str, run: str) -> dict[str, Any]:

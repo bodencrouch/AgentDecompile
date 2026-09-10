@@ -69,6 +69,25 @@ def functions_from_program(program, monitor=None) -> list[dict[str, Any]]:
     return [enrich_canon(row) for row in merge_tiers(t1, t2)]
 
 
+def recovery_family(repo_path: str, slug: str, meta: dict[str, Any]) -> str:
+    """Use an explicit catalog assignment; unknown builds stay isolated."""
+    maps = load_maps()
+    families = maps.get("recovery_families") or maps.get("recoveryFamilies") or {}
+    if isinstance(families, dict):
+        configured = str(families.get(repo_path) or families.get(slug) or "").strip()
+        if configured:
+            return configured
+    for entry in maps.get("recovery_family_catalog") or []:
+        if isinstance(entry, dict) and str(entry.get("repo_path") or entry.get("repoPath") or "") == repo_path:
+            configured = str(entry.get("recovery_family") or entry.get("recoveryFamily") or "").strip()
+            if configured:
+                return configured
+    configured = str(meta.get("recovery_family") or meta.get("recoveryFamily") or "").strip()
+    if configured and not configured.startswith("unclassified:"):
+        return configured
+    return f"unclassified:{slug}"
+
+
 def upsert_binary(con, *, repo_path: str, slug: str, program=None, meta: dict[str, Any] | None = None) -> int:
     """Insert or update a binary row. *meta* supplies game/platform/arch when known."""
     ensure_binary_columns(con)
@@ -84,15 +103,16 @@ def upsert_binary(con, *, repo_path: str, slug: str, program=None, meta: dict[st
     digest = info.get("content_sha256") or content_digest(repo_path)
     if digest:
         info["content_sha256"] = digest
+    info["recovery_family"] = recovery_family(repo_path, slug, info)
     con.execute(
         """INSERT INTO binary(repo_path, slug, game, platform, variant, language_id,
-                              arch, bits, format, md5, content_sha256, image_base, role)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+                              arch, bits, format, md5, content_sha256, recovery_family, image_base, role)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
            ON CONFLICT(repo_path) DO UPDATE SET
              slug=excluded.slug, game=excluded.game, platform=excluded.platform,
              language_id=excluded.language_id, arch=excluded.arch, bits=excluded.bits,
              format=excluded.format, md5=excluded.md5, content_sha256=excluded.content_sha256,
-             image_base=excluded.image_base, role=excluded.role""",
+             recovery_family=excluded.recovery_family, image_base=excluded.image_base, role=excluded.role""",
         (
             repo_path,
             slug,
@@ -105,6 +125,7 @@ def upsert_binary(con, *, repo_path: str, slug: str, program=None, meta: dict[st
             info.get("format"),
             info.get("md5"),
             info.get("content_sha256"),
+            info.get("recovery_family"),
             info.get("image_base"),
             info.get("role"),
         ),

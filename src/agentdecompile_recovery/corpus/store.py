@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS binary (
     image_base    INTEGER,
     func_count    INTEGER,
     named_count   INTEGER,
-    role          TEXT
+    role          TEXT,
+    recovery_family TEXT
 );
 
 CREATE TABLE IF NOT EXISTS func (
@@ -239,6 +240,14 @@ def ensure_binary_columns(con: sqlite3.Connection) -> None:
     cols = {row[1] for row in con.execute("PRAGMA table_info(binary)")}
     if "content_sha256" not in cols:
         con.execute("ALTER TABLE binary ADD COLUMN content_sha256 TEXT")
+    if "recovery_family" not in cols:
+        con.execute("ALTER TABLE binary ADD COLUMN recovery_family TEXT")
+    # Keep each uncatalogued build isolated. Format, architecture, and game
+    # names are intentionally not recovery-family classifiers.
+    con.execute(
+        "UPDATE binary SET recovery_family='unclassified:' || id "
+        "WHERE recovery_family IS NULL OR trim(recovery_family)=''"
+    )
 
 
 def ensure_priority_index(con: sqlite3.Connection) -> None:

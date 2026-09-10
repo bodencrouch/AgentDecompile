@@ -1172,7 +1172,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         # resumed: doing so can duplicate expensive work and falsely make the
         # facts stage look empty while the corpus already contains functions.
         inventory_rows, inventory_error = query_db(
-            'SELECT id, slug, repo_path, func_count FROM binary '
+            'SELECT id, slug, repo_path, func_count, recovery_family FROM binary '
             'WHERE EXISTS (SELECT 1 FROM func WHERE func.binary_id=binary.id)'
         )
         inventory_by_source = {str(item[2] or ''): item for item in inventory_rows} if not inventory_error else {}
@@ -1190,6 +1190,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 checkpoint.update(
                     factsComplete=True, binaryId=existing[0], slug=existing[1],
                     repoPath=existing[2], workSize=existing[3], factsReused=True,
+                    recoveryFamily=str(existing[4] or f'unclassified:{existing[0]}'),
                 )
                 extracted += 1
                 update('facts', 'running', f"{program}: reusing {existing[3]} stored functions.", completed=extracted, total=len(analyzed_programs))
@@ -1202,7 +1203,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             result = action('facts', 'mcp.execute-script', {'programPath': execution_programs[program], 'code': code, 'timeout': 600}, {**row, 'locator': execution_locators[program], 'program': execution_programs[program]})
             payload = result.get('data') or {}
             if result['ok'] and isinstance(payload, dict) and payload.get('inventoryAvailable'):
-                checkpoint.update(factsComplete=True, factsPath=str(facts_path), binaryId=payload['binaryId'], slug=payload['slug'], repoPath=payload['repoPath'], programFingerprint=payload.get('programFingerprint'), arch=payload.get('arch'), workSize=payload.get('count'))
+                checkpoint.update(factsComplete=True, factsPath=str(facts_path), binaryId=payload['binaryId'], slug=payload['slug'], repoPath=payload['repoPath'], recoveryFamily=payload.get('recoveryFamily') or f"unclassified:{payload['binaryId']}", programFingerprint=payload.get('programFingerprint'), arch=payload.get('arch'), workSize=payload.get('count'))
                 extracted += 1
                 update('facts', 'running', f"{program}: {payload['count']} stored functions available.", completed=extracted, total=len(programs))
             else:
@@ -1215,7 +1216,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             completed=extracted, total=len(analyzed_programs),
         )
         records, error = query_db(
-            'SELECT id,slug,repo_path,game,func_count,arch,bits FROM binary '
+            'SELECT id,slug,repo_path,recovery_family,func_count,arch,bits FROM binary '
             'WHERE EXISTS (SELECT 1 FROM func WHERE func.binary_id=binary.id)'
         )
         records = records if not error else []
@@ -1305,6 +1306,18 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         pairs = load_match_pairs()
         source_paths = {item[2] for item in candidates}
         pairs = [pair for pair in pairs if pair[0] in source_paths or pair[1] in source_paths]
+        family_by_path = {str(item[2] or ''): str(item[3] or f'unclassified:{item[0]}') for item in records}
+        excluded_pairs = []
+        compatible_pairs = []
+        for src, dst, note in pairs:
+            src_family, dst_family = family_by_path.get(src), family_by_path.get(dst)
+            if src_family and dst_family and src_family == dst_family:
+                compatible_pairs.append((src, dst, note))
+            else:
+                excluded_pairs.append({'source': src, 'target': dst,
+                                       'reason': 'Explicit recovery-family catalog assignments differ or are unavailable.',
+                                       'sourceFamily': src_family, 'targetFamily': dst_family})
+        pairs = compatible_pairs
         # Project membership selects the sources; stored corpus evidence supplies
         # comparison candidates even when the project has only one binary.
         # Automatically schedule a *spanning forest*, never a dense graph:
@@ -1317,9 +1330,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         by_id = {item[0]: item for item in records}
         families: dict[str, list[dict[str, Any]]] = {}
         for item in project_candidates:
-            family = str(item[3] or '').strip()
-            if not family:
-                continue
+            family = str(item[3] or f'unclassified:{item[0]}').strip()
             families.setdefault(family, []).append({
                 'id': item[0], 'repo_path': item[2], 'func_count': item[4],
                 'arch': item[5], 'bits': item[6],
@@ -1369,7 +1380,6 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         # the matcher spends a worker constructing an empty side and cannot
         # produce an identity binding.  Retain the excluded target and reason
         # for the operator, but admit only evidence-backed inventories.
-        excluded_pairs = []
         admitted_pairs = []
         for pair in pairs:
             src, dst, note = pair
@@ -1380,11 +1390,11 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 or int(comparison_inputs[path].get('functionCount') or 0) <= 0
             ]
             if missing:
-                excluded_pairs.append({'source': src, 'target': dst, 'reason': 'No stored function inventory for ' + ', '.join(missing)})
+                excluded_pairs.append({'source': src, 'target': dst, 'reason': 'No stored function inventory for ' + ', '.join(missing), 'recoveryFamily': family_by_path.get(src)})
             else:
                 admitted_pairs.append(pair)
         pairs = admitted_pairs
-        row['comparisonTargets'] = [{'source': src, 'target': dst, 'reason': note} for src, dst, note in pairs]
+        row['comparisonTargets'] = [{'source': src, 'target': dst, 'reason': note, 'recoveryFamily': family_by_path.get(src)} for src, dst, note in pairs]
         row['excludedComparisonTargets'] = excluded_pairs
         row['comparisonTargetsFrozenAt'] = time.time()
         row['comparisonInputs'] = comparison_inputs
@@ -1447,10 +1457,24 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             merged = action('matching', 'workbench.merge-evidence', {'db': str(live_db()), 'run': f'prepare-{run_id}'}, row)
             update('matching', 'completed' if merged['ok'] and matched == len(pairs) else 'partial', 'Compared identities bound; existing human metadata retained.' if merged['ok'] else merged.get('error') or 'Knowledge binding could not finish.', completed=matched, total=len(pairs))
         from .workflow import continue_recovery
-        continue_recovery(
-            row, _directory().parent, live_db(), action, update,
-            execution_routes=execution_routes,
-        )
+        recovery_families: dict[str, list[str]] = {}
+        for program in programs:
+            checkpoint = row['checkpoints'].get(program, {})
+            family = str(checkpoint.get('recoveryFamily') or f"unclassified:{checkpoint.get('binaryId') or hashlib.sha256(program.encode()).hexdigest()[:12]}")
+            checkpoint['recoveryFamily'] = family
+            recovery_families.setdefault(family, []).append(program)
+        family_receipts = row.setdefault('recoveryFamilies', {})
+        for family, members in sorted(recovery_families.items()):
+            eligible = [program for program in members if row['checkpoints'].get(program, {}).get('analysisConfirmed') and row['checkpoints'].get(program, {}).get('factsComplete')]
+            family_receipts[family] = {'family': family, 'programs': members, 'eligiblePrograms': eligible,
+                                       'state': 'running' if eligible else 'waiting', 'updatedAt': time.time()}
+            if eligible:
+                continue_recovery(row, _directory().parent, live_db(), action, update,
+                                  execution_routes=execution_routes, recovery_family=family,
+                                  programs=eligible, all_programs=programs)
+            else:
+                family_receipts[family]['reason'] = 'Waiting for this family\'s analysis and facts receipts.'
+        _write(row)
         row['status'] = 'completed' if all(stage['status'] == 'completed' for stage in row['stages']) else 'partial'
     except _PauseRequested:
         row.update(status='paused', error='')
@@ -1516,9 +1540,9 @@ try:
         raise ValueError('Selected corpus build has a different executable fingerprint. Select the matching build before indexing.')
     # Registration precedes analysis. Refresh measured program metadata even
     # when the roster row already exists, retaining operator classification.
-    classification = con.execute('SELECT game,platform,variant,role FROM binary WHERE id=?', (binary_id,)).fetchone()
+    classification = con.execute('SELECT game,platform,variant,role,recovery_family FROM binary WHERE id=?', (binary_id,)).fetchone()
     upsert_binary(con, repo_path=repo, slug=slug, program=currentProgram,
-                  meta=dict(zip(('game', 'platform', 'variant', 'role'), classification)))
+                  meta=dict(zip(('game', 'platform', 'variant', 'role', 'recovery_family'), classification)))
     con.execute('CREATE TABLE IF NOT EXISTS program_binding (source_path TEXT NOT NULL, locator TEXT NOT NULL, program TEXT NOT NULL, updated REAL NOT NULL, PRIMARY KEY(source_path,locator))')
     con.execute('INSERT INTO program_binding VALUES(?,?,?,?) ON CONFLICT(source_path,locator) DO UPDATE SET program=excluded.program,updated=excluded.updated', (repo, config['locator'], config['program'], time.time()))
     con.commit()
@@ -1535,7 +1559,8 @@ try:
         else:
             reused = True
             con.rollback()
-    receipt = {'binaryId': binary_id, 'slug': slug, 'repoPath': repo, 'count': count,
+    recovery_family = con.execute('SELECT recovery_family FROM binary WHERE id=?', (binary_id,)).fetchone()[0]
+    receipt = {'binaryId': binary_id, 'slug': slug, 'repoPath': repo, 'recoveryFamily': recovery_family, 'count': count,
                'inventoryAvailable': count > 0, 'reused': reused, 'claim': 'advisory',
                'tool': 'corpus.extract.functions_from_program', 'program': config['program'],
                'programFingerprint': str(currentProgram.getExecutableMD5()), 'arch': str(currentProgram.getLanguageID())}

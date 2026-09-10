@@ -69,6 +69,13 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--no-analyze", action="store_true", help="Skip auto-analysis after import.")
     export.add_argument("--quiet", action="store_true", help="Do not print per-function progress lines to stderr.")
     export.set_defaults(func=run_export)
+    diff = sub.add_parser("diff", help="Replay a snapshot with the native console and write a strict differential report.")
+    diff.add_argument("snapshot", type=Path, help="Directory containing manifest.json.")
+    diff.add_argument("--console", type=Path, required=True, help="Path to native decomp_console.")
+    diff.add_argument("--sleigh-home", type=Path, required=True, help="Compiled Ghidra-root/SLEIGH home for decomp_console.")
+    diff.add_argument("--timeout-s", type=int, default=60, help="Per-function console timeout (default 60).")
+    diff.add_argument("--output", type=Path, default=None, help="Directory for native C and report.json (default: <snapshot>/native).")
+    diff.set_defaults(func=run_diff)
     return parser
 
 
@@ -198,6 +205,30 @@ def run_export(args: argparse.Namespace) -> int:
         if manifest.revision.stale and exit_code == EXIT_OK:
             print("warning: program changed during export; revision.stale is set (--allow-stale)", file=sys.stderr)
     return exit_code
+
+
+def run_diff(args: argparse.Namespace) -> int:
+    """Replay every successful savefile and return nonzero for any non-match."""
+    from agentdecompile_recovery.native_snapshot.differential import MATCH, write_report
+    from agentdecompile_recovery.native_snapshot.manifest import load_manifest
+    from agentdecompile_recovery.native_snapshot.replay import ConsoleReplayer
+
+    if args.timeout_s <= 0 or not args.console.is_file() or not args.sleigh_home.is_dir():
+        return EXIT_USAGE
+    try:
+        manifest = load_manifest(args.snapshot)
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"error: invalid snapshot: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    replayer = ConsoleReplayer(args.console, sleigh_home=args.sleigh_home, timeout_s=args.timeout_s)
+    replay = replayer.replay_manifest(args.snapshot, manifest)
+    results = write_report(
+        args.snapshot, manifest, {address: result.c_text for address, result in replay.items()},
+        crashed={address for address, result in replay.items() if result.returncode < 0}, output=args.output,
+    )
+    for result in results:
+        print(f"{result.addr}\t{result.classification}\t{result.name}")
+    return EXIT_OK if all(result.classification == MATCH for result in results) else 1
 
 
 def main(argv: list[str] | None = None) -> int:

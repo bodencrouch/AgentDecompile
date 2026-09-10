@@ -1,9 +1,11 @@
 #include "gnsdk/pool.hpp"
 
 #include <cerrno>
+#include <condition_variable>
 #include <csignal>
 #include <cstring>
 #include <fstream>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -149,6 +151,12 @@ struct Supervisor::Impl
     Config config;
     std::vector<Child> children;
     std::size_t next = 0;
+    std::mutex mutex;
+    std::condition_variable idle;
+    std::size_t queued = 0;
+    std::size_t in_flight = 0;
+    std::size_t queued_bytes = 0;
+    std::size_t in_flight_bytes = 0;
     std::string stderr_tail;
     bool hard_memory_cap = false;
 };
@@ -412,8 +420,63 @@ proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std:
         throw std::invalid_argument("request must have a nonzero request id");
     if (json.size() > impl_->config.max_queue_bytes)
         throw std::runtime_error("pool request exceeds max_queue_bytes");
-    const std::size_t slot = impl_->next++ % impl_->children.size();
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    std::size_t slot = 0;
+    {
+        std::unique_lock<std::mutex> lock(impl_->mutex);
+        if (impl_->config.max_queue == 0 ||
+            impl_->queued + impl_->in_flight >= impl_->config.max_queue)
+            throw std::runtime_error("pool queue full");
+        if (impl_->queued_bytes + impl_->in_flight_bytes + json.size() >
+            impl_->config.max_queue_bytes)
+            throw std::runtime_error("pool queue bytes full");
+        ++impl_->queued;
+        impl_->queued_bytes += json.size();
+        const auto remove_queued = [&]() noexcept
+        {
+            --impl_->queued;
+            impl_->queued_bytes -= json.size();
+            impl_->idle.notify_all();
+        };
+        for (;;)
+        {
+            for (std::size_t offset = 0; offset < impl_->children.size(); ++offset)
+            {
+                const std::size_t candidate = (impl_->next + offset) % impl_->children.size();
+                if (!impl_->children[candidate].busy)
+                {
+                    slot = candidate;
+                    impl_->next = (candidate + 1) % impl_->children.size();
+                    impl_->children[slot].busy = true;
+                    remove_queued();
+                    ++impl_->in_flight;
+                    impl_->in_flight_bytes += json.size();
+                    goto admitted;
+                }
+            }
+            if (impl_->idle.wait_until(lock, deadline) == std::cv_status::timeout)
+            {
+                remove_queued();
+                throw std::runtime_error("pool request timed out waiting for idle worker");
+            }
+        }
+    }
+admitted:
     Impl::Child &child = impl_->children[slot];
+    struct Finish
+    {
+        Impl &impl;
+        Impl::Child &child;
+        std::size_t bytes;
+        ~Finish()
+        {
+            std::lock_guard<std::mutex> lock(impl.mutex);
+            child.busy = false;
+            --impl.in_flight;
+            impl.in_flight_bytes -= bytes;
+            impl.idle.notify_one();
+        }
+    } finish{*impl_, child, json.size()};
     const auto retire = [&child, this]() noexcept
     {
         this->impl_->drain_stderr(child);
@@ -445,19 +508,8 @@ proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std:
     };
     for (int attempt = 0; attempt < 2; ++attempt)
     {
-        if (child.busy)
-            throw std::runtime_error("no idle worker");
         if (child.pid <= 0)
             child = Impl::spawn_child(impl_->config);
-        child.busy = true;
-        struct Clear
-        {
-            bool &value;
-            ~Clear()
-            {
-                value = false;
-            }
-        } clear{child.busy};
         proto::FrameWriter writer(child.in);
         if (!writer.write_json(kind, id, json))
         {
@@ -467,7 +519,6 @@ proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std:
             throw std::runtime_error("write worker request failed");
         }
         proto::MessageAssembler assembler(proto::kDefaultMaxImageBytes + proto::kDefaultMaxFrame);
-        const auto deadline = std::chrono::steady_clock::now() + timeout;
         bool retry = false;
         for (;;)
         {

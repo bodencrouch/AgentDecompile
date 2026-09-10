@@ -2,7 +2,7 @@ from pathlib import Path
 import subprocess
 
 from agentdecompile_recovery.native_snapshot.manifest import Capabilities, Counts, EngineInfo, FunctionEntry, Manifest, OptionsInfo, Producer, ProgramInfo, Revision, STATUS_OK
-from agentdecompile_recovery.native_snapshot.replay import BatchReplayer, ConsoleReplayer, _extract, _script
+from agentdecompile_recovery.native_snapshot.replay import BatchReplayer, ConsoleReplayer, _extract, _native_sla_hashes, _script
 
 
 def entry() -> FunctionEntry:
@@ -92,10 +92,23 @@ def test_batch_replayer_parses_snapshot_jsonl(monkeypatch, tmp_path: Path):
         timeout_s=30,
         workers=2,
         tmpdir=tmp_path / "tmp",
-    ).replay_manifest(tmp_path, object())
+    ).replay_manifest(tmp_path, manifest(entry()))
     assert seen["args"][:5] == ["/fake/gnsdk-batch", "--sleigh-home", "/fake/sleigh", "--snapshot", str(tmp_path)]
     assert "--workers" in seen["args"] and seen["args"][seen["args"].index("--workers") + 1] == "2"
     assert "--tmpdir" in seen["args"]
     assert seen["timeout"] == 40
     assert result["0000000000401000"].c_text == "int add(void) {}\n"
-    assert result["0000000000401000"].engines == ({"source": "Ghidra_12.1.3_build", "abi": "0.1.0", "sig_major": 6, "sig_minor": 1},)
+    assert result["0000000000401000"].engines == ({"source": "Ghidra_12.1.3_build", "abi": "0.1.0", "sig_major": 6, "sig_minor": 1, "sla_sha256": {}},)
+
+
+def test_native_sla_hashes_reads_language_definitions(tmp_path: Path) -> None:
+    languages = tmp_path / "Ghidra" / "Processors" / "x86" / "data" / "languages"
+    languages.mkdir(parents=True)
+    (languages / "x86.ldefs").write_text(
+        '<language_definitions><language id="x86:LE:64:default" slafile="x86-64.sla"/></language_definitions>',
+        encoding="utf-8",
+    )
+    (languages / "x86-64.sla").write_bytes(b"sla")
+    assert _native_sla_hashes(tmp_path, {"x86:LE:64:default"}) == {
+        "x86:LE:64:default": "9dfbc63747c6ec4e8d43b376ea383efc51c41e08d7de1901151db85e1b487784"
+    }

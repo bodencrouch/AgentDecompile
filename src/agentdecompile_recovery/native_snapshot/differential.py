@@ -90,7 +90,7 @@ def _write_diff(path: Path, java_text: str, native_text: str) -> None:
     path.write_text("".join(diff), encoding="utf-8")
 
 
-def _markdown_report(results: list[DifferentialResult], parity: list[str]) -> str:
+def _markdown_report(results: list[DifferentialResult], parity: list[str], warnings: list[str]) -> str:
     counts: dict[str, int] = {}
     for result in results:
         counts[result.classification] = counts.get(result.classification, 0) + 1
@@ -101,6 +101,9 @@ def _markdown_report(results: list[DifferentialResult], parity: list[str]) -> st
     ]
     if parity:
         lines.extend(f"  - {error}" for error in parity)
+    if warnings:
+        lines.append("- Parity warnings:")
+        lines.extend(f"  - {warning}" for warning in warnings)
     lines.extend([
         "",
         "| Classification | Count |",
@@ -130,6 +133,8 @@ def parity_errors(manifest: Manifest, replay_engines: tuple[dict[str, object], .
         return errors
     sources = {str(engine.get("source") or "") for engine in replay_engines}
     ghidra_version = manifest.producer.ghidra_version
+    if ghidra_version != "12.1.3":
+        errors.append(f"snapshot producer Ghidra version mismatch: expected '12.1.3', got {ghidra_version!r}")
     expected_tag = f"Ghidra_{ghidra_version}_build"
     mismatched_sources = sorted(source for source in sources if not source.startswith(expected_tag))
     if mismatched_sources:
@@ -145,11 +150,31 @@ def parity_errors(manifest: Manifest, replay_engines: tuple[dict[str, object], .
     return errors
 
 
+def parity_warnings(manifest: Manifest, replay_engines: tuple[dict[str, object], ...]) -> list[str]:
+    warnings: list[str] = []
+    expected = manifest.engine.java_sla_sha256
+    if not expected:
+        return warnings
+    observed: dict[str, str] = {}
+    for engine in replay_engines:
+        hashes = engine.get("sla_sha256")
+        if isinstance(hashes, dict):
+            observed.update({str(language): str(digest) for language, digest in hashes.items()})
+    for language_id, expected_digest in sorted(expected.items()):
+        digest = observed.get(language_id)
+        if digest is None:
+            warnings.append(f"native SLEIGH hash missing for {language_id}")
+        elif digest != expected_digest:
+            warnings.append(f"native SLEIGH hash mismatch for {language_id}: expected {expected_digest}, got {digest}")
+    return warnings
+
+
 def write_report(root: Path, manifest: Manifest, replay: dict[str, str | None], *,
                  crashed: set[str] | None = None,
                  timed_out: set[str] | None = None,
                  errors: dict[str, str] | None = None,
                  parity: list[str] | None = None,
+                 parity_warnings: list[str] | None = None,
                  output: Path | None = None) -> list[DifferentialResult]:
     """Write inspectable native text and a deterministic report JSON.
 
@@ -168,6 +193,7 @@ def write_report(root: Path, manifest: Manifest, replay: dict[str, str | None], 
     timed_out = timed_out or set()
     errors = errors or {}
     parity = parity or []
+    parity_warnings = parity_warnings or []
     for entry in manifest.ok_entries():
         text = replay.get(entry.addr)
         native_path: str | None = None
@@ -201,12 +227,15 @@ def write_report(root: Path, manifest: Manifest, replay: dict[str, str | None], 
                 classified.error,
             )
         )
+    effective_parity = list(parity)
+    if parity_warnings and any(result.classification == MISMATCH_CONTENT for result in results):
+        effective_parity.append("native SLEIGH hash drift coincides with mismatch-content results")
     report = {
         "schema": "agentdecompile.native-differential/v0",
-        "parity": {"ok": not parity, "errors": parity},
+        "parity": {"ok": not effective_parity, "errors": effective_parity, "warnings": parity_warnings},
         "counts": {kind: sum(1 for result in results if result.classification == kind) for kind in sorted({r.classification for r in results})},
         "results": [result.to_dict() for result in results],
     }
     (output / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (output / "report.md").write_text(_markdown_report(results, parity), encoding="utf-8")
+    (output / "report.md").write_text(_markdown_report(results, effective_parity, parity_warnings), encoding="utf-8")
     return results

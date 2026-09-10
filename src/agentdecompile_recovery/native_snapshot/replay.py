@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import json
 import os
 from pathlib import Path
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 
 from agentdecompile_recovery.native_snapshot.manifest import FunctionEntry, Manifest
 
@@ -54,6 +56,28 @@ def _extract(stdout: str, token: str) -> str | None:
     while body and not body[-1]:
         body.pop()
     return "\n".join(body) + ("\n" if body else "")
+
+
+def _native_sla_hashes(sleigh_home: Path, language_ids: set[str]) -> dict[str, str]:
+    hashes: dict[str, str] = {}
+    if not language_ids:
+        return hashes
+    for ldefs in sleigh_home.glob("Ghidra/Processors/*/data/languages/*.ldefs"):
+        try:
+            root = ET.fromstring(ldefs.read_text(encoding="utf-8"))
+        except (OSError, ET.ParseError):
+            continue
+        for language in root.findall("language"):
+            language_id = language.get("id")
+            slafile = language.get("slafile")
+            if not language_id or language_id not in language_ids or not slafile:
+                continue
+            sla_path = ldefs.parent / slafile
+            try:
+                hashes[language_id] = hashlib.sha256(sla_path.read_bytes()).hexdigest()
+            except OSError:
+                continue
+    return hashes
 
 
 class ConsoleReplayer:
@@ -165,7 +189,7 @@ class BatchReplayer:
         self.tmpdir = Path(tmpdir) if tmpdir is not None else None
 
     def replay_manifest(self, root: Path, manifest: Manifest) -> dict[str, ReplayResult]:
-        del manifest  # gnsdk-batch reads the snapshot manifest itself.
+        sla_hashes = _native_sla_hashes(self.sleigh_home, {manifest.program.language_id})
         with tempfile.TemporaryDirectory(prefix="gnsdk-batch-") as tmp:
             output = Path(tmp) / "results.jsonl"
             command = [
@@ -209,8 +233,9 @@ class BatchReplayer:
                     c_text = result.get("c") if record.get("status") == "ok" and isinstance(result.get("c"), str) else None
                     stderr = str(record.get("error") or completed.stderr)
                     engines = record.get("engines")
-                    engine_tuple: tuple[dict[str, object], ...] = tuple(
-                        engine for engine in engines if isinstance(engine, dict)
-                    ) if isinstance(engines, list) else ()
+                    engine_records = [engine.copy() for engine in engines if isinstance(engine, dict)] if isinstance(engines, list) else []
+                    for engine in engine_records:
+                        engine["sla_sha256"] = sla_hashes
+                    engine_tuple: tuple[dict[str, object], ...] = tuple(engine_records)
                     results[addr] = ReplayResult(addr, str(result.get("name") or addr), c_text, stderr, completed.returncode, engine_tuple)
             return results

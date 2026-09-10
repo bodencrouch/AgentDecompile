@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 from agentdecompile_recovery.native_snapshot.differential import (
@@ -9,6 +10,7 @@ from agentdecompile_recovery.native_snapshot.differential import (
     ORACLE_ABSENT,
     classify,
     parity_errors,
+    parity_warnings,
     write_report,
 )
 from agentdecompile_recovery.native_snapshot.manifest import Capabilities, Counts, EngineInfo, Manifest, OptionsInfo, Producer, ProgramInfo, Revision
@@ -66,9 +68,23 @@ def test_report_records_global_parity_errors(tmp_path: Path) -> None:
         producer=Producer("12.1.3", "x", "x"), program=ProgramInfo("x", "x86:LE:64:default", "default", "0x0"), engine=EngineInfo(1, 1),
         options=OptionsInfo("x" * 64, "options.xml", "decompile"), capabilities=Capabilities(True, ["decompile-c"], ["JVM"], []),
         revision=Revision(0, 0, False), counts=Counts(total=1, ok=1), total_bytes=0, functions=[entry()])
-    write_report(tmp_path, manifest, {entry().addr: "int add(void) { return 1; }\n"}, parity=["bad engine"])
+    write_report(tmp_path, manifest, {entry().addr: "int add(void) { return 1; }\n"}, parity=["bad engine"], parity_warnings=["hash drift"])
     assert '"ok": false' in (tmp_path / "differential" / "report.json").read_text(encoding="utf-8")
     assert "bad engine" in (tmp_path / "differential" / "report.md").read_text(encoding="utf-8")
+    assert "hash drift" in (tmp_path / "differential" / "report.md").read_text(encoding="utf-8")
+
+
+def test_report_upgrades_sleigh_hash_warning_with_content_mismatch(tmp_path: Path) -> None:
+    (tmp_path / "oracle").mkdir()
+    (tmp_path / "oracle/add.c").write_text("int add(void) { return 1; }\n")
+    manifest = Manifest(schema="agentdecompile.native-snapshot/v0", export_requires_java_decompile=True, created_at="now", timeout_s=1, wall_s=0,
+        producer=Producer("12.1.3", "x", "x"), program=ProgramInfo("x", "x86:LE:64:default", "default", "0x0"), engine=EngineInfo(1, 1),
+        options=OptionsInfo("x" * 64, "options.xml", "decompile"), capabilities=Capabilities(True, ["decompile-c"], ["JVM"], []),
+        revision=Revision(0, 0, False), counts=Counts(total=1, ok=1), total_bytes=0, functions=[entry()])
+    write_report(tmp_path, manifest, {entry().addr: "int add(void) { return 2; }\n"}, parity_warnings=["hash drift"])
+    report = json.loads((tmp_path / "differential" / "report.json").read_text(encoding="utf-8"))
+    assert report["parity"]["ok"] is False
+    assert report["parity"]["errors"] == ["native SLEIGH hash drift coincides with mismatch-content results"]
 
 
 def test_parity_errors_require_matching_native_engine_source(tmp_path: Path) -> None:
@@ -81,3 +97,19 @@ def test_parity_errors_require_matching_native_engine_source(tmp_path: Path) -> 
     assert parity_errors(manifest, ({"source": "Ghidra_12.1.3_build-1-gabc", "sig_major": 1, "sig_minor": 1},)) == []
     assert parity_errors(manifest, ({"source": "Ghidra_12.1.2_build", "sig_major": 1, "sig_minor": 1},))
     assert parity_errors(manifest, ({"source": "Ghidra_12.1.3_build-1-gabc", "sig_major": 2, "sig_minor": 1},))
+    old_manifest = Manifest(schema="agentdecompile.native-snapshot/v0", export_requires_java_decompile=True, created_at="now", timeout_s=1, wall_s=0,
+        producer=Producer("12.1.2", "x", "x"), program=ProgramInfo("x", "x86:LE:64:default", "default", "0x0"), engine=EngineInfo(1, 1),
+        options=OptionsInfo("x" * 64, "options.xml", "decompile"), capabilities=Capabilities(True, ["decompile-c"], ["JVM"], []),
+        revision=Revision(0, 0, False), counts=Counts(total=1, ok=1), total_bytes=0, functions=[entry()])
+    assert parity_errors(old_manifest, ({"source": "Ghidra_12.1.2_build", "sig_major": 1, "sig_minor": 1},))
+
+
+def test_parity_warnings_report_sleigh_hash_drift(tmp_path: Path) -> None:
+    del tmp_path
+    manifest = Manifest(schema="agentdecompile.native-snapshot/v0", export_requires_java_decompile=True, created_at="now", timeout_s=1, wall_s=0,
+        producer=Producer("12.1.3", "x", "x"), program=ProgramInfo("x", "x86:LE:64:default", "default", "0x0"),
+        engine=EngineInfo(1, 1, java_sla_sha256={"x86:LE:64:default": "a" * 64}),
+        options=OptionsInfo("x" * 64, "options.xml", "decompile"), capabilities=Capabilities(True, ["decompile-c"], ["JVM"], []),
+        revision=Revision(0, 0, False), counts=Counts(total=1, ok=1), total_bytes=0, functions=[entry()])
+    assert parity_warnings(manifest, ({"sla_sha256": {"x86:LE:64:default": "a" * 64}},)) == []
+    assert parity_warnings(manifest, ({"sla_sha256": {"x86:LE:64:default": "b" * 64}},))

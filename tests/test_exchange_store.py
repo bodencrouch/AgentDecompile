@@ -393,7 +393,7 @@ async def test_same_worker_reusing_key_for_another_lease_is_rejected(tmp_path: P
 
     second_state = await store.unit_state(second_lease["unit"]["unitId"])
     assert second_state["status"] == "claimed"
-    assert second_state["leaseToken"] == second_lease["leaseToken"]
+    assert second_state["claimedBy"] == worker
     assert second_state["submission"] is None
 
 

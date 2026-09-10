@@ -61,18 +61,24 @@ class Session:
             raise ValueError("image must not be empty")
         storage = (c.c_uint8 * len(image)).from_buffer_copy(image)
         desc = _abi.sized(_abi.ImageDesc())
-        desc.bytes = c.cast(storage, c.POINTER(c.c_uint8)); desc.len = len(image); desc.base = base
+        desc.bytes = c.cast(storage, c.POINTER(c.c_uint8))
+        desc.len = len(image)
+        desc.base = base
         desc.name = name.encode() if name else None
         _check(self._lib.gnsdk_session_load_image(self._handle, c.byref(desc)), "gnsdk_session_load_image")
 
     def decompile(self, address: int, *, deadline_ms: int = 0, tokens: bool = False) -> str:
-        options = _abi.sized(_abi.DecompileOptions()); options.deadline_ms = deadline_ms; options.want_tokens = int(tokens)
+        options = _abi.sized(_abi.DecompileOptions())
+        options.deadline_ms = deadline_ms
+        options.want_tokens = int(tokens)
         result = _abi.sized(_abi.DecompileOut())
-        status = _check(self._lib.gnsdk_decompile(self._handle, address, c.byref(options), c.byref(result)), "gnsdk_decompile", (Status.OK_WARNINGS, Status.PARTIAL_UNSUPPORTED))
+        _check(self._lib.gnsdk_decompile(self._handle, address, c.byref(options), c.byref(result)), "gnsdk_decompile", (Status.OK_WARNINGS, Status.PARTIAL_UNSUPPORTED))
         try:
             return c.string_at(result.c_text.data, result.c_text.len).decode("utf-8", "replace") if result.c_text.data else ""
         finally:
-            self._lib.gnsdk_buf_free(c.byref(result.c_text)); self._lib.gnsdk_buf_free(c.byref(result.tokens)); self._lib.gnsdk_buf_free(c.byref(result.warnings))
+            self._lib.gnsdk_buf_free(c.byref(result.c_text))
+            self._lib.gnsdk_buf_free(c.byref(result.tokens))
+            self._lib.gnsdk_buf_free(c.byref(result.warnings))
 
 
 def capabilities() -> int:
@@ -80,5 +86,7 @@ def capabilities() -> int:
 
 
 def version() -> Version:
-    lib = load(); info = _abi.sized(_abi.VersionInfo()); _check(lib.gnsdk_version(c.byref(info)), "gnsdk_version")
+    lib = load()
+    info = _abi.sized(_abi.VersionInfo())
+    _check(lib.gnsdk_version(c.byref(info)), "gnsdk_version")
     return Version(info.abi_major, info.abi_minor, info.abi_patch, _text(bytes(info.ghidra_version)), _text(bytes(info.source)))

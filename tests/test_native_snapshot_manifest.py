@@ -9,6 +9,7 @@ import sys
 import pytest
 
 from agentdecompile_recovery.native_snapshot import manifest as m
+from agentdecompile_recovery.native_snapshot.exporter import normalize_savefile_for_native_restore
 from agentdecompile_recovery.native_snapshot.exporter import _has_open_transaction
 
 pytestmark = pytest.mark.unit
@@ -85,6 +86,22 @@ def test_partial_name_and_stem() -> None:
     assert m.is_partial_name("x.partial.xml") and not m.is_partial_name("x.xml")
     assert m.savefile_stem("0000000000401000.partial.xml") == "0000000000401000"
     assert m.oracle_names("ovl__0000000000401000.xml") == ("oracle/ovl__0000000000401000.c", "oracle/ovl__0000000000401000.json")
+
+
+def test_savefile_normalizer_moves_undefined_type_before_forward_reference() -> None:
+    text = """<xml_savefile>
+<typegrp>
+  <type name="" metatype="ptr" size="8">
+    <typeref name="undefined" id="0xc000000000000000"/>
+  </type>
+  <type name="undefined" id="0xc000000000000000" metatype="unknown" size="1"/>
+  <type name="undefined1" size="1" metatype="unknown" id="0xc0000000000000b4"/>
+</typegrp>
+</xml_savefile>
+"""
+    normalized = normalize_savefile_for_native_restore(text)
+    assert normalized.index('<type name="undefined" id="0xc000000000000000"') < normalized.index('<typeref name="undefined"')
+    assert normalized.count('id="0xc000000000000000"') == 2
 
 
 def test_round_trip_to_dict_from_dict() -> None:

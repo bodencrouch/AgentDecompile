@@ -140,6 +140,19 @@ struct Worker {
     return writer.write_json(proto::Kind::Error, id, proto::make_error(error_code(status), message, status));
   }
 
+  bool reply_session_error(std::uint64_t id, gnsdk_status status, std::string_view fallback) {
+    std::string message(fallback);
+    if (g_session != nullptr) {
+      gnsdk_buf diagnostics{};
+      if (gnsdk_session_diagnostics(g_session, &diagnostics) == GNSDK_OK && diagnostics.data != nullptr &&
+          diagnostics.len != 0) {
+        message.assign(reinterpret_cast<const char*>(diagnostics.data), diagnostics.len);
+      }
+      gnsdk_buf_free(&diagnostics);
+    }
+    return reply_error(id, status, message);
+  }
+
   bool hello(const proto::Message& message) {
     proto::HelloInfo peer;
     std::string error;
@@ -192,7 +205,7 @@ struct Worker {
     const gnsdk_status status = gnsdk_session_open_snapshot(&options, path.c_str(), &g_session);
     if (status != GNSDK_OK) {
       if (status == GNSDK_RESOURCE_LIMITED) exit_after_reply = 4;
-      return reply_error(message.request_id, status, gnsdk_status_name(status));
+      return reply_session_error(message.request_id, status, gnsdk_status_name(status));
     }
     return writer.write_json(proto::Kind::Result, message.request_id, R"({"status":"ok"})");
   }

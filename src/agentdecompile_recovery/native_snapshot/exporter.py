@@ -57,6 +57,11 @@ from agentdecompile_recovery.native_snapshot.manifest import (
 )
 
 _WARNING_RE = re.compile(r"/\*\s*WARNING:\s*(.*?)\s*\*/")
+_TYPEGRP_RE = re.compile(r"(<typegrp>)(.*?)(</typegrp>)", re.DOTALL)
+_UNDEFINED_TYPE_RE = re.compile(
+    r"\s*<type name=\"undefined\" id=\"0xc000000000000000\" metatype=\"unknown\" size=\"1\"\s*/>\n?"
+)
+_UNDEFINED_TYPEREF = '<typeref name="undefined" id="0xc000000000000000"/>'
 _MASK64 = (1 << 64) - 1
 
 
@@ -123,6 +128,39 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def normalize_savefile_for_native_restore(text: str) -> str:
+    """Repair Java debug-savefile type ordering where native restore is stricter.
+
+    Some ``DecompileDebug`` savefiles define the special base ``undefined`` type
+    after pointer/type references to it inside the same ``<typegrp>``. Java's
+    decompiler accepts that forward reference; native ``restoreXml`` fails with
+    ``Unable to resolve type: undefined``. Move only that exact definition to
+    the start of the type group when a forward reference exists.
+    """
+
+    def _fix(match: re.Match[str]) -> str:
+        open_tag, body, close_tag = match.groups()
+        ref = body.find(_UNDEFINED_TYPEREF)
+        definition = _UNDEFINED_TYPE_RE.search(body)
+        if ref < 0 or definition is None or definition.start() < ref:
+            return match.group(0)
+        definition_text = definition.group(0).strip()
+        without_definition = body[: definition.start()] + body[definition.end() :]
+        prefix = "\n  " if without_definition.startswith("\n") else ""
+        return f"{open_tag}{prefix}{definition_text}{without_definition}{close_tag}"
+
+    return _TYPEGRP_RE.sub(_fix, text)
+
+
+def normalize_savefile_for_native_restore_in_place(path: Path) -> bool:
+    original = path.read_text(encoding="utf-8", errors="replace")
+    normalized = normalize_savefile_for_native_restore(original)
+    if normalized == original:
+        return False
+    path.write_text(normalized, encoding="utf-8")
+    return True
 
 
 def extract_warnings(c_text: str) -> list[str]:
@@ -515,6 +553,7 @@ def _export_one(engine: _Engine, func: Any, functions_dir: Path, oracle_dir: Pat
             entry.status = STATUS_ERROR
             entry.error = "decompile completed but no savefile was written"
         else:
+            normalize_savefile_for_native_restore_in_place(savefile)
             entry.savefile = f"{FUNCTIONS_DIRNAME}/{file_name}"
             entry.sha256 = sha256_file(savefile)
             entry.warnings = extract_warnings(c_text)

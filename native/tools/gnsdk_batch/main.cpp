@@ -146,12 +146,15 @@ int main(int argc, char** argv) {
       try {
         json::Value open = json::Value::object(); open.set("path", job.snapshot);
         const auto opened = pool.request(proto::Kind::OpenSnapshot, open.dump(), request++, std::chrono::seconds(timeout_s));
-        if (opened.kind != proto::to_u16(proto::Kind::Result)) throw std::runtime_error("snapshot open failed");
+        if (opened.kind != proto::to_u16(proto::Kind::Result)) {
+          write_record(output, job, opened, static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count()), engines);
+          continue;
+        }
         json::Value decompile = json::Value::object(); decompile.set("addr", job.addr); decompile.set("tokens", false); decompile.set("deadline_ms", static_cast<unsigned long long>(timeout_s * 1000)); decompile.set("printer", "c");
         const auto reply = pool.request(proto::Kind::Decompile, decompile.dump(), request++, std::chrono::seconds(timeout_s));
         write_record(output, job, reply, static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count()), engines);
       } catch (const std::exception& exc) {
-        json::Value record = json::Value::object(); record.set("id", job.id); record.set("seq", job.id); record.set("engines", engines); record.set("status", "engine_failure"); record.set("error", exc.what()); output << record.dump() << '\n';
+        json::Value record = json::Value::object(); record.set("id", job.id); record.set("seq", job.id); record.set("elapsed_ms", static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count())); record.set("engines", engines); record.set("status", "engine_failure"); record.set("error", exc.what()); output << record.dump() << '\n';
       }
     }
     return 0;

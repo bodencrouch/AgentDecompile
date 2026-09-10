@@ -195,16 +195,24 @@ idempotency key plus a content `fingerprint`, returning 409 when the same key is
 reused for different work.
 
 ```
-POST /dashboard/api/exchange/enroll    {capabilities, agent} -> {workerId}
-POST /dashboard/api/exchange/claim     {workerId, lanes} -> 204 | {unit, leaseToken, leaseExpiresAt}
-POST /dashboard/api/exchange/heartbeat {leaseToken} -> {leaseExpiresAt}
-POST /dashboard/api/exchange/submit    {leaseToken, artifact, verdict} -> {accepted, verdict}
-GET  /dashboard/api/exchange/roster    -> contributors, throughput, wins
+POST /dashboard/api/exchange/enroll    {capabilities?, agent?} -> {workerId}
+POST /dashboard/api/exchange/claim     {workerId, lanes?} -> 204 | {unit, leaseToken, fence, leaseExpiresAt}
+POST /dashboard/api/exchange/heartbeat {workerId, leaseToken} -> {fence, leaseExpiresAt}
+POST /dashboard/api/exchange/submit    {workerId, leaseToken, fence, idempotencyKey, artifact, verdict} -> {accepted, verdict}
+GET  /dashboard/api/exchange/roster    -> contributors, throughput
 ```
 
 Outbound-only, so contributors behind NAT work. No inbound ports. Enrollment is
 open per the project's stated posture; rate-limit by worker id so a broken
 client cannot drain the queue.
+
+`workerId` and `leaseToken` are mandatory for both lease mutations. `fence` and
+the client-chosen `idempotencyKey` are mandatory for submit: the former rejects
+a late result from an expired or superseded lease, and the latter makes a retry
+safe. Every exchange validation failure and store refusal has the same JSON
+envelope, `{ "error": string, "code": string }`; validation failures use HTTP
+422 and `code: "validation-error"`. This envelope applies only to the exchange
+routes, leaving FastAPI's normal validation responses unchanged elsewhere.
 
 The browser lane is the same protocol from `fetch()` in a Web Worker.
 Cross-origin isolation, if ever needed for wasm threads, costs two response

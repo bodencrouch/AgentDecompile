@@ -682,7 +682,9 @@ async def test_router_maps_refusals_to_status_codes(tmp_path: Path) -> None:
         worker_id = enrolled.json()["workerId"]
 
         assert (await client.post("/dashboard/api/exchange/claim", json={"workerId": worker_id})).status_code == 204
-        assert (await client.post("/dashboard/api/exchange/claim", json={"workerId": "stranger"})).status_code == 404
+        unknown_worker = await client.post("/dashboard/api/exchange/claim", json={"workerId": "stranger"})
+        assert unknown_worker.status_code == 404
+        assert set(unknown_worker.json()) == {"error", "code"}
 
         await store.offer(lane="rewrite", payload=REWRITE_PAYLOAD)
         claimed = await client.post("/dashboard/api/exchange/claim", json={"workerId": worker_id})
@@ -707,8 +709,11 @@ async def test_router_maps_refusals_to_status_codes(tmp_path: Path) -> None:
 
         conflict = await client.post("/dashboard/api/exchange/submit", json={**body, "artifact": {"source": "other"}})
         assert conflict.status_code == 409
+        assert set(conflict.json()) == {"error", "code"}
         # The lease was retired by the accepted submit, so a fresh key is fenced out.
-        assert (await client.post("/dashboard/api/exchange/submit", json={**body, "idempotencyKey": "route-2"})).status_code == 410
+        retired = await client.post("/dashboard/api/exchange/submit", json={**body, "idempotencyKey": "route-2"})
+        assert retired.status_code == 410
+        assert set(retired.json()) == {"error", "code"}
 
         roster = await client.get("/dashboard/api/exchange/roster")
         assert roster.status_code == 200
@@ -773,6 +778,10 @@ async def test_router_bounds_capability_and_lane_labels_before_store_mutation(tm
             json={"capabilities": ["x" * (MAX_CAPABILITY_LENGTH + 1)]},
         )
         assert oversized_capability.status_code == 422
+        assert oversized_capability.json() == {
+            "error": "request validation failed",
+            "code": "validation-error",
+        }
         assert await store.roster() == before_enroll
 
         enrolled = await client.post(
@@ -788,6 +797,10 @@ async def test_router_bounds_capability_and_lane_labels_before_store_mutation(tm
             json={"workerId": worker_id, "lanes": ["x" * (MAX_LANE_LENGTH + 1)]},
         )
         assert oversized_lane.status_code == 422
+        assert oversized_lane.json() == {
+            "error": "request validation failed",
+            "code": "validation-error",
+        }
         assert await store.roster() == before_claim
 
         valid_claim = await client.post(

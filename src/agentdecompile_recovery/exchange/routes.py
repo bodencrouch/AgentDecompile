@@ -21,8 +21,10 @@ import json
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field, field_validator
 
 from .consumers import RewriteConsumer
@@ -94,10 +96,28 @@ def _refusal(exc: ExchangeError) -> JSONResponse:
     return JSONResponse({"error": str(exc), "code": exc.code}, status_code=exc.status)
 
 
+class ExchangeRoute(APIRoute):
+    """Keep exchange validation errors in its small public error contract."""
+
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+
+        async def exchange_handler(request: Request) -> Response:
+            try:
+                return await handler(request)
+            except RequestValidationError:
+                return JSONResponse(
+                    {"error": "request validation failed", "code": "validation-error"},
+                    status_code=422,
+                )
+
+        return exchange_handler
+
+
 def create_exchange_router(store: ExchangeStore | None = None) -> APIRouter:
     """Build the exchange router. Creating it touches no disk; the store loads lazily."""
 
-    router = APIRouter()
+    router = APIRouter(route_class=ExchangeRoute)
     resolved = store
     consumer: RewriteConsumer | None = None
 

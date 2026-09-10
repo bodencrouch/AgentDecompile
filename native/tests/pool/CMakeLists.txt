@@ -11,3 +11,8 @@ target_compile_definitions(pool_supervisor_smoke PRIVATE
 add_dependencies(pool_supervisor_smoke fake-worker)
 add_test(NAME pool_supervisor_smoke COMMAND pool_supervisor_smoke)
 set_tests_properties(pool_supervisor_smoke PROPERTIES LABELS "pool;integration")
+
+add_test(NAME gnsdk_batch_version COMMAND gnsdk-batch --version)
+set_tests_properties(gnsdk_batch_version PROPERTIES
+  LABELS "pool;batch"
+  PASS_REGULAR_EXPRESSION "gnsdk-batch 0\\.1\\.0")

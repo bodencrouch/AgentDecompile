@@ -415,7 +415,7 @@ GNSDK_API void gnsdk_session_cancel(gnsdk_session *s);
 GNSDK_API gnsdk_status gnsdk_session_diagnostics(gnsdk_session *s, gnsdk_buf *out);
 
 /* Current gnsdk_session_state. */
-GNSDK_API gnsdk_status gnsdk_session_state(gnsdk_session *s, uint32_t *state);
+GNSDK_API gnsdk_status gnsdk_session_get_state(gnsdk_session *s, uint32_t *state);
 
 /* Destroy the session and free the handle. NULL is a no-op. */
 GNSDK_API gnsdk_status gnsdk_session_destroy(gnsdk_session *s);

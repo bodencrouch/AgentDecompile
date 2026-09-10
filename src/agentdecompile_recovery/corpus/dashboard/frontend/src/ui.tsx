@@ -1,20 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { request, type Data } from "./contracts";
+import { readClientLocal, writeClientLocal } from "./workspaceState";
 export function readPref<T>(key: string, fallback: T): T {
-  try {
-    return (
-      JSON.parse(localStorage.getItem("ad.react." + key) || "null") ?? fallback
-    );
-  } catch {
-    return fallback;
-  }
+  return readClientLocal("pref:" + key, fallback);
 }
 export function savePref(key: string, value: unknown) {
-  try {
-    localStorage.setItem("ad.react." + key, JSON.stringify(value));
-  } catch {
-    /* private browsing or quota */
-  }
+  writeClientLocal("pref:" + key, value);
 }
 export function usePref<T>(key: string, fallback: T) {
   const [value, setValue] = useState<T>(() => readPref(key, fallback));
@@ -63,14 +54,36 @@ export function useData(url: string | null, revision = 0) {
   }, [url, revision, state.loading]);
   return state.key===url?state:{key:url,data:{},error:"",loading:Boolean(url)};
 }
+
+export function resizeKeyboardDelta(key: string, shiftKey = false) {
+  const step = shiftKey ? 64 : 16;
+  if (key === "ArrowLeft" || key === "ArrowUp") return -step;
+  if (key === "ArrowRight" || key === "ArrowDown") return step;
+  return null;
+}
+
 export function ResizeBar({
   axis,
   onResize,
   label,
+  value,
+  min,
+  max,
+  collapsed = false,
+  onReset,
+  onCollapse,
+  onRestore,
 }: {
   axis: "x" | "y";
   onResize: (delta: number) => void;
   label: string;
+  value?: number;
+  min?: number;
+  max?: number;
+  collapsed?: boolean;
+  onReset?: () => void;
+  onCollapse?: () => void;
+  onRestore?: () => void;
 }) {
   return (
     <div
@@ -78,13 +91,24 @@ export function ResizeBar({
       role="separator"
       aria-label={label}
       aria-orientation={axis === "x" ? "vertical" : "horizontal"}
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={value}
       tabIndex={0}
       onKeyDown={(e) => {
-        if (
-          ["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown"].includes(e.key)
-        ) {
+        const delta = resizeKeyboardDelta(e.key, e.shiftKey);
+        if (delta !== null) {
           e.preventDefault();
-          onResize(e.key === "ArrowLeft" || e.key === "ArrowUp" ? -16 : 16);
+          onResize(delta);
+        } else if (e.key === "Home" && onReset) {
+          e.preventDefault();
+          onReset();
+        } else if (e.key === "Enter") {
+          const toggle = collapsed ? onRestore : onCollapse;
+          if (toggle) {
+            e.preventDefault();
+            toggle();
+          }
         }
       }}
       onPointerDown={(e) => {

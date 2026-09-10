@@ -14,6 +14,7 @@ export type MatchPhase =
   | "mismatch"
   | "objdiff-verified"
   | "provider-unavailable"
+  | "incomplete"
   | "failed";
 
 const phaseLabel: Record<MatchPhase, string> = {
@@ -26,6 +27,7 @@ const phaseLabel: Record<MatchPhase, string> = {
   mismatch: "Byte mismatch recorded",
   "objdiff-verified": "Objdiff verified",
   "provider-unavailable": "Objdiff provider unavailable",
+  incomplete: "Verification evidence incomplete",
   failed: "Compile or diff failed",
 };
 
@@ -55,7 +57,7 @@ export function MatchingWorkspace({
   receipts?: Data[];
   approvalRecords?: unknown;
   onCandidateChange: (candidate: string) => void;
-  onCompile?: () => void;
+  onCompile?: (candidate: string) => void;
   onRetry?: () => void;
   onNavigateMismatch?: (mismatch: DiffMismatch) => void;
   onRequestPromotion?: (approvalId: string) => void;
@@ -88,7 +90,7 @@ export function MatchingWorkspace({
         <textarea value={draft} disabled={busy} onChange={(event) => setDraft(event.target.value)} onBlur={() => onCandidateChange(draft)} />
       </label>
       <div className="matching-actions">
-        <button type="button" disabled={!provider.available || busy || !onCompile} onClick={onCompile}>Compile and diff</button>
+        <button type="button" disabled={!provider.available || busy || !onCompile || !draft.trim()} onClick={() => onCompile?.(draft)}>Compile and diff</button>
         {["failed", "mismatch", "provider-unavailable"].includes(phase) && onRetry ? <button type="button" onClick={onRetry}>Retry recorded attempt</button> : null}
       </div>
       <p className={proof ? "matching-proof" : "matching-boundary"}>

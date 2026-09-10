@@ -5,6 +5,7 @@ export {
   type Address,
   type ActionDescriptor,
   type AnalysisJob,
+  type ActionParityMatrix,
   type ArtifactFormat,
   type ArtifactRecord,
   type BasicBlockRecord,
@@ -20,6 +21,7 @@ export {
   type InstructionRecord,
   type NormalizedAnalysisModel,
   type Pagination,
+  type JobCheckpoint,
   type ProviderCapability,
   type ProviderResult,
   type ProviderResultStatus,
@@ -29,6 +31,7 @@ export {
   type SharedContext,
   type StructuredFailure,
   type XrefRecord,
+  actionParityIssues,
 } from "./analysis/contracts";
 export interface Selection {
   slug: string;

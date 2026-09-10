@@ -1,22 +1,85 @@
 :root {
-  font-family: ui-sans-serif, "Segoe UI", Tahoma, sans-serif;
+  /* Primitive scales: raw values live only here. */
+  --primitive-neutral-1000: #161719;
+  --primitive-neutral-950: #1e1f22;
+  --primitive-neutral-850: #2b2d30;
+  --primitive-neutral-800: #303238;
+  --primitive-neutral-750: #35373b;
+  --primitive-neutral-725: #363a41;
+  --primitive-neutral-700: #40444b;
+  --primitive-neutral-650: #46494f;
+  --primitive-neutral-100: #ecedf0;
+  --primitive-neutral-200: #d5d7db;
+  --primitive-neutral-400: #a4a7ad;
+  --primitive-blue-700: #234573;
+  --primitive-blue-400: #6ea8ff;
+  --primitive-blue-300: #8cbaff;
+  --primitive-cyan-300: #8bd0e8;
+  --primitive-red-300: #ef968b;
+  --primitive-amber-300: #e3b75c;
+  --primitive-overlay: #0007;
+  --primitive-space-1: 2px;
+  --primitive-space-2: 4px;
+  --primitive-space-3: 6px;
+  --primitive-space-4: 8px;
+  --primitive-space-5: 10px;
+  --primitive-space-6: 12px;
+  --primitive-radius-none: 0;
+  --primitive-font-sans: ui-sans-serif, "Segoe UI", Tahoma, sans-serif;
+  --primitive-font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+
+  /* Semantic aliases: intent shared across workstation components. */
+  --color-chassis: var(--primitive-neutral-950);
+  --color-pane: var(--primitive-neutral-850);
+  --color-raised: var(--primitive-neutral-750);
+  --color-well: var(--primitive-neutral-1000);
+  --color-line: var(--primitive-neutral-650);
+  --color-line-subtle: var(--primitive-neutral-800);
+  --color-ink: var(--primitive-neutral-200);
+  --color-ink-strong: var(--primitive-neutral-100);
+  --color-ink-muted: var(--primitive-neutral-400);
+  --color-action: var(--primitive-blue-400);
+  --color-action-hover: var(--primitive-neutral-700);
+  --color-row-hover: var(--primitive-neutral-725);
+  --color-selection: var(--primitive-blue-700);
+  --color-focus: var(--primitive-blue-300);
+  --color-address: var(--primitive-cyan-300);
+  --color-fault: var(--primitive-red-300);
+  --color-caution: var(--primitive-amber-300);
+  --color-overlay: var(--primitive-overlay);
+  --font-interface: var(--primitive-font-sans);
+  --font-evidence: var(--primitive-font-mono);
+
+  /* Component aliases: stable contracts for existing and new CSS. */
+  --control-height: 24px;
+  --control-background: var(--color-pane);
+  --control-border: var(--color-line);
+  --control-radius: var(--primitive-radius-none);
+  --splitter-background: var(--color-well);
+  --splitter-active-background: var(--color-action);
+  --code-background: var(--color-well);
+  --popup-shadow: 0 8px 20px var(--color-overlay);
+
+  /* Compatibility aliases while existing component styles migrate. */
+  --bg: var(--color-chassis);
+  --bg-panel: var(--color-pane);
+  --bg-raised: var(--color-raised);
+  --bg-sunken: var(--color-well);
+  --fg: var(--color-ink);
+  --fg-muted: var(--color-ink-muted);
+  --border: var(--color-line);
+  --accent: var(--color-action);
+  --selection: var(--color-selection);
+  --danger: var(--color-fault);
+  --warning: var(--color-caution);
+  --addr: var(--color-address);
+  --font-mono: var(--font-evidence);
+  --ctrl-h: var(--control-height);
+  --focus: var(--color-focus);
+
+  font-family: var(--font-interface);
   font-size: 13px;
   color-scheme: dark;
-  --bg: #1e1f22;
-  --bg-panel: #2b2d30;
-  --bg-raised: #35373b;
-  --bg-sunken: #161719;
-  --fg: #d5d7db;
-  --fg-muted: #a4a7ad;
-  --border: #46494f;
-  --accent: #6ea8ff;
-  --selection: #234573;
-  --danger: #ef968b;
-  --warning: #e3b75c;
-  --addr: #8bd0e8;
-  --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
-  --ctrl-h: 24px;
-  --focus: #8cbaff;
   background: var(--bg);
   color: var(--fg);
 }
@@ -32,9 +95,9 @@ select,
 textarea {
   font: inherit;
   color: inherit;
-  border: 1px solid var(--border);
-  border-radius: 0;
-  background: var(--bg-panel);
+  border: 1px solid var(--control-border);
+  border-radius: var(--control-radius);
+  background: var(--control-background);
   min-height: var(--ctrl-h);
 }
 button {
@@ -43,7 +106,7 @@ button {
   text-align: left;
 }
 button:hover {
-  background: #40444b;
+  background: var(--color-action-hover);
 }
 button:active {
   background: var(--selection);
@@ -145,7 +208,7 @@ hr {
 }
 .brand {
   font-size: 14px;
-  color: #ecedf0;
+  color: var(--color-ink-strong);
 }
 .divider {
   height: 18px;
@@ -174,7 +237,7 @@ hr {
   max-height: 70vh;
   overflow: auto;
   padding: 4px;
-  box-shadow: 0 8px 20px #0007;
+  box-shadow: var(--popup-shadow);
 }
 .popup button {
   display: flex;
@@ -284,7 +347,7 @@ hr {
   grid-template-columns: 24px minmax(0, 1fr);
   align-items: center;
   height: 26px;
-  border-bottom: 1px solid #35373b;
+  border-bottom: 1px solid var(--color-raised);
 }
 .function-row > input {
   margin: 0 4px;
@@ -303,7 +366,7 @@ hr {
   text-overflow: ellipsis;
 }
 .function-row:hover {
-  background: #363a41;
+  background: var(--color-row-hover);
 }
 .checked-info {
   padding: 3px 6px;
@@ -326,7 +389,7 @@ hr {
   white-space: nowrap;
 }
 .resize-bar {
-  background: var(--bg-sunken);
+  background: var(--splitter-background);
   flex-shrink: 0;
   touch-action: none;
   position: relative;
@@ -334,7 +397,7 @@ hr {
 }
 .resize-bar:hover,
 .resize-bar:focus-visible {
-  background: var(--accent);
+  background: var(--splitter-active-background);
 }
 .resize-bar.x {
   width: 5px;
@@ -447,7 +510,7 @@ hr {
   flex-direction: column;
 }
 .logs details {
-  border-bottom: 1px solid #303238;
+  border-bottom: 1px solid var(--color-line-subtle);
   padding: 3px 8px;
 }
 .logs summary {
@@ -477,7 +540,7 @@ hr {
   gap: 6px;
   align-items: center;
   min-height: 28px;
-  border-bottom: 1px solid #303238;
+  border-bottom: 1px solid var(--color-line-subtle);
   padding: 2px 6px;
 }
 .job-row > button:first-child {
@@ -603,7 +666,7 @@ td button {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: #0007;
+  background: var(--color-overlay);
   display: flex;
   justify-content: center;
   align-items: flex-start;

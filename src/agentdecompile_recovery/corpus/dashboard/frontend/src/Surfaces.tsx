@@ -431,7 +431,7 @@ function Listing({
       >
         <article>
           <h3>Source candidate</h3>
-          <SourceEditor selection={props.selection} value={text} loading={loading} extent={sourceExtent(detail)}/>
+          <SourceEditor selection={props.selection} value={text} sourcePath={detail.decompile?.path || detail.sourcePath || ''} loading={loading} extent={sourceExtent(detail)}/>
           <p className="source-path">
             {detail.decompile?.path ||
               detail.sourcePath ||
@@ -1481,6 +1481,14 @@ export function BinaryEvidenceWorkspace(props:SurfaceProps) {
   return <div className="binary-evidence-workspace"><Logical props={props} catalog={actions}/><Review props={props} data={corpus.data} catalog={actions}/><Graph props={props} detail={detail.data} catalog={actions}/><Types props={props} catalog={actions}/><Knowledge props={props} catalog={actions}/><Context props={props} detail={detail.data} catalog={actions}/></div>;
 }
 
+function DeferredSurface({ id, label, children }: { id: string; label: string; children: ReactNode }) {
+  const near = useNear(id);
+  return <div id={id} className="work-surface-group" tabIndex={-1} role="region" aria-labelledby={`${id}-heading`}>
+    <h2 id={`${id}-heading`}>{label}</h2>
+    {near ? children : <p className="surface-deferred" role="status">Open this section to load its recorded evidence.</p>}
+  </div>;
+}
+
 function WorkbenchSurfacesBody(props: SurfaceProps & { inspectTools?: ReactNode; preparationTools?: ReactNode }) {
   const near = useNear("overview");
   const corpus = useData(near ? `${API}/corpus-status?${query(props.selection)}` : null, props.revision);
@@ -1505,8 +1513,7 @@ function WorkbenchSurfacesBody(props: SurfaceProps & { inspectTools?: ReactNode;
         <Logical props={props} catalog={actions} />
         <Review props={props} data={corpus.data} catalog={actions} />
       </div>
-      <div id="inspect-work" className="work-surface-group" tabIndex={-1} role="region" aria-labelledby="inspect-work-heading">
-        <h2 id="inspect-work-heading">Inspect binary</h2>
+      <DeferredSurface id="inspect-work" label="Inspect binary">
         <Listing props={props} detail={normalized} loading={detail.loading} error={detail.error} catalog={actions} />
         {props.inspectTools}
         <Graph props={props} detail={normalized} catalog={actions} />
@@ -1515,11 +1522,10 @@ function WorkbenchSurfacesBody(props: SurfaceProps & { inspectTools?: ReactNode;
           <Knowledge props={props} catalog={actions} />
           <Context props={props} detail={normalized} catalog={actions} />
         </div>
-      </div>
-      <div id="recover-verify" className="work-surface-group" tabIndex={-1} role="region" aria-labelledby="recover-verify-heading">
-        <h2 id="recover-verify-heading">Recover and verify</h2>
+      </DeferredSurface>
+      <DeferredSurface id="recover-verify" label="Recover and verify">
         <RecoveryWorkspace props={props} catalog={actions} liveRun={liveRun} />
-      </div>
+      </DeferredSurface>
     </>
   );
 }

@@ -9,7 +9,16 @@ export type ClaimBoundary =
 
 export type CapabilityStatus = "available" | "pending" | "unsupported" | "unavailable";
 export type ProviderResultStatus =
+  | "queued"
+  | "running"
+  | "paused"
   | "completed"
+  | "partial"
+  | "disconnected"
+  | "resync"
+  | "resumable"
+  | "cancelling"
+  | "blocked"
   | "pending"
   | "unsupported"
   | "unavailable"
@@ -194,12 +203,30 @@ export type ProviderResult<T> = {
 
 export type AnalysisJob = {
   id: string;
+  batchId?: string;
+  providerAttemptId?: string;
+  idempotencyKey?: string;
   provider: string;
   status: ProviderResultStatus;
   revisionId: string;
   createdAt: string;
   updatedAt: string;
   progress?: { completed: number; total?: number; message?: string };
+  checkpointCursor?: string;
+  checkpoints?: JobCheckpoint[];
+  lease?: { ownerId: string; expiresAt: string; heartbeatAt?: string };
+  cancellation?: { requestedAt: string; acknowledgedAt?: string };
+  receiptIds?: string[];
+  resumable?: boolean;
+};
+
+/** Ordered, durable progress marker: completion must always be established by a receipt. */
+export type JobCheckpoint = {
+  cursor: string;
+  createdAt: string;
+  message?: string;
+  progress?: { completed: number; total?: number };
+  partialEvidenceIds?: string[];
 };
 
 export type SharedContext = {
@@ -208,7 +235,16 @@ export type SharedContext = {
   binaryHash?: string;
   revisionId?: string;
   selectionId?: string;
+  address?: Address;
+  logicalId?: string;
+  region?: Region;
   evidenceIds: string[];
+  capabilities?: ProviderCapability[];
+  freshness?: Freshness;
+  permissions?: string[];
+  approvalIds?: string[];
+  jobSummaries?: Pick<AnalysisJob, "id" | "batchId" | "providerAttemptId" | "status" | "revisionId" | "checkpointCursor">[];
+  pagination?: Pagination;
 };
 
 export type ActionDescriptor = {
@@ -223,6 +259,19 @@ export type ActionDescriptor = {
   apiAction?: string;
   humanOnlyReason?: string;
 };
+
+/** The shared action inventory is the parity matrix consumed by UI and agents. */
+export type ActionParityMatrix = Record<string, ActionDescriptor>;
+
+export function actionParityIssues(actions: readonly ActionDescriptor[]): string[] {
+  return actions.flatMap((action) => {
+    const machineRoutes = [action.mcpAction, action.cliAction, action.apiAction].filter(Boolean);
+    if (action.humanOnlyReason) {
+      return machineRoutes.length ? [`${action.id}: human-only actions cannot advertise machine routes`] : [];
+    }
+    return machineRoutes.length ? [] : [`${action.id}: missing MCP, CLI, or API action`];
+  });
+}
 
 export type Approval = {
   id: string;

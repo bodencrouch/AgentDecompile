@@ -251,23 +251,22 @@ export function ActionRunner({
     setContext(frozen[0]);
     setTargets(frozen);
     Promise.all([
-      apiRequest("/dashboard/api/actions", { signal: c.signal }),
+      apiRequest(
+        `/dashboard/api/actions/${encodeURIComponent(request.id)}`,
+        { signal: c.signal },
+      ),
       apiRequest(`${API}/context?${query(frozen[0])}`, { signal: c.signal }),
     ])
-      .then(([catalog, ctx]) => {
-        const found = (catalog.actions || []).find(
-          (a: Data) => a.id === request.id,
-        );
+      .then(([descriptor, ctx]) => {
+        const found = descriptor.action;
         if (!found) throw new Error(`Action ${request.id} is unavailable.`);
-        const defaults = { ...catalog.context?.defaults, ...ctx.defaults };
+        const defaults = { ...ctx.defaults };
         const approvals =
           ctx.approvalRecords ||
           ctx.approvals ||
-          catalog.context?.approvalRecords ||
-          catalog.context?.approvals ||
           [];
         setApprovalRecords(Array.isArray(approvals) ? approvals : []);
-        const binaries = catalog.context?.binaries || [];
+        const binaries = ctx.binaries || [];
         const contexts = frozen.map((s) =>
           selectionContext(s, defaults, binaries),
         );

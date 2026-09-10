@@ -1,6 +1,14 @@
 import type { Data, Selection } from "../contracts";
 import type { EvidenceRecord } from "../evidence/EvidenceBundle";
 import type { DiffMismatch } from "../views/DiffEvidence";
+import type { MatchPhase } from "../matching/MatchingWorkspace";
+
+const MATCH_SCHEMA = "agentdecompile.workbench-match-candidate.v1";
+const terminalJobStates = new Set(["ok", "failed", "cancelled", "interrupted", "blocked"]);
+const matchPhases = new Set<MatchPhase>([
+  "draft", "compiling", "compiled", "linked", "structurally-similar", "diffing",
+  "mismatch", "objdiff-verified", "provider-unavailable", "failed", "incomplete",
+]);
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
@@ -10,6 +18,40 @@ function record(value: unknown): Data {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Data)
     : {};
+}
+
+export function parseMatchPayload(job: Data): Data {
+  const direct = record(job.matchResult);
+  if (direct.schema === MATCH_SCHEMA) return direct;
+  if (typeof job.log !== "string") return {};
+  const start = job.log.indexOf("{");
+  if (start < 0) return {};
+  try {
+    const parsed = record(JSON.parse(job.log.slice(start)));
+    return parsed.schema === MATCH_SCHEMA ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function matchingPhase(jobId: string, job: Data, providerAvailable: boolean): MatchPhase {
+  const result = parseMatchPayload(job);
+  const phase = String(result.phase || "");
+  if (phase === "objdiff-verified") {
+    const receipt = record(result.receipt);
+    const consistent = result.verified === true
+      && receipt.status === "matched"
+      && receipt.differences === 0
+      && receipt.objdiffExit === 0
+      && receipt.targetRevision === result.targetRevision
+      && receipt.candidateRevision === result.candidateRevision;
+    return consistent ? "objdiff-verified" : "incomplete";
+  }
+  if (phase === "compile-failed" || phase === "cancelled") return "failed";
+  if (matchPhases.has(phase as MatchPhase)) return phase as MatchPhase;
+  if (jobId && !terminalJobStates.has(String(job.status || ""))) return "compiling";
+  if (jobId) return String(job.status || "") === "failed" ? "failed" : "incomplete";
+  return providerAvailable ? "draft" : "provider-unavailable";
 }
 
 export function sourceDraftKey(selection: Selection): string {
@@ -83,12 +125,16 @@ export function diffReceipts(detail: Data): Data[] {
 }
 
 export function matchingProvider(catalog: Data[]) {
-  const action = catalog.find((entry) => entry.id === "corpus.objdiff-check");
+  const action = catalog.find((entry) => entry.id === "workbench.match-candidate");
+  const legacyDiff = catalog.find((entry) => entry.id === "corpus.objdiff-check");
   return {
-    available: false,
-    engine: action ? "Cataloged backend workflow" : "No registered provider",
+    available: Boolean(action),
+    actionId: action?.id,
+    engine: action ? "Candidate-bound compiler and objdiff job" : "No registered provider",
     reason: action
-      ? "The server advertises an objdiff action, but no provider has advertised a candidate-bound compile and diff adapter for this browser-local draft."
-      : "No objdiff capability is advertised by the current runtime. Browser-local drafts remain available and unverified.",
+      ? undefined
+      : legacyDiff
+        ? "The server exposes path-based objdiff, but not the atomic candidate-bound compile and diff action required for browser drafts."
+        : "No candidate-bound objdiff capability is advertised by the current runtime. Browser-local drafts remain available and unverified.",
   };
 }

@@ -10,6 +10,17 @@ export type DiffMismatch = {
   actual?: string;
 };
 
+export function receiptLabel(receipt: Data): string {
+  const identity = receipt.label || receipt.path || receipt.id || "Recorded receipt";
+  const status = receipt.status || receipt.phase;
+  const differences = receipt.differences !== null && receipt.differences !== "" && Number.isFinite(Number(receipt.differences))
+    ? Number(receipt.differences)
+    : undefined;
+  return [identity, status, differences === undefined ? undefined : `${differences} differences`]
+    .filter((value) => value !== undefined && value !== "")
+    .join(" · ");
+}
+
 export function DiffEvidence({
   mismatches,
   receipts = [],
@@ -35,7 +46,11 @@ export function DiffEvidence({
       ) : <p>No mismatch regions were recorded.</p>}
       <details>
         <summary>Provider receipts ({receipts.length})</summary>
-        {receipts.length ? <ul>{receipts.map((receipt, index) => <li key={`${receipt.path || receipt.label || "receipt"}:${index}`}>{String(receipt.label || receipt.path || "Recorded receipt")}{receipt.freshnessLabel ? ` · ${receipt.freshnessLabel}` : ""}{receipt.sourceExists === false ? " · source unavailable" : ""}</li>)}</ul> : <p>No provider receipt is available.</p>}
+        {receipts.length ? <ul>{receipts.map((receipt, index) => <li key={`${receipt.id || receipt.path || receipt.label || "receipt"}:${index}`}>
+          {receiptLabel(receipt)}{receipt.freshnessLabel ? ` · ${receipt.freshnessLabel}` : ""}{receipt.sourceExists === false ? " · source unavailable" : ""}
+          {receipt.targetRevision || receipt.compiledRevision ? <small> target {String(receipt.targetRevision || "not recorded").slice(0, 12)} · compiled {String(receipt.compiledRevision || "not recorded").slice(0, 12)}</small> : null}
+          {receipt.mismatchHistogram && Object.keys(receipt.mismatchHistogram).length ? <small> {Object.entries(receipt.mismatchHistogram).map(([kind, count]) => `${kind}: ${String(count)}`).join(" · ")}</small> : null}
+        </li>)}</ul> : <p>No provider receipt is available.</p>}
       </details>
     </section>
   );

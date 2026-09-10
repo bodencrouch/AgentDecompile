@@ -14,10 +14,15 @@ const statusLabels: Record<string, string> = {
   resumable: "Preparation can resume from its recorded checkpoint",
   cancelling: "Stopping preparation",
   cancelled: "Preparation cancelled",
-  blocked: "Preparation blocked",
+  blocked: "Preparation needs attention",
   failed: "Preparation failed",
   completed: "Preparation completed",
   partial: "Preparation needs attention",
+};
+const stageStatusLabels: Record<string, string> = {
+  queued: "waiting", running: "running", waiting: "waiting",
+  cancelling: "stopping", cancelled: "stopped", completed: "complete",
+  partial: "needs attention", blocked: "needs attention", interrupted: "recovering",
 };
 function ProgressMessage({message}: {message: unknown}) {
   const text = String(message || "");
@@ -46,6 +51,7 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
   const current = active(run?.status) ? stages.find(stage => stage.status === "running" || stage.status === "waiting" || stage.status === "cancelling") || stages.find(stage => stage.status === "queued") : undefined;
   const recent = run?.events?.at(-1);
   const currentProgress = stageDisplayProgress(current);
+  const programCount = Array.isArray(run?.programs) ? run.programs.length : currentProgress.primary?.total || 0;
   const workMeasured = Boolean(currentProgress.secondary);
   const stale = Boolean(error) || Boolean(lastConnectedAt && now - lastConnectedAt > 10000);
   const currentJob = run?.currentJob;
@@ -61,7 +67,11 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
   const updated = run?.updatedAt ? new Date(run.updatedAt * 1000) : null;
   const executionDeadline = Number(current?.executionDeadlineAt || 0);
   const executionLimit = Number(current?.executionLimitSeconds || 0);
-  const deadlineRemaining = executionDeadline ? Math.max(0, Math.ceil((executionDeadline - now / 1000) / 60)) : null;
+  // The workflow budget is authoritative.  A legacy per-call timer must not
+  // turn an unlimited workflow into a visible deadline after reconnect.
+  const deadlineRemaining = run?.deadline != null && executionDeadline
+    ? Math.max(0, Math.ceil((executionDeadline - now / 1000) / 60))
+    : null;
   const statusLabel = run
     ? (statusLabels[String(run.status)] || `Preparation ${run.status}`)
     : loading ? "Checking preparation status…" : selection.locator || selection.slug ? "No preparation job reported for this selection" : "Open a project to prepare its binaries";
@@ -83,7 +93,7 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
           <span>{state === "queued" ? "Waiting for a worker" : state === "cancelling" ? "Waiting for accepted work to stop" : state === "disconnected" ? "Connection unavailable; saved workflow state is retained" : state === "resync" ? "Reconciling saved workflow state" : state === "resumable" ? "Resume from the recorded checkpoint" : current?.title || "Recorded result"}</span>
           {program && <code title={program}>{program}</code>}
           {operation && <span title={actionName}>{operation}</span>}
-          <span>{run.programs?.length ?? 0} programs</span>
+          <span>{programCount} programs</span>
           {elapsed !== null && active(state) && <span>Current job {elapsed}s elapsed</span>}
           {deadlineRemaining !== null && active(state) && <span title="Execution bound, not a completion estimate">Execution limit: {deadlineRemaining}m remaining{executionLimit ? ` of ${Math.ceil(executionLimit / 60)}m` : ""}</span>}
         </div>
@@ -94,11 +104,11 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
           const { primary, secondary } = stageDisplayProgress(stage);
           const measured = Boolean(primary);
           return <li key={stage.key} data-state={stage.status} aria-current={stage === current ? "step" : undefined}>
-            <div><strong>{stage.title}</strong><span>{stage.status}</span></div>
+            <div><strong>{stage.title}</strong><span>{stageStatusLabels[String(stage.status)] || stage.status}</span></div>
             {measured && primary ? <progress max={primary.total} value={primary.completed} aria-label={`${stage.title}: ${primary.completed} of ${primary.total}`} /> : active(stage.status) && stage.status !== "queued" ? <progress aria-label={`${stage.title}: progress not yet measured`} /> : <div className="preparation-track" />}
             <small>{measured && primary ? stageProgressLabel(primary) : stage.total === 0 ? "No applicable items" : stage.status === "queued" ? "Waiting for preceding work" : "Awaiting a measured counter from the active operation"}</small>
             {secondary && <small className="preparation-subprogress">{stageProgressLabel(secondary)}</small>}
-            {stage.nextFallback&&<small>{stage.nextFallback}{stage.retryAt?` · next attempt ${new Date(stage.retryAt*1000).toLocaleTimeString()}`:''}{stage.attempts?` · attempt ${stage.attempts}`:''}</small>}
+            {stage.status === 'waiting' && stage.nextFallback && <small>{stage.nextFallback}{stage.retryAt?` · next attempt ${new Date(stage.retryAt*1000).toLocaleTimeString()}`:''}{stage.attempts?` · attempt ${stage.attempts}`:''}</small>}
             {stage.reason && <div className="preparation-reason"><ProgressMessage message={stage.reason} /></div>}
           </li>;
         })}

@@ -19,14 +19,15 @@ import { RecordView, ResizeBar, useData, usePref } from "./ui";
 import "./atlas.css";
 import { useLibraryTransfer } from "./BinaryLibrary";
 import { AtlasAnalysis } from "./AtlasAnalysis";
+import { WorkbenchIntegration } from "./integration/WorkbenchIntegration";
 import { PersistentExplorer } from "./PersistentExplorer";
 import { PreparationProgress, selectPreparation } from "./PreparationActivity";
 import { matchingStageSummary, stageDisplayProgress, stageProgressLabel } from "./preparationProgress";
 import { StageTrace } from "./StageTrace";
 import {
   installSessionFlush,
+  loadClientSessions,
   queueSessionSave,
-  setSessionRevision,
 } from "./sessionSync";
 const number = (value: unknown) =>
   typeof value === "number" ? value.toLocaleString() : "—";
@@ -209,8 +210,12 @@ export function AtlasApp() {
   const [explorerOpen,setExplorerOpen]=usePref("atlas.explorer-open",true);
   const loadedRef = useRef(false);
   const selectionRef = useRef<Selection>(emptySelection);
+  // The active project is distinct from a transient URL/session update. It is
+  // the authority for the one-project-at-a-time guard.
+  const activeProjectRef = useRef("");
   loadedRef.current = loaded;
   selectionRef.current = selection;
+  if (!activeProjectRef.current && selection.locator) activeProjectRef.current = selection.locator;
   const [dialog, setDialog] = useState<
       "open" | "create" | "copy" | "connection" | "import" | null
     >(null),
@@ -245,24 +250,32 @@ export function AtlasApp() {
     [],
   );
   const refresh = useCallback(() => setRevision((v) => v + 1), []);
+  const [clientSessions, setClientSessions] = useState<Data>(() => loadClientSessions());
+  const sessionItems: Data[] = clientSessions.sessions || [];
+  const activeSessionId = String(clientSessions.active || "");
+  const saveClientSessionState = useCallback((payload: Data) => {
+    setClientSessions(payload);
+    return queueSessionSave(payload).then((saved) => {
+      if (saved) setClientSessions(saved);
+      return saved || payload;
+    });
+  }, []);
   const binaries = useData(API + "/binaries", revision),
-    sessions = useData(API + "/sessions", revision);
+    catalog = useData("/dashboard/api/actions", revision);
   const sessionsRef = useRef<Data[]>([]);
-  sessionsRef.current = sessions.data.sessions || [];
+  sessionsRef.current = sessionItems;
   const atlasActiveRef = useRef("");
   useEffect(() => {
-    if (sessions.data.active) {
-      atlasActiveRef.current = String(sessions.data.active);
+    if (activeSessionId) {
+      atlasActiveRef.current = activeSessionId;
     }
-  }, [sessions.data.active]);
+  }, [activeSessionId]);
   useEffect(() => {
-    if (sessions.loading) return;
-    setSessionRevision(Number(sessions.data.revision || 0));
     installSessionFlush(() => ({
-      active: atlasActiveRef.current || String(sessions.data.active || ""),
+      active: atlasActiveRef.current || activeSessionId,
       sessions: sessionsRef.current,
     }));
-  }, [sessions.loading, sessions.data.revision, sessions.data.active]);
+  }, [activeSessionId]);
   const detailResponse = useFunctionEvidence(
     loaded && selection.addr ? API + "/function?" + query(selection) : null,
     revision,
@@ -277,9 +290,9 @@ export function AtlasApp() {
   const open = useCallback(
     (patch: Partial<Selection>, force = false) => {
       const next = normalizeSelection(patch);
-      const savedSessions: Data[] = sessions.data.sessions || [];
-      const savedActive = savedSessions.find((item) => item.id === sessions.data.active && !item.hidden && item.locator);
-      const currentLocator = selectionRef.current.locator || String(savedActive?.locator || "");
+      const savedSessions: Data[] = sessionsRef.current;
+      const savedActive = savedSessions.find((item) => item.id === atlasActiveRef.current && !item.hidden && item.locator);
+      const currentLocator = activeProjectRef.current || selectionRef.current.locator || String(savedActive?.locator || "");
       if (!force && currentLocator && next.locator && !projectLocatorsMatch(next.locator, currentLocator)) {
         // A direct deep link is still an attempt to load a different project.
         // Restore the saved project first so the operator can decide whether
@@ -303,6 +316,7 @@ export function AtlasApp() {
       const key = JSON.stringify([next.locator, next.program, next.slug]);
       const selectionChanged = openKey.current !== key;
       openKey.current = key;
+      if (next.locator) activeProjectRef.current = next.locator;
       setSelection(next);
       setLoaded(true);
       setOffset(0);
@@ -311,7 +325,7 @@ export function AtlasApp() {
       setPrepareError("");
       history.replaceState(null, "", atlasUrl(next));
       if (next.locator)
-        request(API + "/sessions")
+        Promise.resolve({sessions: sessionsRef.current})
           .then((data) => {
             const list: Data[] = data.sessions || [];
             const existing = list.find((s) => projectLocatorsMatch(s.locator, next.locator));
@@ -335,7 +349,7 @@ export function AtlasApp() {
               ),
             };
             atlasActiveRef.current = id;
-            return queueSessionSave({
+            return saveClientSessionState({
               active: id,
               sessions: [...list.filter((s) => s.id !== id), item],
             });
@@ -362,16 +376,24 @@ export function AtlasApp() {
           });
       }
     },
-    [refresh, notify, sessions.data],
+    [refresh, notify, saveClientSessionState],
   );
-  const requestOpen = useCallback((patch: Partial<Selection>) => open(patch), [open]);
+  const requestOpen = useCallback((patch: Partial<Selection>) => {
+    const next = normalizeSelection(patch);
+    const currentLocator = activeProjectRef.current || selectionRef.current.locator;
+    if (currentLocator && next.locator && !projectLocatorsMatch(currentLocator, next.locator)) {
+      setPendingProject(next);
+      return;
+    }
+    open(next);
+  }, [open]);
   async function combineAndOpen() {
     if (!pendingProject) return;
     const incoming = pendingProject;
     const current = selection;
     setPendingProject(null);
     try {
-      const snapshot = await request(API + "/sessions");
+      const snapshot = {active: atlasActiveRef.current, sessions: sessionsRef.current};
       const sessions: Data[] = snapshot.sessions || [];
       const currentSession = sessions.find(item => projectLocatorsMatch(item.locator, current.locator));
       const incomingSession = sessions.find(item => projectLocatorsMatch(item.locator, incoming.locator));
@@ -390,30 +412,39 @@ export function AtlasApp() {
         mergedFrom: [...new Set([...(incomingSession?.mergedFrom || []), current.locator].filter(Boolean))],
       };
       atlasActiveRef.current = String(merged.id);
-      await queueSessionSave({
+      await saveClientSessionState({
         active: merged.id,
         sessions: [...sessions.filter((item) => item.id !== merged.id), merged],
       });
       open(incoming, true);
       const detailLines = [
-        `Loaded project: ${incoming.locator || title(incoming)}`,
-        `Merged workspace record from: ${current.locator || title(current)}`,
-        `Imports retained: ${mergedImports.length}`,
-        `Imports newly linked from requested project: ${addedImports.length}${addedImports.length ? ` (${addedImports.join(", ")})` : ""}`,
-        `Imports already present in both: ${retainedImports.length}${retainedImports.length ? ` (${retainedImports.join(", ")})` : ""}`,
-        "Preserved: project-session imports and the link to the prior workspace record.",
-        "Not merged: the two Ghidra databases, program files, or proof receipts. They remain separate and unchanged.",
+        `Now active: ${incoming.locator || title(incoming)}`,
+        `Previous workspace retained: ${current.locator || title(current)}`,
+        `Requested project imports: ${incomingImports.length}`,
+        `Previously active project imports: ${currentImports.length}`,
+        `Unique imports in the active workspace record: ${mergedImports.length}`,
+        `New import links: ${addedImports.length}${addedImports.length ? ` (${addedImports.join(", ")})` : ""}`,
+        `Already linked by both records: ${retainedImports.length}${retainedImports.length ? ` (${retainedImports.join(", ")})` : ""}`,
+        "Combined: browser workspace membership and the provenance link to the previous workspace.",
+        "Not combined or changed: Ghidra databases, program files, analysis state, source artifacts, and proof receipts.",
       ];
-      notify("Project workspace records combined", "info", {
+      notify("Workspace references combined; source projects unchanged", "info", {
         target: incoming.locator,
         details: detailLines.join("\n"),
         merge: {
           loadedProject: incoming.locator || title(incoming),
           retainedProject: current.locator || title(current),
-          importsRetained: mergedImports.length,
+          importsAfterCombine: mergedImports.length,
+          requestedProjectImports: incomingImports.length,
+          currentProjectImports: currentImports.length,
           importsNewlyLinked: addedImports,
           importsAlreadyShared: retainedImports,
-          scope: "Workspace imports and provenance link only; Ghidra databases and proof receipts remain separate.",
+          importsInLoadedProject: incomingImports,
+          importsInCurrentProject: currentImports,
+          importIdsAfterCombine: mergedImports,
+          combinedRecords: ["Workspace import membership", "Link to the previous workspace record"],
+          unchangedRecords: ["Ghidra databases and program files", "Analysis state and recovery jobs", "Source artifacts and proof receipts"],
+          scope: "This is a workspace-reference merge. It never copies, overwrites, or verifies source-project data.",
         },
       });
     } catch (error) {
@@ -423,7 +454,6 @@ export function AtlasApp() {
   useEffect(() => {
     mounted.current = true;
     const q = new URLSearchParams(location.search);
-    if (sessions.loading) return;
     if (q.get("slug") || q.get("program") || q.get("locator")) {
       const patch = {
         slug: q.get("slug") || "",
@@ -442,7 +472,7 @@ export function AtlasApp() {
     return () => {
       mounted.current = false;
     };
-  }, [open, sessions.loading]);
+  }, [open]);
   useEffect(() => {
     let stopped = false;
     let timer: ReturnType<typeof setTimeout>;
@@ -518,7 +548,7 @@ export function AtlasApp() {
       const key = canonicalProjectLocator(locator);
       if (!key) return;
       try {
-        const snapshot = await request(API + "/sessions");
+        const snapshot = {active: atlasActiveRef.current, sessions: sessionsRef.current};
         const items: Data[] = snapshot.sessions || [];
         const existing = items.find((item) => projectLocatorsMatch(item.locator, key));
         if (existing && !existing.hidden) return;
@@ -532,7 +562,7 @@ export function AtlasApp() {
               imports: [],
               selection: { ...emptySelection, locator: key },
             };
-        await queueSessionSave({
+        await saveClientSessionState({
           active: record.id,
           sessions: [...items.filter((item) => item.id !== record.id), record],
         });
@@ -541,7 +571,7 @@ export function AtlasApp() {
         notify(String(error), "error");
       }
     },
-    [refresh, notify],
+    [refresh, notify, saveClientSessionState],
   );
   const libraryTransfer = useLibraryTransfer(builds, notify);
   const build = builds.find((b) => b.slug === selection.slug);
@@ -611,7 +641,7 @@ export function AtlasApp() {
     window.addEventListener('popstate',restore);return()=>window.removeEventListener('popstate',restore);
   },[]);
   async function projectVisibility(record:Data,hidden:boolean) {
-    const snapshot=await request(API+'/sessions');
+    const snapshot={active: atlasActiveRef.current, sessions: sessionsRef.current};
     const items:Data[]=snapshot.sessions||[];
     const recordKey=canonicalProjectLocator(record.locator);
     const next=items.map(item=>canonicalProjectLocator(item.locator)===recordKey?{...item,hidden}:item);
@@ -619,7 +649,7 @@ export function AtlasApp() {
     let nextActive=snapshot.active;
     const activeItem=items.find(item=>item.id===snapshot.active);
     if(hidden&&activeItem&&canonicalProjectLocator(activeItem.locator)===recordKey){let fallback=next.find(item=>!item.hidden);if(!fallback){fallback={id:crypto.randomUUID(),title:'Untitled',locator:'',imports:[],selection:emptySelection};next.push(fallback);}nextActive=fallback.id;}
-    await queueSessionSave({active:nextActive,sessions:next});
+    await saveClientSessionState({active:nextActive,sessions:next});
     if(hidden&&projectLocatorsMatch(selection.locator, record.locator)){setSelection(emptySelection);setLoaded(false);history.replaceState(null,'',atlasUrl());}
     refresh();notify(hidden?'Project removed from workspace. Files and background work remain available.':'Project restored to workspace.','info',{target:record.locator});
   }
@@ -653,7 +683,37 @@ export function AtlasApp() {
     },
   };
   const [editorSurface,setEditorSurface]=usePref('atlas.editor-surface','source');
-  async function saveWorkspace(){try{const snapshot=await request(API+'/sessions');const existing=(snapshot.sessions||[]).find((item:Data)=>projectLocatorsMatch(item.locator, selection.locator)&&(selection.locator||item.selection?.slug===selection.slug));const record={...(existing||{id:crypto.randomUUID(),title:title(selection),locator:selection.locator}),selection,program:selection.program,hidden:false,imports:[...new Set([...(existing?.imports||[]),selection.slug].filter(Boolean))]};await queueSessionSave({active:record.id,sessions:[...(snapshot.sessions||[]).filter((item:Data)=>item.id!==record.id),record]});notify('Workspace saved. Project selection and imports retained.','info',{target:selection.locator||selection.slug});refresh();}catch(error){notify(String(error),'error');}}
+  async function saveWorkspace() {
+    try {
+      const items: Data[] = sessionsRef.current;
+      const existing = items.find(
+        (item: Data) =>
+          projectLocatorsMatch(item.locator, selection.locator) &&
+          (selection.locator || item.selection?.slug === selection.slug),
+      );
+      const record: Data = {
+        ...(existing || {
+          id: crypto.randomUUID(),
+          title: title(selection),
+          locator: selection.locator,
+        }),
+        selection,
+        program: selection.program,
+        hidden: false,
+        imports: [
+          ...new Set([...(existing?.imports || []), selection.slug].filter(Boolean)),
+        ],
+      };
+      await saveClientSessionState({
+        active: record.id,
+        sessions: [...items.filter((item: Data) => item.id !== record.id), record],
+      });
+      notify('Workspace saved. Project selection and imports retained.', 'info', { target: selection.locator || selection.slug });
+      refresh();
+    } catch (error) {
+      notify(String(error), 'error');
+    }
+  }
   const goHome = () => {
     setLoaded(false);
     setSelection(emptySelection);
@@ -662,9 +722,9 @@ export function AtlasApp() {
   const callers = (graph.callers || detail.callers || []) as Data[];
   const callees = (graph.callees || detail.callees || []) as Data[];
   return (
-    <div className="atlas-app">
+    <div className="atlas-app" data-client-session-mode="local-isolated" data-client-storage="session-scoped">
       {explorerOpen && <div id="atlas-explorer" className="atlas-explorer-column" style={{width:explorerColumnWidth,height:`calc(100dvh - ${dockOccupied}px)`}}>
-        <PersistentExplorer onProjectVisibility={projectVisibility} notify={notify} libraryLoading={binaries.loading} libraryError={binaries.error} liveLocators={liveLocators} builds={builds} projects={sessions.data.sessions||[]} unresolved={binaries.data.unresolvedBinaries||[]} selection={selection} onSelect={patch=>{if(patch.slug!==undefined||patch.locator!==undefined)requestOpen({...selection,...patch});else{selectContext(patch);setLoaded(true);}}} onAdd={libraryTransfer.stage} dropProps={libraryTransfer.dropProps} revision={revision} recordFilter={recordFilter} onRecordFilterChange={setRecordFilter} onImport={()=>setDialog("import")} onCreate={()=>setDialog("create")}/>
+        <PersistentExplorer onProjectVisibility={projectVisibility} notify={notify} libraryLoading={binaries.loading} libraryError={binaries.error} liveLocators={liveLocators} builds={builds} projects={sessionItems} unresolved={binaries.data.unresolvedBinaries||[]} selection={selection} onSelect={patch=>{if(patch.slug!==undefined||patch.locator!==undefined)requestOpen({...selection,...patch});else{selectContext(patch);setLoaded(true);}}} onAdd={libraryTransfer.stage} dropProps={libraryTransfer.dropProps} revision={revision} recordFilter={recordFilter} onRecordFilterChange={setRecordFilter} onImport={()=>setDialog("import")} onCreate={()=>setDialog("create")}/>
         <ResizeBar axis="x" label="Resize binary explorer" onResize={delta=>setExplorerWidth(w=>Math.max(240,Math.min(560,w+delta)))}/>
       </div>}
       <div className="atlas-shell" style={{height:`calc(100dvh - ${dockOccupied}px)`,overflow:'auto',paddingBottom:16}}>
@@ -747,12 +807,19 @@ export function AtlasApp() {
                     {detailResponse.loading && <p role="status">Loading evidence…</p>}
                     <div className={"atlas-code-grid editor-surface-" + editorSurface}>
                       <article className="atlas-source-pane" hidden={editorSurface === "assembly"}>
-                        <SourceEditor selection={selection} value={source} loading={detailResponse.loading} extent={sourceExtent(detail)} />
+                        <SourceEditor selection={selection} value={source} sourcePath={detail.decompile?.path || detail.sourcePath || ''} loading={detailResponse.loading} extent={sourceExtent(detail)} />
                       </article>
                       <article className="atlas-assembly-pane" hidden={editorSurface === "source"}>
                         <SourceEditor selection={selection} value={detail.assembly?.text || detail.disassembly?.text || ""} kind="assembly" loading={detailResponse.loading} />
                       </article>
                     </div>
+                    <WorkbenchIntegration
+                      selection={selection}
+                      revision={revision}
+                      catalog={catalog.data.actions || []}
+                      onSelect={selectContext}
+                      notify={notify}
+                    />
                     <div className="atlas-edge-strip" aria-label="Callers and callees">
                       <div>
                         <span>Callers</span>

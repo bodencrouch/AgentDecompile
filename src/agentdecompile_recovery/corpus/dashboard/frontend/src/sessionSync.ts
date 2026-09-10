@@ -11,6 +11,18 @@ const JSON_HEADERS = {
   "X-Requested-With": "fetch",
 };
 
+/** Load the durable session snapshot without blocking first paint. */
+export function loadClientSessions(): Data {
+  try {
+    const raw = window.localStorage.getItem("agentdecompile.sessions");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") return parsed as Data;
+    }
+  } catch { /* storage may be unavailable in private/static contexts */ }
+  return { active: "", sessions: [] };
+}
+
 export function setSessionRevision(value: number) {
   revision = value;
 }
@@ -22,8 +34,13 @@ function runSave(payload: Data, keepalive: boolean): Promise<Data | void> {
     body: JSON.stringify({ ...payload, revision }),
     keepalive,
   }).then(async (response) => {
-    if (!response.ok) throw new Error(await response.text());
-    const result = await response.json();
+    const body = await response.text();
+    if (!response.ok) throw new Error(body || `Session save failed (${response.status})`);
+    let result: Partial<Data> & { revision?: number } = {};
+    if (body.trim()) {
+      try { result = JSON.parse(body) as Partial<Data> & { revision?: number }; }
+      catch { throw new Error("Session save returned invalid JSON"); }
+    }
     revision = Number(result.revision || revision);
     return result;
   });

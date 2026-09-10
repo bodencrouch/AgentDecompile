@@ -209,6 +209,13 @@ export const projectStore = {
     return read<ProjectSnapshot>(SNAPSHOTS_STORE, [projectId, revision.id, schemaVersion]);
   },
 
+  async loadLatestSnapshot(projectId: string): Promise<ProjectSnapshot | undefined> {
+    const snapshots = await list<ProjectSnapshot>(SNAPSHOTS_STORE);
+    return snapshots
+      .filter((snapshot) => snapshot.projectId === projectId)
+      .sort((left, right) => right.revision.createdAt.localeCompare(left.revision.createdAt))[0];
+  },
+
   saveMembership(membership: ArtifactMembership): Promise<void> {
     return write(MEMBERSHIPS_STORE, membership);
   },

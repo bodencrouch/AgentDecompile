@@ -48,7 +48,10 @@ export function CorpusDbPicker({ notify }: { notify: Notify }) {
     [notify],
   );
 
-  if (dismissed || !status || status.exists) return null;
+  // A new project creates its corpus index during fact extraction. Do not
+  // interrupt that automatic path with an empty database chooser; only offer
+  // this control when the server has discovered a real alternative to select.
+  if (dismissed || !status || status.exists || status.candidates.length === 0) return null;
 
   return (
     <div className="error corpus-db-picker">

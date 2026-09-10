@@ -78,7 +78,13 @@ export function useEntityActivity(locator: string, slug: string) {
         const response = await fetch(`${API}/activity?${query}`, {
           signal: AbortSignal.any([abort.signal, AbortSignal.timeout(8000)]),
         });
-        const data: ActivitySnapshot = await response.json();
+        const body = await response.text();
+        let data: ActivitySnapshot;
+        try {
+          data = body.trim() ? JSON.parse(body) as ActivitySnapshot : { ok: false, entities: [], revision: 0, error: `Activity returned an empty response (${response.status})` };
+        } catch {
+          data = { ok: false, entities: [], revision: 0, error: `Activity returned invalid JSON (${response.status})` };
+        }
         if (!response.ok || !data.ok) throw new Error(data.error || 'Activity is temporarily unavailable');
         accept(data);
       } catch (error) {

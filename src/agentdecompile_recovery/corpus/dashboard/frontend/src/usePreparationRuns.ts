@@ -21,7 +21,7 @@ export function usePreparationRuns(pollMs = 2000): PreparationFeed {
     let timer: ReturnType<typeof setTimeout>;
     async function poll() {
       try {
-        const data = await request(API + "/preparations", { signal: AbortSignal.timeout(8000) });
+        const data = await request(API + "/preparations", { signal: AbortSignal.timeout(30000) });
         if (alive) {
           setRuns(data.runs || []);
           setLastConnectedAt(Date.now());

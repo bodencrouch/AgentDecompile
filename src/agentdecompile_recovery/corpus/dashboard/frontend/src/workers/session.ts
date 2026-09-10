@@ -31,7 +31,7 @@ function failureResult<T>(
 
 export class DisposableWorkerSession {
   private worker: Worker | undefined;
-  private active = new Map<string, (result: ProviderResult<unknown>) => void>();
+  private active = new Map<string, { resolve: (result: ProviderResult<unknown>) => void; revisionId: string }>();
 
   constructor(private readonly options: WorkerSessionOptions) {}
 
@@ -77,24 +77,24 @@ export class DisposableWorkerSession {
           retryable: true,
         }));
       }, request.limits.timeoutMs);
-      this.active.set(request.id, (result) => {
+      this.active.set(request.id, { revisionId: request.revisionId, resolve: (result) => {
         window.clearTimeout(timeout);
         resolve(result as ProviderResult<T>);
-      });
+      }});
       worker.postMessage(request);
     });
   }
 
   cancel(requestId: string): void {
-    const resolve = this.active.get(requestId);
-    if (!resolve) return;
+    const active = this.active.get(requestId);
+    if (!active) return;
     this.active.delete(requestId);
-    resolve({
+    active.resolve({
       id: requestId,
       provider: this.options.capability.id,
       status: "cancelled",
       capability: this.options.capability,
-      revisionId: "",
+      revisionId: active.revisionId,
       createdAt: new Date().toISOString(),
       freshness: { state: "unknown", version: "", reason: "Cancelled" },
       failure: { code: "cancelled", message: "Worker request cancelled", retryable: true },
@@ -109,14 +109,14 @@ export class DisposableWorkerSession {
   terminate(): void {
     this.worker?.terminate();
     this.worker = undefined;
-    for (const [id, resolve] of this.active) {
+    for (const [id, active] of this.active) {
       this.active.delete(id);
-      resolve({
+      active.resolve({
         id,
         provider: this.options.capability.id,
         status: "cancelled",
         capability: this.options.capability,
-        revisionId: "",
+        revisionId: active.revisionId,
         createdAt: new Date().toISOString(),
         freshness: { state: "unknown", version: "", reason: "Worker terminated" },
         failure: { code: "worker-terminated", message: "Worker terminated", retryable: true },
@@ -130,11 +130,11 @@ export class DisposableWorkerSession {
     worker.onmessage = (event: MessageEvent<WorkerMessage<unknown>>) => {
       const message = event.data;
       if (message.kind === "progress") return;
-      const resolve = this.active.get(message.id);
-      if (!resolve) return;
+      const active = this.active.get(message.id);
+      if (!active) return;
       this.active.delete(message.id);
       if (!this.options.isRevisionCurrent(message.revisionId)) {
-        resolve({
+        active.resolve({
           id: message.id,
           provider: this.options.capability.id,
           status: "cancelled",
@@ -147,12 +147,12 @@ export class DisposableWorkerSession {
         return;
       }
       if (message.kind === "error") {
-        resolve(failureResult({ id: message.id, revisionId: message.revisionId } as WorkerRequest,
+        active.resolve(failureResult({ id: message.id, revisionId: message.revisionId } as WorkerRequest,
           this.options.capability, message.failure));
         return;
       }
       const freshness: Freshness = message.freshness;
-      resolve({
+      active.resolve({
         id: message.id,
         provider: this.options.capability.id,
         status: "completed",
@@ -176,14 +176,14 @@ export class DisposableWorkerSession {
   private failActive(failure: StructuredFailure): void {
     this.worker?.terminate();
     this.worker = undefined;
-    for (const [id, resolve] of this.active) {
+    for (const [id, active] of this.active) {
       this.active.delete(id);
-      resolve({
+      active.resolve({
         id,
         provider: this.options.capability.id,
         status: "failed",
         capability: this.options.capability,
-        revisionId: "",
+        revisionId: active.revisionId,
         createdAt: new Date().toISOString(),
         freshness: { state: "unknown", version: "", reason: failure.message },
         failure,

@@ -1,236 +1,108 @@
 import { useCallback, useEffect, useState } from "react";
-import { API, request, type Data } from "./contracts";
-import { projectStore, type PendingSyncRecord } from "./storage/projectStore";
+import type { Data } from "./contracts";
 
 type Section = "drafts" | "notes" | "meta";
-let revision = 0;
-let loaded = false;
-let loadFailed = false;
-let loadPromise: Promise<Data> | null = null;
-let cache: Data = { drafts: {}, notes: {}, meta: {} };
-const pending: Partial<Record<Section, Data>> = {};
-let flushTimer: ReturnType<typeof setTimeout> | null = null;
-let flushChain = Promise.resolve();
-let flushInstalled = false;
-let lastSyncFailure = "";
+let cache: Data | null = null;
 
-const JSON_HEADERS = {
-  "Content-Type": "application/json",
-  "X-Requested-With": "fetch",
-};
+function clientId() {
+  const key = "agentdecompile.client-id";
+  let value = sessionStorage.getItem(key);
+  if (!value) {
+    value = crypto.randomUUID();
+    sessionStorage.setItem(key, value);
+  }
+  return value;
+}
+
+function stateKey() {
+  return `agentdecompile.workspace:${clientId()}`;
+}
+
+function load(): Data {
+  if (cache) return cache;
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(stateKey()) || "null");
+    cache = { drafts: stored?.drafts || {}, notes: stored?.notes || {}, meta: stored?.meta || {} };
+  } catch {
+    cache = { drafts: {}, notes: {}, meta: {} };
+  }
+  return cache;
+}
+
+function persist() {
+  try {
+    sessionStorage.setItem(stateKey(), JSON.stringify(load()));
+  } catch {
+    /* Private browsing or quota exhaustion leaves current-tab memory intact. */
+  }
+}
+
+export function clientLocalKey(key: string) {
+  return `agentdecompile.client:${clientId()}:${key}`;
+}
+
+export function readClientLocal<T>(key: string, fallback: T): T {
+  try {
+    return JSON.parse(sessionStorage.getItem(clientLocalKey(key)) || "null") ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export function writeClientLocal(key: string, value: unknown) {
+  try {
+    sessionStorage.setItem(clientLocalKey(key), JSON.stringify(value));
+  } catch {
+    /* Private browsing or quota exhaustion leaves React state intact. */
+  }
+}
 
 export function workspaceKey(...parts: string[]) {
   return parts.filter(Boolean).join(":");
 }
 
 export async function ensureWorkspaceState(): Promise<Data> {
-  if (loaded) return cache;
-  if (!loadPromise) {
-    loadPromise = request(API + "/workspace-state")
-      .then((data) => {
-        revision = Number(data.revision || 0);
-        cache = {
-          drafts: data.drafts || {},
-          notes: data.notes || {},
-          meta: data.meta || {},
-        };
-        loaded = true;
-        loadFailed = false;
-        return cache;
-      })
-      .catch(() => {
-        loadFailed = true;
-        loaded = false;
-        loadPromise = null;
-        cache = { drafts: {}, notes: {}, meta: {} };
-        return cache;
-      });
-  }
-  return loadPromise;
+  return load();
 }
 
-function scheduleFlush() {
-  if (flushTimer) clearTimeout(flushTimer);
-  flushTimer = setTimeout(() => void flushWorkspaceState(), 150);
+export function patchWorkspaceState(section: Section, key: string, value: unknown) {
+  const state = load();
+  state[section] = { ...(state[section] || {}), [key]: value };
+  persist();
 }
 
-export function patchWorkspaceState(
-  section: Section,
-  key: string,
-  value: unknown,
-) {
-  if (!pending[section]) pending[section] = {};
-  pending[section]![key] = value;
-  scheduleFlush();
-}
-
-function buildPendingBody(): Data | null {
-  const body: Data = { revision };
-  for (const section of ["drafts", "notes", "meta"] as const) {
-    if (pending[section] && Object.keys(pending[section]!).length)
-      body[section] = pending[section];
-  }
-  if (!body.drafts && !body.notes && !body.meta) return null;
-  return body;
-}
-
-function restorePending(body: Data) {
-  for (const section of ["drafts", "notes", "meta"] as const) {
-    const chunk = body[section];
-    if (!chunk) continue;
-    pending[section] = { ...(pending[section] || {}), ...chunk };
-  }
-}
-
-function workspaceOutboxRecord(body: Data): PendingSyncRecord {
-  return {
-    id: crypto.randomUUID(),
-    stream: "workspace",
-    revision: Number(body.revision || revision),
-    payload: body,
-    createdAt: new Date().toISOString(),
-  };
-}
-
-function clearPendingFromBody(body: Data) {
-  for (const section of ["drafts", "notes", "meta"] as const) {
-    if (body[section]) pending[section] = undefined;
-  }
-}
-
-function flushWorkspaceStateImmediate() {
-  const body = buildPendingBody();
-  if (!body) return;
-  void fetch(API + "/workspace-state", {
-    method: "PATCH",
-    headers: JSON_HEADERS,
-    body: JSON.stringify(body),
-    keepalive: true,
-  });
-}
-
-export async function flushWorkspaceState(): Promise<void> {
-  if (flushTimer) {
-    clearTimeout(flushTimer);
-    flushTimer = null;
-  }
-  const body = buildPendingBody();
-  if (!body) return;
-  flushChain = flushChain.then(async () => {
-    try {
-      const result = await request(API + "/workspace-state", {
-        method: "PATCH",
-        body: JSON.stringify(body),
-        keepalive: true,
-      });
-      clearPendingFromBody(body);
-      revision = Number(result.revision || revision);
-      cache = {
-        drafts: result.drafts || cache.drafts || {},
-        notes: result.notes || cache.notes || {},
-        meta: result.meta || cache.meta || {},
-      };
-    } catch {
-      restorePending(body);
-      lastSyncFailure = "Workspace state is queued locally until the server is available";
-      try {
-        await projectStore.enqueue(workspaceOutboxRecord(body));
-      } catch {
-        // Server drafts remain in memory if IndexedDB is unavailable.
-      }
-    }
-  });
-  await flushChain;
-}
-
-export function workspaceSyncFailure(): string {
-  return lastSyncFailure;
-}
-
-/** Replay the durable workspace outbox in revision order after reconnecting. */
+export async function flushWorkspaceState(): Promise<void> { persist(); }
+export function workspaceSyncFailure(): string { return ""; }
 export async function replayWorkspaceOutbox(): Promise<void> {
-  const records = await projectStore.outbox("workspace");
-  for (const record of records) {
-    try {
-      const result = await request(API + "/workspace-state", {
-        method: "PATCH",
-        body: JSON.stringify(record.payload),
-        keepalive: true,
-      });
-      revision = Number(result.revision || revision);
-      cache = {
-        drafts: result.drafts || cache.drafts || {},
-        notes: result.notes || cache.notes || {},
-        meta: result.meta || cache.meta || {},
-      };
-      lastSyncFailure = "";
-      await projectStore.acknowledgeOutbox(record.id);
-    } catch {
-      break;
-    }
-  }
+  // Client-local UI state is deliberately never replayed into the shared backend.
 }
 
 export async function readWorkspaceDraft(key: string): Promise<string | null> {
-  const state = await ensureWorkspaceState();
-  const entry = state.drafts?.[key];
+  const entry = load().drafts?.[key];
   if (typeof entry === "string") return entry;
-  if (entry && typeof entry === "object" && typeof entry.text === "string")
-    return entry.text;
-  try {
-    return localStorage.getItem("agentdecompile.editor.draft:" + key);
-  } catch {
-    return null;
-  }
+  return entry && typeof entry === "object" && typeof entry.text === "string" ? entry.text : null;
 }
 
 export function installWorkspaceFlush() {
-  if (flushInstalled) return;
-  flushInstalled = true;
-  const flush = () => flushWorkspaceStateImmediate();
-  window.addEventListener("pagehide", flush);
-  window.addEventListener("beforeunload", flush);
+  // sessionStorage writes are synchronous; no lifecycle flush is required.
 }
 
 export function useWorkspacePref<T>(section: Section, key: string, fallback: T) {
   const [value, setValue] = useState<T>(fallback);
   useEffect(() => {
-    let alive = true;
-    void ensureWorkspaceState().then((state) => {
-      if (!alive || loadFailed) return;
-      const stored = state[section]?.[key];
-      if (stored !== undefined) setValue(stored as T);
-    });
-    return () => {
-      alive = false;
-    };
+    const stored = load()[section]?.[key];
+    if (stored !== undefined) setValue(stored as T);
   }, [section, key]);
-  const save = useCallback(
-    (next: T) => {
-      setValue(next);
-      patchWorkspaceState(section, key, next);
-      try {
-        localStorage.setItem("ad.react." + section + "." + key, JSON.stringify(next));
-      } catch {
-        /* Browser storage may be disabled. */
-      }
-    },
-    [section, key],
-  );
+  const save = useCallback((next: T) => {
+    setValue(next);
+    patchWorkspaceState(section, key, next);
+  }, [section, key]);
   return [value, save] as const;
 }
 
 export function useWorkspaceDraft(key: string) {
-  const save = useCallback(
-    (text: string) => {
-      patchWorkspaceState("drafts", key, { text, updatedAt: Date.now() });
-      try {
-        localStorage.setItem("agentdecompile.editor.draft:" + key, text);
-      } catch {
-        /* Browser storage may be disabled. */
-      }
-    },
-    [key],
-  );
+  const save = useCallback((text: string) => {
+    patchWorkspaceState("drafts", key, { text, updatedAt: Date.now() });
+  }, [key]);
   return { save, read: () => readWorkspaceDraft(key) };
 }

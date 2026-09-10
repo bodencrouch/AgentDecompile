@@ -20578,10 +20578,15 @@ def _normalize_rewrite_source_for_content_check(source: str) -> str:
     # it away, and normalize old-Mac CR line endings so MULTILINE directive
     # anchors retain their meaning.
     source = source.removeprefix("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
-    # Also normalize bracket digraphs before checking C++/GNU attributes:
-    # `<:<:` and `:>:>` are accepted spellings of `[[` and `]]` by Clang.
-    source = source.replace("??=", "#").replace("<:", "[").replace(":>", "]")
+    # Trigraph replacement precedes splicing in C/C++ translation.  In
+    # particular, `??=` can become a directive introducer before a preceding
+    # line continuation is removed.
+    source = source.replace("??=", "#")
     source = _REWRITE_LINE_CONTINUATION_RE.sub("", source)
+    # Digraphs are recognized after line splicing.  Do this second so source
+    # such as `<\\\n:<\\\n:gnu::naked:>:>` cannot assemble into
+    # `[[gnu::naked]]` only after the prior replacement pass has finished.
+    source = source.replace("<:", "[").replace(":>", "]")
     normalized: list[str] = []
     index = 0
     while index < len(source):

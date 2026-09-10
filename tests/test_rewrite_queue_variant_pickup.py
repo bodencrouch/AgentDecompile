@@ -240,6 +240,7 @@ def test_pending_rewrite_variant_rejects_empty_source() -> None:
         "__attribute__((unused)) int x(void) { return 1; }",
         "[[gnu::naked]] int x(void) { return 1; }",
         "<:<:gnu::naked:>:> int x(void) { return 1; }",
+        "<\\\n:<\\\n:gnu::naked:>:> int x(void) { return 1; }",
         "<:[gnu::naked]:> int x(void) { return 1; }",
         "[[gnu::naked:>:> int x(void) { return 1; }",
         "<:[gnu::naked]] int x(void) { return 1; }",

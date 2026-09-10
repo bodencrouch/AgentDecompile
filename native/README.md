@@ -13,6 +13,11 @@ uninitialized even when the parent gitlink is valid. Use `git ls-files -s
 vendor/ghidra` or `git ls-tree HEAD vendor/ghidra` to check the recorded
 pointer.
 
+The GitHub Actions workflow for this branch starts with the same check. It is
+manual-only until the native-SDK `vendor/ghidra` gitlink commit is reachable
+from the public submodule remote; otherwise CI would fail before checkout can
+materialize the linked-worktree-only upstream CMake commit.
+
 Build on a volume with room for compiled SLEIGH definitions:
 
 ```sh

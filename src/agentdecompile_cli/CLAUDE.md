@@ -174,7 +174,7 @@ Tools that modify project data (e.g. `manage-symbols` rename, `manage-function` 
 
 ## 20) Tiered Reverse-Engineering Analysis
 
-Agents should **not default to Ghidra** for every task. Use the **tiered-re-analysis** skill ([skills/tiered-re-analysis/SKILL.md](../../skills/tiered-re-analysis/SKILL.md)) and knowledge base ([docs/solutions/architecture-patterns/tiered-re-analysis-knowledgebase.md](../../docs/solutions/architecture-patterns/tiered-re-analysis-knowledgebase.md)): Tier 0 shell/static tools → Tier 1 batch `ghidrecomp`/BSim → Tier 2 MCP read-only → Tier 3 decompile/mutations. Role skills: `skills/re-planner`, `re-worker`, `re-critic`, `re-aggregator` (Copilot wrappers in `.github/agents/re-*.agent.md`).
+Agents should **not default to Ghidra** for every task. Use the **tiered-re-analysis** skill ([skills/tiered-re-analysis/SKILL.md](../../skills/tiered-re-analysis/SKILL.md)) and knowledge base ([docs/solutions/architecture-patterns/tiered-re-analysis-knowledgebase.md](../../docs/solutions/architecture-patterns/tiered-re-analysis-knowledgebase.md)): Tier 0 shell/static tools → Tier 1 batch `ghidrecomp`/BSim/native snapshot replay for JVM-free sweeps → Tier 2 MCP read-only → Tier 3 decompile/mutations. Role skills: `skills/re-planner`, `re-worker`, `re-critic`, `re-aggregator` (Copilot wrappers in `.github/agents/re-*.agent.md`).
 
 ## 21) MCP Server Debugging and Self-Healing
 

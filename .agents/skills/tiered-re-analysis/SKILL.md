@@ -9,6 +9,10 @@ metadata:
 
 # tiered-re-analysis
 
-Canonical skill: [../../../.agents/skills/tiered-re-analysis/SKILL.md](../../../.agents/skills/tiered-re-analysis/SKILL.md)
+Default ladder: Tier 0 shell/static tools → Tier 1 batch `ghidrecomp`, BSim, or
+native snapshot replay for JVM-free option sweeps and engine-regression checks →
+Tier 2 MCP read-only inspection → Tier 3 decompile/mutation tools.
 
-Read that file immediately and follow it. Do not continue from this stub.
+Use native snapshot replay only for exported savefile snapshots whose manifest
+engine matches the native SDK. It is not a replacement for import, analysis, or
+first decompile: producing the snapshot still requires Ghidra/Java once.

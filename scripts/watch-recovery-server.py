@@ -27,7 +27,19 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_WATCH = (ROOT / "src", ROOT / "scripts")
+# Startup must not walk every Python file on a mounted workspace before it can
+# restore the dashboard. These are the server-owning modules; Vite handles
+# frontend hot updates separately.
+DEFAULT_WATCH = (
+    ROOT / "src/agentdecompile_cli/server.py",
+    ROOT / "src/agentdecompile_recovery/corpus/dashboard/preparation.py",
+    ROOT / "src/agentdecompile_recovery/corpus/dashboard/workflow.py",
+    ROOT / "src/agentdecompile_recovery/corpus/dashboard/entity_activity.py",
+    ROOT / "src/agentdecompile_recovery/corpus/dashboard/react_api.py",
+    ROOT / "src/agentdecompile_recovery/corpus/dashboard/router.py",
+    ROOT / "src/agentdecompile_recovery/corpus/dashboard/actions/jobs.py",
+    ROOT / "scripts/watch-recovery-server.py",
+)
 
 
 def _process_start(pid: int) -> str | None:
@@ -74,9 +86,16 @@ def snapshot(paths: tuple[Path, ...]) -> tuple[str, list[str]]:
         root = root.resolve()
         if not root.exists():
             continue
-        for path in root.rglob("*.py"):
+        candidates = (root,) if root.is_file() else root.rglob("*.py")
+        for path in candidates:
             try:
-                entries.append((str(path.relative_to(ROOT)), path.stat().st_mtime_ns))
+                # Explicit external watch paths are valid. Keep their absolute
+                # label in the fingerprint instead of assuming repo ownership.
+                try:
+                    name = str(path.relative_to(ROOT))
+                except ValueError:
+                    name = str(path)
+                entries.append((name, path.stat().st_mtime_ns))
             except OSError:
                 pass
     entries.sort()

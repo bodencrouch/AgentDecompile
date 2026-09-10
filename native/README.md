@@ -52,6 +52,21 @@ session per process. Use `gnsdk-worker`/the pool for concurrency. Do not use a
 shared library session from multiple threads or assume `gnsdk_shutdown()`
 frees native registries; it is a logical state transition only.
 
+## Resource limits and cgroups
+
+The worker accepts address-space and CPU `rlimit` values from the pool. They
+are the fallback limit on ordinary desktop sessions. A cgroup-v2 memory cap is
+only a hard guarantee when the caller owns a delegated writable cgroup; a
+typical `/sys/fs/cgroup` root is root-owned and cannot safely be modified by
+this SDK. For a delegated user scope, start the caller with:
+
+```sh
+systemd-run --user --scope -p Delegate=yes your-batch-command
+```
+
+Never report a hard memory cap merely because an RLIMIT was requested. The
+worker/pool teardown path remains bounded in either mode.
+
 ## Snapshot replay
 
 Export still uses Ghidra and Java once per function. Replay does not: the

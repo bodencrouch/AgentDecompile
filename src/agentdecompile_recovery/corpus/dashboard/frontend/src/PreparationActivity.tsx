@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { API, request, type Data, type SurfaceProps, type Selection, type Notify } from "./contracts";
 import { usePreparationFeed } from "./preparationFeed";
 import { ErrorLine, PrefDetails, Section } from "./ui";
-import { stageDisplayProgress, stageProgressLabel } from "./preparationProgress";
+import { stageDisplayProgress, stageProgressDetail, stageProgressLabel } from "./preparationProgress";
 import "./preparation.css";
 const active = (status: string) => ["queued", "running", "waiting", "cancelling", "disconnected", "resync"].includes(status);
 const statusLabels: Record<string, string> = {
@@ -105,8 +105,8 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
           const measured = Boolean(primary);
           return <li key={stage.key} data-state={stage.status} aria-current={stage === current ? "step" : undefined}>
             <div><strong>{stage.title}</strong><span>{stageStatusLabels[String(stage.status)] || stage.status}</span></div>
-            {measured && primary ? <progress max={primary.total} value={primary.completed} aria-label={`${stage.title}: ${primary.completed} of ${primary.total}`} /> : active(stage.status) && stage.status !== "queued" ? <progress aria-label={`${stage.title}: progress not yet measured`} /> : <div className="preparation-track" />}
-            <small>{measured && primary ? stageProgressLabel(primary) : stage.total === 0 ? "No applicable items" : stage.status === "queued" ? "Waiting for preceding work" : "Awaiting a measured counter from the active operation"}</small>
+            {measured && primary ? <progress max={primary.total} value={primary.completed} aria-label={`${stage.title}: ${primary.completed} of ${primary.total}`} /> : active(stage.status) && stage.status !== "queued" ? <progress aria-label={`${stage.title}: ${stageProgressDetail(stage)}`} /> : <div className="preparation-track" />}
+            <small>{stage.total === 0 ? "No applicable items" : stageProgressDetail(stage)}</small>
             {secondary && <small className="preparation-subprogress">{stageProgressLabel(secondary)}</small>}
             {stage.status === 'waiting' && stage.nextFallback && <small>{stage.nextFallback}{stage.retryAt?` · next attempt ${new Date(stage.retryAt*1000).toLocaleTimeString()}`:''}{stage.attempts?` · attempt ${stage.attempts}`:''}</small>}
             {stage.reason && <div className="preparation-reason"><ProgressMessage message={stage.reason} /></div>}

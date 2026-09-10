@@ -53,6 +53,25 @@ export function stageProgressLabel(progress: StageProgress): string {
   return `${progress.completed} / ${progress.total} ${progress.unit}`;
 }
 
+/** A stage without a numeric counter still has a useful durable state. */
+export function stageProgressDetail(stage?: Data): string {
+  if (!stage) return "No stage receipt recorded";
+  const { primary, secondary } = stageDisplayProgress(stage);
+  if (primary) return stageProgressLabel(primary);
+  if (secondary) return stageProgressLabel(secondary);
+  const reason = String(stage.reason || "").trim();
+  const target = String(stage.currentTarget || stage.currentProgram || "").trim();
+  const action = String(stage.currentAction || "").replace(/^mcp\./, "").replace(/[-_]/g, " ").trim();
+  const status = String(stage.status || "").toLowerCase();
+  if (status === "queued") return reason || "Queued behind preceding work";
+  if (["running", "waiting", "cancelling"].includes(status))
+    return [target && `Working on ${target}`, action].filter(Boolean).join(" · ") || reason || "Live operation has not published a numeric counter";
+  if (reason) return reason;
+  if (stage.receipt) return "Recorded stage receipt";
+  if (status === "completed") return "Completed with recorded state";
+  return "Awaiting a prerequisite receipt";
+}
+
 export function matchingStageSummary(run?: Data): string | undefined {
   const matching = run?.stages?.find((stage: Data) => stage.key === "matching");
   if (!matching) return undefined;

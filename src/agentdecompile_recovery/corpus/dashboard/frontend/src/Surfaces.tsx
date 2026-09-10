@@ -1,6 +1,6 @@
 import {PreparationProgress,selectPreparation} from './PreparationActivity';
 import {PreparationFeedProvider,usePreparationFeed} from './preparationFeed';
-import {matchingStageSummary,stageDisplayProgress,stageProgressLabel} from './preparationProgress';
+import {matchingStageSummary,stageDisplayProgress,stageProgressDetail,stageProgressLabel} from './preparationProgress';
 import {SourceEditor,sourceWitness,sourceExtent,useFunctionEvidence} from './SourceEditor';
 import { AtlasAnalysis } from "./AtlasAnalysis";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -1070,7 +1070,7 @@ function proofMeasures(recovery: Data, run?: Data): ProofMeasure[] {
   const stage = (key: string) => stages.find(item => item.key === key) || {};
   const counter = (item: Data) => {
     const progress = stageDisplayProgress(item).primary;
-    return progress ? stageProgressLabel(progress) : "No completed/total measurement yet";
+    return progress ? stageProgressLabel(progress) : stageProgressDetail(item);
   };
   const source = recovery.sourceAvailability || {};
   const sourceWitnesses = recovery.totals?.sourceWitnesses;

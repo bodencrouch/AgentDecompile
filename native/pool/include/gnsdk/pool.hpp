@@ -19,6 +19,9 @@ struct Config {
   std::filesystem::path worker;
   std::filesystem::path sleigh_home;
   std::filesystem::path tmpdir;
+  // Test and embedding hook for worker-specific flags. Production callers
+  // normally leave this empty; values are passed as distinct argv elements.
+  std::vector<std::string> worker_args;
   std::size_t workers = 1;
   std::size_t max_queue = 64;
   std::size_t max_queue_bytes = 64u * 1024 * 1024;

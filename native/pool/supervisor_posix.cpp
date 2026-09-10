@@ -65,6 +65,7 @@ void Supervisor::start() {
     }
     const std::string as = std::to_string(impl_->config.rlimit_as), cpu = std::to_string(impl_->config.rlimit_cpu);
     std::vector<char*> args{const_cast<char*>(impl_->config.worker.c_str()), const_cast<char*>("--sleigh-home"), const_cast<char*>(impl_->config.sleigh_home.c_str())};
+    for (const std::string& extra : impl_->config.worker_args) args.push_back(const_cast<char*>(extra.c_str()));
     if (impl_->config.rlimit_as) { args.push_back(const_cast<char*>("--rlimit-as")); args.push_back(const_cast<char*>(as.c_str())); }
     if (impl_->config.rlimit_cpu) { args.push_back(const_cast<char*>("--rlimit-cpu")); args.push_back(const_cast<char*>(cpu.c_str())); }
     args.push_back(nullptr);
@@ -105,7 +106,12 @@ proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std:
     const auto now = std::chrono::steady_clock::now();
     if (now >= deadline) { (void)::kill(child.pid, SIGUSR1); if (!reaped(child.pid, impl_->config.cancel_grace)) { (void)::kill(child.pid, SIGTERM); if (!reaped(child.pid, impl_->config.term_grace)) { (void)::kill(child.pid, SIGKILL); (void)reaped(child.pid, std::chrono::milliseconds(100)); } } close_fd(child.in); close_fd(child.out); close_fd(child.pidfd); child.pid = -1; throw std::runtime_error("worker request timed out"); }
     const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count(); pollfd pfd{child.out, POLLIN, 0};
-    if (::poll(&pfd, 1, static_cast<int>(left > 0 ? left : 1)) < 0 && errno != EINTR) throw std::runtime_error("poll worker output failed");
+    const int polled = ::poll(&pfd, 1, static_cast<int>(left > 0 ? left : 1));
+    if (polled < 0) { if (errno == EINTR) continue; throw std::runtime_error("poll worker output failed"); }
+    // A timeout is not readability. Calling FrameReader::read on its blocking
+    // pipe here would defeat the supervisor's own deadline and leave a hung
+    // worker alive forever.
+    if (polled == 0) continue;
     const auto state = child.reader.read(child.out); if (state == proto::ReadStatus::Eof || state == proto::ReadStatus::Fatal || state == proto::ReadStatus::Error) throw std::runtime_error("worker died or emitted a fatal frame");
   }
 }

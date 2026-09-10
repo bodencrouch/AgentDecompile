@@ -90,7 +90,7 @@ def test_partial_name_and_stem() -> None:
 
 def test_savefile_normalizer_moves_undefined_type_before_forward_reference() -> None:
     text = """<xml_savefile>
-<typegrp>
+<typegrp structalign="4">
   <type name="" metatype="ptr" size="8">
     <typeref name="undefined" id="0xc000000000000000"/>
   </type>
@@ -100,6 +100,7 @@ def test_savefile_normalizer_moves_undefined_type_before_forward_reference() -> 
 </xml_savefile>
 """
     normalized = normalize_savefile_for_native_restore(text)
+    assert '<typegrp structalign="4">' in normalized
     assert normalized.index('<type name="undefined" id="0xc000000000000000"') < normalized.index('<typeref name="undefined"')
     assert normalized.count('id="0xc000000000000000"') == 2
 

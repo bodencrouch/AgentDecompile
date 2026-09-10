@@ -33,10 +33,10 @@
     ],
     "expected_agreement": {
       "total_results": 3061,
-      "match": 1008,
+      "match": 1014,
       "mismatch_layout_only": 0,
-      "mismatch_content": 1817,
-      "native_error": 236,
+      "mismatch_content": 2047,
+      "native_error": 0,
       "native_timeout": 0,
       "native_crash": 0,
       "oracle_absent": 0,
@@ -45,10 +45,11 @@
   },
   "commands": {
     "export": "GHIDRA_INSTALL_DIR=/home/brunner56/ghidra-install/ghidra_12.1.3_PUBLIC uv run python -m agentdecompile_recovery.native_snapshot export /home/brunner56/ghidra-install/ghidra_12.1.3_PUBLIC/Ghidra/Features/Decompiler/os/linux_x86_64/sleigh --out /run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile-native-out/wp9-shipped-sleigh/snapshot --project-location /run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile-native-out/wp9-shipped-sleigh/ghidra-project --project-name shipped-sleigh --timeout-s 30 --all --heap 2g --quiet",
-    "diff": "uv run python -m agentdecompile_recovery.native_snapshot diff /run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile-native-out/wp9-shipped-sleigh/snapshot --mode batch --batch native/build/relwithdebinfo/tools/gnsdk_batch/gnsdk-batch --sleigh-home native/build/relwithdebinfo/ghidra-decomp/sleigh-home --timeout-s 30 --workers 1 --tmpdir /run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile-native-out/wp9-shipped-sleigh/tmp --output /run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile-native-out/wp9-shipped-sleigh/diff"
+    "diff": "TMPDIR=/run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile/.claude/worktrees/native-sdk/agentdecompile-native-out/tmp python -m agentdecompile_recovery.native_snapshot diff /run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile-native-out/wp10-sleigh-bench/normalized-sleigh-snapshot --mode batch --batch native/build/relwithdebinfo/tools/gnsdk_batch/gnsdk-batch --sleigh-home native/build/relwithdebinfo/ghidra-decomp/sleigh-home --timeout-s 60 --workers 1 --tmpdir /run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile/.claude/worktrees/native-sdk/agentdecompile-native-out/tmp --output /run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile-native-out/wp10-sleigh-bench/diff-renormalized-patched"
   },
   "notes": [
     "Generated from the installed Ghidra 12.1.3 shipped sleigh ELF on 2026-09-10.",
+    "Refreshed after the savefile normalizer learned to handle attributed <typegrp ...> elements; previously 236 native-error records were unresolved undefined typeref restore failures.",
     "The Ghidra project and snapshot were written outside the .claude worktree path because Ghidra ProjectLocator rejects path elements beginning with '.'.",
     "This pins observed agreement for the slow corpus; mismatches remain classified evidence, not tolerated equality.",
     "parity_ok is false because the compiled native .sla hash differs from the Java-export .sla hash and the report contains mismatch-content results."

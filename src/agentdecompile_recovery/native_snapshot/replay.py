@@ -190,7 +190,10 @@ class BatchReplayer:
 
     def replay_manifest(self, root: Path, manifest: Manifest) -> dict[str, ReplayResult]:
         sla_hashes = _native_sla_hashes(self.sleigh_home, {manifest.program.language_id})
-        with tempfile.TemporaryDirectory(prefix="gnsdk-batch-") as tmp:
+        temp_parent = self.tmpdir if self.tmpdir is not None else None
+        if temp_parent is not None:
+            temp_parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(prefix="gnsdk-batch-", dir=temp_parent) as tmp:
             output = Path(tmp) / "results.jsonl"
             command = [
                 str(self.batch),
@@ -207,12 +210,14 @@ class BatchReplayer:
             ]
             if self.tmpdir is not None:
                 command.extend(("--tmpdir", str(self.tmpdir)))
+            entry_count = len(list(manifest.ok_entries()))
+            subprocess_timeout_s = max(self.timeout_s + 10, self.timeout_s * max((entry_count + 49) // 50, 1) + 10)
             try:
                 completed = subprocess.run(
                     command,
                     text=True,
                     capture_output=True,
-                    timeout=self.timeout_s + 10,
+                    timeout=subprocess_timeout_s,
                     check=False,
                 )
             except (OSError, subprocess.TimeoutExpired):

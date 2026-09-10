@@ -57,7 +57,7 @@ from agentdecompile_recovery.native_snapshot.manifest import (
 )
 
 _WARNING_RE = re.compile(r"/\*\s*WARNING:\s*(.*?)\s*\*/")
-_TYPEGRP_RE = re.compile(r"(<typegrp>)(.*?)(</typegrp>)", re.DOTALL)
+_TYPEGRP_RE = re.compile(r"(<typegrp(?:\s+[^>]*)?>)(.*?)(</typegrp>)", re.DOTALL)
 _UNDEFINED_TYPE_RE = re.compile(
     r"\s*<type name=\"undefined\" id=\"0xc000000000000000\" metatype=\"unknown\" size=\"1\"\s*/>\n?"
 )

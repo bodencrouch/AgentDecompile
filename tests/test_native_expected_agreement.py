@@ -28,4 +28,5 @@ def test_shipped_sleigh_expected_agreement_is_pinned() -> None:
     assert payload["differential"]["parity_warnings"]
     assert agreement["total_results"] == payload["snapshot"]["ok"]
     assert classified == agreement["total_results"]
+    assert agreement["native_error"] == 0
     assert agreement["native_crash"] == 0

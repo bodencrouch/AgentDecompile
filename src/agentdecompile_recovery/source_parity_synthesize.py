@@ -14,11 +14,12 @@ import hashlib
 import json
 import os
 import re
-import signal
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
@@ -19559,6 +19560,7 @@ def attempt_candidate(
 
     base_record = {
         "schema": "agentdecompile.source-parity-synthesis-attempt.v1",
+        "candidateCompileInvoked": False,
         "name": row.get("name"),
         "entry": row.get("entry"),
         "section": row.get("section"),
@@ -19691,6 +19693,7 @@ def attempt_candidate(
         record = {
             **base_record,
             "attemptDir": str(attempt_dir),
+            "candidateCompileInvoked": compile_result.get("compilerInvoked") is True,
             "compilerProfileName": profile_name,
             "compilerProfileArgs": merged_flags,
             "compilerProfiles": [name for name, _ in resolved_profiles],
@@ -19776,6 +19779,7 @@ def attempt_candidate_with_clang_slice_objdiff(
             **base_record,
             "attemptDir": str(attempt_dir),
             "compiler": "clang",
+            "candidateCompileInvoked": candidate_compile.get("compilerInvoked") is True,
             "compilerProfileName": profile_name,
             "compilerProfileArgs": merged_flags,
             "compilerProfiles": [name for name, _ in resolved_profiles],
@@ -19891,6 +19895,7 @@ def attempt_candidate_with_msvc_synthetic_slice(
             **base_record,
             "attemptDir": str(attempt_dir),
             "compiler": "msvc",
+            "candidateCompileInvoked": candidate_compile.get("compilerInvoked") is True,
             "compilerProfileName": profile_name,
             "compilerProfileArgs": merged_flags,
             "compilerProfiles": [name for name, _ in resolved_profiles],
@@ -20037,6 +20042,7 @@ def attempt_candidate_with_clangcl_slice_objdiff(
             **base_record,
             "attemptDir": str(attempt_dir),
             "compiler": "clang-cl",
+            "candidateCompileInvoked": candidate_compile.get("compilerInvoked") is True,
             "compilerProfileName": profile_name,
             "compilerProfileArgs": profile_args,
             "compilerProfiles": [name for name, _ in resolved_profiles],
@@ -20146,6 +20152,7 @@ def compile_with_clang(*, clang: str, source: Path, object_path: Path, args: lis
     stdout_path.write_text(proc.stdout, encoding="utf-8")
     stderr_path.write_text(proc.stderr, encoding="utf-8")
     return {
+        "compilerInvoked": True,
         "status": "ok" if proc.returncode == 0 and object_path.exists() else "failed",
         "returnCode": proc.returncode,
         "command": command,
@@ -20204,6 +20211,7 @@ def compile_with_clangcl(*, clang_cl: str, source: Path, object_path: Path, args
     stdout_path.write_text(proc.stdout, encoding="utf-8")
     stderr_path.write_text(proc.stderr, encoding="utf-8")
     return {
+        "compilerInvoked": True,
         "status": "ok" if proc.returncode == 0 and object_path.exists() else "failed",
         "returnCode": proc.returncode,
         "command": command,
@@ -22663,11 +22671,7 @@ def main(argv: list[str] | None = None) -> int:
     strategy_by_name = load_strategy(args.remaining_features)
     retrieval_by_name = load_retrieval(args.retrieval)
     matched = load_matched(args.matched_summary)
-    from .compile_cache import cache_dir as compile_cache_dir
-    from .compile_cache import cache_key as compile_cache_key
-    from .compile_cache import lookup as compile_cache_lookup
-    from .compile_cache import store as compile_cache_store
-    from .compile_cache import target_slice_sha256
+    from .compile_cache import cache_dir as compile_cache_dir, cache_key as compile_cache_key, lookup as compile_cache_lookup, store as compile_cache_store, target_slice_sha256
     from .match_cache import MatchCache, source_sha256
     from .verify_pool import get_worker_index, map_parallel, resolve_workers
 

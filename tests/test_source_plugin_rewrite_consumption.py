@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from agentdecompile_recovery import rewrite_queue, source_parity_synthesize, source_plugins
+from agentdecompile_recovery import package_verify, rewrite_queue, source_parity_synthesize, source_plugins
 from agentdecompile_recovery.source_parity_synthesize import GeneratedCandidate
 
 pytestmark = pytest.mark.unit
@@ -50,7 +50,7 @@ def test_forwarded_rewrite_reaches_each_compiler_and_objdiff_gate(tmp_path, monk
         assert candidate.evidence == {**original.evidence, "rewriteRequestId": request_id}
         assert not kwargs.get("source_shape_search")
         assert kwargs.get("pending_rewrite_result") is None
-        return [{**base_record, "status": "matched", "differences": differences}]
+        return [{**base_record, "status": "matched", "differences": differences, "candidateCompileInvoked": True}]
 
     backend_name = {
         "msvc": "attempt_candidate_with_msvc_synthetic_slice",
@@ -129,8 +129,108 @@ def test_missing_target_slice_retains_forwarded_rewrite(tmp_path, monkeypatch, c
 
 
 @pytest.mark.parametrize("status", ["generated-only", "slice-failed", "error", "unknown", "compile-failed", "mismatched"])
-def test_only_candidate_outcomes_consume_forwarded_rewrite(tmp_path, monkeypatch, status):
+@pytest.mark.parametrize("invoked", [None, False, True])
+def test_only_candidate_outcomes_consume_forwarded_rewrite(tmp_path, monkeypatch, status, invoked):
     context, request_id = forwarded_context(tmp_path)
-    monkeypatch.setattr(source_plugins, "attempt_candidate", lambda *args, **kwargs: [{"status": status, "differences": -1}])
+    monkeypatch.setattr(source_plugins, "attempt_candidate", lambda *args, **kwargs: [{
+        "status": status, "differences": -1, "candidateCompileInvoked": invoked,
+    }])
     source_plugins.SourceCandidateObjdiffPlugin().execute(context)
-    assert (rewrite_queue.find_entry(tmp_path, request_id) is None) == (status in {"compile-failed", "mismatched"})
+    assert (rewrite_queue.find_entry(tmp_path, request_id) is None) == (invoked is True and status in {"compile-failed", "mismatched"})
+
+
+@pytest.mark.parametrize("compiler", ["msvc", "msvc-inventory", "clang", "clang-cl"])
+def test_real_missing_candidate_toolchain_retains_forwarded_rewrite(tmp_path, monkeypatch, compiler):
+    context, request_id = forwarded_context(tmp_path)
+    context.update(
+        compiler="msvc" if compiler == "msvc-inventory" else compiler,
+        compilerProfiles=[("test", [])],
+        clang=str(tmp_path / "missing-clang"), vcRoot=str(tmp_path / "missing-msvc"),
+    )
+    # Target construction is independent of candidate compilation. Only bypass
+    # that setup so each actual candidate helper reaches its missing executable.
+    monkeypatch.setattr(source_parity_synthesize, "compile_asm_to_coff", lambda **kwargs: {"status": "ok"})
+    if compiler == "msvc-inventory":
+        context["sourceParityRow"].pop("bytes")
+        monkeypatch.setattr(source_parity_synthesize, "run", lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout="", stderr=""))
+    elif compiler == "clang":
+        compile_clang = source_parity_synthesize.compile_with_clang
+
+        def compile_target_or_candidate(**kwargs):
+            return {"status": "ok"} if kwargs["source"].suffix == ".S" else compile_clang(**kwargs)
+
+        monkeypatch.setattr(source_parity_synthesize, "compile_with_clang", compile_target_or_candidate)
+    if compiler.startswith("msvc"):
+        result, updated = source_plugins.SourceCandidateObjdiffPlugin().execute(context)
+        assert result.status == "failure"
+        record, = updated["sourceParityAttemptRecords"]
+        assert record["status"] == "compile-failed"
+        assert record["candidateCompileInvoked"] is False
+        assert "cl.exe not found" in record["stderr"]
+    else:
+        with pytest.raises(FileNotFoundError):
+            source_plugins.SourceCandidateObjdiffPlugin().execute(context)
+    assert rewrite_queue.find_entry(tmp_path, request_id)["source"] == REWRITE
+
+
+def test_real_missing_wine_retains_forwarded_rewrite(tmp_path, monkeypatch):
+    context, request_id = forwarded_context(tmp_path)
+    root = tmp_path / "msvc"
+    (root / "bin").mkdir(parents=True)
+    (root / "bin" / "cl.exe").touch()
+    context.update(compiler="msvc", vcRoot=str(root), wine=str(tmp_path / "missing-wine"), compilerProfiles=[("test", [])])
+    monkeypatch.setattr(source_parity_synthesize, "compile_asm_to_coff", lambda **kwargs: {"status": "ok"})
+    with pytest.raises(FileNotFoundError):
+        source_plugins.SourceCandidateObjdiffPlugin().execute(context)
+    assert rewrite_queue.find_entry(tmp_path, request_id)["source"] == REWRITE
+
+
+@pytest.mark.parametrize("compiler", ["msvc", "msvc-inventory", "clang", "clang-cl"])
+def test_compiler_rejection_records_invocation_and_consumes_rewrite(tmp_path, monkeypatch, compiler):
+    context, request_id = forwarded_context(tmp_path)
+    root = tmp_path / "msvc"
+    (root / "bin").mkdir(parents=True)
+    (root / "bin" / "cl.exe").touch()
+    context.update(compiler="msvc" if compiler == "msvc-inventory" else compiler, vcRoot=str(root), compilerProfiles=[("test", [])])
+    calls = []
+
+    def reject_source(command, **kwargs):
+        if "agentdecompile_recovery.inventory_slice" in command:
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        calls.append(command)
+        return SimpleNamespace(returncode=1, stdout="", stderr="in.c(1) : error C2143: syntax error")
+
+    monkeypatch.setattr(package_verify, "run_command", reject_source)
+    monkeypatch.setattr(source_parity_synthesize, "run", reject_source)
+    monkeypatch.setattr(source_parity_synthesize, "compile_asm_to_coff", lambda **kwargs: {"status": "ok"})
+    if compiler == "msvc-inventory":
+        context["sourceParityRow"].pop("bytes")
+    elif compiler == "clang":
+        compile_clang = source_parity_synthesize.compile_with_clang
+        monkeypatch.setattr(source_parity_synthesize, "compile_with_clang", lambda **kwargs: (
+            {"status": "ok"} if kwargs["source"].suffix == ".S" else compile_clang(**kwargs)
+        ))
+    result, updated = source_plugins.SourceCandidateObjdiffPlugin().execute(context)
+    assert calls
+    assert result.status == "failure"
+    record, = updated["sourceParityAttemptRecords"]
+    assert record["status"] == "compile-failed"
+    assert record["candidateCompileInvoked"] is True
+    assert rewrite_queue.find_entry(tmp_path, request_id) is None
+
+
+def test_wine_startup_failure_does_not_count_as_candidate_compilation(tmp_path, monkeypatch):
+    context, request_id = forwarded_context(tmp_path)
+    root = tmp_path / "msvc"
+    (root / "bin").mkdir(parents=True)
+    (root / "bin" / "cl.exe").touch()
+    context.update(compiler="msvc", vcRoot=str(root), compilerProfiles=[("test", [])])
+    monkeypatch.setattr(source_parity_synthesize, "compile_asm_to_coff", lambda **kwargs: {"status": "ok"})
+    monkeypatch.setattr(package_verify, "run_command", lambda *args, **kwargs: SimpleNamespace(
+        returncode=1, stdout="", stderr="wine: could not load kernel32.dll, status c0000135",
+    ))
+    _, updated = source_plugins.SourceCandidateObjdiffPlugin().execute(context)
+    record, = updated["sourceParityAttemptRecords"]
+    assert record["status"] == "compile-failed"
+    assert record["candidateCompileInvoked"] is False
+    assert rewrite_queue.find_entry(tmp_path, request_id)["source"] == REWRITE

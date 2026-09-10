@@ -219,11 +219,16 @@ class SourceCandidateObjdiffPlugin:
             and not context.get("dryRun")
             and (
                 rewrite_variant is None
-                or any(record.get("status") in {"compile-failed", "matched", "mismatched", "code-slice-matched"} for record in records)
+                or any(
+                    record.get("candidateCompileInvoked") is True
+                    and record.get("status") in {"compile-failed", "matched", "mismatched", "code-slice-matched"}
+                    for record in records
+                )
             )
         ):
             # Target preparation and verifier errors leave the proposal retryable.
-            # Prune only a recorded candidate outcome or rejected content.
+            # Status alone is insufficient: missing toolchains can be compile-failed.
+            # Prune only a recorded compiler invocation and outcome, or rejected content.
             rewrite_queue.prune_consumed_entries(Path(str(work_dir_value)), [rewrite_request_id])
         return (
             PluginResult(

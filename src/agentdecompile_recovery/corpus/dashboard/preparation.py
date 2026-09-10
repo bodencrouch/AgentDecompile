@@ -179,7 +179,7 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[A
             program: {key: value for key, value in checkpoint.items()
                       if key in {'analysisConfirmed', 'needsAnalysis', 'factsComplete',
                                  'bsimComplete', 'architecture', 'workSize',
-                                 'protection', 'externalSourceAvailable'}}
+                                 'protection', 'externalSourceAvailable', 'targetImage'}}
             for program, checkpoint in (row.get('checkpoints') or {}).items()
             if isinstance(checkpoint, dict)
         }

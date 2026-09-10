@@ -15,6 +15,7 @@ from typing import Any, Callable
 
 STAGES = [
     ('calibrate-global', 'Check compiler and layout'),
+    ('materialize-target', 'Materialize original byte target'),
     ('assembly-floor', 'Create source project'),
     ('recover-source', 'Compiling C replacement'),
     ('apply-cross-build', 'Place compiling C in equivalent builds'),
@@ -23,7 +24,7 @@ STAGES = [
 ]
 DEFAULT_BUDGET_SECONDS = None
 MAX_BUDGET_SECONDS = 7 * 24 * 60 * 60
-VERSION = 3
+VERSION = 4
 
 
 def read_object(path: Path) -> dict[str, Any]:
@@ -268,6 +269,33 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         checkpoint['toolchain'] = compiler
         result('calibrate-global', 'completed', 'Compiler and layout inputs available; calibration receipt retained.', receipt=str(work / 'calibrate-global.json'))
 
+        # A Ghidra analysis image may be unpacked or normalized.  Materialize
+        # only the original executable for proof; a derived analysis image is
+        # deliberately never accepted as a byte-comparison authority.
+        from .target_image import materialize_original_target
+        expected_hash = ''
+        try:
+            with sqlite3.connect(f'{db.as_uri()}?mode=ro', uri=True) as con:
+                found = con.execute('SELECT content_sha256 FROM binary WHERE id=?', (checkpoint.get('binaryId'),)).fetchone()
+                expected_hash = str(found[0] or '') if found else ''
+        except (sqlite3.Error, ValueError, OSError):
+            pass
+        target_image = materialize_original_target(
+            checkpoint.get('executablePath') or '', work,
+            program=program,
+            program_fingerprint=str(checkpoint.get('programFingerprint') or ''),
+            expected_sha256=expected_hash,
+            protection=checkpoint.get('protection'),
+        )
+        checkpoint['targetImage'] = target_image
+        if not target_image.get('ok'):
+            result('materialize-target', 'blocked', str(target_image.get('reason') or 'Original byte target could not be materialized.'), targetImage=target_image)
+            block_after('assembly-floor', 'Waiting for an original-byte verification target.')
+            continue
+        original_target = Path(str(target_image['targetPath']))
+        result('materialize-target', 'completed', 'Original executable bytes copied and hash-bound for independent comparison.',
+               receipt=target_image['receiptPath'], targetImage=target_image)
+
         source = work / 'source'
         layout = action('assembly-floor', 'corpus.workspace', {'db': str(db), 'donor-slug': checkpoint['slug'], 'out': str(source)}, context)
         if not layout['ok']:
@@ -281,7 +309,7 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         generated = action('recover-source', 'corpus.ghidra-bulk', {
             'program': program, 'repo': checkpoint['repoPath'], 'db': str(db), 'out-dir': str(source),
             'kb': str(program_kb), 'compiler': compiler, 'mode': 'compile-only', 'workers': 1,
-            **({'extract-raw': checkpoint['executablePath']} if checkpoint.get('executablePath') else {}),
+            'extract-raw': str(original_target),
         }, context)
         result('recover-source', 'completed' if generated['ok'] else 'partial',
                'C replacement attempts finished; compilation and proof remain separate.' if generated['ok'] else generated.get('error') or generated.get('log') or 'C replacement left unresolved functions.', jobId=generated.get('jobId'))
@@ -292,10 +320,7 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         result('apply-cross-build', 'completed' if placed['ok'] else 'partial',
                'Placement attempts finished; each recipient still requires compilation and proof.' if placed['ok'] else placed.get('error') or placed.get('log') or 'No source could be placed.', jobId=placed.get('jobId'))
 
-        original = Path(checkpoint.get('executablePath') or '')
-        if not original.is_file():
-            block_after('leftover-recover', 'Original executable unavailable for target extraction and byte comparison.')
-            continue
+        original = original_target
         remaining = max(1, int(row['deadline'] - time.time())) if row.get('deadline') is not None else None
         recovered = action('leftover-recover', 'reconstruct.one-shot', {
             'input': str(original), 'work-dir': str(work / 'proof'), 'project': row['locator'],
@@ -344,7 +369,8 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         verified = sum(int(claim.get('count') or 0) for claim in data.get('claims', []) if claim.get('class') == 'objdiff-verified-semantic') if isinstance(data, dict) else 0
         result('verify-byte-accuracy', 'partial' if verified else 'blocked',
                f'{verified} receipt-backed semantic functions; full binary byte identity is not established.' if verified else 'No accepted byte-verification receipts. Compilation is not a match.',
-               jobId=audit.get('jobId'), verifiedFunctions=verified, byteExact=False)
+               jobId=audit.get('jobId'), verifiedFunctions=verified, byteExact=False,
+               targetImageReceipt=target_image['receiptPath'], targetSha256=target_image['targetSha256'])
 
     for key, _ in STAGES:
         outcomes = [row['checkpoints'].get(p, {}).get('workflow', {}).get(key, {}) for p in programs]

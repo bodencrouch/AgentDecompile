@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +22,7 @@ from .source_parity_synthesize import (
     generated_candidate_source_quality,
     matched_source_shape_record,
     packaged_source_candidate,
+    pending_rewrite_variant,
     prioritize_candidates,
 )
 
@@ -130,6 +133,16 @@ class SourceCandidateObjdiffPlugin:
                 str(row.get("name") or ""), str(getattr(candidate, "source", "") or "")
             )
             pending_rewrite_result = rewrite_queue.find_entry(Path(str(work_dir_value)), rewrite_request_id)
+        rewrite_variant = pending_rewrite_variant(row, candidate, pending_rewrite_result)
+        if rewrite_variant is not None:
+            # Queue metadata is advisory. Keep the locally selected symbol,
+            # calling convention, compiler flags, and proof scope.
+            candidate = replace(
+                candidate,
+                source=rewrite_variant["source"],
+                variant=f"{candidate.variant}-rewrite-request",
+                evidence={**candidate.evidence, "rewriteRequestId": rewrite_request_id},
+            )
         records = attempt_candidate(
             row,
             candidate,
@@ -143,19 +156,8 @@ class SourceCandidateObjdiffPlugin:
             wineprefix=Path(str(context["wineprefix"])) if context.get("wineprefix") else None,
             timeout=int(context.get("timeout") or 120),
             dry_run=bool(context.get("dryRun")),
-            source_shape_search=bool(context.get("sourceShapeSearch")),
-            pending_rewrite_result=pending_rewrite_result,
+            source_shape_search=bool(context.get("sourceShapeSearch")) and rewrite_variant is None,
         )
-        if (
-            work_dir_value
-            and rewrite_request_id
-            and pending_rewrite_result is not None
-            and pending_rewrite_result.get("status") in {"completed", "failed"}
-        ):
-            # Consumed this pass (whether it produced a match or not) -- prune so a
-            # later pass doesn't re-read a stale completed/failed entry. Never prune
-            # pending/claimed entries -- the worker may still be in flight.
-            rewrite_queue.prune_consumed_entries(Path(str(work_dir_value)), [rewrite_request_id])
         enrich_attempt_records(records, row if isinstance(row, dict) else None)
         matches = [
             record
@@ -208,6 +210,17 @@ class SourceCandidateObjdiffPlugin:
         updated["sourceShapeMatchRecords"] = source_shape_matches
         updated["sourceParityAttemptsPath"] = str(attempts_path)
         status = "success" if exportable_matches or source_shape_matches else "failure"
+        if (
+            work_dir_value
+            and rewrite_request_id
+            and pending_rewrite_result is not None
+            and pending_rewrite_result.get("status") in {"completed", "failed"}
+            and not context.get("dryRun")
+            and (rewrite_variant is None or any(record.get("status") != "generated-only" for record in records))
+        ):
+            # Prune after recording the attempt or rejecting its content; an
+            # exception before this point leaves the proposal available to retry.
+            rewrite_queue.prune_consumed_entries(Path(str(work_dir_value)), [rewrite_request_id])
         return (
             PluginResult(
                 self.id,

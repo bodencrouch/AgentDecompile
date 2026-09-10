@@ -1044,6 +1044,78 @@ function Types({ props, catalog }: { props: SurfaceProps; catalog: Data[] }) {
   );
 }
 
+type ProofMeasure = {
+  key: string;
+  title: string;
+  status: string;
+  measured: string;
+  detail: string;
+  receipt: string;
+};
+
+function proofStageLabel(status: unknown) {
+  switch (String(status || "queued")) {
+    case "completed": return "Recorded";
+    case "running": return "Measuring now";
+    case "partial": return "Partial results recorded";
+    case "failed": return "Measurement ended";
+    case "blocked": return "Waiting for prerequisites";
+    case "paused": return "Paused";
+    default: return "Queued";
+  }
+}
+
+function proofMeasures(recovery: Data, run?: Data): ProofMeasure[] {
+  const stages: Data[] = run?.stages || [];
+  const stage = (key: string) => stages.find(item => item.key === key) || {};
+  const counter = (item: Data) => {
+    const progress = stageDisplayProgress(item).primary;
+    return progress ? stageProgressLabel(progress) : "No completed/total measurement yet";
+  };
+  const source = recovery.sourceAvailability || {};
+  const sourceWitnesses = recovery.totals?.sourceWitnesses;
+  const calibration = stage("calibrate-global");
+  const compile = stage("recover-source");
+  const audit = stage("verify-byte-accuracy");
+  return [
+    {
+      key: "witnesses", title: "Source witnesses", status: "Recorded evidence",
+      measured: sourceWitnesses != null ? `${Number(sourceWitnesses).toLocaleString()} Ghidra C witnesses` : "Witness inventory is being read",
+      detail: source.count != null ? `${Number(source.count).toLocaleString()} assembly-free source records are catalogued separately; neither count claims compilation.` : String(source.reason || "The workflow will write source witnesses after extraction."),
+      receipt: "Required for proof: a candidate source file tied to its target function.",
+    },
+    {
+      key: "profile", title: "Compiler profile", status: proofStageLabel(calibration.status),
+      measured: counter(calibration),
+      detail: String(calibration.reason || "The pipeline is measuring target compiler, flags, ABI, and layout before compiling candidates."),
+      receipt: calibration.receipt ? `Receipt: ${calibration.receipt}` : "Required for compilation: a target-bound profile with zero-diff compiler probes.",
+    },
+    {
+      key: "compile", title: "Candidate compilation", status: proofStageLabel(compile.status),
+      measured: counter(compile),
+      detail: String(compile.reason || recovery.compilation?.reason || "Candidates compile only after a target-bound profile and source witness are present."),
+      receipt: compile.receipt ? `Receipt: ${compile.receipt}` : "Required for byte audit: an object produced from the recorded candidate source.",
+    },
+    {
+      key: "objdiff", title: "Native objdiff audit", status: proofStageLabel(audit.status),
+      measured: audit.verifiedFunctions != null ? `${Number(audit.verifiedFunctions).toLocaleString()} receipt-backed functions` : counter(audit),
+      detail: String(audit.reason || recovery.verification?.reason || "The audit compares compiled output with the original target using the native objdiff path."),
+      receipt: audit.receipt ? `Receipt: ${audit.receipt}` : "Required for byte-accurate source: a native objdiff receipt with zero differences.",
+    },
+  ];
+}
+
+function ProofMeasurementGrid({recovery,run}:{recovery:Data;run?:Data}) {
+  return <section className="proof-measurements" aria-label="Recovery proof measurements">
+    {proofMeasures(recovery,run).map(measure => <article key={measure.key} className={`proof-measurement proof-${measure.key}`}>
+      <header><span>{measure.title}</span><strong>{measure.status}</strong></header>
+      <p className="proof-measurement-count">{measure.measured}</p>
+      <p>{measure.detail}</p>
+      <small>{measure.receipt}</small>
+    </article>)}
+  </section>;
+}
+
 export function RecoveryWorkspace({props,catalog=[],liveRun}:{props:SurfaceProps;catalog?:Data[];liveRun?:Data}) {
   const [scope,setScope]=useState('selection'),[tick,setTick]=useState(0),[advanced,setAdvanced]=useState(false);
   useEffect(()=>{const timer=setInterval(()=>{if(!document.hidden)setTick(n=>n+1);},5000);return()=>clearInterval(timer);},[]);
@@ -1072,7 +1144,7 @@ export function RecoveryWorkspace({props,catalog=[],liveRun}:{props:SurfaceProps
     {scoped && run && <p className="recovery-workflow-link" role="status">Automatic workflow · {matchingStageSummary(run) || run.status} · <button type="button" onClick={() => document.getElementById("preparation")?.scrollIntoView({ behavior: "smooth" })}>Open preparation panel</button></p>}
     {scoped && !run && <PreparationProgress run={run} selection={props.selection} notify={props.notify} error={data.error} loading={data.loading} compact />}
     {!scoped&&<p>This view combines registered corpora. Return to the current project to follow its automatic workflow.</p>}
-    <p>Function inventory, readable source, compilation and byte verification are separate properties. Completed analysis and similarity indexing do not establish recovered source or byte parity.</p>
+    <p>Each lane below reports its own live evidence. Analysis and similarity indexing feed recovery, while compilation and native objdiff receipts establish separate facts.</p>
     <h3>{scoped?'Project binary evidence':'Registered binary evidence'}</h3>
     <Table rows={builds} columns={[["slug","Binary"],["func_count","Recorded functions"],["named_count","Recorded names"],["bound","Identity bindings"],["real_c","Real-C records"]]} onRow={inspectBuild}/>
     {!builds.length&&<p>{data.loading?'Reading project inventory…':data.data.scope?.reason||'No binary inventory is recorded for this scope yet. Current workflow status remains available above.'}</p>}
@@ -1083,7 +1155,7 @@ export function RecoveryWorkspace({props,catalog=[],liveRun}:{props:SurfaceProps
       return primary ? <p className="recovery-match-progress" role="status">Workflow comparisons · {stageProgressLabel(primary)}</p> : null;
     })()}
     <p>{match.reason||'Comparison outcomes are advisory observations. They do not establish byte verification.'}</p><Table rows={Object.entries(match.byStatus||{}).map(([status,count])=>({status:matchLabels[status]||status,count}))} columns={[["status","Match category"],["count",match.unit||"Recorded observations"]]}/>
-    <dl className="facts"><div><dt>Recorded assembly-free source</dt><dd>{data.data.recovery?.sourceAvailability?.count!=null?`${data.data.recovery.sourceAvailability.count} functions${data.data.recovery.sourceAvailability.total!=null?` of ${data.data.recovery.sourceAvailability.total}`:''} · source witness, not proof`:(liveRun?.stages||[]).find((stage:Data)=>stage.key==='recover-source')?.reason||'Source recovery is queued behind the current workflow stage.'}{data.data.recovery?.sourceAvailability?.reason&&<><br/><small>{data.data.recovery.sourceAvailability.reason}</small></>}</dd></div><div><dt>Compilation</dt><dd>{data.data.recovery?.compilation?.summary||data.data.recovery?.compilation?.reason||(liveRun?.stages||[]).find((stage:Data)=>stage.key==='recover-source')?.reason||'Compilation starts after a source candidate is produced.'}</dd></div><div><dt>Byte verification</dt><dd>{data.data.recovery?.verification?.summary||data.data.recovery?.verification?.reason||(liveRun?.stages||[]).find((stage:Data)=>stage.key==='verify-byte-accuracy')?.reason||'Byte audit is queued: compiled output will be compared with the original binary and an independent receipt will be stored.'}</dd></div></dl>
+    <ProofMeasurementGrid recovery={data.data.recovery||{}} run={run}/>
     {(report.by_build||[]).length>0&&<><h3>Recorded source outputs</h3><Table rows={report.by_build} columns={[["slug","Binary"],["artifacts","Artifacts"],["logical","Logical functions"],["concrete","Concrete instances"]]}/></>}
     <details><summary>Historical reports and evidence availability</summary><p>These optional reports describe the run that produced them. Their absence does not mean the current project has stopped, and their presence does not prove current byte parity.</p>{evidence.length?<Table rows={evidence} columns={[["path","Evidence source"],["status","Availability"],["reason","Meaning"]]}/>:<p>No historical report availability records were supplied.</p>}<Messages data={data.data}/><Messages data={report}/><Messages data={data.data.ladder||{}}/></details>
     <details open={advanced} onToggle={event=>setAdvanced(event.currentTarget.open)}><summary>Independent recovery tools</summary><p>The admitted workflow advances automatically. These controls are for deliberate targeted operations with explicit parameters.</p>{advanced&&<div className="surface-action-list">{recoveryTools.map(([id,label])=><button key={id} disabled={!availableActions.some((action:Data)=>action.id===id)} onClick={()=>props.onAction(id)}>{label}</button>)}</div>}</details>

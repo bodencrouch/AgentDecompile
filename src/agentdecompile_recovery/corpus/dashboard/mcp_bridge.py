@@ -112,7 +112,28 @@ def call_tool(name: str, arguments: dict[str, Any] | None = None, *, timeout: fl
 
 def ensure_project(locator: str) -> dict[str, Any]:
     """Reuse the project opened by this session instead of reacquiring its file lock."""
+    from agentdecompile_recovery.corpus.ghidra_project import ghidra_connect_args, inspect_locator
+
     with CONTEXT_LOCK:
+        info = inspect_locator(locator) if locator else {}
+        if info.get("kind") == "shared-project":
+            args = ghidra_connect_args(info)
+            canonical = str(info.get("canonical") or locator)
+            key = f"shared\\0{canonical}"
+            with _LOCK:
+                if _OPENED.get(key) == "connected":
+                    return {"ok": True, "reused": True}
+            shared_args = {
+                "serverHost": args["server_host"],
+                "serverPort": args["server_port"],
+                "path": args["repository_name"],
+            }
+            _apply_server_auth(shared_args)
+            opened = call_tool("connect-shared-project", shared_args, timeout=180.0)
+            if opened.get("ok"):
+                with _LOCK:
+                    _OPENED[key] = "connected"
+            return opened
         if locator and locator == _ACTIVE_LOCATOR:
             return {"ok": True, "reused": True}
         return call_tool("open", {"path": locator, "analyzeAfterImport": False, "openAllPrograms": False}, timeout=180.0)
@@ -138,7 +159,11 @@ def _call_tool(
     text = _content_text(content if isinstance(content, list) else [])
     parsed = _maybe_json(text)
     payload_fail = isinstance(parsed, dict) and parsed.get("success") is False
-    is_error = bool(isinstance(result, dict) and result.get("isError")) or payload_fail
+    # The provider renders ActionableError as a Markdown error response rather
+    # than setting the JSON-RPC isError bit.  Treat it as a failed bridge call
+    # so a shared-project connect cannot be mistaken for an open session.
+    formatted_error = text.lstrip().startswith("## Error")
+    is_error = bool(isinstance(result, dict) and result.get("isError")) or payload_fail or formatted_error
     err = ""
     if payload_fail:
         err = str(parsed.get("error") or text)
@@ -318,6 +343,11 @@ def ensure_program(locator: str, program: str = "", inspected: dict[str, Any] | 
             timeout=180.0,
         )
         steps.append({"tool": "import-binary", "ok": opened.get("ok"), "error": opened.get("error")})
+    elif kind == "shared-project":
+        opened = ensure_project(loc)
+        steps.append({"tool": "connect-shared-project", "ok": opened.get("ok"), "error": opened.get("error")})
+        if not opened.get("ok"):
+            return {"ok": False, "ensured": False, "program_path": path or name, "steps": steps, "error": opened.get("error") or opened.get("text")}
     elif open_args:
         opened = call_tool("open", open_args, timeout=180.0)
         steps.append({"tool": "open", "ok": opened.get("ok"), "error": opened.get("error")})

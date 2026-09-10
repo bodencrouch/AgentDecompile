@@ -757,6 +757,15 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             cancel.set()
         return cancel.is_set() or _budget_expired(row.get('deadline'))
 
+    def pause_outcome(job_id: str = '') -> dict[str, Any]:
+        """Checkpoint a matching wave without cancelling its accepted child."""
+        return {
+            'ok': False,
+            'paused': True,
+            'jobId': job_id,
+            'error': 'Pause requested. No additional comparison was admitted.',
+        }
+
     def action(key: str, name: str, fields: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         # Admission and terminal receipts are durable. An uncertain external
         # mutation is blocked after owner death rather than replayed blindly.
@@ -793,6 +802,11 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         if not probe and prior.get('status') == 'failed' and not transient_failure(prior.get('result', {})):
             return prior['result']
         for attempt in range(int(prior.get('attempts', 0)), 3):
+            # Matching submits several independent candidates into the shared
+            # job store. A pause must freeze that admission queue, while a
+            # child already executing gets to write its durable receipt.
+            if name == 'corpus.match-pair' and _read_control(run_id).get('operation') == 'pause':
+                return pause_outcome()
             if stopped():
                 raise InterruptedError('Workflow stopped or its execution budget was reached.')
             with _LOCK:
@@ -842,7 +856,32 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                         stage = next(item for item in row['stages'] if item['key'] == key)
                         if work_progress and work_progress != stage.get('workProgress'):
                             update(key, 'running', workProgress=work_progress)
-                    if stopped():
+                    command = _read_control(run_id)
+                    if name == 'corpus.match-pair' and command.get('operation') == 'pause':
+                        if job is not None and job.status == 'running':
+                            # The active pair owns durable comparison output. Let
+                            # it finish, then checkpoint the wave before another
+                            # queued pair can begin.
+                            update(key, 'running', 'Pause requested. Finishing the accepted comparison before checkpointing.',
+                                   jobId=job_id, currentProgram=target, currentAction=name,
+                                   jobStatus='running', pauseRequestedAt=time.time())
+                        else:
+                            # This candidate never began execution. Remove it
+                            # from the shared queue so the completed sibling is
+                            # the last admitted comparison in this paused wave.
+                            jobs.cancel_job(job_id)
+                            drain_deadline = time.monotonic() + 120
+                            while job is not None and job.status in {'queued', 'running', 'cancelling'}:
+                                if time.monotonic() > drain_deadline:
+                                    raise InterruptedError('Queued comparison did not drain while honoring pause.')
+                                time.sleep(.25)
+                                job = jobs.get_job(job_id)
+                            outcome = pause_outcome(job_id)
+                            with _LOCK:
+                                history[action_id].update(status='paused', result=outcome)
+                                _write(row)
+                            return outcome
+                    elif stopped():
                         jobs.cancel_job(job_id)
                         update(key, 'cancelling', 'Waiting for the accepted operation to stop before releasing project ownership.')
                         drain_deadline = time.monotonic() + 120
@@ -1365,6 +1404,8 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                                 if result['ok']:
                                     record_comparison_receipt(run_id, src, dst, result, comparison_inputs)
                                     matched += 1
+                                elif result.get('paused'):
+                                    continue
                                 update('matching', 'running', result.get('error') or f'{Path(src).name} → {Path(dst).name}: {"compared" if result["ok"] else "failed"}.', completed=matched, total=len(pairs))
                     except InterruptedError:
                         interrupted = True
@@ -1373,6 +1414,9 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                         raise
                 finally:
                     pool.shutdown(wait=not interrupted, cancel_futures=interrupted)
+            if _read_control(run_id).get('operation') == 'pause':
+                update('matching', 'paused', f'Paused after {matched} of {len(pairs)} durable comparison receipts.', completed=matched, total=len(pairs), deferred=len(pairs) - matched)
+                raise _PauseRequested()
             update('matching', 'completed' if matched == len(pairs) else 'partial', f'{matched} of {len(pairs)} pairs compared. {deferred} comparisons await admission.' if deferred else f'{matched} of {len(pairs)} pairs compared.', completed=matched, total=len(pairs), deferred=deferred)
         if pairs and matched:
             merged = action('matching', 'workbench.merge-evidence', {'db': str(live_db()), 'run': f'prepare-{run_id}'}, row)
@@ -1383,6 +1427,8 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             execution_routes=execution_routes,
         )
         row['status'] = 'completed' if all(stage['status'] == 'completed' for stage in row['stages']) else 'partial'
+    except _PauseRequested:
+        row.update(status='paused', error='')
     except InterruptedError as exc:
         row.update(status='cancelled' if cancel.is_set() else 'budget-stop', error=str(exc))
     except Exception as exc:
@@ -1396,7 +1442,11 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             _ACTIVE.discard(run_id)
             _release_lease(run_id)
             _ADMISSION_WAKE.set()
-    return (0 if row['status'] in {'completed', 'partial'} else 1), json.dumps(row, indent=2)
+    return (0 if row['status'] in {'completed', 'partial', 'paused'} else 1), json.dumps(row, indent=2)
+
+
+class _PauseRequested(Exception):
+    """Internal control-flow marker for a durable coordinator pause."""
 
 
 def _inventory_script(config: dict[str, Any]) -> str:
@@ -1715,7 +1765,10 @@ def control(params: dict[str, Any]) -> dict[str, Any]:
     # Pause takes effect between stages. An accepted native operation is allowed
     # to drain; releasing its project lock early would risk duplicated mutations.
     may_resume = operation == 'resume' or (operation == 'budget' and row['status'] == 'budget-stop' and command.get('operation') not in {'pause', 'stop'})
-    if may_resume and run_id not in _ACTIVE and (not _owner_alive(row) or row['status'] not in {'running', 'queued', 'paused'}):
+    # A paused coordinator has drained its accepted child and released its
+    # lease. Its server process can still be alive, so owner liveness alone
+    # must not prevent a durable resume of the same receipt.
+    if may_resume and run_id not in _ACTIVE and (not _owner_alive(row) or row['status'] not in {'running', 'queued'}):
         if 'deadline' in command:
             row.update(deadline=command['deadline'], budgetSeconds=command.get('budgetSeconds'))
             _write(row)

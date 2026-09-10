@@ -140,6 +140,7 @@ class SourceCandidateObjdiffPlugin:
             candidate = replace(
                 candidate,
                 source=rewrite_variant["source"],
+                source_suffix=".c",
                 variant=f"{candidate.variant}-rewrite-request",
                 evidence={**candidate.evidence, "rewriteRequestId": rewrite_request_id},
             )
@@ -216,10 +217,13 @@ class SourceCandidateObjdiffPlugin:
             and pending_rewrite_result is not None
             and pending_rewrite_result.get("status") in {"completed", "failed"}
             and not context.get("dryRun")
-            and (rewrite_variant is None or any(record.get("status") != "generated-only" for record in records))
+            and (
+                rewrite_variant is None
+                or any(record.get("status") in {"compile-failed", "matched", "mismatched", "code-slice-matched"} for record in records)
+            )
         ):
-            # Prune after recording the attempt or rejecting its content; an
-            # exception before this point leaves the proposal available to retry.
+            # Target preparation and verifier errors leave the proposal retryable.
+            # Prune only a recorded candidate outcome or rejected content.
             rewrite_queue.prune_consumed_entries(Path(str(work_dir_value)), [rewrite_request_id])
         return (
             PluginResult(

@@ -1,6 +1,8 @@
 """Forwarded source reaches the compiler dispatcher and retains the proof gate."""
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from agentdecompile_recovery import rewrite_queue, source_parity_synthesize, source_plugins
@@ -11,11 +13,12 @@ pytestmark = pytest.mark.unit
 REWRITE = "int sample(void) { return 7; }\n"
 
 
-def forwarded_context(tmp_path, *, source=REWRITE):
+def forwarded_context(tmp_path, *, source=REWRITE, source_suffix=".c"):
     candidate = GeneratedCandidate(
         rule="one-return", variant="original", c_name="sample", symbol="_sample",
         source="int sample(void) { return 1; }\n", callconv="cdecl", return_type="int",
         extra_flags=("trusted-flag",), evidence={"sourceRecoveryScope": "partial-source-slice"},
+        source_suffix=source_suffix,
     )
     request_id = rewrite_queue.write_rewrite_request(
         tmp_path, function_name="sample", entry="0x1000", candidate_source=candidate.source,
@@ -32,8 +35,9 @@ def forwarded_context(tmp_path, *, source=REWRITE):
 @pytest.mark.parametrize("compiler", ["msvc", "clang", "clang-cl"])
 @pytest.mark.parametrize("shape_search", [False, True])
 @pytest.mark.parametrize("differences", [0, 2])
-def test_forwarded_rewrite_reaches_each_compiler_and_objdiff_gate(tmp_path, monkeypatch, compiler, shape_search, differences):
-    context, request_id = forwarded_context(tmp_path)
+@pytest.mark.parametrize("source_suffix", [".c", ".asm"])
+def test_forwarded_rewrite_reaches_each_compiler_and_objdiff_gate(tmp_path, monkeypatch, compiler, shape_search, differences, source_suffix):
+    context, request_id = forwarded_context(tmp_path, source_suffix=source_suffix)
     original = context["selectedSourceCandidate"]
     context.update(compiler=compiler, sourceShapeSearch=shape_search)
     seen = []
@@ -41,6 +45,7 @@ def test_forwarded_rewrite_reaches_each_compiler_and_objdiff_gate(tmp_path, monk
     def backend(row, candidate, case_dir, source_path, base_record, **kwargs):
         seen.append(candidate)
         assert source_path.read_text() == REWRITE
+        assert source_path.suffix == candidate.source_suffix == ".c"
         assert (candidate.symbol, candidate.callconv, candidate.extra_flags) == (original.symbol, original.callconv, original.extra_flags)
         assert candidate.evidence == {**original.evidence, "rewriteRequestId": request_id}
         assert not kwargs.get("source_shape_search")
@@ -103,3 +108,29 @@ def test_rejected_content_never_reaches_compiler(tmp_path, monkeypatch):
     source_plugins.SourceCandidateObjdiffPlugin().execute(context)
     assert seen == [context["selectedSourceCandidate"].source]
     assert rewrite_queue.find_entry(tmp_path, request_id) is None
+
+
+@pytest.mark.parametrize("compiler", ["msvc", "clang", "clang-cl"])
+def test_missing_target_slice_retains_forwarded_rewrite(tmp_path, monkeypatch, compiler):
+    context, request_id = forwarded_context(tmp_path)
+    context["compiler"] = compiler
+    context["sourceParityRow"].pop("bytes")
+
+    def missing_inventory_slice(*args, **kwargs):
+        return SimpleNamespace(returncode=1, stdout="", stderr="target slice unavailable")
+
+    # MSVC without inline bytes invokes inventory_slice; the clang backends
+    # reject missing inline bytes directly. All three are pre-compiler failures.
+    monkeypatch.setattr(source_parity_synthesize, "run", missing_inventory_slice)
+    result, updated = source_plugins.SourceCandidateObjdiffPlugin().execute(context)
+    assert result.status == "failure"
+    assert [record["status"] for record in updated["sourceParityAttemptRecords"]] == ["slice-failed"]
+    assert rewrite_queue.find_entry(tmp_path, request_id)["source"] == REWRITE
+
+
+@pytest.mark.parametrize("status", ["generated-only", "slice-failed", "error", "unknown", "compile-failed", "mismatched"])
+def test_only_candidate_outcomes_consume_forwarded_rewrite(tmp_path, monkeypatch, status):
+    context, request_id = forwarded_context(tmp_path)
+    monkeypatch.setattr(source_plugins, "attempt_candidate", lambda *args, **kwargs: [{"status": status, "differences": -1}])
+    source_plugins.SourceCandidateObjdiffPlugin().execute(context)
+    assert (rewrite_queue.find_entry(tmp_path, request_id) is None) == (status in {"compile-failed", "mismatched"})

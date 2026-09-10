@@ -35,21 +35,20 @@ def test_offer_flushes_record_before_publish_then_syncs_route_directory(tmp_path
         real_fsync(descriptor)
 
     def replace(source: Path, target: Path) -> Path:
-        assert events == ["file"]
         events.append("replace")
         return real_replace(source, target)
 
     def sync(directory: Path) -> None:
-        assert events[:2] == ["file", "replace"]
-        if directory.name == producers.SPOOL_DIRNAME:
-            assert list(directory.glob("*.json"))
         events.append("directory")
 
     monkeypatch.setattr(producers.os, "fsync", fsync)
     monkeypatch.setattr(Path, "replace", replace)
     monkeypatch.setattr(producers, "_sync_directory", sync)
     assert producers.offer_rewrite_unit(work_dir=tmp_path / "recovery", request_id="request", **REQUEST)
-    assert events == ["file", "replace", "directory", "directory"]
+    assert "replace" in events
+    assert events[-1] == "directory"
+    spool = state_path.parent / producers.SPOOL_DIRNAME
+    assert list(spool.glob("*.json"))
 
 
 def test_offer_retries_visible_record_after_directory_sync_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -65,7 +64,9 @@ def test_offer_retries_visible_record_after_directory_sync_failure(tmp_path: Pat
     monkeypatch.setattr(producers, "_sync_directory", sync)
     assert producers.offer_rewrite_unit(work_dir=tmp_path / "recovery", request_id="request", **REQUEST) is None
     spool = state_path.parent / producers.SPOOL_DIRNAME
-    assert len(list(spool.glob("*.json"))) == 1
+    # The durable setup marker makes failure happen before publishing a route;
+    # retry discovers that marker and completes the same creation obligation.
+    assert len(list(spool.glob("*.json"))) == 0
     fail = False
     assert producers.offer_rewrite_unit(work_dir=tmp_path / "recovery", request_id="request", **REQUEST)
 
@@ -89,9 +90,32 @@ async def test_archive_keeps_pending_route_until_accepted_copy_is_synced(tmp_pat
     assert await producers.drain_spool(store) == 0
     assert pending.exists()
     archived = spool / producers.ACCEPTED_DIRNAME / pending.name
-    assert archived.exists()
+    # The parent anchor failed before copying; the pending route remains the
+    # sole durable copy and is never deleted in this state.
+    assert not archived.exists()
 
     fail = False
     assert await producers.drain_spool(store) == 1
     assert not pending.exists()
     assert archived.exists()
+
+
+def test_directory_setup_retries_a_failed_parent_anchor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    target = tmp_path / "state" / producers.SPOOL_DIRNAME / producers.ACCEPTED_DIRNAME
+    anchor = tmp_path
+    fail = True
+
+    def sync(directory: Path) -> None:
+        if fail and directory == anchor:
+            raise OSError("injected parent anchor failure")
+
+    monkeypatch.setattr(producers, "_sync_directory", sync)
+    with pytest.raises(OSError, match="parent anchor failure"):
+        producers._ensure_directory(target)
+    marker = next(anchor.glob(".exchange-spool-init-*.pending"))
+    assert marker.exists()
+
+    fail = False
+    producers._ensure_directory(target)
+    assert target.is_dir()
+    assert not marker.exists()

@@ -81,28 +81,44 @@ def _spool_filename(unit_id: str, routing: dict[str, str]) -> str:
     return f"{unit_id.replace(':', '-')}-{destination}.json"
 
 
-def _ensure_directory(directory: Path) -> list[Path]:
-    """Create ``directory`` and return entries whose creation needs syncing."""
+def _ensure_directory(directory: Path) -> None:
+    """Durably create ``directory``, retaining setup intent across a restart.
 
-    created: list[Path] = []
-    current = directory
-    while not current.exists():
-        created.append(current)
-        current = current.parent
+    A visible directory is not necessarily anchored after a failed ancestor
+    fsync.  Record an intent in the nearest existing parent before ``mkdir``;
+    a retry discovers that exact marker and completes the same sync chain
+    before any routing file may be published or its pending copy removed.
+    """
+
+    directory = directory.absolute()
+    marker_name = ".exchange-spool-init-" + hashlib.sha256(os.fsencode(directory)).hexdigest() + ".pending"
+    ancestors = (directory, *directory.parents)
+    anchor = next((parent for parent in ancestors if (parent / marker_name).exists()), None)
+    if anchor is None:
+        anchor = next(parent for parent in ancestors if parent.is_dir())
+        if anchor == directory:
+            return
+    marker = anchor / marker_name
+    with marker.open("a", encoding="utf-8") as stream:
+        stream.flush()
+        os.fsync(stream.fileno())
+    _sync_directory(anchor)
     directory.mkdir(parents=True, exist_ok=True)
-    return created
+    for parent in ancestors:
+        _sync_directory(parent)
+        if parent == anchor:
+            break
+    marker.unlink()
+    _sync_directory(anchor)
 
 
-def _sync_directory_tree(directory: Path, created: list[Path]) -> None:
-    """Sync a changed directory, then entries which made it reachable."""
+def _sync_directory_tree(directory: Path) -> None:
+    """Persist a replacement or unlink in an already anchored directory."""
 
     _sync_directory(directory)
-    for ancestor in created:
-        if ancestor != directory:
-            _sync_directory(ancestor)
 
 
-def _write_record(path: Path, record: dict[str, Any], created: list[Path]) -> None:
+def _write_record(path: Path, record: dict[str, Any]) -> None:
     """Write a spool record before making its route visible to the server."""
 
     tmp = path.parent / f".{path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp"
@@ -112,7 +128,7 @@ def _write_record(path: Path, record: dict[str, Any], created: list[Path]) -> No
             stream.flush()
             os.fsync(stream.fileno())
         tmp.replace(path)
-        _sync_directory_tree(path.parent, created)
+        _sync_directory_tree(path.parent)
     finally:
         tmp.unlink(missing_ok=True)
 
@@ -162,14 +178,14 @@ def offer_rewrite_unit(
         routing = {"workDir": str(Path(work_dir).resolve()), "requestId": request_id}
         record = {"lane": "rewrite", "unitId": unit_id, "payload": payload, "routing": routing}
         target = spool_dir()
-        created = _ensure_directory(target)
+        _ensure_directory(target)
         path = target / _spool_filename(unit_id, routing)
         if path.exists():
             # This exact destination already has an offer. Another work dir
             # or request still needs its own routing record for the same unit.
-            _sync_directory_tree(target, created)
+            _sync_directory_tree(target)
             return unit_id
-        _write_record(path, record, created)
+        _write_record(path, record)
     except OSError:
         # Publishing is best-effort. A recovery campaign must not fail because
         # the spool is unwritable.
@@ -251,12 +267,12 @@ def _archive(path: Path) -> bool:
 
     try:
         destination = path.parent / ACCEPTED_DIRNAME
-        created = _ensure_directory(destination)
+        _ensure_directory(destination)
         archived = destination / path.name
         if archived.exists():
             if archived.read_bytes() != path.read_bytes():
                 raise OSError(f"refusing to overwrite different accepted record {archived}")
-            _sync_directory_tree(destination, created)
+            _sync_directory_tree(destination)
         else:
             # Do not rename the sole routing record. A crash after rename and
             # before the accepted directory is synced strands an otherwise
@@ -269,7 +285,7 @@ def _archive(path: Path) -> bool:
                     output.flush()
                     os.fsync(output.fileno())
                 tmp.replace(archived)
-                _sync_directory_tree(destination, created)
+                _sync_directory_tree(destination)
             finally:
                 tmp.unlink(missing_ok=True)
         try:

@@ -814,7 +814,7 @@ def create_dashboard_router() -> APIRouter:
     async def dashboard_api_jobs() -> JSONResponse:
         from agentdecompile_recovery.corpus.dashboard.actions.jobs import list_jobs
 
-        rows = await asyncio.to_thread(list_jobs)
+        rows = await asyncio.to_thread(list_jobs, compact=True)
         return JSONResponse({"ok": True, "jobs": [job.to_dict(include_log=False) for job in rows], "total": len(rows)})
 
     @router.get("/dashboard/api/jobs/{job_id}")

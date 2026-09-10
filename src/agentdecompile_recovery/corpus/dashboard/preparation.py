@@ -320,7 +320,7 @@ def list_runs(*, public: bool = False) -> list[dict[str, Any]]:
         for row in rows:
             row['queuePosition'] = positions.get(str(row['id']))
         from .actions.jobs import list_jobs
-        return [_public_run(row, detailed=row.get('status') in {'running', 'queued', 'paused'}, live_jobs=list_jobs()) for row in rows]
+        return [_public_run(row, detailed=row.get('status') in {'running', 'queued', 'paused'}, live_jobs=list_jobs(compact=True)) for row in rows]
 
     from .actions import jobs
     with _LOCK:

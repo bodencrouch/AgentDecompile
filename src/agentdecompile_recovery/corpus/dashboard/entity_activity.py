@@ -260,7 +260,7 @@ def _build(con: sqlite3.Connection, locator: str, slug: str, program: str = '') 
     library = _library()
     binaries = library.get('binaries', [])
     runs = _read_runs()
-    jobs = [job.to_dict() for job in list_jobs()]
+    jobs = [job.to_dict() for job in list_jobs(compact=True)]
     timing_contexts: dict[str, dict] = {}
     for run in reversed(runs):
         timing_contexts.update(run.get('jobTimingContexts') or {})

@@ -111,7 +111,7 @@ class JobRecord:
             "id": self.id,
             "actionId": self.action_id,
             "title": self.title,
-            "argv": list(self.argv),
+            "argv": list(self.argv) if include_log else [],
             "status": self.status,
             "createdAt": self.created_at,
             "startedAt": self.started_at,
@@ -253,21 +253,21 @@ class JobStore:
                 cancel.set()
                 return
 
-    def list(self) -> list[JobRecord]:
+    def list(self, *, compact: bool = False) -> list[JobRecord]:
         from .job_history import records
-        history = {key: _from_history(value) for key, value in records().items()}
+        history = {key: _from_history(value, compact=compact) for key, value in records().items()}
         with self._lock:
             history.update({key: _copy_job(job) for key, job in self._jobs.items()})
         return sorted(history.values(), key=lambda job: job.created_at, reverse=True)
 
-    def get(self, job_id: str) -> JobRecord | None:
+    def get(self, job_id: str, *, compact: bool = False) -> JobRecord | None:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is not None:
                 return _copy_job(job)
         from .job_history import historical
         payload = historical(job_id)
-        return _from_history(payload) if payload else None
+        return _from_history(payload, compact=compact) if payload else None
 
     def start(self, action: ActionSpec, params: dict[str, Any], argv: list[str]) -> JobRecord:
         job = JobRecord(
@@ -554,7 +554,7 @@ def _copy_job(job: JobRecord) -> JobRecord:
     )
 
 
-def _from_history(payload: dict) -> JobRecord:
+def _from_history(payload: dict, *, compact: bool = False) -> JobRecord:
     from ..preparation import _owner_alive
     status = str(payload.get('status') or 'unknown')
     unavailable = status in {'queued', 'running', 'cancelling'} and not _owner_alive(payload)
@@ -569,7 +569,7 @@ def _from_history(payload: dict) -> JobRecord:
                      history_only=True, owner_unavailable=unavailable, history_source=payload.get('historySource') or 'durable-job-receipt',
                      log_state=payload.get('logState') or ('available' if payload.get('log') else 'unavailable'),
                      log_reason=payload.get('logReason') or '', log_truncated=bool(payload.get('logTruncated')),
-                     work_progress=payload.get('workProgress') if isinstance(payload.get('workProgress'), dict) else _latest_work_progress(payload.get('log') or ''))
+                     work_progress=payload.get('workProgress') if isinstance(payload.get('workProgress'), dict) else (None if compact else _latest_work_progress(payload.get('log') or '')))
 
 
 def _ghidra_export_format_for(language: SourceLanguage) -> str:
@@ -951,12 +951,12 @@ def start_job(
     return {"ok": True, "job": job.to_dict()}, 202
 
 
-def list_jobs() -> list[JobRecord]:
-    return STORE.list()
+def list_jobs(*, compact: bool = False) -> list[JobRecord]:
+    return STORE.list(compact=compact)
 
 
-def get_job(job_id: str) -> JobRecord | None:
-    return STORE.get(job_id)
+def get_job(job_id: str, *, compact: bool = False) -> JobRecord | None:
+    return STORE.get(job_id, compact=compact)
 
 
 def cancel_job(job_id: str) -> JobRecord | None:

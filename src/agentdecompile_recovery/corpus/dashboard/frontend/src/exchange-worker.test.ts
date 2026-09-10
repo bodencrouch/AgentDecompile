@@ -183,6 +183,10 @@ describe("browser rewrite worker acceptance", () => {
     expect(calls("/submit")).toHaveLength(0);
     expect(calls("/claim")).toHaveLength(1);
 
+    await vi.advanceTimersByTimeAsync(1);
+    await settle();
+    expect(calls("/claim")).toHaveLength(2);
+
     stop();
     const credentialLease = lease(30);
     await install(url => {

@@ -94,9 +94,17 @@ def admit_measured_profile(
         summary = {}
     selected = int(summary.get("selectedCases") or 0)
     rows = list(iter_jsonl(Path(str(summary.get("summaryJsonl") or profile_out / "runs/summary.jsonl"))))
+    # `run_objdiff()` records an objdump comparison only as diagnostic fallback
+    # when objdiff itself fails.  A calibration profile must be grounded in the
+    # native objdiff receipt, because later promotion relies on that same gate.
     exact = [
         row for row in rows
-        if row.get("status") == "matched" and row.get("differences") is not None and int(row["differences"]) == 0
+        if (
+            row.get("status") == "matched"
+            and row.get("differences") is not None
+            and int(row["differences"]) == 0
+            and int(row.get("objdiffExit", -1)) == 0
+        )
     ]
     groups: Counter[tuple[str, str]] = Counter(
         (str(row.get("profile") or ""), str(row.get("flagSet") or "")) for row in exact

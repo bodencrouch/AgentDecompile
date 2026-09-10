@@ -88,6 +88,33 @@ void validate_tmpdir(const std::filesystem::path &tmpdir)
         throw std::runtime_error("remove pool tmpdir probe: " + ec.message());
 }
 
+void sweep_dead_pid_dirs(const std::filesystem::path &root, std::string_view prefix) noexcept
+{
+    if (root.empty())
+        return;
+    std::error_code ec;
+    if (!std::filesystem::is_directory(root, ec) || ec)
+        return;
+    for (const auto &entry : std::filesystem::directory_iterator(root, ec))
+    {
+        if (ec)
+            return;
+        const auto name = entry.path().filename().string();
+        if (!std::string_view(name).starts_with(prefix))
+            continue;
+        const std::string_view pid_text(name.data() + prefix.size(), name.size() - prefix.size());
+        char *end = nullptr;
+        errno = 0;
+        const long pid = std::strtol(std::string(pid_text).c_str(), &end, 10);
+        if (errno != 0 || end == nullptr || *end != '\0' || pid <= 0)
+            continue;
+        if (::kill(static_cast<pid_t>(pid), 0) == 0 || errno != ESRCH)
+            continue;
+        std::filesystem::remove(entry.path(), ec);
+        ec.clear();
+    }
+}
+
 bool write_text_file(const std::filesystem::path &path, std::string_view text) noexcept
 {
     const int fd = ::open(path.c_str(), O_WRONLY | O_CLOEXEC);
@@ -146,7 +173,9 @@ struct Supervisor::Impl
     };
     static Child spawn_child(const Config &config);
     static bool attach_cgroup(Child &child, const Config &config) noexcept;
+    static void close_child(Child &child) noexcept;
     void drain_stderr(Child &child) noexcept;
+    void reap_exited_children() noexcept;
     explicit Impl(Config value) : config(std::move(value)) {}
     Config config;
     std::vector<Child> children;
@@ -353,6 +382,22 @@ bool Supervisor::Impl::attach_cgroup(Child &child, const Config &config) noexcep
     return true;
 }
 
+void Supervisor::Impl::close_child(Child &child) noexcept
+{
+    if (!child.cgroup.empty())
+    {
+        std::error_code ignored;
+        std::filesystem::remove(child.cgroup, ignored);
+        child.cgroup.clear();
+    }
+    close_fd(child.in);
+    close_fd(child.out);
+    close_fd(child.err);
+    close_fd(child.pidfd);
+    child.pid = -1;
+    child.busy = false;
+}
+
 void Supervisor::Impl::drain_stderr(Child &child) noexcept
 {
     if (child.err < 0)
@@ -376,6 +421,25 @@ void Supervisor::Impl::drain_stderr(Child &child) noexcept
     }
 }
 
+void Supervisor::Impl::reap_exited_children() noexcept
+{
+    for (auto &child : children)
+    {
+        if (child.pid <= 0 || child.busy)
+            continue;
+        int status = 0;
+        const pid_t result = ::waitpid(child.pid, &status, WNOHANG);
+        if (result == 0)
+            continue;
+        if (result == child.pid || (result < 0 && errno == ECHILD) ||
+            (result < 0 && errno == ESRCH))
+        {
+            drain_stderr(child);
+            close_child(child);
+        }
+    }
+}
+
 Supervisor::Supervisor(Config config) : impl_(std::make_unique<Impl>(std::move(config)))
 {
     if (impl_->config.worker.empty() || impl_->config.sleigh_home.empty() ||
@@ -395,6 +459,8 @@ void Supervisor::start()
         throw std::logic_error("supervisor already started");
     std::signal(SIGPIPE, SIG_IGN);
     validate_tmpdir(impl_->config.tmpdir);
+    sweep_dead_pid_dirs(impl_->config.tmpdir, ".gnsdk-pool-");
+    sweep_dead_pid_dirs(own_cgroup_path(), "gnsdk-");
     try
     {
         for (std::size_t count = 0; count < impl_->config.workers; ++count)
@@ -424,6 +490,7 @@ proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std:
     std::size_t slot = 0;
     {
         std::unique_lock<std::mutex> lock(impl_->mutex);
+        impl_->reap_exited_children();
         if (impl_->config.max_queue == 0 ||
             impl_->queued + impl_->in_flight >= impl_->config.max_queue)
             throw std::runtime_error("pool queue full");
@@ -494,17 +561,7 @@ admitted:
             }
         }
         this->impl_->drain_stderr(child);
-        if (!child.cgroup.empty())
-        {
-            std::error_code ignored;
-            std::filesystem::remove(child.cgroup, ignored);
-            child.cgroup.clear();
-        }
-        close_fd(child.in);
-        close_fd(child.out);
-        close_fd(child.err);
-        close_fd(child.pidfd);
-        child.pid = -1;
+        Impl::close_child(child);
     };
     for (int attempt = 0; attempt < 2; ++attempt)
     {
@@ -582,6 +639,7 @@ void Supervisor::stop() noexcept
 {
     if (!impl_)
         return;
+    std::lock_guard<std::mutex> lock(impl_->mutex);
     for (auto &child : impl_->children)
     {
         impl_->drain_stderr(child);
@@ -599,22 +657,17 @@ void Supervisor::stop() noexcept
             }
         }
         impl_->drain_stderr(child);
-        if (!child.cgroup.empty())
-        {
-            std::error_code ignored;
-            std::filesystem::remove(child.cgroup, ignored);
-            child.cgroup.clear();
-        }
-        close_fd(child.in);
-        close_fd(child.out);
-        close_fd(child.err);
-        close_fd(child.pidfd);
+        Impl::close_child(child);
     }
     impl_->children.clear();
     impl_->hard_memory_cap = false;
 }
 std::size_t Supervisor::live_workers() const noexcept
 {
+    if (!impl_)
+        return 0;
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->reap_exited_children();
     std::size_t live = 0;
     for (const auto &child : impl_->children)
         if (child.pid > 0 && ::kill(child.pid, 0) == 0)
@@ -623,17 +676,25 @@ std::size_t Supervisor::live_workers() const noexcept
 }
 std::string Supervisor::stderr_tail() const
 {
-    return impl_ ? impl_->stderr_tail : std::string{};
+    if (!impl_)
+        return {};
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    return impl_->stderr_tail;
 }
 bool Supervisor::hard_memory_cap() const noexcept
 {
-    return impl_ && impl_->hard_memory_cap;
+    if (!impl_)
+        return false;
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    return impl_->hard_memory_cap;
 }
 std::vector<proto::HelloInfo> Supervisor::engine_infos() const
 {
     std::vector<proto::HelloInfo> infos;
     if (!impl_)
         return infos;
+    std::lock_guard<std::mutex> lock(impl_->mutex);
+    impl_->reap_exited_children();
     infos.reserve(impl_->children.size());
     for (const auto &child : impl_->children)
     {

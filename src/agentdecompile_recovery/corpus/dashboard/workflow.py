@@ -55,6 +55,19 @@ def _compiler(profile: dict[str, Any]) -> str | None:
     return str(path) if path.is_file() else shutil.which(value)
 
 
+def _known_source_examples(work: Path, root: Path, slug: str) -> Path | None:
+    """Find only a pre-existing, verified candidate/target probe corpus."""
+    candidates = (
+        work / 'matched-examples.jsonl',
+        work / 'source-parity-index' / 'default' / 'matched-examples.jsonl',
+        root / 'source-parity-index' / slug / 'matched-examples.jsonl',
+        root / 'source-parity-index' / 'default' / 'matched-examples.jsonl',
+        root / 'output' / 'source-parity-index' / slug / 'matched-examples.jsonl',
+        root / 'output' / 'source-parity-index' / 'default' / 'matched-examples.jsonl',
+    )
+    return next((path for path in candidates if path.is_file()), None)
+
+
 def _leftover_queue(work: Path, root: Path) -> Path | None:
     for candidate in (work / 'logical_queue.jsonl', root / 'output' / 'work_queue' / 'logical_queue.jsonl'):
         if candidate.is_file():
@@ -102,9 +115,23 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         profile_path = work / 'compiler-profile.json'
         # A project can supply its measured configuration at workspace level.
         configured = os.environ.get('AGENT_DECOMPILE_COMPILER_PROFILE', '').strip()
+        profile_admission: dict[str, Any] | None = None
         if configured:
             profile_path = Path(configured).expanduser()
         elif not profile_path.exists():
+            # This only materializes a profile after real compiler/objdiff
+            # probes agree.  It never turns matching or installed toolchains
+            # into a guessed compilation configuration.
+            from agentdecompile_recovery.source_parity_profile_corpus import admit_measured_profile
+
+            profile_admission = admit_measured_profile(
+                matched_examples=_known_source_examples(work, root, str(checkpoint.get('slug') or '')),
+                out_dir=work,
+                profile_path=profile_path,
+                program_fingerprint=str(checkpoint.get('programFingerprint') or ''),
+                architecture=str(checkpoint.get('architecture') or ''),
+            )
+        if not configured and not profile_path.exists():
             profile_path = root / 'compiler-profile.json'
         profile = read_object(profile_path)
         header = work / 'ghidra_types.h'
@@ -131,7 +158,7 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         if not calibration['ok'] or calibration_receipt.get('state') != 'done' or not compiler:
             gaps = calibration_receipt.get('gaps') or []
             if not profile:
-                compiler_gap = 'Target compiler profile missing: installed compilers do not establish this binary\'s compiler, flags, or ABI.'
+                compiler_gap = (str(profile_admission.get('reason') or '') if profile_admission else '') or 'Target compiler profile missing: installed compilers do not establish this binary\'s compiler, flags, or ABI.'
             elif not target_bound:
                 compiler_gap = 'Compiler profile is not bound to this target fingerprint or architecture.'
             elif not compiler:
@@ -139,7 +166,9 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
             else:
                 compiler_gap = 'Calibration evidence missing: ' + ', '.join(gaps)
             reason = calibration.get('error') or compiler_gap
-            result('calibrate-global', 'blocked', reason, receipt=str(work / 'calibrate-global.json'), nextAction='Configure target compiler and layout evidence')
+            result('calibrate-global', 'blocked', reason, receipt=str(work / 'calibrate-global.json'),
+                   **({'profileAdmission': profile_admission} if profile_admission else {}),
+                   nextAction='Configure target compiler and layout evidence')
             block_after('assembly-floor', 'Waiting for target compiler and layout evidence.')
             continue
         checkpoint['toolchain'] = compiler

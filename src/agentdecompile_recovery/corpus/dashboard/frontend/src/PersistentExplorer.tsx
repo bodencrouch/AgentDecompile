@@ -111,6 +111,7 @@ export function PersistentExplorer({builds,projects,unresolved=[],selection,onSe
   useEffect(()=>{if(!menu)return;menuRef.current?.querySelector<HTMLButtonElement>('button')?.focus();const close=(event:PointerEvent)=>{if(!menuRef.current?.contains(event.target as globalThis.Node))setMenu(null);};window.addEventListener('pointerdown',close);return()=>window.removeEventListener('pointerdown',close);},[menu]);
   const [refreshToken,setRefreshToken]=useState(0);
   const [workflowRuns,setWorkflowRuns]=useState<Data[]>([]);
+  const [workflowJobs,setWorkflowJobs]=useState<Data[]>([]);
   const loadingRef=useRef(false),latestRevision=useRef(revision),appliedRevision=useRef(revision);
   latestRevision.current=revision;
   useEffect(()=>{const timer=setInterval(()=>{if(!loadingRef.current&&latestRevision.current!==appliedRevision.current)setRefreshToken(n=>n+1);},5000);return()=>clearInterval(timer);},[]);
@@ -118,7 +119,10 @@ export function PersistentExplorer({builds,projects,unresolved=[],selection,onSe
   useEffect(()=>{
     let alive=true;
     const controller=new AbortController();
-    const load=()=>request<{runs?:Data[]}>(API+'/preparations',{signal:AbortSignal.any([controller.signal,AbortSignal.timeout(8000)])}).then(data=>{if(alive)setWorkflowRuns(data.runs||[]);}).catch(()=>{});
+    const load=()=>Promise.allSettled([
+      request<{runs?:Data[]}>(API+'/preparations',{signal:AbortSignal.any([controller.signal,AbortSignal.timeout(8000)])}),
+      request<{jobs?:Data[]}>(API.replace('/workbench','')+'/jobs',{signal:AbortSignal.any([controller.signal,AbortSignal.timeout(8000)])}),
+    ]).then(([runs, jobs])=>{if(!alive)return;if(runs.status==='fulfilled')setWorkflowRuns(runs.value.runs||[]);if(jobs.status==='fulfilled')setWorkflowJobs(jobs.value.jobs||[]);});
     void load();
     const timer=window.setInterval(()=>void load(),5000);
     return()=>{alive=false;controller.abort();window.clearInterval(timer);};
@@ -154,7 +158,7 @@ export function PersistentExplorer({builds,projects,unresolved=[],selection,onSe
       for(const b of items)if(!parentDigest(b)||!items.some(p=>p.sha256===parentDigest(b)&&p!==b))append(b,id,level+1);
     }
   }
-  for(const p of projectRows){const id='project:'+p.locator;const bound=binaries.filter(b=>(b.projectBindings||[]).some((x:Data)=>canonicalProjectLocator(x.locator)===p.locator)||(b.imported&&canonicalProjectLocator(b.locator)===p.locator)||(p.imports||[]).includes(b.slug));const workflow=workflowProgramMembers(p,binaries,workflowRuns);const members=[...bound,...workflow.filter(item=>!bound.some(existing=>binaryKey(existing)===binaryKey(item)))];const name=projectLabel(p);if(search&&!name.toLowerCase().includes(search.toLowerCase())&&!members.some(filter))continue;const projectEntity=entity('project',p,p.locator);binaryNodes.push({id,level:1,name,kind:'project',locator:p.locator,record:p,expanded:open(id),entity:p.liveWorkflow?{...(projectEntity||{}),status:'running',stage:projectEntity?.stage||'matching',target:p.locator}:projectEntity});if(open(id))addBinaries(members,id,2,p.locator,Boolean(search&&name.toLowerCase().includes(search.toLowerCase())));}
+  for(const p of projectRows){const id='project:'+p.locator;const bound=binaries.filter(b=>(b.projectBindings||[]).some((x:Data)=>canonicalProjectLocator(x.locator)===p.locator)||(b.imported&&canonicalProjectLocator(b.locator)===p.locator)||(p.imports||[]).includes(b.slug));const workflow=workflowProgramMembers(p,binaries,workflowRuns,workflowJobs);const members=[...bound,...workflow.filter(item=>!bound.some(existing=>binaryKey(existing)===binaryKey(item)))];const name=projectLabel(p);if(search&&!name.toLowerCase().includes(search.toLowerCase())&&!members.some(filter))continue;const projectEntity=entity('project',p,p.locator);binaryNodes.push({id,level:1,name,kind:'project',locator:p.locator,record:p,expanded:open(id),entity:p.liveWorkflow?{...(projectEntity||{}),status:'running',stage:projectEntity?.stage||'matching',target:p.locator}:projectEntity});if(open(id))addBinaries(members,id,2,p.locator,Boolean(search&&name.toLowerCase().includes(search.toLowerCase())));}
   const unassigned=binaries.filter(b=>!projectRows.some(p=>(b.projectBindings||[]).some((x:Data)=>canonicalProjectLocator(x.locator)===p.locator)||(b.imported&&canonicalProjectLocator(b.locator)===p.locator)||(p.imports||[]).includes(b.slug)));
   if(unassigned.some(filter)){binaryNodes.push({id:'unassigned',level:1,name:'Unassigned binaries',kind:'group',record:{count:unassigned.filter(filter).length},expanded:open('unassigned')});if(open('unassigned'))addBinaries(unassigned,'unassigned',2,'');}
   if(unresolved.length){binaryNodes.push({id:'unresolved',level:1,name:'Resolve source identity',kind:'group',record:{count:unresolved.length},expanded:expanded.unresolved===true});if(expanded.unresolved===true)for(const b of unresolved.filter(filter))binaryNodes.push({id:'unresolved:'+binaryKey(b),parent:'unresolved',level:2,name:label(b),kind:'binary',record:b,unresolved:true});}

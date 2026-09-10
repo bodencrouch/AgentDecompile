@@ -220,20 +220,24 @@ class SourceCandidateObjdiffPlugin:
             and not context.get("dryRun")
             and (
                 rewrite_variant is None
-                or any(
-                    record.get("candidateCompileInvoked") is True
-                    and (
-                        record.get("status") == "compile-failed"
-                        or is_objdiff_match(record)
-                        or (record.get("status") == "mismatched" and record.get("objdiffExit") == 0 and not record.get("fallback"))
+                or bool(matches)
+                or (
+                    bool(records)
+                    and all(
+                        record.get("candidateCompileInvoked") is True
+                        and (
+                            record.get("status") == "compile-failed"
+                            or (record.get("status") == "mismatched" and record.get("objdiffExit") == 0 and not record.get("fallback"))
+                        )
+                        for record in records
                     )
-                    for record in records
                 )
             )
         ):
             # Target preparation and verifier errors leave the proposal retryable.
             # Status alone is insufficient: missing toolchains can be compile-failed.
-            # Prune only a recorded compiler invocation and outcome, or rejected content.
+            # A match settles the candidate; rejection requires every profile to
+            # finish conclusively so one failure cannot hide another profile's retry.
             rewrite_queue.prune_consumed_entries(Path(str(work_dir_value)), [rewrite_request_id])
         return (
             PluginResult(

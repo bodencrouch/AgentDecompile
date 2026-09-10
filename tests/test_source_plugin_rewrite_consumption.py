@@ -367,3 +367,48 @@ def test_source_shape_promotion_requires_its_own_objdiff_receipt(tmp_path, monke
     assert (promoted is not None) == (objdiff_exit == 0)
     if promoted is not None:
         assert promoted["objdiffExit"] == promoted["differences"] == 0
+
+
+@pytest.mark.parametrize(("outcomes", "consumed"), [
+    (("compile-failed", "error"), False),
+    (("mismatched", "error"), False),
+    (("compile-failed", "mismatched"), True),
+    (("error", "matched"), True),
+    (("slice-failed", "mismatched"), False),
+    (("compiler-unavailable", "mismatched"), False),
+])
+def test_multi_profile_rewrite_requires_complete_rejection_or_a_match(tmp_path, monkeypatch, outcomes, consumed):
+    context, request_id = forwarded_context(tmp_path)
+    context.update(compiler="clang", compilerProfiles=[("a", ["-O0"]), ("b", ["-O1"])])
+    compiled_sources = []
+
+    def profile_outcome(path):
+        return outcomes[0 if path.parent.name.startswith("profile_00") else 1]
+
+    def compile_object(**kwargs):
+        outcome = profile_outcome(kwargs["object_path"])
+        if kwargs["source"].suffix == ".c":
+            compiled_sources.append(kwargs["source"].read_text())
+            if outcome in {"compile-failed", "compiler-unavailable"}:
+                return {"status": "failed", "compilerInvoked": outcome == "compile-failed"}
+        elif outcome == "slice-failed":
+            return {"status": "failed"}
+        kwargs["object_path"].write_bytes(b"controlled object")
+        return {"status": "ok", "compilerInvoked": True}
+
+    def verifier_process(command, **kwargs):
+        if command[0] == "objdump":
+            return SimpleNamespace(returncode=1, stdout="", stderr="diagnostic unavailable")
+        assert command[:2] == ["objdiff", "diff"]
+        outcome = profile_outcome(Path(command[5]))
+        output = json.dumps({"sections": [{"kind": "SECTION_CODE", "match_percent": 100 if outcome == "matched" else 50}]})
+        return SimpleNamespace(returncode=1 if outcome == "error" else 0, stdout=output, stderr="")
+
+    monkeypatch.setattr(source_parity_synthesize, "compile_with_clang", compile_object)
+    monkeypatch.setattr(source_parity_synthesize, "run", verifier_process)
+    result, updated = source_plugins.SourceCandidateObjdiffPlugin().execute(context)
+    assert compiled_sources == [REWRITE, REWRITE]
+    expected = ["code-slice-matched" if outcome == "matched" else "compile-failed" if outcome == "compiler-unavailable" else outcome for outcome in outcomes]
+    assert [record["status"] for record in updated["sourceParityAttemptRecords"]] == expected
+    assert result.status == ("success" if "matched" in outcomes else "failure")
+    assert (rewrite_queue.find_entry(tmp_path, request_id) is None) == consumed

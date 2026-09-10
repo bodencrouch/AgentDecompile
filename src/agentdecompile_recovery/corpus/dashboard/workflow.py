@@ -43,7 +43,8 @@ def transient_failure(result: dict[str, Any]) -> bool:
     text = str(result.get('error') or result.get('log') or '').lower()
     deterministic = ('invalid', 'unsupported', 'permission denied', 'not found', 'unknown tool', 'syntaxerror', 'timeout', 'timed out')
     return not any(word in text for word in deterministic) and any(word in text for word in (
-        'connection refused', 'temporarily unavailable', 'database is locked', 'resource busy', 'http 503', 'http 429',
+        'connection refused', 'temporarily unavailable', 'database is locked', 'resource busy',
+        'unable to lock due to active transaction', 'http 503', 'http 429',
     ))
 
 
@@ -85,6 +86,58 @@ def _knowledge_has_program(path: Path, program: str) -> bool:
         return False
 
 
+def _extract_advisory_witnesses(
+    *,
+    row: dict[str, Any],
+    checkpoint: dict[str, Any],
+    work: Path,
+    program: str,
+    context: dict[str, Any],
+    action: Callable[..., dict[str, Any]],
+    update: Callable[..., None],
+) -> tuple[Path, bool, str | None]:
+    """Fill the fingerprint-bound Ghidra C cache before compiler admission.
+
+    Ghidra output is useful evidence and must be acquired from the analyzed
+    program even when no measured compiler profile exists yet.  Compilation,
+    propagation, and byte proof remain downstream of profile admission.
+    """
+    fingerprint = str(checkpoint.get('programFingerprint') or 'unknown')
+    program_kb = work / ('knowledge-' + fingerprint + '.sqlite')
+    progress_path = work / 'decompilation-progress.json'
+    if (checkpoint.get('knowledgeFingerprint') != fingerprint or
+            checkpoint.get('knowledgeDb') != str(program_kb) or not program_kb.is_file()):
+        for key in ('knowledgeCursor', 'knowledgeComplete', 'knowledgeAvailable'):
+            checkpoint.pop(key, None)
+    cursor = str(checkpoint.get('knowledgeCursor') or '')
+    failure: str | None = None
+    row['functionProgressFile'] = str(progress_path)
+    try:
+        while not checkpoint.get('knowledgeComplete') or checkpoint.get('knowledgeFingerprint') != fingerprint:
+            config = {'kb': str(program_kb), 'program': program, 'cursor': cursor, 'progress': str(progress_path)}
+            decompiled = action('recover-source', 'mcp.execute-script', {
+                'programPath': program, '_preparationProbe': True,
+                'code': knowledge_script(config), 'timeout': 180,
+            }, context)
+            payload = decompiled.get('data') or {}
+            if not decompiled['ok'] or not isinstance(payload, dict) or 'more' not in payload:
+                failure = str(decompiled.get('error') or 'Ghidra source extraction retained completed functions and will continue from its cursor.')
+                break
+            cursor = str(payload['cursor'])
+            checkpoint.update(
+                knowledgeCursor=cursor,
+                knowledgeComplete=not payload['more'],
+                knowledgeFingerprint=fingerprint,
+                knowledgeDb=str(program_kb),
+                knowledgeAvailable=payload['available'],
+            )
+            update('recover-source', 'running', f'{program}: {payload["attempted"]} of {payload["total"]} functions decompiled.',
+                   workProgress={'completed': payload['attempted'], 'total': payload['total'], 'unit': 'functions'})
+    finally:
+        row.pop('functionProgressFile', None)
+    return program_kb, _knowledge_has_program(program_kb, program), failure
+
+
 def continue_recovery(row: dict[str, Any], root: Path, db: Path,
                       action: Callable[..., dict[str, Any]], update: Callable[..., None]) -> None:
     """Keep every stage visible and execute only the capabilities we can supply."""
@@ -106,6 +159,8 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         def block_after(start: str, reason: str) -> None:
             keys = [key for key, _ in STAGES]
             for key in keys[keys.index(start):]:
+                if states.get(key, {}).get('status') in {'completed', 'partial'}:
+                    continue
                 result(key, 'blocked', reason, dependencies=[start])
 
         if not checkpoint.get('analysisConfirmed') or not checkpoint.get('factsComplete'):
@@ -147,6 +202,18 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
             result('calibrate-global', 'blocked', exported_types.get('error') or 'Target layout evidence is unavailable. Existing metadata has been retained.', jobId=exported_types.get('jobId'))
             block_after('assembly-floor', 'Waiting for target layout evidence.')
             continue
+        program_kb, has_witnesses, extraction_failure = _extract_advisory_witnesses(
+            row=row, checkpoint=checkpoint, work=work, program=program,
+            context=context, action=action, update=update,
+        )
+        if has_witnesses:
+            available = int(checkpoint.get('knowledgeAvailable') or 0)
+            result('recover-source', 'partial',
+                   f'{available} recorded Ghidra C witnesses available; compilation waits for measured toolchain evidence.',
+                   knowledgeDb=str(program_kb), advisoryFunctions=available,
+                   **({'extractionNote': extraction_failure} if extraction_failure else {}))
+        elif extraction_failure:
+            result('recover-source', 'partial', extraction_failure, knowledgeDb=str(program_kb))
         if profile:
             fields['compiler-profile'] = str(profile_path)
         calibration = action('calibrate-global', 'corpus.calibrate-global', fields, context)
@@ -181,33 +248,6 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         else:
             # workspace writes compilation-unit stubs, not executable assembly.
             result('assembly-floor', 'partial', 'Source layout created. No linked assembly-floor receipt exists.', jobId=layout.get('jobId'), sourceDirectory=str(source))
-        # Fresh programs produce their own source cache in the live JVM. It is
-        # scoped to the executable fingerprint rather than a reused basename.
-        fingerprint = checkpoint.get('programFingerprint') or 'unknown'
-        program_kb = work / ('knowledge-' + fingerprint + '.sqlite')
-        progress_path = work / 'decompilation-progress.json'
-        if (checkpoint.get('knowledgeFingerprint') != fingerprint or
-                checkpoint.get('knowledgeDb') != str(program_kb) or not program_kb.is_file()):
-            # Cursor and completion describe this exact cache, never another run's path.
-            for key in ('knowledgeCursor', 'knowledgeComplete', 'knowledgeAvailable'):
-                checkpoint.pop(key, None)
-        cursor = checkpoint.get('knowledgeCursor', '')
-        row['functionProgressFile'] = str(progress_path)
-        try:
-            while not checkpoint.get('knowledgeComplete') or checkpoint.get('knowledgeFingerprint') != fingerprint:
-                config = {'kb': str(program_kb), 'program': program, 'cursor': cursor, 'progress': str(progress_path)}
-                decompiled = action('recover-source', 'mcp.execute-script', {'programPath': program, '_preparationProbe': True, 'code': knowledge_script(config), 'timeout': 180}, context)
-                payload = decompiled.get('data') or {}
-                if not decompiled['ok'] or not isinstance(payload, dict) or 'more' not in payload:
-                    result('recover-source', 'partial', decompiled.get('error') or 'Source extraction stopped; completed functions were retained.', jobId=decompiled.get('jobId'))
-                    break
-                cursor = payload['cursor']
-                checkpoint.update(knowledgeCursor=cursor, knowledgeComplete=not payload['more'], knowledgeFingerprint=fingerprint,
-                                  knowledgeDb=str(program_kb), knowledgeAvailable=payload['available'])
-                update('recover-source', 'running', f'{program}: {payload["attempted"]} of {payload["total"]} functions attempted.',
-                       workProgress={'completed':payload['attempted'],'total':payload['total'],'unit':'functions'})
-        finally:
-            row.pop('functionProgressFile', None)
         if not _knowledge_has_program(program_kb, program):
             block_after('recover-source', 'No decompiled C is available after the recorded extraction attempts.')
             continue
@@ -295,7 +335,8 @@ def merge_evidence(db: str, run: str) -> dict[str, Any]:
     in the match table. Concrete human metadata is never rewritten.
     """
     from agentdecompile_recovery.corpus.store import connect
-    from agentdecompile_recovery.corpus.stabs_link import ensure_columns, propagate_source_files
+    from agentdecompile_recovery.corpus.stabs_link import ensure_columns
+    from agentdecompile_recovery.corpus.correspondence import allows_identity_binding
 
     con = connect(Path(db))
     try:
@@ -303,6 +344,11 @@ def merge_evidence(db: str, run: str) -> dict[str, Any]:
         con.execute('BEGIN IMMEDIATE')
         existing = {(r['binary_id'], r['addr']): r['logical_id'] for r in con.execute('SELECT * FROM identity')}
         parent, anchors, binaries, witnesses = {}, {}, {}, {}
+        quarantined_sources = {
+            f"{row['src_binary']}:{row['src_addr']}"
+            for row in con.execute('SELECT src_binary,src_addr,evidence FROM match WHERE run=?', (run,))
+            if json.loads(row['evidence'] or '{}').get('quarantine')
+        }
 
         def find(node):
             if node not in parent:
@@ -320,6 +366,10 @@ def merge_evidence(db: str, run: str) -> dict[str, Any]:
 
         conflicts = 0
         for match in con.execute("SELECT * FROM match WHERE run=? AND status IN ('auto','verify') ORDER BY score DESC", (run,)):
+            evidence = json.loads(match['evidence'] or '{}')
+            relation = match['relation'] if 'relation' in match.keys() else 'one_to_one'
+            if not allows_identity_binding(evidence, relation, quarantined_sources):
+                continue
             source, target = (match['src_binary'], match['src_addr']), (match['dst_binary'], match['dst_addr'])
             left, right = find(source), find(target)
             if left != right:
@@ -368,8 +418,8 @@ def merge_evidence(db: str, run: str) -> dict[str, Any]:
         for logical in touched:
             con.execute('UPDATE logical_function SET n_members=(SELECT COUNT(*) FROM identity WHERE logical_id=?) WHERE id=?', (logical, logical))
         con.commit()
-        carried = propagate_source_files(con)
-        return {'createdIdentities': created, 'boundFunctions': bound, 'retainedConflicts': conflicts, 'sourceAttributions': carried,
+        return {'createdIdentities': created, 'boundFunctions': bound, 'retainedConflicts': conflicts, 'sourceAttributions': 0,
+                'sourcePropagation': 'separate_explicit_operation_required',
                 'claim': 'advisory', 'metadataPolicy': 'Existing identities and concrete names, labels, comments, and structures retained.'}
     except Exception:
         con.rollback()

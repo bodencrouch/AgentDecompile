@@ -70,8 +70,23 @@ std::vector<Job> snapshot_jobs(const std::string& root) {
   return jobs;
 }
 
-void write_record(std::ostream& output, const Job& job, const proto::Message& reply, std::uint64_t elapsed_ms) {
+json::Value engine_metadata(const gnsdk::pool::Supervisor& pool) {
+  json::Value engines = json::Value::array();
+  for (const auto& info : pool.engine_infos()) {
+    json::Value engine = json::Value::object();
+    engine.set("source", info.engine_source);
+    engine.set("abi", info.engine_abi);
+    json::Value capabilities = json::Value::array();
+    for (const std::string& capability : info.capabilities) capabilities.push(capability);
+    engine.set("capabilities", std::move(capabilities));
+    engines.push(std::move(engine));
+  }
+  return engines;
+}
+
+void write_record(std::ostream& output, const Job& job, const proto::Message& reply, std::uint64_t elapsed_ms, const json::Value& engines) {
   json::Value record = json::Value::object(); record.set("id", job.id); record.set("seq", job.id); record.set("elapsed_ms", static_cast<unsigned long long>(elapsed_ms));
+  record.set("engines", engines);
   json::Value payload;
   if (reply.kind == proto::to_u16(proto::Kind::Result) && json::parse(reply.json(), payload)) { record.set("status", "ok"); record.set("result", std::move(payload)); }
   else { record.set("status", "engine_failure"); record.set("error", std::string(reply.json())); }
@@ -120,6 +135,7 @@ int main(int argc, char** argv) {
     config.rlimit_as = mem;
     config.cgroup_memory_max = cgroup_mem;
     gnsdk::pool::Supervisor pool(std::move(config)); pool.start();
+    const json::Value engines = engine_metadata(pool);
     std::uint64_t request = 1;
     for (const Job& job : jobs) {
       const auto begin = std::chrono::steady_clock::now();
@@ -129,9 +145,9 @@ int main(int argc, char** argv) {
         if (opened.kind != proto::to_u16(proto::Kind::Result)) throw std::runtime_error("snapshot open failed");
         json::Value decompile = json::Value::object(); decompile.set("addr", job.addr); decompile.set("tokens", false); decompile.set("deadline_ms", static_cast<unsigned long long>(timeout_s * 1000)); decompile.set("printer", "c");
         const auto reply = pool.request(proto::Kind::Decompile, decompile.dump(), request++, std::chrono::seconds(timeout_s));
-        write_record(output, job, reply, static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count()));
+        write_record(output, job, reply, static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count()), engines);
       } catch (const std::exception& exc) {
-        json::Value record = json::Value::object(); record.set("id", job.id); record.set("seq", job.id); record.set("status", "engine_failure"); record.set("error", exc.what()); output << record.dump() << '\n';
+        json::Value record = json::Value::object(); record.set("id", job.id); record.set("seq", job.id); record.set("engines", engines); record.set("status", "engine_failure"); record.set("error", exc.what()); output << record.dump() << '\n';
       }
     }
     return 0;

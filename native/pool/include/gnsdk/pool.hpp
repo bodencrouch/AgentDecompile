@@ -52,6 +52,7 @@ class Supervisor {
   [[nodiscard]] std::size_t live_workers() const noexcept;
   [[nodiscard]] std::string stderr_tail() const;
   [[nodiscard]] bool hard_memory_cap() const noexcept;
+  [[nodiscard]] std::vector<gnsdk::proto::HelloInfo> engine_infos() const;
 
  private:
   struct Impl;

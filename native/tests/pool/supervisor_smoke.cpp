@@ -20,6 +20,10 @@ int main() {
   gnsdk::pool::Supervisor pool(std::move(config));
   pool.start();
   REQUIRE(pool.live_workers() == 2);
+  const auto engines = pool.engine_infos();
+  REQUIRE(engines.size() == 2);
+  REQUIRE(engines[0].engine_source == "fake-worker");
+  REQUIRE(engines[0].engine_abi == "0.1.0");
   const auto reply = pool.request(proto::Kind::Decompile,
       R"({"addr":"0x401000","tokens":false,"deadline_ms":100})", 17,
       std::chrono::milliseconds(1000));

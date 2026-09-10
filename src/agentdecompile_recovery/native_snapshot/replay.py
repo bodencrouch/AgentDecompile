@@ -19,6 +19,7 @@ class ReplayResult:
     c_text: str | None
     stderr: str
     returncode: int
+    engines: tuple[dict[str, object], ...] = ()
 
 
 def _script(savefile: Path, load_name: str, token: str) -> str:
@@ -156,5 +157,9 @@ class BatchReplayer:
                     result = record.get("result") if isinstance(record.get("result"), dict) else {}
                     c_text = result.get("c") if record.get("status") == "ok" and isinstance(result.get("c"), str) else None
                     stderr = str(record.get("error") or completed.stderr)
-                    results[addr] = ReplayResult(addr, str(result.get("name") or addr), c_text, stderr, completed.returncode)
+                    engines = record.get("engines")
+                    engine_tuple: tuple[dict[str, object], ...] = tuple(
+                        engine for engine in engines if isinstance(engine, dict)
+                    ) if isinstance(engines, list) else ()
+                    results[addr] = ReplayResult(addr, str(result.get("name") or addr), c_text, stderr, completed.returncode, engine_tuple)
             return results

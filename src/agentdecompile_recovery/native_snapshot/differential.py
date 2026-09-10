@@ -19,6 +19,7 @@ NATIVE_ERROR = "native-error"
 NATIVE_TIMEOUT = "native-timeout"
 NATIVE_CRASH = "native-crash"
 ORACLE_ABSENT = "oracle-absent"
+PARITY_FAILURE = "parity-failure"
 
 
 @dataclass(frozen=True)
@@ -89,16 +90,22 @@ def _write_diff(path: Path, java_text: str, native_text: str) -> None:
     path.write_text("".join(diff), encoding="utf-8")
 
 
-def _markdown_report(results: list[DifferentialResult]) -> str:
+def _markdown_report(results: list[DifferentialResult], parity: list[str]) -> str:
     counts: dict[str, int] = {}
     for result in results:
         counts[result.classification] = counts.get(result.classification, 0) + 1
     lines = [
         "# Native Differential Report",
         "",
+        f"- Parity: {'failed' if parity else 'ok'}",
+    ]
+    if parity:
+        lines.extend(f"  - {error}" for error in parity)
+    lines.extend([
+        "",
         "| Classification | Count |",
         "|---|---:|",
-    ]
+    ])
     for key in sorted(counts):
         lines.append(f"| {key} | {counts[key]} |")
     lines.extend(["", "| Address | Name | Classification |", "|---|---|---|"])
@@ -115,10 +122,26 @@ def _report_relative(path: Path, root: Path, output: Path) -> str:
         return str(path.relative_to(output))
 
 
+def parity_errors(manifest: Manifest, replay_engines: tuple[dict[str, object], ...]) -> list[str]:
+    """Return native-vs-snapshot provenance mismatches that invalidate a diff."""
+    errors: list[str] = []
+    if not replay_engines:
+        errors.append("native replay did not report engine metadata")
+        return errors
+    sources = {str(engine.get("source") or "") for engine in replay_engines}
+    ghidra_version = manifest.producer.ghidra_version
+    expected_tag = f"Ghidra_{ghidra_version}_build"
+    mismatched_sources = sorted(source for source in sources if not source.startswith(expected_tag))
+    if mismatched_sources:
+        errors.append(f"native engine source mismatch: expected prefix {expected_tag!r}, got {mismatched_sources!r}")
+    return errors
+
+
 def write_report(root: Path, manifest: Manifest, replay: dict[str, str | None], *,
                  crashed: set[str] | None = None,
                  timed_out: set[str] | None = None,
                  errors: dict[str, str] | None = None,
+                 parity: list[str] | None = None,
                  output: Path | None = None) -> list[DifferentialResult]:
     """Write inspectable native text and a deterministic report JSON.
 
@@ -136,6 +159,7 @@ def write_report(root: Path, manifest: Manifest, replay: dict[str, str | None], 
     crashed = crashed or set()
     timed_out = timed_out or set()
     errors = errors or {}
+    parity = parity or []
     for entry in manifest.ok_entries():
         text = replay.get(entry.addr)
         native_path: str | None = None
@@ -171,9 +195,10 @@ def write_report(root: Path, manifest: Manifest, replay: dict[str, str | None], 
         )
     report = {
         "schema": "agentdecompile.native-differential/v0",
+        "parity": {"ok": not parity, "errors": parity},
         "counts": {kind: sum(1 for result in results if result.classification == kind) for kind in sorted({r.classification for r in results})},
         "results": [result.to_dict() for result in results],
     }
     (output / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    (output / "report.md").write_text(_markdown_report(results), encoding="utf-8")
+    (output / "report.md").write_text(_markdown_report(results, parity), encoding="utf-8")
     return results

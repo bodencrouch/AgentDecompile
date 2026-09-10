@@ -99,6 +99,7 @@ struct Supervisor::Impl {
   struct Child {
     pid_t pid = -1; int pidfd = -1; int in = -1; int out = -1; int err = -1;
     std::filesystem::path cgroup;
+    proto::HelloInfo remote;
     proto::FrameReader reader{proto::kPreHandshakeMaxFrame}; bool busy = false;
   };
   static Child spawn_child(const Config& config);
@@ -174,6 +175,7 @@ Supervisor::Impl::Child Supervisor::Impl::spawn_child(const Config& config) {
   proto::HelloInfo remote; if (!proto::parse_hello(frame.payload_view(), remote)) { cleanup(); throw std::runtime_error("invalid worker HELLO_ACK"); }
   const auto negotiated = proto::negotiate(local, remote); if (!negotiated.ok) { cleanup(); throw std::runtime_error("worker negotiation: " + negotiated.error); }
   child.reader.set_max_payload(negotiated.max_frame);
+  child.remote = std::move(remote);
   return child;
 }
 
@@ -306,4 +308,13 @@ void Supervisor::stop() noexcept { if (!impl_) return; for (auto& child : impl_-
 std::size_t Supervisor::live_workers() const noexcept { std::size_t live = 0; for (const auto& child : impl_->children) if (child.pid > 0 && ::kill(child.pid, 0) == 0) ++live; return live; }
 std::string Supervisor::stderr_tail() const { return impl_ ? impl_->stderr_tail : std::string{}; }
 bool Supervisor::hard_memory_cap() const noexcept { return impl_ && impl_->hard_memory_cap; }
+std::vector<proto::HelloInfo> Supervisor::engine_infos() const {
+  std::vector<proto::HelloInfo> infos;
+  if (!impl_) return infos;
+  infos.reserve(impl_->children.size());
+  for (const auto& child : impl_->children) {
+    if (child.pid > 0 && ::kill(child.pid, 0) == 0) infos.push_back(child.remote);
+  }
+  return infos;
+}
 }  // namespace gnsdk::pool

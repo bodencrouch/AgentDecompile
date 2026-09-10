@@ -267,6 +267,7 @@ def run_replay(args: argparse.Namespace) -> int:
                 "c": None if result is None else result.c_text,
                 "stderr": None if result is None else result.stderr,
                 "returncode": None if result is None else result.returncode,
+                "engines": [] if result is None else list(result.engines),
             }
             handle.write(json.dumps(record, sort_keys=True) + "\n")
             print(f"{record['addr']}\t{record['status']}\t{record['name']}")
@@ -275,7 +276,7 @@ def run_replay(args: argparse.Namespace) -> int:
 
 def run_diff(args: argparse.Namespace) -> int:
     """Replay every successful savefile and return nonzero for any non-match."""
-    from agentdecompile_recovery.native_snapshot.differential import MATCH, write_report
+    from agentdecompile_recovery.native_snapshot.differential import MATCH, parity_errors, write_report
 
     manifest = _load_snapshot(args.snapshot)
     if manifest is None:
@@ -284,16 +285,21 @@ def run_diff(args: argparse.Namespace) -> int:
     if replayer is None:
         return EXIT_USAGE
     replay = replayer.replay_manifest(args.snapshot, manifest)
+    replay_engines = next((result.engines for result in replay.values() if result.engines), ())
+    parity = parity_errors(manifest, replay_engines) if args.mode == "batch" else []
     results = write_report(
         args.snapshot, manifest, {address: result.c_text for address, result in replay.items()},
         crashed={address for address, result in replay.items() if result.returncode < 0},
         timed_out={address for address, result in replay.items() if result.returncode == 124},
         errors={address: result.stderr for address, result in replay.items() if result.c_text is None and result.stderr},
+        parity=parity,
         output=args.output,
     )
     for result in results:
         print(f"{result.addr}\t{result.classification}\t{result.name}")
-    return EXIT_OK if all(result.classification == MATCH for result in results) else 1
+    for error in parity:
+        print(f"parity-failure\t{error}", file=sys.stderr)
+    return EXIT_OK if not parity and all(result.classification == MATCH for result in results) else 1
 
 
 def main(argv: list[str] | None = None) -> int:

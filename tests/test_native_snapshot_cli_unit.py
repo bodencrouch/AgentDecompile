@@ -29,4 +29,5 @@ def test_replay_subcommand_accepts_batch_backend():
     assert args.command == "replay"
     assert args.mode == "batch"
     assert args.workers == 2
+    assert args.per_process == 200
     assert str(args.tmpdir) == "tmp"

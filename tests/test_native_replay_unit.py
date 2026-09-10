@@ -1,12 +1,19 @@
 from pathlib import Path
 import subprocess
 
-from agentdecompile_recovery.native_snapshot.manifest import FunctionEntry, STATUS_OK
+from agentdecompile_recovery.native_snapshot.manifest import Capabilities, Counts, EngineInfo, FunctionEntry, Manifest, OptionsInfo, Producer, ProgramInfo, Revision, STATUS_OK
 from agentdecompile_recovery.native_snapshot.replay import BatchReplayer, ConsoleReplayer, _extract, _script
 
 
 def entry() -> FunctionEntry:
     return FunctionEntry(addr="0000000000401000", space="ram", name="add", load_name="add", size=1, status=STATUS_OK, savefile="functions/add.xml")
+
+
+def manifest(*entries: FunctionEntry) -> Manifest:
+    return Manifest(schema="agentdecompile.native-snapshot/v0", export_requires_java_decompile=True, created_at="now", timeout_s=1, wall_s=0,
+        producer=Producer("12.1.3", "x", "x"), program=ProgramInfo("x", "x86:LE:64:default", "default", "0x0"), engine=EngineInfo(6, 1),
+        options=OptionsInfo("x" * 64, "options.xml", "decompile"), capabilities=Capabilities(True, ["decompile-c"], ["JVM"], []),
+        revision=Revision(0, 0, False), counts=Counts(total=len(entries), ok=len(entries)), total_bytes=0, functions=list(entries))
 
 
 def test_script_has_console_commands_and_marker_extraction(tmp_path: Path):
@@ -35,6 +42,34 @@ def test_replayer_uses_fresh_console_process(monkeypatch, tmp_path: Path):
     assert seen["input"]
     assert "load function add" in str(seen["input"])
     assert result.c_text == "int add(void) {}\n" and result.returncode == 0
+
+
+def test_console_replay_manifest_reuses_process_per_chunk(monkeypatch, tmp_path: Path):
+    entries = [
+        entry(),
+        FunctionEntry(addr="0000000000401001", space="ram", name="sub", load_name="sub", size=1, status=STATUS_OK, savefile="functions/sub.xml"),
+    ]
+    for item in entries:
+        path = tmp_path / item.savefile
+        path.parent.mkdir(exist_ok=True)
+        path.write_text("<xml_savefile/>")
+    calls: list[str] = []
+
+    def fake_run(args, **kwargs):
+        calls.append(kwargs["input"])
+        stdout = (
+            "__GNSDK_REPLAY_0000000000401000__:BEGIN\nint add(void) {}\n__GNSDK_REPLAY_0000000000401000__:END\n"
+            "__GNSDK_REPLAY_0000000000401001__:BEGIN\nint sub(void) {}\n__GNSDK_REPLAY_0000000000401001__:END\n"
+        )
+        return subprocess.CompletedProcess(args, 0, stdout, "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    result = ConsoleReplayer(Path("/fake/console"), sleigh_home=Path("/fake/sleigh"), per_process=200).replay_manifest(tmp_path, manifest(*entries))
+    assert len(calls) == 1
+    assert calls[0].count("restore ") == 2
+    assert calls[0].rstrip().endswith("quit")
+    assert result["0000000000401000"].c_text == "int add(void) {}\n"
+    assert result["0000000000401001"].c_text == "int sub(void) {}\n"
 
 
 def test_batch_replayer_parses_snapshot_jsonl(monkeypatch, tmp_path: Path):

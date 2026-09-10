@@ -78,6 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("--sleigh-home", type=Path, required=True, help="Compiled Ghidra-root/SLEIGH home.")
     replay.add_argument("--timeout-s", type=int, default=60, help="Per-function/backend timeout in seconds (default 60).")
     replay.add_argument("--workers", type=int, default=1, help="Batch replay worker count (default 1).")
+    replay.add_argument("--per-process", type=int, default=200, help="Console replay functions per decomp_console process (default 200).")
     replay.add_argument("--tmpdir", type=Path, default=None, help="Tmpdir passed to gnsdk-batch in batch mode.")
     replay.add_argument("--output", type=Path, default=None, help="Replay JSONL output (default: <snapshot>/differential/replay.jsonl).")
     replay.set_defaults(func=run_replay)
@@ -89,6 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
     diff.add_argument("--sleigh-home", type=Path, required=True, help="Compiled Ghidra-root/SLEIGH home.")
     diff.add_argument("--timeout-s", type=int, default=60, help="Per-function/backend timeout in seconds (default 60).")
     diff.add_argument("--workers", type=int, default=1, help="Batch replay worker count (default 1).")
+    diff.add_argument("--per-process", type=int, default=200, help="Console replay functions per decomp_console process (default 200).")
     diff.add_argument("--tmpdir", type=Path, default=None, help="Tmpdir passed to gnsdk-batch in batch mode.")
     diff.add_argument("--output", type=Path, default=None, help="Directory for report.json/report.md/diff (default: <snapshot>/differential).")
     diff.set_defaults(func=run_diff)
@@ -226,12 +228,12 @@ def run_export(args: argparse.Namespace) -> int:
 def _make_replayer(args: argparse.Namespace):
     from agentdecompile_recovery.native_snapshot.replay import BatchReplayer, ConsoleReplayer
 
-    if args.timeout_s <= 0 or args.workers <= 0 or not args.sleigh_home.is_dir():
+    if args.timeout_s <= 0 or args.workers <= 0 or args.per_process <= 0 or not args.sleigh_home.is_dir():
         return None
     if args.mode == "console":
         if args.console is None or not args.console.is_file():
             return None
-        return ConsoleReplayer(args.console, sleigh_home=args.sleigh_home, timeout_s=args.timeout_s)
+        return ConsoleReplayer(args.console, sleigh_home=args.sleigh_home, timeout_s=args.timeout_s, per_process=args.per_process)
     if args.batch is None or not args.batch.is_file():
         return None
     return BatchReplayer(args.batch, sleigh_home=args.sleigh_home, timeout_s=args.timeout_s, workers=args.workers, tmpdir=args.tmpdir)

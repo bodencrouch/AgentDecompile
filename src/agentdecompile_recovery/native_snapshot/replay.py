@@ -22,19 +22,21 @@ class ReplayResult:
     engines: tuple[dict[str, object], ...] = ()
 
 
-def _script(savefile: Path, load_name: str, token: str) -> str:
+def _script(savefile: Path, load_name: str, token: str, *, quit_after: bool = True) -> str:
     # The marker commands are console-native (`echo`), so C text is extracted
     # without assuming its formatting or attempting to parse user identifiers.
-    return "\n".join((
+    lines = [
         f"restore {savefile}",
         f"load function {load_name}",
         "decompile",
         f"echo {token}:BEGIN",
         "print C",
         f"echo {token}:END",
-        "quit",
         "",
-    ))
+    ]
+    if quit_after:
+        lines.extend(("quit", ""))
+    return "\n".join(lines)
 
 
 def _extract(stdout: str, token: str) -> str | None:
@@ -55,14 +57,37 @@ def _extract(stdout: str, token: str) -> str | None:
 
 
 class ConsoleReplayer:
-    """One fresh native-console process per savefile, with a bounded timeout."""
+    """Replay savefiles through bounded chunks of one native-console process."""
 
-    def __init__(self, console: Path, *, sleigh_home: Path | None = None, timeout_s: float = 60) -> None:
+    def __init__(self, console: Path, *, sleigh_home: Path | None = None, timeout_s: float = 60, per_process: int = 200) -> None:
         if timeout_s <= 0:
             raise ValueError("timeout_s must be positive")
+        if per_process <= 0:
+            raise ValueError("per_process must be positive")
         self.console = Path(console)
         self.sleigh_home = Path(sleigh_home) if sleigh_home is not None else None
         self.timeout_s = timeout_s
+        self.per_process = per_process
+
+    def _environment(self) -> dict[str, str]:
+        environment = os.environ.copy()
+        if self.sleigh_home is not None:
+            # consolemain uses SLEIGHHOME as its Ghidra-root fallback.
+            # Merely passing `-s` adds a search path but leaves the root
+            # empty, which upstream console shutdown can dereference.
+            environment["SLEIGHHOME"] = str(self.sleigh_home)
+        return environment
+
+    def _run_script(self, script: str, *, timeout_s: float) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [str(self.console)],
+            input=script,
+            text=True,
+            capture_output=True,
+            timeout=timeout_s,
+            check=False,
+            env=self._environment(),
+        )
 
     def replay(self, root: Path, entry: FunctionEntry) -> ReplayResult:
         if not entry.savefile or not entry.load_name:
@@ -72,23 +97,49 @@ class ConsoleReplayer:
             return ReplayResult(entry.addr, entry.name, None, f"missing savefile: {savefile}", 2)
         token = f"__GNSDK_REPLAY_{entry.addr}__"
         try:
-            command = [str(self.console)]
-            environment = os.environ.copy()
-            if self.sleigh_home is not None:
-                # consolemain uses SLEIGHHOME as its Ghidra-root fallback.
-                # Merely passing `-s` adds a search path but leaves the root
-                # empty, which upstream console shutdown can dereference.
-                environment["SLEIGHHOME"] = str(self.sleigh_home)
-            completed = subprocess.run(
-                command, input=_script(savefile, entry.load_name, token), text=True,
-                capture_output=True, timeout=self.timeout_s, check=False, env=environment,
-            )
+            completed = self._run_script(_script(savefile, entry.load_name, token), timeout_s=self.timeout_s)
         except (OSError, subprocess.TimeoutExpired) as exc:
             return ReplayResult(entry.addr, entry.name, None, str(exc), 124)
         return ReplayResult(entry.addr, entry.name, _extract(completed.stdout, token), completed.stderr, completed.returncode)
 
     def replay_manifest(self, root: Path, manifest: Manifest) -> dict[str, ReplayResult]:
-        return {entry.addr: self.replay(root, entry) for entry in manifest.ok_entries()}
+        entries = list(manifest.ok_entries())
+        results: dict[str, ReplayResult] = {}
+        for start in range(0, len(entries), self.per_process):
+            chunk = entries[start : start + self.per_process]
+            scripts: list[str] = []
+            tokens: dict[str, str] = {}
+            valid: list[FunctionEntry] = []
+            for entry in chunk:
+                if not entry.savefile or not entry.load_name:
+                    results[entry.addr] = ReplayResult(entry.addr, entry.name, None, "entry has no savefile/load_name", 2)
+                    continue
+                savefile = root / entry.savefile
+                if not savefile.is_file():
+                    results[entry.addr] = ReplayResult(entry.addr, entry.name, None, f"missing savefile: {savefile}", 2)
+                    continue
+                token = f"__GNSDK_REPLAY_{entry.addr}__"
+                tokens[entry.addr] = token
+                scripts.append(_script(savefile, entry.load_name, token, quit_after=False))
+                valid.append(entry)
+            if not valid:
+                continue
+            script = "\n".join(scripts + ["quit", ""])
+            try:
+                completed = self._run_script(script, timeout_s=self.timeout_s * len(valid) + 10)
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                for entry in valid:
+                    results[entry.addr] = ReplayResult(entry.addr, entry.name, None, str(exc), 124)
+                continue
+            for entry in valid:
+                results[entry.addr] = ReplayResult(
+                    entry.addr,
+                    entry.name,
+                    _extract(completed.stdout, tokens[entry.addr]),
+                    completed.stderr,
+                    completed.returncode,
+                )
+        return results
 
 
 class BatchReplayer:

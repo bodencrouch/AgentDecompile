@@ -20549,8 +20549,11 @@ _REWRITE_CONTENT_DISALLOWED_RE = re.compile(
     # parse them at this untrusted boundary: reject compiler-specific forms
     # wholesale rather than letting a nested naked/assembler attribute evade a
     # shallow regular expression.
-    r"|__declspec\s*\("
-    r"|__attribute__?\s*\("
+    r"|(?<![A-Za-z0-9_])__declspec(?![A-Za-z0-9_])\s*\("
+    # Clang accepts both GNU spellings: __attribute((...)) and
+    # __attribute__((...)). Keep token boundaries so an ordinary identifier
+    # such as __attribute_helper is not treated as an attribute.
+    r"|(?<![A-Za-z0-9_])__attribute(?:__)?(?![A-Za-z0-9_])\s*\("
     r"|\[\s*\["
     r"|\.incbin\b",
     re.MULTILINE,

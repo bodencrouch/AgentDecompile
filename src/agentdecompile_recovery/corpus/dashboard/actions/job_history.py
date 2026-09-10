@@ -6,7 +6,6 @@ import re
 import socket
 import threading
 from pathlib import Path
-from typing import Any
 from ..common import live_root
 
 _CACHE: dict[str, tuple[tuple[int, int], list[dict]]] = {}
@@ -93,7 +92,8 @@ def records() -> dict[str, dict]:
     with _LOCK:
         for path in paths:
             try:
-                stat = path.stat(); signature = (stat.st_mtime_ns, stat.st_size)
+                stat = path.stat()
+                signature = (stat.st_mtime_ns, stat.st_size)
                 cached = _CACHE.get(str(path))
                 if cached is None or cached[0] != signature:
                     data = json.loads(path.read_text(encoding='utf-8'))

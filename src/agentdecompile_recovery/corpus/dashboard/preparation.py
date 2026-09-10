@@ -851,7 +851,6 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             update('matching', 'blocked', 'No other binary has stored function features to compare. Import or analyze a comparison binary.')
         else:
             matched = 0
-            admitted = 0
             deferred = 0
             to_run = []
             for src, dst, note in pairs:
@@ -861,7 +860,6 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                     update('matching', 'running', f'Reusing completed comparison receipt: {Path(src).name} → {Path(dst).name}.', completed=matched, total=len(pairs))
                     continue
                 to_run.append((src, dst, note))
-            admitted = len(to_run)
             # Each corpus.match-pair call is a standalone subprocess reading
             # sqlite-persisted facts; it never opens the shared PyGhidra
             # project, so these comparisons are independent and safe to run

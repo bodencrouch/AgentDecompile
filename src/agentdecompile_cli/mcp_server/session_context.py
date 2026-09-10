@@ -32,7 +32,6 @@ from agentdecompile_cli.app_logger import basename_hint, redact_session_id
 
 if TYPE_CHECKING:
     from ghidra.framework.remote import RepositoryItem as GhidraRepositoryItem  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
-    from ghidra.program.model.listing import Program as GhidraProgram  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
 
     from agentdecompile_cli.launcher import ProgramInfo
 

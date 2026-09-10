@@ -45,7 +45,7 @@ def test_should_write_does_not_clobber_real_c(tmp_path: Path) -> None:
     assert not cross_place.should_write(asm, src_is_asm=True)
 
 
-def test_resolve_source_dir_uses_dump_source_verified(tmp_path: Path) -> None:
+def test_resolve_source_dir_prefers_dump_source_verified(tmp_path: Path) -> None:
     verified = tmp_path / "dump-source" / "verified"
     verified.mkdir(parents=True)
     (verified / "FUN_00401000.c").write_text("/* address: 0x00401000 */\nint f(void) { return 1; }\n")

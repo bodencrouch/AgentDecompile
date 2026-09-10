@@ -497,7 +497,7 @@ def _exe_name(line: str) -> str | None:
         if line.lower().startswith(prefix):
             return line.split(":", 1)[1].strip().strip('"')
     parts = line.split()
-    if parts and not parts[0].lower() in {"md5", "arch", "compiler", "count"}:
+    if parts and parts[0].lower() not in {"md5", "arch", "compiler", "count"}:
         if "." in parts[0] or parts[0].endswith((".exe", ".ipa", ".app", ".xbe")):
             return parts[0]
         if re.match(r"^[A-Za-z][\w.\-]+$", parts[0]) and not _MD5_RE.fullmatch(parts[0]):

@@ -24,19 +24,10 @@ async def _read_upload_bytes(upload: object) -> tuple[bytes | None, str | None]:
 from agentdecompile_recovery.corpus.dashboard.pages import (
     CLAIM,
     PAGE_INDEX,
-    SECTION_BY_ID,
     STATIC_ROOT,
     WORKSPACE_NAME,
     graph_to_function_target,
-    is_partial_query,
     query_from_mapping,
-    render_artifact,
-    render_binary_page,
-    render_database_evidence,
-    render_browse_block,
-    render_function_page,
-    render_functions_page,
-    render_logical_page,
     render_page,
 )
 
@@ -183,7 +174,7 @@ def create_dashboard_router() -> APIRouter:
 
     @router.get("/dashboard/function/{slug}/{addr}")
     async def dashboard_function(slug: str, addr: str, request: Request) -> RedirectResponse:
-        parts = [f"window=wb-fnbrowse", f"binary={quote(slug, safe='')}", f"addr={quote(addr, safe='')}"]
+        parts = ["window=wb-fnbrowse", f"binary={quote(slug, safe='')}", f"addr={quote(addr, safe='')}"]
         for key, value in request.query_params.multi_items():
             if key in {"window", "partial", "binary", "addr"}:
                 continue

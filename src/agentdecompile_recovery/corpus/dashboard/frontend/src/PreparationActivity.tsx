@@ -51,7 +51,9 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
   const currentJob = run?.currentJob;
   const startedAt = currentJob?.startedAt || currentJob?.started_at || current?.startedAt;
   const elapsed = startedAt ? Math.max(0, Math.floor((now - Number(startedAt) * 1000) / 1000)) : null;
-  const program = current?.currentProgram || currentJob?.params?.programPath || currentJob?.params?.program || run?.program;
+  const pair = currentJob?.params?.src && currentJob?.params?.dst
+    ? `${currentJob.params.src} → ${currentJob.params.dst}` : '';
+  const program = pair || currentJob?.params?.programPath || currentJob?.params?.program || current?.currentProgram || run?.program;
   const action = current?.currentAction || currentJob?.title || currentJob?.actionId;
   const actionName = String(action || "").replace(/^mcp\./, "").replace(/[-_]/g, " ");
   const operation = /execute script/i.test(actionName) ? ({analysis: "Check existing analysis", facts: "Index functions and relationships", bsim: "Build similarity signatures"} as Record<string,string>)[current?.key] || actionName : /analyze program/i.test(actionName) ? "Analyze binary" : /match pair/i.test(actionName) ? "Compare related builds" : actionName;
@@ -122,18 +124,25 @@ export function PreparationActivity({ selection, notify }: SurfaceProps) {
   const run = selectPreparation(runs, selection);
   const [childJob, setChildJob] = useState<Data | undefined>();
   const childId = run?.stages?.find((stage: Data) => stage.status === "running")?.jobId;
+  const runId = run?.id;
   useEffect(() => {
     let alive = true, timer: ReturnType<typeof setTimeout>;
     setChildJob(undefined);
-    if (!childId) return;
+    if (!run) return;
     async function pollJob() {
-      try { const data = await request(`/dashboard/api/jobs/${encodeURIComponent(childId)}`); if (alive) setChildJob(data.job); }
+      try {
+        const data = await request('/dashboard/api/jobs');
+        const children: Data[] = (data.jobs || []).filter((job: Data) => job.params?.run === `prepare-${runId}` && active(String(job.status)));
+        children.sort((left, right) => left.status === 'running' ? -1 : right.status === 'running' ? 1 : Number(right.createdAt || 0) - Number(left.createdAt || 0));
+        const job = children[0] || (childId ? (await request(`/dashboard/api/jobs/${encodeURIComponent(childId)}`)).job : undefined);
+        if (alive) setChildJob(job);
+      }
       catch { /* Preparation state remains useful when a child job is unavailable. */ }
       finally { if (alive) timer = setTimeout(pollJob, 2000); }
     }
     void pollJob();
     return () => { alive = false; clearTimeout(timer); };
-  }, [childId]);
-  const displayed = run && childJob?.id === childId ? {...run, currentJob: childJob} : run;
+  }, [childId, runId]);
+  const displayed = run && childJob ? {...run, currentJob: childJob} : run;
   return <Section id="preparation" title="Prepare the project"><PreparationProgress run={displayed} selection={selection} notify={notify} error={error} loading={loading} lastConnectedAt={lastConnectedAt} now={now} /></Section>;
 }

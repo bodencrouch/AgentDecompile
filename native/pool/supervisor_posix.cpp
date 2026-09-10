@@ -19,6 +19,8 @@ extern char** environ;
 namespace gnsdk::pool {
 namespace proto = gnsdk::proto;
 namespace {
+constexpr int kWorkerStartupTimeoutMs = 30000;
+
 int open_pidfd(pid_t pid) noexcept {
 #ifdef SYS_pidfd_open
   return static_cast<int>(::syscall(SYS_pidfd_open, pid, 0));
@@ -86,8 +88,21 @@ Supervisor::Impl::Child Supervisor::Impl::spawn_child(const Config& config) {
   };
   proto::HelloInfo local; local.capabilities = {"pool"}; local.engine_source = "gnsdk-pool"; proto::FrameWriter writer(child.in);
   if (!writer.write_json(proto::Kind::Hello, 0, proto::make_hello(local))) { cleanup(); throw std::runtime_error("write worker HELLO"); }
-  proto::Frame frame; pollfd pfd{child.out, POLLIN, 0};
-  if (::poll(&pfd, 1, 5000) <= 0 || child.reader.read(child.out) != proto::ReadStatus::Progress || !child.reader.next(frame) || frame.header.kind != proto::to_u16(proto::Kind::HelloAck)) { cleanup(); throw std::runtime_error("worker HELLO_ACK failed"); }
+  proto::Frame frame;
+  const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kWorkerStartupTimeoutMs);
+  for (;;) {
+    if (child.reader.next(frame)) break;
+    const auto now = std::chrono::steady_clock::now();
+    if (now >= deadline) { cleanup(); throw std::runtime_error("worker HELLO_ACK failed"); }
+    const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count();
+    pollfd pfd{child.out, POLLIN, 0};
+    if (::poll(&pfd, 1, static_cast<int>(left > 0 ? left : 1)) <= 0 ||
+        child.reader.read(child.out) != proto::ReadStatus::Progress) {
+      cleanup();
+      throw std::runtime_error("worker HELLO_ACK failed");
+    }
+  }
+  if (frame.header.kind != proto::to_u16(proto::Kind::HelloAck)) { cleanup(); throw std::runtime_error("worker HELLO_ACK failed"); }
   proto::HelloInfo remote; if (!proto::parse_hello(frame.payload_view(), remote)) { cleanup(); throw std::runtime_error("invalid worker HELLO_ACK"); }
   const auto negotiated = proto::negotiate(local, remote); if (!negotiated.ok) { cleanup(); throw std::runtime_error("worker negotiation: " + negotiated.error); }
   child.reader.set_max_payload(negotiated.max_frame);

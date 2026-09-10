@@ -66,6 +66,25 @@ add_dependencies(pool_respawn_retry fake-worker)
 add_test(NAME pool_respawn_retry COMMAND pool_respawn_retry)
 set_tests_properties(pool_respawn_retry PROPERTIES LABELS "pool;fault")
 
+add_executable(pool_fake_mode_reply fake_mode_reply.cpp)
+target_include_directories(pool_fake_mode_reply PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../.. ${CMAKE_CURRENT_SOURCE_DIR}/../worker)
+target_link_libraries(pool_fake_mode_reply PRIVATE gnsdk::pool gnsdk_protocol Threads::Threads)
+target_compile_features(pool_fake_mode_reply PRIVATE cxx_std_20)
+target_compile_definitions(pool_fake_mode_reply PRIVATE GNSDK_FAKE_WORKER_PATH="$<TARGET_FILE:fake-worker>")
+add_dependencies(pool_fake_mode_reply fake-worker)
+add_test(NAME pool_slow_consumer COMMAND pool_fake_mode_reply slow-reply)
+add_test(NAME pool_stderr_flood COMMAND pool_fake_mode_reply garbage-stderr)
+set_tests_properties(pool_slow_consumer pool_stderr_flood PROPERTIES LABELS "pool;fault")
+
+add_executable(pool_kill9_worker kill9_worker.cpp)
+target_include_directories(pool_kill9_worker PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../.. ${CMAKE_CURRENT_SOURCE_DIR}/../worker)
+target_link_libraries(pool_kill9_worker PRIVATE gnsdk::pool gnsdk_protocol Threads::Threads)
+target_compile_features(pool_kill9_worker PRIVATE cxx_std_20)
+target_compile_definitions(pool_kill9_worker PRIVATE GNSDK_FAKE_WORKER_PATH="$<TARGET_FILE:fake-worker>")
+add_dependencies(pool_kill9_worker fake-worker)
+add_test(NAME pool_kill9_worker COMMAND pool_kill9_worker)
+set_tests_properties(pool_kill9_worker PROPERTIES LABELS "pool;fault")
+
 add_test(NAME gnsdk_batch_version COMMAND gnsdk-batch --version)
 set_tests_properties(gnsdk_batch_version PROPERTIES
   LABELS "pool;batch"

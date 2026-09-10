@@ -15,6 +15,10 @@
 //   hang             handshake, then never reply to a request. SIGTERM exits 0.
 //   hang-ignore-term same, plus SIGTERM ignored (only SIGKILL works).
 //   die-midframe     on the first request write 12 header bytes, _exit(9).
+//   die-midframe-once
+//                    same as die-midframe only while creating the marker file
+//                    named by GNSDK_FAKE_ONCE_FILE succeeds. Respawned workers
+//                    see the marker and behave normally.
 //   oversize         on the first request send a header with payload_len
 //                    0xFFFFFFFF, then keep reading.
 //   bad-magic        on the first request send a frame whose magic is "XXXX".
@@ -72,6 +76,7 @@ enum class Mode {
   Hang,
   HangIgnoreTerm,
   DieMidframe,
+  DieMidframeOnce,
   Oversize,
   BadMagic,
   GarbageStderr,
@@ -92,6 +97,7 @@ constexpr ModeName kModes[] = {
     {"hang", Mode::Hang},
     {"hang-ignore-term", Mode::HangIgnoreTerm},
     {"die-midframe", Mode::DieMidframe},
+    {"die-midframe-once", Mode::DieMidframeOnce},
     {"oversize", Mode::Oversize},
     {"bad-magic", Mode::BadMagic},
     {"garbage-stderr", Mode::GarbageStderr},
@@ -333,6 +339,21 @@ struct Worker {
         diag("hanging on request %llu", static_cast<unsigned long long>(id));
         hang_forever();
       case Mode::DieMidframe: {
+        proto::FrameHeader h;
+        h.kind = proto::to_u16(proto::Kind::Result);
+        h.request_id = id;
+        h.payload_len = 64;
+        std::uint8_t hdr[proto::kHeaderSize];
+        proto::encode_header(h, hdr);
+        write_all(1, hdr, 12);
+        _exit(9);
+      }
+      case Mode::DieMidframeOnce: {
+        const char* path = std::getenv("GNSDK_FAKE_ONCE_FILE");
+        if (path == nullptr || *path == '\0') return;
+        const int fd = ::open(path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+        if (fd < 0) return;
+        (void)::close(fd);
         proto::FrameHeader h;
         h.kind = proto::to_u16(proto::Kind::Result);
         h.request_id = id;

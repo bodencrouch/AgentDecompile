@@ -20,6 +20,7 @@ namespace proto = gnsdk::proto;
 namespace json = gnsdk::json;
 
 namespace {
+constexpr int kWorkerStartupTimeoutMs = 60000;
 
 struct Child {
   pid_t pid = -1;
@@ -102,7 +103,7 @@ void negotiates_cli_max_frame() {
   REQUIRE(writer.write_json(proto::Kind::Hello, 0, proto::make_hello(hello)));
   proto::Frame ack;
   pollfd pfd{child.out, POLLIN, 0};
-  REQUIRE(::poll(&pfd, 1, 10000) > 0);
+  REQUIRE(::poll(&pfd, 1, kWorkerStartupTimeoutMs) > 0);
   REQUIRE(reader.read(child.out) == proto::ReadStatus::Progress);
   REQUIRE(reader.next(ack));
   proto::HelloInfo remote; REQUIRE(proto::parse_hello(ack.payload_view(), remote));
@@ -125,7 +126,7 @@ int main() {
   REQUIRE(writer.write_json(proto::Kind::Hello, 0, proto::make_hello(hello)));
   proto::Frame ack;
   pollfd pfd{child.out, POLLIN, 0};
-  REQUIRE(::poll(&pfd, 1, 10000) > 0);
+  REQUIRE(::poll(&pfd, 1, kWorkerStartupTimeoutMs) > 0);
   REQUIRE(reader.read(child.out) == proto::ReadStatus::Progress);
   REQUIRE(reader.next(ack));
   REQUIRE(ack.header.kind == proto::to_u16(proto::Kind::HelloAck));

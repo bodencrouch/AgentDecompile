@@ -1,0 +1,1 @@
+import{_ as r}from"./index-DNyJYB9H.js";import{r as i}from"./_.contribution-BNx4Flbi.js";import"./monaco-runtime-CpOhVt8X.js";i({id:"rust",extensions:[".rs",".rlib"],aliases:["Rust","rust"],loader:()=>r(()=>import("./rust-BzKRNQWT.js"),[])});

@@ -5,7 +5,6 @@ import {
   emptySelection,
   normalizeSelection,
   functionKey,
-  query,
   request,
   recordedSelection,
   type ActionRequest,
@@ -23,7 +22,7 @@ import {
   usePref,
 } from "./ui";
 import { WorkbenchSurfaces, EvidenceInspector } from "./Surfaces";
-import { Commands, ActionRunner } from "./Actions";
+import { Commands, ActionRunner, DialogFrame } from "./Actions";
 import { PreparationActivity } from "./PreparationActivity";
 import { CodeBrowser } from "./CodeBrowser";
 import { GuideWorkflows } from "./GuideWorkflows";
@@ -32,6 +31,7 @@ import { PersistentExplorer } from "./PersistentExplorer";
 import { ProjectDialog } from "./ProjectDialog";
 import {
   installSessionFlush,
+  loadClientSessions,
   queueSessionSave,
   setSessionRevision,
 } from "./sessionSync";
@@ -40,6 +40,7 @@ import { projectLocatorsMatch } from "./projectLocator";
 import { SourceDownload } from "./SourceDownload";
 import { WorkbenchIntegration } from "./integration/WorkbenchIntegration";
 import { CorpusDbPicker } from "./CorpusDbPicker";
+import { LocalArtifactPanel } from "./runtime/LocalArtifactPanel";
 import "./actions.css";
 const sectionNames: Record<string,string> = {
   overview: "Project overview", preparation: "Preparation status", listing: "Source and assembly",
@@ -61,14 +62,60 @@ function jump(id: string) {
 }
 function route(): Selection {
   const q = new URLSearchParams(location.search);
+  const rawRegion = q.get("region");
+  let region: Selection["region"];
+  if (rawRegion) {
+    try {
+      const value = JSON.parse(rawRegion);
+      if (value?.start?.offset) region = value;
+    } catch {
+      region = {
+        start: {
+          offset: rawRegion,
+          binaryHash: q.get("binary_hash") || q.get("binary") || q.get("slug") || "",
+        },
+      };
+    }
+  }
+  const evidenceIds = [
+    ...q.getAll("evidence"),
+    ...q.getAll("evidence_id"),
+    ...String(q.get("evidence_ids") || "").split(","),
+  ].filter(Boolean);
   return normalizeSelection({
     ...emptySelection,
-    slug: q.get("binary") || q.get("slug") || "",
+    slug: q.get("binary") || q.get("slug") || q.get("binary_hash") || "",
     program: q.get("program") || "",
-    addr: q.get("addr") || "",
+    addr: q.get("addr") || q.get("function") || q.get("function_id") || "",
     logicalId: q.get("logical_id") || "",
-    locator: q.get("locator") || "",
+    locator: q.get("locator") || q.get("project") || q.get("project_id") || "",
+    binaryHash: q.get("binary_hash") || undefined,
+    functionId: q.get("function_id") || undefined,
+    region,
+    evidenceIds: evidenceIds.length ? evidenceIds : undefined,
   });
+}
+function routeFilter() {
+  return new URLSearchParams(location.search).get("filter") || "";
+}
+function selectionUrl(selection: Selection) {
+  const params = new URLSearchParams(location.search);
+  for (const key of ["slug", "binary", "program", "addr", "function", "function_id", "logical_id", "locator", "project", "project_id", "binary_hash", "evidence", "evidence_id", "evidence_ids", "region"])
+    params.delete(key);
+  params.set("mode", "workbench");
+  const values: Record<string, string | undefined> = {
+    binary: selection.slug,
+    program: selection.program,
+    addr: selection.addr,
+    logical_id: selection.logicalId,
+    locator: selection.locator,
+    binary_hash: selection.binaryHash,
+    function_id: selection.functionId,
+    region: selection.region ? JSON.stringify(selection.region) : undefined,
+  };
+  for (const [key, value] of Object.entries(values)) if (value) params.set(key, value);
+  for (const evidence of selection.evidenceIds || []) params.append("evidence", evidence);
+  return `${location.pathname}?${params}`;
 }
 function fromSession(s: Data): Selection {
   return normalizeSelection({
@@ -143,16 +190,17 @@ export function App() {
     inspector: 300,
     tree: 200,
     showExplorer: true,
-    showInspector: false,
+    showInspector: true,
     showDock: true,
   });
   const [density, setDensity] = usePref("density", "compact");
   const [dialog, setDialog] = useState<
     "open" | "create" | "copy" | "connection" | "import" | null
   >(null);
+  const [pendingProject, setPendingProject] = useState<Selection | null>(null);
   const [action, setAction] = useState<ActionRequest | null>(null);
   const [checked, setChecked] = useState<Record<string, Selection>>({});
-  const [filter, setFilter] = useState(() => readPref("filter", ""));
+  const [filter, setFilter] = useState(() => routeFilter() || readPref("filter", ""));
   const [offset, setOffset] = useState(0);
   const [recordFilter, setRecordFilter] = usePref("record-filter", "all");
   const navigationRef = useRef({ filter, recordFilter, offset, scroll: 0 });
@@ -174,10 +222,15 @@ export function App() {
   const [jobs, setJobs] = useState<Data[]>([]);
   const [batches, setBatches] = useState<Data[]>([]);
   const [jobId, setJobId] = useState("");
+  const [matchingJobId, setMatchingJobId] = useState("");
   const [dockTab, setDockTab] = usePref("dock-tab", "logs");
   const [connection, setConnection] = useState("Connecting");
   const jobsSnapshot = useRef<Record<string, string>>({});
   const pollRef = useRef(false);
+  const hasDurableActivity = useRef(false);
+  useEffect(() => {
+    if (events.length) hasDurableActivity.current = true;
+  }, [events.length]);
   const [sessionError, setSessionError] = useState("");
   const binaries = useData(API + "/binaries", revision);
   const libraryTransfer = useLibraryTransfer(binaries.data.binaries || [], notify);
@@ -187,6 +240,9 @@ export function App() {
       ? projectLocatorsMatch(s.locator, next.locator)
       : !s.locator && s.selection?.slug === next.slug);
     if (found) { if(found.hidden){sessionsRef.current=sessionsRef.current.map(s=>s.id===found.id?{...s,hidden:false}:s);setSessions(sessionsRef.current);}setActive(found.id); return; }
+    // A selection is an inspection target within the loaded workspace, not a request
+    // to open another project tab. Project replacement always goes through openSelection.
+    if (sessionsRef.current.length) { setActive(sessionsRef.current[0].id); return; }
     if (!next.locator && !next.slug) { setActive(""); return; }
     const session = { id: crypto.randomUUID(),
       title: next.locator.split("/").pop() || next.program || next.slug,
@@ -226,7 +282,7 @@ export function App() {
             : priorState.offset,
       },
       "",
-      location.pathname + "?mode=workbench&" + query(next),
+      selectionUrl(next),
     );
   }, []);
   async function projectVisibility(record:Data,hidden:boolean) {
@@ -239,7 +295,7 @@ export function App() {
       if(!fallback){fallback={id:crypto.randomUUID(),title:'Untitled',locator:'',imports:[],selection:emptySelection};next.push(fallback);}
       nextActive=fallback.id;setActive(nextActive);
       const nextSelection=fromSession(fallback);selectionRef.current=nextSelection;setSelection(nextSelection);setChecked({});setOffset(0);
-      history.replaceState(null,'',location.pathname+'?mode=workbench&'+query(nextSelection));
+      history.replaceState(null, "", selectionUrl(nextSelection));
     }
     sessionsRef.current=next;setSessions(next);
     await queueSessionSave({ active: nextActive, sessions: next }).then((response) => {
@@ -252,34 +308,52 @@ export function App() {
     [checked],
   );
   const openSelection = useCallback(
-    (patch: Partial<Selection>) => {
+    (patch: Partial<Selection>, force = false) => {
       const next = normalizeSelection(patch);
-      const found = sessionsRef.current.find(
-        (s) => next.locator && projectLocatorsMatch(s.locator, next.locator),
-      );
-      const id = found?.id || crypto.randomUUID();
-      if (!found) {
-        const list = [
-          ...sessionsRef.current,
-          {
-            id,
-            title: next.locator.split("/").pop() || next.slug || "Project",
-            locator: next.locator,
-            projectSlug: next.slug,
-            imports: next.slug ? [next.slug] : [],
-            selection: next,
-          },
-        ];
-        sessionsRef.current = list;
-        setSessions(list);
+      const current = selectionRef.current;
+      if (!force && current.locator && next.locator && !projectLocatorsMatch(current.locator, next.locator)) {
+        setPendingProject(next);
+        return;
       }
-      setActive(id);
-      select(next);
-      refresh();
-
-    },
-    [sessions, select, refresh, notify],
+      const existing = sessionsRef.current.find((item) => next.locator && projectLocatorsMatch(item.locator, next.locator));
+      const session = {
+        ...(existing || {}), id: existing?.id || crypto.randomUUID(),
+        title: existing?.title || next.locator.split("/").pop() || next.slug || "Project",
+        locator: next.locator, projectSlug: next.slug,
+        imports: Array.from(new Set([...(existing?.imports || []), next.slug].filter(Boolean))),
+        selection: next, hidden: false,
+      };
+      // One workspace has one loaded project. This prevents a second tab from silently duplicating it.
+      sessionsRef.current = [session]; setSessions([session]); setActive(session.id);
+      select(next); refresh();
+    }, [select, refresh],
   );
+  const combineAndOpen = useCallback(async () => {
+    if (!pendingProject) return;
+    const incoming = pendingProject, current = selectionRef.current, currentSession = sessionsRef.current[0];
+    const currentImports = Array.from(new Set((currentSession?.imports || []).map(String).filter(Boolean)));
+    const incomingImports = incoming.slug ? [incoming.slug] : [];
+    const added = incomingImports.filter((value) => !currentImports.includes(value));
+    const shared = incomingImports.filter((value) => currentImports.includes(value));
+    const imports = Array.from(new Set([...currentImports, ...incomingImports]));
+    setPendingProject(null); openSelection(incoming, true);
+    // Retain the combined browser references after opening the requested project.
+    const opened = sessionsRef.current[0];
+    if (opened) {
+      const mergedSession = { ...opened, imports };
+      sessionsRef.current = [mergedSession];
+      setSessions([mergedSession]);
+    }
+    notify("Workspace references combined; requested project is active", "info", { target: incoming.locator, merge: {
+      loadedProject: incoming.locator || incoming.slug || "Requested project", retainedProject: current.locator || current.slug || "No prior project",
+      requestedProjectImports: incomingImports.length, currentProjectImports: currentImports.length, importsAfterCombine: imports.length,
+      importsInLoadedProject: incomingImports, importsInCurrentProject: currentImports,
+      importsNewlyLinked: added, importsAlreadyShared: shared,
+      combinedRecords: ["Workspace import links", "The decision to load the requested project"],
+      unchangedRecords: ["Ghidra databases and program files", "Analysis, recovery jobs, and human metadata", "Source artifacts and proof receipts"],
+      scope: "Only browser workspace references changed. No project database, analysis result, source artifact, metadata field, or proof receipt was copied or overwritten.",
+    }});
+  }, [pendingProject, notify, openSelection]);
   useEffect(() => {
     let alive = true;
     void ensureWorkspaceState().then((state) => {
@@ -293,7 +367,7 @@ export function App() {
   }, [setEvents]);
   useEffect(() => {
     let dead = false;
-    request(API + "/sessions")
+    Promise.resolve(loadClientSessions())
       .then((data) => {
         if (dead) return;
         revisionRef.current = data.revision || 0;
@@ -310,7 +384,11 @@ export function App() {
             selection: explicit, imports: explicit.slug ? [explicit.slug] : []};
           list.push(current);
         }
-        setSessions(list);
+        // There is one loaded project. Older saved workspace state may retain
+        // repeated tabs for that same project, so normalize it before rendering.
+        const normalized = current ? [{...current, hidden:false}] : [];
+        sessionsRef.current = normalized;
+        setSessions(normalized);
         setActive(current?.id || "");
         if (!linked && current) setSelection(fromSession(current));
         setReady(true);
@@ -438,6 +516,7 @@ export function App() {
       selectionRef.current = next;
       activateContext(next);
       setSelection(next);
+      setFilter(routeFilter());
       if (event.state) {
         setFilter(event.state.filter || "");
         setRecordFilter(event.state.recordFilter || "all");
@@ -478,15 +557,29 @@ export function App() {
       if (pollRef.current) return;
       pollRef.current = true;
       try {
-        const [response, batchResponse] = await Promise.all([
-          request("/dashboard/api/jobs"),
-          request("/api/v1/batches"),
+        const [jobsResult, batchesResult] = await Promise.allSettled([
+          request("/dashboard/api/jobs", { signal: AbortSignal.timeout(8000) }),
+          request("/api/v1/batches", { signal: AbortSignal.timeout(8000) }),
         ]);
         if (stopped) return;
-        const list = response.jobs || [];
-        setJobs(list);
-        setBatches(batchResponse.batches || []);
-        setConnection("Connected");
+        const list = jobsResult.status === "fulfilled" ? jobsResult.value.jobs || [] : [];
+        if (jobsResult.status === "fulfilled") setJobs(list);
+        if (batchesResult.status === "fulfilled") {
+          const nextBatches = batchesResult.value.batches || [];
+          setBatches(nextBatches);
+          if (nextBatches.length) hasDurableActivity.current = true;
+        }
+        if (list.length) hasDurableActivity.current = true;
+        setConnection(
+          jobsResult.status === "fulfilled"
+            ? batchesResult.status === "fulfilled"
+              ? "Connected"
+              : "Connected · batch updates delayed"
+            : hasDurableActivity.current
+              ? "Showing saved activity · reconnecting"
+              : "Reconnecting",
+        );
+        if (jobsResult.status !== "fulfilled") return;
         for (const job of list) {
           const prior = jobsSnapshot.current[job.id];
           if (prior !== job.status) {
@@ -513,7 +606,12 @@ export function App() {
           jobsSnapshot.current[job.id] = job.status;
         }
       } catch {
-        if (!stopped) setConnection("Disconnected · retrying");
+        if (!stopped)
+          setConnection(
+            hasDurableActivity.current
+              ? "Showing saved activity · reconnecting"
+              : "Reconnecting",
+          );
       } finally {
         pollRef.current = false;
         if (!stopped) timer = setTimeout(poll, document.hidden ? 10000 : 2000);
@@ -613,6 +711,11 @@ export function App() {
     onBrowseFunctions,
   };
   const batchCount = Object.keys(checked).length;
+  const visibleProjectSessions: Data[] = (() => {
+    const current = sessions.find((session) => session.id === active && !session.hidden)
+      || sessions.find((session) => !session.hidden);
+    return current ? [current] : [];
+  })();
   return (
     <div
       className={"app " + density}
@@ -707,7 +810,7 @@ export function App() {
                           inspector: 300,
                           tree: 200,
                           showExplorer: true,
-                          showInspector: false,
+                          showInspector: true,
                           showDock: true,
                         });
                         Object.keys(localStorage)
@@ -747,7 +850,7 @@ export function App() {
         role="tablist"
         aria-label="Project sessions"
       >
-        {sessions.filter(s=>!s.hidden).map((s) => (
+        {visibleProjectSessions.map((s) => (
           <div
             className={"session " + (active === s.id ? "selected" : "")}
             {...libraryTransfer.dropProps(s.locator)}
@@ -862,6 +965,11 @@ export function App() {
           <ResizeBar
             axis="x"
             label="Resize explorer"
+            value={layout.explorer}
+            min={240}
+            max={560}
+            onReset={() => setLayout((current) => ({ ...current, explorer: 320 }))}
+            onCollapse={() => setLayout((current) => ({ ...current, showExplorer: false }))}
             onResize={(d) =>
               setLayout((x) => ({
                 ...x,
@@ -875,12 +983,31 @@ export function App() {
             {workspaceNavigation.map(({id,label})=><button key={id} onClick={()=>jump(id)}>{label}</button>)}
             {selection.slug && <SourceDownload selection={selection} notify={notify} />}
           </nav>
+          <LocalArtifactPanel
+            binaries={binaries.data.binaries || []}
+            notify={notify}
+            onOpenRecorded={(binary) => {
+              const binding = (binary.projectBindings || []).find((item: Data) => item.locator === selection.locator)
+                || (binary.projectBindings || [])[0]
+                || {};
+              select({
+                slug: binary.slug || "",
+                program: binding.program || binary.program || "",
+                locator: binding.locator || binary.locator || "",
+                binaryHash: binary.sha256 || "",
+                addr: "",
+                logicalId: "",
+              });
+            }}
+          />
           <WorkbenchSurfaces {...surfaceProps} inspectTools={<CodeBrowser {...surfaceProps} />} preparationTools={<PreparationActivity {...surfaceProps} />} />
           <WorkbenchIntegration
             selection={selection}
             revision={revision}
             catalog={catalog.data.actions || []}
             onSelect={select}
+            onMatchCandidate={(params) => setAction({ id: "workbench.match-candidate", params })}
+            matchingJobId={matchingJobId}
             notify={notify}
           />
           <details id="wb-more" className="workspace-reference"><summary>Reversing workflows</summary><section id="guide">
@@ -895,6 +1022,11 @@ export function App() {
             <ResizeBar
               axis="x"
               label="Resize evidence inspector"
+              value={layout.inspector}
+              min={220}
+              max={600}
+              onReset={() => setLayout((current) => ({ ...current, inspector: 300 }))}
+              onCollapse={() => setLayout((current) => ({ ...current, showInspector: false }))}
               onResize={(d) =>
                 setLayout((x) => ({
                   ...x,
@@ -922,6 +1054,13 @@ export function App() {
       <ResizeBar
         axis="y"
         label="Resize Activity dock"
+        value={layout.dock}
+        min={100}
+        max={650}
+        collapsed={!layout.showDock}
+        onReset={() => setLayout((current) => ({ ...current, dock: 200, showDock: true }))}
+        onCollapse={() => setLayout((current) => ({ ...current, showDock: false }))}
+        onRestore={() => setLayout((current) => ({ ...current, showDock: true }))}
         onResize={(d) =>
           setLayout((x) => ({
             ...x,
@@ -936,6 +1075,8 @@ export function App() {
           {selection.program || selection.slug || "No program selected"}
         </span>
         <code>{selection.addr}</code>
+        {selection.binaryHash ? <code title={selection.binaryHash}>sha256:{selection.binaryHash.slice(0, 12)}</code> : null}
+        <span className="claim">Verification not established</span>
         <span>{connection}</span>
       </footer>
       <div className="sr-only" aria-live="polite">
@@ -1065,7 +1206,10 @@ export function App() {
         selection={selection}
         onClose={() => setAction(null)}
         notify={notify}
-        onSubmitted={() => refresh()}
+        onSubmitted={(result) => {
+          if (action?.id === "workbench.match-candidate" && result.job?.id) setMatchingJobId(result.job.id);
+          refresh();
+        }}
       />
       <ProjectDialog
         mode={dialog}
@@ -1075,6 +1219,12 @@ export function App() {
         notify={notify}
         onRefresh={refresh}
       />
+      {pendingProject && <DialogFrame title="Load another project?" onClose={() => setPendingProject(null)}>
+        <p>A project is already loaded. Review both locations before changing the active workspace.</p>
+        <dl className="project-merge-summary"><div><dt>Current project</dt><dd><code>{selection.locator || selection.slug || "Not recorded"}</code></dd></div><div><dt>Requested project</dt><dd><code>{pendingProject.locator || pendingProject.slug || "Not recorded"}</code></dd></div></dl>
+        <p>Combining preserves workspace import references and records the decision. It does not copy or overwrite Ghidra program databases, analysis, source artifacts, or proof receipts.</p>
+        <div className="dialog-actions"><button onClick={() => setPendingProject(null)}>Keep current project</button><button onClick={() => void combineAndOpen()}>Combine references and load requested project</button></div>
+      </DialogFrame>}
     </div>
   );
 }

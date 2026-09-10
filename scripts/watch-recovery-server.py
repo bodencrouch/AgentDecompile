@@ -46,7 +46,9 @@ def _owner_alive(row: dict[str, Any]) -> bool:
         return True
     try:
         os.kill(pid, 0)
-    except (ProcessLookupError, PermissionError):
+    except PermissionError:
+        return True
+    except ProcessLookupError:
         return False
     recorded, current = row.get("ownerStart"), _process_start(pid)
     return not (recorded and current and recorded != current)
@@ -133,6 +135,7 @@ def main() -> int:
         return 0
     revision, _ = snapshot(watch)
     proc = start(command, args.state_file, revision)
+    started_at = time.time()
     pending: str | None = None
     try:
         while True:
@@ -143,7 +146,7 @@ def main() -> int:
             live = active_preparations(args.work_dir)
             state = {
                 "pid": proc.pid,
-                "startedAt": time.time() if proc.poll() is None else None,
+                "startedAt": started_at if proc.poll() is None else None,
                 "revision": revision,
                 "reload": {"status": "pending" if pending else "current",
                            "requestedRevision": pending,
@@ -155,11 +158,13 @@ def main() -> int:
                 revision = pending or current
                 pending = None
                 proc = start(command, args.state_file, revision)
+                started_at = time.time()
                 continue
             if pending and not live:
                 stop(proc)
                 revision, pending = pending, None
                 proc = start(command, args.state_file, revision)
+                started_at = time.time()
     except KeyboardInterrupt:
         return 0
     finally:

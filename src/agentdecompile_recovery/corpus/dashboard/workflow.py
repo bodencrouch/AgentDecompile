@@ -200,22 +200,6 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         profile_admission: dict[str, Any] | None = None
         if configured:
             profile_path = Path(configured).expanduser()
-        elif not profile_path.exists():
-            # This only materializes a profile after real compiler/objdiff
-            # probes agree.  It never turns matching or installed toolchains
-            # into a guessed compilation configuration.
-            from agentdecompile_recovery.source_parity_profile_corpus import admit_measured_profile
-
-            profile_admission = admit_measured_profile(
-                matched_examples=_known_source_examples(work, root, str(checkpoint.get('slug') or '')),
-                out_dir=work,
-                profile_path=profile_path,
-                program_fingerprint=str(checkpoint.get('programFingerprint') or ''),
-                architecture=str(checkpoint.get('architecture') or ''),
-            )
-        if not configured and not profile_path.exists():
-            profile_path = root / 'compiler-profile.json'
-        profile = read_object(profile_path)
         header = work / 'ghidra_types.h'
         layout_config = {'db': str(db), 'binaryId': checkpoint['binaryId'], 'program': program, 'header': str(header)}
         exported_types = action('calibrate-global', 'mcp.execute-script', {'programPath': execution_program, '_preparationProbe': True, 'code': layout_script(layout_config), 'timeout': 180}, context)
@@ -241,6 +225,22 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
                    **({'extractionNote': extraction_failure} if extraction_failure else {}))
         elif extraction_failure:
             result('recover-source', 'partial', extraction_failure, knowledgeDb=str(program_kb))
+        if not configured and not profile_path.exists():
+            # Bind a measured compiler profile only after Ghidra has identified
+            # the executable it actually opened.  Shared-folder names and
+            # stored corpus inventory keys are not target identities.
+            from agentdecompile_recovery.source_parity_profile_corpus import admit_measured_profile
+
+            profile_admission = admit_measured_profile(
+                matched_examples=_known_source_examples(work, root, str(checkpoint.get('slug') or '')),
+                out_dir=work,
+                profile_path=profile_path,
+                program_fingerprint=str(checkpoint.get('programFingerprint') or ''),
+                architecture=str(checkpoint.get('architecture') or ''),
+            )
+        if not configured and not profile_path.exists():
+            profile_path = root / 'compiler-profile.json'
+        profile = read_object(profile_path)
         if profile:
             fields['compiler-profile'] = str(profile_path)
         calibration = action('calibrate-global', 'corpus.calibrate-global', fields, context)

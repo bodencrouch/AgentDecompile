@@ -374,6 +374,7 @@ Dated deltas. Newest first. A delta names what was verified and how; it does not
 ### 2026-09-10 (benchmark report safety core)
 
 - **WP10 partial landed locally:** `3c1e54b` adds the native benchmark report builder. It consumes observed lane addresses and timings, refuses any non-identical completion set before calculating rates, percentiles, or `k_star`, and writes a JSON plus Markdown table. `tests/test_native_bench_report.py` passed 3/3, including refusal and `k_star = never` cases. This is deliberately not a performance result: lane collectors, the required corpora, and a real report under `agentdecompile-native-out/bench/` remain open.
+- **Native-only collector evidence:** `f077e47` adds `scripts/bench_native_sdk.py`. A real fixture run wrote `agentdecompile-native-out/bench/20260910T034933Z-test_x86_64/{bench.json,bench.md,native-batch.jsonl}`. Both console and batch lanes completed exactly the same three addresses. The table explicitly records `export_requires_java_decompile: true` and `k_star: never`; it is not a serial/parallel/export comparison and therefore cannot satisfy the full benchmark gate yet.
 
 ### 2026-09-10 (checked-in three-function native replay fixture)
 

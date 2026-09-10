@@ -390,6 +390,10 @@ class ExchangeStore:
         # shape rewrite_queue itself writes -- is enough to trigger it.
         try:
             fence = int(raw.get("fence") or 0)
+            sync_depth = raw.get("pendingDirectorySyncDepth", 0)
+            if type(sync_depth) is not int or not 0 <= sync_depth < len(path.parents):
+                raise ValueError("invalid pending directory sync depth")
+            pending_directory_sync = list(reversed(path.parents[1 : sync_depth + 1]))
             receipts = {str(key): value for key, value in (raw.get("receipts") or {}).items() if isinstance(value, dict)}
             workers: dict[str, Worker] = {}
             for worker_id, row in raw["workers"].items():
@@ -436,6 +440,7 @@ class ExchangeStore:
         self._receipts = receipts
         self._workers = workers
         self._units = units
+        self._pending_directory_sync = pending_directory_sync
         # Fence every restored lease out, now that the counter is authoritative.
         for unit in restored:
             unit.fence = self._next_fence()
@@ -524,6 +529,14 @@ class ExchangeStore:
                 # hypothetical second process on the same host.
                 if generation <= self._committed_generation:
                     return
+                if self._pending_directory_sync:
+                    # The replacement can survive a process restart even when
+                    # an ancestor fsync fails. Carry that retry obligation in
+                    # the snapshot; the next successful write drops it. Store
+                    # a bounded depth instead of trusting paths from disk.
+                    state = json.loads(text)
+                    state["pendingDirectorySyncDepth"] = max(path.parents.index(directory) for directory in self._pending_directory_sync)
+                    text = json.dumps(state, indent=2, sort_keys=True) + "\n"
                 try:
                     with tmp.open("w", encoding="utf-8") as handle:
                         handle.write(text)

@@ -164,6 +164,41 @@ def test_snapshot_syncs_only_created_entries_and_state_directory(
     assert store._committed_generation == 1
 
 
+@pytest.mark.asyncio
+async def test_ancestor_sync_obligation_survives_store_reconstruction(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = tmp_path / "new" / "state" / "exchange.json"
+    payload = {"source": "int f(void) { return 1; }"}
+    fail = True
+    synced = []
+
+    def sync_directory(directory: Path) -> None:
+        assert directory in [path.parent, path.parent.parent, tmp_path]
+        synced.append(directory)
+        if fail and directory == tmp_path:
+            raise OSError(errno.EIO, "ancestor sync failed")
+
+    monkeypatch.setattr(exchange, "_sync_directory", sync_directory)
+    with pytest.raises(OSError, match="ancestor sync failed"):
+        await exchange.ExchangeStore(path).offer(lane="rewrite", payload=payload)
+    assert path.exists()
+
+    # A fresh store must still refuse acknowledgement while the ancestor
+    # entry cannot be synchronized, despite the snapshot already existing.
+    restored = exchange.ExchangeStore(path)
+    with pytest.raises(OSError, match="ancestor sync failed"):
+        await restored.offer(lane="rewrite", payload=payload)
+    assert restored._committed_generation == 0
+    fail = False
+    synced.clear()
+    assert await restored.offer(lane="rewrite", payload=payload) == exchange.derive_unit_id("rewrite", payload)
+    assert synced == [path.parent, path.parent.parent, tmp_path]
+
+    synced.clear()
+    await restored.offer(lane="rewrite", payload=payload)
+    assert synced == [path.parent]
+    assert "pendingDirectorySyncDepth" not in json.loads(path.read_text())
+
+
 @pytest.mark.skipif(os.name == "nt", reason="POSIX directory synchronization")
 def test_directory_sync_ignores_only_unsupported_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def unsupported(descriptor: int) -> None:

@@ -499,7 +499,18 @@ def _execution_program_bindings(locator: str, info: dict[str, Any], programs: li
     def normalized(value: str) -> str:
         return str(value or '').replace('\\', '/').strip().lstrip('/')
 
-    requested = {program: normalized(program) for program in programs}
+    program_paths = {
+        str(name): normalized(str(path))
+        for name, path in (info.get('program_paths') or {}).items()
+        if name and path
+    }
+    # The filesystem inventory exposes short display names while repository
+    # entries are folder-qualified DomainFile paths.  Keep the former as the
+    # receipt key, but join it to the latter before comparing repositories.
+    requested = {
+        program: program_paths.get(str(program), program_paths.get(Path(str(program)).name, normalized(program)))
+        for program in programs
+    }
 
     def binding_matches_requested(source_key: str, actual: str) -> bool:
         """Reject an old binding when its selected Ghidra object is unrelated.
@@ -527,6 +538,7 @@ def _execution_program_bindings(locator: str, info: dict[str, Any], programs: li
     # that live project over stale local checkout bindings.
     defaults = shared_defaults()
     origin = info.get('origin') if isinstance(info.get('origin'), dict) else {}
+    origin_repository = str(origin.get('repository') or '').strip()
     ports = [origin.get('port')]
     try:
         log_lines = (Path(locator) / 'server.log').read_text(errors='replace').splitlines()
@@ -541,6 +553,8 @@ def _execution_program_bindings(locator: str, info: dict[str, Any], programs: li
         if not isinstance(repository, dict):
             continue
         repository_name = str(repository.get('name') or '').strip()
+        if origin_repository and repository_name.casefold() == origin_repository.casefold():
+            repository_name = origin_repository
         repository_programs = {
             normalized(str(item.get('path') or f"{str(item.get('folder') or '/').rstrip('/')}/{item.get('name') or ''}")): str(item.get('path') or f"{str(item.get('folder') or '/').rstrip('/')}/{item.get('name') or ''}")
             for item in repository.get('programs') or [] if isinstance(item, dict)
@@ -1108,7 +1122,43 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         if len(programs) > 256:
             raise ValueError('Select at most 256 programs per preparation run.')
         row['programs'] = programs
-        update('inspect', 'completed', f'{len(programs)} programs available.', completed=len(programs), total=len(programs))
+        shared_probe: dict[str, Any] | None = None
+        shared_probe_program = ''
+        shared_route = next(
+            (
+                (program, execution_locators[program], execution_programs[program])
+                for program in programs
+                if str(execution_locators[program]).startswith('ghidra://')
+                and execution_programs[program]
+            ),
+            None,
+        )
+        if shared_route:
+            shared_probe_program, shared_locator, shared_program = shared_route
+            update('inspect', 'running', f'Opening shared Ghidra project through {shared_program}.', completed=0, total=1)
+            shared_probe = action('inspect', 'mcp.execute-script', {
+                'programPath': shared_program, '_preparationProbe': True,
+                'workflowWaitSeconds': 900, 'code': _ANALYSIS_PROBE,
+            }, {**row, 'locator': shared_locator, 'program': shared_program})
+            payload = shared_probe.get('data') or {}
+            probe_ok = (
+                shared_probe.get('ok')
+                and isinstance(payload, dict)
+                and _same_program_path(payload.get('programPath'), shared_program)
+            )
+            row['sharedSessionProbe'] = {
+                'locator': shared_locator, 'program': shared_program, 'at': time.time(),
+                'ok': bool(probe_ok), 'jobId': shared_probe.get('jobId'),
+                'observedProgramPath': payload.get('programPath') if isinstance(payload, dict) else '',
+                'error': '' if probe_ok else str(shared_probe.get('error') or shared_probe.get('log') or 'Shared program activation did not return the requested path.'),
+            }
+            if not probe_ok:
+                detail = row['sharedSessionProbe']['error']
+                update('inspect', 'partial', f'Shared Ghidra session could not open {shared_program}: {detail}', completed=0, total=1)
+                raise ValueError(detail)
+            update('inspect', 'completed', f'Opened shared Ghidra project through {shared_program}; {len(programs)} programs available.', completed=len(programs), total=len(programs))
+        else:
+            update('inspect', 'completed', f'{len(programs)} programs available.', completed=len(programs), total=len(programs))
 
         protection_blocked = set()
         from .protection import inspect_protection, prepare_protected_binary
@@ -1147,9 +1197,12 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                     update('protection', 'running', f'Reusing recorded protection inspection for {program}.', completed=prepared, total=len(programs))
                     continue
                 try:
-                    state = action('protection', 'mcp.execute-script', {
-                        'programPath': execution_program, '_preparationProbe': True, 'workflowWaitSeconds': 900, 'code': _ANALYSIS_PROBE
-                    }, context)
+                    if program == shared_probe_program and shared_probe is not None:
+                        state = shared_probe
+                    else:
+                        state = action('protection', 'mcp.execute-script', {
+                            'programPath': execution_program, '_preparationProbe': True, 'workflowWaitSeconds': 900, 'code': _ANALYSIS_PROBE
+                        }, context)
                 except Exception as exc:
                     # A single program probe must not abort the corpus wave.
                     # Persist a named blocker and continue with independent programs;
@@ -1409,9 +1462,11 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             if src_family and dst_family and src_family == dst_family:
                 compatible_pairs.append((src, dst, note))
             else:
-                excluded_pairs.append({'source': src, 'target': dst,
-                                       'reason': 'Explicit recovery-family catalog assignments differ or are unavailable.',
-                                       'sourceFamily': src_family, 'targetFamily': dst_family})
+                excluded_pairs.append({
+                    'source': src, 'target': dst,
+                    'reason': 'Explicit recovery-family catalog assignments differ or are unavailable.',
+                    'sourceFamily': src_family, 'targetFamily': dst_family,
+                })
         pairs = compatible_pairs
         # Project membership selects the sources; stored corpus evidence supplies
         # comparison candidates even when the project has only one binary.
@@ -1561,12 +1616,16 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         family_receipts = row.setdefault('recoveryFamilies', {})
         for family, members in sorted(recovery_families.items()):
             eligible = [program for program in members if row['checkpoints'].get(program, {}).get('analysisConfirmed') and row['checkpoints'].get(program, {}).get('factsComplete')]
-            family_receipts[family] = {'family': family, 'programs': members, 'eligiblePrograms': eligible,
-                                       'state': 'running' if eligible else 'waiting', 'updatedAt': time.time()}
+            family_receipts[family] = {
+                'family': family, 'programs': members, 'eligiblePrograms': eligible,
+                'state': 'running' if eligible else 'waiting', 'updatedAt': time.time(),
+            }
             if eligible:
-                continue_recovery(row, _directory().parent, live_db(), action, update,
-                                  execution_routes=execution_routes, recovery_family=family,
-                                  programs=eligible, all_programs=programs)
+                continue_recovery(
+                    row, _directory().parent, live_db(), action, update,
+                    execution_routes=execution_routes, recovery_family=family,
+                    programs=eligible, all_programs=programs,
+                )
             else:
                 family_receipts[family]['reason'] = 'Waiting for this family\'s analysis and facts receipts.'
         _write(row)

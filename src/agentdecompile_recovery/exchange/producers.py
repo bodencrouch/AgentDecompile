@@ -118,6 +118,32 @@ def _sync_directory_tree(directory: Path) -> None:
     _sync_directory(directory)
 
 
+def _recover_pending_state_directory(state_path: Path) -> None:
+    """Finish a store mkdir intent before publishing below its state directory.
+
+    Pipeline producers can run after the server died in
+    ``ExchangeStore._prepare_state_directory``: the visible state directory is
+    then not necessarily anchored in its parent.  The store's marker is an
+    explicit cross-process recovery contract, so honor that same marker before
+    treating ``state_path.parent`` as an existing safe spool ancestor.
+    """
+
+    state_path = state_path.absolute()
+    directory = state_path.parent
+    marker_name = ".exchange-init-" + hashlib.sha256(os.fsencode(state_path)).hexdigest() + ".pending"
+    ancestors = (directory, *directory.parents)
+    anchor = next((parent for parent in ancestors if (parent / marker_name).exists()), None)
+    if anchor is None:
+        return
+    for parent in ancestors:
+        _sync_directory(parent)
+        if parent == anchor:
+            break
+    marker = anchor / marker_name
+    marker.unlink()
+    _sync_directory(anchor)
+
+
 def _write_record(path: Path, record: dict[str, Any]) -> None:
     """Write a spool record before making its route visible to the server."""
 
@@ -177,7 +203,9 @@ def offer_rewrite_unit(
         # Resolve here, in the producer's cwd. The server may run elsewhere.
         routing = {"workDir": str(Path(work_dir).resolve()), "requestId": request_id}
         record = {"lane": "rewrite", "unitId": unit_id, "payload": payload, "routing": routing}
-        target = spool_dir()
+        state_path = default_state_path()
+        _recover_pending_state_directory(state_path)
+        target = state_path.parent / SPOOL_DIRNAME
         _ensure_directory(target)
         path = target / _spool_filename(unit_id, routing)
         if path.exists():

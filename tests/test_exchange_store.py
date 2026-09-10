@@ -17,6 +17,7 @@ import pytest
 from agentdecompile_recovery.exchange import producers, store as exchange
 from agentdecompile_recovery.exchange.store import (
     STATUS_AWAITING_VERIFICATION,
+    STATUS_FAILED,
     STATUS_PENDING,
     CapacityExceeded,
     ExchangeStore,
@@ -348,6 +349,26 @@ async def test_invalid_rewrite_completion_keeps_lease_for_a_correct_retry(tmp_pa
     )
     assert accepted == {"accepted": True, "state": STATUS_AWAITING_VERIFICATION, "unitId": unit_id, "verdict": "completed"}
 
+
+@pytest.mark.asyncio
+async def test_rewrite_failure_without_source_retires_the_lease_as_failed(tmp_path: Path) -> None:
+    store = make_store(tmp_path, max_units=1)
+    unit_id = await store.offer(lane="rewrite", payload=REWRITE_PAYLOAD)
+    worker = await enroll(store, "llm")
+    lease = await store.claim(worker_id=worker)
+    assert lease is not None
+
+    response = await store.submit(
+        worker_id=worker,
+        lease_token=lease["leaseToken"],
+        fence=lease["fence"],
+        idempotency_key="honest-failure",
+        artifact={"error": "model unavailable"},
+        verdict="error",
+    )
+    assert response["state"] == STATUS_FAILED
+    state = await store.unit_state(unit_id)
+    assert state is not None and state["status"] == STATUS_FAILED
 
 @pytest.mark.asyncio
 async def test_non_rewrite_completion_keeps_its_existing_artifact_semantics(tmp_path: Path) -> None:

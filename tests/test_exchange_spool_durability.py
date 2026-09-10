@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import stat
+import hashlib
 
 from pathlib import Path
 
@@ -118,4 +119,20 @@ def test_directory_setup_retries_a_failed_parent_anchor(tmp_path: Path, monkeypa
     fail = False
     producers._ensure_directory(target)
     assert target.is_dir()
+    assert not marker.exists()
+
+
+def test_offer_recovers_a_pending_store_directory_anchor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    state_path = tmp_path / "state" / "exchange.json"
+    state_path.parent.mkdir()
+    monkeypatch.setenv("AGENT_DECOMPILE_EXCHANGE_ENABLED", "true")
+    monkeypatch.setenv("AGENTDECOMPILE_EXCHANGE_STATE", str(state_path))
+    marker = tmp_path / (".exchange-init-" + hashlib.sha256(os.fsencode(state_path.absolute())).hexdigest() + ".pending")
+    marker.write_text("", encoding="utf-8")
+    synced: list[Path] = []
+    monkeypatch.setattr(producers, "_sync_directory", synced.append)
+
+    assert producers.offer_rewrite_unit(work_dir=tmp_path / "recovery", request_id="request", **REQUEST)
+    assert state_path.parent in synced
+    assert tmp_path in synced
     assert not marker.exists()

@@ -910,7 +910,7 @@ class ExchangeStore:
         )
 
     @staticmethod
-    def _validate_submission(unit: WorkUnit, artifact: Any) -> None:
+    def _validate_submission(unit: WorkUnit, artifact: Any, verdict: str) -> None:
         """Reject unusable lane-specific proposals before retiring a lease."""
 
         if not isinstance(artifact, dict):
@@ -921,7 +921,7 @@ class ExchangeStore:
             raise InvalidSubmission("submission artifact must be portable JSON") from exc
         if artifact_size > MAX_ARTIFACT_BYTES:
             raise InvalidSubmission(f"artifact exceeds {MAX_ARTIFACT_BYTES} bytes when serialized")
-        if unit.lane != "rewrite":
+        if unit.lane != "rewrite" or verdict in FAILURE_VERDICTS:
             return
         source = artifact.get("source")
         if not isinstance(source, str) or not source.strip() or "\x00" in source:
@@ -982,7 +982,7 @@ class ExchangeStore:
             unit = self._unit_for_lease(worker_id, lease_token)
             if unit is None or unit.fence != int(fence):
                 raise LeaseRejected("lease expired or fenced out by a newer claim; the result was discarded")
-            self._validate_submission(unit, artifact)
+            self._validate_submission(unit, artifact, str(verdict))
             unit.status = STATUS_FAILED if str(verdict) in FAILURE_VERDICTS else STATUS_AWAITING_VERIFICATION
             unit.resolved_at = now
             unit.submission = {

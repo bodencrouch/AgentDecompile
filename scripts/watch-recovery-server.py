@@ -38,6 +38,12 @@ DEFAULT_WATCH = (
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/react_api.py",
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/router.py",
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/actions/jobs.py",
+    ROOT / "src/agentdecompile_recovery/corpus/cli.py",
+    ROOT / "src/agentdecompile_recovery/corpus/store.py",
+    ROOT / "src/agentdecompile_recovery/corpus/propagate.py",
+    ROOT / "src/agentdecompile_recovery/corpus/match_store.py",
+    ROOT / "src/agentdecompile_recovery/corpus/match_engine.py",
+    ROOT / "src/agentdecompile_recovery/corpus/fuzzy_fingerprint.py",
     ROOT / "scripts/watch-recovery-server.py",
 )
 
@@ -114,6 +120,9 @@ def start(command: list[str], state_file: Path, revision: str) -> subprocess.Pop
     env = os.environ.copy()
     env["AGENT_DECOMPILE_RUNTIME_STATE_FILE"] = str(state_file)
     env["AGENT_DECOMPILE_RUNTIME_REVISION"] = revision
+    # Two independent pair scorers overlap CPU-heavy reads without exceeding
+    # the host-wide job ceiling; callers may set a stricter explicit value.
+    env.setdefault("AGENT_DECOMPILE_MATCH_CONCURRENCY", "2")
     return subprocess.Popen(command, cwd=ROOT, env=env, start_new_session=True,
                             stdin=subprocess.DEVNULL, text=True)
 

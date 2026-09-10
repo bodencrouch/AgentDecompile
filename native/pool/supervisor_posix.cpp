@@ -94,25 +94,39 @@ proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std:
   if (child.busy || child.pid <= 0) throw std::runtime_error("no idle worker");
   child.busy = true;
   struct Clear { bool& value; ~Clear() { value = false; } } clear{child.busy};
-  proto::FrameWriter writer(child.in); if (!writer.write_json(kind, id, json)) throw std::runtime_error("write worker request failed");
+  const auto retire = [&child, this]() noexcept {
+    if (child.pid > 0) {
+      (void)::kill(child.pid, SIGUSR1);
+      if (!reaped(child.pid, impl_->config.cancel_grace)) {
+        (void)::kill(child.pid, SIGTERM);
+        if (!reaped(child.pid, impl_->config.term_grace)) {
+          (void)::kill(child.pid, SIGKILL);
+          (void)reaped(child.pid, std::chrono::milliseconds(100));
+        }
+      }
+    }
+    close_fd(child.in); close_fd(child.out); close_fd(child.pidfd); child.pid = -1;
+  };
+  proto::FrameWriter writer(child.in);
+  if (!writer.write_json(kind, id, json)) { retire(); throw std::runtime_error("write worker request failed"); }
   proto::MessageAssembler assembler(proto::kDefaultMaxImageBytes + proto::kDefaultMaxFrame);
   const auto deadline = std::chrono::steady_clock::now() + timeout;
   for (;;) {
     proto::Frame frame; while (child.reader.next(frame)) {
-      if (frame.header.request_id != id) throw std::runtime_error("worker replied with wrong request id");
+      if (frame.header.request_id != id) { retire(); throw std::runtime_error("worker replied with wrong request id"); }
       const auto state = assembler.push(std::move(frame)); if (state == proto::AssembleStatus::Complete) return assembler.take();
-      if (state != proto::AssembleStatus::NeedMore) throw std::runtime_error("invalid worker frame sequence");
+      if (state != proto::AssembleStatus::NeedMore) { retire(); throw std::runtime_error("invalid worker frame sequence"); }
     }
     const auto now = std::chrono::steady_clock::now();
-    if (now >= deadline) { (void)::kill(child.pid, SIGUSR1); if (!reaped(child.pid, impl_->config.cancel_grace)) { (void)::kill(child.pid, SIGTERM); if (!reaped(child.pid, impl_->config.term_grace)) { (void)::kill(child.pid, SIGKILL); (void)reaped(child.pid, std::chrono::milliseconds(100)); } } close_fd(child.in); close_fd(child.out); close_fd(child.pidfd); child.pid = -1; throw std::runtime_error("worker request timed out"); }
+    if (now >= deadline) { retire(); throw std::runtime_error("worker request timed out"); }
     const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count(); pollfd pfd{child.out, POLLIN, 0};
     const int polled = ::poll(&pfd, 1, static_cast<int>(left > 0 ? left : 1));
-    if (polled < 0) { if (errno == EINTR) continue; throw std::runtime_error("poll worker output failed"); }
+    if (polled < 0) { if (errno == EINTR) continue; retire(); throw std::runtime_error("poll worker output failed"); }
     // A timeout is not readability. Calling FrameReader::read on its blocking
     // pipe here would defeat the supervisor's own deadline and leave a hung
     // worker alive forever.
     if (polled == 0) continue;
-    const auto state = child.reader.read(child.out); if (state == proto::ReadStatus::Eof || state == proto::ReadStatus::Fatal || state == proto::ReadStatus::Error) throw std::runtime_error("worker died or emitted a fatal frame");
+    const auto state = child.reader.read(child.out); if (state == proto::ReadStatus::Eof || state == proto::ReadStatus::Fatal || state == proto::ReadStatus::Error) { retire(); throw std::runtime_error("worker died or emitted a fatal frame"); }
   }
 }
 

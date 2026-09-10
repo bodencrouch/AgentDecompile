@@ -39,6 +39,15 @@ add_dependencies(pool_oversized_frame fake-worker)
 add_test(NAME pool_oversized_frame COMMAND pool_oversized_frame)
 set_tests_properties(pool_oversized_frame PROPERTIES LABELS "pool;fault")
 
+add_executable(pool_wrong_id_cleanup wrong_id_cleanup.cpp)
+target_include_directories(pool_wrong_id_cleanup PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../.. ${CMAKE_CURRENT_SOURCE_DIR}/../worker)
+target_link_libraries(pool_wrong_id_cleanup PRIVATE gnsdk::pool gnsdk_protocol Threads::Threads)
+target_compile_features(pool_wrong_id_cleanup PRIVATE cxx_std_20)
+target_compile_definitions(pool_wrong_id_cleanup PRIVATE GNSDK_FAKE_WORKER_PATH="$<TARGET_FILE:fake-worker>")
+add_dependencies(pool_wrong_id_cleanup fake-worker)
+add_test(NAME pool_wrong_id_cleanup COMMAND pool_wrong_id_cleanup)
+set_tests_properties(pool_wrong_id_cleanup PROPERTIES LABELS "pool;fault")
+
 add_test(NAME gnsdk_batch_version COMMAND gnsdk-batch --version)
 set_tests_properties(gnsdk_batch_version PROPERTIES
   LABELS "pool;batch"

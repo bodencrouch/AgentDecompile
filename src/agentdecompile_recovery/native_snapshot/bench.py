@@ -8,6 +8,7 @@ table is refused rather than silently comparing different function sets.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import hashlib
 import json
 from pathlib import Path
 from statistics import median
@@ -16,6 +17,30 @@ from typing import Iterable
 
 class CompletionMismatch(ValueError):
     """Lanes did not finish the same function set."""
+
+
+class CorpusMismatch(ValueError):
+    """A benchmark input no longer matches its recorded corpus manifest."""
+
+
+def verify_corpus(manifest_path: Path, corpus: str, *, repo_root: Path) -> dict[str, object]:
+    """Return one corpus spec after checking every repository-local SHA-256."""
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if payload.get("schema") != "agentdecompile.native-bench-corpora/v0":
+        raise CorpusMismatch("unsupported corpus manifest schema")
+    spec = payload.get("corpora", {}).get(corpus)
+    if not isinstance(spec, dict):
+        raise CorpusMismatch(f"unknown corpus: {corpus}")
+    for relative, expected in spec.get("sha256", {}).items():
+        # Installed Ghidra tools have short names in the hash map and are
+        # validated by their installer separately; only repo-relative paths
+        # are safe and meaningful to resolve here.
+        if not str(relative).startswith("tests/"):
+            continue
+        actual = hashlib.sha256((repo_root / relative).read_bytes()).hexdigest()
+        if actual != expected:
+            raise CorpusMismatch(f"corpus hash mismatch: {relative}")
+    return spec
 
 
 @dataclass(frozen=True)

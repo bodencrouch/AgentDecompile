@@ -20152,7 +20152,9 @@ def compile_with_clang(*, clang: str, source: Path, object_path: Path, args: lis
     stdout_path.write_text(proc.stdout, encoding="utf-8")
     stderr_path.write_text(proc.stderr, encoding="utf-8")
     return {
-        "compilerInvoked": True,
+        "compilerInvoked": object_path.is_file() or bool(re.search(
+            r"(?m)^.*:\d+:\d+:\s*(?:fatal\s+)?error:", proc.stdout + "\n" + proc.stderr,
+        )),
         "status": "ok" if proc.returncode == 0 and object_path.exists() else "failed",
         "returnCode": proc.returncode,
         "command": command,
@@ -20211,7 +20213,9 @@ def compile_with_clangcl(*, clang_cl: str, source: Path, object_path: Path, args
     stdout_path.write_text(proc.stdout, encoding="utf-8")
     stderr_path.write_text(proc.stderr, encoding="utf-8")
     return {
-        "compilerInvoked": True,
+        "compilerInvoked": object_path.is_file() or bool(re.search(
+            r"(?m)^.*(?:\(\d+,\d+\)|:\d+:\d+):\s*(?:fatal\s+)?error:", proc.stdout + "\n" + proc.stderr,
+        )),
         "status": "ok" if proc.returncode == 0 and object_path.exists() else "failed",
         "returnCode": proc.returncode,
         "command": command,

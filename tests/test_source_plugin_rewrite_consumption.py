@@ -198,7 +198,11 @@ def test_compiler_rejection_records_invocation_and_consumes_rewrite(tmp_path, mo
         if "agentdecompile_recovery.inventory_slice" in command:
             return SimpleNamespace(returncode=0, stdout="", stderr="")
         calls.append(command)
-        return SimpleNamespace(returncode=1, stdout="", stderr="in.c(1) : error C2143: syntax error")
+        diagnostic = {
+            "clang": "candidate.c:1:2: error: expected expression",
+            "clang-cl": "candidate.c(1,2): error: expected expression",
+        }.get(compiler, "in.c(1) : error C2143: syntax error")
+        return SimpleNamespace(returncode=1, stdout="", stderr=diagnostic)
 
     monkeypatch.setattr(package_verify, "run_command", reject_source)
     monkeypatch.setattr(source_parity_synthesize, "run", reject_source)
@@ -229,6 +233,26 @@ def test_wine_startup_failure_does_not_count_as_candidate_compilation(tmp_path, 
     monkeypatch.setattr(package_verify, "run_command", lambda *args, **kwargs: SimpleNamespace(
         returncode=1, stdout="", stderr="wine: could not load kernel32.dll, status c0000135",
     ))
+    _, updated = source_plugins.SourceCandidateObjdiffPlugin().execute(context)
+    record, = updated["sourceParityAttemptRecords"]
+    assert record["status"] == "compile-failed"
+    assert record["candidateCompileInvoked"] is False
+    assert rewrite_queue.find_entry(tmp_path, request_id)["source"] == REWRITE
+
+
+@pytest.mark.parametrize("compiler", ["clang", "clang-cl"])
+def test_native_loader_failure_does_not_count_as_candidate_compilation(tmp_path, monkeypatch, compiler):
+    context, request_id = forwarded_context(tmp_path)
+    context.update(compiler=compiler, compilerProfiles=[("test", [])])
+    monkeypatch.setattr(source_parity_synthesize, "compile_asm_to_coff", lambda **kwargs: {"status": "ok"})
+    monkeypatch.setattr(source_parity_synthesize, "run", lambda *args, **kwargs: SimpleNamespace(
+        returncode=127, stdout="", stderr="clang: error while loading shared libraries: libLLVM.so: cannot open shared object file",
+    ))
+    if compiler == "clang":
+        compile_clang = source_parity_synthesize.compile_with_clang
+        monkeypatch.setattr(source_parity_synthesize, "compile_with_clang", lambda **kwargs: (
+            {"status": "ok"} if kwargs["source"].suffix == ".S" else compile_clang(**kwargs)
+        ))
     _, updated = source_plugins.SourceCandidateObjdiffPlugin().execute(context)
     record, = updated["sourceParityAttemptRecords"]
     assert record["status"] == "compile-failed"

@@ -1,0 +1,13 @@
+if(NOT GNSDK_FUZZ)
+  return()
+endif()
+if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  message(FATAL_ERROR "GNSDK_FUZZ requires clang/libFuzzer")
+endif()
+
+add_executable(protocol_fuzzer protocol_fuzzer.cpp)
+target_include_directories(protocol_fuzzer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+target_link_libraries(protocol_fuzzer PRIVATE gnsdk::protocol gnsdk::common)
+target_compile_features(protocol_fuzzer PRIVATE cxx_std_20)
+target_compile_options(protocol_fuzzer PRIVATE -fsanitize=fuzzer,address)
+target_link_options(protocol_fuzzer PRIVATE -fsanitize=fuzzer,address)

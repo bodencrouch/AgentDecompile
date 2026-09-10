@@ -119,7 +119,7 @@ def ensure_project(locator: str) -> dict[str, Any]:
         if info.get("kind") == "shared-project":
             args = ghidra_connect_args(info)
             canonical = str(info.get("canonical") or locator)
-            key = f"shared\\0{canonical}"
+            key = "shared" + chr(0) + canonical
             with _LOCK:
                 if _OPENED.get(key) == "connected":
                     return {"ok": True, "reused": True}

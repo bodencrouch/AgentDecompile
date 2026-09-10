@@ -78,7 +78,7 @@ export function ExchangeContribution() {
         <label>Model<input value={model} disabled={state !== "stopped"} onChange={e => setModel(e.target.value)} required /></label>
         <label>API key<input type="password" value={apiKey} disabled={state !== "stopped"} onChange={e => setApiKey(e.target.value)} autoComplete="off" required /></label>
         <p className="exchange-status" role="status" aria-live="polite"><strong>{state}</strong> · {message}</p>
-        <dl className="exchange-roster"><div><dt>Proposals this tab</dt><dd>{proposals}</dd></div><div><dt>Awaiting verification</dt><dd>{awaiting}</dd></div><div><dt>Queued rewrite units</dt><dd>{roster.units?.byLane?.rewrite || 0}</dd></div></dl>
+        <dl className="exchange-roster"><div><dt>Proposals this tab</dt><dd>{proposals}</dd></div><div><dt>Awaiting verification</dt><dd>{awaiting}</dd></div><div><dt>Rewrite units</dt><dd>{roster.units?.byLane?.rewrite || 0}</dd></div></dl>
         <p className="muted">The API key is never saved. Closing or stopping clears it. Hidden tabs pause claims and roster polling.</p>
       </section>
     </DialogFrame>}

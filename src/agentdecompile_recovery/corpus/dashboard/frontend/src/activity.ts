@@ -50,6 +50,7 @@ export function useEntityActivity(locator: string, slug: string) {
     let connected = false;
     let hasSnapshot = false;
     let polling = false;
+    let generation = 0;
     let lastSignal = Date.now();
     const abort = new AbortController();
     const query = new URLSearchParams({ locator, slug });
@@ -72,22 +73,23 @@ export function useEntityActivity(locator: string, slug: string) {
       return true;
     };
     const poll = async () => {
-      if (disposed || connected || polling) return;
+      if (disposed || document.hidden || connected || polling) return;
       polling = true;
+      const requestGeneration = generation;
       try {
         const response = await fetch(`${API}/activity?${query}`, {
           signal: AbortSignal.any([abort.signal, AbortSignal.timeout(8000)]),
         });
         const data: ActivitySnapshot = await response.json();
         if (!response.ok || !data.ok) throw new Error(data.error || 'Activity is temporarily unavailable');
-        accept(data);
+        if (requestGeneration === generation) accept(data);
       } catch (error) {
         // A slow initial request can time out after the stream already recovered.
         if (!disposed && !connected) setState(old => ({ ...old, connection: 'disconnected', error: error instanceof Error ? error.message : String(error) }));
       } finally { polling = false; }
     };
     const connect = () => {
-      if (disposed || typeof EventSource === 'undefined') return;
+      if (disposed || document.hidden || typeof EventSource === 'undefined') return;
       eventSource?.close();
       const source = new EventSource(`${API}/activity/events?${query}&after=${cursor}`);
       eventSource = source;
@@ -103,7 +105,9 @@ export function useEntityActivity(locator: string, slug: string) {
         try {
           const data = JSON.parse(event.data);
           connected = true;
-          if (accept(data, event.type === 'snapshot')) lastSignal = Date.now();
+          const reset = event.type === 'snapshot' || event.type === 'reset';
+          if (reset) generation += 1;
+          if (accept(data, reset)) lastSignal = Date.now();
         } catch {
           connected = false;
           setState(old => ({ ...old, connection: 'disconnected', error: 'Live activity could not be read. Checking saved state.' }));
@@ -111,6 +115,7 @@ export function useEntityActivity(locator: string, slug: string) {
         }
       };
       source.addEventListener('snapshot', receive as EventListener);
+      source.addEventListener('reset', receive as EventListener);
       source.addEventListener('activity', receive as EventListener);
       source.addEventListener('heartbeat', (() => {
         if (!current()) return;
@@ -139,8 +144,24 @@ export function useEntityActivity(locator: string, slug: string) {
     // A held snapshot cannot prevent opening the event stream.
     connect();
     void poll();
-    const timer = window.setInterval(() => {
+    const onVisibilityChange = () => {
       if (disposed) return;
+      if (document.hidden) {
+        // The server snapshots once per active scope, but a hidden tab should
+        // not remain an observer or keep fallback requests in flight.
+        eventSource?.close();
+        eventSource = null;
+        connected = false;
+        setState(old => ({ ...old, connection: 'disconnected', error: '' }));
+        return;
+      }
+      setState(old => ({ ...old, connection: 'connecting', error: '' }));
+      connect();
+      void poll();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    const timer = window.setInterval(() => {
+      if (disposed || document.hidden) return;
       if (eventSource && Date.now() - lastSignal > 20000) {
         connected = false;
         setState(old => ({ ...old, connection: 'disconnected', error: 'Activity updates stopped. Reconnecting; keeping the last state.' }));
@@ -148,7 +169,7 @@ export function useEntityActivity(locator: string, slug: string) {
       }
       void poll();
     }, 5000);
-    return () => { disposed = true; abort.abort(); eventSource?.close(); window.clearInterval(timer); };
+    return () => { disposed = true; document.removeEventListener('visibilitychange', onVisibilityChange); abort.abort(); eventSource?.close(); window.clearInterval(timer); };
   }, [locator, slug]);
   return state;
 }

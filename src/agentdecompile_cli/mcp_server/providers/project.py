@@ -1700,7 +1700,13 @@ class ProjectToolProvider(ToolProvider):
                 project_name: str = "shared"
                 locator = ProjectLocator(str(shared_project_dir), project_name)
 
-                if mgr.shared_checkout_project_bound and mgr.ghidra_project is not None:
+                shared_identity = (server_host, server_port, repository_name)
+                reuse_shared_project = (
+                    mgr.shared_checkout_project_bound
+                    and mgr.ghidra_project is not None
+                    and getattr(mgr, "shared_checkout_identity", None) == shared_identity
+                )
+                if reuse_shared_project:
                     logger.info(
                         "[connect-shared-project] reusing existing shared ghidra_project for %s",
                         shared_project_dir,
@@ -1726,6 +1732,7 @@ class ProjectToolProvider(ToolProvider):
                         ghidra_project = GhidraProject.createProject(str(shared_project_dir), project_name, False)
                     mgr.ghidra_project = ghidra_project
                     mgr.shared_checkout_project_bound = True
+                    mgr.shared_checkout_identity = shared_identity
                     ctx_ref: Any | None = mgr.pyghidra_context_ref
                     if ctx_ref is not None:
                         ctx_ref.project = ghidra_project

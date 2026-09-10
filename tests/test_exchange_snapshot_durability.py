@@ -133,7 +133,7 @@ def test_first_write_retries_ancestor_directory_sync(tmp_path: Path, monkeypatch
     fail = False
     synced.clear()
     store._write_snapshot("{}", 1)
-    assert synced == [ancestor / "state", ancestor, tmp_path]
+    assert synced == [tmp_path, ancestor / "state", ancestor, tmp_path, tmp_path, ancestor / "state"]
     assert store._committed_generation == 1
     synced.clear()
     store._write_snapshot("{}", 2)
@@ -160,7 +160,7 @@ def test_snapshot_syncs_only_created_entries_and_state_directory(
 
     monkeypatch.setattr(exchange, "_sync_directory", sync_directory)
     store._write_snapshot("{}", 1)
-    assert synced == expected
+    assert set(synced) == set(expected)
     assert store._committed_generation == 1
 
 
@@ -174,16 +174,17 @@ async def test_ancestor_sync_obligation_survives_store_reconstruction(tmp_path: 
     def sync_directory(directory: Path) -> None:
         assert directory in [path.parent, path.parent.parent, tmp_path]
         synced.append(directory)
-        if fail and directory == tmp_path:
+        if fail and directory == path.parent.parent:
             raise OSError(errno.EIO, "ancestor sync failed")
 
     monkeypatch.setattr(exchange, "_sync_directory", sync_directory)
     with pytest.raises(OSError, match="ancestor sync failed"):
         await exchange.ExchangeStore(path).offer(lane="rewrite", payload=payload)
-    assert path.exists()
+    assert path.parent.exists()
+    assert not path.exists()
 
     # A fresh store must still refuse acknowledgement while the ancestor
-    # entry cannot be synchronized, despite the snapshot already existing.
+    # entry cannot be synchronized, even before a snapshot was written.
     restored = exchange.ExchangeStore(path)
     with pytest.raises(OSError, match="ancestor sync failed"):
         await restored.offer(lane="rewrite", payload=payload)
@@ -191,12 +192,43 @@ async def test_ancestor_sync_obligation_survives_store_reconstruction(tmp_path: 
     fail = False
     synced.clear()
     assert await restored.offer(lane="rewrite", payload=payload) == exchange.derive_unit_id("rewrite", payload)
-    assert synced == [path.parent, path.parent.parent, tmp_path]
+    assert synced == [tmp_path, path.parent, path.parent.parent, tmp_path, tmp_path, path.parent]
 
     synced.clear()
     await restored.offer(lane="rewrite", payload=payload)
     assert synced == [path.parent]
     assert "pendingDirectorySyncDepth" not in json.loads(path.read_text())
+
+
+def test_process_death_after_mkdir_recovers_anchor_before_first_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = tmp_path / "new" / "state" / "exchange.json"
+    real_mkdir = Path.mkdir
+    synced = []
+
+    class ProcessDied(BaseException):
+        pass
+
+    def interrupted_mkdir(directory: Path, *args, **kwargs) -> None:
+        real_mkdir(directory, *args, **kwargs)
+        if directory == path.parent:
+            # The intent is anchored before any descendants are created.
+            assert synced == [tmp_path]
+            assert len(list(tmp_path.glob(".exchange-init-*.pending"))) == 1
+            raise ProcessDied
+
+    monkeypatch.setattr(exchange, "_sync_directory", synced.append)
+    monkeypatch.setattr(Path, "mkdir", interrupted_mkdir)
+    with pytest.raises(ProcessDied):
+        exchange.ExchangeStore(path)._write_snapshot("{}", 1)
+    assert path.parent.is_dir()
+    assert not path.exists()
+
+    monkeypatch.setattr(Path, "mkdir", real_mkdir)
+    synced.clear()
+    exchange.ExchangeStore(path)._write_snapshot("{}", 1)
+    assert synced == [tmp_path, path.parent, path.parent.parent, tmp_path, tmp_path, path.parent]
+    assert not list(tmp_path.glob(".exchange-init-*.pending"))
+    assert json.loads(path.read_text()) == {}
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX directory synchronization")

@@ -198,7 +198,6 @@ def _file_lock(path: Path) -> Iterator[None]:
     if fcntl is None:
         yield
         return
-    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a+") as fh:
         fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
         try:
@@ -346,6 +345,7 @@ class ExchangeStore:
         self._generation = 0
         self._committed_generation = 0
         self._pending_directory_sync: list[Path] = []
+        self._directory_ready = False
         # _write_snapshot runs off the event loop via asyncio.to_thread, so
         # concurrent mutations reach it on separate OS threads of the default
         # executor. fcntl.flock (see _file_lock) only keeps a second *process*
@@ -482,6 +482,40 @@ class ExchangeStore:
         self._generation += 1
         return json.dumps(state, indent=2, sort_keys=True, default=str) + "\n"
 
+    def _prepare_state_directory(self) -> None:
+        """Anchor automatic mkdir before snapshots, recovering interrupted setup.
+
+        An existing, unmarked hierarchy is operator-provisioned. For directories
+        we create, persist an intent in the nearest existing ancestor *before*
+        mkdir: a process can die before it ever writes a snapshot. Exact-name
+        probes recover that intent without opening unrelated ancestors for sync.
+        """
+
+        if self._directory_ready:
+            return
+        directory = self.state_path.absolute().parent
+        marker_name = ".exchange-init-" + hashlib.sha256(os.fsencode(self.state_path.absolute())).hexdigest() + ".pending"
+        ancestors = (directory, *directory.parents)
+        anchor = next((parent for parent in ancestors if (parent / marker_name).exists()), None)
+        if anchor is None:
+            anchor = next(parent for parent in ancestors if parent.is_dir())
+            if anchor == directory:
+                self._directory_ready = True
+                return
+        marker = anchor / marker_name
+        with marker.open("a", encoding="utf-8") as handle:
+            handle.flush()
+            os.fsync(handle.fileno())
+        _sync_directory(anchor)
+        directory.mkdir(parents=True, exist_ok=True)
+        for parent in ancestors:
+            _sync_directory(parent)
+            if parent == anchor:
+                break
+        marker.unlink()
+        _sync_directory(anchor)
+        self._directory_ready = True
+
     def _write_snapshot(self, text: str, generation: int) -> None:
         path = self.state_path
         # Unique tmp name per writer, as in state.atomic_write_json: concurrent
@@ -497,22 +531,7 @@ class ExchangeStore:
         # adding a needless cross-process hold time for no benefit, since only
         # one thread here can be inside _file_lock at a time either way.
         with self._write_lock:
-            # Record only directory entries we create, retaining their parents
-            # for retry if creation or snapshot synchronization fails.
-            to_create = [path.parent]
-            while to_create:
-                directory = to_create[-1]
-                try:
-                    directory.mkdir()
-                except FileNotFoundError:
-                    to_create.append(directory.parent)
-                except FileExistsError:
-                    if not directory.is_dir():
-                        raise
-                    to_create.pop()
-                else:
-                    self._pending_directory_sync.append(directory.parent)
-                    to_create.pop()
+            self._prepare_state_directory()
             with _file_lock(path.with_name(f"{path.name}.lock")):
                 # Snapshot text is built under the asyncio lock but written
                 # outside it, so two mutations can reach this point in either

@@ -766,7 +766,13 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             with _LOCK:
                 history[action_id] = {'status': 'submitting', 'action': name, 'params': fields, 'target': context.get('program') or context.get('locator'), 'attempts': attempt + 1, 'at': time.time()}
                 _write(row)
-            response, status = jobs.start_job(name, fields, context=context, confirm=True)
+            job_fields = dict(fields)
+            if name == 'corpus.match-pair':
+                # This records the project's explicit budget decision with
+                # the child receipt. The subprocess remains cancellable; only
+                # an Unlimited project avoids the generic 30-minute cutoff.
+                job_fields['_preparationUnlimited'] = row.get('deadline') is None
+            response, status = jobs.start_job(name, job_fields, context=context, confirm=True)
             if status >= 400:
                 outcome = {'ok': False, 'error': response.get('error')}
             else:

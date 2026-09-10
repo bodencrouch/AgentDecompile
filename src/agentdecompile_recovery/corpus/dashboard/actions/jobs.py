@@ -334,7 +334,19 @@ class JobStore:
                 if self.executor:
                     code, log = self.executor(argv, cwd, cancel)
                 else:
-                    code, log = _default_executor(argv, cwd, cancel, on_output=publish_log)
+                    # Pair matching is durable and idempotent for a frozen
+                    # prepare run. An Unlimited project budget therefore has
+                    # no hidden child-process deadline; cancellation remains
+                    # the stop mechanism. Finite project budgets keep the
+                    # normal executor limit and are cancelled by preparation.
+                    unlimited_match = (
+                        job.action_id == "corpus.match-pair"
+                        and job.params.get("_preparationUnlimited") is True
+                    )
+                    code, log = _default_executor(
+                        argv, cwd, cancel, on_output=publish_log,
+                        unlimited=unlimited_match,
+                    )
                 if action is not None and action.backend == "bsim-cli":
                     from agentdecompile_recovery.corpus.bsim_ops import _bsim_cli_error
                     if _bsim_cli_error(log, ""):
@@ -548,7 +560,15 @@ def isolated_job_env(argv: list[str], base: dict[str, str] | None = None) -> dic
     return env
 
 
-def _default_executor(argv: list[str], cwd: Path, cancel: threading.Event, *, on_output: Callable[[str], None] | None = None) -> tuple[int, str]:
+def _default_executor(
+    argv: list[str],
+    cwd: Path,
+    cancel: threading.Event,
+    *,
+    on_output: Callable[[str], None] | None = None,
+    timeout_seconds: float | None = None,
+    unlimited: bool = False,
+) -> tuple[int, str]:
     """Drain output without blocking cancellation when a child is silent."""
     if not argv:
         return 2, "empty command"
@@ -565,21 +585,35 @@ def _default_executor(argv: list[str], cwd: Path, cancel: threading.Event, *, on
             lines.put(None)
     threading.Thread(target=read, daemon=True).start()
     log = ""
+    configured_timeout = timeout_seconds
+    if not unlimited and configured_timeout is None:
+        try:
+            configured_timeout = float(os.environ.get("AGENT_DECOMPILE_JOB_TIMEOUT_SECONDS", "1800"))
+        except ValueError:
+            configured_timeout = 1800.0
+    deadline = None if unlimited else time.monotonic() + max(1.0, float(configured_timeout))
     cancellation_at = None
     cancellation_forced = False
+    exited_at = None
+    timed_out = False
     while True:
+        now = time.monotonic()
+        if deadline is not None and now >= deadline and cancellation_at is None:
+            timed_out = True
+            cancellation_at = now
+            log += f"\n[timed out after {configured_timeout:g} seconds]\n"
         if cancel.is_set() and cancellation_at is None:
-            cancellation_at = time.monotonic()
+            cancellation_at = now
+            log += "\n[cancelled]\n"
+        if cancellation_at is not None and not cancellation_forced:
             try:
                 if os.name != "nt":
-                    # Descendants may still own the pipe after its leader exits.
                     os.killpg(proc.pid, signal.SIGTERM)
                 elif proc.poll() is None:
                     proc.terminate()
             except ProcessLookupError:
                 pass
-            log += "\n[cancelled]\n"
-        if cancellation_at is not None and not cancellation_forced and time.monotonic() - cancellation_at >= 5:
+        if cancellation_at is not None and not cancellation_forced and now - cancellation_at >= 5:
             cancellation_forced = True
             try:
                 if os.name != "nt":
@@ -588,16 +622,37 @@ def _default_executor(argv: list[str], cwd: Path, cancel: threading.Event, *, on
                     proc.kill()
             except ProcessLookupError:
                 pass
+        returncode = proc.poll()
+        if returncode is not None:
+            exited_at = exited_at or now
+        if (cancellation_forced and now - (cancellation_at or now) >= 7) or (
+            exited_at is not None and now - exited_at >= 2
+        ):
+            # A descendant can retain stdout after the leader exits, and a
+            # D-state child cannot be killed until kernel I/O returns. Never
+            # hold the job worker forever waiting for a pipe EOF in either case.
+            if proc.stdout is not None:
+                proc.stdout.close()
+            break
         try:
             line = lines.get(timeout=.1)
         except queue.Empty:
             # Process exit can precede the reader thread delivering its final
             # buffered output. Only the pipe EOF sentinel proves it is drained.
             continue
-        if line is None: break
+        if line is None:
+            break
         log = (log + line)[-MAX_LOG_BYTES:]
         if on_output: on_output(log)
-    return int(proc.wait()), log
+    returncode = proc.poll()
+    if returncode is None:
+        try:
+            returncode = proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            returncode = None
+    if returncode is None:
+        return 124, log + "\n[process did not reach a terminal state; ownership remains unresolved]\n"
+    return (124 if timed_out else int(returncode)), log
 
 
 STORE = JobStore()

@@ -243,7 +243,7 @@ class WorkUnit:
     submission: dict[str, Any] | None = None
     # Set only on the pending -> {failed, awaiting-verification} transition in
     # submit(). Only failed units use it for retention: an awaiting proposal
-    # has no coordinator acknowledgement path yet, so it is not safe to drop.
+    # must survive forwarding until a coordinator proves or rejects it.
     resolved_at: float | None = None
 
     def offer_view(self) -> dict[str, Any]:
@@ -693,6 +693,34 @@ class ExchangeStore:
             self._reap(self.clock())
             unit = self._units.get(unit_id)
             return unit.state_view() if unit is not None else None
+
+    async def acknowledge_forwarded(self, unit_id: str, *, fingerprint: str, destination: str) -> bool:
+        """Record durable queue delivery; this never asserts verification.
+
+        Keep the proposal awaiting verification even after every current
+        destination is forwarded: future producers may add another destination.
+        """
+
+        async with self._lock:
+            self._load()
+            unit = self._units.get(unit_id)
+            if unit is None or unit.status != STATUS_AWAITING_VERIFICATION or unit.lane != "rewrite":
+                return False
+            submission = unit.submission
+            if submission is None or submission.get("fingerprint") != fingerprint:
+                return False
+            forwarded = submission.setdefault("forwarded", {})
+            if destination in forwarded:
+                return True
+            forwarded[destination] = {"state": "forwarded", "forwardedAt": self.clock()}
+            try:
+                await self._persist(self._snapshot_text(), self._generation)
+            except BaseException:
+                # A failed acknowledgement must remain retryable in this
+                # process too. The queue receipt makes redelivery harmless.
+                del forwarded[destination]
+                raise
+            return True
 
     async def roster(self) -> dict[str, Any]:
         async with self._lock:

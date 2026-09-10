@@ -33,6 +33,8 @@ from __future__ import annotations
 import ast
 import fcntl
 import hashlib
+import os
+
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -304,3 +306,47 @@ def prune_consumed_entries(work_dir: Path, request_ids: list[str]) -> None:
                 changed = True
         if changed:
             atomic_write_json(queue_path(work_dir), queue)
+
+
+def import_exchange_result(
+    work_dir: Path, request_id: str, *, payload: dict[str, Any], source: str, receipt: str
+) -> bool:
+    """Import a proposal only into its original, still-pending request.
+
+    The receipt makes retry after an exchange acknowledgement failure harmless.
+    A competing local claimant/result wins; callers retain the proposal for a
+    later retry. Reading must fail closed here: a corrupt queue is never empty.
+    """
+
+    path = queue_path(work_dir)
+    if not path.is_file():
+        return False
+    with _locked(work_dir):
+        queue = read_json(path)
+        if not isinstance(queue, dict) or queue.get("schema") != SCHEMA or not isinstance(queue.get("entries"), dict):
+            return False
+        entry = queue["entries"].get(request_id)
+        if not isinstance(entry, dict) or entry.get("requestId") != request_id:
+            return False
+        fields = ("functionName", "entry", "candidateSource", "mismatchClass", "mismatchHistogram", "alignedDiff", "compilerProfile")
+        if any(entry.get(key) != payload.get(key) for key in fields):
+            return False
+        if entry.get("exchangeReceipt") == receipt:
+            if entry.get("status") != STATUS_COMPLETED or entry.get("source") != source:
+                return False
+        elif entry.get("status") == STATUS_PENDING:
+            entry.update(status=STATUS_COMPLETED, source=source, resolvedAt=now(), exchangeReceipt=receipt)
+            atomic_write_json(path, queue)
+        else:
+            return False
+        # Existing writers use atomic replacement only. Synchronize the actual
+        # queue while its lock is held, including on receipt replay. Unsupported
+        # directory fsync raises: the exchange must retain unacknowledged work.
+        with path.open("rb") as stream:
+            os.fsync(stream.fileno())
+        descriptor = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        return True

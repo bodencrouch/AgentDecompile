@@ -7,6 +7,7 @@ keeps a small, hash-bound provenance receipt beside the recovery work.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -32,6 +33,46 @@ def _atomic_json(path: Path, data: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
+def _md5_file(path: Path) -> str:
+    digest = hashlib.md5()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def catalog_target_authority(registry_path: str | Path, repo_path: str) -> dict[str, Any] | None:
+    """Return a catalog-original candidate only when its registered MD5 agrees.
+
+    Shared Ghidra projects can retain an executable location from the computer
+    where a program was first imported.  The catalog is a separate authority:
+    it names an immutable raw image and the historical binary identity that
+    image must satisfy.  Merely finding a similarly named file is never enough.
+    """
+    try:
+        payload = json.loads(Path(registry_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    for entry in payload.get("entries") or []:
+        if not isinstance(entry, dict) or entry.get("repo_path") != repo_path:
+            continue
+        source = str(entry.get("sourcePath") or "")
+        expected_md5 = str(entry.get("catalogMd5") or entry.get("md5") or "").lower()
+        if not source or len(expected_md5) != 32 or not entry.get("catalogMd5Matches"):
+            return None
+        return {
+            "sourcePath": source,
+            "expectedMd5": expected_md5,
+            "catalogDatabase": entry.get("catalogDatabase"),
+            "catalogRepoPath": repo_path,
+            "sourceKind": entry.get("sourceKind") or "catalog-raw-image",
+            "claimBoundary": entry.get("claimBoundary"),
+        }
+    return None
+
+
 def materialize_original_target(
     source_path: str | Path,
     output_root: str | Path,
@@ -39,7 +80,9 @@ def materialize_original_target(
     program: str,
     program_fingerprint: str = "",
     expected_sha256: str = "",
+    expected_md5: str = "",
     protection: dict[str, Any] | None = None,
+    source_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Copy and hash the original executable for later byte comparisons.
 
@@ -61,6 +104,19 @@ def materialize_original_target(
     analysis_path = protection.get("analysisPath")
     derived_hash = str(protection.get("derivedSha256") or "").lower()
     source_hash = sha256_file(source)
+    expected_md5 = expected_md5.lower().strip()
+    if expected_md5:
+        source_md5 = _md5_file(source)
+        if source_md5 != expected_md5:
+            return {
+                "ok": False,
+                "state": "source-md5-mismatch",
+                "reason": "The catalog original does not match the registered binary MD5.",
+                "sourcePath": str(source),
+                "sourceMd5": source_md5,
+                "expectedMd5": expected_md5,
+                "authority": "none",
+            }
     if analysis_path and _same_path(analysis_path, source) and derived_hash and source_hash == derived_hash:
         return {
             "ok": False,
@@ -126,10 +182,12 @@ def materialize_original_target(
         "sourcePath": str(source),
         "sourceSha256": source_hash,
         "expectedSha256": expected or None,
+        "expectedMd5": expected_md5 or None,
         "targetPath": str(target),
         "targetSha256": sha256_file(target),
         "analysisImagePath": analysis_path or None,
         "analysisImageIsAuthority": False,
+        "sourceProvenance": source_provenance if isinstance(source_provenance, dict) else None,
         "createdAt": prior.get("createdAt") or time.time(),
         "verifiedAt": time.time(),
     }

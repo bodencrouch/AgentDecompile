@@ -272,7 +272,7 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         # A Ghidra analysis image may be unpacked or normalized.  Materialize
         # only the original executable for proof; a derived analysis image is
         # deliberately never accepted as a byte-comparison authority.
-        from .target_image import materialize_original_target
+        from .target_image import catalog_target_authority, materialize_original_target
         expected_hash = ''
         try:
             with sqlite3.connect(f'{db.as_uri()}?mode=ro', uri=True) as con:
@@ -280,12 +280,28 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
                 expected_hash = str(found[0] or '') if found else ''
         except (sqlite3.Error, ValueError, OSError):
             pass
+        registry_path = Path(os.environ.get(
+            'AGENT_DECOMPILE_TARGET_AUTHORITY_REGISTRY',
+            str(root / 'original-target-authorities' / 'k1-k2-target-authorities.json'),
+        ))
+        authority = catalog_target_authority(registry_path, str(checkpoint.get('repoPath') or ''))
+        target_source = checkpoint.get('executablePath') or ''
+        target_md5 = ''
+        if authority is not None:
+            # The catalog candidate is selected only after its own registered
+            # MD5 is checked inside materialize_original_target.  This avoids
+            # stale Ghidra import paths becoming byte-proof authorities.
+            target_source = authority['sourcePath']
+            target_md5 = str(authority['expectedMd5'])
+            expected_hash = ''
         target_image = materialize_original_target(
-            checkpoint.get('executablePath') or '', work,
+            target_source, work,
             program=program,
             program_fingerprint=str(checkpoint.get('programFingerprint') or ''),
             expected_sha256=expected_hash,
+            expected_md5=target_md5,
             protection=checkpoint.get('protection'),
+            source_provenance=authority,
         )
         checkpoint['targetImage'] = target_image
         if not target_image.get('ok'):

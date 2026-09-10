@@ -45,7 +45,7 @@ def test_batch_replayer_parses_snapshot_jsonl(monkeypatch, tmp_path: Path):
         seen["timeout"] = kwargs["timeout"]
         output = Path(args[args.index("--output") + 1])
         output.write_text(
-            '{"id":"0000000000401000","status":"ok","engines":[{"source":"Ghidra_12.1.3_build","abi":"0.1.0"}],"result":{"name":"add","c":"int add(void) {}\\n"}}\n',
+            '{"id":"0000000000401000","status":"ok","engines":[{"source":"Ghidra_12.1.3_build","abi":"0.1.0","sig_major":6,"sig_minor":1}],"result":{"name":"add","c":"int add(void) {}\\n"}}\n',
             encoding="utf-8",
         )
         return subprocess.CompletedProcess(args, 0, "", "")
@@ -63,4 +63,4 @@ def test_batch_replayer_parses_snapshot_jsonl(monkeypatch, tmp_path: Path):
     assert "--tmpdir" in seen["args"]
     assert seen["timeout"] == 40
     assert result["0000000000401000"].c_text == "int add(void) {}\n"
-    assert result["0000000000401000"].engines == ({"source": "Ghidra_12.1.3_build", "abi": "0.1.0"},)
+    assert result["0000000000401000"].engines == ({"source": "Ghidra_12.1.3_build", "abi": "0.1.0", "sig_major": 6, "sig_minor": 1},)

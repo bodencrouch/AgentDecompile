@@ -14,7 +14,8 @@ class VersionInfo(c.Structure):
     _fields_ = [("struct_size", c.c_uint32), ("abi_major", c.c_uint32), ("abi_minor", c.c_uint32),
                ("abi_patch", c.c_uint32), ("sla_format_version", c.c_uint32), ("_reserved", c.c_uint32),
                ("ghidra_version", c.c_char * 32), ("source", c.c_char * 64),
-               ("engine_hash", c.c_char * 48), ("build_flags", c.c_char * 128)]
+               ("engine_hash", c.c_char * 48), ("build_flags", c.c_char * 128),
+               ("engine_sig_major", c.c_uint32), ("engine_sig_minor", c.c_uint32)]
 
 
 class InitOptions(c.Structure):

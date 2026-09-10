@@ -323,6 +323,8 @@ struct HelloInfo {
   std::vector<std::string> capabilities;
   std::string engine_source;
   std::string engine_abi = "0.1.0";
+  std::uint32_t engine_sig_major = 0;
+  std::uint32_t engine_sig_minor = 0;
 };
 
 std::string make_hello(const HelloInfo& info);

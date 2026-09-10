@@ -134,6 +134,14 @@ def parity_errors(manifest: Manifest, replay_engines: tuple[dict[str, object], .
     mismatched_sources = sorted(source for source in sources if not source.startswith(expected_tag))
     if mismatched_sources:
         errors.append(f"native engine source mismatch: expected prefix {expected_tag!r}, got {mismatched_sources!r}")
+    sig_pairs = {
+        (engine.get("sig_major"), engine.get("sig_minor"))
+        for engine in replay_engines
+    }
+    expected_sig = (manifest.engine.sig_major, manifest.engine.sig_minor)
+    if expected_sig not in sig_pairs:
+        got = sorted(f"{major}.{minor}" for major, minor in sig_pairs)
+        errors.append(f"native engine signature mismatch: expected {expected_sig[0]}.{expected_sig[1]}, got {got!r}")
     return errors
 
 

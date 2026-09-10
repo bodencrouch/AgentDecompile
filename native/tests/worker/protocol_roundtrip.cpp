@@ -401,6 +401,8 @@ void test_hello() {
   proto::HelloInfo a;
   a.capabilities = {"decompile", "lift"};
   a.engine_source = "Ghidra_12.1.3_build";
+  a.engine_sig_major = 6;
+  a.engine_sig_minor = 1;
   const std::string text = make_hello(a);
   json::Value v;
   REQUIRE(json::parse(text, v));
@@ -416,6 +418,8 @@ void test_hello() {
   REQUIRE(v.get_object("engine") != nullptr);
   CHECK(v.get_object("engine")->get_string("source", s) && s == "Ghidra_12.1.3_build");
   CHECK(v.get_object("engine")->get_string("abi", s) && s == "0.1.0");
+  CHECK(v.get_object("engine")->get_int("sig_major", i) && i == 6);
+  CHECK(v.get_object("engine")->get_int("sig_minor", i) && i == 1);
 
   proto::HelloInfo b;
   std::string err;
@@ -426,6 +430,8 @@ void test_hello() {
   CHECK_EQ(b.max_image_bytes, proto::kDefaultMaxImageBytes);
   CHECK_EQ(b.capabilities.size(), std::size_t{2});
   CHECK_EQ(b.engine_source, std::string("Ghidra_12.1.3_build"));
+  CHECK_EQ(b.engine_sig_major, std::uint32_t{6});
+  CHECK_EQ(b.engine_sig_minor, std::uint32_t{1});
 
   // minimal hello: only protocol; defaults apply
   REQUIRE(proto::parse_hello(R"({"protocol":{"major":1,"minor":3}})", b, &err));

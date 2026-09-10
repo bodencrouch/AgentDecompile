@@ -76,6 +76,10 @@ json::Value engine_metadata(const gnsdk::pool::Supervisor& pool) {
     json::Value engine = json::Value::object();
     engine.set("source", info.engine_source);
     engine.set("abi", info.engine_abi);
+    if (info.engine_sig_major != 0 || info.engine_sig_minor != 0) {
+      engine.set("sig_major", static_cast<unsigned long long>(info.engine_sig_major));
+      engine.set("sig_minor", static_cast<unsigned long long>(info.engine_sig_minor));
+    }
     json::Value capabilities = json::Value::array();
     for (const std::string& capability : info.capabilities) capabilities.push(capability);
     engine.set("capabilities", std::move(capabilities));

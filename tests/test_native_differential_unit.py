@@ -78,5 +78,6 @@ def test_parity_errors_require_matching_native_engine_source(tmp_path: Path) -> 
         options=OptionsInfo("x" * 64, "options.xml", "decompile"), capabilities=Capabilities(True, ["decompile-c"], ["JVM"], []),
         revision=Revision(0, 0, False), counts=Counts(total=1, ok=1), total_bytes=0, functions=[entry()])
     assert parity_errors(manifest, ()) == ["native replay did not report engine metadata"]
-    assert parity_errors(manifest, ({"source": "Ghidra_12.1.3_build-1-gabc"},)) == []
-    assert parity_errors(manifest, ({"source": "Ghidra_12.1.2_build"},))
+    assert parity_errors(manifest, ({"source": "Ghidra_12.1.3_build-1-gabc", "sig_major": 1, "sig_minor": 1},)) == []
+    assert parity_errors(manifest, ({"source": "Ghidra_12.1.2_build", "sig_major": 1, "sig_minor": 1},))
+    assert parity_errors(manifest, ({"source": "Ghidra_12.1.3_build-1-gabc", "sig_major": 2, "sig_minor": 1},))

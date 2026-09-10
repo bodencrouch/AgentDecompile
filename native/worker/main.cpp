@@ -132,6 +132,8 @@ struct Worker {
     GNSDK_INIT_STRUCT(&version);
     (void)gnsdk_version(&version);
     local.engine_source = version.source;
+    local.engine_sig_major = version.engine_sig_major;
+    local.engine_sig_minor = version.engine_sig_minor;
   }
 
   bool reply_error(std::uint64_t id, gnsdk_status status, std::string_view message) {

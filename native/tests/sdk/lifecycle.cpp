@@ -113,6 +113,8 @@ void version_source() {
   CHECK_EQ(gnsdk_version(&version), GNSDK_OK);
   CHECK_EQ(version.abi_major, std::uint32_t{GNSDK_ABI_MAJOR});
   CHECK_EQ(version.sla_format_version, std::uint32_t{4});
+  CHECK_EQ(version.engine_sig_major, std::uint32_t{6});
+  CHECK_EQ(version.engine_sig_minor, std::uint32_t{1});
   CHECK(std::string(version.ghidra_version) == "12.1.3");
   CHECK(std::string(version.source).starts_with("Ghidra_12.1.3_build"));
 }

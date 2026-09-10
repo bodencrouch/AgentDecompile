@@ -217,6 +217,8 @@ typedef struct gnsdk_version_info {
   char source[64];               /* git describe of vendor/ghidra at build   */
   char engine_hash[48];          /* full commit hash of vendor/ghidra        */
   char build_flags[128];         /* "type=RelWithDebInfo;sanitize=;shared=0" */
+  uint32_t engine_sig_major;      /* ArchitectureCapability major version     */
+  uint32_t engine_sig_minor;      /* ArchitectureCapability minor version     */
 } gnsdk_version_info;
 
 typedef struct gnsdk_init_options {

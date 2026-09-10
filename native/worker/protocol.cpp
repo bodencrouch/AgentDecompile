@@ -385,6 +385,10 @@ std::string make_hello(const HelloInfo& info) {
   json::Value engine = json::Value::object();
   engine.set("source", info.engine_source);
   engine.set("abi", info.engine_abi);
+  if (info.engine_sig_major != 0 || info.engine_sig_minor != 0) {
+    engine.set("sig_major", static_cast<unsigned long long>(info.engine_sig_major));
+    engine.set("sig_minor", static_cast<unsigned long long>(info.engine_sig_minor));
+  }
   v.set("engine", std::move(engine));
   return v.dump();
 }
@@ -431,6 +435,14 @@ bool parse_hello(std::string_view text, HelloInfo& out, std::string* error) {
     if (!eng->is_object()) return fail("engine is not an object");
     eng->get_string("source", h.engine_source);
     eng->get_string("abi", h.engine_abi);
+    if (eng->has("sig_major")) {
+      if (!eng->get_uint("sig_major", u) || u > 0xFFFFFFFFu) return fail("bad engine.sig_major");
+      h.engine_sig_major = static_cast<std::uint32_t>(u);
+    }
+    if (eng->has("sig_minor")) {
+      if (!eng->get_uint("sig_minor", u) || u > 0xFFFFFFFFu) return fail("bad engine.sig_minor");
+      h.engine_sig_minor = static_cast<std::uint32_t>(u);
+    }
   }
   out = std::move(h);
   return true;

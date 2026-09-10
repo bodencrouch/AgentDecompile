@@ -182,6 +182,21 @@ def test_pending_rewrite_variant_rejects_include_content() -> None:
     assert pending_rewrite_variant({"name": "sub_1000"}, _candidate(), result) is None
 
 
+@pytest.mark.parametrize(
+    "directive",
+    [
+        "%:include <stdio.h>",
+        "%:  include <stdio.h>",
+        "%:\\\ninclude <stdio.h>",
+        "??=include <stdio.h>",
+        "#embed \"payload.bin\"",
+    ],
+)
+def test_pending_rewrite_variant_rejects_all_directive_spellings(directive: str) -> None:
+    source = f"{directive}\nint x(void) {{ return 1; }}"
+    assert pending_rewrite_variant({"name": "sub_1000"}, _candidate(), {"status": "completed", "source": source}) is None
+
+
 def test_pending_rewrite_variant_rejects_empty_source() -> None:
     result = {"status": "completed", "source": "   "}
     assert pending_rewrite_variant({"name": "sub_1000"}, _candidate(), result) is None
@@ -200,7 +215,14 @@ def test_pending_rewrite_variant_rejects_empty_source() -> None:
     [
         "int x(void) { __asm { nop } return 1; }",
         "int x(void) { _asm nop; return 1; }",
+        "int x(void) { __asm__ volatile(\"nop\"); return 1; }",
+        "int x(void) { asm volatile(\"nop\"); return 1; }",
         "__declspec(naked) int x(void) { return 1; }",
+        "__declspec( noinline, naked ) int x(void) { return 1; }",
+        "__declspec(align(16), naked) int x(void) { return 1; }",
+        "__attribute__ (( __naked__ )) int x(void) { return 1; }",
+        "[[gnu::naked]] int x(void) { return 1; }",
+        "[[using gnu: naked]] int x(void) { return 1; }",
         "int x(void) { __emit(0x90); return 1; }",
     ],
 )
@@ -223,6 +245,12 @@ def test_pending_rewrite_variant_allows_identifier_containing_asm() -> None:
     """`asm` inside an ordinary identifier is not inline assembly."""
 
     source = "int x(void) { int plasmaCount = 1; return plasmaCount; }"
+    variant = pending_rewrite_variant({"name": "sub_1000"}, _candidate(), {"status": "completed", "source": source})
+    assert variant is not None
+
+
+def test_pending_rewrite_variant_allows_asm_text_in_an_ordinary_string() -> None:
+    source = 'const char *x(void) { return "__asm__ %:include"; }'
     variant = pending_rewrite_variant({"name": "sub_1000"}, _candidate(), {"status": "completed", "source": source})
     assert variant is not None
 

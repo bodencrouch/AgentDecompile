@@ -20537,30 +20537,74 @@ def byte_field_guard_return_self_variants(row: dict[str, Any], candidate: Genera
 # gate while destroying the readable-C output the pipeline exists to produce.
 # An unconstrained rewrite lane converges on them immediately -- the only
 # completed mechanism-3 result before this clause existed was
-# `__asm { inc dword ptr [DAT_00830540] }`. Word boundaries keep ordinary
-# identifiers that merely contain these letters (plasmaCount) from matching.
+# `__asm { inc dword ptr [DAT_00830540] }`. The source is normalized before
+# checking so comments and strings cannot make a harmless C string look like a
+# compiler escape (or hide a directive by splitting it over physical lines).
 _REWRITE_CONTENT_DISALLOWED_RE = re.compile(
-    r"^\s*#\s*(pragma|include|import|define|undef|ifdef|ifndef|if|elif|else|endif|error|line)\b|_Pragma\s*\("
-    r"|\b__asm\b|\b_asm\b|\basm\s*\(|__declspec\s*\(\s*naked|\b__emit\b|\.incbin\b",
+    r"^[^\S\r\n]*(?:#|%:|\?\?=)"
+    r"|(?<![A-Za-z0-9_])(?:_Pragma|__pragma)\s*\("
+    r"|(?<![A-Za-z0-9_])(?:__asm__|__asm|_asm|asm)(?![A-Za-z0-9_])"
+    r"|(?<![A-Za-z0-9_])(?:__emit|_emit)(?![A-Za-z0-9_])"
+    r"|__declspec\s*\((?:[^()]|\([^()]*\))*\b(?:naked|__naked__)\b"
+    r"|__attribute__?\s*\(\s*\((?:[^()]|\([^()]*\))*\b(?:naked|__naked__)\b"
+    r"|\[\[[^\]]*\b(?:naked|__naked__)\b"
+    r"|\.incbin\b",
     re.MULTILINE,
 )
 _REWRITE_LINE_CONTINUATION_RE = re.compile(r"\\\r?\n")
-_REWRITE_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
-_REWRITE_LINE_COMMENT_RE = re.compile(r"//[^\n]*")
 
 
 def _normalize_rewrite_source_for_content_check(source: str) -> str:
-    """Undo the cheap ways a preprocessor directive could be split or hidden
-    before a plain denylist regex ever sees it: backslash-newline
-    continuations and comments. Not a real preprocessor -- just enough to
-    keep the directive check from being trivially defeated by
-    ``#/**/pragma`` or a line-continuation split across ``#\\\\npragma``.
+    """Expose compiler escapes without treating comments or literals as code.
+
+    This deliberately is not a C parser.  It implements only the translation
+    phases relevant to a bounded denylist: trigraph ``??=`` for ``#``, line
+    splicing, and masking comments/string and character literals while
+    preserving newlines.  That catches directive digraphs (``%:include``) and
+    extension spellings without rejecting ordinary strings such as ``"asm"``.
     """
 
-    normalized = _REWRITE_LINE_CONTINUATION_RE.sub("", source)
-    normalized = _REWRITE_BLOCK_COMMENT_RE.sub(" ", normalized)
-    normalized = _REWRITE_LINE_COMMENT_RE.sub("", normalized)
-    return normalized
+    source = _REWRITE_LINE_CONTINUATION_RE.sub("", source.replace("??=", "#"))
+    normalized: list[str] = []
+    index = 0
+    while index < len(source):
+        char = source[index]
+        following = source[index + 1] if index + 1 < len(source) else ""
+        if char == "/" and following == "*":
+            normalized.extend((" ", " "))
+            index += 2
+            while index < len(source):
+                if source[index] == "*" and index + 1 < len(source) and source[index + 1] == "/":
+                    normalized.extend((" ", " "))
+                    index += 2
+                    break
+                normalized.append("\n" if source[index] == "\n" else " ")
+                index += 1
+            continue
+        if char == "/" and following == "/":
+            normalized.extend((" ", " "))
+            index += 2
+            while index < len(source) and source[index] not in "\r\n":
+                normalized.append(" ")
+                index += 1
+            continue
+        if char in {'"', "'"}:
+            quote = char
+            normalized.append(" ")
+            index += 1
+            while index < len(source):
+                literal_char = source[index]
+                normalized.append("\n" if literal_char == "\n" else " ")
+                index += 1
+                if literal_char == "\\" and index < len(source):
+                    normalized.append("\n" if source[index] == "\n" else " ")
+                    index += 1
+                elif literal_char == quote:
+                    break
+            continue
+        normalized.append(char)
+        index += 1
+    return "".join(normalized)
 
 
 def pending_rewrite_variant(

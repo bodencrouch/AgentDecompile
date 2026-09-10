@@ -99,17 +99,27 @@ def test_unattempted_or_interrupted_rewrite_is_retained(tmp_path, monkeypatch, f
     assert rewrite_queue.find_entry(tmp_path, request_id)["source"] == REWRITE
 
 
-def test_rejected_content_never_reaches_compiler(tmp_path, monkeypatch):
-    context, request_id = forwarded_context(tmp_path, source='#include "/private/data"\n' + REWRITE)
+@pytest.mark.parametrize(
+    "unsafe_source",
+    [
+        '#include "/private/data"\n' + REWRITE,
+        "%:include <private/data>\n" + REWRITE,
+        'int sample(void) { __asm__ volatile("ret"); }\n',
+        "__attribute__((naked)) int sample(void) { return 7; }\n",
+    ],
+)
+def test_rejected_content_never_reaches_compiler_or_inherits_semantic_evidence(tmp_path, monkeypatch, unsafe_source):
+    context, request_id = forwarded_context(tmp_path, source=unsafe_source)
     seen = []
 
     def attempt(row, candidate, *args, **kwargs):
-        seen.append(candidate.source)
+        seen.append(candidate)
         return [{"status": "compile-failed", "differences": -1}]
 
     monkeypatch.setattr(source_plugins, "attempt_candidate", attempt)
     source_plugins.SourceCandidateObjdiffPlugin().execute(context)
-    assert seen == [context["selectedSourceCandidate"].source]
+    assert seen == [context["selectedSourceCandidate"]]
+    assert "rewriteRequestId" not in seen[0].evidence
     assert rewrite_queue.find_entry(tmp_path, request_id) is None
 
 

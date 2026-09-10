@@ -1,5 +1,6 @@
 #include <chrono>
 #include <string>
+#include <thread>
 
 #include "gnsdk/pool.hpp"
 #include "wtest.hpp"
@@ -20,7 +21,13 @@ int main(int argc, char** argv) {
   const auto reply = pool.request(proto::Kind::Decompile, R"({"addr":"0x401000"})", 1,
                                   std::chrono::seconds(5));
   REQUIRE(reply.kind == proto::to_u16(proto::Kind::Result));
+  if (std::string(argv[1]) == "garbage-stderr") {
+    std::this_thread::sleep_for(std::chrono::milliseconds(25));
+  }
   pool.stop();
+  if (std::string(argv[1]) == "garbage-stderr") {
+    REQUIRE(!pool.stderr_tail().empty());
+  }
   REQUIRE(pool.live_workers() == 0);
   return wtest::exit_code();
 }

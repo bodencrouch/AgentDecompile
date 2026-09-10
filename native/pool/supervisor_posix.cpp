@@ -21,6 +21,8 @@ extern char** environ;
 namespace gnsdk::pool {
 namespace proto = gnsdk::proto;
 namespace {
+constexpr std::size_t kStderrTailBytes = 8192;
+
 int open_pidfd(pid_t pid) noexcept {
 #ifdef SYS_pidfd_open
   return static_cast<int>(::syscall(SYS_pidfd_open, pid, 0));
@@ -63,18 +65,21 @@ void validate_tmpdir(const std::filesystem::path& tmpdir) {
 
 struct Supervisor::Impl {
   struct Child {
-    pid_t pid = -1; int pidfd = -1; int in = -1; int out = -1;
+    pid_t pid = -1; int pidfd = -1; int in = -1; int out = -1; int err = -1;
     proto::FrameReader reader{proto::kPreHandshakeMaxFrame}; bool busy = false;
   };
   static Child spawn_child(const Config& config);
+  void drain_stderr(Child& child) noexcept;
   explicit Impl(Config value) : config(std::move(value)) {}
-  Config config; std::vector<Child> children; std::size_t next = 0;
+  Config config; std::vector<Child> children; std::size_t next = 0; std::string stderr_tail;
 };
 
 Supervisor::Impl::Child Supervisor::Impl::spawn_child(const Config& config) {
-  int to[2] = {-1, -1}; int from[2] = {-1, -1};
-  if (::pipe2(to, O_CLOEXEC) != 0 || ::pipe2(from, O_CLOEXEC) != 0) {
-    const std::string why = std::strerror(errno); close_fd(to[0]); close_fd(to[1]); close_fd(from[0]); close_fd(from[1]); throw std::runtime_error("pipe worker: " + why);
+  int to[2] = {-1, -1}; int from[2] = {-1, -1}; int errpipe[2] = {-1, -1};
+  if (::pipe2(to, O_CLOEXEC) != 0 || ::pipe2(from, O_CLOEXEC) != 0 || ::pipe2(errpipe, O_CLOEXEC | O_NONBLOCK) != 0) {
+    const std::string why = std::strerror(errno);
+    close_fd(to[0]); close_fd(to[1]); close_fd(from[0]); close_fd(from[1]); close_fd(errpipe[0]); close_fd(errpipe[1]);
+    throw std::runtime_error("pipe worker: " + why);
   }
   const std::string as = std::to_string(config.rlimit_as), cpu = std::to_string(config.rlimit_cpu);
   std::vector<char*> args{const_cast<char*>(config.worker.c_str()), const_cast<char*>("--sleigh-home"), const_cast<char*>(config.sleigh_home.c_str())};
@@ -83,9 +88,11 @@ Supervisor::Impl::Child Supervisor::Impl::spawn_child(const Config& config) {
   if (config.rlimit_cpu) { args.push_back(const_cast<char*>("--rlimit-cpu")); args.push_back(const_cast<char*>(cpu.c_str())); }
   args.push_back(nullptr);
   posix_spawn_file_actions_t files; const int init = ::posix_spawn_file_actions_init(&files);
-  if (init != 0) { close_fd(to[0]); close_fd(to[1]); close_fd(from[0]); close_fd(from[1]); throw std::runtime_error("spawn actions: " + std::string(std::strerror(init))); }
+  if (init != 0) { close_fd(to[0]); close_fd(to[1]); close_fd(from[0]); close_fd(from[1]); close_fd(errpipe[0]); close_fd(errpipe[1]); throw std::runtime_error("spawn actions: " + std::string(std::strerror(init))); }
   (void)::posix_spawn_file_actions_adddup2(&files, to[0], STDIN_FILENO); (void)::posix_spawn_file_actions_adddup2(&files, from[1], STDOUT_FILENO);
+  (void)::posix_spawn_file_actions_adddup2(&files, errpipe[1], STDERR_FILENO);
   (void)::posix_spawn_file_actions_addclose(&files, to[1]); (void)::posix_spawn_file_actions_addclose(&files, from[0]);
+  (void)::posix_spawn_file_actions_addclose(&files, errpipe[0]);
   std::vector<std::string> env_storage;
   std::vector<char*> child_env;
   for (char** entry = environ; entry != nullptr && *entry != nullptr; ++entry) {
@@ -96,15 +103,15 @@ Supervisor::Impl::Child Supervisor::Impl::spawn_child(const Config& config) {
   child_env.push_back(env_storage.back().data());
   child_env.push_back(nullptr);
   pid_t pid = -1; const int rc = ::posix_spawn(&pid, config.worker.c_str(), &files, nullptr, args.data(), child_env.data());
-  (void)::posix_spawn_file_actions_destroy(&files); close_fd(to[0]); close_fd(from[1]);
-  if (rc != 0) { close_fd(to[1]); close_fd(from[0]); throw std::runtime_error("spawn gnsdk-worker: " + std::string(std::strerror(rc))); }
-  Supervisor::Impl::Child child; child.pid = pid; child.pidfd = open_pidfd(pid); child.in = to[1]; child.out = from[0];
+  (void)::posix_spawn_file_actions_destroy(&files); close_fd(to[0]); close_fd(from[1]); close_fd(errpipe[1]);
+  if (rc != 0) { close_fd(to[1]); close_fd(from[0]); close_fd(errpipe[0]); throw std::runtime_error("spawn gnsdk-worker: " + std::string(std::strerror(rc))); }
+  Supervisor::Impl::Child child; child.pid = pid; child.pidfd = open_pidfd(pid); child.in = to[1]; child.out = from[0]; child.err = errpipe[0];
   const auto cleanup = [&child]() noexcept {
     if (child.pid > 0) {
       (void)::kill(child.pid, SIGKILL);
       (void)reaped(child.pid, std::chrono::milliseconds(100));
     }
-    close_fd(child.in); close_fd(child.out); close_fd(child.pidfd); child.pid = -1;
+    close_fd(child.in); close_fd(child.out); close_fd(child.err); close_fd(child.pidfd); child.pid = -1;
   };
   proto::HelloInfo local; local.capabilities = {"pool"}; local.engine_source = "gnsdk-pool"; proto::FrameWriter writer(child.in);
   if (!writer.write_json(proto::Kind::Hello, 0, proto::make_hello(local))) { cleanup(); throw std::runtime_error("write worker HELLO"); }
@@ -131,6 +138,23 @@ Supervisor::Impl::Child Supervisor::Impl::spawn_child(const Config& config) {
   return child;
 }
 
+void Supervisor::Impl::drain_stderr(Child& child) noexcept {
+  if (child.err < 0) return;
+  char buf[4096];
+  for (;;) {
+    const ssize_t n = ::read(child.err, buf, sizeof buf);
+    if (n > 0) {
+      stderr_tail.append(buf, static_cast<std::size_t>(n));
+      if (stderr_tail.size() > kStderrTailBytes) {
+        stderr_tail.erase(0, stderr_tail.size() - kStderrTailBytes);
+      }
+      continue;
+    }
+    if (n < 0 && errno == EINTR) continue;
+    break;
+  }
+}
+
 Supervisor::Supervisor(Config config) : impl_(std::make_unique<Impl>(std::move(config))) {
   if (impl_->config.worker.empty() || impl_->config.sleigh_home.empty() || impl_->config.workers == 0)
     throw std::invalid_argument("worker, sleigh_home, and workers are required");
@@ -155,6 +179,7 @@ proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std:
   const std::size_t slot = impl_->next++ % impl_->children.size();
   Impl::Child& child = impl_->children[slot];
   const auto retire = [&child, this]() noexcept {
+    this->impl_->drain_stderr(child);
     if (child.pid > 0) {
       (void)::kill(child.pid, SIGUSR1);
       if (!reaped(child.pid, impl_->config.cancel_grace)) {
@@ -165,7 +190,8 @@ proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std:
         }
       }
     }
-    close_fd(child.in); close_fd(child.out); close_fd(child.pidfd); child.pid = -1;
+    this->impl_->drain_stderr(child);
+    close_fd(child.in); close_fd(child.out); close_fd(child.err); close_fd(child.pidfd); child.pid = -1;
   };
   for (int attempt = 0; attempt < 2; ++attempt) {
     if (child.busy) throw std::runtime_error("no idle worker");
@@ -191,12 +217,14 @@ proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std:
       if (now >= deadline) { retire(); throw std::runtime_error("worker request timed out"); }
       const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count(); pollfd pfd{child.out, POLLIN, 0};
       const int polled = ::poll(&pfd, 1, static_cast<int>(left > 0 ? left : 1));
+      impl_->drain_stderr(child);
       if (polled < 0) { if (errno == EINTR) continue; retire(); throw std::runtime_error("poll worker output failed"); }
       // A timeout is not readability. Calling FrameReader::read on its blocking
       // pipe here would defeat the supervisor's own deadline and leave a hung
       // worker alive forever.
       if (polled == 0) continue;
       const auto state = child.reader.read(child.out);
+      impl_->drain_stderr(child);
       if (state == proto::ReadStatus::Eof || state == proto::ReadStatus::Fatal || state == proto::ReadStatus::Error) {
         retire();
         retry = attempt == 0;
@@ -208,6 +236,7 @@ proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std:
   throw std::runtime_error("worker died or emitted a fatal frame");
 }
 
-void Supervisor::stop() noexcept { if (!impl_) return; for (auto& child : impl_->children) { if (child.pid > 0) { (void)::kill(child.pid, SIGUSR1); if (!reaped(child.pid, impl_->config.cancel_grace)) { (void)::kill(child.pid, SIGTERM); if (!reaped(child.pid, impl_->config.term_grace)) { (void)::kill(child.pid, SIGKILL); (void)reaped(child.pid, std::chrono::milliseconds(100)); } } } close_fd(child.in); close_fd(child.out); close_fd(child.pidfd); } impl_->children.clear(); }
+void Supervisor::stop() noexcept { if (!impl_) return; for (auto& child : impl_->children) { impl_->drain_stderr(child); if (child.pid > 0) { (void)::kill(child.pid, SIGUSR1); if (!reaped(child.pid, impl_->config.cancel_grace)) { (void)::kill(child.pid, SIGTERM); if (!reaped(child.pid, impl_->config.term_grace)) { (void)::kill(child.pid, SIGKILL); (void)reaped(child.pid, std::chrono::milliseconds(100)); } } } impl_->drain_stderr(child); close_fd(child.in); close_fd(child.out); close_fd(child.err); close_fd(child.pidfd); } impl_->children.clear(); }
 std::size_t Supervisor::live_workers() const noexcept { std::size_t live = 0; for (const auto& child : impl_->children) if (child.pid > 0 && ::kill(child.pid, 0) == 0) ++live; return live; }
+std::string Supervisor::stderr_tail() const { return impl_ ? impl_->stderr_tail : std::string{}; }
 }  // namespace gnsdk::pool

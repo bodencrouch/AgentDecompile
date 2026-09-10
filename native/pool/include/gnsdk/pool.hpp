@@ -49,6 +49,7 @@ class Supervisor {
   // Escalates SIGUSR1 -> SIGTERM -> SIGKILL and reaps every child.
   void stop() noexcept;
   [[nodiscard]] std::size_t live_workers() const noexcept;
+  [[nodiscard]] std::string stderr_tail() const;
 
  private:
   struct Impl;

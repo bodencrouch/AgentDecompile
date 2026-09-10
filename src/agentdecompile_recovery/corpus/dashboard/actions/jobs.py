@@ -7,7 +7,10 @@ import os
 import re
 import queue
 import signal
+import shutil
 import subprocess
+import sys
+import tempfile
 import threading
 import time
 import uuid
@@ -32,6 +35,10 @@ MAX_JOBS = 50
 MAX_CONCURRENT = 4
 MAX_LOG_BYTES = 2 * 1024 * 1024
 POLL_S = 0.25
+# One MCP session owns one mutable current-project/current-program context.
+# Serialize complete dashboard sequences without holding the bridge's loopback
+# lock across the HTTP request (which can deadlock the in-process handler).
+MCP_EXECUTOR_LOCK = threading.Lock()
 
 _DASHBOARD_AUTO_CHECKIN_TOOLS = frozenset(
     {
@@ -64,7 +71,6 @@ def _tool_key(name: str) -> str:
 IDENTITY_WRITERS = frozenset({
     "corpus.logical-build",
     "workbench.merge-evidence",
-    "corpus.match-pair",
     "corpus.propagate-corpus",
     "corpus.bind-identities",
     "corpus.merge-parts",
@@ -98,8 +104,9 @@ class JobRecord:
     log_state: str = 'available'
     log_reason: str = ''
     log_truncated: bool = False
+    work_progress: dict[str, Any] | None = None
 
-    def to_dict(self, *, include_log: bool = True) -> dict[str, Any]:
+    def to_dict(self, *, include_log: bool = True, include_details: bool = True) -> dict[str, Any]:
         payload = {
             "id": self.id,
             "actionId": self.action_id,
@@ -111,7 +118,10 @@ class JobRecord:
             "finishedAt": self.finished_at,
             "returncode": self.returncode,
             "error": self.error,
-            "params": dict(self.params),
+            "params": (dict(self.params) if include_details else {
+                key: value for key, value in self.params.items()
+                if key not in {"candidateSource", "code", "script", "source"}
+            }),
             "historyOnly": self.history_only,
             "ownerUnavailable": self.owner_unavailable,
             "historySource": self.history_source,
@@ -119,23 +129,36 @@ class JobRecord:
             "logReason": self.log_reason,
             "logTruncated": self.log_truncated or len(self.log) >= MAX_LOG_BYTES,
         }
+        if self.work_progress is not None:
+            payload["workProgress"] = dict(self.work_progress)
         if include_log:
             payload["log"] = self.log
-        payload["progress"] = infer_job_progress(self.status, self.log)
+            payload["progress"] = infer_job_progress(self.status, self.log, self.work_progress)
+        else:
+            # The dock polls a large job index frequently.  Scanning every
+            # historical log for percent-like text makes that read endpoint
+            # monopolize the interpreter while recovery is running.  Exact
+            # log-derived progress is loaded only when an operator expands a
+            # job; the index still truthfully identifies queued and finished
+            # jobs without pretending a running job has a measured percent.
+            payload["progress"] = infer_job_progress(self.status, "", self.work_progress)
         return payload
 
 
 _PERCENT_RE = re.compile(r"(?<!\d)(\d{1,3})\s*%")
 
 
-def infer_job_progress(status: str, log: str = "") -> int | None:
+def infer_job_progress(status: str, log: str = "", work_progress: dict[str, Any] | None = None) -> int | None:
     """Return observed log progress; fall back to Ghidra percent lines and status hints."""
+    records = [work_progress] if isinstance(work_progress, dict) else []
     for line in reversed(log.splitlines()):
         try:
             record = json.loads(line)
         except (ValueError, TypeError):
             continue
-        if not isinstance(record, dict) or record.get("event") != "progress":
+        records.append(record)
+    for record in records:
+        if not isinstance(record, dict) or record.get("event") not in {"progress", "match-pair-progress"}:
             continue
         done, total = record.get("completed"), record.get("total")
         if isinstance(done, (int, float)) and isinstance(total, (int, float)) and total > 0 and 0 <= done <= total:
@@ -147,6 +170,19 @@ def infer_job_progress(status: str, log: str = "") -> int | None:
         return 100
     if status == "queued":
         return 4
+    return None
+
+
+def _latest_work_progress(log: str) -> dict[str, Any] | None:
+    for line in reversed(log.splitlines()):
+        try:
+            event = json.loads(line)
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(event, dict) or event.get("event") != "match-pair-progress":
+            continue
+        if isinstance(event.get("completed"), int) and isinstance(event.get("total"), int):
+            return event
     return None
 
 
@@ -171,21 +207,40 @@ class JobStore:
         self._ghidra_held: dict[str, str] = {}
         self.executor: Executor | None = None
         self._persisted_at: dict[str, float] = {}
+        self._persist_pending: dict[str, dict[str, Any]] = {}
+        self._persist_lock = threading.Lock()
+        self._persist_wake = threading.Event()
+        threading.Thread(target=self._persist_loop, name="dashboard-job-receipts", daemon=True).start()
 
     def _persist_locked(self, job: JobRecord, *, force: bool = False) -> None:
-        from . import job_history
+        """Queue the latest receipt snapshot; never perform filesystem I/O here."""
         now = time.monotonic()
         if not force and now - self._persisted_at.get(job.id, 0) < .1:
             return
         payload = job.to_dict()
-        payload.update(job_history.owner())
         payload['updatedAt'] = time.time()
         payload['logTruncated'] = job.log_truncated or len(job.log) >= MAX_LOG_BYTES
-        try:
-            job_history.write(payload)
-            self._persisted_at[job.id] = now
-        except OSError as exc:
-            job.log_reason = f'Durable job output could not be saved: {exc}'
+        self._persisted_at[job.id] = now
+        with self._persist_lock:
+            self._persist_pending[job.id] = payload
+        self._persist_wake.set()
+
+    def _persist_loop(self) -> None:
+        from . import job_history
+        while True:
+            self._persist_wake.wait()
+            self._persist_wake.clear()
+            with self._persist_lock:
+                pending, self._persist_pending = self._persist_pending, {}
+            for job_id, payload in pending.items():
+                try:
+                    payload.update(job_history.owner())
+                    job_history.write(payload)
+                except OSError as exc:
+                    with self._lock:
+                        job = self._jobs.get(job_id)
+                        if job is not None:
+                            job.log_reason = f'Durable job output could not be saved: {exc}'
 
     def _watch_cancel(self, job_id: str, cancel: threading.Event) -> None:
         from .job_history import cancel_requested
@@ -264,6 +319,7 @@ class JobStore:
     def _run(self, job_id: str, cancel: threading.Event) -> None:
         identity_key = ""
         ghidra_key = ""
+        action = action_by_id(self._jobs[job_id].action_id)
         while True:
             with self._lock:
                 if cancel.is_set():
@@ -275,12 +331,15 @@ class JobStore:
                 job = self._jobs[job_id]
                 coordinator = job.action_id in {"workbench.prepare", "workbench.workflow-control", "workbench.activity-snapshot"}
                 can_run = self._running < MAX_CONCURRENT
-                if can_run and job.action_id in IDENTITY_WRITERS:
-                    identity_key = identity_lock_key(job.params) or ""
+                if can_run and (job.action_id in IDENTITY_WRITERS or job.action_id == "corpus.match-pair"):
+                    identity_key = (
+                        match_pair_lock_key(job.params)
+                        if job.action_id == "corpus.match-pair"
+                        else identity_lock_key(job.params)
+                    ) or ""
                     holder = self._identity_held.get(identity_key)
                     if identity_key and holder and holder != job_id:
                         can_run = False
-                action = action_by_id(job.action_id)
                 mutates_ghidra = job.action_id in GHIDRA_MUTATE or (action is not None and action.backend == "mcp-cli" and action.mutating)
                 if can_run and mutates_ghidra:
                     ghidra_key = ghidra_lock_key(job.params)
@@ -288,7 +347,13 @@ class JobStore:
                     if ghidra_key and holder and holder != job_id:
                         can_run = False
                 if can_run:
-                    self._running += 1
+                    # Coordinators wait on and schedule child jobs; they do
+                    # not themselves consume a worker slot. Counting them
+                    # here but deliberately not decrementing them in finally
+                    # permanently exhausted MAX_CONCURRENT after four
+                    # preparation runs, leaving every real MCP job queued.
+                    if not coordinator:
+                        self._running += 1
                     if identity_key:
                         self._identity_held[identity_key] = job_id
                     if ghidra_key:
@@ -301,7 +366,6 @@ class JobStore:
             time.sleep(POLL_S)
         cwd = live_root() or Path.cwd()
         try:
-            action = action_by_id(job.action_id)
             if action is not None and action.backend == "preparation":
                 from agentdecompile_recovery.corpus.dashboard.preparation import execute
                 code, log = execute(dict(job.params), cancel)
@@ -314,23 +378,102 @@ class JobStore:
             elif action is not None and action.backend == "activity-snapshot":
                 from agentdecompile_recovery.corpus.dashboard.entity_activity import snapshot
                 code, log = 0, json.dumps(snapshot(locator=job.params.get("locator", ""), slug=job.params.get("slug", ""), program=job.params.get("program", "") or job.params.get("programPath", "")))
+            elif action is not None and action.backend == "matching":
+                from agentdecompile_recovery.corpus.dashboard.actions.matching import execute
+                code, log = execute(dict(job.params), cancel)
             elif action is not None and action.backend == "source-archive":
-                from agentdecompile_recovery.corpus.dashboard.source_archive import build_archive
                 def archive_progress(text: str) -> None:
                     with self._lock:
                         self._jobs[job_id].log = text[-MAX_LOG_BYTES:]
                         self._persist_locked(self._jobs[job_id], force=True)
-                def export_program(output_path: Path, context: dict[str, Any]) -> dict[str, Any]:
-                    return _export_archive_program(output_path, context, cancel)
-                result = build_archive(dict(job.params), cancel, archive_progress, export_program=export_program)
-                code, log = (0 if result.get("ok") else 1), json.dumps(result, default=str)
+                params = dict(job.params)
+                workspace = (live_root() or Path.cwd()).resolve()
+                staging_root = workspace / 'exports' / 'source-archives' / '.staging'
+                staging_root.mkdir(parents=True, exist_ok=True)
+                staging = Path(tempfile.mkdtemp(prefix=f'{job_id}-', dir=staging_root))
+                request_path = staging / 'request.json'
+                request_path.write_text(json.dumps(params, default=str), encoding='utf-8')
+                try:
+                    archive_timeout = float(os.environ.get('AGENT_DECOMPILE_SOURCE_ARCHIVE_TIMEOUT_SECONDS', '900'))
+                except ValueError:
+                    archive_timeout = 900.0
+                deadline = time.monotonic() + max(1.0, archive_timeout)
+                def remaining() -> float:
+                    return max(0.0, deadline - time.monotonic())
+                resolve_code, resolve_output = _default_executor(
+                    [sys.executable, '-m', 'agentdecompile_recovery.corpus.dashboard.source_archive', '--resolve', str(request_path)],
+                    workspace, cancel, on_output=archive_progress, timeout_seconds=min(remaining(), 120.0),
+                )
+                context: dict[str, Any] = {}
+                resolve_pid: int | None = None
+                for line in reversed(resolve_output.splitlines()):
+                    try:
+                        event = json.loads(line)
+                    except (TypeError, ValueError):
+                        continue
+                    resolve_pid = event.get('workerPid') if isinstance(event.get('workerPid'), int) else resolve_pid
+                    if event.get('event') == 'context' and isinstance(event.get('context'), dict):
+                        context = event['context']
+                        break
+                    if event.get('event') == 'error':
+                        raise ValueError(str(event.get('error') or 'Source archive binding resolution failed.'))
+                if resolve_code or not context:
+                    raise ValueError('Source archive binding resolution did not reach a confirmed terminal result.')
+                if cancel.is_set():
+                    raise InterruptedError('Source archive cancelled after binding resolution.')
+                if remaining() <= 0:
+                    raise TimeoutError('Source archive deadline expired during binding resolution; no archive was published.')
+                generation = {'ok': False, 'requested': True, 'reason': 'No unique project/program binding is available for whole-program source generation.'}
+                if context.get('locator') and context.get('program'):
+                    generation = _bounded_archive_export(staging / 'program.c', context, cancel, deadline)
+                    generation['requested'] = True
+                if generation.get('ownershipResolved') is False:
+                    result = generation
+                    code, log = 124, json.dumps(result, default=str)
+                    output = ''
+                else:
+                    if cancel.is_set():
+                        raise InterruptedError('Source archive cancelled after live export.')
+                    if remaining() <= 0:
+                        raise TimeoutError('Source archive deadline expired after live export; no archive was published.')
+                    params['_prefetchedGeneration'] = generation
+                    params['_prefetchedGenerationDir'] = str(staging)
+                    params['_resolveWorkerPid'] = resolve_pid
+                    request_path.write_text(json.dumps(params, default=str), encoding='utf-8')
+                    code, output = _default_executor(
+                        [sys.executable, '-m', 'agentdecompile_recovery.corpus.dashboard.source_archive', '--worker', str(request_path)],
+                        workspace, cancel, on_output=archive_progress,
+                        timeout_seconds=remaining(),
+                    )
+                    result = {}
+                    for line in reversed(output.splitlines()):
+                        try:
+                            event = json.loads(line)
+                        except (TypeError, ValueError):
+                            continue
+                        if event.get('event') == 'result' and isinstance(event.get('result'), dict):
+                            result = event['result']
+                            break
+                        if event.get('event') == 'error':
+                            result = {'ok': False, 'error': str(event.get('error') or 'Source archive worker failed.')}
+                            break
+                    unresolved = '[process did not reach a terminal state; ownership remains unresolved]' in output
+                    if unresolved:
+                        result = {'ok': False, 'quarantined': True, 'ownershipResolved': False,
+                                  'error': 'Source archive worker ownership is unresolved; output is quarantined and must not be published.'}
+                    elif result.get('ownershipResolved') is True:
+                        shutil.rmtree(staging)
+                    code, log = (0 if code == 0 and result.get('ok') else code or 1), json.dumps(result, default=str)
             elif action is not None and action.backend == "mcp-cli":
                 code, log = _mcp_executor(action, dict(job.params), cancel)
-            else:
-                def publish_log(text: str) -> None:
-                    with self._lock:
-                        self._jobs[job_id].log = text[-MAX_LOG_BYTES:]
-                        self._persist_locked(self._jobs[job_id], force=True)
+                else:
+                    def publish_log(text: str) -> None:
+                        with self._lock:
+                            self._jobs[job_id].log = text[-MAX_LOG_BYTES:]
+                            progress = _latest_work_progress(text)
+                            if progress is not None:
+                                self._jobs[job_id].work_progress = progress
+                            self._persist_locked(self._jobs[job_id], force=True)
                 if self.executor:
                     code, log = self.executor(argv, cwd, cancel)
                 else:
@@ -407,6 +550,7 @@ def _copy_job(job: JobRecord) -> JobRecord:
         history_only=job.history_only, owner_unavailable=job.owner_unavailable,
         history_source=job.history_source, log_state=job.log_state,
         log_reason=job.log_reason, log_truncated=job.log_truncated,
+        work_progress=dict(job.work_progress) if job.work_progress is not None else None,
     )
 
 
@@ -424,7 +568,8 @@ def _from_history(payload: dict) -> JobRecord:
                      error=error, log=payload.get('log') or '', params=dict(payload.get('params') or {}),
                      history_only=True, owner_unavailable=unavailable, history_source=payload.get('historySource') or 'durable-job-receipt',
                      log_state=payload.get('logState') or ('available' if payload.get('log') else 'unavailable'),
-                     log_reason=payload.get('logReason') or '', log_truncated=bool(payload.get('logTruncated')))
+                     log_reason=payload.get('logReason') or '', log_truncated=bool(payload.get('logTruncated')),
+                     work_progress=payload.get('workProgress') if isinstance(payload.get('workProgress'), dict) else _latest_work_progress(payload.get('log') or ''))
 
 
 def _ghidra_export_format_for(language: SourceLanguage) -> str:
@@ -471,15 +616,48 @@ def _export_archive_program(output_path: Path, context: dict[str, Any], cancel: 
             "error": "" if accepted else data.get("error") or log[-4000:]}
 
 
+def _bounded_archive_export(
+    output_path: Path,
+    context: dict[str, Any],
+    cancel: threading.Event,
+    deadline: float,
+) -> dict[str, Any]:
+    """Bound an uninterruptible live MCP call without publishing uncertain output."""
+    result: queue.SimpleQueue[dict[str, Any]] = queue.SimpleQueue()
+    def run() -> None:
+        try:
+            result.put(_export_archive_program(output_path, context, cancel))
+        except BaseException as exc:
+            result.put({'ok': False, 'error': str(exc)})
+    worker = threading.Thread(target=run, name='source-archive-live-export', daemon=True)
+    worker.start()
+    while worker.is_alive():
+        if cancel.is_set() or time.monotonic() >= deadline:
+            return {
+                'ok': False,
+                'quarantined': True,
+                'ownershipResolved': False,
+                'error': ('Source archive cancelled while the live MCP export remained in flight; '
+                          if cancel.is_set() else 'Source archive deadline expired while the live MCP export remained in flight; ')
+                         + 'staging is quarantined and no archive was published.',
+            }
+        worker.join(min(.1, max(0.0, deadline - time.monotonic())))
+    value = result.get()
+    value['ownershipResolved'] = True
+    return value
+
+
 def _mcp_executor(action: ActionSpec, params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
-    # Project context and the following action must use one uninterrupted session.
-    # Compilation and non-Ghidra work remain independent of this lock.
-    with CONTEXT_LOCK:
+    # Do not hold CONTEXT_LOCK across the loopback MCP HTTP request.  The MCP
+    # handler uses the same lock while serving that request; holding it here
+    # makes a dashboard job wait forever for its own request to acquire the
+    # lock.  Each bridge operation serializes its own session-critical call.
+    with MCP_EXECUTOR_LOCK:
         return _mcp_executor_in_context(action, params, cancel)
 
 
 def _mcp_executor_in_context(action: ActionSpec, params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
-    from agentdecompile_recovery.corpus.dashboard.mcp_bridge import call_tool, ensure_project
+    from agentdecompile_recovery.corpus.dashboard.mcp_bridge import call_tool, ensure_program, ensure_project, reset_session
 
     if cancel.is_set():
         return 1, "[cancelled]\n"
@@ -495,6 +673,29 @@ def _mcp_executor_in_context(action: ActionSpec, params: dict[str, Any], cancel:
             return 1, "Could not open the selected project without analysis.\n" + str(opened.get("error") or opened.get("text"))
         if cancel.is_set():
             return 1, "[cancelled before action]\n"
+    # Opening a project does not make a nested program current in the MCP
+    # session.  Script and analysis tools operate on ``currentProgram``; if
+    # we skip this step they can either use a stale selection or reject a
+    # folder-qualified program path as though the program did not exist.
+    # ``ensure_program`` uses the project's canonical path, checks it out,
+    # and keeps the session target aligned with this job.
+    program = str(params.get("programPath") or params.get("program") or "").strip()
+    needs_program = action.command in {
+        "analyze-program", "execute-script", "get-function", "decompile-function",
+        "list-functions", "list-symbols", "list-types", "export",
+    }
+    if locator and program and needs_program:
+        ensured = ensure_program(locator, program, require_live=True)
+        if not ensured.get("ok"):
+            detail = ensured.get("error") or ensured.get("steps") or "program could not be opened"
+            return 1, f"Could not make {program} current in the selected project.\n{detail}\n"
+        program = str(ensured.get("program_path") or program)
+        if "programPath" in arguments:
+            arguments["programPath"] = program
+        elif "program" in arguments:
+            arguments["program"] = program
+        if cancel.is_set():
+            return 1, "[cancelled before program action]\n"
     if params.get("_preparationProbe") and action.command == "execute-script":
         arguments["autoPrereqInvocation"] = True
     if params.get('_functionEvidence') and action.command == 'get-function':
@@ -505,12 +706,45 @@ def _mcp_executor_in_context(action: ActionSpec, params: dict[str, Any], cancel:
         timeout = 1800.0
     if action.command == "execute-script":
         timeout = min(1800.0, max(timeout, float(arguments.get("timeout", 30)) + 30.0))
+    # Preparation probes are read-only health checks.  Keep their network
+    # wait bounded independently of the workflow's 900-second drain budget;
+    # a wedged Ghidra request must not leave a probe job looking active for
+    # the lifetime of the coordinator.  The MCP server may finish its own
+    # request later, but this job records the timeout and the workflow can
+    # route the named failure without replaying a mutation.
+    if params.get("_preparationProbe"):
+        try:
+            probe_timeout = float(os.environ.get("AGENT_DECOMPILE_PROBE_TIMEOUT_SECONDS", "90"))
+        except ValueError:
+            probe_timeout = 90.0
+        timeout = min(timeout, max(15.0, probe_timeout))
     hit = call_tool(action.command, arguments, timeout=timeout)
+    # A Ghidra MCP restart invalidates the HTTP session but does not mean the
+    # requested script ran.  Re-open the project and selected program once,
+    # then replay that unaccepted request.  Without this recovery a long
+    # automatic preparation wave quietly accumulates transient failures until
+    # an operator manually restarts it.
+    missing_session = "missing session id" in str(hit.get("error") or "").casefold()
+    if missing_session and not cancel.is_set():
+        reset_session()
+        reopened = ensure_project(locator) if locator else {"ok": True}
+        if reopened.get("ok") and locator and program and needs_program:
+            reopened = ensure_program(locator, program, require_live=True)
+        if reopened.get("ok"):
+            hit = call_tool(action.command, arguments, timeout=timeout)
+        else:
+            hit = {
+                "ok": False,
+                "error": "Ghidra MCP session reset, but the selected project/program could not be restored: "
+                + str(reopened.get("error") or reopened.get("steps") or "unknown restore failure"),
+                "text": "",
+                "parsed": None,
+            }
     text = hit.get("text") or ""
     parsed = hit.get("parsed")
     if hit.get("ok") and isinstance(parsed, dict) and action.command in {"get-function", "decompile-function"}:
         from agentdecompile_recovery.corpus.dashboard.function_evidence import record
-        record(params, action.command, parsed)
+        record({**params, "programPath": program}, action.command, parsed)
     log_parts = [f"mcp {action.command}\n"]
     if parsed is not None:
         log_parts.append(json.dumps(parsed, indent=2, default=str)[: MAX_LOG_BYTES - 200])
@@ -662,6 +896,15 @@ def identity_lock_key(params: dict[str, Any] | None) -> str | None:
     raw = (params or {}).get("db") or live_db()
     if not raw:
         return None
+
+
+def match_pair_lock_key(params: dict[str, Any] | None) -> str | None:
+    """Serialize only duplicate directed comparisons against one corpus DB."""
+    row = params or {}
+    db = identity_lock_key(row)
+    if not db:
+        return None
+    return json.dumps([db, str(row.get("run") or ""), str(row.get("src") or ""), str(row.get("dst") or "")])
     try:
         return str(Path(raw).expanduser().resolve())
     except (OSError, RuntimeError, TypeError, ValueError):
@@ -688,7 +931,7 @@ def start_job(
     errors = validate_params(action, filled, confirm=confirm)
     if errors:
         return {"error": "; ".join(errors), "actionId": action.id}, 400
-    if action.id in IDENTITY_WRITERS:
+    if action.id in IDENTITY_WRITERS or action.id == "corpus.match-pair":
         key = identity_lock_key(filled)
         if not key:
             return {"error": "identity writer needs --db", "actionId": action.id}, 400

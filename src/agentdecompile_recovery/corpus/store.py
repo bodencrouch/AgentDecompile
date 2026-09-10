@@ -140,7 +140,10 @@ CREATE TABLE IF NOT EXISTS match (
     score       REAL,
     margin      REAL,
     evidence    TEXT,
-    status      TEXT
+    status      TEXT,
+    relation    TEXT NOT NULL DEFAULT 'one_to_one',
+    src_end     INTEGER,
+    dst_end     INTEGER
 );
 CREATE INDEX IF NOT EXISTS ix_match_src ON match(run, src_binary, src_addr);
 CREATE INDEX IF NOT EXISTS ix_match_dst ON match(run, dst_binary, dst_addr);
@@ -159,10 +162,12 @@ def connect(path: pathlib.Path | str) -> sqlite3.Connection:
     """Open (or create) a corpus identity store at *path*. Path is required."""
     dest = pathlib.Path(path)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(dest)
+    con = sqlite3.connect(dest, timeout=30)
+    con.execute("PRAGMA busy_timeout=30000")
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)
     ensure_func_columns(con)
+    ensure_match_columns(con)
     return con
 
 
@@ -203,6 +208,10 @@ def ensure_func_columns(con: sqlite3.Connection) -> None:
     cols = {row[1] for row in con.execute("PRAGMA table_info(func)")}
     for col, decl in (
         ("block_hashes", "TEXT"),
+        # Canonical basic-block topology.  IDs are local ordinals, never
+        # addresses, so this survives rebasing and cross-build layout changes.
+        ("cfg_nodes", "TEXT"),
+        ("cfg_edges", "TEXT"),
         ("hash_reloc", "TEXT"),
         ("hash_instr", "TEXT"),
         ("hash_mnemonic", "TEXT"),
@@ -212,6 +221,18 @@ def ensure_func_columns(con: sqlite3.Connection) -> None:
         if col not in cols:
             con.execute(f"ALTER TABLE func ADD COLUMN {col} {decl}")
     ensure_binary_columns(con)
+
+
+def ensure_match_columns(con: sqlite3.Connection) -> None:
+    """Keep Correspondence shape additive for existing corpus databases."""
+    cols = {row[1] for row in con.execute("PRAGMA table_info(match)")}
+    for col, decl in (
+        ("relation", "TEXT NOT NULL DEFAULT 'one_to_one'"),
+        ("src_end", "INTEGER"),
+        ("dst_end", "INTEGER"),
+    ):
+        if col not in cols:
+            con.execute(f"ALTER TABLE match ADD COLUMN {col} {decl}")
 
 
 def ensure_binary_columns(con: sqlite3.Connection) -> None:

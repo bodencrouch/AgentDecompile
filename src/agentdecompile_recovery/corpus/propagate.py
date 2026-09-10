@@ -4,44 +4,42 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from typing import Callable
 
 from . import match
 
 PINNED_KINDS = frozenset({"structural", "inline", "callgraph", "anchor", "bsim"})
 
 
-def persist_status(result: dict, pair_class: str, src_key, dst_key) -> str:
+def persist_status(result: dict, pair_class: str, src_key, dst_key, *, n_instr: int | None = None) -> str:
     """Honor cascade-pinned status; otherwise recompute from score policy.
 
     PINNED means do not re-score — not ignore independent name contradictions.
     Conflicting authentic canon_keys always demote to verify before bind.
     """
-    if src_key and dst_key and src_key != dst_key:
-        return "verify"
+    ev = result.get("evidence") or {}
+    if ev.get("quarantine") or ev.get("identity_claim") is False:
+        return "review"
+    name_conflict = bool(src_key and dst_key and src_key != dst_key)
     kind = result.get("kind")
     pinned = result.get("status")
-    if kind in PINNED_KINDS and pinned:
-        if pinned == "auto":
-            from .channel_confidence import allows_auto, channel_confidence
-
-            conf = channel_confidence(
-                primary=str(kind or "anchor"),
-                evidence=result.get("evidence"),
-                margin=float(result.get("margin") or 0),
-                unique=True,
-            )
-            if not allows_auto(conf, unique=True):
-                return "verify"
-        return pinned
-    ev = result.get("evidence") or {}
-    return match.status_for(
-        result["score"],
-        result["margin"],
-        pair_class,
-        ev.get("_content", result.get("content", 0)),
-        ev.get("compunit"),
-        False,
+    proposed = pinned if kind in PINNED_KINDS and pinned else match.status_for(
+        result["score"], result["margin"], pair_class,
+        ev.get("_content", result.get("content", 0)), ev.get("compunit"), False,
     )
+    if proposed not in {"auto", "verify"}:
+        return proposed
+    from .channel_confidence import allows_auto, allows_verify, channel_confidence
+
+    confidence = channel_confidence(
+        primary=str(ev.get("primary_channel") or ev.get("channel") or kind or "fuzzy"),
+        evidence=ev, n_instr=n_instr, margin=float(result.get("margin") or 0), unique=True,
+    )
+    if proposed == "auto" and not allows_auto(confidence, unique=True):
+        proposed = "verify"
+    if proposed == "verify" and not allows_verify(confidence, unique=True):
+        return "review"
+    return "verify" if name_conflict and proposed == "auto" else proposed
 
 
 def bid(con, path: str) -> int:
@@ -51,9 +49,17 @@ def bid(con, path: str) -> int:
     return row[0]
 
 
-def run_pair(con, src_path: str, dst_path: str, note: str, run: str) -> dict:
+def run_pair(
+    con, src_path: str, dst_path: str, note: str, run: str,
+    *, progress: Callable[[dict], None] | None = None,
+) -> dict:
+    from .store import ensure_match_columns
+
+    ensure_match_columns(con)
     src_id, dst_id = bid(con, src_path), bid(con, dst_path)
-    res = match.match_binaries(con, src_id, dst_id, rounds=4, use_name_features=True)
+    res = match.match_binaries(
+        con, src_id, dst_id, rounds=4, use_name_features=True, progress=progress,
+    )
     sa, sb = res["src"], res["dst"]
 
     con.execute(
@@ -65,8 +71,27 @@ def run_pair(con, src_path: str, dst_path: str, note: str, run: str) -> dict:
     for addr, result in res["results"].items():
         src_key = sa.funcs[addr]["canon_key"]
         dst_key = sb.funcs[result["dst"]]["canon_key"]
-        status = persist_status(result, res["pair_class"], src_key, dst_key)
+        evidence = dict(result["evidence"])
+        evidence["cascade_receipt"] = {
+            "stage": result.get("round"), "kind": result.get("kind"),
+            "optional_channels": res.get("optional_channels", {}),
+        }
+        status = persist_status(
+            result, res["pair_class"], src_key, dst_key,
+            n_instr=sa.funcs[addr].get("n_instr"),
+        )
+        if src_key and dst_key and src_key != dst_key and status == "verify":
+            from .correspondence import enrich_evidence
+
+            evidence = enrich_evidence(evidence, kind=result.get("kind"), status="verify", identity_claim=True)
+            evidence["reason"] = "authentic_name_conflict"
+        if status not in {"auto", "verify"}:
+            from .correspondence import enrich_evidence
+
+            evidence = enrich_evidence(evidence, kind=result.get("kind"), status=status, identity_claim=False)
         counts[status] += 1
+        relation = str(evidence.get("relation") or "one_to_one")
+        ranges = evidence.get("range") or {}
         rows.append(
             (
                 run,
@@ -76,14 +101,17 @@ def run_pair(con, src_path: str, dst_path: str, note: str, run: str) -> dict:
                 result["dst"],
                 result["score"],
                 result["margin"],
-                json.dumps(result["evidence"]),
+                json.dumps(evidence),
                 status,
+                relation,
+                ranges.get("src_end"),
+                ranges.get("dst_end"),
             )
         )
     con.executemany(
         """INSERT INTO match(run, src_binary, src_addr, dst_binary, dst_addr,
-                             score, margin, evidence, status)
-           VALUES(?,?,?,?,?,?,?,?,?)""",
+                             score, margin, evidence, status, relation, src_end, dst_end)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
         rows,
     )
     con.commit()
@@ -93,7 +121,8 @@ def run_pair(con, src_path: str, dst_path: str, note: str, run: str) -> dict:
         for addr, result in res["results"].items()
         if sa.funcs[addr]["canon_key"]
         and not sb.funcs[result["dst"]]["canon_key"]
-        and persist_status(result, res["pair_class"], sa.funcs[addr]["canon_key"], None)
+        and persist_status(result, res["pair_class"], sa.funcs[addr]["canon_key"], None,
+                           n_instr=sa.funcs[addr].get("n_instr"))
         in ("auto", "verify")
     )
     return {
@@ -112,23 +141,38 @@ def run_pair(con, src_path: str, dst_path: str, note: str, run: str) -> dict:
 
 def bind_identities(con, run: str, *, commit: bool = True) -> int:
     """Attach matched target functions to the source's logical function."""
+    from .correspondence import allows_identity_binding, enrich_evidence
+
     con.execute("DELETE FROM identity WHERE method LIKE ?", (f"match:{run}:%",))
     owned = {
         (r[0], r[1])
         for r in con.execute(
-            "SELECT binary_id, addr FROM identity WHERE method NOT LIKE 'match:%'"
+            "SELECT binary_id, addr FROM identity"
         )
+    }
+    quarantined_sources = {
+        f"{row['src_binary']}:{row['src_addr']}" for row in con.execute("SELECT src_binary,src_addr,evidence FROM match WHERE run=?", (run,))
+        if json.loads(row["evidence"] or "{}").get("quarantine")
     }
     cur = con.execute(
         """SELECT m.dst_binary, m.dst_addr, m.score, m.status, m.evidence,
                   i.logical_id, m.src_binary, m.src_addr
              FROM match m
              JOIN identity i ON i.binary_id=m.src_binary AND i.addr=m.src_addr
-            WHERE m.run=? AND m.status IN ('auto','verify')""",
+            WHERE m.run=? AND m.status IN ('auto','verify')
+              AND m.relation='one_to_one'""",
         (run,),
     )
-    best: dict[tuple[int, int], tuple] = {}
+    candidates: list[tuple[float, tuple, dict]] = []
+    logical_members = {
+        (row["logical_id"], row["binary_id"]): row["addr"]
+        for row in con.execute("SELECT logical_id,binary_id,addr FROM identity")
+    }
+    conflicts: list[tuple[str, int, int, int]] = []
     for row in cur:
+        evidence = json.loads(row["evidence"] or "{}")
+        if not allows_identity_binding(evidence, "one_to_one", quarantined_sources):
+            continue
         key = (row["dst_binary"], row["dst_addr"])
         if key in owned:
             continue
@@ -145,9 +189,29 @@ def bind_identities(con, run: str, *, commit: bool = True) -> int:
             f"match:{run}:{row['status']}",
             row["evidence"],
         )
-        prev = best.get(key)
-        if prev is None or conf > prev[3]:
-            best[key] = cand
+        candidates.append((conf, cand, dict(row)))
+    best: dict[tuple[int, int], tuple] = {}
+    selected_logical: dict[tuple[int, int], int] = dict(logical_members)
+    for _conf, cand, row in sorted(candidates, key=lambda item: item[0], reverse=True):
+        key = (row["dst_binary"], row["dst_addr"])
+        logical_key = (row["logical_id"], row["dst_binary"])
+        occupied = selected_logical.get(logical_key)
+        if key in best or (occupied is not None and occupied != row["dst_addr"]):
+            evidence = enrich_evidence(
+                json.loads(row["evidence"] or "{}"), status="ambiguous",
+                identity_claim=False, quarantine=True, stage="identity_bind",
+            )
+            evidence["reason"] = "logical_id_binary_conflict"
+            evidence["conflicting_addr"] = occupied
+            conflicts.append((json.dumps(evidence), row["src_binary"], row["src_addr"], row["dst_addr"]))
+            continue
+        best[key] = cand
+        selected_logical[logical_key] = row["dst_addr"]
+    if conflicts:
+        con.executemany(
+            "UPDATE match SET status='review', evidence=? WHERE run=? AND src_binary=? AND src_addr=? AND dst_addr=?",
+            [(ev, run, src_binary, src_addr, dst_addr) for ev, src_binary, src_addr, dst_addr in conflicts],
+        )
     payload = list(best.values())
     con.executemany(
         "INSERT OR REPLACE INTO identity(logical_id,binary_id,addr,confidence,method,evidence)"
@@ -186,9 +250,8 @@ def dedupe_identity_addrs(con, *, commit: bool = True) -> int:
 
 def downgrade_named_conflicts(con, run: str | None = None, *, commit: bool = True) -> int:
     """Demote stored auto matches when independent canonical names disagree."""
-    cur = con.execute(
-        """UPDATE match
-              SET status='verify'
+    rows = con.execute(
+        """SELECT match.rowid, match.evidence FROM match
             WHERE status='auto'
               AND (? IS NULL OR run=?)
               AND EXISTS (
@@ -206,10 +269,15 @@ def downgrade_named_conflicts(con, run: str | None = None, *, commit: bool = Tru
                      AND src.canon_key<>dst.canon_key
               )""",
         (run, run),
-    )
+    ).fetchall()
+    for row in rows:
+        evidence = json.loads(row["evidence"] or "{}")
+        evidence["status_band"] = "verified"
+        evidence["reason"] = "authentic_name_conflict"
+        con.execute("UPDATE match SET status='verify', evidence=? WHERE rowid=?", (json.dumps(evidence), row["rowid"]))
     if commit:
         con.commit()
-    return cur.rowcount
+    return len(rows)
 
 
 def reclassify_existing(con, run: str) -> tuple[int, int, int]:

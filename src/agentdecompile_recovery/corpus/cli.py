@@ -197,6 +197,7 @@ def build_parser() -> argparse.ArgumentParser:
     match_pair.add_argument("--dst", required=True)
     match_pair.add_argument("--run", default="v1")
     match_pair.add_argument("--note", default="")
+    match_pair.add_argument("--progress-json", action="store_true", help="Emit matcher progress JSONL while scoring")
 
     logical_build = sub.add_parser("logical-build", help="Rebuild name-first logical identities")
     logical_build.add_argument("--db", type=Path, required=True)
@@ -491,7 +492,13 @@ def main(argv: list[str] | None = None) -> int:
         from .propagate import run_pair
         from .store import connect
 
-        print(json.dumps(run_pair(connect(args.db), args.src, args.dst, args.note, args.run), indent=2))
+        def emit_progress(event: dict) -> None:
+            print(json.dumps({"event": "match-pair-progress", **event}), flush=True)
+
+        print(json.dumps(run_pair(
+            connect(args.db), args.src, args.dst, args.note, args.run,
+            progress=emit_progress if args.progress_json else None,
+        ), indent=2))
         return 0
     if args.cmd == "logical-build":
         from .logical import build

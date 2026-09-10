@@ -28,6 +28,20 @@ _ADMISSION_THREAD: threading.Thread | None = None
 _STAGES = [('inspect', 'Read project'), ('protection', 'Prepare analysis image'),
            ('analysis', 'Analyze missing programs'), ('facts', 'Extract function facts'),
            ('bsim', 'Index similarity signatures'), ('matching', 'Match related builds')] + RECOVERY_STAGES
+_ANALYSIS_PROBE = """import json
+from ghidra.framework import Application
+try:
+    from ghidra.program.util import GhidraProgramUtilities
+    pending = bool(GhidraProgramUtilities.shouldAskToAnalyze(currentProgram)) or not bool(GhidraProgramUtilities.isAnalyzed(currentProgram))
+except Exception:
+    pending = None
+try:
+    analysisState = currentProgram.getAnalysisState()
+    stateDone = bool(analysisState.isDone()) if analysisState is not None and hasattr(analysisState, 'isDone') else None
+except Exception:
+    stateDone = None
+needsAnalysis = False if pending is False else (True if stateDone is False else (False if stateDone is True else True if pending is None else pending))
+__result__ = json.dumps({'needsAnalysis': needsAnalysis, 'executablePath': str(currentProgram.getExecutablePath()), 'architecture': str(currentProgram.getLanguageID()), 'ghidraVersion': str(Application.getApplicationVersion()), 'workSize': int(currentProgram.getFunctionManager().getFunctionCount())})"""
 
 
 def _matching_concurrency() -> int:
@@ -218,6 +232,9 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[A
             if pair:
                 stage.update(currentProgram=f"{source} → {target}", currentPair=pair)
                 result.update(currentProgram=stage['currentProgram'], currentPair=pair)
+            work_progress = getattr(job, 'work_progress', None)
+            if isinstance(work_progress, dict):
+                stage['workProgress'] = dict(work_progress)
             result['currentStage'] = stage.get('key', result.get('currentStage', ''))
             result['currentAction'] = stage.get('currentAction', result.get('currentAction', ''))
     return result
@@ -818,6 +835,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 # the child receipt. The subprocess remains cancellable; only
                 # an Unlimited project avoids the generic 30-minute cutoff.
                 job_fields['_preparationUnlimited'] = row.get('deadline') is None
+                job_fields['progress_json'] = True
             response, status = jobs.start_job(name, job_fields, context=context, confirm=True)
             if status >= 400:
                 outcome = {'ok': False, 'error': response.get('error')}
@@ -856,6 +874,10 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                         stage = next(item for item in row['stages'] if item['key'] == key)
                         if work_progress and work_progress != stage.get('workProgress'):
                             update(key, 'running', workProgress=work_progress)
+                    if name == 'corpus.match-pair' and isinstance(getattr(job, 'work_progress', None), dict):
+                        stage = next(item for item in row['stages'] if item['key'] == key)
+                        if job.work_progress != stage.get('workProgress'):
+                            update(key, 'running', workProgress=dict(job.work_progress))
                     command = _read_control(run_id)
                     if name == 'corpus.match-pair' and command.get('operation') == 'pause':
                         if job is not None and job.status == 'running':
@@ -1032,7 +1054,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                     continue
                 try:
                     state = action('protection', 'mcp.execute-script', {
-                        'programPath': execution_program, '_preparationProbe': True, 'workflowWaitSeconds': 900, 'code': "import json\nfrom agentdecompile_cli.mcp_utils.program_analysis import program_needs_analysis\nfrom ghidra.framework import Application\n__result__ = json.dumps({'needsAnalysis': program_needs_analysis(currentProgram), 'executablePath': str(currentProgram.getExecutablePath()), 'architecture': str(currentProgram.getLanguageID()), 'ghidraVersion': str(Application.getApplicationVersion()), 'workSize': int(currentProgram.getFunctionManager().getFunctionCount())})"
+                        'programPath': execution_program, '_preparationProbe': True, 'workflowWaitSeconds': 900, 'code': _ANALYSIS_PROBE
                     }, context)
                 except Exception as exc:
                     # A single program probe must not abort the corpus wave.
@@ -1107,7 +1129,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                     continue
                 if 'needsAnalysis' not in checkpoint:
                     state = action('analysis', 'mcp.execute-script', {
-                    'programPath': execution_program, '_preparationProbe': True, 'workflowWaitSeconds': 900, 'code': "import json\nfrom agentdecompile_cli.mcp_utils.program_analysis import program_needs_analysis\nfrom ghidra.framework import Application\n__result__ = json.dumps({'needsAnalysis': program_needs_analysis(currentProgram), 'executablePath': str(currentProgram.getExecutablePath()), 'architecture': str(currentProgram.getLanguageID()), 'ghidraVersion': str(Application.getApplicationVersion()), 'workSize': int(currentProgram.getFunctionManager().getFunctionCount())})"
+                    'programPath': execution_program, '_preparationProbe': True, 'workflowWaitSeconds': 900, 'code': _ANALYSIS_PROBE
                     }, context)
                     payload = state.get('data') or {}
                     if not state['ok'] or not isinstance(payload, dict) or 'needsAnalysis' not in payload:

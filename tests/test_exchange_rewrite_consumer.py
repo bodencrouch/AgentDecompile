@@ -69,14 +69,6 @@ async def test_transfer_is_durable_idempotent_and_reaches_late_destination(tmp_p
     assert len((await restored.unit_state(unit_id))["submission"]["forwarded"]) == 2
 
 
-@pytest.mark.parametrize("artifact", [{}, {"source": " "}, {"source": 23}, {"source": "bad\x00source"}])
-async def test_malformed_source_stays_awaiting(tmp_path, monkeypatch, artifact):
-    store, unit_id, work_dir, request_id = await prepare(tmp_path, monkeypatch, artifact)
-    assert await RewriteConsumer(store).drain() == 0
-    assert rewrite_queue.find_entry(work_dir, request_id)["status"] == "pending"
-    assert "forwarded" not in (await store.unit_state(unit_id))["submission"]
-
-
 @pytest.mark.parametrize("fail_directory_sync", [False, True])
 async def test_queue_fsync_failure_never_acknowledges_and_retry_recovers(tmp_path, monkeypatch, fail_directory_sync):
     store, unit_id, work_dir, request_id = await prepare(tmp_path, monkeypatch)

@@ -53,10 +53,11 @@ import threading
 import time
 
 from collections import deque
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any
 
 try:  # pragma: no cover - platform dependent
     import fcntl
@@ -98,6 +99,9 @@ FAILURE_VERDICTS = frozenset({"failed", "error", "abandoned", "unsupported"})
 
 DEFAULT_LEASE_SECONDS = 300
 THROUGHPUT_WINDOW_SECONDS = 300.0
+# The HTTP model enforces this too, but direct in-process callers must not be
+# able to bypass the same snapshot-growth bound.
+MAX_ARTIFACT_BYTES = 64 * 1024
 
 # An absolute path in a payload is R1's failure mode: the unit stops being a
 # value and becomes a reference into the coordinator's filesystem. Match only
@@ -138,6 +142,12 @@ class RateLimited(ExchangeError):
 class CapacityExceeded(ExchangeError):
     status = 503
     code = "capacity-exceeded"
+
+
+class InvalidSubmission(ExchangeError):
+    """A result that cannot enter the coordinator's verification queue."""
+
+    code = "invalid-submission"
 
 
 def default_state_path() -> Path:
@@ -899,6 +909,24 @@ class ExchangeStore:
             and receipt["response"].get("unitId") == receipt["unitId"]
         )
 
+    @staticmethod
+    def _validate_submission(unit: WorkUnit, artifact: Any) -> None:
+        """Reject unusable lane-specific proposals before retiring a lease."""
+
+        if not isinstance(artifact, dict):
+            raise InvalidSubmission("submission artifact must be an object")
+        try:
+            artifact_size = len(json.dumps(artifact).encode("utf-8"))
+        except (TypeError, ValueError, UnicodeEncodeError) as exc:
+            raise InvalidSubmission("submission artifact must be portable JSON") from exc
+        if artifact_size > MAX_ARTIFACT_BYTES:
+            raise InvalidSubmission(f"artifact exceeds {MAX_ARTIFACT_BYTES} bytes when serialized")
+        if unit.lane != "rewrite":
+            return
+        source = artifact.get("source")
+        if not isinstance(source, str) or not source.strip() or "\x00" in source:
+            raise InvalidSubmission("rewrite completion requires a non-empty source artifact")
+
     async def submit(
         self,
         *,
@@ -947,6 +975,7 @@ class ExchangeStore:
             unit = self._unit_for_lease(worker_id, lease_token)
             if unit is None or unit.fence != int(fence):
                 raise LeaseRejected("lease expired or fenced out by a newer claim; the result was discarded")
+            self._validate_submission(unit, artifact)
             unit.status = STATUS_FAILED if str(verdict) in FAILURE_VERDICTS else STATUS_AWAITING_VERIFICATION
             unit.resolved_at = now
             unit.submission = {

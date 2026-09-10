@@ -21,6 +21,7 @@ from agentdecompile_recovery.exchange.store import (
     CapacityExceeded,
     ExchangeStore,
     IdempotencyConflict,
+    InvalidSubmission,
     LeaseRejected,
     RateLimited,
     derive_unit_id,
@@ -301,6 +302,71 @@ async def test_submit_is_idempotent_by_key_and_fingerprint(tmp_path: Path) -> No
     assert roster["units"]["byStatus"] == {STATUS_AWAITING_VERIFICATION: 1}
     assert roster["throughput"]["submissions"] == 1
     assert roster["workers"][0]["submissions"] == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "artifact",
+    [{}, {"source": " "}, {"source": 23}, {"source": "bad\x00source"}, {"source": "x" * (64 * 1024)}],
+)
+async def test_invalid_rewrite_completion_keeps_lease_for_a_correct_retry(tmp_path: Path, artifact: dict[str, object]) -> None:
+    store = make_store(tmp_path, max_units=1)
+    unit_id = await store.offer(lane="rewrite", payload=REWRITE_PAYLOAD)
+    worker = await enroll(store, "llm")
+    lease = await store.claim(worker_id=worker)
+    assert lease is not None
+
+    with pytest.raises(InvalidSubmission):
+        await store.submit(
+            worker_id=worker,
+            lease_token=lease["leaseToken"],
+            fence=lease["fence"],
+            idempotency_key="correctable",
+            artifact=artifact,
+            verdict="completed",
+        )
+
+    # No proposal, receipt, or throughput was consumed, and the original
+    # worker can correct the submission without waiting for lease expiry.
+    state = await store.unit_state(unit_id)
+    assert state is not None
+    assert state["status"] == "claimed"
+    assert state["submission"] is None
+    assert state["fence"] == lease["fence"]
+    assert (await store.heartbeat(worker_id=worker, lease_token=lease["leaseToken"]))["fence"] == lease["fence"]
+    roster = await store.roster()
+    assert roster["throughput"]["submissions"] == 0
+    assert roster["workers"][0]["submissions"] == 0
+
+    accepted = await store.submit(
+        worker_id=worker,
+        lease_token=lease["leaseToken"],
+        fence=lease["fence"],
+        idempotency_key="correctable",
+        artifact={"source": "int f(void) { return 1; }"},
+        verdict="completed",
+    )
+    assert accepted == {"accepted": True, "state": STATUS_AWAITING_VERIFICATION, "unitId": unit_id, "verdict": "completed"}
+
+
+@pytest.mark.asyncio
+async def test_non_rewrite_completion_keeps_its_existing_artifact_semantics(tmp_path: Path) -> None:
+    store = make_store(tmp_path)
+    unit_id = await store.offer(lane="permute", payload={"seed": 1})
+    worker = await enroll(store)
+    lease = await store.claim(worker_id=worker)
+    assert lease is not None
+
+    accepted = await store.submit(
+        worker_id=worker,
+        lease_token=lease["leaseToken"],
+        fence=lease["fence"],
+        idempotency_key="empty-permute",
+        artifact={},
+        verdict="completed",
+    )
+    assert accepted["state"] == STATUS_AWAITING_VERIFICATION
+    assert accepted["unitId"] == unit_id
 
 
 @pytest.mark.asyncio
@@ -626,6 +692,40 @@ async def test_router_maps_refusals_to_status_codes(tmp_path: Path) -> None:
         roster = await client.get("/dashboard/api/exchange/roster")
         assert roster.status_code == 200
         assert roster.json()["units"]["byStatus"] == {STATUS_AWAITING_VERIFICATION: 1}
+
+
+@pytest.mark.asyncio
+async def test_router_rejects_empty_rewrite_without_retiring_the_lease(tmp_path: Path) -> None:
+    import httpx
+
+    from agentdecompile_recovery.exchange.routes import create_exchange_router
+    from fastapi import FastAPI
+
+    store = make_store(tmp_path)
+    await store.offer(lane="rewrite", payload=REWRITE_PAYLOAD)
+    app = FastAPI()
+    app.include_router(create_exchange_router(store))
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://exchange") as client:
+        worker_id = (await client.post("/dashboard/api/exchange/enroll", json={"capabilities": ["llm"]})).json()["workerId"]
+        lease = (await client.post("/dashboard/api/exchange/claim", json={"workerId": worker_id})).json()
+        body = {
+            "workerId": worker_id,
+            "leaseToken": lease["leaseToken"],
+            "fence": lease["fence"],
+            "idempotencyKey": "correctable-route",
+            "artifact": {},
+            "verdict": "completed",
+        }
+        rejected = await client.post("/dashboard/api/exchange/submit", json=body)
+        assert rejected.status_code == 400
+        assert rejected.json()["code"] == "invalid-submission"
+        assert (await client.post("/dashboard/api/exchange/heartbeat", json={"workerId": worker_id, "leaseToken": lease["leaseToken"]})).status_code == 200
+        accepted = await client.post(
+            "/dashboard/api/exchange/submit", json={**body, "artifact": {"source": "int f(void) { return 1; }"}}
+        )
+        assert accepted.status_code == 200
+        assert accepted.json()["state"] == STATUS_AWAITING_VERIFICATION
 
 
 @pytest.mark.asyncio

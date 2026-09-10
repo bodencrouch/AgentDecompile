@@ -32,13 +32,21 @@ async function provider(prompt: string, signal: AbortSignal): Promise<string> {
   const result = await response.json() as { choices?: { message?: { content?: string } }[]; content?: { text?: string }[] };
   return provider === "openai" ? String(result.choices?.[0]?.message?.content || "") : String(result.content?.[0]?.text || "");
 }
-async function heartbeat(lease: Lease, alive: { value: boolean; lost: boolean }, leaseController: AbortController) {
-  const seconds = Math.max(1_000, Math.floor((lease.leaseExpiresAt - Date.now() / 1000) * 333));
+async function heartbeat(lease: Lease, alive: { value: boolean; lost: boolean }, leaseController: AbortController, renewal: { inFlight: Promise<void> | null }) {
   while (alive.value && !stopped) {
+    const seconds = Math.max(1_000, Math.floor((lease.leaseExpiresAt - Date.now() / 1000) * 333));
     await pause(seconds);
     if (!alive.value || stopped) return;
-    try { await api("/heartbeat", { workerId, leaseToken: lease.leaseToken }); }
+    try {
+      renewal.inFlight = api("/heartbeat", { workerId, leaseToken: lease.leaseToken }).then(result => {
+        const next = result as { leaseExpiresAt?: unknown };
+        if (typeof next.leaseExpiresAt === "number") lease.leaseExpiresAt = next.leaseExpiresAt;
+      });
+      await renewal.inFlight;
+      renewal.inFlight = null;
+    }
     catch (error) {
+      renewal.inFlight = null;
       const status = (error as { status?: number }).status || 0;
       if (status === 404 || status === 410 || Date.now() / 1000 >= lease.leaseExpiresAt) {
         alive.lost = true;
@@ -67,7 +75,8 @@ async function run() {
       if (!lease) { await pause(3_000); continue; }
       const alive = { value: true, lost: false };
       const leaseController = new AbortController();
-      void heartbeat(lease, alive, leaseController).catch(() => {});
+      const renewal = { inFlight: null as Promise<void> | null };
+      void heartbeat(lease, alive, leaseController, renewal).catch(() => {});
       let letLeaseExpire = false;
       try {
         emit("generating", "Generating a readable C proposal…");
@@ -105,6 +114,10 @@ async function run() {
         emit("error", `This lease was not submitted: ${String(error)}`);
       } finally {
         alive.value = false;
+        // A heartbeat request may already have reached the coordinator just as
+        // generation ended. Observe its returned deadline before deciding when
+        // another claim is safe.
+        await renewal.inFlight?.catch(() => {});
         if (letLeaseExpire && !stopped) {
           const remaining = Math.max(0, Math.ceil((lease.leaseExpiresAt - Date.now() / 1000) * 1000));
           emit("waiting", "Attempt was not submitted; waiting for its lease to expire.");

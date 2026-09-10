@@ -51,7 +51,9 @@ class Lane:
     elapsed_ms: tuple[float, ...]
     cpu_s: float | None = None
     rss_hwm_mb: float | None = None
+    jvm_heap_max_mb: float | None = None
     child_hwm: int | None = None
+    named_child_hwm: int | None = None
     includes_analysis: bool = False
 
     def __post_init__(self) -> None:
@@ -82,6 +84,10 @@ def _row(lane: Lane) -> dict[str, object]:
     }
 
 
+def _is_parallel_lane(name: str) -> bool:
+    return name == "parallel" or name.startswith("parallel-")
+
+
 def report(corpus: str, lanes: Iterable[Lane], *, options_sha256: str, timeout_s: float, export_requires_java_decompile: bool = True) -> dict[str, object]:
     """Build a report, refusing completion drift before any rate is calculated."""
     rows = list(lanes)
@@ -92,7 +98,8 @@ def report(corpus: str, lanes: Iterable[Lane], *, options_sha256: str, timeout_s
     if mismatched:
         raise CompletionMismatch(f"REFUSED (completion mismatch): {mismatched}")
     by_name = {lane.name: lane for lane in rows}
-    java = by_name.get("parallel") or by_name.get("serial")
+    parallel = min((lane for lane in rows if _is_parallel_lane(lane.name)), key=lambda lane: lane.wall_s, default=None)
+    java = parallel or by_name.get("serial")
     native = min((lane for lane in rows if lane.name in {"native-console", "native-batch"}), key=lambda lane: lane.wall_s, default=None)
     export = by_name.get("export")
     k_star: float | str = "never"
@@ -101,8 +108,10 @@ def report(corpus: str, lanes: Iterable[Lane], *, options_sha256: str, timeout_s
     return {
         "schema": "agentdecompile.native-bench/v0",
         "corpus": corpus,
-        "held_constant": {"completed_addresses": sorted(expected), "options_sha256": options_sha256, "timeout_s": timeout_s},
+        "held_constant": {"completed_addresses": sorted(expected), "function_count": len(expected), "options_sha256": options_sha256, "timeout_s": timeout_s},
         "export_requires_java_decompile": export_requires_java_decompile,
+        "best_java_lane": java.name if java else None,
+        "best_native_lane": native.name if native else None,
         "k_star": k_star,
         "lanes": [_row(lane) for lane in rows],
     }
@@ -114,9 +123,33 @@ def write_report(output_dir: Path, payload: dict[str, object]) -> tuple[Path, Pa
     json_path = output_dir / "bench.json"
     md_path = output_dir / "bench.md"
     json_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    lines = ["# Native SDK benchmark", "", f"Corpus: `{payload['corpus']}`", "", "| Lane | Functions | Wall s | fn/s | p50 ms | p95 ms |", "| --- | ---: | ---: | ---: | ---: | ---: |"]
+    held = payload["held_constant"]  # type: ignore[index]
+    lines = [
+        "# Native SDK benchmark",
+        "",
+        f"Corpus: `{payload['corpus']}`",
+        "",
+        "## Held constant",
+        "",
+        f"- Function count: `{held['function_count']}`",  # type: ignore[index]
+        f"- Options SHA-256: `{held['options_sha256']}`",  # type: ignore[index]
+        f"- Timeout: `{held['timeout_s']}` seconds",  # type: ignore[index]
+        "",
+        "| Lane | Functions | Wall s | fn/s | CPU s | RSS HWM MB | Child HWM | p50 ms | p95 ms | p99 ms |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
     for lane in payload["lanes"]:  # type: ignore[index]
-        lines.append("| {name} | {completed_count} | {wall_s:.3f} | {fn_per_s:.3f} | {p50_ms:.1f} | {p95_ms:.1f} |".format(**lane))
-    lines += ["", f"`export_requires_java_decompile`: `{payload['export_requires_java_decompile']}`", f"`k_star`: `{payload['k_star']}`", ""]
+        row = {**lane}
+        for key in ("cpu_s", "rss_hwm_mb", "child_hwm"):
+            row[key] = "n/a" if row.get(key) is None else row[key]
+        lines.append("| {name} | {completed_count} | {wall_s:.3f} | {fn_per_s:.3f} | {cpu_s} | {rss_hwm_mb} | {child_hwm} | {p50_ms:.1f} | {p95_ms:.1f} | {p99_ms:.1f} |".format(**row))
+    lines += [
+        "",
+        f"`best_java_lane`: `{payload['best_java_lane']}`",
+        f"`best_native_lane`: `{payload['best_native_lane']}`",
+        f"`export_requires_java_decompile`: `{payload['export_requires_java_decompile']}`",
+        f"`k_star`: `{payload['k_star']}`",
+        "",
+    ]
     md_path.write_text("\n".join(lines), encoding="utf-8")
     return json_path, md_path

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import json
 from pathlib import Path
 
 from agentdecompile_recovery.native_snapshot.canonical import canonicalize, layout_collapsed
@@ -49,3 +50,29 @@ def classify(entry: FunctionEntry, root: Path, native_text: str | None, *, crash
 def summary(manifest: Manifest, root: Path, replay: dict[str, str | None], crashed: set[str] | None = None) -> list[DifferentialResult]:
     crashed = crashed or set()
     return [classify(entry, root, replay.get(entry.addr), crashed=entry.addr in crashed) for entry in manifest.ok_entries()]
+
+
+def write_report(root: Path, manifest: Manifest, replay: dict[str, str | None], *,
+                 crashed: set[str] | None = None, output: Path | None = None) -> list[DifferentialResult]:
+    """Write inspectable native text and a deterministic report JSON.
+
+    ``None`` means missing output, while ``crashed`` distinguishes a console
+    process failure. Native files live below the snapshot so a report remains
+    self-contained but never overwrites Java oracle artifacts.
+    """
+    output = output or root / "native"
+    output.mkdir(parents=True, exist_ok=True)
+    results: list[DifferentialResult] = []
+    crashed = crashed or set()
+    for entry in manifest.ok_entries():
+        text = replay.get(entry.addr)
+        native_path: str | None = None
+        if text is not None:
+            native_file = output / f"{entry.addr}.c"
+            native_file.write_text(text, encoding="utf-8")
+            native_path = str(native_file.relative_to(root))
+        classified = classify(entry, root, text, crashed=entry.addr in crashed)
+        results.append(DifferentialResult(classified.addr, classified.name, classified.classification, classified.java_path, native_path))
+    report = {"schema": "agentdecompile.native-differential/v0", "results": [result.to_dict() for result in results]}
+    (output / "report.json").write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return results

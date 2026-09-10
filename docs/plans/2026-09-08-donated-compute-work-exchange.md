@@ -227,6 +227,23 @@ State these plainly rather than discovering them in month two.
 
 ## 9. Open questions
 
+### Measured note (2026-09-10): native verifier startup floor
+
+The native `objdiff` CLI is available on the coordinator host. A deliberately
+small, temporary i386 COFF pair (613 bytes, compiled locally from a trivial C
+function and compared against an identical copy) completed one
+`objdiff diff -1 base.obj -2 candidate.obj -o - --format json-pretty` process
+in **0.06 s elapsed** (0.01 s user, 0.01 s system, 8 MiB max RSS). The JSON
+receipt was 16,441 bytes. This is a startup/parse floor only, not a recovery
+candidate benchmark: it uses neither an era-exact compiler nor a real target
+object, and it does not measure browser `objdiff-wasm`.
+
+It nevertheless confirms the design risk that a fresh coordinator verifier
+process can be a meaningful fixed cost per small check. Do not use this single
+sample to claim the lane pays off; obtain a real target/candidate pair before
+deciding between batched coordinator verification, a persistent verifier, or no
+`objdiff` lane.
+
 - **O1 (gating).** Wall-clock per stage on a representative binary. Decides
   whether any of this is worth building.
 - **O2.** Is VC7 `cl.exe` byte-deterministic for `/c` across machines? If yes,

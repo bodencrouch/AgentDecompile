@@ -13,4 +13,9 @@ if(TARGET gnsdk_common)
 endif()
 add_library(gnsdk::protocol ALIAS gnsdk_protocol)
 
-# --- gnsdk-worker (WP5) appends below ---
+add_executable(gnsdk-worker main.cpp)
+target_link_libraries(gnsdk-worker PRIVATE gnsdk::protocol gnsdk::gnsdk)
+target_compile_features(gnsdk-worker PRIVATE cxx_std_20)
+if(TARGET gnsdk_common)
+  target_link_libraries(gnsdk-worker PRIVATE gnsdk_common)
+endif()

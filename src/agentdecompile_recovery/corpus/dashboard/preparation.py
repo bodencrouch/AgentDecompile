@@ -861,10 +861,13 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                         if job is not None and job.status == 'running':
                             # The active pair owns durable comparison output. Let
                             # it finish, then checkpoint the wave before another
-                            # queued pair can begin.
-                            update(key, 'running', 'Pause requested. Finishing the accepted comparison before checkpointing.',
-                                   jobId=job_id, currentProgram=target, currentAction=name,
-                                   jobStatus='running', pauseRequestedAt=time.time())
+                            # queued pair can begin. Persist this transition once;
+                            # the normal heartbeat remains responsible for liveness.
+                            stage = next(item for item in row['stages'] if item['key'] == key)
+                            if not stage.get('pauseRequestedAt'):
+                                update(key, 'running', 'Pause requested. Finishing the accepted comparison before checkpointing.',
+                                       jobId=job_id, currentProgram=target, currentAction=name,
+                                       jobStatus='running', pauseRequestedAt=time.time())
                         else:
                             # This candidate never began execution. Remove it
                             # from the shared queue so the completed sibling is

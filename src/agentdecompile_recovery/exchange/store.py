@@ -42,6 +42,7 @@ one event loop.
 from __future__ import annotations
 
 import asyncio
+import errno
 import hashlib
 import json
 import logging
@@ -206,6 +207,28 @@ def _file_lock(path: Path) -> Iterator[None]:
             fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
 
+def _sync_directory(path: Path) -> None:
+    """Persist directory entries where the platform/filesystem supports it."""
+
+    if os.name == "nt":  # Windows cannot open directories for os.fsync.
+        return
+    unsupported = {errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP}
+    try:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    except OSError as exc:
+        if exc.errno in unsupported:
+            return
+        raise
+    try:
+        try:
+            os.fsync(descriptor)
+        except OSError as exc:
+            if exc.errno not in unsupported:
+                raise
+    finally:
+        os.close(descriptor)
+
+
 @dataclass(slots=True)
 class WorkUnit:
     unit_id: str
@@ -322,6 +345,7 @@ class ExchangeStore:
         # is built, not at the moment it reaches the disk.
         self._generation = 0
         self._committed_generation = 0
+        self._directory_tree_synced = False
         # _write_snapshot runs off the event loop via asyncio.to_thread, so
         # concurrent mutations reach it on separate OS threads of the default
         # executor. fcntl.flock (see _file_lock) only keeps a second *process*
@@ -485,8 +509,28 @@ class ExchangeStore:
                 # hypothetical second process on the same host.
                 if generation <= self._committed_generation:
                     return
-                tmp.write_text(text, encoding="utf-8")
-                tmp.replace(path)
+                try:
+                    with tmp.open("w", encoding="utf-8") as handle:
+                        handle.write(text)
+                        handle.flush()
+                        os.fsync(handle.fileno())
+                    tmp.replace(path)
+                    _sync_directory(path.parent)
+                    if not self._directory_tree_synced:
+                        # mkdir(parents=True) may have created the state
+                        # directory and its ancestors. Persist their names,
+                        # too, before acknowledging the first snapshot. Keep
+                        # retrying this chain after any failed synchronization.
+                        for ancestor in path.parent.absolute().parents:
+                            _sync_directory(ancestor)
+                        self._directory_tree_synced = True
+                finally:
+                    # A failed file sync leaves an uncommitted temporary file.
+                    # Cleanup must not mask the original persistence error.
+                    try:
+                        tmp.unlink(missing_ok=True)
+                    except OSError:
+                        logger.warning("exchange: could not remove temporary snapshot %s", tmp, exc_info=True)
                 self._committed_generation = generation
 
     async def _persist(self, text: str | None, generation: int | None = None) -> None:

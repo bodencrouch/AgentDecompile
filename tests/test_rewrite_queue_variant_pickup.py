@@ -233,6 +233,8 @@ def test_pending_rewrite_variant_rejects_empty_source() -> None:
         "__declspec( noinline, naked ) int x(void) { return 1; }",
         "__declspec(align(16), naked) int x(void) { return 1; }",
         "__attribute__ (( __naked__ )) int x(void) { return 1; }",
+        "__attribute__((aligned((16)), naked)) int x(void) { return 1; }",
+        "__attribute__((unused)) int x(void) { return 1; }",
         "[[gnu::naked]] int x(void) { return 1; }",
         "[[using gnu: naked]] int x(void) { return 1; }",
         "int x(void) { __emit(0x90); return 1; }",

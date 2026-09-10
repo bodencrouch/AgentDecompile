@@ -20545,9 +20545,13 @@ _REWRITE_CONTENT_DISALLOWED_RE = re.compile(
     r"|(?<![A-Za-z0-9_])(?:_Pragma|__pragma)\s*\("
     r"|(?<![A-Za-z0-9_])(?:__asm__|__asm|_asm|asm)(?![A-Za-z0-9_])"
     r"|(?<![A-Za-z0-9_])(?:__emit|_emit)(?![A-Za-z0-9_])"
-    r"|__declspec\s*\((?:[^()]|\([^()]*\))*\b(?:naked|__naked__)\b"
-    r"|__attribute__?\s*\(\s*\((?:[^()]|\([^()]*\))*\b(?:naked|__naked__)\b"
-    r"|\[\[[^\]]*\b(?:naked|__naked__)\b"
+    # Compiler attribute grammars permit arbitrary nesting. Do not attempt to
+    # parse them at this untrusted boundary: reject compiler-specific forms
+    # wholesale rather than letting a nested naked/assembler attribute evade a
+    # shallow regular expression.
+    r"|__declspec\s*\("
+    r"|__attribute__?\s*\("
+    r"|\[\["
     r"|\.incbin\b",
     re.MULTILINE,
 )

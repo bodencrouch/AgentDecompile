@@ -142,6 +142,18 @@ add_dependencies(pool_real_timeout gnsdk-worker)
 add_test(NAME pool_real_timeout COMMAND pool_real_timeout)
 set_tests_properties(pool_real_timeout PROPERTIES LABELS "pool;fault;integration")
 
+add_executable(pool_real_decompile_x86 real_decompile_x86.cpp)
+target_include_directories(pool_real_decompile_x86 PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../.. ${CMAKE_CURRENT_SOURCE_DIR}/../worker)
+target_link_libraries(pool_real_decompile_x86 PRIVATE gnsdk::pool gnsdk_protocol Threads::Threads)
+target_compile_features(pool_real_decompile_x86 PRIVATE cxx_std_20)
+target_compile_definitions(pool_real_decompile_x86 PRIVATE
+  GNSDK_WORKER_PATH="$<TARGET_FILE:gnsdk-worker>"
+  GNSDK_SLEIGH_HOME="${GNSDK_SLEIGH_HOME}"
+  GNSDK_SAVEFILE="${PROJECT_SOURCE_DIR}/../tests/fixtures/native_snapshot/test_x86_64/functions/0000000100000470.xml")
+add_dependencies(pool_real_decompile_x86 gnsdk-worker)
+add_test(NAME pool_real_decompile_x86 COMMAND pool_real_decompile_x86)
+set_tests_properties(pool_real_decompile_x86 PROPERTIES LABELS "pool;integration")
+
 add_test(NAME gnsdk_batch_version COMMAND gnsdk-batch --version)
 set_tests_properties(gnsdk_batch_version PROPERTIES
   LABELS "pool;batch"

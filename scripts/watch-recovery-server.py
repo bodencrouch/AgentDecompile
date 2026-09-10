@@ -69,6 +69,7 @@ def active_preparations(work_dir: Path) -> list[str]:
 def snapshot(paths: tuple[Path, ...]) -> tuple[str, list[str]]:
     entries: list[tuple[str, int]] = []
     for root in paths:
+        root = root.resolve()
         if not root.exists():
             continue
         for path in root.rglob("*.py"):

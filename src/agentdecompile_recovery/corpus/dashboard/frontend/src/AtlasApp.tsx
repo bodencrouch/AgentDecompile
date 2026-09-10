@@ -14,6 +14,7 @@ import {
   type ActionRequest,
 } from "./contracts";
 import { Commands, ActionRunner, DialogFrame } from "./Actions";
+import { ExchangeContribution } from "./ExchangeContribution";
 import { ProjectDialog } from "./ProjectDialog";
 import { RecordView, ResizeBar, useData, usePref } from "./ui";
 import "./atlas.css";
@@ -494,6 +495,7 @@ export function AtlasApp() {
           <span className="atlas-current-context" title={selection.locator||selection.program||selection.slug}>{loaded?title(selection):'Choose a project in the explorer'}</span>
           <span className="atlas-connection" title={'Backend '+connection}>{connection}</span>
           <button onClick={()=>setToolsOpen(true)} aria-label="Tools and workspace commands">Tools</button>
+          <ExchangeContribution />
         </header>
         {!loaded ? (
           <main className="atlas-landing atlas-workspace-empty"><h1>Workspace</h1><p>Select a project or binary in the explorer. Its existing analysis and recorded evidence stay available while missing work progresses.</p><p>Use <strong>＋ Project</strong> or <strong>Add binaries</strong> above the tree to bring in more files. Drag checked binaries onto a project to link them.</p>{binaries.error&&<p role="alert">{binaries.error}</p>}</main>

@@ -31,6 +31,7 @@ import { useLibraryTransfer } from "./BinaryLibrary";
 import { PersistentExplorer } from "./PersistentExplorer";
 import { ProjectDialog } from "./ProjectDialog";
 import { SourceDownload } from "./SourceDownload";
+import { ExchangeContribution } from "./ExchangeContribution";
 import "./actions.css";
 const sectionNames: Record<string,string> = {
   overview: "Project overview", preparation: "Preparation status", listing: "Source and assembly",
@@ -692,6 +693,7 @@ export function App() {
         <button onClick={() => setPalette(true)}>
           Commands <kbd>Ctrl K</kbd>
         </button>
+        <ExchangeContribution />
         <span className="muted connection">{connection}</span>
       </header>
       <div

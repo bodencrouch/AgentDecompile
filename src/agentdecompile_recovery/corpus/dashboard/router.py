@@ -49,7 +49,8 @@ SECURITY_HEADERS = {
     "Content-Security-Policy": (
         "default-src 'self'; script-src 'self' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
-        "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+        "connect-src 'self' https://api.openai.com https://api.anthropic.com; "
+        "object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
     ),
 }
 

@@ -138,7 +138,12 @@ class ScriptToolProvider(ToolProvider):
 
     # ------------------------------------------------------------------
 
-    def _build_namespace(self, program_info: ProgramInfo | SimpleNamespace | None = None) -> dict[str, Any]:
+    def _build_namespace(
+        self,
+        program_info: ProgramInfo | SimpleNamespace | None = None,
+        *,
+        fallback_to_provider: bool = True,
+    ) -> dict[str, Any]:
         """Build the execution namespace for Ghidra script execution.
 
         Populates a Python namespace with Ghidra API equivalents so that script
@@ -186,7 +191,7 @@ class ScriptToolProvider(ToolProvider):
         flat_api = None
         decompiler = None
 
-        effective_program_info = program_info if program_info is not None else self.program_info
+        effective_program_info = self.program_info if program_info is None and fallback_to_provider else program_info
         if effective_program_info is not None:
             program = effective_program_info.program
             flat_api = getattr(effective_program_info, "flat_api", None)
@@ -379,8 +384,8 @@ class ScriptToolProvider(ToolProvider):
         requested_program_path = self._get_str(args, "programpath", "program_path", default="")
         # ToolProviderManager resolves programPath per invocation.  Providers are
         # long-lived, so self.program_info can still name a previous program.
-        effective_program_info = program_info if program_info is not None else self.program_info
-        ns: dict[str, Any] = self._build_namespace(effective_program_info)
+        effective_program_info = program_info
+        ns: dict[str, Any] = self._build_namespace(effective_program_info, fallback_to_provider=False)
         executed_program = ns.get("currentProgram")
 
         if requested_program_path and executed_program is None:

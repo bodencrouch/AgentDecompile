@@ -494,7 +494,7 @@ def _execution_program_bindings(locator: str, info: dict[str, Any], programs: li
     if str(info.get('kind') or '') != 'shared-fs':
         return {program: (locator, program) for program in programs}
 
-    from agentdecompile_recovery.corpus.ghidra_project import inspect_locator
+    from agentdecompile_recovery.corpus.ghidra_project import inspect_locator, shared_defaults
 
     def normalized(value: str) -> str:
         return str(value or '').replace('\\', '/').strip().lstrip('/')
@@ -521,6 +521,48 @@ def _execution_program_bindings(locator: str, info: dict[str, Any], programs: li
         for program, source_key in requested.items():
             if normalized(str(source)) == source_key:
                 bindings[program].append((str(project_locator), str(project_program)))
+
+    # A filesystem repository is inventory, but its sibling server.log records
+    # the endpoint that can open those exact folder-qualified DomainFiles. Prefer
+    # that live project over stale local checkout bindings.
+    defaults = shared_defaults()
+    origin = info.get('origin') if isinstance(info.get('origin'), dict) else {}
+    ports = [origin.get('port')]
+    try:
+        log_lines = (Path(locator) / 'server.log').read_text(errors='replace').splitlines()
+        ports.extend(line.rsplit(':', 1)[-1].strip() for line in reversed(log_lines)
+                     if 'RMI Registry port:' in line)
+    except OSError:
+        pass
+    ports.append(defaults.get('port'))
+    host = str(origin.get('host') or defaults.get('host') or '127.0.0.1')
+    live_routes: dict[str, tuple[str, str]] = {}
+    for repository in info.get('repositories') or []:
+        if not isinstance(repository, dict):
+            continue
+        repository_name = str(repository.get('name') or '').strip()
+        repository_programs = {
+            normalized(str(item.get('path') or f"{str(item.get('folder') or '/').rstrip('/')}/{item.get('name') or ''}")): str(item.get('path') or f"{str(item.get('folder') or '/').rstrip('/')}/{item.get('name') or ''}")
+            for item in repository.get('programs') or [] if isinstance(item, dict)
+        }
+        if not repository_name or not set(requested.values()).intersection(repository_programs):
+            continue
+        for port in dict.fromkeys(ports):
+            try:
+                shared_locator = f'ghidra://{host}:{int(port)}/{repository_name}'
+            except (TypeError, ValueError):
+                continue
+            try:
+                live = inspect_locator(shared_locator)
+            except (OSError, ValueError):
+                continue
+            if not live.get('reachable'):
+                continue
+            canonical = str(live.get('canonical') or shared_locator)
+            for program, source_key in requested.items():
+                if actual := repository_programs.get(source_key):
+                    live_routes[program] = (canonical, actual)
+            break
 
     candidates: list[str] = []
     for choices in bindings.values():
@@ -549,8 +591,11 @@ def _execution_program_bindings(locator: str, info: dict[str, Any], programs: li
 
     routes: dict[str, tuple[str, str]] = {}
     for program, source_key in requested.items():
-        # A previous successful import is the strongest route, provided the
-        # project still contains that program.
+        if program in live_routes:
+            routes[program] = live_routes[program]
+            continue
+        # Without a live server route, reuse a previous successful import when
+        # the project still contains that program.
         for candidate, bound_program in bindings[program]:
             programs_by_path = available.get(candidate, {})
             actual = programs_by_path.get(normalized(bound_program))
@@ -1086,7 +1131,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 checkpoint.setdefault('analysisConfirmed', False)
                 if not execution_project or not execution_program:
                     protection_blocked.add(program)
-                    update('protection', 'blocked', f'{program}: no local Ghidra project binding is available; import or link its analyzed project before preparation.')
+                    update('protection', 'blocked', f'{program}: no live shared or local Ghidra project binding is available; import or link its analyzed project before preparation.')
                     continue
                 update('protection', 'running', f'Checking protection for {program}.', completed=prepared, total=len(programs))
                 # A resumed wave must not spend another Ghidra round-trip on a
@@ -1525,7 +1570,23 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             else:
                 family_receipts[family]['reason'] = 'Waiting for this family\'s analysis and facts receipts.'
         _write(row)
-        row['status'] = 'completed' if all(stage['status'] == 'completed' for stage in row['stages']) else 'partial'
+        routed = sum(bool(execution_locators[program] and execution_programs[program]) for program in programs)
+        probed = sum(
+            _same_program_path(row['checkpoints'].get(program, {}).get('observedProgramPath'), execution_programs[program])
+            for program in programs
+        )
+        row['executionSummary'] = {'programs': len(programs), 'routed': routed, 'probed': probed}
+        if programs and (not routed or not probed):
+            row.update(
+                status='blocked',
+                error=(
+                    'No executable Ghidra project route was found for this preparation.'
+                    if not routed else
+                    'No program probe receipt matched its requested Ghidra program; no execution evidence was accepted.'
+                ),
+            )
+        else:
+            row['status'] = 'completed' if all(stage['status'] == 'completed' for stage in row['stages']) else 'partial'
     except _PauseRequested:
         row.update(status='paused', error='')
     except InterruptedError as exc:
@@ -1560,7 +1621,6 @@ from java.util.concurrent import TimeUnit
 monitor = TimeoutTaskMonitor.timeoutIn(600, TimeUnit.SECONDS)
 con = connect(config['db'])
 try:
-    con.execute('BEGIN IMMEDIATE')
     selected = con.execute('SELECT id,slug,repo_path FROM binary WHERE slug=?', (config['slug'],)).fetchone() if config['slug'] else None
     if selected is not None and str(selected[2]).rstrip('/') == config['locator'].rstrip('/'):
         # A project tab's slug identifies the container, not its first program.

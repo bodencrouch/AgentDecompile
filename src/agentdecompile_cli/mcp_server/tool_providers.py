@@ -21,6 +21,7 @@ Consolidation Helpers (Phase 2b):
 from __future__ import annotations
 
 import asyncio
+import inspect
 import json as _json
 import logging
 import multiprocessing
@@ -94,6 +95,13 @@ if TYPE_CHECKING:
     from agentdecompile_cli.registry import Tool
 
 logger = logging.getLogger(__name__)
+
+
+class _ProgramInfoUnset:
+    pass
+
+
+_PROGRAM_INFO_UNSET = _ProgramInfoUnset()
 
 
 def _shared_bootstrap_skip_local_project_path(program_key: str) -> bool:
@@ -870,9 +878,12 @@ class ToolProvider:
         self,
         name: str,
         arguments: dict[str, Any],
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None | _ProgramInfoUnset = _PROGRAM_INFO_UNSET,
     ) -> list[types.TextContent]:
         """Normalize name + args, dispatch to handler, catch errors."""
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProvider.call_tool")
+        effective_program_info = self.program_info if isinstance(program_info, _ProgramInfoUnset) else program_info
         norm_name: str = n(name)
         handler_method_name: str | None = self.HANDLERS.get(norm_name)
         if handler_method_name is None:
@@ -888,7 +899,7 @@ class ToolProvider:
         canonical_tool = resolve_tool_name(name) or name
         logger.info("tool=%s provider=%s", canonical_tool, self.__class__.__name__)
 
-        handler: Callable[[dict[str, Any]], Awaitable[list[types.TextContent]]] = getattr(self, handler_method_name)
+        handler: Callable[..., Awaitable[list[types.TextContent]]] = getattr(self, handler_method_name)
 
         # Normalize ALL argument keys here – the single place normalization happens so handlers
         # always see lowercase a-z keys (e.g. programpath, function, mode).
@@ -909,9 +920,20 @@ class ToolProvider:
                         norm_args[target] = value
 
         # Freeze the resolved target before a handler can yield or open another program.
-        response_program_info = self.program_info if norm_args.get("programpath") else None
+        response_program_info = effective_program_info if norm_args.get("programpath") else None
         try:
-            result = await handler(norm_args)
+            handler_params = inspect.signature(handler).parameters
+            accepts_program_info = "program_info" in handler_params or any(
+                param.kind is inspect.Parameter.VAR_KEYWORD for param in handler_params.values()
+            )
+            if accepts_program_info:
+                result = await handler(norm_args, program_info=effective_program_info)
+            else:
+                # Existing providers read self.program_info. Keep their established
+                # handoff until each handler opts into call-scoped program_info.
+                if self.program_info is not effective_program_info:
+                    self.set_program_info(effective_program_info)
+                result = await handler(norm_args)
             logger.debug("tool=%s completed", canonical_tool)
 
             # --- Inject projectContext into successful JSON responses ---
@@ -947,7 +969,7 @@ class ToolProvider:
             extra_context: dict[str, Any] | None = None
             if isinstance(e, ActionableError) and not auto_prereq_invocation:
                 try:
-                    extra_context = await self._build_prerequisite_call_context(e, norm_args)
+                    extra_context = await self._build_prerequisite_call_context(e, norm_args, program_info=effective_program_info)
                 except Exception as prereq_exc:
                     logger.debug("Failed to build prerequisite call context for %s: %s", name, prereq_exc)
             return create_error_response(
@@ -1046,7 +1068,13 @@ class ToolProvider:
 
         return plan
 
-    async def _run_prerequisite_call(self, tool_name: str, tool_args: dict[str, Any]) -> dict[str, Any]:
+    async def _run_prerequisite_call(
+        self,
+        tool_name: str,
+        tool_args: dict[str, Any],
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None,
+    ) -> dict[str, Any]:
         """Run a single prerequisite tool (e.g. list_tools or list-project-files) and return a result dict for error context."""
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProvider._run_prerequisite_call")
         if tool_name == "list_tools":
@@ -1068,7 +1096,7 @@ class ToolProvider:
 
         invocation_args = dict(tool_args)
         invocation_args["__auto_prereq_invocation"] = True  # skip building nested prerequisite context on this call
-        response = await self._manager.call_tool(tool_name, invocation_args, program_info=self.program_info)
+        response = await self._manager.call_tool(tool_name, invocation_args, program_info=program_info)
 
         output: Any
         success: bool
@@ -1091,7 +1119,13 @@ class ToolProvider:
             "output": output,
         }
 
-    async def _build_prerequisite_call_context(self, error: ActionableError, args: dict[str, Any]) -> dict[str, Any] | None:
+    async def _build_prerequisite_call_context(
+        self,
+        error: ActionableError,
+        args: dict[str, Any],
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None,
+    ) -> dict[str, Any] | None:
         """Build error context with prerequisiteCalls: merge error's next_steps with inferred steps, run suggested tools, attach outputs."""
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProvider._build_prerequisite_call_context")
         inferred_context, inferred_steps = _default_error_guidance(error.message)
@@ -1108,7 +1142,7 @@ class ToolProvider:
             raw_args = entry.get("arguments")
             tool_args: dict[str, Any] = raw_args if isinstance(raw_args, dict) else {}
             trigger = str(entry.get("trigger", "")).strip()
-            result = await self._run_prerequisite_call(tool_name, tool_args)
+            result = await self._run_prerequisite_call(tool_name, tool_args, program_info=program_info)
             result["trigger"] = trigger
             results.append(result)
 
@@ -2201,6 +2235,7 @@ class ToolProviderManager:
     ) -> ProgramInfo | None:
         """Resolve and activate a program by path: cache → shared checkout → bootstrap → local path."""
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProviderManager._activate_requested_program")
+        requested_program_key = SESSION_CONTEXTS.canonicalize_program_path(session_id, requested_program_key)
         existing = SESSION_CONTEXTS.get_program_info(session_id, requested_program_key)
         if existing is not None:
             logger.info(
@@ -2264,6 +2299,7 @@ class ToolProviderManager:
 
         if project_provider is not None:
             await self._bootstrap_shared_session_from_env(session_id, requested_program_key)
+            requested_program_key = SESSION_CONTEXTS.canonicalize_program_path(session_id, requested_program_key)
             activated = SESSION_CONTEXTS.get_program_info(session_id, requested_program_key)
             if activated is not None:
                 logger.info(
@@ -2528,9 +2564,10 @@ class ToolProviderManager:
         self,
         name: str,
         arguments: dict[str, Any],
-        program_info: ProgramInfo | None = None,
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None | _ProgramInfoUnset = _PROGRAM_INFO_UNSET,
     ) -> list[types.TextContent]:
-        """Resolve tool name and program, find provider, set provider's program_info, then delegate to provider.call_tool.
+        """Resolve tool name and program, then delegate with call-scoped program info.
 
         Flow:
           (1) Resolve tool name (alias → canonical).
@@ -2539,11 +2576,10 @@ class ToolProviderManager:
           (4) Find provider (direct or via TOOL_ALIASES).
           (5) Resolve program: from args (programPath/binary/path), else session active, else manager default.
           (6) If a program was requested but not open, try _activate_requested_program (open/import).
-          (7) Set provider's program_info and call provider.call_tool; optionally apply markdown formatting.
+          (7) Pass call-scoped program_info to provider.call_tool; optionally apply markdown formatting.
         """
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProviderManager.call_tool")
-        if program_info is not None and program_info is not self.program_info:
-            self.set_program_info(program_info)
+        has_program_override = not isinstance(program_info, _ProgramInfoUnset)
 
         session_id: str = get_current_mcp_session_id()
         resolved_name: str = resolve_tool_name(name) or name
@@ -2672,6 +2708,8 @@ class ToolProviderManager:
         if requested_program_key:
             # Do not fall back to the session active program when the client named a specific path.
             effective_program_info = requested_program_info
+        elif has_program_override:
+            effective_program_info = program_info
         else:
             # A project-bound session must never borrow the manager's program
             # from another project/session when its own selection is empty.
@@ -2684,6 +2722,7 @@ class ToolProviderManager:
             (effective_program_info is None or getattr(effective_program_info, "program", None) is None)
             and norm_name not in _NO_AUTO_SELECT_TOOLS
             and not requested_program_key
+            and not has_program_override
         ):
             auto_selected = await self._auto_select_program(session_id)
             if auto_selected is not None:
@@ -2693,7 +2732,11 @@ class ToolProviderManager:
         if requested_program_key and effective_program_info is None:
             prereq_calls: list[dict[str, Any]] = []
             try:
-                response: list[types.TextContent] | None = await self.call_tool(Tool.LIST_PROJECT_FILES.value, {"__auto_prereq_invocation": True})
+                response: list[types.TextContent] | None = await self.call_tool(
+                    Tool.LIST_PROJECT_FILES.value,
+                    {"__auto_prereq_invocation": True},
+                    program_info=effective_program_info,
+                )
                 output: dict[str, Any]
                 success: bool = True
                 if response and isinstance(response[0], types.TextContent):
@@ -2743,12 +2786,6 @@ class ToolProviderManager:
                 ),
             )
 
-        if provider.program_info is not effective_program_info:
-            try:
-                provider.set_program_info(effective_program_info)
-            except Exception as e:
-                logger.warning(f"Failed to set session program info for {provider.__class__.__name__}: {e}")
-
         resolved_prog_path: str | None = requested_program_key or SESSION_CONTEXTS.get_active_program_key(session_id)
         if effective_program_info is not None and effective_program_info.program is not None:
             resolved_prog_path = resolve_domain_program_path(
@@ -2777,7 +2814,7 @@ class ToolProviderManager:
 
         # Dispatch to the provider that owns this tool; provider receives original name + normalized args
         try:
-            result = await provider.call_tool(name, arguments)
+            result = await provider.call_tool(name, arguments, program_info=effective_program_info)
         except ProgramAnalysisTimeout as exc:
             return analysis_timeout_error_response(exc, resolved_prog_path)
         logger.info(
@@ -2898,6 +2935,7 @@ class ToolProviderManager:
                     checkin_result = await self.call_tool(
                         Tool.CHECKIN_PROGRAM.value,
                         {"__auto_checkin_invocation": True, "comment": "Auto check-in after modification"},
+                        program_info=effective_program_info,
                     )
                     if result and isinstance(result[0], types.TextContent):
                         try:

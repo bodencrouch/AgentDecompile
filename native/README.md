@@ -7,7 +7,13 @@ replays raw images and exported decompiler savefiles without Java.
 ## Build
 
 The linked `vendor/ghidra` worktree must contain the native-SDK standalone
-CMake support. Build on a volume with room for compiled SLEIGH definitions:
+CMake support. In this branch the submodule is a linked git worktree of the
+existing Ghidra module repo; `git submodule status` may report it as
+uninitialized even when the parent gitlink is valid. Use `git ls-files -s
+vendor/ghidra` or `git ls-tree HEAD vendor/ghidra` to check the recorded
+pointer.
+
+Build on a volume with room for compiled SLEIGH definitions:
 
 ```sh
 cmake --preset relwithdebinfo -S native
@@ -15,13 +21,19 @@ cmake --build native/build/relwithdebinfo -j4
 ctest --test-dir native/build/relwithdebinfo --output-on-failure
 ```
 
-Use `--preset asan`, `ubsan`, or `fuzz` for the hardening lanes. The fuzz
-target exercises the production incremental frame decoder:
+Use `--preset asan`, `ubsan`, or `fuzz` for the hardening lanes. TSan is not
+built or claimed because the native engine and SDK session model are
+process-global and single-threaded after init.
+
+The fuzz lane builds three libFuzzer targets: the production incremental frame
+decoder, SLEIGH disassembly over a fixed x86 seed image, and p-code lifting over
+the same image. CTest runs each target for 1000 mutations from its checked-in
+seed corpus:
 
 ```sh
 cmake --preset fuzz -S native
-cmake --build native/build/fuzz --target protocol_fuzzer -j4
-native/build/fuzz/fuzz/protocol_fuzzer -runs=10000
+cmake --build native/build/fuzz -j4
+ctest --test-dir native/build/fuzz -R '^fuzz_smoke_' --output-on-failure
 ```
 
 To build the shared ABI and its required SLEIGH home together:
@@ -70,7 +82,11 @@ worker/pool teardown path remains bounded in either mode.
 ## Snapshot replay
 
 Export still uses Ghidra and Java once per function. Replay does not: the
-checked-in fixture demonstrates the intended two-stage workflow.
+checked-in fixture demonstrates the intended two-stage workflow. The native
+runtime proof is the `no_jvm_runtime` CTest target, which clears the environment
+and runs a SLEIGH smoke binary from the native build tree. For a stronger host
+boundary, run the upstream CMake README's Fedora container recipe without a JDK
+and then run the same CTest lane inside that container.
 
 ```sh
 # Java/PyGhidra producer (writes savefiles, options, and Java C oracles)

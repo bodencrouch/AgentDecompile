@@ -1,0 +1,4 @@
+# LeakSanitizer suppressions for the native SDK lanes.
+#
+# Keep this file intentionally empty until a leak is confirmed to originate in
+# process-lifetime Ghidra native registries rather than SDK-owned allocations.

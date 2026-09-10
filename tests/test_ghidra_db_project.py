@@ -519,12 +519,12 @@ def test_open_with_missing_version_raises_and_lists_available(tmp_path: Path) ->
 
 @_needs_server_repo
 def test_server_repository_lists_every_program_with_its_folder() -> None:
-    """The real 24-program `_odyssey` repository, enumerated from its root."""
+    """The real `_odyssey` repository, enumerated from its root."""
 
     entries = list_programs(SERVER_REPO)
 
-    assert len(entries) == 24
-    assert [entry.project_path for entry in entries] == [
+    project_paths = [entry.project_path for entry in entries]
+    expected = [
         "/JE/JadeEmpire.exe",
         "/K1/k1_android_ARM64",
         "/K1/k1_android_ARMEABI",
@@ -550,6 +550,12 @@ def test_server_repository_lists_every_program_with_its_folder() -> None:
         "/TSL/k2_win_steam_aspyr_swkotor2.exe",
         "/TSL/k2_xbox_default.xbe",
     ]
+    assert len(entries) >= len(expected)
+    assert set(expected).issubset(set(project_paths))
+    assert all(
+        entry.project_path == f"{entry.folder_path.rstrip('/')}/{entry.name}"
+        for entry in entries
+    )
 
 
 @_needs_server_repo

@@ -23,18 +23,20 @@ def _app() -> TestClient:
 
 def test_hub_and_healthz_are_on_the_same_app() -> None:
     client = _app()
-    hub = client.get("/app")
-    assert hub.status_code == 200
-    assert "/atlas" in hub.text
-    assert "Run work" in hub.text
-    assert "/dashboard/actions" not in hub.text
+    hub = client.get("/app", follow_redirects=False)
+    assert hub.status_code == 302
+    assert hub.headers["location"] == "/dashboard"
+    shell = client.get("/dashboard")
+    assert shell.status_code == 200
+    assert "AgentDecompile · Workbench" in shell.text
+    assert "/dashboard/static/react/assets/" in shell.text
     health = client.get("/dashboard/healthz")
     assert health.status_code == 200
     assert health.json()["ok"] is True
     assert health.json()["pages"]["atlas"] == "/atlas"
-    assert health.json()["pages"]["graph"] == "/dashboard/functions#graph"
-    assert health.json()["pages"]["review"] == "/dashboard/functions#review"
-    assert health.json()["pages"]["builds"] == "/dashboard/functions#builds"
+    assert health.json()["pages"]["graph"] == "/dashboard?window=wb-graph"
+    assert health.json()["pages"]["review"] == "/dashboard?window=wb-review"
+    assert health.json()["pages"]["builds"] == "/dashboard?window=wb-corpus"
 
 
 def test_dashboard_reads_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -50,9 +52,8 @@ def test_dashboard_reads_store(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     client = _app()
     page = client.get("/dashboard")
     assert page.status_code == 200
-    assert "donor" in page.text
-    assert "complete executable" in page.text.lower()
-    assert "/dashboard/binary/donor" in page.text
+    assert "AgentDecompile · Workbench" in page.text
+    assert "donor" in render_dashboard(store_path=db, work_dir=None)
 
 
 def test_functions_page_works_without_source_file_column(
@@ -74,25 +75,20 @@ def test_functions_page_works_without_source_file_column(
     client = _app()
     page = client.get("/dashboard/functions")
     assert page.status_code == 200
-    assert "main" in page.text
-    assert "0x401000" in page.text or "00401000" in page.text or "0x00401000" in page.text
-    assert 'id="page-size"' in page.text
-    assert 'id="review"' in page.text
-    assert 'id="graph"' in page.text
-    assert 'id="builds"' in page.text
-    partial = client.get("/dashboard/functions?binary=donor&partial=1")
+    assert "AgentDecompile · Workbench" in page.text
+    partial = client.get("/dashboard/api/workbench/functions?binary=donor")
     assert partial.status_code == 200
-    assert "<!doctype html>" not in partial.text.lower()
-    assert 'id="function-results"' in partial.text
-    aliased = client.get("/functions?binary=donor")
-    assert aliased.status_code == 200
-    assert "main" in aliased.text
-    one = client.get("/dashboard/function/donor/0x401000")
+    assert any(row["name"] == "main" for row in partial.json()["results"])
+    aliased = client.get("/functions?binary=donor", follow_redirects=False)
+    assert aliased.status_code == 302
+    assert "window=wb-fnbrowse" in aliased.headers["location"]
+    one = client.get("/dashboard/api/workbench/function?binary=donor&addr=0x401000")
     assert one.status_code == 200
-    assert "main.c" in one.text
-    binary = client.get("/binary/donor")
-    assert binary.status_code == 200
-    assert "main" in binary.text
+    assert one.json()["function"]["nameOrigin"] == "main.c"
+    assert one.json()["function"]["sourceFile"] == ""
+    binary = client.get("/binary/donor", follow_redirects=False)
+    assert binary.status_code == 302
+    assert "window=wb-corpus" in binary.headers["location"]
 
 
 def test_report_serves_html_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -100,10 +96,12 @@ def test_report_serves_html_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     path.write_text("<html><body>run report body</body></html>", encoding="utf-8")
     monkeypatch.setenv("AGENT_DECOMPILE_REPORT_HTML", str(path))
     client = _app()
-    page = client.get("/report")
-    assert page.status_code == 200
-    assert "run report body" in page.text
-    assert client.get("/recovery").status_code == 200
+    page = client.get("/report", follow_redirects=False)
+    assert page.status_code == 302
+    assert page.headers["location"] == "/dashboard?window=wb-report"
+    recovery = client.get("/recovery", follow_redirects=False)
+    assert recovery.status_code == 302
+    assert recovery.headers["location"] == "/dashboard?window=wb-report"
 
 
 def test_artifact_stays_inside_work_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -152,9 +150,9 @@ def test_atlas_load_then_build_keeps_state(tmp_path: Path, monkeypatch: pytest.M
 
 def test_atlas_page_uses_prefixed_api() -> None:
     client = _app()
-    page = client.get("/atlas")
-    assert page.status_code == 200
-    assert "/atlas/api" in page.text
+    page = client.get("/atlas", follow_redirects=False)
+    assert page.status_code == 302
+    assert page.headers["location"] == "/dashboard?window=wb-atlas"
     missing = client.post("/atlas/api/loadProject", json={})
     assert missing.status_code == 404
     assert "AGENT_DECOMPILE_ATLAS_PROJECT_ROOT" in missing.json()["error"]

@@ -52,7 +52,19 @@ def _budget_expired(deadline: Any) -> bool:
 def _merge_stages(previous: dict[str, Any]) -> list[dict[str, Any]]:
     by_key = {item.get('key'): dict(item) for item in previous.get('stages') or [] if item.get('key')}
     stages = []
+    seen: set[str] = set()
+    stage_titles = dict(_STAGES)
+    for item in previous.get('stages') or []:
+        key = item.get('key') if isinstance(item, dict) else None
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        row = dict(item)
+        row['title'] = stage_titles.get(key, row.get('title'))
+        stages.append(row)
     for key, title in _STAGES:
+        if key in seen:
+            continue
         if key in by_key:
             row = by_key[key]
             row['title'] = title

@@ -81,12 +81,10 @@ def test_resolve_drop_finds_gpr_by_name(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client = _client(monkeypatch, tmp_path)
-    work = tmp_path / "work"
-    work.mkdir()
-    gpr = _write_gpr(work, "Dropped")
+    gpr = _write_gpr(tmp_path / "work" / "drop-staging" / "drop-1", "Dropped")
     resolved = client.post(
         "/dashboard/api/workbench/resolve-drop",
-        json={"name": "Dropped.gpr"},
+        json={"name": "Dropped.gpr", "staging_id": "drop-1"},
     )
     assert resolved.status_code == 200
     assert Path(resolved.json()["locator"]).name == gpr.name
@@ -164,7 +162,7 @@ def test_register_shared_fs_and_inspect_http(
     assert http.status_code == 200
     remote = http.json()
     assert remote["kind"] == "shared-project"
-    assert remote["access"] == "http"
+    assert remote["access"] == "rmi"
     assert remote["reachable"] is False
     assert "Game.exe" in remote["programs"]
 
@@ -173,14 +171,13 @@ def test_resolve_drop_rep_folder(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client = _client(monkeypatch, tmp_path)
-    work = tmp_path / "work"
-    work.mkdir()
-    gpr = _write_gpr(work, "Packed")
+    gpr = _write_gpr(tmp_path / "work" / "drop-staging" / "drop-1", "Packed")
     resolved = client.post(
         "/dashboard/api/workbench/resolve-drop",
         json={
             "name": "Packed.rep",
             "relativePaths": ["Packed.rep/Game.exe/propertyList.xml"],
+            "staging_id": "drop-1",
         },
     )
     assert resolved.status_code == 200

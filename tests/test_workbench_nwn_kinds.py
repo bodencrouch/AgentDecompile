@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from agentdecompile_recovery.corpus.dashboard.router import create_dashboard_router
 from agentdecompile_recovery.corpus.dashboard.workbench import _slug_from_disk_path, list_functions
 from agentdecompile_recovery.corpus.store import connect
+from agentdecompile_recovery.ghidra_db.project import INDEX_FILE, storage_subdirectory
 
 pytestmark = pytest.mark.unit
 
@@ -73,6 +74,52 @@ NWN = [
     ),
 ]
 
+_PRP_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
+<FILE_INFO>
+    <BASIC_INFO>
+        <STATE NAME="CONTENT_TYPE" TYPE="string" VALUE="Program" />
+        <STATE NAME="PARENT" TYPE="string" VALUE="{parent}" />
+        <STATE NAME="FILE_ID" TYPE="string" VALUE="id-{storage_name}" />
+        <STATE NAME="FILE_TYPE" TYPE="int" VALUE="0" />
+        <STATE NAME="NAME" TYPE="string" VALUE="{name}" />
+    </BASIC_INFO>
+</FILE_INFO>
+"""
+
+
+def _make_server_repository(root: Path) -> Path:
+    root.mkdir(parents=True, exist_ok=True)
+    (root / "users").write_text("# usernames only; no passwords stored\n", encoding="utf-8")
+    repo = root / "_tiny"
+    repo.mkdir()
+    storage_name = "0000000b"
+    name = "game.exe"
+    folder = "/Tiny"
+    (repo / INDEX_FILE).write_text(
+        "\n".join(
+            [
+                "VERSION=1",
+                "/",
+                folder,
+                f"  {storage_name}:{name}:id-{storage_name}",
+                "NEXT-ID:32",
+                "MD5:d41d8cd98f00b204e9800998ecf8427e",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    storage = repo / storage_subdirectory(storage_name)
+    storage.mkdir()
+    (storage / f"{storage_name}.prp").write_text(
+        _PRP_TEMPLATE.format(parent=folder, storage_name=storage_name, name=name),
+        encoding="utf-8",
+    )
+    database = storage / f"~{storage_name}.db"
+    database.mkdir()
+    (database / "db.1.gbf").write_bytes(b"")
+    return root
+
 
 def test_slug_from_disk_path_uses_platform_dir() -> None:
     assert _slug_from_disk_path(Path("/bin/win32/nwmain.exe"), "") == "nwmain-win32"
@@ -113,10 +160,9 @@ def _client(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> TestClient:
 def test_shared_fs_folder_converts_to_gpr_and_back(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    if not REPOS.is_dir():
-        pytest.skip(f"shared-fs folder missing: {REPOS}")
+    repos = _make_server_repository(tmp_path / "source-repos")
     client = _client(monkeypatch, tmp_path)
-    inspected = client.get("/dashboard/api/workbench/inspect", params={"locator": str(REPOS)})
+    inspected = client.get("/dashboard/api/workbench/inspect", params={"locator": str(repos)})
     assert inspected.status_code == 200
     body = inspected.json()
     assert body["kind"] == "shared-fs"
@@ -127,7 +173,7 @@ def test_shared_fs_folder_converts_to_gpr_and_back(
     saved = client.post(
         "/dashboard/api/workbench/save-as",
         json={
-            "locator": str(REPOS),
+            "locator": str(repos),
             "target": "ghidra-project",
             "name": "repos-from-shared",
             "dest": str(dest),
@@ -158,15 +204,9 @@ def test_local_gpr_and_http_shared_roundtrip(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client = _client(monkeypatch, tmp_path)
-    if LOCAL_GPR.is_file():
-        local = client.get("/dashboard/api/workbench/inspect", params={"locator": str(LOCAL_GPR)})
-        assert local.status_code == 200
-        assert local.json()["kind"] == "ghidra-project"
-        locator = str(LOCAL_GPR)
-    else:
-        created = client.post("/dashboard/api/workbench/projects", json={"name": "LocalKind"})
-        assert created.status_code == 200
-        locator = created.json()["locator"]
+    created = client.post("/dashboard/api/workbench/projects", json={"name": "LocalKind"})
+    assert created.status_code == 200
+    locator = created.json()["locator"]
 
     http = client.get(
         "/dashboard/api/workbench/inspect",
@@ -175,7 +215,7 @@ def test_local_gpr_and_http_shared_roundtrip(
     assert http.status_code == 200
     remote = http.json()
     assert remote["kind"] == "shared-project"
-    assert remote["access"] == "http"
+    assert remote["access"] == "rmi"
 
     checkout = client.post(
         "/dashboard/api/workbench/save-as",
@@ -209,15 +249,14 @@ def test_nwn_binaries_import_into_project_then_save_reload(
     present = [(slug, path) for slug, path in NWN if path.is_file()]
     if len(present) < 8:
         pytest.skip("Neverwinter Nights binaries are not on this machine")
-    if not REPOS.is_dir():
-        pytest.skip(f"shared-fs folder missing: {REPOS}")
+    repos = _make_server_repository(tmp_path / "source-repos")
     client = _client(monkeypatch, tmp_path)
-    opened = client.get("/dashboard/api/workbench/inspect", params={"locator": str(REPOS)})
+    opened = client.get("/dashboard/api/workbench/inspect", params={"locator": str(repos)})
     assert opened.status_code == 200
     saved = client.post(
         "/dashboard/api/workbench/save-as",
         json={
-            "locator": str(REPOS),
+            "locator": str(repos),
             "target": "ghidra-project",
             "name": "nwn-host",
             "dest": str(tmp_path / "work" / "nwn-host"),

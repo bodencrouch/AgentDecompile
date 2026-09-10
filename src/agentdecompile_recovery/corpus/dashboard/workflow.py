@@ -226,6 +226,48 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
                    **({'extractionNote': extraction_failure} if extraction_failure else {}))
         elif extraction_failure:
             result('recover-source', 'partial', extraction_failure, knowledgeDb=str(program_kb))
+
+        # Target materialization and Ghidra witnesses are independent of a
+        # compiler profile.  Do them before calibration: otherwise a project
+        # with no prior source probes can never produce the evidence needed to
+        # make subsequent recovery work concrete.
+        from .target_image import catalog_target_authority, materialize_original_target
+        expected_hash = ''
+        try:
+            with sqlite3.connect(f'{db.as_uri()}?mode=ro', uri=True) as con:
+                found = con.execute('SELECT content_sha256 FROM binary WHERE id=?', (checkpoint.get('binaryId'),)).fetchone()
+                expected_hash = str(found[0] or '') if found else ''
+        except (sqlite3.Error, ValueError, OSError):
+            pass
+        registry_path = Path(os.environ.get(
+            'AGENT_DECOMPILE_TARGET_AUTHORITY_REGISTRY',
+            str(root / 'original-target-authorities' / 'k1-k2-target-authorities.json'),
+        ))
+        authority = catalog_target_authority(registry_path, str(checkpoint.get('repoPath') or ''))
+        target_source = checkpoint.get('executablePath') or ''
+        target_md5 = ''
+        if authority is not None:
+            target_source = authority['sourcePath']
+            target_md5 = str(authority['expectedMd5'])
+            expected_hash = ''
+        target_image = materialize_original_target(
+            target_source, work,
+            program=program,
+            program_fingerprint=str(checkpoint.get('programFingerprint') or ''),
+            expected_sha256=expected_hash,
+            expected_md5=target_md5,
+            protection=checkpoint.get('protection'),
+            source_provenance=authority,
+        )
+        checkpoint['targetImage'] = target_image
+        if target_image.get('ok'):
+            original_target = Path(str(target_image['targetPath']))
+            result('materialize-target', 'completed', 'Original executable bytes copied and hash-bound for independent comparison.',
+                   receipt=target_image['receiptPath'], targetImage=target_image)
+        else:
+            original_target = None
+            result('materialize-target', 'blocked', str(target_image.get('reason') or 'Original byte target could not be materialized.'), targetImage=target_image)
+
         if not configured and not profile_path.exists():
             # Bind a measured compiler profile only after Ghidra has identified
             # the executable it actually opened.  Shared-folder names and
@@ -268,49 +310,9 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
             continue
         checkpoint['toolchain'] = compiler
         result('calibrate-global', 'completed', 'Compiler and layout inputs available; calibration receipt retained.', receipt=str(work / 'calibrate-global.json'))
-
-        # A Ghidra analysis image may be unpacked or normalized.  Materialize
-        # only the original executable for proof; a derived analysis image is
-        # deliberately never accepted as a byte-comparison authority.
-        from .target_image import catalog_target_authority, materialize_original_target
-        expected_hash = ''
-        try:
-            with sqlite3.connect(f'{db.as_uri()}?mode=ro', uri=True) as con:
-                found = con.execute('SELECT content_sha256 FROM binary WHERE id=?', (checkpoint.get('binaryId'),)).fetchone()
-                expected_hash = str(found[0] or '') if found else ''
-        except (sqlite3.Error, ValueError, OSError):
-            pass
-        registry_path = Path(os.environ.get(
-            'AGENT_DECOMPILE_TARGET_AUTHORITY_REGISTRY',
-            str(root / 'original-target-authorities' / 'k1-k2-target-authorities.json'),
-        ))
-        authority = catalog_target_authority(registry_path, str(checkpoint.get('repoPath') or ''))
-        target_source = checkpoint.get('executablePath') or ''
-        target_md5 = ''
-        if authority is not None:
-            # The catalog candidate is selected only after its own registered
-            # MD5 is checked inside materialize_original_target.  This avoids
-            # stale Ghidra import paths becoming byte-proof authorities.
-            target_source = authority['sourcePath']
-            target_md5 = str(authority['expectedMd5'])
-            expected_hash = ''
-        target_image = materialize_original_target(
-            target_source, work,
-            program=program,
-            program_fingerprint=str(checkpoint.get('programFingerprint') or ''),
-            expected_sha256=expected_hash,
-            expected_md5=target_md5,
-            protection=checkpoint.get('protection'),
-            source_provenance=authority,
-        )
-        checkpoint['targetImage'] = target_image
-        if not target_image.get('ok'):
-            result('materialize-target', 'blocked', str(target_image.get('reason') or 'Original byte target could not be materialized.'), targetImage=target_image)
+        if original_target is None:
             block_after('assembly-floor', 'Waiting for an original-byte verification target.')
             continue
-        original_target = Path(str(target_image['targetPath']))
-        result('materialize-target', 'completed', 'Original executable bytes copied and hash-bound for independent comparison.',
-               receipt=target_image['receiptPath'], targetImage=target_image)
 
         source = work / 'source'
         layout = action('assembly-floor', 'corpus.workspace', {'db': str(db), 'donor-slug': checkpoint['slug'], 'out': str(source)}, context)

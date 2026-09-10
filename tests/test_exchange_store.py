@@ -307,7 +307,7 @@ async def test_submit_is_idempotent_by_key_and_fingerprint(tmp_path: Path) -> No
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "artifact",
-    [{}, {"source": " "}, {"source": 23}, {"source": "bad\x00source"}, {"source": "x" * (64 * 1024)}],
+    [{}, {"source": " "}, {"source": 23}, {"source": "bad\x00source"}, {"source": "\ud800"}, {"source": "x" * (64 * 1024)}],
 )
 async def test_invalid_rewrite_completion_keeps_lease_for_a_correct_retry(tmp_path: Path, artifact: dict[str, object]) -> None:
     store = make_store(tmp_path, max_units=1)

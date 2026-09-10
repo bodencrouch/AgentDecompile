@@ -926,6 +926,13 @@ class ExchangeStore:
         source = artifact.get("source")
         if not isinstance(source, str) or not source.strip() or "\x00" in source:
             raise InvalidSubmission("rewrite completion requires a non-empty source artifact")
+        try:
+            source.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            # JSON's default escaping accepts lone surrogates, but the local
+            # queue writer later needs real UTF-8. Reject before retiring the
+            # lease so the contributor can correct the proposal.
+            raise InvalidSubmission("rewrite source must be valid UTF-8") from exc
 
     async def submit(
         self,

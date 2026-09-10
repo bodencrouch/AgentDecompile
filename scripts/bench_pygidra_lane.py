@@ -38,13 +38,24 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--project-name", default=None)
     p.add_argument("--timeout-s", type=int, default=60)
     p.add_argument("--heap", default="2g")
+    p.add_argument("--java-user-home", type=Path, help="Pass -Duser.home here so Ghidra caches avoid a full /home")
+    p.add_argument("--tmpdir", type=Path, help="Set TMPDIR/JAVA_IO_TMPDIR and pass -Djava.io.tmpdir here")
     p.add_argument("--export-out", type=Path, help="Required for --lane export")
     p.add_argument("--ghidra-install-dir", default=None)
     p.add_argument("--limit", type=int, help="Limit addresses from the snapshot manifest")
     return p
 
 
-def _start_jvm(heap: str, install_dir: str | None) -> None:
+def _configure_process_environment(args: argparse.Namespace) -> None:
+    if args.tmpdir is not None:
+        args.tmpdir.mkdir(parents=True, exist_ok=True)
+        os.environ["TMPDIR"] = str(args.tmpdir)
+        os.environ["JAVA_IO_TMPDIR"] = str(args.tmpdir)
+    if args.java_user_home is not None:
+        args.java_user_home.mkdir(parents=True, exist_ok=True)
+
+
+def _start_jvm(heap: str, install_dir: str | None, *, java_user_home: Path | None = None, tmpdir: Path | None = None) -> None:
     import jpype
     from pyghidra.launcher import HeadlessPyGhidraLauncher
 
@@ -53,7 +64,12 @@ def _start_jvm(heap: str, install_dir: str | None) -> None:
     if jpype.isJVMStarted():
         return
     launcher = HeadlessPyGhidraLauncher(verbose=False, install_dir=Path(install_dir) if install_dir else None)
-    launcher.add_vmargs(f"-Xmx{heap}")
+    vmargs = [f"-Xmx{heap}"]
+    if java_user_home is not None:
+        vmargs.append(f"-Duser.home={java_user_home}")
+    if tmpdir is not None:
+        vmargs.append(f"-Djava.io.tmpdir={tmpdir}")
+    launcher.add_vmargs(*vmargs)
     launcher.start()
 
 
@@ -166,7 +182,17 @@ def _export_lane(args: argparse.Namespace, binary: Path) -> dict[str, object]:
         cmd.extend(["--ghidra-install-dir", args.ghidra_install_dir])
     if args.limit is not None:
         cmd.extend(["--limit", str(args.limit)])
-    proc = subprocess.Popen(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    env = os.environ.copy()
+    java_tool_options: list[str] = []
+    if args.tmpdir is not None:
+        env["TMPDIR"] = str(args.tmpdir)
+        env["JAVA_IO_TMPDIR"] = str(args.tmpdir)
+        java_tool_options.append(f"-Djava.io.tmpdir={args.tmpdir}")
+    if args.java_user_home is not None:
+        java_tool_options.append(f"-Duser.home={args.java_user_home}")
+    if java_tool_options:
+        env["JAVA_TOOL_OPTIONS"] = " ".join(java_tool_options + ([env["JAVA_TOOL_OPTIONS"]] if env.get("JAVA_TOOL_OPTIONS") else []))
+    proc = subprocess.Popen(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
     sampler = TreeSampler(proc.pid, interval_s=0.1).start()
     stdout, stderr = proc.communicate()
     stats = sampler.stop()
@@ -193,6 +219,7 @@ def _export_lane(args: argparse.Namespace, binary: Path) -> dict[str, object]:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    _configure_process_environment(args)
     manifest = load_manifest(args.snapshot)
     binary = args.binary or Path(manifest.program.executable_path)
     if not binary.is_file():
@@ -206,7 +233,7 @@ def main(argv: list[str] | None = None) -> int:
             print("error: ghidrecomp lane runner is not implemented yet", file=sys.stderr)
             return 2
         else:
-            _start_jvm(args.heap, args.ghidra_install_dir)
+            _start_jvm(args.heap, args.ghidra_install_dir, java_user_home=args.java_user_home, tmpdir=args.tmpdir)
             record = _java_decompile_lane(args, binary)
     except Exception as exc:
         print(f"error: {exc}", file=sys.stderr)

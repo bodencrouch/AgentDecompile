@@ -93,14 +93,25 @@ async def test_drain_spool_retries_an_offer_after_its_first_snapshot_write_fails
     path = tmp_path / "state" / "work-exchange.json"
     monkeypatch.setenv("AGENTDECOMPILE_EXCHANGE_ENABLED", "true")
     monkeypatch.setenv("AGENTDECOMPILE_EXCHANGE_STATE", str(path))
-    unit_id = producers.offer_rewrite_unit(
+    producers.offer_rewrite_unit(
         work_dir=tmp_path / "recovery",
         request_id="rewrite-request-1",
         function_name="FUN_00401000",
         entry="0x401000",
         candidate_source="int f(void) { return 1; }",
     )
-    assert unit_id is not None
+    unit_id = derive_unit_id(
+        "rewrite",
+        {
+            "functionName": "FUN_00401000",
+            "entry": "0x401000",
+            "candidateSource": "int f(void) { return 1; }",
+            "mismatchClass": None,
+            "mismatchHistogram": {},
+            "alignedDiff": [],
+            "compilerProfile": None,
+        },
+    )
     spool_file = path.parent / producers.SPOOL_DIRNAME / producers._spool_filename(unit_id)
     store = ExchangeStore(path, clock=FakeClock())
     persist = store._persist

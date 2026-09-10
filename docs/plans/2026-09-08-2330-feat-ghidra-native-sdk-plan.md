@@ -371,6 +371,10 @@ Commit slices on `feat/native-sdk`, each message carrying the test command and r
 
 Dated deltas. Newest first. A delta names what was verified and how; it does not check boxes above unless the named verification ran.
 
+### 2026-09-10 (first end-to-end native snapshot batch result)
+
+- **WP6 partial landed locally:** `0586fdf` adds `gnsdk-batch` for `--snapshot` and explicit snapshot-job JSONL. It opens each savefile in the real worker and emits a JSONL decompile result. `d1b9804` makes the standalone Python batch consumer use this actual file-based input/output contract. A real export of `test_x86_64` ran through Python client -> `gnsdk-batch` -> worker and returned `_add` C; `pool_supervisor_smoke` and `gnsdk_batch_version` passed 2/2. This intentionally uses one worker because session affinity and pool-wide routing are not implemented. Queue bounds, multi-worker scheduling, retries, cgroups, resource classifications, and the required fault matrix remain open.
+
 ### 2026-09-10 (first real native console replay match)
 
 - **WP9 partial landed locally:** `e0aaabc` adds `ConsoleReplayer`, which runs the real upstream console with `SLEIGHHOME` set to the compiled home, restores a savefile, loads its recorded function name, decompiles, and extracts C between standalone console markers without discarding leading source layout. A fresh real PyGhidra export of `test_x86_64` then replayed `_add` through `decomp_console`; strict canonical differential classification was `match`. The focused replay plus classifier suite passed 3/3. The report CLI, committed fixture snapshot, multi-function run, and full differential lane remain required.

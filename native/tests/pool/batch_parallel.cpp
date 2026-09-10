@@ -61,7 +61,7 @@ Run run_batch(const std::filesystem::path &dir, int workers)
                      "out-" + std::to_string(workers) + ".jsonl");
 }
 
-std::vector<std::string> ids(const std::filesystem::path &path)
+std::vector<std::string> ok_ids(const std::filesystem::path &path)
 {
     std::ifstream input(path);
     std::vector<std::string> out;
@@ -74,6 +74,9 @@ std::vector<std::string> ids(const std::filesystem::path &path)
         std::string id;
         if (!value.get_string("id", id))
             throw std::runtime_error("missing result id");
+        std::string status;
+        if (!value.get_string("status", status) || status != "ok")
+            throw std::runtime_error("unexpected result status");
         out.push_back(std::move(id));
     }
     return out;
@@ -102,8 +105,8 @@ int main()
     const auto two = run_batch(dir, 2);
     REQUIRE(exit_status(one.code) == 0);
     REQUIRE(exit_status(two.code) == 0);
-    REQUIRE(ids(dir / "out-1.jsonl") == std::vector<std::string>({"first", "second"}));
-    REQUIRE(ids(dir / "out-2.jsonl") == std::vector<std::string>({"first", "second"}));
+    REQUIRE(ok_ids(dir / "out-1.jsonl") == std::vector<std::string>({"first", "second"}));
+    REQUIRE(ok_ids(dir / "out-2.jsonl") == std::vector<std::string>({"first", "second"}));
     REQUIRE(two.elapsed < one.elapsed);
     REQUIRE(
         exit_status(

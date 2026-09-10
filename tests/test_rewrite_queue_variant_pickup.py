@@ -197,6 +197,18 @@ def test_pending_rewrite_variant_rejects_all_directive_spellings(directive: str)
     assert pending_rewrite_variant({"name": "sub_1000"}, _candidate(), {"status": "completed", "source": source}) is None
 
 
+@pytest.mark.parametrize(
+    "source",
+    [
+        "\ufeff#include <stdio.h>\nint x(void) { return 1; }",
+        "#include <stdio.h>\rint x(void) { return 1; }",
+        "int x(void) { __as\\ \nm__(\"nop\"); return 1; }",
+    ],
+)
+def test_pending_rewrite_variant_rejects_compiler_accepted_normalization_escapes(source: str) -> None:
+    assert pending_rewrite_variant({"name": "sub_1000"}, _candidate(), {"status": "completed", "source": source}) is None
+
+
 def test_pending_rewrite_variant_rejects_empty_source() -> None:
     result = {"status": "completed", "source": "   "}
     assert pending_rewrite_variant({"name": "sub_1000"}, _candidate(), result) is None

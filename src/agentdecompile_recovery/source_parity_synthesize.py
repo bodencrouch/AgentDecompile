@@ -20551,7 +20551,10 @@ _REWRITE_CONTENT_DISALLOWED_RE = re.compile(
     r"|\.incbin\b",
     re.MULTILINE,
 )
-_REWRITE_LINE_CONTINUATION_RE = re.compile(r"\\\r?\n")
+# Clang accepts whitespace between a continuation backslash and newline as an
+# extension. Treat that extension as a splice too: a contributor must not hide
+# a forbidden token behind a diagnostic we do not promote.
+_REWRITE_LINE_CONTINUATION_RE = re.compile(r"\\[ \t\f\v]*\r?\n")
 
 
 def _normalize_rewrite_source_for_content_check(source: str) -> str:
@@ -20564,6 +20567,10 @@ def _normalize_rewrite_source_for_content_check(source: str) -> str:
     extension spellings without rejecting ordinary strings such as ``"asm"``.
     """
 
+    # A UTF-8 BOM is accepted by common compilers before a directive. Normalize
+    # it away, and normalize old-Mac CR line endings so MULTILINE directive
+    # anchors retain their meaning.
+    source = source.removeprefix("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
     source = _REWRITE_LINE_CONTINUATION_RE.sub("", source.replace("??=", "#"))
     normalized: list[str] = []
     index = 0

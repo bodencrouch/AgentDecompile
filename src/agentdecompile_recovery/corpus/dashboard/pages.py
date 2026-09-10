@@ -738,7 +738,7 @@ def render_corpus_status() -> dict:
         "claimBoundary": CLAIM,
         "headline": {
             "real_c": n.get("real_c"),
-            "byte_exact": byte_exact if byte_exact is not None else "unmeasured",
+            "byte_exact": byte_exact if byte_exact is not None else "pending",
             "placed_concrete": n.get("placed_concrete"),
             "unplaced_real_c": n.get("unplaced_real_c"),
             "queued": n.get("queued"),
@@ -3582,4 +3582,3 @@ PAGE_INDEX = {
 
 def page_index() -> dict[str, str]:
     return dict(PAGE_INDEX)
-

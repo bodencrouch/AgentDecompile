@@ -2228,6 +2228,7 @@ class ImportExportToolProvider(ToolProvider):
                     self.program_info,
                     program_path=program_path_hint or None,
                     force=force,
+                    analyzers=analyzers,
                 )
 
             # A prior tool call (import's batch transaction, or a leftover from a
@@ -2237,7 +2238,7 @@ class ImportExportToolProvider(ToolProvider):
             # program. Drain any open transaction first, same as the version-control
             # save/checkin paths already do.
             await _native_call(self._end_all_open_transactions_on_program, program)
-            await _native_call(self._run_program_transaction, program, "auto-analysis", _run_auto_analysis)
+            analysis_result = await _native_call(self._run_program_transaction, program, "auto-analysis", _run_auto_analysis)
             project = getattr(self._manager, "ghidra_project", None) if self._manager else None
             if project is not None:
                 await _native_call(project.save, program)
@@ -2247,6 +2248,7 @@ class ImportExportToolProvider(ToolProvider):
                     "action": "analyze",
                     "programName": program.getName() if program is not None else "(none)",
                     "analyzers": analyzers or "all",
+                    "deferredAnalyzers": (analysis_result or {}).get("deferredAnalyzers", []),
                     "force": force,
                     "success": True,
                 },

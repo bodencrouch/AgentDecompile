@@ -235,9 +235,51 @@ def mark_program_analysis_complete(program_info: ProgramInfo | None) -> None:
         pass
 
 
-def _run_auto_analysis(program: GhidraProgram, *, force: bool) -> None:
+_DEFERRED_DEFAULT_ANALYZER_MARKERS: tuple[str, ...] = (
+    # This analyzer launches a parallel decompiler pass over an entire Mach-O
+    # image.  It is valuable when recovering Objective-C message metadata, but
+    # it is not a prerequisite for the function inventory, symbols, call graph,
+    # or cross-build facts used by the normal corpus preparation path.
+    "objective-c message",
+)
+
+
+def _defer_expensive_default_analyzers(program: GhidraProgram, analyzers: list[str] | None) -> list[str]:
+    """Disable non-essential full-image passes for the default preparation run.
+
+    An explicit analyzer request retains Ghidra's configured defaults.  The
+    deferred passes remain available to targeted recovery work; this only keeps
+    their cost out of the first structural-analysis receipt.
+    """
+    if analyzers:
+        return []
+    try:
+        from ghidra.program.model.listing import Program as GhidraProgramClass  # pyright: ignore[reportMissingImports]
+
+        options = program.getOptions(GhidraProgramClass.ANALYSIS_PROPERTIES)
+        disabled: list[str] = []
+        for name in list(options.getOptionNames()):
+            option_name = str(name)
+            if not any(marker in option_name.casefold() for marker in _DEFERRED_DEFAULT_ANALYZER_MARKERS):
+                continue
+            if str(options.getType(option_name)) == "BOOLEAN_TYPE":
+                options.setBoolean(option_name, False)
+                disabled.append(option_name)
+        if disabled:
+            logger.info("analysis_deferred_analyzers program=%s analyzers=%s", program.getName(), disabled)
+        return disabled
+    except Exception as exc:
+        # Analyzer-option names vary between Ghidra releases.  Failing to
+        # recognize one must never prevent ordinary analysis from proceeding.
+        logger.debug("analysis_deferred_analyzers_unavailable program=%s error=%s", program.getName(), exc)
+        return []
+
+
+def _run_auto_analysis(program: GhidraProgram, *, force: bool, analyzers: list[str] | None = None) -> list[str]:
+    deferred = _defer_expensive_default_analyzers(program, analyzers)
     run_analysis(program, force_analysis=force)
     wait_for_program_analysis_idle(program)
+    return deferred
 
 
 def blocking_ensure_analyzed(
@@ -246,6 +288,7 @@ def blocking_ensure_analyzed(
     *,
     program_path: str | None = None,
     force: bool = False,
+    analyzers: list[str] | None = None,
 ) -> dict[str, Any]:
     """Run incremental analysis under a per-program lock; skip when already complete."""
     if program is None:
@@ -269,14 +312,14 @@ def blocking_ensure_analyzed(
             result = {"skipped": True, "reason": "already-analyzed", "programKey": key}
         else:
             logger.info("program_analysis_start key=%s force=%s", key, force)
-            _run_auto_analysis(program, force=force)
+            deferred = _run_auto_analysis(program, force=force, analyzers=analyzers)
             if program_needs_analysis(program):
                 raise ProgramAnalysisTimeout(
                     f"Ghidra auto-analysis did not complete for program (key={key})"
                 )
             mark_program_analysis_complete(program_info)
             logger.info("program_analysis_done key=%s", key)
-            result = {"ran": True, "programKey": key, "force": force}
+            result = {"ran": True, "programKey": key, "force": force, "deferredAnalyzers": deferred}
     return result
 
 

@@ -84,6 +84,22 @@ bool set_limit(int resource, rlim_t value) {
   return ::setrlimit(resource, &limit) == 0;
 }
 
+// A parent can exit in the small window around PR_SET_PDEATHSIG.  Supervisors
+// provide the pid they spawned us from so the worker can refuse to initialize
+// after reparenting (and so an inherited environment cannot redirect trust).
+bool expected_parent_matches() {
+  const char* text = std::getenv("GNSDK_EXPECTED_PPID");
+  if (text == nullptr || *text == '\0') return true;
+  char* end = nullptr;
+  errno = 0;
+  const unsigned long long expected = std::strtoull(text, &end, 10);
+  if (errno != 0 || end == text || *end != '\0' || expected == 0 ||
+      expected > static_cast<unsigned long long>(std::numeric_limits<pid_t>::max())) {
+    return false;
+  }
+  return ::getppid() == static_cast<pid_t>(expected);
+}
+
 struct Worker {
   proto::FrameReader reader{proto::kPreHandshakeMaxFrame};
   proto::MessageAssembler assembler{proto::kDefaultMaxImageBytes + proto::kDefaultMaxFrame};
@@ -355,6 +371,7 @@ int main(int argc, char** argv) {
   struct sigaction cancel{}; cancel.sa_handler = on_cancel; sigemptyset(&cancel.sa_mask); sigaction(SIGUSR1, &cancel, nullptr);
   struct sigaction term{}; term.sa_handler = on_term; sigemptyset(&term.sa_mask); sigaction(SIGTERM, &term, nullptr);
   if (prctl(PR_SET_PDEATHSIG, SIGKILL) != 0) return 5;
+  if (!expected_parent_matches()) return 5;
   gnsdk_init_options init{}; GNSDK_INIT_STRUCT(&init); init.sleigh_home = sleigh_home;
   if (gnsdk_init(&init) != GNSDK_OK) return 5;
   Worker worker;

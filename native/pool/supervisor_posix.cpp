@@ -73,7 +73,18 @@ void Supervisor::start() {
     if (init != 0) throw std::runtime_error("spawn actions: " + std::string(std::strerror(init)));
     (void)::posix_spawn_file_actions_adddup2(&files, to[0], STDIN_FILENO); (void)::posix_spawn_file_actions_adddup2(&files, from[1], STDOUT_FILENO);
     (void)::posix_spawn_file_actions_addclose(&files, to[1]); (void)::posix_spawn_file_actions_addclose(&files, from[0]);
-    pid_t pid = -1; const int rc = ::posix_spawn(&pid, impl_->config.worker.c_str(), &files, nullptr, args.data(), environ);
+    // Do not inherit an arbitrary expected-parent value from the caller.  The
+    // worker checks this after setting PDEATHSIG to close the reparenting race.
+    std::vector<std::string> env_storage;
+    std::vector<char*> child_env;
+    for (char** entry = environ; entry != nullptr && *entry != nullptr; ++entry) {
+      if (std::string_view(*entry).starts_with("GNSDK_EXPECTED_PPID=")) continue;
+      child_env.push_back(*entry);
+    }
+    env_storage.push_back("GNSDK_EXPECTED_PPID=" + std::to_string(::getpid()));
+    child_env.push_back(env_storage.back().data());
+    child_env.push_back(nullptr);
+    pid_t pid = -1; const int rc = ::posix_spawn(&pid, impl_->config.worker.c_str(), &files, nullptr, args.data(), child_env.data());
     (void)::posix_spawn_file_actions_destroy(&files); close_fd(to[0]); close_fd(from[1]);
     if (rc != 0) { close_fd(to[1]); close_fd(from[0]); throw std::runtime_error("spawn gnsdk-worker: " + std::string(std::strerror(rc))); }
     Impl::Child child; child.pid = pid; child.pidfd = open_pidfd(pid); child.in = to[1]; child.out = from[0];

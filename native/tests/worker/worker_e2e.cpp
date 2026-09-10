@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 #include <string>
+#include <string_view>
 
 #include <fcntl.h>
 #include <poll.h>
@@ -39,6 +40,8 @@ Child spawn() {
   if (pid == 0) {
     ::dup2(to[0], 0); ::dup2(from[1], 1);
     ::close(to[0]); ::close(to[1]); ::close(from[0]); ::close(from[1]);
+    const std::string expected_parent = std::to_string(::getppid());
+    REQUIRE(::setenv("GNSDK_EXPECTED_PPID", expected_parent.c_str(), 1) == 0);
 #if defined(GNSDK_ENABLE_TEST_HOOKS)
     ::execl(GNSDK_WORKER_PATH, GNSDK_WORKER_PATH, "--sleigh-home", GNSDK_SLEIGH_HOME,
             "--test-decompile-delay-ms", "200", static_cast<char*>(nullptr));
@@ -50,6 +53,21 @@ Child spawn() {
   }
   ::close(to[0]); ::close(from[1]);
   return {pid, to[1], from[0]};
+}
+
+void rejects_wrong_parent() {
+  const pid_t pid = ::fork();
+  REQUIRE(pid >= 0);
+  if (pid == 0) {
+    REQUIRE(::setenv("GNSDK_EXPECTED_PPID", "1", 1) == 0);
+    ::execl(GNSDK_WORKER_PATH, GNSDK_WORKER_PATH, "--sleigh-home", GNSDK_SLEIGH_HOME,
+            static_cast<char*>(nullptr));
+    _exit(127);
+  }
+  int status = 0;
+  REQUIRE(::waitpid(pid, &status, 0) == pid);
+  REQUIRE(WIFEXITED(status));
+  REQUIRE(WEXITSTATUS(status) == 5);
 }
 
 proto::Message receive(proto::FrameReader& reader, const Child& child, std::uint64_t id) {
@@ -73,6 +91,7 @@ proto::Message receive(proto::FrameReader& reader, const Child& child, std::uint
 }  // namespace
 
 int main() {
+  rejects_wrong_parent();
   Child child = spawn();
   proto::FrameReader reader(proto::kPreHandshakeMaxFrame);
   proto::HelloInfo hello; hello.capabilities = {"test"}; hello.engine_source = "worker-e2e";

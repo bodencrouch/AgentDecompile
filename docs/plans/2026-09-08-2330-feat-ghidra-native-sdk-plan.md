@@ -371,6 +371,10 @@ Commit slices on `feat/native-sdk`, each message carrying the test command and r
 
 Dated deltas. Newest first. A delta names what was verified and how; it does not check boxes above unless the named verification ran.
 
+### 2026-09-10 (expanded fuzz smoke coverage landed)
+
+- **WP7 fuzz/docs slice landed locally:** `031a08a` adds checked-in seed corpora plus libFuzzer smoke coverage for the production protocol frame decoder, SLEIGH disassembly, and p-code lifting. The fuzz preset now pins system linker tooling on this host, uses an explicit empty LSan suppression file, and keeps the CTest workload at `-runs=1000` with a 300-second per-test ceiling for cold SLEIGH/ASan startup. `env -u 'BASH_FUNC_module%%' -u 'BASH_FUNC_ml%%' cmake --build --preset fuzz --parallel 4` passed, followed by `env -u 'BASH_FUNC_module%%' -u 'BASH_FUNC_ml%%' ctest --preset fuzz -R '^fuzz_smoke_' --output-on-failure` passing 3/3 in 43.47 seconds. `native/README.md` now documents the linked-worktree submodule-status quirk, fuzz targets, R01/no-JVM proof shape, cgroup boundary, and TSan non-claim. WP7's fuzz/docs checklist is materially covered; the full branch remains blocked on the broader WP0/WP1/WP3/WP6/WP9/WP10/WP11 gaps recorded below.
+
 ### 2026-09-10 (benchmark report safety core)
 
 - **Default native verification baseline:** after the worker parent-identity change, `ctest --test-dir native/build/relwithdebinfo --output-on-failure` passed 31/31. The receipt is retained under `agentdecompile-native-out/test-receipts/`; this does not complete any partial work package whose named acceptance cases are still absent.

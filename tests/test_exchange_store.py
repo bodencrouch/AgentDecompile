@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from agentdecompile_recovery.exchange import store as exchange
+from agentdecompile_recovery.exchange import producers, store as exchange
 from agentdecompile_recovery.exchange.store import (
     STATUS_AWAITING_VERIFICATION,
     STATUS_PENDING,
@@ -84,6 +84,46 @@ async def test_offer_is_idempotent_and_rejects_absolute_paths(tmp_path: Path) ->
         await store.offer(lane="match", payload={"db": "/home/agent/work/live/atlas.db"})
     with pytest.raises(ValueError, match="absolute path"):
         await store.offer(lane="match", payload={"db": r"C:\work\live\atlas.db"})
+
+
+@pytest.mark.asyncio
+async def test_drain_spool_retries_an_offer_after_its_first_snapshot_write_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "state" / "work-exchange.json"
+    monkeypatch.setenv("AGENTDECOMPILE_EXCHANGE_ENABLED", "true")
+    monkeypatch.setenv("AGENTDECOMPILE_EXCHANGE_STATE", str(path))
+    unit_id = producers.offer_rewrite_unit(
+        work_dir=tmp_path / "recovery",
+        request_id="rewrite-request-1",
+        function_name="FUN_00401000",
+        entry="0x401000",
+        candidate_source="int f(void) { return 1; }",
+    )
+    assert unit_id is not None
+    spool_file = path.parent / producers.SPOOL_DIRNAME / producers._spool_filename(unit_id)
+    store = ExchangeStore(path, clock=FakeClock())
+    persist = store._persist
+    failed = False
+
+    async def fail_first_offer_snapshot(text: str | None, generation: int | None = None) -> None:
+        nonlocal failed
+        if not failed:
+            failed = True
+            raise OSError("simulated offer snapshot write failure")
+        await persist(text, generation)
+
+    monkeypatch.setattr(store, "_persist", fail_first_offer_snapshot)
+    assert await producers.drain_spool(store) == 0
+    assert spool_file.is_file()
+    assert not (path.parent / producers.ACCEPTED_DIRNAME / spool_file.name).exists()
+
+    assert await producers.drain_spool(store) == 1
+    assert not spool_file.exists()
+    assert (path.parent / producers.ACCEPTED_DIRNAME / spool_file.name).is_file()
+
+    reloaded = ExchangeStore(path, clock=FakeClock())
+    assert (await reloaded.unit_state(unit_id))["status"] == STATUS_PENDING
 
 
 @pytest.mark.asyncio

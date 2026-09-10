@@ -580,21 +580,24 @@ class ExchangeStore:
             self._load()
             now = self.clock()
             self._reap(now)
-            if unit_id in self._units:
-                return unit_id
-            if len(self._units) >= self.max_units:
-                raise CapacityExceeded(f"exchange already holds its cap of {self.max_units} units")
-            self._units[unit_id] = WorkUnit(
-                unit_id=unit_id,
-                lane=lane,
-                payload=payload,
-                required_capabilities=required_capabilities_for(lane, required_capabilities),
-                offered_at=now,
-            )
+            if unit_id not in self._units:
+                if len(self._units) >= self.max_units:
+                    raise CapacityExceeded(f"exchange already holds its cap of {self.max_units} units")
+                self._units[unit_id] = WorkUnit(
+                    unit_id=unit_id,
+                    lane=lane,
+                    payload=payload,
+                    required_capabilities=required_capabilities_for(lane, required_capabilities),
+                    offered_at=now,
+                )
             text = self._snapshot_text()
             generation = self._generation
-        await self._persist(text, generation)
-        return unit_id
+            # An initial write can fail after it mutates memory. Do not let a
+            # content-addressed replay acknowledge the offer until it makes
+            # the current state durable; keeping the lock prevents a later
+            # mutation from overtaking this snapshot.
+            await self._persist(text, generation)
+            return unit_id
 
     async def unit_state(self, unit_id: str) -> dict[str, Any] | None:
         """Coordinator-side read of one unit, including any proposal against it."""

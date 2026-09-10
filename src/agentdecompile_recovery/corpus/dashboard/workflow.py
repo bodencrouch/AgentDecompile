@@ -116,13 +116,36 @@ def _extract_advisory_witnesses(
         while not checkpoint.get('knowledgeComplete') or checkpoint.get('knowledgeFingerprint') != fingerprint:
             config = {'kb': str(program_kb), 'program': program, 'cursor': cursor, 'progress': str(progress_path)}
             decompiled = action('recover-source', 'mcp.execute-script', {
-                'programPath': program, '_preparationProbe': True,
+                'programPath': str(context.get('program') or program), '_preparationProbe': True,
                 'code': knowledge_script(config), 'timeout': 180,
             }, context)
             payload = decompiled.get('data') or {}
             if not decompiled['ok'] or not isinstance(payload, dict) or 'more' not in payload:
                 failure = str(decompiled.get('error') or 'Ghidra source extraction retained completed functions and will continue from its cursor.')
                 break
+            observed_fingerprint = str(payload.get('programFingerprint') or '')
+            if observed_fingerprint and observed_fingerprint != fingerprint:
+                # A shared-folder name is only an inventory key.  Source
+                # witnesses must be tied to the executable actually opened by
+                # Ghidra, otherwise a moved/imported program could reuse a
+                # cache from a different build.  Rename the just-created
+                # cache when this is the first fingerprint observation; a
+                # later change leaves the old receipt intact and restarts on
+                # the next durable admission.
+                if fingerprint == 'unknown':
+                    bound_kb = work / ('knowledge-' + observed_fingerprint + '.sqlite')
+                    if program_kb != bound_kb and program_kb.exists() and not bound_kb.exists():
+                        program_kb.replace(bound_kb)
+                    program_kb = bound_kb
+                    fingerprint = observed_fingerprint
+                    checkpoint['programFingerprint'] = observed_fingerprint
+                else:
+                    checkpoint.pop('knowledgeCursor', None)
+                    checkpoint.pop('knowledgeComplete', None)
+                    checkpoint.pop('knowledgeAvailable', None)
+                    checkpoint['programFingerprint'] = observed_fingerprint
+                    failure = 'The opened Ghidra program changed since the prior source receipt; a fresh fingerprint-bound extraction is queued.'
+                    break
             cursor = str(payload['cursor'])
             checkpoint.update(
                 knowledgeCursor=cursor,
@@ -139,15 +162,19 @@ def _extract_advisory_witnesses(
 
 
 def continue_recovery(row: dict[str, Any], root: Path, db: Path,
-                      action: Callable[..., dict[str, Any]], update: Callable[..., None]) -> None:
+                      action: Callable[..., dict[str, Any]], update: Callable[..., None],
+                      execution_routes: dict[str, tuple[str, str]] | None = None) -> None:
     """Keep every stage visible and execute only the capabilities we can supply."""
     programs = row.get('programs') or []
+    execution_routes = execution_routes or {}
     totals = {key: 0 for key, _ in STAGES}
     for program in programs:
         checkpoint = row['checkpoints'].setdefault(program, {})
         states = checkpoint.setdefault('workflow', {})
         work = root / 'recovery' / row['id'] / str(checkpoint.get('binaryId') or 'unresolved')
-        context = {'locator': row['locator'], 'program': program, 'slug': checkpoint.get('slug') or '', 'repo': checkpoint.get('repoPath') or ''}
+        execution_locator, execution_program = execution_routes.get(program, (row['locator'], program))
+        context = {'locator': execution_locator, 'program': execution_program,
+                   'slug': checkpoint.get('slug') or '', 'repo': checkpoint.get('repoPath') or ''}
 
         def result(key: str, status: str, reason: str, **details: Any) -> None:
             states[key] = {'status': status, 'reason': reason, 'updatedAt': time.time(), **details}
@@ -191,7 +218,7 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         profile = read_object(profile_path)
         header = work / 'ghidra_types.h'
         layout_config = {'db': str(db), 'binaryId': checkpoint['binaryId'], 'program': program, 'header': str(header)}
-        exported_types = action('calibrate-global', 'mcp.execute-script', {'programPath': program, '_preparationProbe': True, 'code': layout_script(layout_config), 'timeout': 180}, context)
+        exported_types = action('calibrate-global', 'mcp.execute-script', {'programPath': execution_program, '_preparationProbe': True, 'code': layout_script(layout_config), 'timeout': 180}, context)
         type_data = exported_types.get('data') or {}
         fields = {'work-dir': str(work)}
         if exported_types['ok'] and isinstance(type_data, dict) and type_data.get('types', 0) > 0:

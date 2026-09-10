@@ -1378,7 +1378,10 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             merged = action('matching', 'workbench.merge-evidence', {'db': str(live_db()), 'run': f'prepare-{run_id}'}, row)
             update('matching', 'completed' if merged['ok'] and matched == len(pairs) else 'partial', 'Compared identities bound; existing human metadata retained.' if merged['ok'] else merged.get('error') or 'Knowledge binding could not finish.', completed=matched, total=len(pairs))
         from .workflow import continue_recovery
-        continue_recovery(row, _directory().parent, live_db(), action, update)
+        continue_recovery(
+            row, _directory().parent, live_db(), action, update,
+            execution_routes=execution_routes,
+        )
         row['status'] = 'completed' if all(stage['status'] == 'completed' for stage in row['stages']) else 'partial'
     except InterruptedError as exc:
         row.update(status='cancelled' if cancel.is_set() else 'budget-stop', error=str(exc))

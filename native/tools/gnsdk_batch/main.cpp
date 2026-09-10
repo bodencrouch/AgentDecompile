@@ -1,6 +1,8 @@
 #include <chrono>
+#include <cctype>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -13,6 +15,36 @@ namespace proto = gnsdk::proto;
 
 namespace {
 struct Job { std::string id; std::string snapshot; std::string addr; };
+
+bool parse_u64(std::string_view text, unsigned long long& out) {
+  if (text.empty()) return false;
+  unsigned long long value = 0;
+  for (const char ch : text) {
+    if (!std::isdigit(static_cast<unsigned char>(ch))) return false;
+    const auto digit = static_cast<unsigned long long>(ch - '0');
+    if (value > (std::numeric_limits<unsigned long long>::max() - digit) / 10) return false;
+    value = value * 10 + digit;
+  }
+  out = value;
+  return true;
+}
+
+bool parse_size(std::string_view text, std::uint64_t& out) {
+  if (text.empty()) return false;
+  std::uint64_t multiplier = 1;
+  const char suffix = text.back();
+  if (suffix == 'k' || suffix == 'K' || suffix == 'm' || suffix == 'M' || suffix == 'g' || suffix == 'G') {
+    text.remove_suffix(1);
+    if (suffix == 'k' || suffix == 'K') multiplier = 1024ull;
+    if (suffix == 'm' || suffix == 'M') multiplier = 1024ull * 1024ull;
+    if (suffix == 'g' || suffix == 'G') multiplier = 1024ull * 1024ull * 1024ull;
+  }
+  unsigned long long value = 0;
+  if (!parse_u64(text, value)) return false;
+  if (value > std::numeric_limits<std::uint64_t>::max() / multiplier) return false;
+  out = static_cast<std::uint64_t>(value) * multiplier;
+  return true;
+}
 
 bool parse_job(const json::Value& value, Job& job) {
   if (!value.is_object() || !value.get_string("id", job.id) || !value.get_string("snapshot", job.snapshot)) return false;
@@ -48,9 +80,11 @@ void write_record(std::ostream& output, const Job& job, const proto::Message& re
 }  // namespace
 
 int main(int argc, char** argv) {
-  std::string sleigh_home, input_path, snapshot_path, output_path;
+  std::string sleigh_home, input_path, snapshot_path, output_path, tmpdir;
   unsigned long timeout_s = 60;
   unsigned long workers = 1;
+  std::uint64_t mem = 0;
+  std::uint64_t cgroup_mem = 0;
   for (int i = 1; i < argc; ++i) {
     const std::string arg = argv[i];
     if (arg == "--version") { std::cout << "gnsdk-batch 0.1.0\n"; return 0; }
@@ -62,6 +96,9 @@ int main(int argc, char** argv) {
     else if (arg == "--output") output_path = value;
     else if (arg == "--timeout") { try { timeout_s = std::stoul(value); } catch (...) { return 2; } }
     else if (arg == "--workers") { try { workers = std::stoul(value); } catch (...) { return 2; } }
+    else if (arg == "--mem") { if (!parse_size(value, mem)) return 2; }
+    else if (arg == "--cgroup-mem") { if (!parse_size(value, cgroup_mem)) return 2; }
+    else if (arg == "--tmpdir") tmpdir = value;
     else return 2;
   }
   if (sleigh_home.empty() || output_path.empty() || (input_path.empty() == snapshot_path.empty()) ||
@@ -79,6 +116,9 @@ int main(int argc, char** argv) {
     // worker until full affinity scheduling is implemented in Supervisor.
     gnsdk::pool::Config config; config.worker = GNSDK_WORKER_PATH; config.sleigh_home = sleigh_home;
     config.workers = snapshot_path.empty() ? static_cast<std::size_t>(workers) : 1;
+    config.tmpdir = tmpdir;
+    config.rlimit_as = mem;
+    config.cgroup_memory_max = cgroup_mem;
     gnsdk::pool::Supervisor pool(std::move(config)); pool.start();
     std::uint64_t request = 1;
     for (const Job& job : jobs) {

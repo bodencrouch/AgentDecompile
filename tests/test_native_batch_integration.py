@@ -22,8 +22,27 @@ def test_checked_in_snapshot_replays_through_native_batch(tmp_path: Path, gnsdk_
     if not batch.is_file() or not sleigh_home.is_dir():
         pytest.skip("set GNSDK_BUILD_DIR to a native SDK build to exercise gnsdk-batch")
     output = tmp_path / "results.jsonl"
+    native_tmp = tmp_path / "native-tmp"
     completed = subprocess.run(
-        [str(batch), "--sleigh-home", str(sleigh_home), "--snapshot", str(FIXTURE), "--output", str(output), "--timeout", "30"],
+        [
+            str(batch),
+            "--sleigh-home",
+            str(sleigh_home),
+            "--snapshot",
+            str(FIXTURE),
+            "--output",
+            str(output),
+            "--timeout",
+            "30",
+            "--workers",
+            "2",
+            "--mem",
+            "4G",
+            "--cgroup-mem",
+            "0",
+            "--tmpdir",
+            str(native_tmp),
+        ],
         text=True, capture_output=True, timeout=40, check=False,
     )
     assert completed.returncode == 0, completed.stderr

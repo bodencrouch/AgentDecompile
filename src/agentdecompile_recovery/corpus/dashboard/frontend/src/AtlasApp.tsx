@@ -547,9 +547,17 @@ export function AtlasApp() {
   const build = builds.find((b) => b.slug === selection.slug);
   const related = build ? builds.filter((b) => b.game === build.game) : [];
   const matchedRun = selectPreparation(runs, selection);
+  const jobTarget = (job: Data, fallback: unknown) => {
+    const source = job.params?.src;
+    const target = job.params?.dst;
+    return source && target ? `${source} → ${target}` : job.params?.programPath || job.params?.program || fallback;
+  };
+  const activeWorkflowJob = matchedRun && jobs
+    .filter((job: Data) => job.params?.run === `prepare-${matchedRun.id}` && ["queued", "running", "cancelling"].includes(job.status))
+    .sort((left: Data, right: Data) => (left.status === "running" ? -1 : right.status === "running" ? 1 : Number(right.createdAt || 0) - Number(left.createdAt || 0)))[0];
   const run: Data | undefined = matchedRun ? {...matchedRun, stages:(matchedRun.stages||[]).map((stage:Data)=>{
-    const job=jobs.find((item)=>item.id===stage.jobId);
-    return job?{...stage,jobStatus:job.status,currentAction:job.title||job.actionId,currentProgram:job.params?.programPath||job.params?.program||stage.currentProgram,startedAt:job.startedAt||stage.startedAt}:stage;
+    const job=(stage.key === "matching" ? activeWorkflowJob : undefined) || jobs.find((item)=>item.id===stage.jobId);
+    return job?{...stage,jobStatus:job.status,currentAction:job.title||job.actionId,currentProgram:jobTarget(job,stage.currentProgram),startedAt:job.startedAt||stage.startedAt}:stage;
   }).map((stage:Data, index:number, stages:Data[])=>{
     const activeIndex=stages.findIndex((candidate:Data)=>candidate.key===matchedRun.currentStage);
     if(activeIndex>=0 && index>activeIndex && stage.status==='running') return {...stage,status:'queued',reason:stage.reason||`Waiting for ${stages[activeIndex].title||matchedRun.currentStage} to complete.`};

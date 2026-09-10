@@ -361,15 +361,21 @@ def _build(con: sqlite3.Connection, locator: str, slug: str, program: str = '') 
                     updatedAt=run.get('updatedAt'), message=reason, error=reason,
                     queue=_queue(run, status), dependencies=outcome.get('dependencies', relevant.get('dependencies', [])),
                     nextFallback=outcome.get('nextAction') or relevant.get('nextFallback'))
+        pair = stage.get('currentPair') if isinstance(stage.get('currentPair'), dict) else {}
+        pair_members = [str(pair.get(key, '')).lstrip('/') for key in ('source', 'target') if pair.get(key)]
         current = by_program.get((run_locator, str(stage.get('currentProgram', '')).lstrip('/')))
         if current is None and status in _ACTIVE and len(run.get('programs', [])) == 1:
             current = by_program.get((run_locator, str(run['programs'][0]).lstrip('/')))
-        if current and status in _ACTIVE:
-            current.update(status=stage.get('jobStatus') if stage.get('jobStatus') in _ACTIVE else status, stage=stage.get('title'), action=stage.get('currentAction', ''),
-                           target=stage.get('currentProgram', ''), jobId=stage.get('jobId'),
-                           progress={**_progress('running', (stage.get('workProgress') or {}).get('completed'), (stage.get('workProgress') or {}).get('total')), 'unit': (stage.get('workProgress') or {}).get('unit')}, eta=_unknown_eta('running'),
-                           startedAt=stage.get('startedAt') or run.get('startedAt') or run.get('createdAt'),
-                           updatedAt=run.get('updatedAt'), message=stage.get('reason', ''), error='')
+        active_entities = [current] if current else []
+        active_entities += [by_program[(run_locator, member)] for member in pair_members if (run_locator, member) in by_program]
+        for active_entity in {item['id']: item for item in active_entities}.values():
+            if status not in _ACTIVE:
+                continue
+            active_entity.update(status=stage.get('jobStatus') if stage.get('jobStatus') in _ACTIVE else status, stage=stage.get('title'), action=stage.get('currentAction', ''),
+                                target=stage.get('currentProgram', ''), jobId=stage.get('jobId'),
+                                progress={**_progress('running', (stage.get('workProgress') or {}).get('completed'), (stage.get('workProgress') or {}).get('total')), 'unit': (stage.get('workProgress') or {}).get('unit')}, eta=_unknown_eta('running'),
+                                startedAt=stage.get('startedAt') or run.get('startedAt') or run.get('createdAt'),
+                                updatedAt=run.get('updatedAt'), message=stage.get('reason', ''), error='')
     # Queue order is not implied by creation time: locks and concurrent admission can change it.
     # Only display a rank explicitly emitted by a scheduler.
     for job in reversed(jobs):

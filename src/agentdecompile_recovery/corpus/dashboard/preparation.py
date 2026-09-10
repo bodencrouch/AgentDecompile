@@ -141,7 +141,7 @@ def _owner_alive(row: dict[str, Any]) -> bool:
         return False
 
 
-def _public_run(row: dict[str, Any], *, detailed: bool = True) -> dict[str, Any]:
+def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[Any] | None = None) -> dict[str, Any]:
     """Return the live UI contract without replaying every historical action.
 
     The durable run receipt retains full action logs for audit and recovery.
@@ -189,6 +189,37 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True) -> dict[str, Any]
         # full evidence trail belongs to durable history.  Do not replay every
         # old checkpoint on the live two-second feed.
         result['events'] = list(row.get('events') or [])[-3:]
+    # The durable receipt is intentionally cheap to read while PyGhidra is
+    # busy.  Its stage job id can lag the scheduler by one admitted child,
+    # though, which made the UI name a queued comparison as the live one.
+    # Overlay only the current child job; the receipt remains the audit record.
+    run_token = f"prepare-{row['id']}"
+    active_jobs = [job for job in live_jobs or []
+                   if getattr(job, 'status', None) in {'queued', 'running', 'cancelling'}
+                   and (getattr(job, 'params', {}) or {}).get('run') == run_token]
+    if active_jobs:
+        active_jobs.sort(key=lambda job: (
+            0 if getattr(job, 'status', None) == 'running' else 1,
+            -(float(getattr(job, 'started_at', None) or getattr(job, 'created_at', 0) or 0)),
+        ))
+        job = active_jobs[0]
+        params = getattr(job, 'params', {}) or {}
+        action = str(getattr(job, 'action_id', '') or '')
+        source, target = str(params.get('src') or ''), str(params.get('dst') or '')
+        pair = {'source': source, 'target': target} if source and target else None
+        key = 'matching' if action == 'corpus.match-pair' else ''
+        stage = next((item for item in result['stages'] if item.get('key') == key), None)
+        if stage is not None:
+            stage.update(
+                jobId=getattr(job, 'id', ''), jobStatus=getattr(job, 'status', ''),
+                currentAction=action or stage.get('currentAction', ''),
+                startedAt=getattr(job, 'started_at', None) or stage.get('startedAt'),
+            )
+            if pair:
+                stage.update(currentProgram=f"{source} → {target}", currentPair=pair)
+                result.update(currentProgram=stage['currentProgram'], currentPair=pair)
+            result['currentStage'] = stage.get('key', result.get('currentStage', ''))
+            result['currentAction'] = stage.get('currentAction', result.get('currentAction', ''))
     return result
 
 
@@ -224,7 +255,8 @@ def list_runs(*, public: bool = False) -> list[dict[str, Any]]:
         positions = {str(row['id']): index + 1 for index, row in enumerate(waiting)}
         for row in rows:
             row['queuePosition'] = positions.get(str(row['id']))
-        return [_public_run(row, detailed=row.get('status') in {'running', 'queued', 'paused'}) for row in rows]
+        from .actions.jobs import list_jobs
+        return [_public_run(row, detailed=row.get('status') in {'running', 'queued', 'paused'}, live_jobs=list_jobs()) for row in rows]
 
     from .actions import jobs
     with _LOCK:

@@ -249,9 +249,12 @@ class Parser {
     double dv = 0.0;
     const auto r = std::from_chars(tok.data(), tok.data() + tok.size(), dv);
     if (r.ec == std::errc::result_out_of_range) {
-      // from_chars leaves dv unset on overflow; represent as +/-inf-free huge double
-      dv = (tok[0] == '-') ? -std::numeric_limits<double>::max() : std::numeric_limits<double>::max();
-      if (tok.find_first_of("eE") != std::string_view::npos && tok.find("e-") != std::string_view::npos) dv = 0.0;
+      // from_chars leaves dv unset on overflow/underflow. Overflow becomes the
+      // largest finite double (never inf); underflow (negative exponent) is 0.
+      const std::size_t e = tok.find_first_of("eE");
+      const bool underflow = e != std::string_view::npos && e + 1 < tok.size() && tok[e + 1] == '-';
+      if (underflow) dv = (tok[0] == '-') ? -0.0 : 0.0;
+      else dv = (tok[0] == '-') ? -std::numeric_limits<double>::max() : std::numeric_limits<double>::max();
     } else if (r.ec != std::errc{} || r.ptr != tok.data() + tok.size()) {
       return fail("bad number");
     }

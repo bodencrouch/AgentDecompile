@@ -9,7 +9,7 @@ overwrite the server's live state wholesale, losing every lease and receipt
 written since it started.
 
 So a producer never opens the snapshot. It appends to a spool directory, one
-create-exclusive file per unit, and the server drains it in-process. Spooling is
+file per unit and destination, and the server drains it in-process. Spooling is
 also what makes a producer safe to call from anywhere: the recovery pipeline
 must not fail because a contributor-facing feature is misconfigured, so every
 error here is swallowed after being logged.
@@ -29,6 +29,7 @@ A spool file separates two things the store deliberately keeps apart:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -72,10 +73,12 @@ def spool_dir() -> Path:
     return default_state_path().parent / SPOOL_DIRNAME
 
 
-def _spool_filename(unit_id: str) -> str:
-    """Unit ids contain ``:``; that is not a legal filename on Windows."""
+def _spool_filename(unit_id: str, routing: dict[str, str]) -> str:
+    """Keep destinations distinct without changing portable work identity."""
 
-    return f"{unit_id.replace(':', '-')}.json"
+    destination = hashlib.sha256(json.dumps(routing, sort_keys=True).encode("utf-8")).hexdigest()
+    # Unit ids contain ``:``; that is not a legal filename on Windows.
+    return f"{unit_id.replace(':', '-')}-{destination}.json"
 
 
 def offer_rewrite_unit(
@@ -118,20 +121,16 @@ def offer_rewrite_unit(
         "compilerProfile": compiler_profile,
     }
     unit_id = derive_unit_id("rewrite", payload)
-    record = {
-        "lane": "rewrite",
-        "unitId": unit_id,
-        "payload": payload,
-        "routing": {"workDir": str(work_dir), "requestId": request_id},
-    }
-
     try:
+        # Resolve here, in the producer's cwd. The server may run elsewhere.
+        routing = {"workDir": str(Path(work_dir).resolve()), "requestId": request_id}
+        record = {"lane": "rewrite", "unitId": unit_id, "payload": payload, "routing": routing}
         target = spool_dir()
         target.mkdir(parents=True, exist_ok=True)
-        path = target / _spool_filename(unit_id)
+        path = target / _spool_filename(unit_id, routing)
         if path.exists():
-            # Same candidate already spooled; the unit is content-addressed, so
-            # re-offering it would collapse to the same id anyway.
+            # This exact destination already has an offer. Another work dir
+            # or request still needs its own routing record for the same unit.
             return unit_id
         # Write-then-rename: a drain must never observe a half-written file.
         tmp = target / f".{path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp"

@@ -101,7 +101,7 @@ async def test_drain_spool_retries_an_offer_after_its_first_snapshot_write_fails
         candidate_source="int f(void) { return 1; }",
     )
     assert unit_id is not None
-    spool_file = path.parent / producers.SPOOL_DIRNAME / producers._spool_filename(unit_id)
+    spool_file = next((path.parent / producers.SPOOL_DIRNAME).glob("*.json"))
     store = ExchangeStore(path, clock=FakeClock())
     persist = store._persist
     failed = False

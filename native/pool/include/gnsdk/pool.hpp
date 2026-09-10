@@ -30,6 +30,7 @@ struct Config {
   std::chrono::milliseconds term_grace{1000};
   std::uint64_t rlimit_as = 0;
   std::uint64_t rlimit_cpu = 0;
+  std::uint64_t cgroup_memory_max = 0;
 };
 
 class Supervisor {
@@ -50,6 +51,7 @@ class Supervisor {
   void stop() noexcept;
   [[nodiscard]] std::size_t live_workers() const noexcept;
   [[nodiscard]] std::string stderr_tail() const;
+  [[nodiscard]] bool hard_memory_cap() const noexcept;
 
  private:
   struct Impl;

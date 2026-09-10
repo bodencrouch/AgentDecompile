@@ -21,7 +21,7 @@ extern char** environ;
 namespace gnsdk::pool {
 namespace proto = gnsdk::proto;
 namespace {
-constexpr std::size_t kStderrTailBytes = 8192;
+constexpr std::size_t kStderrTailBytes = 64 * 1024;
 
 int open_pidfd(pid_t pid) noexcept {
 #ifdef SYS_pidfd_open
@@ -61,17 +61,27 @@ void validate_tmpdir(const std::filesystem::path& tmpdir) {
   std::filesystem::remove(probe, ec);
   if (ec) throw std::runtime_error("remove pool tmpdir probe: " + ec.message());
 }
+
+bool write_text_file(const std::filesystem::path& path, std::string_view text) noexcept {
+  std::ofstream out(path, std::ios::binary | std::ios::trunc);
+  if (!out) return false;
+  out << text;
+  out.flush();
+  return static_cast<bool>(out);
+}
 }  // namespace
 
 struct Supervisor::Impl {
   struct Child {
     pid_t pid = -1; int pidfd = -1; int in = -1; int out = -1; int err = -1;
+    std::filesystem::path cgroup;
     proto::FrameReader reader{proto::kPreHandshakeMaxFrame}; bool busy = false;
   };
   static Child spawn_child(const Config& config);
+  static bool attach_cgroup(Child& child, const Config& config) noexcept;
   void drain_stderr(Child& child) noexcept;
   explicit Impl(Config value) : config(std::move(value)) {}
-  Config config; std::vector<Child> children; std::size_t next = 0; std::string stderr_tail;
+  Config config; std::vector<Child> children; std::size_t next = 0; std::string stderr_tail; bool hard_memory_cap = false;
 };
 
 Supervisor::Impl::Child Supervisor::Impl::spawn_child(const Config& config) {
@@ -106,10 +116,15 @@ Supervisor::Impl::Child Supervisor::Impl::spawn_child(const Config& config) {
   (void)::posix_spawn_file_actions_destroy(&files); close_fd(to[0]); close_fd(from[1]); close_fd(errpipe[1]);
   if (rc != 0) { close_fd(to[1]); close_fd(from[0]); close_fd(errpipe[0]); throw std::runtime_error("spawn gnsdk-worker: " + std::string(std::strerror(rc))); }
   Supervisor::Impl::Child child; child.pid = pid; child.pidfd = open_pidfd(pid); child.in = to[1]; child.out = from[0]; child.err = errpipe[0];
+  (void)attach_cgroup(child, config);
   const auto cleanup = [&child]() noexcept {
     if (child.pid > 0) {
       (void)::kill(child.pid, SIGKILL);
       (void)reaped(child.pid, std::chrono::milliseconds(100));
+    }
+    if (!child.cgroup.empty()) {
+      std::error_code ignored;
+      std::filesystem::remove(child.cgroup, ignored);
     }
     close_fd(child.in); close_fd(child.out); close_fd(child.err); close_fd(child.pidfd); child.pid = -1;
   };
@@ -136,6 +151,26 @@ Supervisor::Impl::Child Supervisor::Impl::spawn_child(const Config& config) {
   const auto negotiated = proto::negotiate(local, remote); if (!negotiated.ok) { cleanup(); throw std::runtime_error("worker negotiation: " + negotiated.error); }
   child.reader.set_max_payload(negotiated.max_frame);
   return child;
+}
+
+bool Supervisor::Impl::attach_cgroup(Child& child, const Config& config) noexcept {
+  if (config.cgroup_memory_max == 0 || child.pid <= 0) return false;
+  const std::filesystem::path root{"/sys/fs/cgroup"};
+  if (::access((root / "cgroup.subtree_control").c_str(), W_OK) != 0) return false;
+  std::error_code ec;
+  const auto path = root / ("gnsdk-" + std::to_string(child.pid));
+  std::filesystem::create_directory(path, ec);
+  if (ec) return false;
+  const auto cleanup = [&path]() noexcept {
+    std::error_code ignored;
+    std::filesystem::remove(path, ignored);
+  };
+  if (!write_text_file(path / "memory.max", std::to_string(config.cgroup_memory_max) + "\n")) { cleanup(); return false; }
+  (void)write_text_file(path / "memory.oom.group", "1\n");
+  (void)write_text_file(path / "memory.swap.max", "0\n");
+  if (!write_text_file(path / "cgroup.procs", std::to_string(child.pid) + "\n")) { cleanup(); return false; }
+  child.cgroup = path;
+  return true;
 }
 
 void Supervisor::Impl::drain_stderr(Child& child) noexcept {
@@ -169,6 +204,7 @@ void Supervisor::start() {
   validate_tmpdir(impl_->config.tmpdir);
   try { for (std::size_t count = 0; count < impl_->config.workers; ++count) {
     impl_->children.push_back(Impl::spawn_child(impl_->config));
+    if (!impl_->children.back().cgroup.empty()) impl_->hard_memory_cap = true;
   }} catch (...) { stop(); throw; }
 }
 
@@ -191,6 +227,11 @@ proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std:
       }
     }
     this->impl_->drain_stderr(child);
+    if (!child.cgroup.empty()) {
+      std::error_code ignored;
+      std::filesystem::remove(child.cgroup, ignored);
+      child.cgroup.clear();
+    }
     close_fd(child.in); close_fd(child.out); close_fd(child.err); close_fd(child.pidfd); child.pid = -1;
   };
   for (int attempt = 0; attempt < 2; ++attempt) {
@@ -236,7 +277,8 @@ proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std:
   throw std::runtime_error("worker died or emitted a fatal frame");
 }
 
-void Supervisor::stop() noexcept { if (!impl_) return; for (auto& child : impl_->children) { impl_->drain_stderr(child); if (child.pid > 0) { (void)::kill(child.pid, SIGUSR1); if (!reaped(child.pid, impl_->config.cancel_grace)) { (void)::kill(child.pid, SIGTERM); if (!reaped(child.pid, impl_->config.term_grace)) { (void)::kill(child.pid, SIGKILL); (void)reaped(child.pid, std::chrono::milliseconds(100)); } } } impl_->drain_stderr(child); close_fd(child.in); close_fd(child.out); close_fd(child.err); close_fd(child.pidfd); } impl_->children.clear(); }
+void Supervisor::stop() noexcept { if (!impl_) return; for (auto& child : impl_->children) { impl_->drain_stderr(child); if (child.pid > 0) { (void)::kill(child.pid, SIGUSR1); if (!reaped(child.pid, impl_->config.cancel_grace)) { (void)::kill(child.pid, SIGTERM); if (!reaped(child.pid, impl_->config.term_grace)) { (void)::kill(child.pid, SIGKILL); (void)reaped(child.pid, std::chrono::milliseconds(100)); } } } impl_->drain_stderr(child); if (!child.cgroup.empty()) { std::error_code ignored; std::filesystem::remove(child.cgroup, ignored); child.cgroup.clear(); } close_fd(child.in); close_fd(child.out); close_fd(child.err); close_fd(child.pidfd); } impl_->children.clear(); impl_->hard_memory_cap = false; }
 std::size_t Supervisor::live_workers() const noexcept { std::size_t live = 0; for (const auto& child : impl_->children) if (child.pid > 0 && ::kill(child.pid, 0) == 0) ++live; return live; }
 std::string Supervisor::stderr_tail() const { return impl_ ? impl_->stderr_tail : std::string{}; }
+bool Supervisor::hard_memory_cap() const noexcept { return impl_ && impl_->hard_memory_cap; }
 }  // namespace gnsdk::pool

@@ -334,7 +334,6 @@ def _auth_context_from_scope_headers(
         repository=repository or None,
     )
 
-
 class ServerConfig(BaseModel):
     """Configuration for the MCP server."""
 
@@ -534,13 +533,26 @@ class PythonMcpServer:
 
         @self.app.get("/health", tags=["meta"])
         async def health_check() -> dict[str, Any]:
-            """Health check endpoint."""
+            """Health check endpoint, including optional supervisor state."""
+            runtime: dict[str, Any] = {
+                "pid": os.getpid(),
+                "revision": os.environ.get("AGENT_DECOMPILE_RUNTIME_REVISION", ""),
+            }
+            state_path = os.environ.get("AGENT_DECOMPILE_RUNTIME_STATE_FILE", "")
+            if state_path:
+                try:
+                    recorded = json.loads(open(state_path, encoding="utf-8").read())
+                    if isinstance(recorded, dict):
+                        runtime["reload"] = recorded.get("reload", {"status": "current"})
+                except (OSError, ValueError, TypeError):
+                    runtime["reload"] = {"status": "state-unavailable"}
             return {
                 "status": "healthy" if self._running else "starting",
                 "server": self.config.name,
                 "version": self.config.version,
                 "programs": (1 if self.program_info and self.program_info.program else 0),
                 "sessions": SESSION_CONTEXTS.stats(),
+                "runtime": runtime,
             }
 
         @self.app.get("/.well-known/oauth-authorization-server", tags=["meta"], include_in_schema=False)

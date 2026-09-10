@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 
 from agentdecompile_recovery.native_snapshot.manifest import FunctionEntry, Manifest
 
@@ -86,3 +88,73 @@ class ConsoleReplayer:
 
     def replay_manifest(self, root: Path, manifest: Manifest) -> dict[str, ReplayResult]:
         return {entry.addr: self.replay(root, entry) for entry in manifest.ok_entries()}
+
+
+class BatchReplayer:
+    """Replay a full snapshot through ``gnsdk-batch --snapshot`` and parse JSONL."""
+
+    def __init__(
+        self,
+        batch: Path,
+        *,
+        sleigh_home: Path,
+        timeout_s: float = 60,
+        workers: int = 1,
+        tmpdir: Path | None = None,
+    ) -> None:
+        if timeout_s <= 0:
+            raise ValueError("timeout_s must be positive")
+        if workers <= 0:
+            raise ValueError("workers must be positive")
+        self.batch = Path(batch)
+        self.sleigh_home = Path(sleigh_home)
+        self.timeout_s = timeout_s
+        self.workers = workers
+        self.tmpdir = Path(tmpdir) if tmpdir is not None else None
+
+    def replay_manifest(self, root: Path, manifest: Manifest) -> dict[str, ReplayResult]:
+        del manifest  # gnsdk-batch reads the snapshot manifest itself.
+        with tempfile.TemporaryDirectory(prefix="gnsdk-batch-") as tmp:
+            output = Path(tmp) / "results.jsonl"
+            command = [
+                str(self.batch),
+                "--sleigh-home",
+                str(self.sleigh_home),
+                "--snapshot",
+                str(root),
+                "--output",
+                str(output),
+                "--timeout",
+                str(int(self.timeout_s)),
+                "--workers",
+                str(self.workers),
+            ]
+            if self.tmpdir is not None:
+                command.extend(("--tmpdir", str(self.tmpdir)))
+            try:
+                completed = subprocess.run(
+                    command,
+                    text=True,
+                    capture_output=True,
+                    timeout=self.timeout_s + 10,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                return {}
+            results: dict[str, ReplayResult] = {}
+            if output.is_file():
+                for line in output.read_text(encoding="utf-8", errors="replace").splitlines():
+                    if not line.strip():
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    addr = str(record.get("id") or record.get("seq") or "")
+                    if not addr:
+                        continue
+                    result = record.get("result") if isinstance(record.get("result"), dict) else {}
+                    c_text = result.get("c") if record.get("status") == "ok" and isinstance(result.get("c"), str) else None
+                    stderr = str(record.get("error") or completed.stderr)
+                    results[addr] = ReplayResult(addr, str(result.get("name") or addr), c_text, stderr, completed.returncode)
+            return results

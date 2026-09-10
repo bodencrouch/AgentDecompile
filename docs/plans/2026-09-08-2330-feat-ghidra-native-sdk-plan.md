@@ -371,6 +371,10 @@ Commit slices on `feat/native-sdk`, each message carrying the test command and r
 
 Dated deltas. Newest first. A delta names what was verified and how; it does not check boxes above unless the named verification ran.
 
+### 2026-09-10 (checked-in three-function native replay fixture)
+
+- **WP8/WP9 evidence added locally:** the official PyGhidra exporter created `tests/fixtures/native_snapshot/test_x86_64` from the existing x86-64 fixture on the installed Ghidra 12.1.3 runtime. Its manifest validates and contains exactly three successful savefiles and Java oracles (`_add`, `_multiply`, `entry`). `tests/test_native_replay_integration.py` is opt-in through `GNSDK_BUILD_DIR` so ordinary Python runs remain native-build-free; against `native/build/relwithdebinfo`, the replay unit, differential unit, and three-function real console lane passed 5/5 with every classification exactly `match`. The fixture is a reproducible exporter product, not a hand-authored C baseline.
+
 ### 2026-09-10 (first end-to-end native snapshot batch result)
 
 - **WP6 partial landed locally:** `0586fdf` adds `gnsdk-batch` for `--snapshot` and explicit snapshot-job JSONL. It opens each savefile in the real worker and emits a JSONL decompile result. `d1b9804` makes the standalone Python batch consumer use this actual file-based input/output contract. A real export of `test_x86_64` ran through Python client -> `gnsdk-batch` -> worker and returned `_add` C; `pool_supervisor_smoke` and `gnsdk_batch_version` passed 2/2. This intentionally uses one worker because session affinity and pool-wide routing are not implemented. Queue bounds, multi-worker scheduling, retries, cgroups, resource classifications, and the required fault matrix remain open.

@@ -37,6 +37,13 @@ foreach(_t gnsdk_objs gnsdk)
 endforeach()
 # The object library only compiles; the archive carries the link interface.
 target_link_libraries(gnsdk PRIVATE ghidra::decomp)
+if(TARGET ghidra_specs)
+  # A usable SDK artifact needs its compiled language definitions, not merely
+  # the C++ archives.  This makes `cmake --build --target gnsdk[_shared]`
+  # sufficient for consumers and prevents an otherwise surprising
+  # GNSDK_PROVIDER_FAILURE on first gnsdk_init().
+  add_dependencies(gnsdk ghidra_specs)
+endif()
 
 if(GNSDK_SHARED)
   add_library(gnsdk_shared SHARED $<TARGET_OBJECTS:gnsdk_objs>)
@@ -46,6 +53,9 @@ if(GNSDK_SHARED)
     $<BUILD_INTERFACE:${GNSDK_GENERATED_DIR}>)
   target_compile_definitions(gnsdk_shared INTERFACE GNSDK_SHARED_BUILD=1)
   target_link_libraries(gnsdk_shared PUBLIC gnsdk_common PRIVATE ghidra::decomp)
+  if(TARGET ghidra_specs)
+    add_dependencies(gnsdk_shared ghidra_specs)
+  endif()
   set_target_properties(gnsdk_shared PROPERTIES
     OUTPUT_NAME gnsdk
     CXX_VISIBILITY_PRESET hidden

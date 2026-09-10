@@ -466,14 +466,14 @@ class JobStore:
                     code, log = (0 if code == 0 and result.get('ok') else code or 1), json.dumps(result, default=str)
             elif action is not None and action.backend == "mcp-cli":
                 code, log = _mcp_executor(action, dict(job.params), cancel)
-                else:
-                    def publish_log(text: str) -> None:
-                        with self._lock:
-                            self._jobs[job_id].log = text[-MAX_LOG_BYTES:]
-                            progress = _latest_work_progress(text)
-                            if progress is not None:
-                                self._jobs[job_id].work_progress = progress
-                            self._persist_locked(self._jobs[job_id], force=True)
+            else:
+                def publish_log(text: str) -> None:
+                    with self._lock:
+                        self._jobs[job_id].log = text[-MAX_LOG_BYTES:]
+                        progress = _latest_work_progress(text)
+                        if progress is not None:
+                            self._jobs[job_id].work_progress = progress
+                        self._persist_locked(self._jobs[job_id], force=True)
                 if self.executor:
                     code, log = self.executor(argv, cwd, cancel)
                 else:

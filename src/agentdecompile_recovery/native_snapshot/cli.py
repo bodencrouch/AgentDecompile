@@ -10,6 +10,7 @@ Exit codes: 0 exported, 1 usage or unexpected failure, 2 stale (program changed 
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 import sys
@@ -69,12 +70,27 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--no-analyze", action="store_true", help="Skip auto-analysis after import.")
     export.add_argument("--quiet", action="store_true", help="Do not print per-function progress lines to stderr.")
     export.set_defaults(func=run_export)
-    diff = sub.add_parser("diff", help="Replay a snapshot with the native console and write a strict differential report.")
+    replay = sub.add_parser("replay", help="Replay a snapshot and write native replay JSONL.")
+    replay.add_argument("snapshot", type=Path, help="Directory containing manifest.json.")
+    replay.add_argument("--mode", choices=("console", "batch"), default="console", help="Replay backend (default: console).")
+    replay.add_argument("--console", type=Path, default=None, help="Path to native decomp_console for --mode console.")
+    replay.add_argument("--batch", type=Path, default=None, help="Path to gnsdk-batch for --mode batch.")
+    replay.add_argument("--sleigh-home", type=Path, required=True, help="Compiled Ghidra-root/SLEIGH home.")
+    replay.add_argument("--timeout-s", type=int, default=60, help="Per-function/backend timeout in seconds (default 60).")
+    replay.add_argument("--workers", type=int, default=1, help="Batch replay worker count (default 1).")
+    replay.add_argument("--tmpdir", type=Path, default=None, help="Tmpdir passed to gnsdk-batch in batch mode.")
+    replay.add_argument("--output", type=Path, default=None, help="Replay JSONL output (default: <snapshot>/differential/replay.jsonl).")
+    replay.set_defaults(func=run_replay)
+    diff = sub.add_parser("diff", help="Replay a snapshot and write a strict differential report.")
     diff.add_argument("snapshot", type=Path, help="Directory containing manifest.json.")
-    diff.add_argument("--console", type=Path, required=True, help="Path to native decomp_console.")
-    diff.add_argument("--sleigh-home", type=Path, required=True, help="Compiled Ghidra-root/SLEIGH home for decomp_console.")
-    diff.add_argument("--timeout-s", type=int, default=60, help="Per-function console timeout (default 60).")
-    diff.add_argument("--output", type=Path, default=None, help="Directory for native C and report.json (default: <snapshot>/native).")
+    diff.add_argument("--mode", choices=("console", "batch"), default="console", help="Replay backend (default: console).")
+    diff.add_argument("--console", type=Path, default=None, help="Path to native decomp_console for --mode console.")
+    diff.add_argument("--batch", type=Path, default=None, help="Path to gnsdk-batch for --mode batch.")
+    diff.add_argument("--sleigh-home", type=Path, required=True, help="Compiled Ghidra-root/SLEIGH home.")
+    diff.add_argument("--timeout-s", type=int, default=60, help="Per-function/backend timeout in seconds (default 60).")
+    diff.add_argument("--workers", type=int, default=1, help="Batch replay worker count (default 1).")
+    diff.add_argument("--tmpdir", type=Path, default=None, help="Tmpdir passed to gnsdk-batch in batch mode.")
+    diff.add_argument("--output", type=Path, default=None, help="Directory for report.json/report.md/diff (default: <snapshot>/differential).")
     diff.set_defaults(func=run_diff)
     return parser
 
@@ -207,24 +223,73 @@ def run_export(args: argparse.Namespace) -> int:
     return exit_code
 
 
+def _make_replayer(args: argparse.Namespace):
+    from agentdecompile_recovery.native_snapshot.replay import BatchReplayer, ConsoleReplayer
+
+    if args.timeout_s <= 0 or args.workers <= 0 or not args.sleigh_home.is_dir():
+        return None
+    if args.mode == "console":
+        if args.console is None or not args.console.is_file():
+            return None
+        return ConsoleReplayer(args.console, sleigh_home=args.sleigh_home, timeout_s=args.timeout_s)
+    if args.batch is None or not args.batch.is_file():
+        return None
+    return BatchReplayer(args.batch, sleigh_home=args.sleigh_home, timeout_s=args.timeout_s, workers=args.workers, tmpdir=args.tmpdir)
+
+
+def _load_snapshot(snapshot: Path):
+    from agentdecompile_recovery.native_snapshot.manifest import load_manifest
+
+    try:
+        return load_manifest(snapshot)
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"error: invalid snapshot: {exc}", file=sys.stderr)
+        return None
+
+
+def run_replay(args: argparse.Namespace) -> int:
+    manifest = _load_snapshot(args.snapshot)
+    if manifest is None:
+        return EXIT_USAGE
+    replayer = _make_replayer(args)
+    if replayer is None:
+        return EXIT_USAGE
+    replay = replayer.replay_manifest(args.snapshot, manifest)
+    output = args.output or args.snapshot / "differential" / "replay.jsonl"
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("w", encoding="utf-8") as handle:
+        for entry in manifest.ok_entries():
+            result = replay.get(entry.addr)
+            record = {
+                "addr": entry.addr,
+                "name": entry.name,
+                "status": "missing" if result is None else ("ok" if result.c_text is not None else "error"),
+                "c": None if result is None else result.c_text,
+                "stderr": None if result is None else result.stderr,
+                "returncode": None if result is None else result.returncode,
+            }
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+            print(f"{record['addr']}\t{record['status']}\t{record['name']}")
+    return EXIT_OK
+
+
 def run_diff(args: argparse.Namespace) -> int:
     """Replay every successful savefile and return nonzero for any non-match."""
     from agentdecompile_recovery.native_snapshot.differential import MATCH, write_report
-    from agentdecompile_recovery.native_snapshot.manifest import load_manifest
-    from agentdecompile_recovery.native_snapshot.replay import ConsoleReplayer
 
-    if args.timeout_s <= 0 or not args.console.is_file() or not args.sleigh_home.is_dir():
+    manifest = _load_snapshot(args.snapshot)
+    if manifest is None:
         return EXIT_USAGE
-    try:
-        manifest = load_manifest(args.snapshot)
-    except (OSError, ValueError, KeyError) as exc:
-        print(f"error: invalid snapshot: {exc}", file=sys.stderr)
+    replayer = _make_replayer(args)
+    if replayer is None:
         return EXIT_USAGE
-    replayer = ConsoleReplayer(args.console, sleigh_home=args.sleigh_home, timeout_s=args.timeout_s)
     replay = replayer.replay_manifest(args.snapshot, manifest)
     results = write_report(
         args.snapshot, manifest, {address: result.c_text for address, result in replay.items()},
-        crashed={address for address, result in replay.items() if result.returncode < 0}, output=args.output,
+        crashed={address for address, result in replay.items() if result.returncode < 0},
+        timed_out={address for address, result in replay.items() if result.returncode == 124},
+        errors={address: result.stderr for address, result in replay.items() if result.c_text is None and result.stderr},
+        output=args.output,
     )
     for result in results:
         print(f"{result.addr}\t{result.classification}\t{result.name}")

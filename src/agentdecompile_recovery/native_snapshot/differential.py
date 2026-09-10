@@ -108,8 +108,18 @@ def _markdown_report(results: list[DifferentialResult]) -> str:
     return "\n".join(lines)
 
 
+def _report_relative(path: Path, root: Path, output: Path) -> str:
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return str(path.relative_to(output))
+
+
 def write_report(root: Path, manifest: Manifest, replay: dict[str, str | None], *,
-                 crashed: set[str] | None = None, output: Path | None = None) -> list[DifferentialResult]:
+                 crashed: set[str] | None = None,
+                 timed_out: set[str] | None = None,
+                 errors: dict[str, str] | None = None,
+                 output: Path | None = None) -> list[DifferentialResult]:
     """Write inspectable native text and a deterministic report JSON.
 
     ``None`` means missing output, while ``crashed`` distinguishes a console
@@ -124,21 +134,30 @@ def write_report(root: Path, manifest: Manifest, replay: dict[str, str | None], 
     diff_dir.mkdir(parents=True, exist_ok=True)
     results: list[DifferentialResult] = []
     crashed = crashed or set()
+    timed_out = timed_out or set()
+    errors = errors or {}
     for entry in manifest.ok_entries():
         text = replay.get(entry.addr)
         native_path: str | None = None
         if text is not None:
             native_file = native_dir / f"{entry.addr}.c"
             native_file.write_text(text, encoding="utf-8")
-            native_path = str(native_file.relative_to(root))
-        classified = classify(entry, root, text, crashed=entry.addr in crashed)
+            native_path = _report_relative(native_file, root, output)
+        classified = classify(
+            entry,
+            root,
+            text,
+            crashed=entry.addr in crashed,
+            timed_out=entry.addr in timed_out,
+            native_error=errors.get(entry.addr),
+        )
         diff_path: str | None = None
         if classified.classification == MISMATCH_CONTENT and text is not None and entry.oracle_c:
             oracle = root / entry.oracle_c
             if oracle.is_file():
                 diff_file = diff_dir / f"{entry.addr}.diff"
                 _write_diff(diff_file, oracle.read_text(encoding="utf-8", errors="replace"), text)
-                diff_path = str(diff_file.relative_to(root))
+                diff_path = _report_relative(diff_file, root, output)
         results.append(
             DifferentialResult(
                 classified.addr,

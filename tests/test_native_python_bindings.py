@@ -10,6 +10,7 @@ sys.path.insert(0, str(ROOT / "native" / "python"))
 
 from gnsdk.errors import Status
 from gnsdk import _lib
+from gnsdk import batch
 from gnsdk.session import Session, version
 
 
@@ -36,3 +37,14 @@ def test_shared_library_raw_image_round_trip(monkeypatch):
     with Session(sleigh_home, "x86:LE:64:default") as session:
         session.load_image(b"\x55\x48\x89\xe5\x31\xc0\x5d\xc3", 0x400000, "ctypes-e2e")
         assert session.decompile(0x400000, deadline_ms=5000)
+
+
+def test_batch_client_uses_file_contract(monkeypatch):
+    def fake_run(command, **kwargs):
+        assert "--sleigh-home" in command and "--input" in command and "--output" in command
+        output = Path(command[command.index("--output") + 1])
+        output.write_text('{"id":"one","status":"ok"}\n')
+        import subprocess
+        return subprocess.CompletedProcess(command, 0, "", "")
+    monkeypatch.setattr(batch.subprocess, "run", fake_run)
+    assert list(batch.run([{"id": "one"}], sleigh_home="/specs", executable="fake")) == [{"id": "one", "status": "ok"}]

@@ -26,6 +26,16 @@ struct Job
     std::string addr;
 };
 
+struct BadInput : std::runtime_error
+{
+    using std::runtime_error::runtime_error;
+};
+
+struct SupervisorFailure : std::runtime_error
+{
+    using std::runtime_error::runtime_error;
+};
+
 bool parse_u64(std::string_view text, unsigned long long &out)
 {
     if (text.empty())
@@ -89,10 +99,10 @@ std::vector<Job> snapshot_jobs(const std::string &root)
     std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
     json::Value manifest;
     if (!input || !json::parse(text, manifest))
-        throw std::runtime_error("invalid snapshot manifest");
+        throw BadInput("invalid snapshot manifest");
     const json::Value *functions = manifest.get_array("functions");
     if (functions == nullptr)
-        throw std::runtime_error("snapshot has no functions array");
+        throw BadInput("snapshot has no functions array");
     std::vector<Job> jobs;
     for (const auto &entry : functions->items())
     {
@@ -284,11 +294,11 @@ int main(int argc, char **argv)
                 json::Value value;
                 Job job;
                 if (!json::parse(line, value) || !parse_job(value, job))
-                    throw std::runtime_error("invalid JSONL job");
+                    throw BadInput("invalid JSONL job");
                 jobs.push_back(std::move(job));
             }
             if (!input.eof())
-                throw std::runtime_error("cannot read input JSONL");
+                throw BadInput("cannot read input JSONL");
         }
         std::vector<std::string> records(jobs.size());
         const auto worker_count = std::min<std::size_t>(static_cast<std::size_t>(workers),
@@ -338,11 +348,11 @@ int main(int argc, char **argv)
         for (const std::string &failure : failures)
         {
             if (!failure.empty())
-                throw std::runtime_error("batch worker failed: " + failure);
+                throw SupervisorFailure("batch worker failed: " + failure);
         }
         std::ofstream output(output_path);
         if (!output)
-            throw std::runtime_error("cannot open output");
+            throw BadInput("cannot open output");
         for (const std::string &record : records)
         {
             if (!record.empty())
@@ -350,9 +360,19 @@ int main(int argc, char **argv)
         }
         return 0;
     }
-    catch (const std::exception &exc)
+    catch (const BadInput &exc)
     {
         std::cerr << "gnsdk-batch: " << exc.what() << '\n';
         return 2;
+    }
+    catch (const SupervisorFailure &exc)
+    {
+        std::cerr << "gnsdk-batch: " << exc.what() << '\n';
+        return 1;
+    }
+    catch (const std::exception &exc)
+    {
+        std::cerr << "gnsdk-batch: " << exc.what() << '\n';
+        return 1;
     }
 }

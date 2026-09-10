@@ -14,4 +14,10 @@ if(TARGET fake-worker)
     GNSDK_WORKER_PATH="$<TARGET_FILE:fake-worker>"
     GNSDK_BATCH_EXTRA_WORKER_ARG="--misbehave=slow-reply")
   add_dependencies(gnsdk-batch-fake fake-worker)
+
+  add_executable(gnsdk-batch-missing-worker main.cpp)
+  target_include_directories(gnsdk-batch-missing-worker PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../../pool/include ${CMAKE_CURRENT_SOURCE_DIR}/../..)
+  target_link_libraries(gnsdk-batch-missing-worker PRIVATE gnsdk::pool gnsdk::protocol)
+  target_compile_features(gnsdk-batch-missing-worker PRIVATE cxx_std_20)
+  target_compile_definitions(gnsdk-batch-missing-worker PRIVATE GNSDK_WORKER_PATH="/nonexistent/gnsdk-worker")
 endif()

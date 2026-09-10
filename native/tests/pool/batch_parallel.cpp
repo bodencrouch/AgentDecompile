@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include <sys/wait.h>
 #include <unistd.h>
 
 #include "worker/json_min.hpp"
@@ -29,20 +30,35 @@ std::filesystem::path make_temp_dir()
     return dir;
 }
 
-Run run_batch(const std::filesystem::path &dir, int workers)
+int exit_status(int system_code)
 {
-    const auto output = dir / ("out-" + std::to_string(workers) + ".jsonl");
+    if (system_code < 0)
+        return system_code;
+    if (WIFEXITED(system_code))
+        return WEXITSTATUS(system_code);
+    return -1;
+}
+
+Run run_batch(const std::filesystem::path &dir, int workers, const char *batch_path,
+              const std::string &input_name, const std::string &output_name)
+{
+    const auto output = dir / output_name;
     const std::string command =
-        std::string("\"") + GNSDK_BATCH_FAKE_PATH + "\"" + " --sleigh-home /nonexistent" +
-        " --input \"" + (dir / "jobs.jsonl").string() + "\"" + " --output \"" + output.string() +
-        "\"" + " --timeout 5" + " --workers " + std::to_string(workers) + " --tmpdir \"" +
-        dir.string() + "\"" + " >/dev/null 2>\"" +
-        (dir / ("stderr-" + std::to_string(workers) + ".log")).string() + "\"";
+        std::string("\"") + batch_path + "\"" + " --sleigh-home /nonexistent" + " --input \"" +
+        (dir / input_name).string() + "\"" + " --output \"" + output.string() + "\"" +
+        " --timeout 5" + " --workers " + std::to_string(workers) + " --tmpdir \"" + dir.string() +
+        "\"" + " >/dev/null 2>\"" + (dir / ("stderr-" + output_name + ".log")).string() + "\"";
     const auto begin = std::chrono::steady_clock::now();
     const int code = std::system(command.c_str());
     const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::steady_clock::now() - begin);
     return {code, elapsed};
+}
+
+Run run_batch(const std::filesystem::path &dir, int workers)
+{
+    return run_batch(dir, workers, GNSDK_BATCH_FAKE_PATH, "jobs.jsonl",
+                     "out-" + std::to_string(workers) + ".jsonl");
 }
 
 std::vector<std::string> ids(const std::filesystem::path &path)
@@ -77,14 +93,25 @@ int main()
             << R"({"id":"second","snapshot":"/fake/two.xml","ops":[{"op":"decompile","addr":"0x2"}]})"
             << '\n';
     }
+    {
+        std::ofstream jobs(dir / "bad-jobs.jsonl");
+        jobs << R"({"id":"bad","snapshot":"/fake/one.xml","ops":[]})" << '\n';
+    }
 
     const auto one = run_batch(dir, 1);
     const auto two = run_batch(dir, 2);
-    REQUIRE(one.code == 0);
-    REQUIRE(two.code == 0);
+    REQUIRE(exit_status(one.code) == 0);
+    REQUIRE(exit_status(two.code) == 0);
     REQUIRE(ids(dir / "out-1.jsonl") == std::vector<std::string>({"first", "second"}));
     REQUIRE(ids(dir / "out-2.jsonl") == std::vector<std::string>({"first", "second"}));
     REQUIRE(two.elapsed < one.elapsed);
+    REQUIRE(
+        exit_status(
+            run_batch(dir, 1, GNSDK_BATCH_FAKE_PATH, "bad-jobs.jsonl", "bad-output.jsonl").code) ==
+        2);
+    REQUIRE(exit_status(run_batch(dir, 1, GNSDK_BATCH_MISSING_WORKER_PATH, "jobs.jsonl",
+                                  "missing-worker-output.jsonl")
+                            .code) == 1);
 
     std::error_code ignored;
     std::filesystem::remove_all(dir, ignored);

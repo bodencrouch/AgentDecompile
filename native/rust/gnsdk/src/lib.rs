@@ -60,3 +60,22 @@ impl Session {
 impl Drop for Session {
     fn drop(&mut self) { unsafe { let _ = sys::gnsdk_session_destroy(self.raw.as_ptr()); } }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{init, Session};
+
+    #[test]
+    fn raw_x86_image_decompiles_when_native_home_is_configured() {
+        let Ok(home) = std::env::var("GNSDK_SLEIGH_HOME") else {
+            eprintln!("skipping native ABI integration: set GNSDK_SLEIGH_HOME");
+            return;
+        };
+        init(&home).expect("native init");
+        let mut session = Session::new("x86:LE:64:default").expect("x86 session");
+        // push rbp; mov rbp,rsp; xor eax,eax; pop rbp; ret
+        session.load_image(&[0x55, 0x48, 0x89, 0xe5, 0x31, 0xc0, 0x5d, 0xc3], 0x400000)
+            .expect("load image");
+        assert!(!session.decompile(0x400000).expect("decompile").trim().is_empty());
+    }
+}

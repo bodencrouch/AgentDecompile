@@ -53,7 +53,7 @@ import threading
 import time
 
 from collections import deque
-from collections.abc import Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -344,6 +344,8 @@ class ExchangeStore:
         self.quarantined_path: Path | None = None
         self.read_only = False
         self._lock = asyncio.Lock()
+        self._maintenance_task: asyncio.Task[None] | None = None
+        self._next_maintenance_at = 0.0
         self._loaded = False
         self._units: dict[str, WorkUnit] = {}
         self._workers: dict[str, Worker] = {}
@@ -822,7 +824,9 @@ class ExchangeStore:
         for worker_id in stale:
             del self._workers[worker_id]
 
-    async def claim(self, *, worker_id: str, lanes: Any = None) -> dict[str, Any] | None:
+    async def claim(
+        self, *, worker_id: str, lanes: Any = None, prepare: Callable[[], Awaitable[None]] | None = None
+    ) -> dict[str, Any] | None:
         """Lease the oldest pending unit this worker is actually able to run.
 
         Returns `None` (the router's 204) rather than waiting for work: one
@@ -835,6 +839,14 @@ class ExchangeStore:
             self._load()
             now = self.clock()
             worker = self._require_worker(worker_id, now)
+        # Request-triggered ingestion must follow admission and must not hold
+        # the snapshot lock while it offers units or forwards submissions.
+        if prepare is not None:
+            await prepare()
+        async with self._lock:
+            if self._workers.get(worker_id) is not worker:
+                raise UnknownWorker("enroll before claiming work")
+            now = self.clock()
             changed = self._reap(now)
             candidate: WorkUnit | None = None
             for unit in self._units.values():
@@ -858,6 +870,7 @@ class ExchangeStore:
                     "leaseToken": candidate.lease_token,
                     "fence": candidate.fence,
                     "leaseExpiresAt": candidate.lease_expires_at,
+                    "leaseSeconds": self.lease_seconds,
                 }
             # An empty claim is the common case for a polling worker; only a
             # real state change is worth a disk write.
@@ -876,7 +889,7 @@ class ExchangeStore:
             if unit is None:
                 raise LeaseRejected("lease expired or superseded; claim again")
             unit.lease_expires_at = now + self.lease_seconds
-            result = {"unitId": unit.unit_id, "fence": unit.fence, "leaseExpiresAt": unit.lease_expires_at}
+            result = {"unitId": unit.unit_id, "fence": unit.fence, "leaseExpiresAt": unit.lease_expires_at, "leaseSeconds": self.lease_seconds}
             # Heartbeats are the hottest endpoint and a lease deadline does not
             # survive a restart anyway (a reloaded claim is re-offered), so only
             # a reclaim is worth persisting here.

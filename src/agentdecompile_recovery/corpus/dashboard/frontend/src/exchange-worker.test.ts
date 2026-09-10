@@ -12,6 +12,7 @@ const lease = (seconds = 30): Lease => ({
   leaseToken: "lease-token",
   fence: 7,
   leaseExpiresAt: Date.now() / 1000 + seconds,
+  leaseSeconds: seconds,
 });
 
 let scope: WorkerScope;
@@ -210,7 +211,7 @@ describe("browser rewrite worker acceptance", () => {
     await install((url) => {
       if (url.endsWith("/enroll")) return json({ workerId: "worker-1" });
       if (url.endsWith("/claim")) return calls("/claim").length === 1 ? json(hiddenLease) : noContent();
-      if (url.endsWith("/heartbeat")) return json({ leaseExpiresAt: Date.now() / 1000 + 12 });
+      if (url.endsWith("/heartbeat")) return json({ leaseExpiresAt: Date.now() / 1000 + 12, leaseSeconds: 12 });
       if (url.startsWith("https://api.openai.com/")) return new Promise<Response>(resolve => { resolveProvider = resolve; });
       if (url.endsWith("/submit")) return json({ accepted: true, verdict: "candidate" });
       throw new Error(`unexpected request ${url}`);
@@ -233,5 +234,65 @@ describe("browser rewrite worker acceptance", () => {
 
     expect(calls("/submit")).toHaveLength(1);
     expect(calls("/claim")).toHaveLength(1);
+  });
+
+  it.each([-3_600_000, 3_600_000])("waits the full failed lease with browser clock offset %i", async offset => {
+    const held = lease(5);
+    vi.setSystemTime(Date.now() + offset);
+    await install(url => {
+      if (url.endsWith("/enroll")) return json({ workerId: "worker-1" });
+      if (url.endsWith("/claim")) return calls("/claim").length === 1 ? json(held) : noContent();
+      if (url.startsWith("https://api.openai.com/")) return json({ error: "unavailable" }, 500);
+      throw new Error(`unexpected request ${url}`);
+    });
+    start();
+    await settle();
+    vi.setSystemTime(Date.now() - offset * 2);
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(calls("/claim")).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls("/claim")).toHaveLength(2);
+    expect(calls("/submit")).toHaveLength(0);
+  });
+
+  it.each([undefined, 0, -1, "5"])("stops safely when the coordinator omits a usable lease duration: %s", async seconds => {
+    await install(url => {
+      if (url.endsWith("/enroll")) return json({ workerId: "worker-1" });
+      if (url.endsWith("/claim")) return json({ ...lease(5), leaseSeconds: seconds });
+      throw new Error(`unexpected request ${url}`);
+    });
+    start();
+    await settle();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(calls("/claim")).toHaveLength(1);
+    expect((fetch as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(2);
+    expect(events.at(-1)).toMatchObject({ type: "status", state: "error", message: expect.stringContaining("invalid lease duration") });
+  });
+
+  it("observes a late heartbeat renewal before releasing a failed provider lease", async () => {
+    const held = lease(3);
+    let resolveHeartbeat: ((response: Response) => void) | undefined;
+    let resolveProvider: ((response: Response) => void) | undefined;
+    await install(url => {
+      if (url.endsWith("/enroll")) return json({ workerId: "worker-1" });
+      if (url.endsWith("/claim")) return calls("/claim").length === 1 ? json(held) : noContent();
+      if (url.endsWith("/heartbeat")) return new Promise<Response>(resolve => { resolveHeartbeat = resolve; });
+      if (url.startsWith("https://api.openai.com/")) return new Promise<Response>(resolve => { resolveProvider = resolve; });
+      throw new Error(`unexpected request ${url}`);
+    });
+    start();
+    await settle();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(calls("/heartbeat")).toHaveLength(1);
+    resolveProvider?.(json({ error: "unavailable" }, 500));
+    await settle();
+    await vi.advanceTimersByTimeAsync(1_000);
+    resolveHeartbeat?.(json({ leaseExpiresAt: held.leaseExpiresAt + 2, leaseSeconds: 3 }));
+    await settle();
+    vi.setSystemTime(Date.now() + 3_600_000);
+    await vi.advanceTimersByTimeAsync(2_999);
+    expect(calls("/claim")).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(calls("/claim")).toHaveLength(2);
   });
 });

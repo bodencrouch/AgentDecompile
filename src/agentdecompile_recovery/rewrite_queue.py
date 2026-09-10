@@ -59,6 +59,56 @@ STATUS_FAILED = "failed"
 DEFAULT_CLAIM_STALENESS_SECONDS = 1800
 
 
+def _sync_directory(directory: Path, *, required: bool = False) -> bool:
+    if os.name == "nt":
+        if required:
+            raise OSError(errno.ENOTSUP, "rewrite forwarding requires directory fsync")
+        return False
+    try:
+        descriptor = os.open(directory, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    except OSError as exc:
+        if required or exc.errno not in {errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP}:
+            raise
+        return False
+    return True
+
+
+def _prepare_state_directory(directory: Path, *, required: bool = False) -> None:
+    """Anchor mkdir before delivery, preserving its intent across failed syncs.
+
+    As with exchange spool setup, the marker lives in the nearest existing
+    parent before mkdir. A restart must finish that same chain even if the
+    directory is already visible. Unsupported ordinary writers retain the
+    marker so strict forwarding cannot mistake visibility for durability.
+    """
+
+    directory = directory.absolute()
+    marker_name = ".rewrite-queue-init-" + hashlib.sha256(os.fsencode(directory)).hexdigest() + ".pending"
+    ancestors = (directory, *directory.parents)
+    anchor = next((parent for parent in ancestors if (parent / marker_name).exists()), None)
+    if anchor is None:
+        anchor = next(parent for parent in ancestors if parent.is_dir())
+        if anchor == directory:
+            return
+    marker = anchor / marker_name
+    with marker.open("a", encoding="utf-8") as stream:
+        stream.flush()
+        os.fsync(stream.fileno())
+    synced = _sync_directory(anchor, required=required)
+    directory.mkdir(parents=True, exist_ok=True)
+    for parent in ancestors:
+        synced = _sync_directory(parent, required=required) and synced
+        if parent == anchor:
+            break
+    if synced:
+        marker.unlink(missing_ok=True)
+        _sync_directory(anchor, required=required)
+
+
 def atomic_write_json(path: Path, data: dict[str, Any], *, require_directory_sync: bool = False) -> None:
     """Preserve acknowledged proposals across every later queue replacement.
 
@@ -75,17 +125,7 @@ def atomic_write_json(path: Path, data: dict[str, Any], *, require_directory_syn
             stream.flush()
             os.fsync(stream.fileno())
         tmp.replace(path)
-        if os.name == "nt" and not require_directory_sync:
-            return
-        try:
-            descriptor = os.open(path.parent, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-            try:
-                os.fsync(descriptor)
-            finally:
-                os.close(descriptor)
-        except OSError as exc:
-            if require_directory_sync or exc.errno not in {errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP}:
-                raise
+        _sync_directory(path.parent, required=require_directory_sync)
     finally:
         tmp.unlink(missing_ok=True)
 
@@ -99,7 +139,7 @@ def _lock_path(work_dir: Path) -> Path:
 
 
 @contextmanager
-def _locked(work_dir: Path) -> Iterator[None]:
+def _locked(work_dir: Path, *, require_directory_sync: bool = False) -> Iterator[None]:
     """Exclusive cross-process lock spanning a full read-check-write cycle.
 
     Blocking (not try-lock): a losing writer waits for the winner to finish
@@ -109,7 +149,7 @@ def _locked(work_dir: Path) -> Iterator[None]:
     """
 
     lock_path = _lock_path(work_dir)
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    _prepare_state_directory(lock_path.parent, required=require_directory_sync)
     with lock_path.open("a+") as fh:
         fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
         try:
@@ -372,7 +412,7 @@ def import_exchange_result(
     path = queue_path(work_dir)
     if not path.is_file():
         return False
-    with _locked(work_dir):
+    with _locked(work_dir, require_directory_sync=True):
         queue = _read_queue_for_mutation(work_dir)
         entry = queue["entries"].get(request_id)
         if not isinstance(entry, dict) or entry.get("requestId") != request_id:

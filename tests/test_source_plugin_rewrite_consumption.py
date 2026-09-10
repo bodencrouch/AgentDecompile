@@ -106,6 +106,11 @@ def test_unattempted_or_interrupted_rewrite_is_retained(tmp_path, monkeypatch, f
         "%:include <private/data>\n" + REWRITE,
         'int sample(void) { __asm__ volatile("ret"); }\n',
         "__attribute__((naked)) int sample(void) { return 7; }\n",
+        *[
+            f"int sample(void) {{ {quote}unterminated\n{directive}\n{quote}; return 7; }}"
+            for quote in ('"', "'")
+            for directive in ("#error forbidden", "#include <private/data>", '#pragma comment(lib, "evil.lib")')
+        ],
     ],
 )
 def test_rejected_content_never_reaches_compiler_or_inherits_semantic_evidence(tmp_path, monkeypatch, unsafe_source):

@@ -278,6 +278,21 @@ def test_pending_rewrite_variant_allows_asm_text_in_an_ordinary_string() -> None
     assert variant is not None
 
 
+@pytest.mark.parametrize("source", [
+    'const char *x(void) { return "continued\\\n#error text"; }',
+    'int x(void) { /* "\n#error comment */ return \'\\\'\'; }',
+    'const char *x(void) { return "escaped\\\" quote and \\n#error text"; }',
+])
+def test_pending_rewrite_variant_preserves_valid_literals_and_comments(source: str) -> None:
+    assert pending_rewrite_variant({}, _candidate(), {"status": "completed", "source": source}) is not None
+
+
+@pytest.mark.parametrize("quote", ['"', "\'"])
+def test_pending_rewrite_variant_rejects_unterminated_literal(quote: str) -> None:
+    source = f"int x(void) {{ {quote}unterminated"
+    assert pending_rewrite_variant({}, _candidate(), {"status": "completed", "source": source}) is None
+
+
 # -- content-check obfuscation bypasses (security review) -------------------
 
 

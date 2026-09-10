@@ -241,7 +241,55 @@ async def test_roster_maintenance_retries_forwarding(tmp_path, monkeypatch):
         assert response.status_code == 200
         assert rewrite_queue.find_entry(work_dir, request_id)["status"] == "claimed"
         assert rewrite_queue.release_claim(work_dir, request_id, claimant="local")
+        # Polling within the shared maintenance cooldown uses the last snapshot.
+        store._next_maintenance_at = 0
         response = await client.get("/dashboard/api/exchange/roster")
         assert response.status_code == 200
         assert response.json()["units"]["byStatus"] == {STATUS_AWAITING_VERIFICATION: 1}
+    assert rewrite_queue.find_entry(work_dir, request_id)["status"] == "completed"
+
+
+async def test_forwarded_receipt_allows_redelivery_after_destination_queue_loss(tmp_path, monkeypatch):
+    store, unit_id, work_dir, request_id = await prepare(tmp_path, monkeypatch)
+    assert await RewriteConsumer(store).drain() == 1
+    rewrite_queue.queue_path(work_dir).unlink()
+    restored = ExchangeStore(store.state_path)
+    consumer = RewriteConsumer(restored)
+    assert await consumer.drain() == 0
+    assert not rewrite_queue.queue_path(work_dir).exists()
+    assert rewrite_queue.write_rewrite_request(work_dir, **REQUEST) == request_id
+    assert await consumer.drain() == 1
+    assert rewrite_queue.find_entry(work_dir, request_id)["status"] == "completed"
+    assert len((await restored.unit_state(unit_id))["submission"]["forwarded"]) == 1
+
+
+async def test_unanchored_queue_directory_blocks_acknowledgement_across_restart(tmp_path, monkeypatch):
+    import hashlib
+    import os
+
+    store, unit_id, work_dir, request_id = await prepare(tmp_path, monkeypatch)
+    directory = rewrite_queue.queue_path(work_dir).parent.absolute()
+    # Model a queue visible after an interrupted mkdir, with its durable intent
+    # still in the recovery root. Forwarding must recover that obligation first.
+    marker = work_dir / (".rewrite-queue-init-" + hashlib.sha256(os.fsencode(directory)).hexdigest() + ".pending")
+    marker.touch()
+    real_sync = rewrite_queue._sync_directory
+
+    def fail_parent(path, **kwargs):
+        if path == work_dir:
+            raise OSError("unanchored queue parent")
+        return real_sync(path, **kwargs)
+
+    monkeypatch.setattr(rewrite_queue, "_sync_directory", fail_parent)
+    assert await RewriteConsumer(store).drain() == 0
+    assert marker.exists()
+    assert "forwarded" not in (await store.unit_state(unit_id))["submission"]
+    # The unsynced directory's contents disappear in the simulated crash.
+    rewrite_queue.queue_path(work_dir).unlink()
+    restored = ExchangeStore(store.state_path)
+    assert await RewriteConsumer(restored).drain() == 0
+    monkeypatch.setattr(rewrite_queue, "_sync_directory", real_sync)
+    assert rewrite_queue.write_rewrite_request(work_dir, **REQUEST) == request_id
+    assert not marker.exists()
+    assert await RewriteConsumer(restored).drain() == 1
     assert rewrite_queue.find_entry(work_dir, request_id)["status"] == "completed"

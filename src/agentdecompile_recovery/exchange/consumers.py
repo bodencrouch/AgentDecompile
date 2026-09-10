@@ -73,7 +73,7 @@ class RewriteConsumer:
             return 0
         if not Path(work_dir).is_absolute():
             return 0
-        from ..rewrite_queue import derive_request_id, import_exchange_result
+        from ..rewrite_queue import STATUS_PENDING, derive_request_id, find_entry, import_exchange_result
 
         if request_id != derive_request_id(function_name, candidate):
             return 0
@@ -95,7 +95,12 @@ class RewriteConsumer:
             return 0
         destination = hashlib.sha256(json.dumps({"workDir": work_dir, "requestId": request_id}, sort_keys=True).encode()).hexdigest()
         if destination in submission.get("forwarded", {}):
-            return 0
+            # A restored/recreated queue may have lost an earlier delivery.
+            # Retry only a pending request; consumed or locally claimed work
+            # must remain untouched. The locked import rechecks its payload.
+            entry = await asyncio.to_thread(find_entry, Path(work_dir), request_id)
+            if entry is None or entry.get("status") != STATUS_PENDING:
+                return 0
         receipt = f"{unit_id}:{fingerprint}:{destination}"
         transferred = await asyncio.to_thread(
             import_exchange_result, Path(work_dir), request_id, payload=payload, source=source, receipt=receipt

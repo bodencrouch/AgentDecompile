@@ -5,6 +5,10 @@ let stopped = true, visible = true, workerId = "", config: ContributorConfig | n
 let controller: AbortController | null = null;
 const emit = (state: Extract<WorkerEvent, { type: "status" }>["state"], message: string) => postMessage({ type: "status", state, message, proposals } satisfies WorkerEvent);
 const pause = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+function leaseDeadline(seconds: unknown): number {
+  if (typeof seconds !== "number" || !Number.isFinite(seconds) || seconds <= 0) throw new Error("coordinator returned an invalid lease duration");
+  return performance.now() + seconds * 1000;
+}
 async function api(path: string, body?: unknown): Promise<unknown> {
   const response = await fetch(EXCHANGE + path, { method: body === undefined ? "GET" : "POST", headers: body === undefined ? undefined : { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body), signal: controller?.signal });
   if (response.status === 204) return null;
@@ -32,15 +36,15 @@ async function provider(prompt: string, signal: AbortSignal): Promise<string> {
   const result = await response.json() as { choices?: { message?: { content?: string } }[]; content?: { text?: string }[] };
   return provider === "openai" ? String(result.choices?.[0]?.message?.content || "") : String(result.content?.[0]?.text || "");
 }
-async function heartbeat(lease: Lease, alive: { value: boolean; lost: boolean }, leaseController: AbortController, renewal: { inFlight: Promise<void> | null }) {
+async function heartbeat(lease: Lease, alive: { value: boolean; lost: boolean }, leaseController: AbortController, renewal: { inFlight: Promise<void> | null; deadline: number }) {
   while (alive.value && !stopped) {
-    const seconds = Math.max(1_000, Math.floor((lease.leaseExpiresAt - Date.now() / 1000) * 333));
+    const seconds = Math.max(1_000, Math.floor((renewal.deadline - performance.now()) / 3));
     await pause(seconds);
     if (!alive.value || stopped) return;
     try {
       renewal.inFlight = api("/heartbeat", { workerId, leaseToken: lease.leaseToken }).then(result => {
-        const next = result as { leaseExpiresAt?: unknown };
-        if (typeof next.leaseExpiresAt === "number") lease.leaseExpiresAt = next.leaseExpiresAt;
+        const next = result as { leaseSeconds: number };
+        renewal.deadline = leaseDeadline(next.leaseSeconds);
       });
       await renewal.inFlight;
       renewal.inFlight = null;
@@ -48,7 +52,7 @@ async function heartbeat(lease: Lease, alive: { value: boolean; lost: boolean },
     catch (error) {
       renewal.inFlight = null;
       const status = (error as { status?: number }).status || 0;
-      if (status === 404 || status === 410 || Date.now() / 1000 >= lease.leaseExpiresAt) {
+      if (status === 404 || status === 410 || performance.now() >= renewal.deadline) {
         alive.lost = true;
         leaseController.abort();
         emit("error", "Lease renewal was rejected; cancelled the provider request.");
@@ -75,7 +79,9 @@ async function run() {
       if (!lease) { await pause(3_000); continue; }
       const alive = { value: true, lost: false };
       const leaseController = new AbortController();
-      const renewal = { inFlight: null as Promise<void> | null };
+      // A full coordinator duration measured from receipt is conservative by
+      // network latency and independent of browser wall-clock skew/jumps.
+      const renewal = { inFlight: null as Promise<void> | null, deadline: leaseDeadline(lease.leaseSeconds) };
       void heartbeat(lease, alive, leaseController, renewal).catch(() => {});
       let letLeaseExpire = false;
       try {
@@ -119,7 +125,7 @@ async function run() {
         // another claim is safe.
         await renewal.inFlight?.catch(() => {});
         if (letLeaseExpire && !stopped) {
-          const remaining = Math.max(0, Math.ceil((lease.leaseExpiresAt - Date.now() / 1000) * 1000));
+          const remaining = Math.max(0, Math.ceil(renewal.deadline - performance.now()));
           emit("waiting", "Attempt was not submitted; waiting for its lease to expire.");
           await pause(remaining);
         }

@@ -17,7 +17,9 @@ with many spectators will contend for the same executor they already saturate.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import time
 
 from typing import Annotated, Any
 
@@ -44,6 +46,7 @@ MAX_ARTIFACT_BYTES = 64 * 1024
 # endpoint. Lanes are the fixed, short scheduler vocabulary.
 MAX_CAPABILITY_LENGTH = 64
 MAX_LANE_LENGTH = 16
+MAINTENANCE_INTERVAL_SECONDS = 1.0
 
 CapabilityName = Annotated[str, Field(max_length=MAX_CAPABILITY_LENGTH)]
 LaneName = Annotated[str, Field(max_length=MAX_LANE_LENGTH)]
@@ -128,11 +131,29 @@ def create_exchange_router(store: ExchangeStore | None = None) -> APIRouter:
         return resolved
 
     async def maintenance() -> None:
-        nonlocal consumer
-        if consumer is None:
-            consumer = RewriteConsumer(_store())
-        await drain_spool(_store())
-        await consumer.drain()
+        current = _store()
+        # Share the bound across claim, roster, and routers using this store.
+        # Concurrent observers use the current snapshot without queuing drains.
+        if current._maintenance_task is not None and not current._maintenance_task.done():
+            return
+        if time.monotonic() < current._next_maintenance_at:
+            return
+
+        async def drain() -> None:
+            nonlocal consumer
+            try:
+                if consumer is None:
+                    consumer = RewriteConsumer(current)
+                await drain_spool(current)
+                await consumer.drain()
+            finally:
+                current._next_maintenance_at = time.monotonic() + MAINTENANCE_INTERVAL_SECONDS
+
+        current._maintenance_task = asyncio.create_task(drain())
+        # A disconnected observer must not release the bound while its disk
+        # thread is still running. Consume errors even if that observer leaves.
+        current._maintenance_task.add_done_callback(lambda task: None if task.cancelled() else task.exception())
+        await asyncio.shield(current._maintenance_task)
 
     @router.post("/dashboard/api/exchange/enroll")
     async def enroll(body: EnrollBody):
@@ -146,9 +167,8 @@ def create_exchange_router(store: ExchangeStore | None = None) -> APIRouter:
         # Pipeline stages are subprocesses and cannot touch the snapshot, so
         # they spool units instead. Ingesting on claim is what makes a
         # producer's work visible without a background sweeper.
-        await maintenance()
         try:
-            lease = await _store().claim(worker_id=body.workerId, lanes=body.lanes)
+            lease = await _store().claim(worker_id=body.workerId, lanes=body.lanes, prepare=maintenance)
         except ExchangeError as exc:
             return _refusal(exc)
         # No work this worker can run. 204 carries no body by definition.

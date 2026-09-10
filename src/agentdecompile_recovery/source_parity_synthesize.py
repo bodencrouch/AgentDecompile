@@ -20611,13 +20611,17 @@ def _normalize_rewrite_source_for_content_check(source: str) -> str:
             index += 1
             while index < len(source):
                 literal_char = source[index]
-                normalized.append("\n" if literal_char == "\n" else " ")
+                if literal_char == "\n":
+                    raise ValueError("unescaped newline in rewrite literal")
+                normalized.append(" ")
                 index += 1
                 if literal_char == "\\" and index < len(source):
                     normalized.append("\n" if source[index] == "\n" else " ")
                     index += 1
                 elif literal_char == quote:
                     break
+            else:
+                raise ValueError("unterminated rewrite literal")
             continue
         normalized.append(char)
         index += 1
@@ -20653,7 +20657,11 @@ def pending_rewrite_variant(
     source = queue_result.get("source")
     if not isinstance(source, str) or not source.strip():
         return None
-    if _REWRITE_CONTENT_DISALLOWED_RE.search(_normalize_rewrite_source_for_content_check(source)):
+    try:
+        normalized = _normalize_rewrite_source_for_content_check(source)
+    except ValueError:
+        return None
+    if _REWRITE_CONTENT_DISALLOWED_RE.search(normalized):
         return None
     return {"name": "rewrite-request", "source": source, "semanticEquivalent": True}
 

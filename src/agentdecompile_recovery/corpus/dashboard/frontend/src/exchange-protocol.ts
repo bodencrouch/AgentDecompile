@@ -7,7 +7,7 @@ export const PROVIDERS = {
 } as const;
 export type ProviderId = keyof typeof PROVIDERS;
 export type ContributorConfig = { provider: ProviderId; model: string; apiKey: string };
-export type Lease = { unit: { unitId: string; lane: string; payload: Record<string, unknown> }; leaseToken: string; fence: number; leaseExpiresAt: number };
+export type Lease = { unit: { unitId: string; lane: string; payload: Record<string, unknown> }; leaseToken: string; fence: number; leaseExpiresAt: number; leaseSeconds: number };
 export type WorkerState = "stopped" | "enrolling" | "waiting" | "generating" | "submitting" | "disabled" | "error";
 export type WorkerCommand =
   | { type: "start"; config: ContributorConfig; visible: boolean }

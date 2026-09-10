@@ -18,7 +18,8 @@ with many spectators will contend for the same executor they already saturate.
 from __future__ import annotations
 
 import json
-from typing import Any
+
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Response
 from fastapi.responses import JSONResponse
@@ -34,16 +35,25 @@ from .store import ExchangeError, ExchangeStore, default_state_path
 # verdict and small enough that a flood of submissions cannot grow the
 # snapshot unboundedly.
 MAX_ARTIFACT_BYTES = 64 * 1024
+# Capability labels are persisted in every worker snapshot. Existing labels
+# (for example ``matcher-input-v1``) are short; leave room for versioned
+# protocol names without admitting arbitrarily large strings from this open
+# endpoint. Lanes are the fixed, short scheduler vocabulary.
+MAX_CAPABILITY_LENGTH = 64
+MAX_LANE_LENGTH = 16
+
+CapabilityName = Annotated[str, Field(max_length=MAX_CAPABILITY_LENGTH)]
+LaneName = Annotated[str, Field(max_length=MAX_LANE_LENGTH)]
 
 
 class EnrollBody(BaseModel):
-    capabilities: list[str] = Field(default_factory=list, max_length=64)
+    capabilities: list[CapabilityName] = Field(default_factory=list, max_length=64)
     agent: str = Field(default="anonymous", max_length=200)
 
 
 class ClaimBody(BaseModel):
     workerId: str = Field(min_length=1, max_length=128)
-    lanes: list[str] | None = Field(default=None, max_length=16)
+    lanes: list[LaneName] | None = Field(default=None, max_length=16)
 
 
 class HeartbeatBody(BaseModel):

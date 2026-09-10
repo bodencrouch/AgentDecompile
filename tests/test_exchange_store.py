@@ -629,6 +629,54 @@ async def test_router_maps_refusals_to_status_codes(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_router_bounds_capability_and_lane_labels_before_store_mutation(tmp_path: Path) -> None:
+    """Oversized open-exchange labels are rejected before they reach snapshots."""
+
+    import httpx
+
+    from agentdecompile_recovery.exchange.routes import (
+        MAX_CAPABILITY_LENGTH,
+        MAX_LANE_LENGTH,
+        create_exchange_router,
+    )
+    from fastapi import FastAPI
+
+    store = make_store(tmp_path)
+    app = FastAPI()
+    app.include_router(create_exchange_router(store))
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://exchange") as client:
+        before_enroll = await store.roster()
+        oversized_capability = await client.post(
+            "/dashboard/api/exchange/enroll",
+            json={"capabilities": ["x" * (MAX_CAPABILITY_LENGTH + 1)]},
+        )
+        assert oversized_capability.status_code == 422
+        assert await store.roster() == before_enroll
+
+        enrolled = await client.post(
+            "/dashboard/api/exchange/enroll",
+            json={"capabilities": ["llm"]},
+        )
+        assert enrolled.status_code == 200
+        worker_id = enrolled.json()["workerId"]
+        before_claim = await store.roster()
+
+        oversized_lane = await client.post(
+            "/dashboard/api/exchange/claim",
+            json={"workerId": worker_id, "lanes": ["x" * (MAX_LANE_LENGTH + 1)]},
+        )
+        assert oversized_lane.status_code == 422
+        assert await store.roster() == before_claim
+
+        valid_claim = await client.post(
+            "/dashboard/api/exchange/claim",
+            json={"workerId": worker_id, "lanes": ["rewrite"]},
+        )
+        assert valid_claim.status_code == 204
+
+
+@pytest.mark.asyncio
 async def test_rate_limit_and_caps_bound_a_broken_client(tmp_path: Path) -> None:
     store = make_store(tmp_path, rate_limit_calls=3, rate_limit_window=60.0, max_workers=2, max_units=1)
     worker = await enroll(store, "llm")

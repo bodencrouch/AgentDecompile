@@ -3,6 +3,29 @@ import { canonicalProjectLocator } from "./projectLocator";
 
 const programKey = (value: unknown) => String(value || "").replace(/^\/+/, "");
 
+function workflowActivity(run: Data, program: string): Data {
+  const stages = run.stages || [];
+  const analysis = stages.find((stage: Data) => stage.key === "analysis");
+  const matching = stages.find((stage: Data) => stage.key === "matching");
+  const active = matching?.status === "running" && programKey(matching.currentProgram) === programKey(program);
+  const queued = ["running", "queued", "waiting"].includes(String(matching?.status));
+  return {
+    status: active ? "running" : queued ? "queued" : analysis?.status === "completed" ? "idle" : String(analysis?.status || "idle"),
+    stage: active || queued ? "Match related builds" : analysis?.status === "completed" ? "Ghidra analysis complete" : "Analysis state pending",
+    action: matching?.currentAction || "",
+    target: active ? program : String(matching?.currentProgram || ""),
+    startedAt: matching?.startedAt || null,
+    progress: matching?.total > 0 ? { kind: "measured", completed: Number(matching.completed || 0), total: Number(matching.total) } : { kind: "idle" },
+    eta: { label: active ? "Estimating from comparable work" : queued ? "Waiting for comparison worker" : "Analysis recorded", basis: "Durable project preparation receipt", observations: 0 },
+    facets: [
+      ...(analysis?.status === "completed" ? [{ kind: "analysis", label: "Ghidra analyzed", source: "preparation receipt" }] : []),
+      ...(active ? [{ kind: "match", label: "Cross-match active", source: "preparation receipt" }] : queued ? [{ kind: "match", label: "Cross-match queued", source: "preparation receipt" }] : []),
+    ],
+    queue: { position: active ? null : queued ? matching?.queuePosition ?? null : null, reason: active ? "Current comparison target" : queued ? "Project comparison queue" : "No admitted queue entry" },
+    error: "",
+  };
+}
+
 /**
  * Keep a live project usable while its corpus rows are still being written.
  * The preparation receipt is authoritative for the programs Ghidra already owns.
@@ -40,6 +63,7 @@ export function workflowProgramMembers(project: Data, binaries: Data[], runs: Da
       funcs: Number(run.checkpoints?.[program]?.workSize || 0),
       libraryId: `program:${locator}:${key}`,
       identityStatus: "recorded-program",
+      workflowActivity: workflowActivity(run, program),
     };
   }).filter((item) => {
     const key = programKey(item.program);

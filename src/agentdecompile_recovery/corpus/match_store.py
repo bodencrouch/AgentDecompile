@@ -395,6 +395,9 @@ def match_binaries(
     for rnd in range(rounds):
         new = 0
         scored: list[tuple[float, float, int, int, dict, float, int | None]] = []
+        # Mapping is unchanged while this round gathers all scores.  Build its
+        # string-keyed view once instead of once per source function.
+        int_map = {str(k): str(v) for k, v in mapping.items()} if mapping else None
         for a in src_addrs:
             if a in mapping:
                 continue
@@ -418,7 +421,6 @@ def match_binaries(
                     fa_score = {**fa_score, "decomp": sa.decomp[a]}
                 if sb.decomp.get(b):
                     fb = {**fb, "decomp": sb.decomp[b]}
-                int_map = {str(k): str(v) for k, v in mapping.items()} if mapping else None
                 s, ev = score_features(fa_score, fb, same_arch=same_arch, mapping=int_map)
                 ev = dict(ev)
                 if s > best:

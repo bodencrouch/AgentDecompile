@@ -40,9 +40,11 @@ def main(argv: list[str] | None = None) -> int:
     console_completed: list[str] = []
     started = time.perf_counter()
     for entry in entries:
-        at = time.perf_counter(); result = replayer.replay(args.snapshot, entry)
+        at = time.perf_counter()
+        result = replayer.replay(args.snapshot, entry)
         if result.returncode == 0 and result.c_text is not None:
-            console_completed.append(entry.addr); console_ms.append((time.perf_counter() - at) * 1000)
+            console_completed.append(entry.addr)
+            console_ms.append((time.perf_counter() - at) * 1000)
     console_wall = time.perf_counter() - started
     result_file = args.output / "native-batch.jsonl"
     args.output.mkdir(parents=True, exist_ok=True)
@@ -56,7 +58,8 @@ def main(argv: list[str] | None = None) -> int:
     batch_ms = tuple(float(record["elapsed_ms"]) for record in records if record.get("status") == "ok")
     payload = report(args.snapshot.name, [Lane("native-console", tuple(console_completed), console_wall, tuple(console_ms)), Lane("native-batch", batch_completed, batch_wall, batch_ms)], options_sha256=manifest.options.sha256, timeout_s=args.timeout)
     json_path, md_path = write_report(args.output, payload)
-    print(json_path); print(md_path)
+    print(json_path)
+    print(md_path)
     return 0 if tuple(console_completed) == addresses == batch_completed else 3
 
 

@@ -371,6 +371,14 @@ Commit slices on `feat/native-sdk`, each message carrying the test command and r
 
 Dated deltas. Newest first. A delta names what was verified and how; it does not check boxes above unless the named verification ran.
 
+### 2026-09-09 (export/batch verified; pool and fuzz foundations added)
+
+- **WP8 landed locally:** `71c749b` exports a read-only PyGhidra program into a manifest plus one savefile/XML/options bundle per selected function. The transaction guard permits only the proven empty PyGhidra bootstrap transaction and rejects real caller mutations. `tests/test_native_snapshot_export_integration.py` passed 9/9 against the installed Ghidra 12.1.3 runtime, and `tests/test_native_snapshot_manifest.py` passed 30/30.
+- **WP10 landed locally:** `b9f7ded` adds bounded private-pool PyGhidra decompilation and preserves existing corpus persistence behavior. Its unit suite passed 12/12 and the real serial-versus-two-thread integration test passed with byte-identical C text.
+- **WP6 remains incomplete, but its tested foundation landed locally:** `28a9dfa` adds a `posix_spawn` supervisor with dedicated stdin/stdout protocol pipes, HELLO negotiation, pidfds when supported, and a SIGUSR1 -> SIGTERM -> SIGKILL deadline ladder. `ctest --test-dir native/build/relwithdebinfo -R '^pool_supervisor_smoke$' --output-on-failure` passed 1/1 against two fake workers. The full fault matrix, respawn policy, JSONL batch CLI, cgroups, and real pool tests remain required.
+- **WP7 partial landed locally:** `27828fb` adds Debug/RelWithDebInfo/ASan/UBSan/libFuzzer presets and a chunk-boundary fuzzer for the production protocol decoder. `cmake --preset fuzz -S native`, build of `protocol_fuzzer`, and `protocol_fuzzer -runs=1000 -seed=12345` passed. Sanitizer CTest lanes and a checked-in corpus remain required.
+- **Next:** implement the batch/replay runners and their report artifacts, then finish pool fault handling, bindings, CI, benchmarks, and all merge-gate lanes. No package described as partial above is a completed work package.
+
 ### 2026-09-09 (real worker e2e and narrow differential core)
 
 - **Landed:** `13e3729` adds `gnsdk-worker` over the frozen protocol and C ABI: HELLO negotiation, raw/snapshot sessions, DISASM/LIFT/DECOMPILE, SIGUSR1 cancellation, parent-death signal, and self-applied address-space/CPU rlimits. Its real-worker test ran HELLO -> OPEN_RAW -> DECOMPILE -> BYE against compiled x86-64 SLEIGH specs and passed: `ctest --test-dir native/build/relwithdebinfo -R '^worker_e2e$' --output-on-failure -j1` (1/1). `gnsdk-selftest`, protocol roundtrip, fake-worker smoke, and its full misbehavior matrix also passed from the CTest log. `c5d77a9` and `8eda04f` add the intentionally narrow canonicalization and the strict `match` / `mismatch-layout-only` / `mismatch-content` / `native-crash` classifier; their focused pytest suites passed.

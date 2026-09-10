@@ -336,7 +336,12 @@ class ScriptToolProvider(ToolProvider):
 
     # ------------------------------------------------------------------
 
-    async def _handle_execute(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_execute(
+        self,
+        args: dict[str, Any],
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None = None,
+    ) -> list[types.TextContent]:
         """Execute Python code in the Ghidra script context.
 
         **Execution Flow:**
@@ -372,7 +377,9 @@ class ScriptToolProvider(ToolProvider):
         # Treating "path" as a program alias causes .gpr project markers to be
         # misclassified as programs during script execution.
         requested_program_path = self._get_str(args, "programpath", "program_path", default="")
-        effective_program_info = self.program_info
+        # ToolProviderManager resolves programPath per invocation.  Providers are
+        # long-lived, so self.program_info can still name a previous program.
+        effective_program_info = program_info if program_info is not None else self.program_info
         ns: dict[str, Any] = self._build_namespace(effective_program_info)
         executed_program = ns.get("currentProgram")
 

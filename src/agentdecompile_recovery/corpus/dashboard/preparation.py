@@ -41,7 +41,54 @@ try:
 except Exception:
     stateDone = None
 needsAnalysis = False if pending is False else (True if stateDone is False else (False if stateDone is True else True if pending is None else pending))
-__result__ = json.dumps({'needsAnalysis': needsAnalysis, 'executablePath': str(currentProgram.getExecutablePath()), 'architecture': str(currentProgram.getLanguageID()), 'ghidraVersion': str(Application.getApplicationVersion()), 'workSize': int(currentProgram.getFunctionManager().getFunctionCount())})"""
+try:
+    observedProgramPath = str(currentProgram.getDomainFile().getPathname())
+except Exception:
+    observedProgramPath = ''
+__result__ = json.dumps({'programPath': observedProgramPath, 'needsAnalysis': needsAnalysis, 'executablePath': str(currentProgram.getExecutablePath()), 'architecture': str(currentProgram.getLanguageID()), 'ghidraVersion': str(Application.getApplicationVersion()), 'workSize': int(currentProgram.getFunctionManager().getFunctionCount())})"""
+
+
+def _same_program_path(left: Any, right: Any) -> bool:
+    """Require the exact Ghidra DomainFile path before accepting a probe."""
+    return bool(left and right and str(left).replace('\\', '/').strip().strip('/') == str(right).replace('\\', '/').strip().strip('/'))
+
+
+def _discard_unverified_probe(checkpoint: dict[str, Any], requested: str, observed: str = '') -> bool:
+    """Remove probe-derived state that cannot be tied to its selected program."""
+    if _same_program_path(checkpoint.get('observedProgramPath'), requested):
+        return False
+    for key in (
+        'analysisConfirmed', 'analysisCheckedAt', 'needsAnalysis', 'executablePath',
+        'architecture', 'ghidraVersion', 'workSize', 'protection',
+        'externalSourceAvailable', 'programFingerprint', 'arch', 'toolchain',
+        'targetImage', 'bsimComplete', 'bsimUrl', 'bsimReceipt', 'bsimFingerprint',
+        'knowledgeComplete', 'knowledgeCursor', 'knowledgeFingerprint',
+        'knowledgeAvailable', 'workflow', 'factsComplete', 'factsPath',
+        'binaryId', 'slug', 'repoPath', 'recoveryFamily',
+    ):
+        checkpoint.pop(key, None)
+    checkpoint['probeMismatch'] = {
+        'requestedProgramPath': requested,
+        'observedProgramPath': observed or str(checkpoint.get('observedProgramPath') or ''),
+        'at': time.time(),
+    }
+    checkpoint.pop('observedProgramPath', None)
+    return True
+
+
+def _accept_probe(checkpoint: dict[str, Any], requested: str, payload: dict[str, Any]) -> bool:
+    observed = str(payload.get('programPath') or '')
+    if not _same_program_path(requested, observed):
+        _discard_unverified_probe(checkpoint, requested, observed)
+        return False
+    checkpoint.update(
+        observedProgramPath=observed,
+        executablePath=payload.get('executablePath'), analysisCheckedAt=time.time(),
+        needsAnalysis=payload.get('needsAnalysis'),
+        **{key: payload.get(key) for key in ('architecture', 'ghidraVersion', 'workSize')},
+    )
+    checkpoint.pop('probeMismatch', None)
+    return True
 
 
 def _matching_concurrency() -> int:
@@ -1034,6 +1081,8 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 # analysis receipt.  The analysis stage decides whether a
                 # changed input needs work; preserving this flag makes resume
                 # reuse completed programs instead of starting them again.
+                if _discard_unverified_probe(checkpoint, execution_program):
+                    update('protection', 'running', f'Recording fresh program evidence for {program}.')
                 checkpoint.setdefault('analysisConfirmed', False)
                 if not execution_project or not execution_program:
                     protection_blocked.add(program)
@@ -1066,9 +1115,10 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                     protection_blocked.add(program)
                     update('protection', 'blocked', f'Cannot inspect stored program bytes for {program}; protection and analysis cannot proceed.')
                     continue
-                checkpoint.update(executablePath=payload.get('executablePath'), analysisCheckedAt=time.time(),
-                                  needsAnalysis=payload.get('needsAnalysis'),
-                                  **{key: payload.get(key) for key in ('architecture', 'ghidraVersion', 'workSize')})
+                if not _accept_probe(checkpoint, execution_program, payload):
+                    protection_blocked.add(program)
+                    update('protection', 'blocked', f'{program}: the Ghidra probe returned a different program path; no evidence was accepted.')
+                    continue
                 source = payload.get('executablePath') or ''
                 # Ghidra keeps the imported bytes in its database.  An
                 # original source location may be stale after a shared
@@ -1135,9 +1185,9 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                     if not state['ok'] or not isinstance(payload, dict) or 'needsAnalysis' not in payload:
                         update('analysis', 'blocked', f'Cannot determine existing analysis for {program}; analysis was not rerun.')
                         continue
-                    checkpoint.update(executablePath=payload.get('executablePath'), analysisCheckedAt=time.time(),
-                                      needsAnalysis=payload.get('needsAnalysis'),
-                                      **{key: payload.get(key) for key in ('architecture', 'ghidraVersion', 'workSize')})
+                    if not _accept_probe(checkpoint, execution_program, payload):
+                        update('analysis', 'blocked', f'{program}: the Ghidra probe returned a different program path; analysis was not accepted.')
+                        continue
                 if checkpoint.get('needsAnalysis') is False:
                     checkpoint['analysisConfirmed'] = True
                     analyzed += 1

@@ -1,10 +1,14 @@
 #include <chrono>
+#include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "gnsdk/pool.hpp"
@@ -96,6 +100,43 @@ void write_record(std::ostream& output, const Job& job, const proto::Message& re
   else { record.set("status", "engine_failure"); record.set("error", std::string(reply.json())); }
   output << record.dump() << '\n';
 }
+
+std::string run_job(gnsdk::pool::Supervisor& pool, const Job& job, const json::Value& engines,
+                    unsigned long timeout_s, std::uint64_t& request) {
+  std::ostringstream output;
+  const auto begin = std::chrono::steady_clock::now();
+  try {
+    json::Value open = json::Value::object();
+    open.set("path", job.snapshot);
+    const auto opened = pool.request(proto::Kind::OpenSnapshot, open.dump(), request++, std::chrono::seconds(timeout_s));
+    if (opened.kind != proto::to_u16(proto::Kind::Result)) {
+      write_record(output, job, opened,
+          static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count()),
+          engines);
+      return output.str();
+    }
+    json::Value decompile = json::Value::object();
+    decompile.set("addr", job.addr);
+    decompile.set("tokens", false);
+    decompile.set("deadline_ms", static_cast<unsigned long long>(timeout_s * 1000));
+    decompile.set("printer", "c");
+    const auto reply = pool.request(proto::Kind::Decompile, decompile.dump(), request++, std::chrono::seconds(timeout_s));
+    write_record(output, job, reply,
+        static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count()),
+        engines);
+  } catch (const std::exception& exc) {
+    json::Value record = json::Value::object();
+    record.set("id", job.id);
+    record.set("seq", job.id);
+    record.set("elapsed_ms", static_cast<unsigned long long>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count()));
+    record.set("engines", engines);
+    record.set("status", "engine_failure");
+    record.set("error", exc.what());
+    output << record.dump() << '\n';
+  }
+  return output.str();
+}
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -130,32 +171,43 @@ int main(int argc, char** argv) {
       while (std::getline(input, line)) { if (line.empty()) continue; json::Value value; Job job; if (!json::parse(line, value) || !parse_job(value, job)) throw std::runtime_error("invalid JSONL job"); jobs.push_back(std::move(job)); }
       if (!input.eof()) throw std::runtime_error("cannot read input JSONL");
     }
-    std::ofstream output(output_path); if (!output) throw std::runtime_error("cannot open output");
-    // Snapshot restore owns a single process-global session. Keep it on one
-    // worker until full affinity scheduling is implemented in Supervisor.
-    gnsdk::pool::Config config; config.worker = GNSDK_WORKER_PATH; config.sleigh_home = sleigh_home;
-    config.workers = snapshot_path.empty() ? static_cast<std::size_t>(workers) : 1;
-    config.tmpdir = tmpdir;
-    config.rlimit_as = mem;
-    config.cgroup_memory_max = cgroup_mem;
-    gnsdk::pool::Supervisor pool(std::move(config)); pool.start();
-    const json::Value engines = engine_metadata(pool);
-    std::uint64_t request = 1;
-    for (const Job& job : jobs) {
-      const auto begin = std::chrono::steady_clock::now();
-      try {
-        json::Value open = json::Value::object(); open.set("path", job.snapshot);
-        const auto opened = pool.request(proto::Kind::OpenSnapshot, open.dump(), request++, std::chrono::seconds(timeout_s));
-        if (opened.kind != proto::to_u16(proto::Kind::Result)) {
-          write_record(output, job, opened, static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count()), engines);
-          continue;
+    std::vector<std::string> records(jobs.size());
+    const auto worker_count = std::min<std::size_t>(static_cast<std::size_t>(workers), std::max<std::size_t>(jobs.size(), 1));
+    std::atomic_size_t next{0};
+    std::vector<std::thread> lanes;
+    std::vector<std::string> failures(worker_count);
+    lanes.reserve(worker_count);
+    for (std::size_t lane = 0; lane < worker_count; ++lane) {
+      lanes.emplace_back([&, lane]() {
+        try {
+          gnsdk::pool::Config config; config.worker = GNSDK_WORKER_PATH; config.sleigh_home = sleigh_home;
+          config.workers = 1;
+          config.tmpdir = tmpdir;
+          config.rlimit_as = mem;
+          config.cgroup_memory_max = cgroup_mem;
+#ifdef GNSDK_BATCH_EXTRA_WORKER_ARG
+          config.worker_args.push_back(GNSDK_BATCH_EXTRA_WORKER_ARG);
+#endif
+          gnsdk::pool::Supervisor pool(std::move(config)); pool.start();
+          const json::Value engines = engine_metadata(pool);
+          std::uint64_t request = 1;
+          for (;;) {
+            const std::size_t index = next.fetch_add(1);
+            if (index >= jobs.size()) break;
+            records[index] = run_job(pool, jobs[index], engines, timeout_s, request);
+          }
+        } catch (const std::exception& exc) {
+          failures[lane] = exc.what();
         }
-        json::Value decompile = json::Value::object(); decompile.set("addr", job.addr); decompile.set("tokens", false); decompile.set("deadline_ms", static_cast<unsigned long long>(timeout_s * 1000)); decompile.set("printer", "c");
-        const auto reply = pool.request(proto::Kind::Decompile, decompile.dump(), request++, std::chrono::seconds(timeout_s));
-        write_record(output, job, reply, static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count()), engines);
-      } catch (const std::exception& exc) {
-        json::Value record = json::Value::object(); record.set("id", job.id); record.set("seq", job.id); record.set("elapsed_ms", static_cast<unsigned long long>(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - begin).count())); record.set("engines", engines); record.set("status", "engine_failure"); record.set("error", exc.what()); output << record.dump() << '\n';
-      }
+      });
+    }
+    for (auto& lane : lanes) lane.join();
+    for (const std::string& failure : failures) {
+      if (!failure.empty()) throw std::runtime_error("batch worker failed: " + failure);
+    }
+    std::ofstream output(output_path); if (!output) throw std::runtime_error("cannot open output");
+    for (const std::string& record : records) {
+      if (!record.empty()) output << record;
     }
     return 0;
   } catch (const std::exception& exc) { std::cerr << "gnsdk-batch: " << exc.what() << '\n'; return 2; }

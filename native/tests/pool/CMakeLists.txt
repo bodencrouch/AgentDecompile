@@ -158,3 +158,14 @@ add_test(NAME gnsdk_batch_version COMMAND gnsdk-batch --version)
 set_tests_properties(gnsdk_batch_version PROPERTIES
   LABELS "pool;batch"
   PASS_REGULAR_EXPRESSION "gnsdk-batch 0\\.1\\.0")
+
+if(TARGET gnsdk-batch-fake)
+  add_executable(gnsdk_batch_parallel batch_parallel.cpp)
+  target_include_directories(gnsdk_batch_parallel PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../.. ${CMAKE_CURRENT_SOURCE_DIR}/../worker)
+  target_link_libraries(gnsdk_batch_parallel PRIVATE gnsdk_protocol)
+  target_compile_features(gnsdk_batch_parallel PRIVATE cxx_std_20)
+  target_compile_definitions(gnsdk_batch_parallel PRIVATE GNSDK_BATCH_FAKE_PATH="$<TARGET_FILE:gnsdk-batch-fake>")
+  add_dependencies(gnsdk_batch_parallel gnsdk-batch-fake)
+  add_test(NAME gnsdk_batch_parallel COMMAND gnsdk_batch_parallel)
+  set_tests_properties(gnsdk_batch_parallel PROPERTIES LABELS "pool;batch")
+endif()

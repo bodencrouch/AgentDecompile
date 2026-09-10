@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
+from .objdiff_verification import is_objdiff_match
 from .package_verify import build_shim, compile_with_msvc
 
 ROOT = Path.cwd()
@@ -19720,6 +19721,9 @@ def attempt_candidate(
                 "differences": differences,
                 "message": message,
                 "verifyReport": str(verify_json),
+                "objdiffExit": report.get("objdiffExit"),
+                "fallback": report.get("fallback"),
+                "diagnosticFallback": report.get("diagnosticFallback"),
             }
         )
         if status == "matched" and differences == 0:
@@ -19812,7 +19816,7 @@ def attempt_candidate_with_clang_slice_objdiff(
             )
             continue
         report = run_objdiff(target_obj, candidate_obj, attempt_dir, timeout=timeout)
-        status = "code-slice-matched" if report.get("status") == "matched" and int(report.get("differences", -1)) == 0 else str(report.get("status"))
+        status = "code-slice-matched" if is_objdiff_match(report) else str(report.get("status"))
         attempts.append(
             {
                 **record,
@@ -19820,6 +19824,9 @@ def attempt_candidate_with_clang_slice_objdiff(
                 "differences": int(report.get("differences", -1)),
                 "message": report.get("message"),
                 "verifyReport": str(attempt_dir / "verify.json"),
+                "objdiffExit": report.get("objdiffExit"),
+                "fallback": report.get("fallback"),
+                "diagnosticFallback": report.get("diagnosticFallback"),
                 "targetCompile": target_compile,
                 "candidateCompile": candidate_compile,
             }
@@ -19929,7 +19936,7 @@ def attempt_candidate_with_msvc_synthetic_slice(
             )
             continue
         report = run_objdiff(target_obj, candidate_obj, attempt_dir, timeout=timeout)
-        status = "code-slice-matched" if report.get("status") == "matched" and int(report.get("differences", -1)) == 0 else str(report.get("status"))
+        status = "code-slice-matched" if is_objdiff_match(report) else str(report.get("status"))
         attempts.append(
             {
                 **record,
@@ -19937,6 +19944,9 @@ def attempt_candidate_with_msvc_synthetic_slice(
                 "differences": int(report.get("differences", -1)),
                 "message": report.get("message"),
                 "verifyReport": str(attempt_dir / "verify.json"),
+                "objdiffExit": report.get("objdiffExit"),
+                "fallback": report.get("fallback"),
+                "diagnosticFallback": report.get("diagnosticFallback"),
                 "targetCompile": target_compile,
                 "candidateCompile": candidate_compile,
             }
@@ -19971,6 +19981,7 @@ def attempt_candidate_with_msvc_synthetic_slice(
             candidate,
             case_dir,
             data=strip_alignment_padding(data),
+            target_obj=target_obj,
             compiler_profiles=resolved_profiles,
             vc_root=vc_root,
             wine=wine,
@@ -20075,7 +20086,7 @@ def attempt_candidate_with_clangcl_slice_objdiff(
             )
             continue
         report = run_objdiff(target_obj, candidate_obj, attempt_dir, timeout=timeout)
-        status = "code-slice-matched" if report.get("status") == "matched" and int(report.get("differences", -1)) == 0 else str(report.get("status"))
+        status = "code-slice-matched" if is_objdiff_match(report) else str(report.get("status"))
         attempts.append(
             {
                 **record,
@@ -20083,6 +20094,9 @@ def attempt_candidate_with_clangcl_slice_objdiff(
                 "differences": int(report.get("differences", -1)),
                 "message": report.get("message"),
                 "verifyReport": str(attempt_dir / "verify.json"),
+                "objdiffExit": report.get("objdiffExit"),
+                "fallback": report.get("fallback"),
+                "diagnosticFallback": report.get("diagnosticFallback"),
                 "targetCompile": target_compile,
                 "candidateCompile": candidate_compile,
             }
@@ -20095,6 +20109,7 @@ def attempt_candidate_with_clangcl_slice_objdiff(
             candidate,
             case_dir,
             data=strip_alignment_padding(data),
+            target_obj=target_obj,
             clang_cl=clang_cl,
             timeout=timeout,
         )
@@ -20232,6 +20247,7 @@ def run_source_shape_search(
     case_dir: Path,
     *,
     data: bytes,
+    target_obj: Path,
     clang_cl: str,
     timeout: int,
 ) -> dict[str, Any] | None:
@@ -20257,6 +20273,7 @@ def run_source_shape_search(
         )
         candidate_bytes = object_text_bytes(object_path, timeout=timeout) if compile_result.get("status") == "ok" else b""
         matched = candidate_bytes == data
+        verification = run_objdiff(target_obj, object_path, variant_dir, timeout=timeout) if matched else {}
         attempts.append(
             {
                 "name": variant["name"],
@@ -20268,15 +20285,17 @@ def run_source_shape_search(
                 "candidateBytesHexPrefix": candidate_bytes[:48].hex(),
                 "targetBytesHexPrefix": data[:48].hex(),
                 "byteIdentical": matched,
+                "objdiff": verification,
+                "verifyReport": str(variant_dir / "verify.json") if verification else None,
                 "commonPrefixBytes": common_prefix_len(data, candidate_bytes),
                 "candidateSize": len(candidate_bytes),
                 "targetSize": len(data),
             }
         )
-    best = max(attempts, key=lambda item: (bool(item.get("byteIdentical")), int(item.get("commonPrefixBytes") or 0)), default=None)
+    best = max(attempts, key=lambda item: (is_objdiff_match(item.get("objdiff") or {}), bool(item.get("byteIdentical")), int(item.get("commonPrefixBytes") or 0)), default=None)
     report = {
         "schema": "agentdecompile.source-shape-search.v1",
-        "status": "matched" if best and best.get("byteIdentical") else "no-match",
+        "status": "matched" if best and is_objdiff_match(best.get("objdiff") or {}) else "no-match",
         "rule": candidate.rule,
         "variant": candidate.variant,
         "name": row.get("name"),
@@ -20314,6 +20333,7 @@ def run_msvc_source_shape_search(
     case_dir: Path,
     *,
     data: bytes,
+    target_obj: Path,
     compiler_profiles: list[tuple[str, list[str]]],
     vc_root: Path | None,
     wine: str,
@@ -20361,6 +20381,7 @@ def run_msvc_source_shape_search(
             )
             candidate_bytes = object_text_bytes(object_path, timeout=attempt_timeout) if compile_result.get("status") == "ok" else b""
             matched = candidate_bytes == compare_data
+            verification = run_objdiff(target_obj, object_path, variant_dir, timeout=attempt_timeout) if matched else {}
             attempts.append(
                 {
                     "name": variant["name"],
@@ -20375,19 +20396,21 @@ def run_msvc_source_shape_search(
                     "targetBytesHexPrefix": compare_data[:48].hex(),
                     "targetBytesNormalizedForRelocations": compare_data != data,
                     "byteIdentical": matched,
+                    "objdiff": verification,
+                    "verifyReport": str(variant_dir / "verify.json") if verification else None,
                     "commonPrefixBytes": common_prefix_len(compare_data, candidate_bytes),
                     "candidateSize": len(candidate_bytes),
                     "targetSize": len(compare_data),
                 }
             )
-            if matched:
+            if is_objdiff_match(verification):
                 break
-        if attempts and attempts[-1].get("byteIdentical"):
+        if attempts and is_objdiff_match(attempts[-1].get("objdiff") or {}):
             break
-    best = max(attempts, key=lambda item: (bool(item.get("byteIdentical")), int(item.get("commonPrefixBytes") or 0)), default=None)
+    best = max(attempts, key=lambda item: (is_objdiff_match(item.get("objdiff") or {}), bool(item.get("byteIdentical")), int(item.get("commonPrefixBytes") or 0)), default=None)
     report = {
         "schema": "agentdecompile.source-shape-search.v1",
-        "status": "matched" if best and best.get("byteIdentical") else "no-match",
+        "status": "matched" if best and is_objdiff_match(best.get("objdiff") or {}) else "no-match",
         "rule": candidate.rule,
         "variant": candidate.variant,
         "name": row.get("name"),
@@ -21996,10 +22019,10 @@ def run_objdiff(target_obj: Path, candidate_obj: Path, case_dir: Path, *, timeou
     # Parse stdout only — empty stdout must fail closed (never substitute stderr).
     report = parse_objdiff_report(proc.returncode, proc.stdout)
     if report["status"] == "error":
-        # Diagnostic fallback only: carries fallback=… so is_proven_zero rejects it.
+        # Preserve verifier failure as the outcome; byte fallback is diagnostic.
         fallback = compare_objdump_code_bytes(target_obj, candidate_obj, case_dir, timeout=timeout)
         if fallback is not None:
-            report = fallback
+            report["diagnosticFallback"] = fallback
     write_json(report_path, report)
     return report
 
@@ -22335,13 +22358,16 @@ def matched_source_shape_record(record: dict[str, Any], search_path: str) -> dic
     attempts = report.get("attempts")
     if not isinstance(attempts, list):
         return None
-    matched = next((attempt for attempt in attempts if isinstance(attempt, dict) and attempt.get("byteIdentical") is True), None)
+    matched = next((attempt for attempt in attempts if isinstance(attempt, dict) and is_objdiff_match(attempt.get("objdiff") or {})), None)
     if matched is None:
         return None
     compile_info = matched.get("compile") if isinstance(matched.get("compile"), dict) else {}
     return record_with_source_text({
         "schema": "agentdecompile.source-shape-code-slice-match.v1",
         "status": "source-shape-code-slice-matched",
+        "differences": 0,
+        "objdiffExit": 0,
+        "verifyReport": matched.get("verifyReport"),
         "name": record.get("name"),
         "entry": record.get("entry"),
         "rule": report.get("rule") or record.get("rule"),

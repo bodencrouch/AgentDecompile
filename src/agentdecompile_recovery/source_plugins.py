@@ -10,6 +10,7 @@ from typing import Any
 
 from . import rewrite_queue
 from .mismatch_classify import enrich_attempt_records, routed_playbook_for_class, write_mismatch_class_last
+from .objdiff_verification import is_objdiff_match
 from .plugin_pipeline import PluginResult, now_ms
 from .source_export import export_recovered_source
 from .source_parity_synthesize import (
@@ -163,7 +164,7 @@ class SourceCandidateObjdiffPlugin:
         matches = [
             record
             for record in records
-            if record.get("status") in {"matched", "code-slice-matched"} and optional_int(record.get("differences"), -1) == 0
+            if is_objdiff_match(record)
         ]
         output_source_qualities = normalize_filter_set(context.get("sourceQualities"))
         exportable_matches = [
@@ -221,7 +222,11 @@ class SourceCandidateObjdiffPlugin:
                 rewrite_variant is None
                 or any(
                     record.get("candidateCompileInvoked") is True
-                    and record.get("status") in {"compile-failed", "matched", "mismatched", "code-slice-matched"}
+                    and (
+                        record.get("status") == "compile-failed"
+                        or is_objdiff_match(record)
+                        or (record.get("status") == "mismatched" and record.get("objdiffExit") == 0 and not record.get("fallback"))
+                    )
                     for record in records
                 )
             )

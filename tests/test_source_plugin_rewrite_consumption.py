@@ -1,6 +1,9 @@
 """Forwarded source reaches the compiler dispatcher and retains the proof gate."""
 from __future__ import annotations
 
+import json
+
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -50,7 +53,7 @@ def test_forwarded_rewrite_reaches_each_compiler_and_objdiff_gate(tmp_path, monk
         assert candidate.evidence == {**original.evidence, "rewriteRequestId": request_id}
         assert not kwargs.get("source_shape_search")
         assert kwargs.get("pending_rewrite_result") is None
-        return [{**base_record, "status": "matched", "differences": differences, "candidateCompileInvoked": True}]
+        return [{**base_record, "status": "matched" if differences == 0 else "mismatched", "differences": differences, "candidateCompileInvoked": True, "objdiffExit": 0}]
 
     backend_name = {
         "msvc": "attempt_candidate_with_msvc_synthetic_slice",
@@ -134,6 +137,7 @@ def test_only_candidate_outcomes_consume_forwarded_rewrite(tmp_path, monkeypatch
     context, request_id = forwarded_context(tmp_path)
     monkeypatch.setattr(source_plugins, "attempt_candidate", lambda *args, **kwargs: [{
         "status": status, "differences": -1, "candidateCompileInvoked": invoked,
+        "objdiffExit": 0,
     }])
     source_plugins.SourceCandidateObjdiffPlugin().execute(context)
     assert (rewrite_queue.find_entry(tmp_path, request_id) is None) == (invoked is True and status in {"compile-failed", "mismatched"})
@@ -258,3 +262,108 @@ def test_native_loader_failure_does_not_count_as_candidate_compilation(tmp_path,
     assert record["status"] == "compile-failed"
     assert record["candidateCompileInvoked"] is False
     assert rewrite_queue.find_entry(tmp_path, request_id)["source"] == REWRITE
+
+
+@pytest.mark.parametrize("compiler", ["msvc", "msvc-inventory", "clang", "clang-cl"])
+@pytest.mark.parametrize("outcome", ["matched", "mismatched", "error", "invalid-output"])
+@pytest.mark.parametrize("forwarded", [True, False])
+def test_real_dispatch_and_objdiff_receipt_gate(tmp_path, monkeypatch, compiler, outcome, forwarded):
+    context, request_id = forwarded_context(tmp_path)
+    context.update(compiler="msvc" if compiler == "msvc-inventory" else compiler, compilerProfiles=[("test", [])], sourceShapeSearch=True)
+    if not forwarded:
+        context.pop("workDir")
+    if compiler == "msvc-inventory":
+        context["sourceParityRow"].pop("bytes")
+    objdiff_calls = []
+    compiled_sources = []
+
+    def compile_object(**kwargs):
+        if kwargs["source"].suffix == ".c":
+            compiled_sources.append(kwargs["source"].read_text())
+        kwargs["object_path"].write_bytes(b"controlled object")
+        return {"status": "ok", "compilerInvoked": True, "object": str(kwargs["object_path"])}
+
+    def verifier_process(command, **kwargs):
+        if "agentdecompile_recovery.inventory_slice" in command:
+            case_dir = Path(command[command.index("--out-dir") + 1])
+            (case_dir / "target.obj").write_bytes(b"controlled target")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        if command[0] == "objdump":
+            return SimpleNamespace(returncode=0, stdout="0000: c3  ret\n", stderr="")
+        assert command[:2] == ["objdiff", "diff"]
+        objdiff_calls.append(command)
+        output = json.dumps({"sections": [{"kind": "SECTION_CODE", "match_percent": 50 if outcome == "mismatched" else 100}]})
+        return SimpleNamespace(returncode=1 if outcome == "error" else 0, stdout="not JSON" if outcome == "invalid-output" else output, stderr="")
+
+    for name in ("compile_with_msvc", "compile_with_clang", "compile_with_clangcl", "compile_asm_to_coff"):
+        monkeypatch.setattr(source_parity_synthesize, name, compile_object)
+    monkeypatch.setattr(source_parity_synthesize, "run", verifier_process)
+    monkeypatch.setattr(source_parity_synthesize, "semantic_equivalent_variants", lambda *args, **kwargs: [{"name": "probe", "source": REWRITE}])
+    monkeypatch.setattr(source_parity_synthesize, "object_text_bytes", lambda *args, **kwargs: b"\xc3")
+    result, updated = source_plugins.SourceCandidateObjdiffPlugin().execute(context)
+    assert objdiff_calls
+    assert compiled_sources[0] == (REWRITE if forwarded else context["selectedSourceCandidate"].source)
+    assert result.status == ("success" if outcome == "matched" else "failure")
+    assert bool(updated["sourceParityMatchRecords"]) == (outcome == "matched")
+    if outcome in {"error", "invalid-output"}:
+        assert all(record["status"] == "error" for record in updated["sourceParityAttemptRecords"])
+        assert updated["sourceShapeMatchRecords"] == []
+        for record in updated["sourceParityAttemptRecords"]:
+            assert record["differences"] == -1
+            assert record["diagnosticFallback"]["status"] == "matched"
+        assert result.data["matchCount"] == result.data["sourceShapeMatchCount"] == 0
+    if forwarded:
+        assert (rewrite_queue.find_entry(tmp_path, request_id) is None) == (outcome in {"matched", "mismatched"})
+
+
+@pytest.mark.parametrize("status", ["matched", "code-slice-matched", "mismatched"])
+@pytest.mark.parametrize("receipt", [{}, {"objdiffExit": 1}, {"objdiffExit": 0, "fallback": "objdump"}])
+def test_plugin_rejects_incomplete_or_fallback_match_receipt(tmp_path, monkeypatch, status, receipt):
+    context, request_id = forwarded_context(tmp_path)
+    monkeypatch.setattr(source_plugins, "attempt_candidate", lambda *args, **kwargs: [{
+        "status": status, "differences": 0, "candidateCompileInvoked": True, **receipt,
+    }])
+    result, updated = source_plugins.SourceCandidateObjdiffPlugin().execute(context)
+    assert result.status == "failure"
+    assert updated["sourceParityMatchRecords"] == []
+    assert rewrite_queue.find_entry(tmp_path, request_id)["source"] == REWRITE
+
+
+@pytest.mark.parametrize("compiler", ["msvc", "clang-cl"])
+@pytest.mark.parametrize("objdiff_exit", [0, 1])
+def test_source_shape_promotion_requires_its_own_objdiff_receipt(tmp_path, monkeypatch, compiler, objdiff_exit):
+    context, _ = forwarded_context(tmp_path)
+    target = tmp_path / "target.obj"
+    target.write_bytes(b"controlled target")
+
+    def compile_object(**kwargs):
+        kwargs["object_path"].write_bytes(b"controlled candidate")
+        return {"status": "ok", "object": str(kwargs["object_path"])}
+
+    def verifier_process(command, **kwargs):
+        if command[0] == "objdump":
+            return SimpleNamespace(returncode=0, stdout="0000: c3  ret\n", stderr="")
+        assert command[:2] == ["objdiff", "diff"]
+        assert command[3] == str(target)
+        return SimpleNamespace(returncode=objdiff_exit, stdout=json.dumps({"sections": [{"kind": "SECTION_CODE", "match_percent": 100}]}), stderr="")
+
+    monkeypatch.setattr(source_parity_synthesize, "semantic_equivalent_variants", lambda *args, **kwargs: [{"name": "probe", "source": REWRITE}])
+    monkeypatch.setattr(source_parity_synthesize, "compile_with_msvc", compile_object)
+    monkeypatch.setattr(source_parity_synthesize, "compile_with_clangcl", compile_object)
+    monkeypatch.setattr(source_parity_synthesize, "object_text_bytes", lambda *args, **kwargs: b"\xc3")
+    monkeypatch.setattr(source_parity_synthesize, "run", verifier_process)
+    kwargs = {"data": b"\xc3", "target_obj": target, "timeout": 1}
+    if compiler == "msvc":
+        search = source_parity_synthesize.run_msvc_source_shape_search(
+            context["sourceParityRow"], context["selectedSourceCandidate"], tmp_path,
+            **kwargs, compiler_profiles=[("test", [])], vc_root=None, wine="wine", wineprefix=None,
+        )
+    else:
+        search = source_parity_synthesize.run_source_shape_search(
+            context["sourceParityRow"], context["selectedSourceCandidate"], tmp_path, **kwargs, clang_cl="clang-cl",
+        )
+    assert search["summary"]["status"] == ("matched" if objdiff_exit == 0 else "no-match")
+    promoted = source_parity_synthesize.matched_source_shape_record({"name": "sample"}, search["path"])
+    assert (promoted is not None) == (objdiff_exit == 0)
+    if promoted is not None:
+        assert promoted["objdiffExit"] == promoted["differences"] == 0

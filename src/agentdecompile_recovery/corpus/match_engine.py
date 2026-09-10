@@ -19,6 +19,7 @@ from .callgraph_propagate import (
     propagate_call_graph,
     unique_index_anchors,
 )
+from .fuzzy_fingerprint import fuzzy_similarity
 from .match_islands import island_evidence, leftover_inlines, unique_structural_pairs
 
 MAX_STRING_DF = 12
@@ -34,10 +35,11 @@ WEIGHTS = {
     "arity": 0.5,
     "compunit": 2.8,
     "decomp": 2.6,
+    "fuzzy_hash": 1.0,
 }
-CONTENT_CHANNELS = ("strings", "consts", "ext", "neighbors", "compunit", "decomp")
+CONTENT_CHANNELS = ("strings", "consts", "ext", "neighbors", "compunit", "decomp", "fuzzy_hash")
 CONTENT_FLOOR = 0.5
-CONTENT_FLOORS = {"decomp": 0.90}
+CONTENT_FLOORS = {"decomp": 0.90, "fuzzy_hash": 0.86}
 
 PAIR_POLICY = {
     "same_platform": {"auto": (0.70, 0.06, 1), "verify": (0.62, 0.04, 1), "review": (0.55, 0.00, 0)},
@@ -173,6 +175,8 @@ def score_features(
     *,
     same_arch: bool = True,
     mapping: dict[Any, Any] | None = None,
+    fuzzy_left_bits: int | None = None,
+    fuzzy_right_bits: int | None = None,
 ) -> tuple[float, dict[str, float]]:
     ev: dict[str, float] = {}
     a_str, b_str = set(fa.get("strings") or []), set(fb.get("strings") or [])
@@ -214,6 +218,10 @@ def score_features(
     da, db = fa.get("decomp"), fb.get("decomp")
     if da and db:
         ev["decomp"] = decomp_similarity(da, db)
+
+    fuzzy = fuzzy_similarity(fa, fb, left_bits=fuzzy_left_bits, right_bits=fuzzy_right_bits)
+    if fuzzy:
+        ev["fuzzy_hash"] = fuzzy
 
     su_a, su_b = _basename(fa.get("source_file") or fa.get("sourceFile")), _basename(
         fb.get("source_file") or fb.get("sourceFile")

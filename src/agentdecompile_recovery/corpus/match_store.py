@@ -111,9 +111,16 @@ class Binary:
             self.callers[b].add(a)
         self._index()
         # Fuzzy scoring compares the same loaded feature records repeatedly
-        # across candidates and rounds. Keep its deterministic fingerprint
-        # beside this per-job Binary view; evidence remains calculated per pair.
-        self.fuzzy_bits = {addr: fuzzy_bits(func) for addr, func in self.funcs.items()}
+        # across candidates and rounds. Fill this per-job cache only when
+        # scoring reaches a function; anchor-only jobs need no fuzzy work.
+        self.fuzzy_bits: dict[int, int] = {}
+
+    def fuzzy_bits_for(self, addr: int) -> int:
+        bits = self.fuzzy_bits.get(addr)
+        if bits is None:
+            bits = fuzzy_bits(self.funcs[addr])
+            self.fuzzy_bits[addr] = bits
+        return bits
 
     def _index(self) -> None:
         self.by_string: dict[str, list[int]] = defaultdict(list)
@@ -669,8 +676,8 @@ def match_binaries(
                     fb,
                     same_arch=same_arch,
                     mapping=int_map,
-                    fuzzy_left_bits=sa.fuzzy_bits[a],
-                    fuzzy_right_bits=sb.fuzzy_bits[b],
+                    fuzzy_left_bits=sa.fuzzy_bits_for(a),
+                    fuzzy_right_bits=sb.fuzzy_bits_for(b),
                 )
                 ev = dict(ev)
                 src_pcode = (sa.decomp.get(a) or {}).get("pcode_fingerprint")

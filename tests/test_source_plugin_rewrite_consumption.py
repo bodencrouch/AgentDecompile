@@ -111,6 +111,10 @@ def test_unattempted_or_interrupted_rewrite_is_retained(tmp_path, monkeypatch, f
             for quote in ('"', "'")
             for directive in ("#error forbidden", "#include <private/data>", '#pragma comment(lib, "evil.lib")')
         ],
+        *[
+            f"int sample(void) {{ {quote}two-splice\\\\\n\n#error forbidden{quote}; return 7; }}"
+            for quote in ('"', "'")
+        ],
     ],
 )
 def test_rejected_content_never_reaches_compiler_or_inherits_semantic_evidence(tmp_path, monkeypatch, unsafe_source):

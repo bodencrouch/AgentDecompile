@@ -20616,7 +20616,12 @@ def _normalize_rewrite_source_for_content_check(source: str) -> str:
                 normalized.append(" ")
                 index += 1
                 if literal_char == "\\" and index < len(source):
-                    normalized.append("\n" if source[index] == "\n" else " ")
+                    # All legal line continuations were removed above. A
+                    # remaining physical newline after an escape is malformed
+                    # too, and must not hide a following preprocessor line.
+                    if source[index] == "\n":
+                        raise ValueError("unescaped newline in rewrite literal")
+                    normalized.append(" ")
                     index += 1
                 elif literal_char == quote:
                     break

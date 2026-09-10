@@ -287,6 +287,12 @@ def test_pending_rewrite_variant_preserves_valid_literals_and_comments(source: s
     assert pending_rewrite_variant({}, _candidate(), {"status": "completed", "source": source}) is not None
 
 
+@pytest.mark.parametrize("quote", ['"', "'"])
+def test_pending_rewrite_variant_rejects_splice_exposed_literal_newline(quote: str) -> None:
+    source = f"int x(void) {{ {quote}two-splice\\\\\n\n#error forbidden{quote}; return 1; }}"
+    assert pending_rewrite_variant({}, _candidate(), {"status": "completed", "source": source}) is None
+
+
 @pytest.mark.parametrize("quote", ['"', "\'"])
 def test_pending_rewrite_variant_rejects_unterminated_literal(quote: str) -> None:
     source = f"int x(void) {{ {quote}unterminated"

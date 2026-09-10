@@ -142,6 +142,23 @@ def read_rewrite_queue(work_dir: Path) -> dict[str, Any]:
     return data
 
 
+def _read_queue_for_mutation(work_dir: Path) -> dict[str, Any]:
+    """Only a missing file is empty; unreadable state must never be replaced."""
+
+    try:
+        data = read_json(queue_path(work_dir))
+    except FileNotFoundError:
+        return _empty_queue()
+    if (
+        not isinstance(data, dict)
+        or data.get("schema") != SCHEMA
+        or not isinstance(data.get("entries"), dict)
+        or not isinstance(data.get("requestCounts"), dict)
+    ):
+        raise ValueError("invalid rewrite queue structure")
+    return data
+
+
 def find_entry(work_dir: Path, request_id: str) -> dict[str, Any] | None:
     queue = read_rewrite_queue(work_dir)
     entry = queue["entries"].get(request_id)
@@ -206,7 +223,7 @@ def write_rewrite_request(
 
     request_id = derive_request_id(function_name, candidate_source)
     with _locked(work_dir):
-        queue = read_rewrite_queue(work_dir)
+        queue = _read_queue_for_mutation(work_dir)
         if request_id in queue["entries"]:
             return request_id
         queue["entries"][request_id] = {
@@ -236,7 +253,7 @@ def claim_pending_entry(
     """Claim a pending (or stale-claimed) entry. Returns whether the claim succeeded."""
 
     with _locked(work_dir):
-        queue = read_rewrite_queue(work_dir)
+        queue = _read_queue_for_mutation(work_dir)
         entry = queue["entries"].get(request_id)
         if not isinstance(entry, dict):
             return False
@@ -264,7 +281,7 @@ def release_claim(work_dir: Path, request_id: str, *, claimant: str) -> bool:
     """
 
     with _locked(work_dir):
-        queue = read_rewrite_queue(work_dir)
+        queue = _read_queue_for_mutation(work_dir)
         entry = queue["entries"].get(request_id)
         if not isinstance(entry, dict):
             return False
@@ -304,7 +321,7 @@ def write_claimed_result(
     if status not in (STATUS_COMPLETED, STATUS_FAILED):
         raise ValueError("status must be completed or failed")
     with _locked(work_dir):
-        queue = read_rewrite_queue(work_dir)
+        queue = _read_queue_for_mutation(work_dir)
         entry = queue["entries"].get(request_id)
         if not isinstance(entry, dict):
             return False
@@ -331,7 +348,7 @@ def prune_consumed_entries(work_dir: Path, request_ids: list[str]) -> None:
     if not request_ids:
         return
     with _locked(work_dir):
-        queue = read_rewrite_queue(work_dir)
+        queue = _read_queue_for_mutation(work_dir)
         changed = False
         for request_id in request_ids:
             entry = queue["entries"].get(request_id)
@@ -356,9 +373,7 @@ def import_exchange_result(
     if not path.is_file():
         return False
     with _locked(work_dir):
-        queue = read_json(path)
-        if not isinstance(queue, dict) or queue.get("schema") != SCHEMA or not isinstance(queue.get("entries"), dict):
-            return False
+        queue = _read_queue_for_mutation(work_dir)
         entry = queue["entries"].get(request_id)
         if not isinstance(entry, dict) or entry.get("requestId") != request_id:
             return False

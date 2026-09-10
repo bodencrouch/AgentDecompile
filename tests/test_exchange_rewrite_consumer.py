@@ -122,6 +122,51 @@ async def test_later_queue_replacement_preserves_forwarded_result_on_sync_failur
     assert await RewriteConsumer(restored).drain() == 0
 
 
+async def test_queue_mutations_preserve_forwarded_result_on_read_failure(tmp_path, monkeypatch):
+    store, unit_id, work_dir, request_id = await prepare(tmp_path, monkeypatch)
+    assert await RewriteConsumer(store).drain() == 1
+    forwarded_entry = rewrite_queue.find_entry(work_dir, request_id)
+    path = rewrite_queue.queue_path(work_dir)
+    before = path.read_bytes()
+    real_read = rewrite_queue.read_json
+
+    def fail_read(path):
+        raise OSError("injected queue read failure")
+
+    monkeypatch.setattr(rewrite_queue, "read_json", fail_read)
+    mutations = (
+        lambda: rewrite_queue.write_rewrite_request(work_dir, **{**REQUEST, "function_name": "second"}),
+        lambda: rewrite_queue.claim_pending_entry(work_dir, request_id, claimant="local"),
+        lambda: rewrite_queue.release_claim(work_dir, request_id, claimant="local"),
+        lambda: rewrite_queue.write_claimed_result(work_dir, request_id, claimant="local", status="completed"),
+        lambda: rewrite_queue.prune_consumed_entries(work_dir, [request_id]),
+        lambda: rewrite_queue.import_exchange_result(work_dir, request_id, payload={}, source="x", receipt="x"),
+    )
+    for mutate in mutations:
+        with pytest.raises(OSError, match="queue read failure"):
+            mutate()
+        assert path.read_bytes() == before
+    assert rewrite_queue.read_rewrite_queue(work_dir)["entries"] == {}
+
+    monkeypatch.setattr(rewrite_queue, "read_json", real_read)
+    second_id = mutations[0]()
+    assert rewrite_queue.find_entry(work_dir, request_id) == forwarded_entry
+    assert rewrite_queue.find_entry(work_dir, second_id)["status"] == "pending"
+    restored = ExchangeStore(store.state_path)
+    assert len((await restored.unit_state(unit_id))["submission"]["forwarded"]) == 1
+    assert await RewriteConsumer(restored).drain() == 0
+
+
+@pytest.mark.parametrize("contents", ["{broken", "[]", '{}', '{"schema":"agentdecompile.rewrite-queue.v1","entries":{},"requestCounts":[]}'])
+async def test_queue_mutation_does_not_replace_malformed_existing_file(tmp_path, contents):
+    path = rewrite_queue.queue_path(tmp_path)
+    path.parent.mkdir()
+    path.write_text(contents)
+    with pytest.raises(ValueError):
+        rewrite_queue.write_rewrite_request(tmp_path, **REQUEST)
+    assert path.read_text() == contents
+
+
 async def test_exchange_ack_failure_replays_queue_receipt_after_restart(tmp_path, monkeypatch):
     store, unit_id, work_dir, request_id = await prepare(tmp_path, monkeypatch)
 

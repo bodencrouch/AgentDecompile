@@ -28,10 +28,13 @@ A spool file separates two things the store deliberately keeps apart:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
 import secrets
+
+from itertools import islice
 from pathlib import Path
 from typing import Any
 
@@ -157,42 +160,57 @@ async def drain_spool(store: ExchangeStore, *, limit: int = MAX_DRAIN_PER_CALL) 
     one (a test, or a second store on the same host).
     """
 
-    directory = store.state_path.parent / SPOOL_DIRNAME
-    if not directory.is_dir():
+    if limit <= 0:
         return 0
-
+    directory = store.state_path.parent / SPOOL_DIRNAME
     accepted = 0
     try:
-        entries = sorted(p for p in directory.iterdir() if p.suffix == ".json" and p.is_file())
+        entries = await asyncio.to_thread(_spool_entries, directory, limit)
+    except FileNotFoundError:
+        return 0
     except OSError:
         logger.warning("exchange: could not list spool %s", directory, exc_info=True)
         return 0
 
-    for path in entries[:limit]:
+    for path in entries:
         try:
-            record = json.loads(path.read_text(encoding="utf-8"))
+            record = await asyncio.to_thread(_read_record, path)
         except (OSError, ValueError):
             # Quarantine rather than delete: an unreadable spool file is
             # evidence, and dropping it silently is the file queue's bug.
-            _quarantine(path)
+            await asyncio.to_thread(_quarantine, path)
             continue
         if not isinstance(record, dict) or not isinstance(record.get("payload"), dict):
-            _quarantine(path)
+            await asyncio.to_thread(_quarantine, path)
             continue
         try:
             await store.offer(lane=str(record.get("lane") or "rewrite"), payload=record["payload"])
         except ValueError:
             # A malformed or non-portable payload is the producer's bug, not a
             # reason to retry forever.
-            _quarantine(path)
+            await asyncio.to_thread(_quarantine, path)
             continue
         except Exception:
             # Capacity or transient failure: leave the file to be retried.
             logger.warning("exchange: could not ingest %s", path.name, exc_info=True)
             continue
-        _archive(path)
+        await asyncio.to_thread(_archive, path)
         accepted += 1
     return accepted
+
+
+def _spool_entries(directory: Path, limit: int) -> list[Path]:
+    # Content hashes carry no arrival ordering. Take a bounded batch in directory
+    # order, then sort that batch without materializing the entire pending queue.
+    # ponytail: non-JSON entries still need traversal; use a separate quarantine
+    # directory if rejected-file accumulation becomes a measured scan bottleneck.
+    with os.scandir(directory) as entries:
+        candidates = (Path(entry.path) for entry in entries if entry.name.endswith(".json") and entry.is_file())
+        return sorted(islice(candidates, limit))
+
+
+def _read_record(path: Path) -> Any:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _archive(path: Path) -> None:

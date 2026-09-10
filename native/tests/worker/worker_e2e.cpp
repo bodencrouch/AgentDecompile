@@ -39,8 +39,13 @@ Child spawn() {
   if (pid == 0) {
     ::dup2(to[0], 0); ::dup2(from[1], 1);
     ::close(to[0]); ::close(to[1]); ::close(from[0]); ::close(from[1]);
+#if defined(GNSDK_ENABLE_TEST_HOOKS)
     ::execl(GNSDK_WORKER_PATH, GNSDK_WORKER_PATH, "--sleigh-home", GNSDK_SLEIGH_HOME,
             "--test-decompile-delay-ms", "200", static_cast<char*>(nullptr));
+#else
+    ::execl(GNSDK_WORKER_PATH, GNSDK_WORKER_PATH, "--sleigh-home", GNSDK_SLEIGH_HOME,
+            static_cast<char*>(nullptr));
+#endif
     _exit(127);
   }
   ::close(to[0]); ::close(from[1]);
@@ -96,6 +101,7 @@ int main() {
   json::Value value; REQUIRE(json::parse(result.json(), value));
   std::string c; REQUIRE(value.get_string("c", c)); REQUIRE(!c.empty());
 
+#if defined(GNSDK_ENABLE_TEST_HOOKS)
   // The test-only delay keeps this request active long enough to exercise the
   // real signal handler, not the protocol-level CANCEL fast path.
   REQUIRE(writer.write_json(proto::Kind::Decompile, 3, R"({"addr":"0x400000","tokens":false,"deadline_ms":5000,"printer":"c"})"));
@@ -106,6 +112,7 @@ int main() {
   REQUIRE(writer.write_json(proto::Kind::Decompile, 4, R"({"addr":"0x400000","tokens":false,"deadline_ms":5000,"printer":"c"})"));
   auto after_cancel = receive(reader, child, 4);
   REQUIRE(after_cancel.kind == proto::to_u16(proto::Kind::Result));
+#endif
 
   REQUIRE(writer.write_empty(proto::Kind::Bye));
   ::close(child.in); child.in = -1;

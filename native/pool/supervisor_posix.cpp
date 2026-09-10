@@ -63,11 +63,35 @@ void validate_tmpdir(const std::filesystem::path& tmpdir) {
 }
 
 bool write_text_file(const std::filesystem::path& path, std::string_view text) noexcept {
-  std::ofstream out(path, std::ios::binary | std::ios::trunc);
-  if (!out) return false;
-  out << text;
-  out.flush();
-  return static_cast<bool>(out);
+  const int fd = ::open(path.c_str(), O_WRONLY | O_CLOEXEC);
+  if (fd < 0) return false;
+  const char* p = text.data();
+  std::size_t n = text.size();
+  while (n > 0) {
+    const ssize_t wrote = ::write(fd, p, n);
+    if (wrote < 0) {
+      if (errno == EINTR) continue;
+      (void)::close(fd);
+      return false;
+    }
+    p += wrote;
+    n -= static_cast<std::size_t>(wrote);
+  }
+  return ::close(fd) == 0;
+}
+
+std::filesystem::path own_cgroup_path() noexcept {
+  std::ifstream input("/proc/self/cgroup");
+  std::string line;
+  while (std::getline(input, line)) {
+    constexpr std::string_view marker = "0::";
+    if (!std::string_view(line).starts_with(marker)) continue;
+    std::string_view relative(line);
+    relative.remove_prefix(marker.size());
+    while (!relative.empty() && relative.front() == '/') relative.remove_prefix(1);
+    return std::filesystem::path("/sys/fs/cgroup") / std::string(relative);
+  }
+  return {};
 }
 }  // namespace
 
@@ -155,8 +179,9 @@ Supervisor::Impl::Child Supervisor::Impl::spawn_child(const Config& config) {
 
 bool Supervisor::Impl::attach_cgroup(Child& child, const Config& config) noexcept {
   if (config.cgroup_memory_max == 0 || child.pid <= 0) return false;
-  const std::filesystem::path root{"/sys/fs/cgroup"};
-  if (::access((root / "cgroup.subtree_control").c_str(), W_OK) != 0) return false;
+  const std::filesystem::path root = own_cgroup_path();
+  if (root.empty() || ::access((root / "cgroup.subtree_control").c_str(), W_OK) != 0) return false;
+  (void)write_text_file(root / "cgroup.subtree_control", "+memory\n");
   std::error_code ec;
   const auto path = root / ("gnsdk-" + std::to_string(child.pid));
   std::filesystem::create_directory(path, ec);

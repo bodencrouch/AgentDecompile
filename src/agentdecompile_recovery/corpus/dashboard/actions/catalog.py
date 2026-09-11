@@ -391,15 +391,10 @@ def build_command(action: ActionSpec, params: dict[str, Any]) -> list[str]:
             for spec in action.fields
             if spec.name in params and params[spec.name] not in (None, "")
         }
-        mcp_url = env_defaults()["mcp_url"]
-        return [
-            *_cli_entry("agentdecompile-cli", "agentdecompile_cli.cli:cli_entry_point"),
-            "--mcp-server-url",
-            mcp_url,
-            "tool",
-            action.command,
-            json.dumps(arguments, separators=(",", ":")),
-        ]
+        # Dashboard jobs use jobs._mcp_executor, which calls the live MCP
+        # handler directly.  Keep the durable receipt truthful without
+        # advertising a CLI wrapper that the runner never executes.
+        return ["mcp", action.command, json.dumps(arguments, separators=(",", ":"))]
 
     if action.backend == "corpus-cli":
         argv = [*_module_launcher("agentdecompile_recovery.corpus.cli"), action.command]

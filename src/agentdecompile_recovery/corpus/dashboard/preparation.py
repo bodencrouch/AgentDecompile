@@ -1117,10 +1117,19 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                         try:
                             data, _ = json.JSONDecoder().raw_decode(text[text.index('{'):])
                             if isinstance(data, dict) and isinstance(data.get('result'), str):
+                                executed = data.get('executedProgram')
                                 try:
-                                    data = json.loads(data['result'])
+                                    result = json.loads(data['result'])
                                 except ValueError:
-                                    pass
+                                    result = data
+                                if isinstance(result, dict) and isinstance(executed, dict):
+                                    # Immutable shared snapshots expose /Untitled as their
+                                    # transient DomainFile. The provider's executed target is
+                                    # the canonical project identity for this exact MCP call.
+                                    target_path = str(executed.get('path') or '')
+                                    if target_path:
+                                        result['programPath'] = target_path
+                                data = result
                         except (ValueError, TypeError):
                             pass
                         with _LOCK:

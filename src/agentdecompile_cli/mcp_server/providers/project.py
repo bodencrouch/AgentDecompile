@@ -5772,6 +5772,10 @@ class ProjectToolProvider(ToolProvider):
         domain_file: GhidraDomainFile | None = None
         domain_object_consumer: GhidraDomainFile | None = None  # ProgramDB / low-level open consumer for Program.release()
         program_opened_via_program_db: bool = False  # True only for outer repo_item ProgramDB fallback (not createFile path)
+        # A RepositoryAdapter checkout grants a server-side checkout ID.  Opening
+        # by repository version ignores that grant and produces a read-only DB;
+        # retain it so mutable analysis uses Ghidra's checkout-aware overload.
+        direct_checkout_id: int | None = None
         read_only_shared_snapshot = not exclusive
 
         if read_only_shared_snapshot:
@@ -6030,6 +6034,11 @@ class ProjectToolProvider(ToolProvider):
                         except Exception:
                             pass
                         status = repository_adapter.checkout(adapter_folder_path, item_name, checkout_type, checkout_project_path)
+                        if exclusive and status is not None and hasattr(status, "getCheckoutId"):
+                            try:
+                                direct_checkout_id = int(status.getCheckoutId())
+                            except Exception:
+                                direct_checkout_id = None
                         # Ghidra may return null/None on successful checkout. Always re-resolve the local
                         # DomainFile after checkout to bind to the post-checkout versioned handle.
                         domain_file = self._resolve_shared_checkout_domain_file(project_data, program_path, item_name)
@@ -6045,7 +6054,34 @@ class ProjectToolProvider(ToolProvider):
                     if needs_adapter_checkout or needs_adapter_refresh:
                         domain_file = None
 
-            if domain_file is None:
+            # RepositoryAdapter.checkout() returns a checkout ID that must be
+            # passed to openDatabase(parent, item, checkoutId).  The version
+            # overload below is intentionally read-only and cannot host Ghidra
+            # auto-analysis or any other recovery mutation.
+            if domain_file is None and direct_checkout_id is not None:
+                try:
+                    managed_db = repository_adapter.openDatabase(
+                        adapter_folder_path, item_name, direct_checkout_id
+                    )
+                    checkout_consumer = JavaObject()
+                    program = GhidraProgramDB(
+                        DBHandle(managed_db), GhidraOpenMode.UPDATE, monitor, checkout_consumer
+                    )
+                    domain_object_consumer = checkout_consumer
+                    program_opened_via_program_db = True
+                    logger.info(
+                        "Opened shared checkout '%s' through checkout id %s for mutable analysis",
+                        program_path,
+                        direct_checkout_id,
+                    )
+                except Exception as checkout_open_exc:
+                    logger.warning(
+                        "Checkout-aware ProgramDB open failed for %s: %s",
+                        program_path,
+                        checkout_open_exc,
+                    )
+
+            if domain_file is None and program is None:
                 try:
                     parent_folder = project_data.getFolder(folder_path)
                     if parent_folder is None:
@@ -6237,12 +6273,24 @@ class ProjectToolProvider(ToolProvider):
             if final_df is None and project_data is not None:
                 final_df = self._resolve_shared_checkout_domain_file(project_data, program_path, item_name)
             if final_df is None or not bool(final_df.isVersioned()):
-                if exclusive:
+                # Some Ghidra server releases expose a valid mutable checkout
+                # only through RepositoryAdapter.openDatabase(checkoutId), not
+                # as a project-tree DomainFile.  The checkout ID is the server
+                # authority here; retain the direct ProgramDB rather than
+                # falling back to an immutable version snapshot.
+                if exclusive and direct_checkout_id is None:
                     raise ValueError(
                         f"Shared checkout of '{program_path}' left a non-versioned DomainFile. "
                         "An exclusive checkout requires a versioned shared DomainFile."
                     )
-                read_only_shared_snapshot = True
+                if exclusive:
+                    logger.info(
+                        "Using direct server checkout for %s (checkout id %s; no project-tree DomainFile)",
+                        program_path,
+                        direct_checkout_id,
+                    )
+                else:
+                    read_only_shared_snapshot = True
                 logger.info(
                     "Activated '%s' as a read-only shared snapshot; no versioned DomainFile is available for checkin",
                     program_path,
@@ -6339,6 +6387,14 @@ class ProjectToolProvider(ToolProvider):
                     }
                 }
                 if read_only_shared_snapshot
+                else {
+                    "sharedCheckout": {
+                        "repositoryPath": program_path,
+                        "checkoutId": direct_checkout_id,
+                        "mutationsAllowed": True,
+                    }
+                }
+                if direct_checkout_id is not None and checkout_link_domain_file is None
                 else {}
             ),
             # A remote immutable ProgramDB cannot accept AutoAnalysis writes.  Its persisted

@@ -25,6 +25,8 @@ _CACHE: dict[str, tuple[float, Any]] = {}
 _CACHE_TTL = 8.0
 _STORE_CACHE_TTL = 45.0
 _REGISTRATION_LOCK = threading.RLock()
+_BINARY_INVENTORY_LOCK = threading.Lock()
+_BINARY_INVENTORY_WAITERS: dict[str, threading.Event] = {}
 
 
 def _cached(key: str, fn):
@@ -656,7 +658,7 @@ def _shared_program_rows(locator: str) -> list[dict[str, Any]]:
     return rows
 
 
-def list_binaries(locator: str = "") -> dict[str, Any]:
+def _build_binary_inventory(locator: str = "") -> dict[str, Any]:
     rows, err = query_db(
         "SELECT id, slug, repo_path, role, variant, func_count, named_count, game, platform, format, content_sha256 "
         "FROM binary ORDER BY slug"
@@ -753,6 +755,48 @@ def list_binaries(locator: str = "") -> dict[str, Any]:
     byte_backed = annotate_containers(byte_backed)
     canonical = sorted([*byte_backed, *shared_inventory], key=lambda row: str(row.get("slug") or "").casefold())
     return {"ok": True, "binaries": canonical, "unresolvedBinaries": unresolved, "recovered": str(recovered_root() or "")}
+
+
+def _refresh_binary_inventory(key: str, locator: str, done: threading.Event) -> dict[str, Any]:
+    try:
+        payload = _build_binary_inventory(locator)
+        _CACHE[key] = (time.time(), payload)
+        return payload
+    finally:
+        with _BINARY_INVENTORY_LOCK:
+            _BINARY_INVENTORY_WAITERS.pop(key, None)
+            done.set()
+
+
+def list_binaries(locator: str = "") -> dict[str, Any]:
+    """Return a shared-project inventory snapshot while refreshing it once."""
+    key = f"binaries:{locator.strip()}"
+    now = time.time()
+    hit = _CACHE.get(key)
+    if hit and now - hit[0] < _STORE_CACHE_TTL:
+        return hit[1]
+    with _BINARY_INVENTORY_LOCK:
+        hit = _CACHE.get(key)
+        if hit and now - hit[0] < _STORE_CACHE_TTL:
+            return hit[1]
+        done = _BINARY_INVENTORY_WAITERS.get(key)
+        if hit:
+            if done is None:
+                done = threading.Event()
+                _BINARY_INVENTORY_WAITERS[key] = done
+                threading.Thread(target=_refresh_binary_inventory, args=(key, locator, done), daemon=True).start()
+            return hit[1]
+        if done is None:
+            done = threading.Event()
+            _BINARY_INVENTORY_WAITERS[key] = done
+            leader = True
+        else:
+            leader = False
+    if leader:
+        return _refresh_binary_inventory(key, locator, done)
+    done.wait()
+    hit = _CACHE.get(key)
+    return hit[1] if hit else _build_binary_inventory(locator)
 
 
 def browse_sources(path: str = "") -> dict[str, Any]:

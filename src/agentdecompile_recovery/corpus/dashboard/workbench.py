@@ -596,7 +596,67 @@ def record_import_bindings(payload: dict[str, Any]) -> None:
     _CACHE.clear()
 
 
-def list_binaries() -> dict[str, Any]:
+def _shared_program_rows(locator: str) -> list[dict[str, Any]]:
+    """Expose a shared Ghidra folder's durable program inventory as library rows.
+
+    These are project entries, not original-byte records: they retain the
+    canonical Ghidra folder/name identity and intentionally have no SHA-256
+    until a source artifact is bound to the program.
+    """
+    if not locator:
+        return []
+    from agentdecompile_recovery.corpus.ghidra_project import inspect_locator
+
+    try:
+        info = inspect_locator(locator)
+    except (OSError, ValueError):
+        return []
+    if str(info.get("kind") or "") != "shared-fs":
+        return []
+    canonical = str(info.get("canonical") or info.get("locator") or locator).rstrip("/")
+    paths = info.get("program_paths") or {}
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for display, raw_program in sorted(paths.items(), key=lambda item: str(item[1]).casefold()):
+        program = "/" + str(raw_program or "").replace("\\", "/").strip().lstrip("/")
+        if not program:
+            continue
+        key = f"{canonical.casefold()}:{program.casefold()}"
+        if key in seen:
+            continue
+        seen.add(key)
+        name = str(display or Path(program).name)
+        rows.append({
+            "id": f"shared-program:{key}",
+            "libraryId": f"shared-program:{key}",
+            "slug": name,
+            "repo": f"ghidra:{canonical}#{program}",
+            "program": program,
+            "role": "member",
+            "label": "",
+            "funcs": 0,
+            "named": 0,
+            "game": "",
+            "platform": "",
+            "format": "",
+            "kind": "shared-program",
+            "programs": [program],
+            "locator": canonical,
+            "imported": True,
+            "projectBindings": [{"locator": canonical, "program": program}],
+            "sha256": None,
+            "identityStatus": "project-entry",
+            "identityReason": "Shared Ghidra program identity is confirmed by folder and name; original-byte SHA-256 has not been bound.",
+            "aliasSlugs": [name],
+            "binaryIds": [],
+            "sourcePaths": [],
+            "decomp": decomp_rollup(name, 0),
+            "validate": validate_rollup(name, 0),
+        })
+    return rows
+
+
+def list_binaries(locator: str = "") -> dict[str, Any]:
     rows, err = query_db(
         "SELECT id, slug, repo_path, role, variant, func_count, named_count, game, platform, format, content_sha256 "
         "FROM binary ORDER BY slug"
@@ -661,16 +721,37 @@ def list_binaries() -> dict[str, Any]:
     for row in canonical:
         if row["projectBindings"] and not row["imported"]:
             row.update(imported=True, locator=row["projectBindings"][0]["locator"], program=row["projectBindings"][0]["program"])
+    # A shared project can be reopened after a service restart without its
+    # historic original-byte registrations being present in the current corpus
+    # DB. Add its canonical folder/name entries for the active project only.
+    # Existing byte-backed rows win whenever they already bind that program.
+    shared_rows = _shared_program_rows(locator)
+    known_bindings = {
+        (str(binding.get("locator") or "").rstrip("/"), str(binding.get("program") or "").lstrip("/"))
+        for row in canonical
+        for binding in row.get("projectBindings") or []
+    }
+    for row in shared_rows:
+        binding = row["projectBindings"][0]
+        key = (str(binding["locator"]).rstrip("/"), str(binding["program"]).lstrip("/"))
+        if key not in known_bindings:
+            canonical.append(row)
+            known_bindings.add(key)
+
     from .binary_coverage import annotate_binary_coverage
-    annotate_binary_coverage(canonical, registered_identities)
+    byte_backed = [row for row in canonical if row.get("kind") == "binary"]
+    shared_inventory = [row for row in canonical if row.get("kind") == "shared-program"]
+    annotate_binary_coverage(byte_backed, registered_identities)
+    annotate_binary_coverage(shared_inventory, {})
     annotate_binary_coverage(unresolved, registered_identities)
     from .protection import inspect_protection
     for row in canonical:
         row["protection"] = inspect_protection(row["repo"]) if row["kind"] == "binary" else {"status": "unknown", "encryption": "unknown", "drm": "unknown"}
     from .variant_groups import annotate_variant_groups
-    canonical = annotate_variant_groups(canonical)
+    byte_backed = annotate_variant_groups(byte_backed)
     from .library_identity import annotate_containers
-    canonical = annotate_containers(canonical)
+    byte_backed = annotate_containers(byte_backed)
+    canonical = sorted([*byte_backed, *shared_inventory], key=lambda row: str(row.get("slug") or "").casefold())
     return {"ok": True, "binaries": canonical, "unresolvedBinaries": unresolved, "recovered": str(recovered_root() or "")}
 
 

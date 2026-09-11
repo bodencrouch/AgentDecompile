@@ -457,10 +457,10 @@ def create_dashboard_router() -> APIRouter:
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 
     @router.get("/dashboard/api/workbench/binaries")
-    async def workbench_binaries() -> JSONResponse:
+    async def workbench_binaries(request: Request) -> JSONResponse:
         from agentdecompile_recovery.corpus.dashboard.workbench import list_binaries
 
-        payload = await asyncio.to_thread(list_binaries)
+        payload = await asyncio.to_thread(list_binaries, str(request.query_params.get("locator") or ""))
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 
     @router.post("/dashboard/api/workbench/binaries")

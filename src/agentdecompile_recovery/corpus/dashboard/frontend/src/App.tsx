@@ -237,7 +237,7 @@ export function App() {
     refresh();
   }, [workflowActivity.revision, refresh]);
   const [sessionError, setSessionError] = useState("");
-  const binaries = useData(API + "/binaries", revision);
+  const binaries = useData(API + "/binaries?locator=" + encodeURIComponent(selection.locator), revision);
   const libraryTransfer = useLibraryTransfer(binaries.data.binaries || [], notify);
   const catalog = useData("/dashboard/api/actions");
   const activateContext = useCallback((next: Selection) => {

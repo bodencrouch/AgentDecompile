@@ -132,7 +132,7 @@ export function PersistentExplorer({builds,projects,unresolved=[],selection,onSe
   const [activityNow,setActivityNow]=useState(Date.now());
   useEffect(()=>{const timer=setInterval(()=>setActivityNow(Date.now()),1000);return()=>clearInterval(timer);},[]);
   const entity=(kind:string,record:Data,locator?:string)=>activity.entities.find((a:Data)=>a.kind===kind&&(kind==='project'?a.locator===locator:kind==='function'?a.slug===selection.slug&&normalizedAddress(a.addr)===normalizedAddress(record.addr):a.slug===record.slug||a.aliasSlugs?.includes(record.slug)||(record.sha256&&a.sha256===record.sha256)));
-  const binaries=useMemo(()=>builds.filter(b=>b.kind==='binary'),[builds]);
+  const binaries=useMemo(()=>builds.filter(b=>b.kind==='binary'||b.kind==='shared-program'),[builds]);
   const projectRows=useMemo(()=>mergeExplorerProjects({projects,binaries,selectionLocator:selection.locator,liveLocators}),[projects,binaries,selection.locator,liveLocators]);
   // Force-expand selected project (+ its binary group) so live/auto-open entry shows members without extra clicks.
   useEffect(()=>{

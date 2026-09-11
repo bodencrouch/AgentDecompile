@@ -260,7 +260,7 @@ export function AtlasApp() {
       return saved || payload;
     });
   }, []);
-  const binaries = useData(API + "/binaries", revision),
+  const binaries = useData(API + "/binaries?locator=" + encodeURIComponent(selection.locator), revision),
     catalog = useData("/dashboard/api/actions", revision);
   const sessionsRef = useRef<Data[]>([]);
   sessionsRef.current = sessionItems;

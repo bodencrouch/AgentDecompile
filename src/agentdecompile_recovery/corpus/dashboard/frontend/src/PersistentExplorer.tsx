@@ -6,6 +6,7 @@ import { ResizeBar, usePref } from './ui';
 import { protectionLabel } from './BinaryLibrary';
 import { binaryCoverageLabel } from './binaryCoverage';
 import { useEntityActivity } from './activity';
+import { workflowStatusText } from './activityDisplay';
 import { canonicalProjectLocator } from './projectLocator';
 import { mergeExplorerProjects } from './explorerProjects';
 import { explorerExpandKeysForSelection, variantGroupKey } from './liveWorkflow';
@@ -35,7 +36,7 @@ export function EntityActivityStrip({entity, fallback='Not queued'}:{entity?:Dat
   const readable=(value:unknown)=>String(value||'').replace(/^mcp\./,'').replaceAll('_',' ').replaceAll('-',' ');
   const stage=readable(entity?.stage),action=readable(entity?.action);
   const operation=stage&&!['Not queued','unknown','execute script','Execute script'].includes(stage)?stage:action==='execute script'?'Run project operation':action||fallback;
-  const current=reading?'Reading activity…':entity?.error || operation;
+  const current=reading?'Reading activity…':workflowStatusText(entity?.error) || operation;
   const queue=entity?.queue?.position;
   const etaLabel=reading?'Estimating activity…':entity?.eta?.label || (
     entity?.status==='running'?'Estimating from comparable work':
@@ -127,7 +128,7 @@ export function PersistentExplorer({builds,projects,unresolved=[],selection,onSe
     const timer=window.setInterval(()=>void load(),5000);
     return()=>{alive=false;controller.abort();window.clearInterval(timer);};
   },[]);
-  const activity=useEntityActivity(selection.locator,selection.slug);
+  const activity=useEntityActivity(selection.locator,selection.slug,selection.program);
   const [activityNow,setActivityNow]=useState(Date.now());
   useEffect(()=>{const timer=setInterval(()=>setActivityNow(Date.now()),1000);return()=>clearInterval(timer);},[]);
   const entity=(kind:string,record:Data,locator?:string)=>activity.entities.find((a:Data)=>a.kind===kind&&(kind==='project'?a.locator===locator:kind==='function'?a.slug===selection.slug&&normalizedAddress(a.addr)===normalizedAddress(record.addr):a.slug===record.slug||a.aliasSlugs?.includes(record.slug)||(record.sha256&&a.sha256===record.sha256)));

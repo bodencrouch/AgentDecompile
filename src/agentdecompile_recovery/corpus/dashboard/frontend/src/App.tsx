@@ -28,6 +28,7 @@ import { CodeBrowser } from "./CodeBrowser";
 import { GuideWorkflows } from "./GuideWorkflows";
 import { useLibraryTransfer } from "./BinaryLibrary";
 import { PersistentExplorer } from "./PersistentExplorer";
+import { useEntityActivity } from "./activity";
 import { ProjectDialog } from "./ProjectDialog";
 import {
   installSessionFlush,
@@ -227,10 +228,14 @@ export function App() {
   const [connection, setConnection] = useState("Connecting");
   const jobsSnapshot = useRef<Record<string, string>>({});
   const pollRef = useRef(false);
-  const hasDurableActivity = useRef(false);
+  const jobsInitialized = useRef(false);
+  const workflowActivity = useEntityActivity(selection.locator, selection.slug, selection.program);
+  const workflowRevision = useRef(0);
   useEffect(() => {
-    if (events.length) hasDurableActivity.current = true;
-  }, [events.length]);
+    if (!workflowActivity.revision || workflowActivity.revision === workflowRevision.current) return;
+    workflowRevision.current = workflowActivity.revision;
+    refresh();
+  }, [workflowActivity.revision, refresh]);
   const [sessionError, setSessionError] = useState("");
   const binaries = useData(API + "/binaries", revision);
   const libraryTransfer = useLibraryTransfer(binaries.data.binaries || [], notify);
@@ -563,26 +568,33 @@ export function App() {
         ]);
         if (stopped) return;
         const list = jobsResult.status === "fulfilled" ? jobsResult.value.jobs || [] : [];
-        if (jobsResult.status === "fulfilled") setJobs(list);
+        const initialJobs = !jobsInitialized.current && jobsResult.status === "fulfilled";
+        if (jobsResult.status === "fulfilled") {
+          setJobs(list);
+          jobsInitialized.current = true;
+        }
         if (batchesResult.status === "fulfilled") {
           const nextBatches = batchesResult.value.batches || [];
           setBatches(nextBatches);
-          if (nextBatches.length) hasDurableActivity.current = true;
         }
-        if (list.length) hasDurableActivity.current = true;
+        const activityConnection = workflowActivity.connection;
         setConnection(
           jobsResult.status === "fulfilled"
             ? batchesResult.status === "fulfilled"
-              ? "Connected"
+              ? activityConnection === "live"
+                ? "Connected"
+                : activityConnection === "polling"
+                  ? "Connected · refreshing workflow activity"
+                  : "Connected · workflow activity reconnecting"
               : "Connected · batch updates delayed"
-            : hasDurableActivity.current
-              ? "Showing saved activity · reconnecting"
-              : "Reconnecting",
+            : activityConnection === "live"
+              ? "Connected · workflow activity live"
+              : "Reconnecting · refreshing durable activity",
         );
         if (jobsResult.status !== "fulfilled") return;
         for (const job of list) {
           const prior = jobsSnapshot.current[job.id];
-          if (prior !== job.status) {
+          if (!initialJobs && prior !== job.status) {
             notify(
               `${job.title || job.actionId}: ${job.status}`,
               job.status === "failed" ? "error" : "info",
@@ -608,9 +620,9 @@ export function App() {
       } catch {
         if (!stopped)
           setConnection(
-            hasDurableActivity.current
-              ? "Showing saved activity · reconnecting"
-              : "Reconnecting",
+            workflowActivity.connection === "live"
+              ? "Connected · workflow activity live"
+              : "Reconnecting · refreshing durable activity",
           );
       } finally {
         pollRef.current = false;
@@ -622,7 +634,7 @@ export function App() {
       stopped = true;
       clearTimeout(timer);
     };
-  }, [notify, refresh]);
+  }, [notify, refresh, workflowActivity.connection]);
   useEffect(() => {
     function keyboard(e: KeyboardEvent) {
       const typing = (e.target as HTMLElement).matches(

@@ -37,7 +37,7 @@ export interface ActivitySnapshot {
 }
 
 /** Keep the last valid snapshot while independently reconnecting the live feed. */
-export function useEntityActivity(locator: string, slug: string) {
+export function useEntityActivity(locator: string, slug: string, program = "") {
   const [state, setState] = useState<{
     entities: EntityActivity[]; revision: number;
     connection: 'connecting' | 'live' | 'polling' | 'disconnected'; error: string;
@@ -52,7 +52,7 @@ export function useEntityActivity(locator: string, slug: string) {
     let polling = false;
     let lastSignal = Date.now();
     const abort = new AbortController();
-    const query = new URLSearchParams({ locator, slug });
+    const query = new URLSearchParams({ locator, slug, program });
     setState({ entities: [], revision: 0, connection: 'connecting', error: '' });
 
     const accept = (data: ActivitySnapshot, reset = false): boolean => {
@@ -86,7 +86,10 @@ export function useEntityActivity(locator: string, slug: string) {
           data = { ok: false, entities: [], revision: 0, error: `Activity returned invalid JSON (${response.status})` };
         }
         if (!response.ok || !data.ok) throw new Error(data.error || 'Activity is temporarily unavailable');
-        accept(data);
+        // The current HTTP response is authoritative after the stream lost its
+        // connection.  Permit a lower revision here: a restarted server can
+        // legitimately begin a new event sequence.
+        accept(data, !connected && data.revision < cursor);
       } catch (error) {
         // A slow initial request can time out after the stream already recovered.
         if (!disposed && !connected) setState(old => ({ ...old, connection: 'disconnected', error: error instanceof Error ? error.message : String(error) }));
@@ -161,6 +164,6 @@ export function useEntityActivity(locator: string, slug: string) {
       void poll();
     }, 5000);
     return () => { disposed = true; abort.abort(); eventSource?.close(); window.clearInterval(timer); };
-  }, [locator, slug]);
+  }, [locator, slug, program]);
   return state;
 }

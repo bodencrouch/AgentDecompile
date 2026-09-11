@@ -28,6 +28,13 @@ export function activityTarget(job: Data): string {
   );
 }
 
+export function workflowStatusText(value: unknown): string {
+  const text = String(value || "");
+  if (/source repository changed after the native checkout was created|reconcile changed source before continuing/i.test(text))
+    return "Reconciling the local recovery checkout with updated shared-project data. Existing annotations remain preserved.";
+  return text;
+}
+
 export function activityHeadline(jobs: Data[]): string {
   const live = jobs.filter((job) => LIVE.has(String(job.status)) && !job.ownerUnavailable);
   const matching = live.filter((job) => job.actionId === "corpus.match-pair");

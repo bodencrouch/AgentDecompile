@@ -135,6 +135,35 @@ def _ensure_stages(row: dict[str, Any]) -> bool:
     return False
 
 
+def _reset_resume_projection(row: dict[str, Any]) -> bool:
+    """Make a renewed coordinator show only work it still has to reach."""
+    stages = row.get('stages') or []
+    first_pending = next((index for index, stage in enumerate(stages)
+                          if stage.get('status') != 'completed'), None)
+    if first_pending is None:
+        return False
+    changed = False
+    stale_fields = {
+        'jobId', 'jobStatus', 'currentAction', 'currentProgram', 'currentPair',
+        'startedAt', 'lastJobUpdateAt', 'heartbeatAt', 'nextFallback', 'retryAt',
+        'pauseRequestedAt', 'executionDeadlineAt', 'executionLimitSeconds',
+    }
+    for stage in stages[first_pending:]:
+        if stage.get('status') == 'completed':
+            continue
+        changed = True
+        stage.update(status='queued', reason='Waiting for the renewed workflow to reach this stage.')
+        for field in stale_fields:
+            stage.pop(field, None)
+    if changed:
+        row.update(
+            status='queued', error='',
+            currentStage=stages[first_pending].get('key', ''),
+            currentAction='', currentProgram='',
+        )
+    return changed
+
+
 def _lock_lease(lease: Any) -> None:
     if os.name == 'nt':
         import msvcrt
@@ -834,9 +863,7 @@ def _submit(context: dict[str, Any], *, resume: bool = False, _admit: bool = Fal
                'events': previous.get('events', []), 'programs': [], 'checkpoints': previous.get('checkpoints', {}),
                'stages': _merge_stages(previous)}
         if resume:
-            for stage in row['stages']:
-                if stage.get('status') in {'blocked', 'cancelled', 'interrupted', 'cancelling'} and str(stage.get('reason', '')).startswith(('Workflow stopped', 'Workflow stop timed', 'The server stopped')):
-                    stage.update(status='queued', reason='Waiting for the renewed workflow to reach this stage.')
+            _reset_resume_projection(row)
         if len(_ACTIVE) >= 4 or (_WAITING and not _admit):
             row.update(admissionPending=True, reason='Waiting for another project operation to release a worker.')
             _write(row)

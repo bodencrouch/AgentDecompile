@@ -112,10 +112,22 @@ def call_tool(name: str, arguments: dict[str, Any] | None = None, *, timeout: fl
 
 def ensure_project(locator: str) -> dict[str, Any]:
     """Reuse the project opened by this session instead of reacquiring its file lock."""
-    from agentdecompile_recovery.corpus.ghidra_project import ghidra_connect_args, inspect_locator
+    from agentdecompile_recovery.corpus.ghidra_project import (
+        ghidra_connect_args,
+        inspect_locator,
+        parse_shared_locator,
+    )
 
     with CONTEXT_LOCK:
         info = inspect_locator(locator) if locator else {}
+        # A saved shared filesystem mirror carries the authoritative RMI
+        # address in origin.json.  Treat it as the server project for every
+        # action so ordinary reads never materialize a second native checkout.
+        if info.get("kind") == "shared-fs":
+            origin = info.get("origin")
+            server_locator = origin.get("server_locator") if isinstance(origin, dict) else ""
+            if isinstance(server_locator, str) and server_locator.startswith("ghidra://"):
+                info = parse_shared_locator(server_locator)
         if info.get("kind") == "shared-project":
             args = ghidra_connect_args(info)
             canonical = str(info.get("canonical") or locator)

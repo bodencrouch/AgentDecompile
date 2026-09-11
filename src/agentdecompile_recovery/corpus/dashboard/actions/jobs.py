@@ -742,6 +742,16 @@ def _mcp_executor_in_context(action: ActionSpec, params: dict[str, Any], cancel:
             }
     text = hit.get("text") or ""
     parsed = hit.get("parsed")
+    if (
+        action.command == "analyze-program"
+        and isinstance(parsed, dict)
+        and parsed.get("alreadyAnalyzed") is True
+    ):
+        # Ghidra rejects redundant analysis, but that is the successful reuse
+        # path for an existing analyzed project, not a failed dashboard job.
+        parsed = {**parsed, "success": True, "reusedExistingAnalysis": True}
+        hit = {**hit, "ok": True, "isError": False, "error": "", "parsed": parsed}
+        text = json.dumps(parsed, default=str)
     if hit.get("ok") and isinstance(parsed, dict) and action.command in {"get-function", "decompile-function"}:
         from agentdecompile_recovery.corpus.dashboard.function_evidence import record
         record({**params, "programPath": program}, action.command, parsed)

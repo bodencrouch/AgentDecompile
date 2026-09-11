@@ -5761,15 +5761,27 @@ class ProjectToolProvider(ToolProvider):
         read_only_shared_snapshot = not exclusive
 
         if read_only_shared_snapshot:
+            # A RepositoryItem domain-object open retains its attached symbol
+            # manager.  Constructing ProgramDB from the raw repository DB is
+            # faster than checkout, but its FunctionManager can report records
+            # while public function iteration sees no symbols.
+            if hasattr(repo_item, "getDomainObject"):
+                try:
+                    program = self._get_domain_object_compat(repo_item, monitor)
+                    domain_object_consumer = self
+                    logger.info("Opened shared program '%s' as repository inspection object", program_path)
+                except Exception:
+                    logger.info("Repository inspection object unavailable for %s; using ProgramDB snapshot", program_path, exc_info=True)
             try:
-                version = int(repo_item.getVersion()) if hasattr(repo_item, "getVersion") else -1
-                managed_db = repository_adapter.openDatabase(adapter_folder_path, item_name, version, 0)
-                db_handle = DBHandle(managed_db)
-                snapshot_consumer = JavaObject()
-                program = GhidraProgramDB(db_handle, GhidraOpenMode.IMMUTABLE, monitor, snapshot_consumer)
-                domain_object_consumer = snapshot_consumer
-                program_opened_via_program_db = True
-                logger.info("Opened shared program '%s' as immutable inspection snapshot", program_path)
+                if program is None:
+                    version = int(repo_item.getVersion()) if hasattr(repo_item, "getVersion") else -1
+                    managed_db = repository_adapter.openDatabase(adapter_folder_path, item_name, version, 0)
+                    db_handle = DBHandle(managed_db)
+                    snapshot_consumer = JavaObject()
+                    program = GhidraProgramDB(db_handle, GhidraOpenMode.IMMUTABLE, monitor, snapshot_consumer)
+                    domain_object_consumer = snapshot_consumer
+                    program_opened_via_program_db = True
+                    logger.info("Opened shared program '%s' as immutable inspection snapshot", program_path)
             except Exception as exc:
                 raise ValueError(f"Failed to open immutable shared snapshot '{program_path}': {exc}") from exc
 

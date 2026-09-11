@@ -172,7 +172,26 @@ def _ghidra_utilities_pending(program: GhidraProgram) -> bool | None:
         return None
 
 
-def program_needs_analysis(program: GhidraProgram, *, force: bool = False) -> bool:
+def _recorded_shared_snapshot_ready(program: GhidraProgram, program_info: ProgramInfo | None) -> bool:
+    """Return whether an immutable shared snapshot has a usable recorded inventory."""
+    if program_info is None or not bool(getattr(program_info, "ghidra_analysis_complete", False)):
+        return False
+    metadata = getattr(program_info, "metadata", None)
+    snapshot = metadata.get("sharedSnapshot") if isinstance(metadata, dict) else None
+    if not isinstance(snapshot, dict) or snapshot.get("mode") != "read-only":
+        return False
+    try:
+        return int(program.getFunctionManager().getFunctionCount()) > 0
+    except Exception:
+        return False
+
+
+def program_needs_analysis(
+    program: GhidraProgram,
+    *,
+    force: bool = False,
+    program_info: ProgramInfo | None = None,
+) -> bool:
     """True when Ghidra indicates analysis should run (incremental or full)."""
     if program is None:
         return False
@@ -180,6 +199,11 @@ def program_needs_analysis(program: GhidraProgram, *, force: bool = False) -> bo
         return False
     if force:
         return True
+    # Immutable Ghidra Server snapshots cannot accept AutoAnalysis writes.  Only
+    # snapshots explicitly marked read-only with a persisted function inventory
+    # bypass the gate; ordinary read-only imports retain normal analysis routing.
+    if _recorded_shared_snapshot_ready(program, program_info):
+        return False
     pending = _ghidra_utilities_pending(program)
     # ``getAnalysisState().isDone()`` can remain false after a completed
     # headless save, particularly for imported Mach-O and PE programs.  The
@@ -300,7 +324,7 @@ def blocking_ensure_analyzed(
         return {"skipped": True, "reason": "no-program"}
 
     if program_info is not None and bool(getattr(program_info, "ghidra_analysis_complete", False)):
-        if not program_needs_analysis(program, force=force):
+        if not program_needs_analysis(program, force=force, program_info=program_info):
             key = _program_lock_key(program, program_path)
             mark_program_analysis_complete(program_info)
             return {"skipped": True, "reason": "already-analyzed", "programKey": key}
@@ -310,15 +334,15 @@ def blocking_ensure_analyzed(
         session_marked_done = program_info is not None and bool(
             getattr(program_info, "ghidra_analysis_complete", False)
         )
-        if not (session_marked_done and not program_needs_analysis(program, force=force)):
+        if not (session_marked_done and not program_needs_analysis(program, force=force, program_info=program_info)):
             wait_for_program_analysis_idle(program)
-        if not program_needs_analysis(program, force=force):
+        if not program_needs_analysis(program, force=force, program_info=program_info):
             mark_program_analysis_complete(program_info)
             result = {"skipped": True, "reason": "already-analyzed", "programKey": key}
         else:
             logger.info("program_analysis_start key=%s force=%s", key, force)
             deferred = _run_auto_analysis(program, force=force, analyzers=analyzers)
-            if program_needs_analysis(program):
+            if program_needs_analysis(program, program_info=program_info):
                 raise ProgramAnalysisTimeout(
                     f"Ghidra auto-analysis did not complete for program (key={key})"
                 )
@@ -342,18 +366,18 @@ def wait_for_program_analysis_ready(
         mark_program_analysis_complete(program_info)
         return
     if program_info is not None and bool(getattr(program_info, "ghidra_analysis_complete", False)):
-        if not program_needs_analysis(program):
+        if not program_needs_analysis(program, program_info=program_info):
             return
     with _program_analysis_lock(program, program_path) as key:
-        if not program_needs_analysis(program):
+        if not program_needs_analysis(program, program_info=program_info):
             mark_program_analysis_complete(program_info)
             return
         wait_for_program_analysis_idle(program, max_wait_sec=max_wait_sec)
-        if program_needs_analysis(program):
+        if program_needs_analysis(program, program_info=program_info):
             logger.info("program_analysis_wait_ensure key=%s", key)
             _run_auto_analysis(program, force=False)
             wait_for_program_analysis_idle(program, max_wait_sec=max_wait_sec)
-        if program_needs_analysis(program):
+        if program_needs_analysis(program, program_info=program_info):
             raise ProgramAnalysisTimeout(
                 f"Ghidra auto-analysis did not complete for program (key={key})"
             )

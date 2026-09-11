@@ -654,6 +654,53 @@ def _execution_program_bindings(locator: str, info: dict[str, Any], programs: li
     return routes
 
 
+def _supersede_obsolete_probe_routes(row: dict[str, Any], routes: dict[str, tuple[str, str]]) -> str:
+    """Keep historical probe receipts while making a repaired route executable.
+
+    Preparation used to send a shared project's display leaf (for example,
+    ``JadeEmpire.exe``) to a session that can only resolve the qualified
+    DomainFile path (``/JE/JadeEmpire.exe``).  A failed automatic probe is an
+    audit record, not a reason to keep retrying its obsolete route.  Route
+    revision is deliberately limited to read-only probes; analysis and other
+    mutations keep their ordinary durable replay rules.
+    """
+    current = {
+        program: {'locator': locator, 'program': target}
+        for program, (locator, target) in sorted(routes.items())
+        if locator and target
+    }
+    revision = hashlib.sha256(json.dumps(current, sort_keys=True).encode()).hexdigest()
+    targets = {details['program']: details for details in current.values()}
+    by_leaf = {Path(details['program']).name: details for details in current.values()}
+    changed = 0
+    for receipt in (row.get('actions') or {}).values():
+        if not isinstance(receipt, dict) or receipt.get('action') != 'mcp.execute-script':
+            continue
+        fields = receipt.get('params') or {}
+        if not fields.get('_preparationProbe'):
+            continue
+        requested = str(fields.get('programPath') or '')
+        expected = targets.get(requested) or by_leaf.get(Path(requested).name)
+        prior_replacement = receipt.get('supersededByRoute') or {}
+        if (not expected or receipt.get('executionRouteRevision') == revision
+                or (isinstance(prior_replacement, dict) and prior_replacement.get('revision') == revision)):
+            continue
+        receipt.update(
+            supersededAt=time.time(),
+            supersededReason='A canonical shared-project execution route replaced this automatic probe receipt.',
+            supersededByRoute={**expected, 'revision': revision},
+        )
+        changed += 1
+    if changed:
+        row.setdefault('events', []).append({
+            'at': time.time(), 'stage': 'inspect',
+            'message': f'Recorded {changed} historical probe receipt(s); canonical shared paths will be probed again.',
+        })
+        row['events'] = row['events'][-250:]
+    row['executionRouteRevision'] = revision
+    return revision
+
+
 def _context_id(context: dict[str, Any]) -> str:
     key = json.dumps([str(live_db()), str(context.get('locator') or ''), str(context.get('program') or ''), str(context.get('slug') or '')])
     return hashlib.sha256(key.encode()).hexdigest()[:32]
@@ -896,6 +943,12 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         from .workflow import input_revision
         identity_parts = [name, fields, input_revision(fields), context.get('locator'), context.get('program'),
                           context.get('slug'), row['checkpoints'].get(context.get('program', ''), {}).get('programFingerprint')]
+        # Automatic probes do not mutate Ghidra.  Bind their durable action
+        # identity to the route revision so a repaired shared DomainFile path
+        # gets one fresh observation instead of inheriting a failed leaf-path
+        # receipt from an older execution route.
+        if fields.get('_preparationProbe'):
+            identity_parts.append(row.get('executionRouteRevision', ''))
         if name == 'corpus.match-pair':
             identity_parts.append(_comparison_inventory(str(fields.get('src') or ''), str(fields.get('dst') or ''), comparison_inputs))
         identity = json.dumps(identity_parts, sort_keys=True)
@@ -933,7 +986,14 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             if stopped():
                 raise InterruptedError('Workflow stopped or its execution budget was reached.')
             with _LOCK:
-                history[action_id] = {'status': 'submitting', 'action': name, 'params': fields, 'target': context.get('program') or context.get('locator'), 'attempts': attempt + 1, 'at': time.time()}
+                history[action_id] = {
+                    'status': 'submitting', 'action': name, 'params': fields,
+                    'target': context.get('program') or context.get('locator'),
+                    'attempts': attempt + 1, 'at': time.time(),
+                    **({'executionRouteRevision': row.get('executionRouteRevision', ''),
+                        'executionRoute': {'locator': context.get('locator', ''), 'program': context.get('program', '')}}
+                       if fields.get('_preparationProbe') else {}),
+                }
                 _write(row)
             job_fields = dict(fields)
             if name == 'corpus.match-pair':
@@ -1116,6 +1176,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         execution_locator = locator
         execution_programs = {program: execution_routes[program][1] for program in programs}
         execution_locators = {program: execution_routes[program][0] for program in programs}
+        _supersede_obsolete_probe_routes(row, execution_routes)
         row['executionLocator'] = execution_locator
         row['executionProgramPaths'] = execution_programs
         row['executionRoutes'] = {program: {'locator': execution_locators[program], 'program': execution_programs[program]} for program in programs}

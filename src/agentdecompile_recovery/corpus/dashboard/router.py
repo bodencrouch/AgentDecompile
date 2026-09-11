@@ -92,26 +92,15 @@ def create_dashboard_router() -> APIRouter:
     async def dashboard_home(request: Request) -> Response:
         from agentdecompile_recovery.corpus.dashboard.workbench import render_workbench
 
-        from agentdecompile_recovery.corpus.dashboard.react_api import react_index_response
+        from agentdecompile_recovery.corpus.dashboard.react_api import react_entry_redirect
 
-        # Static workbench is the default /dashboard. Vite Atlas is only ?mode=atlas.
-        if request.query_params.get("mode") == "atlas":
-            fallback_query = [
-                (key, value)
-                for key, value in request.query_params.multi_items()
-                if key != "mode"
-            ]
-            fallback_url = "/dashboard"
-            if fallback_query:
-                fallback_url += "?" + urlencode(fallback_query)
-            response = react_index_response(fallback_url=fallback_url)
+        if request.query_params.get("mode") == "static":
+            response = HTMLResponse(render_workbench())
             for key, value in SECURITY_HEADERS.items():
                 response.headers[key] = value
             return response
-        response = HTMLResponse(render_workbench())
-        for key, value in SECURITY_HEADERS.items():
-            response.headers[key] = value
-        return response
+
+        return react_entry_redirect(request)
 
     @router.get("/dashboard/explorer")
     async def dashboard_explorer() -> HTMLResponse:

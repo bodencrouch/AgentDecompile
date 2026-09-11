@@ -14,17 +14,18 @@ import socket
 import threading
 import time
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlencode, urljoin, urlsplit
 
 from fastapi import APIRouter, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from agentdecompile_recovery.corpus.dashboard.actions import jobs
 from agentdecompile_recovery.corpus.dashboard.actions.catalog import action_by_id
 from agentdecompile_recovery.corpus.dashboard.common import live_root
 
 ASSETS = Path(__file__).parent / "static" / "react"
-ASSET_BASE_PATH = "/dashboard/static/react/"
+ASSET_BASE_PATH = "/react/"
+_LEGACY_ASSET_BASE_PATH = "/dashboard/static/react/"
 _ENTRY_ASSET_RE = re.compile(r"""(?:src|href)\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 _ASSET_HEADERS = {
     "Cache-Control": "no-cache",
@@ -35,26 +36,56 @@ _ACTIVE: set[str] = set()
 _CHAINING: set[str] = set()
 
 
+def runtime_config() -> dict[str, object]:
+    """Return browser-safe configuration for the packaged React workstation.
+
+    Vite can replace ``VITE_*`` values at build time, but the Python-served
+    bundle must also honour server configuration after it has been packaged.
+    Only publish a normal HTTP(S) origin: credentials and non-web schemes do
+    not belong in a browser configuration response.
+    """
+    candidate = (
+        os.environ.get("AGENTDECOMPILE_WEB_IDE_URL")
+        or os.environ.get("VITE_AGENTDECOMPILE_WEB_IDE_URL")
+        or ""
+    ).strip()
+    try:
+        parsed = urlsplit(candidate)
+    except ValueError:
+        parsed = None
+    url = ""
+    if parsed and parsed.scheme in {"http", "https"} and parsed.netloc and not parsed.username and not parsed.password:
+        url = candidate.rstrip("/")
+    embed = (
+        os.environ.get("AGENTDECOMPILE_WEB_IDE_EMBED")
+        or os.environ.get("VITE_AGENTDECOMPILE_WEB_IDE_EMBED")
+        or ""
+    ).strip() == "1"
+    return {"ok": True, "webIde": {"url": url, "embed": embed and bool(url)}}
+
+
 def _react_delivery_failure(
     reason: str,
     *,
     status_code: int,
-    fallback_url: str = "/dashboard",
+    fallback_url: str = "/dashboard?mode=static",
 ) -> HTMLResponse:
+    from .router import SECURITY_HEADERS
+
     response = HTMLResponse(
         (
             "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-            "<title>Atlas delivery unavailable</title></head><body>"
-            "<main><h1>Atlas delivery unavailable</h1>"
+            "<title>React workstation delivery unavailable</title></head><body>"
+            "<main><h1>React workstation delivery unavailable</h1>"
             f"<p>{escape(reason)}</p>"
             f"<p><a id=\"static-workbench-fallback\" href=\"{escape(fallback_url, quote=True)}\">"
-            "Open the static workbench</a></p>"
+            "Open the legacy static fallback</a></p>"
             "</main><script>document.getElementById('static-workbench-fallback').hash=window.location.hash;</script>"
             "</body></html>"
         ),
         status_code=status_code,
-        headers=_ASSET_HEADERS,
+        headers={**SECURITY_HEADERS, **_ASSET_HEADERS},
     )
     return response
 
@@ -62,31 +93,50 @@ def _react_delivery_failure(
 def _missing_entry_asset(entry: Path) -> str | None:
     asset_root = ASSETS.resolve()
     for reference in _ENTRY_ASSET_RE.findall(entry.read_text(encoding="utf-8")):
-        path = urlsplit(reference).path
-        if not path.startswith(ASSET_BASE_PATH):
+        parsed = urlsplit(urljoin(ASSET_BASE_PATH, reference))
+        if parsed.netloc or parsed.scheme:
             continue
-        target = (ASSETS / path.removeprefix(ASSET_BASE_PATH)).resolve()
+        path = unquote(parsed.path)
+        base = next((base for base in (ASSET_BASE_PATH, _LEGACY_ASSET_BASE_PATH) if path.startswith(base)), None)
+        if base is None:
+            continue
+        target = (ASSETS / path.removeprefix(base)).resolve()
         if not target.is_relative_to(asset_root) or not target.is_file():
             return path
     return None
 
 
-def react_index_response(*, fallback_url: str = "/dashboard") -> Response:
+def react_index_response(*, fallback_url: str = "/dashboard?mode=static") -> Response:
     """Serve a complete Vite entrypoint or a visible static-fallback result."""
-    entry = ASSETS / "index.html"
-    if not entry.is_file():
+    from .router import SECURITY_HEADERS
+
+    entry = (ASSETS / "index.html").resolve()
+    if not entry.is_relative_to(ASSETS.resolve()) or not entry.is_file():
         return _react_delivery_failure(
-            "The Atlas build is not installed on this server.",
+            "The React workstation build is not installed on this server.",
             status_code=503,
             fallback_url=fallback_url,
         )
     if missing_asset := _missing_entry_asset(entry):
         return _react_delivery_failure(
-            f"The Atlas build is incomplete: {missing_asset} is unavailable.",
+            f"The React workstation build is incomplete: {missing_asset} is unavailable.",
             status_code=503,
             fallback_url=fallback_url,
         )
-    return FileResponse(entry, headers=_ASSET_HEADERS)
+    return FileResponse(entry, headers=SECURITY_HEADERS)
+
+
+def _static_fallback_url(request: Request) -> str:
+    query = [(key, value) for key, value in request.query_params.multi_items() if key != "mode"]
+    return "/dashboard?" + urlencode([("mode", "static"), *query])
+
+
+def react_entry_redirect(request: Request) -> RedirectResponse:
+    from .router import SECURITY_HEADERS
+
+    # No fragment in Location: browsers inherit the original fragment (RFC 9110).
+    target = ASSET_BASE_PATH + ("?" + request.url.query if request.url.query else "")
+    return RedirectResponse(target, status_code=302, headers=SECURITY_HEADERS)
 
 
 def _root() -> Path:
@@ -360,13 +410,19 @@ def create_react_router() -> APIRouter:
 
     @router.get("/dashboard/static/react")
     @router.get("/dashboard/static/react/")
-    def react_index():
-        """Serve the built app at its documented directory URL.
+    @router.get("/dashboard/static/react/index.html")
+    def legacy_react_index(request: Request):
+        return react_entry_redirect(request)
 
-        Asset delivery also exposes ``index.html`` directly, but a browser
-        opening the Vite-compatible base path must not receive a 404.
-        """
-        return react_index_response()
+    @router.get("/react")
+    @router.get("/react/")
+    def react_index(request: Request):
+        return react_index_response(fallback_url=_static_fallback_url(request))
+
+    @router.get("/dashboard/api/runtime-config")
+    def dashboard_runtime_config() -> dict[str, object]:
+        """Runtime configuration shared by the packaged bundle and Vite."""
+        return runtime_config()
 
     @router.post("/dashboard/api/workbench/prepare")
     async def prepare(request: Request):
@@ -390,13 +446,19 @@ def create_react_router() -> APIRouter:
         except (ValueError, OSError) as exc:
             return JSONResponse({"ok": False, "runs": [], "error": str(exc)}, status_code=400)
 
+    @router.get("/react/{asset:path}")
     @router.get("/dashboard/static/react/{asset:path}")
-    def asset(asset: str):
+    def asset(request: Request, asset: str):
         target = (ASSETS / asset).resolve()
-        if not target.is_relative_to(ASSETS.resolve()) or not target.is_file() or "\\" in asset:
+        safe = target.is_relative_to(ASSETS.resolve()) and "\\" not in asset and ".." not in asset.split("/")
+        if safe and request.url.path.startswith(ASSET_BASE_PATH):
+            if asset == "index.html" or (not target.is_file() and not Path(asset).suffix and not asset.startswith("assets/")):
+                return react_index_response(fallback_url=_static_fallback_url(request))
+        if not safe or not target.is_file():
             return _react_delivery_failure(
-                f"The Atlas asset {asset!r} is unavailable.",
+                f"The React workstation asset {asset!r} is unavailable.",
                 status_code=404,
+                fallback_url=_static_fallback_url(request),
             )
         return FileResponse(target, headers=_ASSET_HEADERS)
 

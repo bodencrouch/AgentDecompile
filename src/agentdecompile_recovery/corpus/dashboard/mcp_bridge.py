@@ -354,7 +354,7 @@ def ensure_program(
             info = parse_shared_locator(server_locator)
     name = ghidra_program_path(info, name)
     kind = str(info.get("kind") or "")
-    if loc and name:
+    if loc and name and include_inventory:
         from agentdecompile_recovery.corpus.dashboard.workbench import _list_functions_from_store
 
         stored = _list_functions_from_store(loc, name)

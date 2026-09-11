@@ -7,6 +7,7 @@ export function binaryCoverageLabel(row: Data): string {
   const provider = coverage.projectProvider?.status === "available" ? "project bound" : "project not bound";
   const evidence = coverage.evidence?.status === "available" ? "evidence available" : "no evidence";
   const preset = coverage.matchingPreset?.status === "available" ? "preset available" : "no matching preset";
-  const proof = coverage.proof?.phase || "awaiting independent comparison";
+  const recordedPhase = coverage.proof?.phase;
+  const proof = recordedPhase === "unmeasured" ? "comparison pending" : (recordedPhase || "comparison pending");
   return `${hash} · ${parser} · ${provider} · ${evidence} · ${preset} · proof ${proof}`;
 }

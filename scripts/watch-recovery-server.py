@@ -33,11 +33,17 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_WATCH = (
     ROOT / "src/agentdecompile_cli/server.py",
     ROOT / "src/agentdecompile_cli/mcp_server/providers/project.py",
+    ROOT / "src/agentdecompile_cli/mcp_server/providers/import_export.py",
     ROOT / "src/agentdecompile_cli/mcp_server/providers/script.py",
+    ROOT / "src/agentdecompile_cli/mcp_utils/program_analysis.py",
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/preparation.py",
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/workflow.py",
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/entity_activity.py",
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/react_api.py",
+    ROOT / "src/agentdecompile_recovery/corpus/dashboard/workbench.py",
+    ROOT / "src/agentdecompile_recovery/corpus/dashboard/function_evidence.py",
+    ROOT / "src/agentdecompile_recovery/corpus/dashboard/binary_coverage.py",
+    ROOT / "src/agentdecompile_recovery/corpus/dashboard/actions/catalog.py",
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/mcp_bridge.py",
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/router.py",
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/actions/jobs.py",
@@ -47,6 +53,7 @@ DEFAULT_WATCH = (
     ROOT / "src/agentdecompile_recovery/corpus/match_store.py",
     ROOT / "src/agentdecompile_recovery/corpus/match_engine.py",
     ROOT / "src/agentdecompile_recovery/corpus/fuzzy_fingerprint.py",
+    ROOT / "src/agentdecompile_recovery/ghidra_db/store.py",
     ROOT / "scripts/watch-recovery-server.py",
 )
 

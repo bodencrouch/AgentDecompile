@@ -1,6 +1,6 @@
-import {SourceEditor} from './SourceEditor';
-import { useEffect, useRef, useState } from "react";
-import { request, type Data, type SurfaceProps } from "./contracts";
+import {SourceEditor, sourceExtent, sourceWitness, useFunctionEvidence} from './SourceEditor';
+import { useEffect, useMemo, useRef, useState } from "react";
+import { API, query, request, type Data, type SurfaceProps } from "./contracts";
 import { ErrorLine, RecordView, Section } from "./ui";
 import "./code-browser.css";
 import { FunctionEditor } from "./FunctionEditor";
@@ -274,11 +274,22 @@ export function CodeBrowser(props: SurfaceProps) {
     liveProps,
     enabled && Boolean(selection.program),
   );
-  const functionData = useTool(
-    "get-function",
-    { functionIdentifier: selection.addr },
-    liveProps,
-    enabled && Boolean(selection.program && selection.addr),
+  const functionData = useFunctionEvidence(
+    enabled && selection.program && selection.addr
+      ? `${API}/function?${query(selection)}`
+      : null,
+    liveProps.revision,
+  );
+  const functionDetail = useMemo(
+    () =>
+      functionData.data.listing
+        ? {
+            ...functionData.data,
+            ...functionData.data.listing,
+            function: functionData.data.selected,
+          }
+        : functionData.data,
+    [functionData.data],
   );
   const symbolResult = useTool(
     "manage-symbols",
@@ -363,39 +374,30 @@ export function CodeBrowser(props: SurfaceProps) {
   );
   useEffect(() => {
     if (
-      functionData.status === "loaded" &&
-      functionData.context === contextKey &&
-      (functionData.data.address || functionData.data.disassembly)
+      !functionData.loading &&
+      (functionDetail.function || functionDetail.addr || functionDetail.address)
     ) {
-      const text = String(functionData.data.decompilation || "");
-      if (
-        functionData.data.address &&
-        functionData.target === selection.addr &&
-        !/^(?:0x)?[0-9a-f]+$/i.test(selection.addr)
-      ) {
-        onSelect({
-          addr: "0x" + String(functionData.data.address).replace(/^0x/, ""),
-        });
-      }
       setLastFunction({
-        ...functionData.data,
-        decompilation: text.startsWith("[decompilation unavailable")
-          ? ""
-          : text,
-        decompilationReason: text.startsWith("[decompilation unavailable")
-          ? text
-          : "",
+        ...functionDetail,
+        name: functionDetail.function?.name || functionDetail.name || "",
+        signature:
+          functionDetail.function?.signature || functionDetail.signature || "",
+        decompilation: sourceWitness(functionDetail),
+        assemblyText:
+          functionDetail.assembly?.text || functionDetail.disassembly?.text || "",
         selectedAddress: String(
-          functionData.data.address || functionData.target || "",
+          functionDetail.function?.addr ||
+            functionDetail.function?.address ||
+            functionDetail.addr ||
+            functionDetail.address ||
+            selection.addr,
         ),
       });
     }
-  }, [functionData.data, functionData.context, contextKey]);
+  }, [functionDetail, functionData.loading, contextKey, selection.addr]);
   const functionRows = records(items.data).filter(
     (r) => !hidePointers || pane !== "types" || !String(r.name).includes("*"),
   );
-  const instructions =
-    lastFunction.disassembly?.instructions || lastFunction.disassembly || [];
   const navigate = (addr: string) => {
     if (addr)
       onSelect({ addr: /^[0-9a-f]+$/i.test(addr) ? "0x" + addr : addr });
@@ -797,52 +799,32 @@ export function CodeBrowser(props: SurfaceProps) {
               <article>
                 <h3>Listing · bytes and interpreted instructions</h3>
                 <ErrorLine error={functionData.error} />
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Address</th>
-                      <th>Bytes</th>
-                      <th>Instruction</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(Array.isArray(instructions) ? instructions : []).map(
-                      (r: Data, i: number) => (
-                        <tr
-                          key={i}
-                          tabIndex={0}
-                          aria-selected={
-                            selection.addr.replace(/^0x/, "") ===
-                            String(r.address).replace(/^0x/, "")
-                          }
-                          onClick={() => navigate(address(r))}
-                          onDoubleClick={() =>
-                            act("inspect-memory", {
-                              mode: "instruction",
-                              addressOrSymbol: address(r),
-                            })
-                          }
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") navigate(address(r));
-                          }}
-                        >
-                          <td>
-                            <code>{r.address}</code>
-                          </td>
-                          <td>
-                            <code>{r.bytes}</code>
-                          </td>
-                          <td>
-                            {r.mnemonic}{" "}
-                            {Array.isArray(r.operands)
-                              ? r.operands.join(", ")
-                              : r.operands}
-                          </td>
-                        </tr>
-                      ),
+                {(functionData.loading || functionDetail.evidenceRequest?.jobId) && (
+                  <p role="status">
+                    {functionDetail.evidenceRequest?.reason ||
+                      "Receiving function evidence from Ghidra."}{" "}
+                    {functionDetail.evidenceRequest?.jobId && (
+                      <small>
+                        Job {functionDetail.evidenceRequest.jobId} ·{" "}
+                        {functionDetail.evidenceRequest.job?.status ||
+                          functionDetail.evidenceRequest.status}
+                      </small>
                     )}
-                  </tbody>
-                </table>
+                  </p>
+                )}
+                <SourceEditor
+                  selection={{
+                    ...selection,
+                    addr: lastFunction.selectedAddress || selection.addr,
+                  }}
+                  value={lastFunction.assemblyText || ""}
+                  kind="assembly"
+                  loading={functionData.loading}
+                  extent={
+                    lastFunction.assembly?.reason ||
+                    "Recorded Ghidra disassembly · no byte-verification claim"
+                  }
+                />
               </article>
               <article>
                 <h3>Decompile · advisory witness</h3>
@@ -859,7 +841,14 @@ export function CodeBrowser(props: SurfaceProps) {
                       inspected.
                     </p>
                   )}
-                <SourceEditor selection={{...selection,addr:lastFunction.selectedAddress||selection.addr}} value={lastFunction.decompilation||''} extent="Recorded decompilation witness · no byte-verification claim" onInspectSymbol={token=>{if(/^[A-Za-z_$][A-Za-z0-9_$:]*$/.test(token)){setSymbolError('');setSymbolJump({token,origin:selection.addr,context:contextKey});}}}/>
+                <SourceEditor
+                  selection={{...selection,addr:lastFunction.selectedAddress||selection.addr}}
+                  value={lastFunction.decompilation||''}
+                  sourcePath={lastFunction.decompile?.path || lastFunction.sourcePath || ''}
+                  loading={functionData.loading}
+                  extent={sourceExtent(lastFunction)}
+                  onInspectSymbol={token=>{if(/^[A-Za-z_$][A-Za-z0-9_$:]*$/.test(token)){setSymbolError('');setSymbolJump({token,origin:selection.addr,context:contextKey});}}}
+                />
 
                 <FunctionEditor
                   props={liveProps}

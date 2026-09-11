@@ -722,7 +722,10 @@ def resolve_domain_program_path(program: Any, fallback_path: str | None) -> str 
         domain_file = program.getDomainFile()
         if domain_file is not None:
             pathname = str(domain_file.getPathname()).strip()
-            if pathname:
+            # Immutable repository snapshots have no project-backed DomainFile.
+            # Ghidra exposes their transient backing database as /Untitled;
+            # retain the session's canonical repository path instead.
+            if pathname and pathname.strip('/').casefold() != "untitled":
                 return pathname
     except Exception as e:
         logger.debug("Unable to resolve program path from DomainFile; using fallback: %s", e)

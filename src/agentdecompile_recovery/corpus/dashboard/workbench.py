@@ -2003,6 +2003,13 @@ def function_detail(slug: str, raw_addr: str, *, locator: str = "", program: str
                 payload[field] = witness[field]
                 payload["sourceWitnessProvenance"] = witness.get("provenance")
         return payload
+    if observed and observed.get('evidenceComplete'):
+        # A completed Ghidra read is already the richest source/assembly view
+        # for this function. Returning it before a full on-disk project walk
+        # keeps selection responsive and avoids submitting the same read again.
+        listing = dict(observed)
+        listing.update(ok=True, slug=slug)
+        return with_source_witness(listing)
     if (locator or "").strip() and (program or "").strip():
         workspace = program_workspace(locator, program, addr=raw_addr, slug=slug)
         if workspace.get("ok"):

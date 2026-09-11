@@ -96,7 +96,12 @@ def _program_lock_key(program: GhidraProgram, program_path: str | None = None) -
     try:
         df = program.getDomainFile()
         if df is not None:
-            return str(df.getPathname()).strip().replace("\\", "/").lower()
+            pathname = str(df.getPathname()).strip().replace("\\", "/")
+            # A read-only server snapshot is backed by a transient /Untitled
+            # database.  It must not merge its analysis gate with unrelated
+            # snapshots; the canonical request/session path is authoritative.
+            if pathname and pathname.strip('/').casefold() != "untitled":
+                return pathname.lower()
     except Exception:
         # Best-effort lookup: some Program implementations may not expose a domain file.
         # Fall back to program_path/hashCode/id below to keep lock-key generation robust.

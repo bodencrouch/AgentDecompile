@@ -5578,6 +5578,20 @@ class ProjectToolProvider(ToolProvider):
             if linked_early is not None and self._manager is not None:
                 self._manager.ghidra_project = linked_early
                 ghidra_project_early = linked_early
+            # Linking replaces the local project's remote filesystem. Reacquire
+            # its repository adapter before resolving a nested item: the handle
+            # captured before the link can list the repository but cannot open
+            # the target folder for checkout.
+            if handle:
+                server_adapter = handle.get("server_adapter")
+                repository_name = handle.get("repository_name")
+                if server_adapter is not None and repository_name:
+                    refreshed = server_adapter.getRepository(repository_name)
+                    if refreshed is not None:
+                        if not refreshed.isConnected():
+                            refreshed.connect()
+                        repository_adapter = refreshed
+                        handle["repository_adapter"] = refreshed
 
         # Split program_path into folder + name
         parts: list[str] = program_path.rsplit("/", 1)

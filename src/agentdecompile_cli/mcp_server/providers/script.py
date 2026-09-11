@@ -204,6 +204,14 @@ class ScriptToolProvider(ToolProvider):
         ns["state"] = None  # GhidraState (not always available headless)
         ns["monitor"] = None
         ns["decompiler"] = decompiler
+        # Immutable shared-server ProgramDB snapshots are intentionally not
+        # attached to a local DomainFile.  Expose the resolved invocation path
+        # so read-only scripts can retain the identity established by the MCP
+        # request instead of observing the transient `/Untitled` database name.
+        if effective_program_info is not None:
+            program_path = getattr(effective_program_info, "file_path", None)
+            if program_path is not None:
+                ns["programPath"] = str(program_path)
 
         # Try to get a real monitor
         try:

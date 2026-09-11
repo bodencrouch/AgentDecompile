@@ -42,7 +42,7 @@ except Exception:
     stateDone = None
 needsAnalysis = False if pending is False else (True if stateDone is False else (False if stateDone is True else True if pending is None else pending))
 try:
-    observedProgramPath = str(currentProgram.getDomainFile().getPathname())
+    observedProgramPath = str(globals().get('programPath') or currentProgram.getDomainFile().getPathname())
 except Exception:
     observedProgramPath = ''
 __result__ = json.dumps({'programPath': observedProgramPath, 'needsAnalysis': needsAnalysis, 'executablePath': str(currentProgram.getExecutablePath()), 'architecture': str(currentProgram.getLanguageID()), 'ghidraVersion': str(Application.getApplicationVersion()), 'workSize': int(currentProgram.getFunctionManager().getFunctionCount())})"""

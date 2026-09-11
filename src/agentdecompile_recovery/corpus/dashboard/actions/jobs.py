@@ -39,6 +39,8 @@ POLL_S = 0.25
 # Serialize complete dashboard sequences without holding the bridge's loopback
 # lock across the HTTP request (which can deadlock the in-process handler).
 MCP_EXECUTOR_LOCK = threading.Lock()
+_PREPARATION_FACTS_INVENTORY = object()
+_PREPARATION_PROBE = object()
 
 _DASHBOARD_AUTO_CHECKIN_TOOLS = frozenset(
     {
@@ -105,6 +107,8 @@ class JobRecord:
     log_reason: str = ''
     log_truncated: bool = False
     work_progress: dict[str, Any] | None = None
+    trusted_preparation_facts_inventory: bool = False
+    trusted_preparation_probe: bool = False
 
     def to_dict(self, *, include_log: bool = True, include_details: bool = True) -> dict[str, Any]:
         payload = {
@@ -269,13 +273,23 @@ class JobStore:
         payload = historical(job_id)
         return _from_history(payload, compact=compact) if payload else None
 
-    def start(self, action: ActionSpec, params: dict[str, Any], argv: list[str]) -> JobRecord:
+    def start(
+        self,
+        action: ActionSpec,
+        params: dict[str, Any],
+        argv: list[str],
+        *,
+        trusted_preparation_facts_inventory: bool = False,
+        trusted_preparation_probe: bool = False,
+    ) -> JobRecord:
         job = JobRecord(
             id=uuid.uuid4().hex[:12],
             action_id=action.id,
             title=action.title,
             argv=list(argv),
             params=dict(params),
+            trusted_preparation_facts_inventory=trusted_preparation_facts_inventory,
+            trusted_preparation_probe=trusted_preparation_probe,
         )
         cancel = threading.Event()
         with self._lock:
@@ -465,7 +479,13 @@ class JobStore:
                         shutil.rmtree(staging)
                     code, log = (0 if code == 0 and result.get('ok') else code or 1), json.dumps(result, default=str)
             elif action is not None and action.backend == "mcp-cli":
-                code, log = _mcp_executor(action, dict(job.params), cancel)
+                code, log = _mcp_executor(
+                    action,
+                    dict(job.params),
+                    cancel,
+                    trusted_preparation_facts_inventory=job.trusted_preparation_facts_inventory,
+                    trusted_preparation_probe=job.trusted_preparation_probe,
+                )
             else:
                 def publish_log(text: str) -> None:
                     with self._lock:
@@ -551,6 +571,8 @@ def _copy_job(job: JobRecord) -> JobRecord:
         history_source=job.history_source, log_state=job.log_state,
         log_reason=job.log_reason, log_truncated=job.log_truncated,
         work_progress=dict(job.work_progress) if job.work_progress is not None else None,
+        trusted_preparation_facts_inventory=job.trusted_preparation_facts_inventory,
+        trusted_preparation_probe=job.trusted_preparation_probe,
     )
 
 
@@ -598,7 +620,7 @@ def _export_archive_program(output_path: Path, context: dict[str, Any], cancel: 
             "import json\nfrom agentdecompile_cli.mcp_utils.program_analysis import program_needs_analysis\n"
             "__result__ = json.dumps({'md5': str(currentProgram.getExecutableMD5()), 'needsAnalysis': program_needs_analysis(currentProgram), "
             "'functionCount': int(currentProgram.getFunctionManager().getFunctionCount()), 'project': str(currentProgram.getDomainFile().getProjectLocator()), 'program': str(currentProgram.getDomainFile().getPathname())})",
-            "timeout": 30}, cancel)
+            "timeout": 30}, cancel, trusted_preparation_probe=True)
         observed = payload(log)
         if code or not observed.get("md5") or str(observed["md5"]).lower() != str(context.get("programFingerprint", "")).lower():
             return {"ok": False, "error": "The selected Ghidra program's fingerprint could not be matched to this binary.", "observation": observed}
@@ -647,16 +669,36 @@ def _bounded_archive_export(
     return value
 
 
-def _mcp_executor(action: ActionSpec, params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
+def _mcp_executor(
+    action: ActionSpec,
+    params: dict[str, Any],
+    cancel: threading.Event,
+    *,
+    trusted_preparation_facts_inventory: bool = False,
+    trusted_preparation_probe: bool = False,
+) -> tuple[int, str]:
     # Do not hold CONTEXT_LOCK across the loopback MCP HTTP request.  The MCP
     # handler uses the same lock while serving that request; holding it here
     # makes a dashboard job wait forever for its own request to acquire the
     # lock.  Each bridge operation serializes its own session-critical call.
     with MCP_EXECUTOR_LOCK:
-        return _mcp_executor_in_context(action, params, cancel)
+        return _mcp_executor_in_context(
+            action,
+            params,
+            cancel,
+            trusted_preparation_facts_inventory=trusted_preparation_facts_inventory,
+            trusted_preparation_probe=trusted_preparation_probe,
+        )
 
 
-def _mcp_executor_in_context(action: ActionSpec, params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
+def _mcp_executor_in_context(
+    action: ActionSpec,
+    params: dict[str, Any],
+    cancel: threading.Event,
+    *,
+    trusted_preparation_facts_inventory: bool = False,
+    trusted_preparation_probe: bool = False,
+) -> tuple[int, str]:
     from agentdecompile_recovery.corpus.dashboard.mcp_bridge import call_tool, ensure_program, ensure_project, reset_session
 
     if cancel.is_set():
@@ -685,11 +727,13 @@ def _mcp_executor_in_context(action: ActionSpec, params: dict[str, Any], cancel:
         "list-functions", "list-symbols", "list-types", "export",
     }
     if locator and program and needs_program:
-        # Marked preparation probes and inventory scripts do not modify Ghidra.
-        # Generic execute-script actions remain exclusive because their source
-        # is not safely classifiable at this boundary.
+        # Only the in-process preparation facts inventory receives this
+        # privilege. Request parameters are untrusted, including private-
+        # looking names such as _readOnlyGhidra.
         exclusive = action.command == "analyze-program" or (
-            action.mutating and not bool(params.get("_preparationProbe") or params.get("_readOnlyGhidra"))
+            action.mutating and not bool(
+                trusted_preparation_probe or trusted_preparation_facts_inventory
+            )
         )
         ensured = ensure_program(
             locator,
@@ -708,7 +752,7 @@ def _mcp_executor_in_context(action: ActionSpec, params: dict[str, Any], cancel:
             arguments["program"] = program
         if cancel.is_set():
             return 1, "[cancelled before program action]\n"
-    if params.get("_preparationProbe") and action.command == "execute-script":
+    if trusted_preparation_probe and action.command == "execute-script":
         arguments["autoPrereqInvocation"] = True
     if params.get('_functionEvidence') and action.command == 'get-function':
         arguments['autoPrereqInvocation'] = True
@@ -724,7 +768,7 @@ def _mcp_executor_in_context(action: ActionSpec, params: dict[str, Any], cancel:
     # the lifetime of the coordinator.  The MCP server may finish its own
     # request later, but this job records the timeout and the workflow can
     # route the named failure without replaying a mutation.
-    if params.get("_preparationProbe"):
+    if trusted_preparation_probe:
         try:
             probe_timeout = float(os.environ.get("AGENT_DECOMPILE_PROBE_TIMEOUT_SECONDS", "90"))
         except ValueError:
@@ -951,6 +995,7 @@ def start_job(
     context: dict[str, Any] | None = None,
     confirm: bool = False,
     dry_run: bool = False,
+    _trusted_context: object | None = None,
 ) -> tuple[dict[str, Any], int]:
     action = action_by_id(action_id)
     if action is None:
@@ -975,8 +1020,46 @@ def start_job(
     argv = build_command(action, filled)
     if dry_run:
         return {"ok": True, "dryRun": True, "action": action.to_dict(), "argv": argv, "params": filled}, 200
-    job = STORE.start(action, filled, argv)
+    job = STORE.start(
+        action,
+        filled,
+        argv,
+        trusted_preparation_facts_inventory=(
+            _trusted_context is _PREPARATION_FACTS_INVENTORY
+            and action.id == "mcp.execute-script"
+        ),
+        trusted_preparation_probe=(
+            _trusted_context is _PREPARATION_PROBE
+            and action.id == "mcp.execute-script"
+        ),
+    )
     return {"ok": True, "job": job.to_dict()}, 202
+
+
+def _start_preparation_facts_inventory(
+    params: dict[str, Any], context: dict[str, Any]
+) -> tuple[dict[str, Any], int]:
+    """Submit the preparation-owned, read-only inventory script."""
+    return start_job(
+        "mcp.execute-script",
+        params,
+        context=context,
+        confirm=True,
+        _trusted_context=_PREPARATION_FACTS_INVENTORY,
+    )
+
+
+def _start_preparation_probe(
+    params: dict[str, Any], context: dict[str, Any]
+) -> tuple[dict[str, Any], int]:
+    """Submit a preparation-owned, bounded read-only probe."""
+    return start_job(
+        "mcp.execute-script",
+        params,
+        context=context,
+        confirm=True,
+        _trusted_context=_PREPARATION_PROBE,
+    )
 
 
 def list_jobs(*, compact: bool = False) -> list[JobRecord]:

@@ -1034,7 +1034,12 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 # an Unlimited project avoids the generic 30-minute cutoff.
                 job_fields['_preparationUnlimited'] = row.get('deadline') is None
                 job_fields['progress_json'] = True
-            response, status = jobs.start_job(name, job_fields, context=context, confirm=True)
+            if key == 'facts' and name == 'mcp.execute-script':
+                response, status = jobs._start_preparation_facts_inventory(job_fields, context)
+            elif fields.get('_preparationProbe') and name == 'mcp.execute-script':
+                response, status = jobs._start_preparation_probe(job_fields, context)
+            else:
+                response, status = jobs.start_job(name, job_fields, context=context, confirm=True)
             if status >= 400:
                 outcome = {'ok': False, 'error': response.get('error')}
             else:
@@ -1450,7 +1455,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             config = {'db': str(live_db()), 'locator': locator, 'program': program,
                       'slug': row['slug'] if len(programs) == 1 else '', 'factsPath': str(facts_path)}
             code = _inventory_script(config)
-            result = action('facts', 'mcp.execute-script', {'programPath': execution_programs[program], 'code': code, 'timeout': 600, '_readOnlyGhidra': True}, {**row, 'locator': execution_locators[program], 'program': execution_programs[program]})
+            result = action('facts', 'mcp.execute-script', {'programPath': execution_programs[program], 'code': code, 'timeout': 600}, {**row, 'locator': execution_locators[program], 'program': execution_programs[program]})
             payload = result.get('data') or {}
             if result['ok'] and isinstance(payload, dict) and payload.get('inventoryAvailable'):
                 checkpoint.update(factsComplete=True, factsPath=str(facts_path), binaryId=payload['binaryId'], slug=payload['slug'], repoPath=payload['repoPath'], recoveryFamily=payload.get('recoveryFamily') or f"unclassified:{payload['binaryId']}", programFingerprint=payload.get('programFingerprint'), arch=payload.get('arch'), workSize=payload.get('count'))

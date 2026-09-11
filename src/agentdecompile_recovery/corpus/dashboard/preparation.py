@@ -1450,7 +1450,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             config = {'db': str(live_db()), 'locator': locator, 'program': program,
                       'slug': row['slug'] if len(programs) == 1 else '', 'factsPath': str(facts_path)}
             code = _inventory_script(config)
-            result = action('facts', 'mcp.execute-script', {'programPath': execution_programs[program], 'code': code, 'timeout': 600}, {**row, 'locator': execution_locators[program], 'program': execution_programs[program]})
+            result = action('facts', 'mcp.execute-script', {'programPath': execution_programs[program], 'code': code, 'timeout': 600, '_readOnlyGhidra': True}, {**row, 'locator': execution_locators[program], 'program': execution_programs[program]})
             payload = result.get('data') or {}
             if result['ok'] and isinstance(payload, dict) and payload.get('inventoryAvailable'):
                 checkpoint.update(factsComplete=True, factsPath=str(facts_path), binaryId=payload['binaryId'], slug=payload['slug'], repoPath=payload['repoPath'], recoveryFamily=payload.get('recoveryFamily') or f"unclassified:{payload['binaryId']}", programFingerprint=payload.get('programFingerprint'), arch=payload.get('arch'), workSize=payload.get('count'))

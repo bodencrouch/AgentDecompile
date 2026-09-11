@@ -685,11 +685,11 @@ def _mcp_executor_in_context(action: ActionSpec, params: dict[str, Any], cancel:
         "list-functions", "list-symbols", "list-types", "export",
     }
     if locator and program and needs_program:
-        # The marked preparation probe only reads currentProgram state.  Generic
-        # execute-script actions remain exclusive because their source is not
-        # safely classifiable at this boundary.
+        # Marked preparation probes and inventory scripts do not modify Ghidra.
+        # Generic execute-script actions remain exclusive because their source
+        # is not safely classifiable at this boundary.
         exclusive = action.command == "analyze-program" or (
-            action.mutating and not bool(params.get("_preparationProbe"))
+            action.mutating and not bool(params.get("_preparationProbe") or params.get("_readOnlyGhidra"))
         )
         ensured = ensure_program(
             locator,

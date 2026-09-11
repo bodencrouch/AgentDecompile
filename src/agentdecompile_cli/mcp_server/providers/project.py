@@ -6383,7 +6383,11 @@ class ProjectToolProvider(ToolProvider):
                         "versionedDomainFile": False,
                         "mutationsAllowed": False,
                         "functionCount": snapshot_function_count,
-                        "analysisSource": "recorded-function-inventory" if snapshot_inventory_ready else "unavailable",
+                        # A connected immutable server snapshot is a persisted
+                        # Ghidra program even if this JVM cannot enumerate its
+                        # function manager yet.  Inventory availability stays
+                        # explicit; it is not an analysis-gate prerequisite.
+                        "analysisSource": "recorded-function-inventory" if snapshot_inventory_ready else "shared-server-snapshot",
                     }
                 }
                 if read_only_shared_snapshot
@@ -6400,7 +6404,7 @@ class ProjectToolProvider(ToolProvider):
             # A remote immutable ProgramDB cannot accept AutoAnalysis writes.  Its persisted
             # function inventory is sufficient for read-only inspection and must not be routed
             # into the global auto-analysis gate.
-            ghidra_analysis_complete=snapshot_inventory_ready,
+            ghidra_analysis_complete=read_only_shared_snapshot,
             file_path=None,
             load_time=time.time(),
         )

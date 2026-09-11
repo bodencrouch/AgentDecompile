@@ -178,17 +178,21 @@ def _ghidra_utilities_pending(program: GhidraProgram) -> bool | None:
 
 
 def _recorded_shared_snapshot_ready(program: GhidraProgram, program_info: ProgramInfo | None) -> bool:
-    """Return whether an immutable shared snapshot has a usable recorded inventory."""
+    """Return whether a canonical immutable shared snapshot may pass the analysis gate.
+
+    A server snapshot has no writable project-tree DomainFile.  Its transient
+    ``/Untitled`` database name and an unavailable function-count query do not
+    mean that the server program has not already been analyzed; routing either
+    condition into AutoAnalysis would ask an immutable DB to mutate.  The
+    checkout route records this capability separately from inventory size.
+    """
     if program_info is None or not bool(getattr(program_info, "ghidra_analysis_complete", False)):
         return False
     metadata = getattr(program_info, "metadata", None)
     snapshot = metadata.get("sharedSnapshot") if isinstance(metadata, dict) else None
     if not isinstance(snapshot, dict) or snapshot.get("mode") != "read-only":
         return False
-    try:
-        return int(program.getFunctionManager().getFunctionCount()) > 0
-    except Exception:
-        return False
+    return bool(str(snapshot.get("repositoryPath") or "").strip())
 
 
 def program_needs_analysis(

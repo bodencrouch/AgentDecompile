@@ -6284,6 +6284,17 @@ class ProjectToolProvider(ToolProvider):
         from agentdecompile_cli.launcher import ProgramInfo
 
         decompiler = open_decompiler_for_program(program)
+        snapshot_function_count = 0
+        if read_only_shared_snapshot:
+            try:
+                snapshot_function_count = int(program.getFunctionManager().getFunctionCount())
+            except Exception as exc:
+                logger.warning(
+                    "Unable to count functions in immutable shared snapshot %s: %s",
+                    program_path,
+                    exc,
+                )
+        snapshot_inventory_ready = read_only_shared_snapshot and snapshot_function_count > 0
 
         program_info = ProgramInfo(
             name=program.getName(),
@@ -6297,12 +6308,17 @@ class ProjectToolProvider(ToolProvider):
                         "mode": "read-only",
                         "versionedDomainFile": False,
                         "mutationsAllowed": False,
+                        "functionCount": snapshot_function_count,
+                        "analysisSource": "recorded-function-inventory" if snapshot_inventory_ready else "unavailable",
                     }
                 }
                 if read_only_shared_snapshot
                 else {}
             ),
-            ghidra_analysis_complete=False,
+            # A remote immutable ProgramDB cannot accept AutoAnalysis writes.  Its persisted
+            # function inventory is sufficient for read-only inspection and must not be routed
+            # into the global auto-analysis gate.
+            ghidra_analysis_complete=snapshot_inventory_ready,
             file_path=None,
             load_time=time.time(),
         )

@@ -9,6 +9,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 from agentdecompile_recovery.corpus.dashboard.common import (
     as_root,
@@ -2127,14 +2128,20 @@ def function_detail(slug: str, raw_addr: str, *, locator: str = "", program: str
     return with_source_witness(result)
 
 
-def render_workbench() -> str:
+def render_workbench(*, static_mode: bool = False) -> str:
+    def dashboard_href(**query: str) -> str:
+        pairs = [("mode", "static")] if static_mode else []
+        pairs.extend(query.items())
+        return "/dashboard?" + urlencode(pairs)
+
     payload = list_binaries()
     rows = payload.get("binaries") or []
     items = []
     for row in rows:
+        href = esc(dashboard_href(window="wb-corpus", binary=str(row["slug"])))
         items.append(
             f'<li data-slug="{esc(row["slug"])}">'
-            f'<a href="/dashboard?window=wb-corpus&amp;binary={esc(row["slug"])}">{esc(row["slug"])}</a>'
+            f'<a href="{href}">{esc(row["slug"])}</a>'
             f' <span>{int(row.get("funcs") or 0)}</span></li>'
         )
     binary_html = "".join(items) or "<li>No binaries. Set AGENT_DECOMPILE_CORPUS_DB.</li>"
@@ -2258,8 +2265,8 @@ def render_workbench() -> str:
   </div>
 </div>
 <noscript>
-  <p>JavaScript is off. Use <a href="/dashboard?window=wb-overview">Overview</a>,
-  <a href="/dashboard?window=wb-fnbrowse">Functions</a>, or <a href="/docs">Docs</a>.</p>
+  <p>JavaScript is off. Use <a href="{esc(dashboard_href(window="wb-overview"))}">Overview</a>,
+  <a href="{esc(dashboard_href(window="wb-fnbrowse"))}">Functions</a>, or <a href="/docs">Docs</a>.</p>
 </noscript>
 <script src="/dashboard/static/react.js"></script>
 <script src="/dashboard/static/react-dom.js"></script>

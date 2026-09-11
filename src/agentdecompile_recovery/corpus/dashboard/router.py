@@ -95,7 +95,7 @@ def create_dashboard_router() -> APIRouter:
         from agentdecompile_recovery.corpus.dashboard.react_api import react_entry_redirect
 
         if request.query_params.get("mode") == "static":
-            response = HTMLResponse(render_workbench())
+            response = HTMLResponse(render_workbench(static_mode=True))
             for key, value in SECURITY_HEADERS.items():
                 response.headers[key] = value
             return response

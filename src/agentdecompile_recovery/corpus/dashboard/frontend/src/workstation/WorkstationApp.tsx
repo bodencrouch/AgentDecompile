@@ -28,6 +28,7 @@ function tabKeys(e:KeyboardEvent<HTMLElement>){
   const next=e.key==='Home'?0:e.key==='End'?tabs.length-1:(i+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;
   e.preventDefault();tabs[next]?.focus();tabs[next]?.click();
 }
+const transientReadError=(value:unknown)=>/request failed \((?:408|429|5\d\d)\)|failed to fetch|networkerror|network request failed|timeout/i.test(String(value||''));
 const activeJob=(job:Data)=>['queued','running','waiting','cancelling'].includes(String(job.status));
 const failedJob=(job:Data)=>['failed','cancelled','interrupted','blocked','partial','budget-stop','near-miss','readability-blocked','error'].includes(String(job.status));
 const jobTime=(job:Data)=>Number(job.finishedAt||job.updatedAt||job.createdAt||job.startedAt||0);
@@ -64,6 +65,7 @@ export function WorkstationApp(){
   const [busy,setBusy]=useState(false),[localModel,setLocalModel]=useState<NormalizedAnalysisModel>();
   const pendingPrepare=useRef(readPref<string|null>('workstation.prepareJob',null));
   const runtime=useRef(new LocalProjectRuntime('local:workbench'));
+  const reportedReadErrors=useRef<Record<string,string>>({});
   const searchRef=useRef<HTMLInputElement>(null),fileRef=useRef<HTMLInputElement>(null);
   const binaries=useData(`${API}/binaries?locator=${encodeURIComponent(selection.locator)}`,revision);
   const catalog=useData('/api/v1/actions',revision);
@@ -98,7 +100,7 @@ export function WorkstationApp(){
     if(shortcut==='functions'){e.preventDefault();setNavOpen(true);setMobilePane('functions');setTimeout(()=>{if(!document.querySelector('[role="dialog"][aria-modal="true"]'))searchRef.current?.focus();},0);}
     if(shortcut==='dismiss')setMobilePane(null);
   };addEventListener('keydown',key);return()=>removeEventListener('keydown',key);},[setNavOpen,dialog,action,projectDialog]);
-  useEffect(()=>{for(const error of [binaries.error,functions.error,catalog.error])if(error)notify(error,'error');},[binaries.error,functions.error,catalog.error,notify]);
+  useEffect(()=>{for(const [name,error] of [['binary library',binaries.error],['function inventory',functions.error],['action catalog',catalog.error]] as const){if(!error){delete reportedReadErrors.current[name];continue;}if(reportedReadErrors.current[name]===error)continue;reportedReadErrors.current[name]=error;notify(transientReadError(error)?`Refreshing ${name}; saved content remains available.`:error,transientReadError(error)?'info':'error',{sourceError:error,source:name});}},[binaries.error,functions.error,catalog.error,notify]);
   function openBinary(binary:Data){
     const next=normalizeSelection({slug:String(binary.slug||''),program:String(binary.program||binary.programPath||''),locator:String(binary.locator||selection.locator||''),binaryHash:binary.sha256||'',addr:''});
     setSessions(old=>{const entry={selection:next,name:String(binary.name||binary.label||binary.slug||binary.program||'Binary')};return [...old.filter(s=>sessionKey(s.selection)!==sessionKey(next)),entry];});
@@ -122,7 +124,7 @@ export function WorkstationApp(){
   const selectedFunction=functionRows.find(r=>addressOf(r)===selection.addr);
   const css={'--nav-width':`${navOpen?navWidth:0}px`,'--evidence-width':`${evidenceOpen?evidenceWidth:0}px`,'--dock-height':`${effectiveDockOpen?dockHeight:38}px`} as CSSProperties;
   const offerPrepare=canPrepareAnalysis({local,selected:Boolean(selection.slug||selection.program),loading:functions.loading,error:functions.error,filter:filter||functionQuery,offset,count:Math.max(functionRows.length,Number(functions.data.total)||0),advertised:(catalog.data.actions||[]).some((a:Data)=>a.id==='workbench.prepare'&&a.available!==false)});
-  const problems=events.filter(e=>e.level==='error'||e.level==='warning');
+  const problems=events.filter(e=>(e.level==='error'||e.level==='warning')&&!transientReadError(e.message));
   // Jobs are durable global history. Only the selected project's active or
   // successful work represents the current workstation state; prior terminal
   // failures remain available in an explicit history view.

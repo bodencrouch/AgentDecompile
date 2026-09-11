@@ -32,10 +32,13 @@ ROOT = Path(__file__).resolve().parents[1]
 # frontend hot updates separately.
 DEFAULT_WATCH = (
     ROOT / "src/agentdecompile_cli/server.py",
+    ROOT / "src/agentdecompile_cli/mcp_server/providers/project.py",
+    ROOT / "src/agentdecompile_cli/mcp_server/providers/script.py",
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/preparation.py",
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/workflow.py",
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/entity_activity.py",
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/react_api.py",
+    ROOT / "src/agentdecompile_recovery/corpus/dashboard/mcp_bridge.py",
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/router.py",
     ROOT / "src/agentdecompile_recovery/corpus/dashboard/actions/jobs.py",
     ROOT / "src/agentdecompile_recovery/corpus/cli.py",

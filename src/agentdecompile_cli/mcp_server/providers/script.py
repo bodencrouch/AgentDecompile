@@ -394,6 +394,10 @@ class ScriptToolProvider(ToolProvider):
         # long-lived, so self.program_info can still name a previous program.
         effective_program_info = program_info
         ns: dict[str, Any] = self._build_namespace(effective_program_info, fallback_to_provider=False)
+        # The per-invocation target remains authoritative when an immutable
+        # shared snapshot has no local DomainFile-backed ProgramInfo path.
+        if requested_program_path:
+            ns["programPath"] = requested_program_path
         executed_program = ns.get("currentProgram")
 
         if requested_program_path and executed_program is None:

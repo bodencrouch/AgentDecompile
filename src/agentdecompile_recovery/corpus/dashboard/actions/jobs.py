@@ -691,7 +691,13 @@ def _mcp_executor_in_context(action: ActionSpec, params: dict[str, Any], cancel:
         exclusive = action.command == "analyze-program" or (
             action.mutating and not bool(params.get("_preparationProbe"))
         )
-        ensured = ensure_program(locator, program, require_live=True, exclusive=exclusive)
+        ensured = ensure_program(
+            locator,
+            program,
+            require_live=True,
+            exclusive=exclusive,
+            include_inventory=False,
+        )
         if not ensured.get("ok"):
             detail = ensured.get("error") or ensured.get("steps") or "program could not be opened"
             return 1, f"Could not make {program} current in the selected project.\n{detail}\n"
@@ -735,7 +741,13 @@ def _mcp_executor_in_context(action: ActionSpec, params: dict[str, Any], cancel:
         reset_session()
         reopened = ensure_project(locator) if locator else {"ok": True}
         if reopened.get("ok") and locator and program and needs_program:
-            reopened = ensure_program(locator, program, require_live=True, exclusive=exclusive)
+            reopened = ensure_program(
+                locator,
+                program,
+                require_live=True,
+                exclusive=exclusive,
+                include_inventory=False,
+            )
         if reopened.get("ok"):
             hit = call_tool(action.command, arguments, timeout=timeout)
         else:

@@ -323,8 +323,13 @@ def ensure_program(
     *,
     require_live: bool = False,
     exclusive: bool = False,
+    include_inventory: bool = True,
 ) -> dict[str, Any]:
-    """Open the Ghidra project (once) and make ``program`` the current program."""
+    """Open the Ghidra project (once) and make ``program`` the current program.
+
+    ``include_inventory`` preserves the Workbench response by default. Action
+    jobs only need the canonical checked-out program path, not every function.
+    """
     from agentdecompile_recovery.corpus.ghidra_project import (
         classify_locator,
         ghidra_connect_args,
@@ -378,13 +383,25 @@ def ensure_program(
                 ),
             }
     path = ghidra_program_path(info, name) if name else ""
-    resolved, _available = _resolve_open_program(name)
-    if resolved:
-        path = resolved
+    if include_inventory:
+        resolved, _available = _resolve_open_program(name)
+        if resolved:
+            path = resolved
     key = f"{loc}\0{path or name}"
     with _LOCK:
         cached = _OPENED.get(key)
     if cached == "ready" and not exclusive:
+        if not include_inventory:
+            return {
+                "ok": True,
+                "ensured": True,
+                "cached": True,
+                "program": name,
+                "program_path": path or name,
+                "results": [],
+                "total": 0,
+                "source": "ghidra-mcp",
+            }
         listed = list_functions(name, program_path=path or name)
         listed["ensured"] = True
         listed["cached"] = True
@@ -465,6 +482,20 @@ def ensure_program(
                 "steps": steps,
                 "error": checked.get("error") or checked.get("text") or f"Could not open {path or name} in the selected project.",
             }
+
+    if not include_inventory:
+        with _LOCK:
+            _OPENED[key] = "ready"
+        return {
+            "ok": True,
+            "ensured": True,
+            "program": name,
+            "program_path": path or name,
+            "results": [],
+            "total": 0,
+            "source": "ghidra-mcp",
+            "steps": steps,
+        }
 
     listed = list_functions(name, program_path=path or name)
     listed["ensured"] = True

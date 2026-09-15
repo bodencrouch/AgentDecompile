@@ -915,7 +915,9 @@ class RecoveryRunner:
         # of the inventory, even when all source context was already present.
         source_limit = self.config.source_task_limit
         if self.config.source_synthesis_verify_packaged_source:
-            source_limit = max(source_limit, len(candidates))
+            # Candidate expansion can add acquired-context aliases beyond the
+            # raw inventory; leave room for that deterministic expansion.
+            source_limit = max(source_limit, len(candidates) * 2)
         summary = generate_source_candidates(
             target=RecoveryLanguageProfile.merge_into_target(target.to_json()),
             function_candidates=candidates,

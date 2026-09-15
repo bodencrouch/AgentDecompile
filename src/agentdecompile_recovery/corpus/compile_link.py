@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
@@ -165,13 +166,52 @@ def compile_unit_script(
     """Operator compiler wrapper: ``script <source> <obj> [name]``."""
     obj.parent.mkdir(parents=True, exist_ok=True)
     obj.unlink(missing_ok=True)
-    proc = subprocess.run(
-        ["bash", str(script), str(source), str(obj), name or source.stem],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
-    )
+    compile_source = source
+    compile_obj = obj
+    staged_source: Path | None = None
+    staged_obj: Path | None = None
+
+    # Wine exposes Unix files through a Windows path. Characters accepted by
+    # ext4 (notably ``?`` and ``*`` in recovered C++ names) are rejected by
+    # Win32 before cl.exe can open the source. Keep the operator-facing paths
+    # and object layout stable, but give the compiler filesystem-safe aliases.
+    win32_illegal = '<>:"/\\|?*'
+    if any(char in source.name for char in win32_illegal):
+        handle, temp_name = tempfile.mkstemp(
+            dir=source.parent,
+            prefix=".agentdecompile-",
+            suffix=source.suffix,
+        )
+        os.close(handle)
+        staged_source = Path(temp_name)
+        shutil.copy2(source, staged_source)
+        compile_source = staged_source
+    if staged_source is not None or any(char in obj.name for char in win32_illegal):
+        handle, temp_name = tempfile.mkstemp(
+            dir=obj.parent,
+            prefix=".agentdecompile-",
+            suffix=obj.suffix or ".obj",
+        )
+        os.close(handle)
+        staged_obj = Path(temp_name)
+        staged_obj.unlink(missing_ok=True)
+        compile_obj = staged_obj
+
+    try:
+        proc = subprocess.run(
+            ["bash", str(script), str(compile_source), str(compile_obj), name or source.stem],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        if proc.returncode == 0 and staged_obj is not None and staged_obj.is_file():
+            os.replace(staged_obj, obj)
+    finally:
+        if staged_source is not None:
+            staged_source.unlink(missing_ok=True)
+        if staged_obj is not None:
+            staged_obj.unlink(missing_ok=True)
     return {
         "ok": proc.returncode == 0 and obj.is_file() and obj.stat().st_size > 0,
         "source": str(source),
@@ -179,6 +219,7 @@ def compile_unit_script(
         "returncode": proc.returncode,
         "stderr": (proc.stderr or proc.stdout or "")[-2000:],
         "toolchain": "script",
+        "stagedInput": staged_source is not None,
     }
 
 

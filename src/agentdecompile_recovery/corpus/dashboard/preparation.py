@@ -1933,6 +1933,13 @@ def _action_prior_for_retry(name: str, prior: dict[str, Any]) -> dict[str, Any]:
     """
     if name == 'corpus.match-pair' and prior.get('status') == 'failed':
         return {}
+    data = (prior.get('result') or {}).get('data') or {}
+    if (
+        name == 'corpus.bsim-createdatabase' and prior.get('status') == 'failed'
+        and data.get('returncode') == 127
+        and data.get('error') == 'Ghidra support/bsim not found (set GHIDRA_INSTALL_DIR)'
+    ):
+        return {}
     return prior
 
 

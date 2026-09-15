@@ -440,6 +440,8 @@ def source_witness_for_fact(fact: dict[str, Any] | None) -> dict[str, Any] | Non
         "recoveryRole": fact.get("recoveryRole"),
         "historicalCompilationStatus": fact.get("historicalCompilationStatus"),
         "sha256": fact.get("decompiledSha256"),
+        "targetBytesSha256": fact.get("targetBytesSha256"),
+        "addressBinding": fact.get("addressBinding"),
         "claimBoundary": fact.get("claimBoundary")
         or "acquired source is advisory until fresh compile and objdiff acceptance",
     }
@@ -468,6 +470,9 @@ def merge_function_facts(existing: dict[str, Any], current: dict[str, Any]) -> d
             "claimBoundary",
             "confidence",
             "bodyBytes",
+            "targetBytesHex",
+            "targetBytesSha256",
+            "addressBinding",
         ):
             if source_fact.get(key) not in (None, ""):
                 merged[key] = source_fact[key]
@@ -520,6 +525,16 @@ def admit_context_source_candidates(
             continue
         if size > 0 and not fact.get("bodyBytes"):
             fact = {**fact, "bodyBytes": size}
+        target_bytes_hex = str(fact.get("targetBytesHex") or "").strip().lower()
+        if target_bytes_hex and re.fullmatch(r"[0-9a-f]+", target_bytes_hex) and len(target_bytes_hex) % 2 == 0:
+            image_base = coerce_int(inventory.get("imageBase")) or 0
+            rva = address - image_base if image_base else coerce_int(next((row.get("rva") for row in choices), None))
+            expected = bytes.fromhex(target_bytes_hex)
+            if rva is None or read_inventory_slice(inventory, rva, len(expected)) != expected:
+                # Keep the witness in the acquisition pack, but never place it
+                # into the current proof queue when its claimed target window
+                # disagrees with the current binary.
+                continue
         unique_facts[address] = fact
 
     admitted: list[dict[str, Any]] = []

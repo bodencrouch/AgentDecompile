@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 import re
+import sqlite3
 
 from collections.abc import Iterable
 from pathlib import Path
@@ -37,6 +38,8 @@ TEXT_SUFFIXES = {
     ".yml",
 }
 
+CORPUS_DATABASE_SUFFIXES = {".db", ".sqlite", ".sqlite3"}
+
 SOURCE_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hh", ".hxx"}
 NOTE_SUFFIXES = {".md", ".txt", ".log", ".yaml", ".yml"}
 
@@ -49,6 +52,7 @@ FILENAME_ADDRESS_RE = re.compile(r"^(?:0x)?([0-9A-Fa-f]{6,16})[_-]")
 FUNCTION_SIZE_RE = re.compile(r"\bsize\s*:\s*(\d+)\s*bytes?\b", re.IGNORECASE)
 SOURCE_METADATA_ADDRESS_RE = re.compile(r"^\s*\*\s*address\s*:\s*0x([0-9A-Fa-f]{4,16})\b", re.IGNORECASE | re.MULTILINE)
 SOURCE_METADATA_NAME_RE = re.compile(r"^\s*\*\s*(.+?)\s+--\s+", re.MULTILINE)
+SOURCE_MACHINE_CODE_RE = re.compile(r"^\s*\*\s*original machine code\s*:\s*([0-9A-Fa-f]+)\s*$", re.IGNORECASE | re.MULTILINE)
 GHIDRA_COMPILED_SOURCE_RE = re.compile(r"compiled from Ghidra(?:'s)? decompilation", re.IGNORECASE)
 COMPILE_ONLY_ASM_RE = re.compile(r"\bcompile-only-asm\b", re.IGNORECASE)
 MAX_ADDRESS_BOUND_SOURCE_FILES = 50_000
@@ -85,6 +89,21 @@ def build_context_pack(
             continue
         if path.is_dir():
             continue
+        if path.suffix.lower() in CORPUS_DATABASE_SUFFIXES:
+            source_id = stable_database_source_id(path, target)
+            try:
+                parsed_facts, parsed_items = parse_corpus_database_context(
+                    path,
+                    target=target,
+                    source_id=source_id,
+                    repo_root=repo_root,
+                )
+            except (OSError, sqlite3.DatabaseError) as exc:
+                skipped.append({"path": receipt_path(path, repo_root), "reason": f"read-failed: {exc}"})
+                continue
+            facts.extend(parsed_facts)
+            context_items.extend(parsed_items)
+            continue
         if path.suffix.lower() not in TEXT_SUFFIXES:
             skipped.append({"path": receipt_path(path, repo_root), "reason": "unsupported-suffix"})
             continue
@@ -98,6 +117,8 @@ def build_context_pack(
         facts.extend(parsed_facts)
         context_items.extend(parsed_items)
 
+    facts, source_bindings, binding_conflicts = bind_source_facts_to_exact_receipts(facts)
+    context_items.extend(binding_conflicts)
     facts = dedupe_facts(facts)
     facts_path = out_dir / "function-facts.jsonl"
     facts_path.write_text("".join(json.dumps(row, sort_keys=True) + "\n" for row in facts), encoding="utf-8")
@@ -160,6 +181,8 @@ def build_context_pack(
         "factsImported": len(facts),
         "sourceCandidates": sum(1 for row in facts if row.get("recoveryRole") == "advisory-source-candidate"),
         "assemblySubstrates": sum(1 for row in facts if row.get("recoveryRole") == "assembly-substrate"),
+        "sourceAddressBindings": source_bindings,
+        "sourceAddressBindingConflicts": len(binding_conflicts),
         "contextItems": len(context_items),
         "skipped": skipped,
         "failed": failed,
@@ -227,6 +250,282 @@ def parse_context_file(path: Path, text: str, *, source_id: str, repo_root: Path
         fact = note_to_fact(item) if item.get("entryOffset") or item.get("name") else None
         return [fact] if fact else [], [item]
     return [], []
+
+
+def parse_corpus_database_context(
+    path: Path,
+    *,
+    target: dict[str, Any] | None,
+    source_id: str,
+    repo_root: Path | None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Export address bindings for an exact target from a corpus database.
+
+    A database row is useful acquisition evidence only after its binary digest
+    identifies the current target and its recorded machine-code window agrees
+    with the current target at the selected function address.  Ambiguous byte
+    windows remain conflicts instead of being resolved from similar filenames
+    or names.
+    """
+
+    database_path = receipt_path(path, repo_root)
+    target_path = Path(str((target or {}).get("binaryPath") or ""))
+    if not target_path.is_file():
+        return [], [corpus_binding_context_item(
+            database_path,
+            source_id,
+            status="unplaced",
+            reason="current target binary is unavailable; exact digest binding cannot be established",
+        )]
+
+    target_md5 = file_digest(target_path, "md5")
+    target_sha256 = str((target or {}).get("sha256") or "") or file_digest(target_path, "sha256")
+    connection = sqlite3.connect(f"file:{path.resolve()}?mode=ro", uri=True)
+    connection.row_factory = sqlite3.Row
+    try:
+        tables = {
+            str(row[0])
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
+        }
+        required = {"binary", "func", "identity", "recovered_function"}
+        if not required.issubset(tables):
+            missing = ", ".join(sorted(required - tables))
+            return [], [corpus_binding_context_item(
+                database_path,
+                source_id,
+                status="unsupported",
+                reason=f"database lacks required corpus tables: {missing}",
+            )]
+
+        binary_columns = table_columns(connection, "binary")
+        digest_terms: list[str] = []
+        digest_values: list[str] = []
+        if "content_sha256" in binary_columns and target_sha256:
+            digest_terms.append("lower(content_sha256) = ?")
+            digest_values.append(target_sha256.lower())
+        if "md5" in binary_columns and target_md5:
+            digest_terms.append("lower(md5) = ?")
+            digest_values.append(target_md5.lower())
+        if not digest_terms:
+            return [], [corpus_binding_context_item(
+                database_path,
+                source_id,
+                status="unplaced",
+                reason="database and target expose no comparable content digest",
+            )]
+        selected_binary_fields = [
+            "id",
+            "slug" if "slug" in binary_columns else "NULL AS slug",
+            "image_base" if "image_base" in binary_columns else "NULL AS image_base",
+            "md5" if "md5" in binary_columns else "NULL AS md5",
+            "content_sha256" if "content_sha256" in binary_columns else "NULL AS content_sha256",
+        ]
+        binary_rows = list(connection.execute(
+            f"SELECT {', '.join(selected_binary_fields)} FROM binary WHERE {' OR '.join(digest_terms)}",
+            digest_values,
+        ))
+        if not binary_rows:
+            return [], [corpus_binding_context_item(
+                database_path,
+                source_id,
+                status="unplaced",
+                reason="no corpus binary has the current target's exact content digest",
+                target_sha256=target_sha256,
+                target_md5=target_md5,
+            )]
+
+        inventory, target_data = target_inventory_and_bytes(target, target_path)
+        facts: list[dict[str, Any]] = []
+        items: list[dict[str, Any]] = []
+        for binary_row in binary_rows:
+            binary_id = int(binary_row["id"])
+            image_base = coerce_int(binary_row["image_base"]) or coerce_int(inventory.get("imageBase")) or 0
+            func_rows = list(connection.execute(
+                "SELECT addr, name, size FROM func WHERE binary_id = ?",
+                (binary_id,),
+            ))
+            funcs_by_size: dict[int, list[sqlite3.Row]] = {}
+            for func_row in func_rows:
+                size = coerce_int(func_row["size"])
+                if size and size > 0:
+                    funcs_by_size.setdefault(size, []).append(func_row)
+
+            recovered_rows = list(connection.execute(
+                "SELECT program, binary_id, addr, name, size, machine_code, logical_id, path, evidence "
+                "FROM recovered_function WHERE binary_id = ? AND real_c = 1",
+                (binary_id,),
+            ))
+            identities_by_logical_id: dict[int, list[sqlite3.Row]] = {}
+            for identity in connection.execute(
+                "SELECT logical_id, addr, confidence, method, evidence FROM identity WHERE binary_id = ?",
+                (binary_id,),
+            ):
+                identity_logical_id = coerce_int(identity["logical_id"])
+                if identity_logical_id is not None:
+                    identities_by_logical_id.setdefault(identity_logical_id, []).append(identity)
+            for recovered in recovered_rows:
+                machine_code = normalized_machine_code(recovered["machine_code"])
+                if not machine_code:
+                    items.append(corpus_binding_context_item(
+                        database_path,
+                        source_id,
+                        status="unplaced",
+                        reason="recovered source row has no exact machine-code window",
+                        name=str(recovered["name"] or ""),
+                        corpus_binary_id=binary_id,
+                    ))
+                    continue
+                target_bytes = bytes.fromhex(machine_code)
+                candidates: dict[int, str] = {}
+                direct_address = coerce_int(recovered["addr"])
+                if direct_address is not None:
+                    candidates[direct_address] = "recovered-function-address"
+                logical_id = coerce_int(recovered["logical_id"])
+                if logical_id is not None:
+                    for identity in identities_by_logical_id.get(logical_id, []):
+                        identity_address = coerce_int(identity["addr"])
+                        if identity_address is not None:
+                            candidates[identity_address] = "logical-identity"
+
+                valid = {
+                    address: method
+                    for address, method in candidates.items()
+                    if target_bytes_at_address(inventory, target_data, image_base, address, len(target_bytes)) == target_bytes
+                }
+                if not valid:
+                    for func_row in funcs_by_size.get(len(target_bytes), []):
+                        address = coerce_int(func_row["addr"])
+                        if address is None:
+                            continue
+                        if target_bytes_at_address(inventory, target_data, image_base, address, len(target_bytes)) == target_bytes:
+                            valid[address] = "exact-target-bytes-at-corpus-function-boundary"
+
+                if len(valid) != 1:
+                    items.append(corpus_binding_context_item(
+                        database_path,
+                        source_id,
+                        status="conflict" if valid else "unplaced",
+                        reason=(
+                            "exact machine-code window matches multiple corpus function boundaries"
+                            if valid
+                            else "recorded machine-code window was not found at a corpus function boundary"
+                        ),
+                        name=str(recovered["name"] or ""),
+                        corpus_binary_id=binary_id,
+                        logical_id=logical_id,
+                        candidate_addresses=sorted(valid),
+                        target_bytes_sha256=hashlib.sha256(target_bytes).hexdigest(),
+                    ))
+                    continue
+
+                address, binding_method = next(iter(valid.items()))
+                facts.append({
+                    "schema": "agentdecompile.context-function-fact.v1",
+                    "provider": "agentdecompile",
+                    "tool": "context-pack-corpus-database-binding",
+                    "sourceKind": "corpus-recovered-function-binding",
+                    "name": normalize_function_name(str(recovered["name"])),
+                    "entryOffset": address,
+                    "address": address,
+                    "bodyBytes": len(target_bytes),
+                    "targetBytesHex": machine_code,
+                    "targetBytesSha256": hashlib.sha256(target_bytes).hexdigest(),
+                    "logicalId": logical_id,
+                    "corpusBinaryId": binary_id,
+                    "corpusBinarySlug": binary_row["slug"],
+                    "recoveredSourcePath": recovered["path"],
+                    "databaseEvidence": recovered["evidence"],
+                    "confidence": "exact-target-byte-window",
+                    "contextSource": database_path,
+                    "sourceId": source_id,
+                    "addressBinding": {
+                        "method": binding_method,
+                        "binaryDigest": {"sha256": target_sha256, "md5": target_md5},
+                        "logicalId": logical_id,
+                        "targetBytesSha256": hashlib.sha256(target_bytes).hexdigest(),
+                        "claimBoundary": "corpus evidence binds an advisory source witness to the current target; fresh compile and objdiff remain required",
+                    },
+                    "claimBoundary": "corpus database binding is acquisition evidence only; source still requires a fresh compile and objdiff-zero receipt",
+                })
+        return facts, items
+    finally:
+        connection.close()
+
+
+def target_inventory_and_bytes(target: dict[str, Any] | None, target_path: Path) -> tuple[dict[str, Any], bytes]:
+    from .inventory import build_binary_inventory
+    from .targets import identify_binary
+
+    identity = identify_binary(target_path)
+    return build_binary_inventory(identity), target_path.read_bytes()
+
+
+def target_bytes_at_address(
+    inventory: dict[str, Any],
+    target_data: bytes,
+    image_base: int,
+    address: int,
+    size: int,
+) -> bytes | None:
+    rva = address - image_base
+    for section in inventory.get("codeRanges", []):
+        section_rva = coerce_int(section.get("rva")) or 0
+        section_size = coerce_int(section.get("fileSize")) or coerce_int(section.get("size")) or 0
+        if not (section_rva <= rva and rva + size <= section_rva + section_size):
+            continue
+        file_offset = (coerce_int(section.get("fileOffset")) or 0) + rva - section_rva
+        if file_offset < 0 or file_offset + size > len(target_data):
+            return None
+        return target_data[file_offset : file_offset + size]
+    return None
+
+
+def normalized_machine_code(value: Any) -> str | None:
+    text = re.sub(r"[^0-9A-Fa-f]", "", str(value or "")).lower()
+    return text if text and len(text) % 2 == 0 else None
+
+
+def table_columns(connection: sqlite3.Connection, table: str) -> set[str]:
+    return {str(row[1]) for row in connection.execute(f"PRAGMA table_info({table})")}
+
+
+def file_digest(path: Path, algorithm: str) -> str:
+    digest = hashlib.new(algorithm)
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def stable_database_source_id(path: Path, target: dict[str, Any] | None) -> str:
+    stat = path.stat()
+    payload = "\0".join((
+        str(path.resolve()),
+        str(stat.st_size),
+        str(stat.st_mtime_ns),
+        str((target or {}).get("sha256") or ""),
+    ))
+    return hashlib.sha256(payload.encode("utf-8", errors="replace")).hexdigest()
+
+
+def corpus_binding_context_item(
+    path: str,
+    source_id: str,
+    *,
+    status: str,
+    reason: str,
+    **detail: Any,
+) -> dict[str, Any]:
+    return {
+        "schema": "agentdecompile.context-item.v1",
+        "kind": "corpus-source-address-binding",
+        "path": path,
+        "sourceId": source_id,
+        "status": status,
+        "reason": reason,
+        **detail,
+        "claimBoundary": "corpus binding context is evidence only; compile and objdiff gates remain required",
+    }
 
 
 def parse_json_context(path: Path, text: str, *, source_id: str, repo_root: Path | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -412,6 +711,10 @@ def parse_source_dump(path: Path, text: str, *, source_id: str, repo_root: Path 
                 "claimBoundary": "source dump text is unverified acquisition context; compile and objdiff gates remain required.",
             }
         )
+        machine_code = SOURCE_MACHINE_CODE_RE.search(text[:source_start] if filename_address else prelude)
+        if machine_code:
+            facts[-1]["targetBytesHex"] = machine_code.group(1).lower()
+            facts[-1]["targetBytesSha256"] = hashlib.sha256(bytes.fromhex(machine_code.group(1))).hexdigest()
         size_match = FUNCTION_SIZE_RE.search(text[:source_start] if filename_address else prelude)
         if size_match:
             facts[-1]["bodyBytes"] = int(size_match.group(1))
@@ -522,9 +825,13 @@ def note_to_fact(item: dict[str, Any]) -> dict[str, Any]:
 
 def contextualize_fact(row: dict[str, Any], path: Path, source_id: str, source_kind: str, repo_root: Path | None) -> dict[str, Any]:
     fact = dict(row)
+    if not fact.get("name") and fact.get("function"):
+        fact["name"] = normalize_function_name(str(fact["function"]))
     if "decompiled" not in fact and fact.get("decompiledCode"):
         fact["decompiled"] = fact.get("decompiledCode")
     entry = coerce_int(fact.get("entryOffset") or fact.get("entry") or fact.get("address") or fact.get("rva"))
+    if entry is None and fact.get("symbol"):
+        entry = extract_address(str(fact["symbol"]))
     if entry is None and fact.get("name"):
         entry = extract_address(str(fact.get("name")))
     fact["entryOffset"] = entry
@@ -539,8 +846,79 @@ def contextualize_fact(row: dict[str, Any], path: Path, source_id: str, source_k
         fact.setdefault("acquiredThrough", acquired_through)
     fact.setdefault("contextSource", acquired_through)
     fact.setdefault("sourceId", source_id)
+    original_bytes = str(fact.get("originalBytes") or "").strip().lower()
+    if original_bytes and re.fullmatch(r"[0-9a-f]+", original_bytes) and len(original_bytes) % 2 == 0:
+        fact.setdefault("targetBytesHex", original_bytes)
+        fact.setdefault("targetBytesSha256", hashlib.sha256(bytes.fromhex(original_bytes)).hexdigest())
+        fact.setdefault("bodyBytes", len(original_bytes) // 2)
+        if fact.get("byteExactVerified") is True and fact.get("matched") is True:
+            fact["sourceKind"] = "context-pack-byte-proof-receipt"
     fact.setdefault("claimBoundary", "context fact is acquisition evidence only; compile and objdiff gates remain required.")
     return fact
+
+
+def bind_source_facts_to_exact_receipts(
+    facts: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], int, list[dict[str, Any]]]:
+    """Place addressless source only when an exact-byte receipt identifies it."""
+
+    receipts: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for fact in facts:
+        address = coerce_int(fact.get("entryOffset") or fact.get("address"))
+        target_bytes = str(fact.get("targetBytesHex") or "").lower()
+        name = str(fact.get("name") or "")
+        if address is not None and name and target_bytes:
+            receipts.setdefault((name, target_bytes), []).append(fact)
+
+    bound = 0
+    conflicts: list[dict[str, Any]] = []
+    output: list[dict[str, Any]] = []
+    for fact in facts:
+        if (
+            fact.get("decompiled")
+            and coerce_int(fact.get("entryOffset") or fact.get("address")) is None
+            and fact.get("name")
+            and fact.get("targetBytesHex")
+        ):
+            matches = receipts.get((str(fact["name"]), str(fact["targetBytesHex"]).lower()), [])
+            addresses = sorted(
+                {
+                    address
+                    for row in matches
+                    if (address := coerce_int(row.get("entryOffset") or row.get("address"))) is not None
+                }
+            )
+            if len(addresses) == 1:
+                witness = next(
+                    row
+                    for row in matches
+                    if coerce_int(row.get("entryOffset") or row.get("address")) == addresses[0]
+                )
+                fact = {**fact, "entryOffset": addresses[0], "address": addresses[0]}
+                fact.setdefault("bodyBytes", len(str(fact["targetBytesHex"])) // 2)
+                fact["addressBinding"] = {
+                    "method": "exact-name-and-target-bytes-receipt",
+                    "receipt": witness.get("contextSource"),
+                    "receiptSourceId": witness.get("sourceId"),
+                    "targetBytesSha256": fact.get("targetBytesSha256"),
+                    "claimBoundary": "historical receipt binds this source witness to an address; fresh compile and objdiff remain required",
+                }
+                bound += 1
+            elif len(addresses) > 1:
+                conflicts.append(
+                    {
+                        "schema": "agentdecompile.context-item.v1",
+                        "kind": "source-address-binding-conflict",
+                        "path": fact.get("contextSource"),
+                        "sourceId": fact.get("sourceId"),
+                        "name": fact.get("name"),
+                        "candidateAddresses": addresses,
+                        "targetBytesSha256": fact.get("targetBytesSha256"),
+                        "claimBoundary": "ambiguous historical binding retained without selecting an address",
+                    }
+                )
+        output.append(fact)
+    return output, bound, conflicts
 
 
 def load_jsonl_text(text: str) -> list[dict[str, Any]]:

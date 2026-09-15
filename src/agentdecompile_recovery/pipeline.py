@@ -116,6 +116,8 @@ class RecoveryConfig:
     context_extract_containers: bool = True
     context_include_low_signal_members: bool = False
     skip_enrichment: bool = False
+    project: Path | None = None
+    project_program: str | None = None
     unity_project_out: Path | None = None
     unity_editor: Path | None = None
     unity_editor_version: str | None = None
@@ -314,7 +316,7 @@ class RecoveryRunner:
             "sourceTaskOffset": self.config.source_task_offset if stage.name in {"generate-source-candidates", "synthesize-source-tasks", "report"} else 0,
             "sourceSynthesisEngine": self.config.source_synthesis_engine,
             "sourceSynthesisMode": self.config.source_synthesis_mode,
-            "sourceSynthesisLimit": self.config.source_synthesis_limit,
+            "sourceSynthesisLimit": self.config.source_synthesis_limit if stage.name in {"synthesize-source-tasks", "plan-strategy", "report"} else 50,
             "sourceSynthesisMaxVariants": self.config.source_synthesis_max_variants,
             "sourceSynthesisSemanticOnly": self.config.source_synthesis_semantic_only,
             "sourceSynthesisSkipBoundarySuspect": self.config.source_synthesis_skip_boundary_suspect,
@@ -352,6 +354,20 @@ class RecoveryRunner:
             # re-acquire invalidates only stages that consume acquisition facts.
             config["acquisitionIdentity"] = self.acquisition_identity()
             config["freshEnrichmentIdentity"] = self.fresh_enrichment_identity()
+        if stage.name == "enrich-decompile" and self.config.project is not None:
+            from .reconstruct_enrich import resolve_existing_project_source
+
+            try:
+                config["sourceProject"] = resolve_existing_project_source(
+                    self.config.project,
+                    self.config.project_program,
+                )
+            except Exception as exc:  # stage reports the full error when it runs
+                config["sourceProject"] = {
+                    "project": str(self.config.project.expanduser().resolve()),
+                    "program": self.config.project_program,
+                    "error": str(exc),
+                }
         return config
 
     def fresh_enrichment_identity(self) -> dict[str, Any] | None:
@@ -807,6 +823,8 @@ class RecoveryRunner:
             work_dir=self.run_dir,
             candidates_payload=candidates,
             skip=self.config.skip_enrichment,
+            project=self.config.project,
+            project_program=self.config.project_program,
         )
 
     def resolve_acquisition_facts_source(self, target: dict[str, Any]) -> Path | None:

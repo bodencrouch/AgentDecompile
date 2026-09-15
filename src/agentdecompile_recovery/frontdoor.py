@@ -459,6 +459,7 @@ def run_one_shot(args: argparse.Namespace) -> int:
             repo_root=repo_root(),
             project=project,
             project_program=getattr(args, "project_program", None),
+            max_files=int(getattr(args, "context_max_files", 1000) or 1000),
         )
         receipt_path = work_dir / "acquisition" / "acquire.json"
         receipt_path.parent.mkdir(parents=True, exist_ok=True)

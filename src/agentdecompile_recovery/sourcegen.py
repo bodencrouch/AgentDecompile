@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+
 from pathlib import Path
 from typing import Any
 
@@ -87,10 +88,19 @@ def generate_source_candidates(
     fact_artifacts = write_normalized_function_facts(out_dir, facts)
     profile_artifacts = load_compiler_profile_artifacts(out_dir, target)
     original_candidates = list(function_candidates.get("candidates", []))
-    all_candidates = [row for row in original_candidates if is_recoverable_candidate(row)]
+    all_candidates, acquired_context_candidates = admit_context_source_candidates(
+        original_candidates,
+        facts,
+        inventory or {},
+    )
     inferred_sizes, applied_boundary_repairs = infer_candidate_sizes(all_candidates, inventory or {})
     start = max(0, offset)
-    candidates = all_candidates[start : start + max(limit, 0)]
+    # Explicit source witnesses should not be lost behind the general
+    # discovery cap.  At offset zero, admit every address-bound context source
+    # and use the configured limit for the remaining automatically discovered
+    # inventory.
+    effective_limit = max(limit, acquired_context_candidates) if start == 0 else max(limit, 0)
+    candidates = all_candidates[start : start + effective_limit]
     address_aliases, address_alias_groups = build_address_alias_metadata(candidates)
 
     tasks_path = out_dir / "tasks.jsonl"
@@ -153,7 +163,10 @@ def generate_source_candidates(
                 # comes back as a signature MSVC will not compile in either C or
                 # C++; `__fastcall` with a dead EDX argument is the same 32-bit
                 # ABI and does compile. No-op for every other candidate.
-                source = msvc_thiscall_to_fastcall(str(fact["decompiled"])).rstrip() + "\n"
+                acquired_source = is_context_source_fact(fact)
+                source = str(fact["decompiled"]).rstrip() + "\n"
+                if not acquired_source:
+                    source = msvc_thiscall_to_fastcall(source).rstrip() + "\n"
                 source_path = case_dir / f"candidate.{_GEN['extension']}"
                 source_path.write_text(source, encoding="utf-8")
                 source_quality = _GEN["sourceQuality"]
@@ -165,6 +178,7 @@ def generate_source_candidates(
                 generated_by_recovery_scope[source_recovery_scope] = (
                     generated_by_recovery_scope.get(source_recovery_scope, 0) + 1
                 )
+                source_witness = source_witness_for_fact(fact)
                 task.update(
                     {
                         "status": "generated-unverified",
@@ -173,17 +187,27 @@ def generate_source_candidates(
                         "sourceLanguage": _GEN["sourceLanguage"],
                         "sourceQuality": source_quality,
                         "sourceRecoveryScope": source_recovery_scope,
-                        "sourceOrigin": "external decompiler output; automatically exported, not manually authored",
+                        "sourceOrigin": (
+                            f"acquired source context from {fact.get('contextSource')}; "
+                            "unverified until current compile and objdiff"
+                            if acquired_source
+                            else "external decompiler output; automatically exported, not manually authored"
+                        ),
                         "semanticSource": True,
                         "verificationTier": verification_tier_for_task(task, has_source=True),
                         "acceptanceGate": "compile with selected compiler profile and objdiff-zero against target object; target-slice checks remain pre-acceptance evidence",
                     }
                 )
+                if source_witness:
+                    task["sourceWitness"] = source_witness
                 write_json(case_dir / "candidate.json", task)
                 _publish_advisory_candidate(out_dir, task, source_path)
                 generated_count += 1
                 semantic_generated_count += 1
-                fresh_generated_count += 1
+                if acquired_source:
+                    reused_generated_count += 1
+                else:
+                    fresh_generated_count += 1
             elif generated_candidate is not None:
                 if generated_candidate.get("catalogOnly"):
                     case_dir.mkdir(parents=True, exist_ok=True)
@@ -332,8 +356,10 @@ def generate_source_candidates(
         "inferredFunctionSizes": inferred_size_count,
         "candidateOffset": start,
         "candidateLimit": max(limit, 0),
+        "effectiveCandidateLimit": effective_limit,
+        "acquiredContextSourceCandidates": acquired_context_candidates,
         "candidateTotal": len(all_candidates),
-        "candidateTruncation": candidate_truncation(total=len(all_candidates), offset=start, limit=limit),
+        "candidateTruncation": candidate_truncation(total=len(all_candidates), offset=start, limit=effective_limit),
         "uniqueCandidateAddresses": len({int(row["address"]) for row in candidates if row.get("address") is not None}),
         "duplicateAddressAliases": alias_artifacts["duplicateAddressAliases"],
         "duplicateAddressScheduledTasks": alias_artifacts["duplicateAddressScheduledTasks"],
@@ -373,9 +399,137 @@ def load_function_facts(path: Path) -> dict[str, dict[str, Any]]:
             row = json.loads(line)
         except json.JSONDecodeError:
             continue
-        for key in fact_keys(row):
-            facts[key] = row
+        row_keys = fact_keys(row)
+        identity_keys = [key for key in row_keys if key.startswith(("address:", "rva:", "entry:"))]
+        lookup_keys = identity_keys or row_keys
+        existing = next((facts[key] for key in lookup_keys if key in facts), None)
+        merged = merge_function_facts(existing, row) if existing is not None else row
+        for key in dict.fromkeys([*fact_keys(existing or {}), *row_keys, *fact_keys(merged)]):
+            facts[key] = merged
     return facts
+
+
+def is_context_source_fact(fact: dict[str, Any] | None) -> bool:
+    if not isinstance(fact, dict) or not fact.get("decompiled"):
+        return False
+    return bool(fact.get("contextSource")) and str(fact.get("sourceKind") or "") == "context-pack-source-dump"
+
+
+def source_witness_for_fact(fact: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not is_context_source_fact(fact):
+        return None
+    return {
+        "schema": "agentdecompile.source-witness.v1",
+        "path": fact.get("contextSource"),
+        "sourceId": fact.get("sourceId"),
+        "tool": fact.get("tool"),
+        "sourceKind": fact.get("sourceKind"),
+        "sha256": fact.get("decompiledSha256"),
+        "claimBoundary": fact.get("claimBoundary")
+        or "acquired source is advisory until fresh compile and objdiff acceptance",
+    }
+
+
+def merge_function_facts(existing: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
+    """Merge current binary facts without discarding acquired source text.
+
+    Combined fact streams intentionally place fresh Ghidra facts after context
+    acquisition.  Those rows should win structural fields, while a complete
+    address-bound source witness remains available as an advisory candidate.
+    """
+
+    merged = {**existing, **current}
+    source_fact = current if is_context_source_fact(current) else existing if is_context_source_fact(existing) else None
+    if source_fact is not None:
+        for key in (
+            "decompiled",
+            "decompiledSha256",
+            "language",
+            "contextSource",
+            "sourceId",
+            "sourceKind",
+            "tool",
+            "claimBoundary",
+            "confidence",
+            "bodyBytes",
+        ):
+            if source_fact.get(key) not in (None, ""):
+                merged[key] = source_fact[key]
+        merged["sourceWitness"] = source_witness_for_fact(source_fact)
+    return merged
+
+
+def admit_context_source_candidates(
+    original_candidates: list[dict[str, Any]],
+    facts: dict[str, dict[str, Any]],
+    inventory: dict[str, Any],
+) -> tuple[list[dict[str, Any]], int]:
+    """Put each address-bound source witness into the current proof queue once.
+
+    Context source is admitted only when its address and declared byte extent
+    fit the current binary's executable inventory.  Admission is advisory; the
+    generated task still requires a fresh compiler and objdiff-zero receipt.
+    """
+
+    recoverable = [row for row in original_candidates if is_recoverable_candidate(row)]
+    candidates_by_address: dict[int, list[dict[str, Any]]] = {}
+    for row in recoverable:
+        address = coerce_int(row.get("address"))
+        if address is not None:
+            candidates_by_address.setdefault(address, []).append(row)
+
+    unique_facts: dict[int, dict[str, Any]] = {}
+    for fact in facts.values():
+        if not is_context_source_fact(fact):
+            continue
+        address = coerce_int(fact.get("entryOffset")) or coerce_int(fact.get("address"))
+        size = coerce_int(fact.get("bodyBytes")) or 0
+        if address is None or size <= 0 or not context_fact_fits_inventory(address, size, inventory):
+            continue
+        unique_facts[address] = fact
+
+    admitted: list[dict[str, Any]] = []
+    for address, fact in sorted(unique_facts.items()):
+        choices = candidates_by_address.get(address, [])
+        named = next((row for row in choices if row.get("name") == fact.get("name")), None)
+        if named is None and choices:
+            named = min(choices, key=address_alias_priority)
+        if named is not None:
+            candidate = dict(named)
+        else:
+            image_base = coerce_int(inventory.get("imageBase")) or 0
+            candidate = {
+                "address": address,
+                "rva": address - image_base if image_base else None,
+                "name": fact.get("name") or f"F_{address:08x}",
+                "section": (section_for_address(inventory, address) or {}).get("name"),
+                "confidence": "high",
+            }
+        candidate.update(
+            {
+                "size": coerce_int(fact.get("bodyBytes")),
+                "sizeSource": "context-source-metadata",
+                "source": "context-source-dump",
+                "contextSource": fact.get("contextSource"),
+            }
+        )
+        admitted.append(candidate)
+
+    admitted_addresses = set(unique_facts)
+    remaining = [row for row in recoverable if coerce_int(row.get("address")) not in admitted_addresses]
+    return [*admitted, *remaining], len(admitted)
+
+
+def context_fact_fits_inventory(address: int, size: int, inventory: dict[str, Any]) -> bool:
+    image_base = coerce_int(inventory.get("imageBase")) or 0
+    rva = address - image_base if image_base else None
+    section = section_for_rva(inventory, rva) if rva is not None else section_for_address(inventory, address)
+    if section is None:
+        return False
+    start = coerce_int(section.get("rva") if rva is not None else section.get("address")) or 0
+    extent = coerce_int(section.get("fileSize")) or coerce_int(section.get("size")) or 0
+    position = rva if rva is not None else address
+    return position >= start and position + size <= start + extent
 
 
 def nonsemantic_catalog_row(task: dict[str, Any], data: bytes | None, generator_rule: str) -> dict[str, Any]:
@@ -1311,6 +1465,9 @@ def fact_keys(row: dict[str, Any]) -> list[str]:
         keys.append(f"address:{entry}")
     elif row.get("entry"):
         keys.append(f"entry:{row['entry']}")
+    address = _coerce_address_int(row.get("address"))
+    if address is not None:
+        keys.append(f"address:{address}")
     if row.get("name"):
         keys.append(f"name:{row['name']}")
     return keys
@@ -1398,7 +1555,7 @@ def normalize_function_fact(fact: dict[str, Any]) -> dict[str, Any]:
         compiler_hints.get("callingConvention"),
     )
     language = first_non_empty(fact.get("language"), prototype.get("language"), compiler_hints.get("language"))
-    return {
+    normalized = {
         "schema": "agentdecompile.normalized-function-fact.v1",
         "name": fact.get("name"),
         "entry": fact.get("entry"),
@@ -1421,6 +1578,10 @@ def normalize_function_fact(fact: dict[str, Any]) -> dict[str, Any]:
         "objectModel": compact_mapping(object_model),
         "compilerHints": compact_mapping(compiler_hints),
     }
+    source_witness = source_witness_for_fact(fact)
+    if source_witness:
+        normalized["sourceWitness"] = source_witness
+    return normalized
 
 
 def compact_mapping(value: dict[str, Any]) -> dict[str, Any]:

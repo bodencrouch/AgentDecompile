@@ -11,12 +11,13 @@ import argparse
 import hashlib
 import json
 import re
+
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .acquisition_bundle import build_bundle, content_sha256, load_bundle, source_record
 from .state import atomic_write_json
-
 
 TEXT_SUFFIXES = {
     ".c",
@@ -40,10 +41,12 @@ SOURCE_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hh", ".hxx"}
 NOTE_SUFFIXES = {".md", ".txt", ".log", ".yaml", ".yml"}
 
 FUNCTION_HEADER_LINE_RE = re.compile(
-    r"^\s*(?P<header>(?:[A-Za-z_][\w:*&<>~,]*\s+)+(?P<name>[A-Za-z_][\w$.@]*|sub_[0-9A-Fa-f]+|fcn[._][0-9A-Fa-f]+)\s*\([^;{}]*\)\s*)\{"
+    r"^\s*(?P<header>(?:[A-Za-z_*&][\w:*&<>~,]*\s+)+(?P<name>[A-Za-z_][\w$.@]*|sub_[0-9A-Fa-f]+|fcn[._][0-9A-Fa-f]+)\s*\([^;{}]*\)\s*)(?:\{|$)"
 )
 ADDRESS_RE = re.compile(r"(?:0x|RVA\s*[:=]\s*0x|VA\s*[:=]\s*0x)([0-9A-Fa-f]{4,16})", re.IGNORECASE)
-NAME_ADDRESS_RE = re.compile(r"(?:sub_|fcn[._]|FUN_)([0-9A-Fa-f]{4,16})", re.IGNORECASE)
+NAME_ADDRESS_RE = re.compile(r"(?:sub_|fcn[._]|FUN_|F_)([0-9A-Fa-f]{4,16})", re.IGNORECASE)
+FILENAME_ADDRESS_RE = re.compile(r"^(?:0x)?([0-9A-Fa-f]{6,16})[_-]")
+FUNCTION_SIZE_RE = re.compile(r"\bsize\s*:\s*(\d+)\s*bytes?\b", re.IGNORECASE)
 
 
 def receipt_path(path: Path, repo_root: Path | None) -> str:
@@ -325,8 +328,18 @@ def parse_source_dump(path: Path, text: str, *, source_id: str, repo_root: Path 
     facts: list[dict[str, Any]] = []
     offsets = line_start_offsets(text)
     lines = text.splitlines()
+    filename_address = FILENAME_ADDRESS_RE.match(path.stem)
+    consumed_until = 0
     for index, line in enumerate(lines):
-        match = FUNCTION_HEADER_LINE_RE.match(line)
+        if offsets[index] < consumed_until:
+            continue
+        signature_lines = [line]
+        if "{" not in line and ";" not in line:
+            for continuation in lines[index + 1 : index + 9]:
+                signature_lines.append(continuation)
+                if "{" in continuation or ";" in continuation:
+                    break
+        match = FUNCTION_HEADER_LINE_RE.match("\n".join(signature_lines))
         if not match:
             continue
         source_start = offsets[index]
@@ -336,11 +349,21 @@ def parse_source_dump(path: Path, text: str, *, source_id: str, repo_root: Path 
         body_end = find_matching_brace(text, brace_index)
         if body_end is None:
             continue
-        source = text[source_start : body_end + 1].strip()
+        # Canonical address-prefixed recovery files carry the declarations and
+        # type definitions needed to compile their one function.  Keep that
+        # complete source witness rather than silently reducing it to the
+        # function body.  Generic multi-function dumps still produce one fact
+        # per definition.
+        source = (text if filename_address else text[source_start : body_end + 1]).strip()
         name = normalize_function_name(match.group("name"))
         prelude_start = offsets[max(0, index - 5)]
         prelude = text[prelude_start:source_start]
-        entry = extract_address(prelude) or extract_address(match.group("header")) or extract_address(name)
+        entry = (
+            (int(filename_address.group(1), 16) if filename_address else None)
+            or extract_address(prelude)
+            or extract_address(match.group("header"))
+            or extract_address(name)
+        )
         facts.append(
             {
                 "schema": "agentdecompile.context-function-fact.v1",
@@ -359,6 +382,15 @@ def parse_source_dump(path: Path, text: str, *, source_id: str, repo_root: Path 
                 "claimBoundary": "source dump text is unverified acquisition context; compile and objdiff gates remain required.",
             }
         )
+        size_match = FUNCTION_SIZE_RE.search(text[:source_start] if filename_address else prelude)
+        if size_match:
+            facts[-1]["bodyBytes"] = int(size_match.group(1))
+        consumed_until = body_end + 1
+        # Address-prefixed recovery files are canonical single-function
+        # candidates.  Stop after the first parsed definition so declarations
+        # embedded in a function body cannot become duplicate facts.
+        if filename_address:
+            break
     return facts
 
 

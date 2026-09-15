@@ -53,6 +53,27 @@ def _same_program_path(left: Any, right: Any) -> bool:
     return bool(left and right and str(left).replace('\\', '/').strip().strip('/') == str(right).replace('\\', '/').strip().strip('/'))
 
 
+def _effective_recovery_family(stored: Any, locator: Any, program: Any, binary_id: Any) -> str:
+    """Group only exact project-folder peers unless a catalog family exists.
+
+    ``program_binding`` is durable evidence that a binary belongs to one
+    folder-qualified Ghidra project object.  Its full parent folder is a
+    conservative variant boundary: sibling builds in ``/K1`` can be compared,
+    while ``/TSL`` and nested engine/game folders stay separate.  A stored
+    non-placeholder family remains authoritative user metadata.  Root-level
+    and unbound programs remain isolated rather than being grouped by filename.
+    """
+    stored_family = str(stored or '').strip()
+    if stored_family and not stored_family.startswith('unclassified:'):
+        return stored_family
+    normalized_locator = str(locator or '').replace('\\', '/').strip().rstrip('/')
+    parts = [part for part in str(program or '').replace('\\', '/').strip().split('/') if part]
+    if normalized_locator and len(parts) > 1:
+        project_id = hashlib.sha256(normalized_locator.encode()).hexdigest()[:16]
+        return f"project-folder:{project_id}:{'/'.join(parts[:-1])}"
+    return stored_family or f'unclassified:{binary_id}'
+
+
 def _discard_unverified_probe(checkpoint: dict[str, Any], requested: str, observed: str = '') -> bool:
     """Remove probe-derived state that cannot be tied to its selected program."""
     if _same_program_path(checkpoint.get('observedProgramPath'), requested):
@@ -1465,7 +1486,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 checkpoint.update(
                     factsComplete=True, binaryId=existing[0], slug=existing[1],
                     repoPath=existing[2], workSize=existing[3], factsReused=True,
-                    recoveryFamily=str(existing[4] or f'unclassified:{existing[0]}'),
+                    recoveryFamily=_effective_recovery_family(existing[4], existing[5], existing[6], existing[0]),
                 )
                 extracted += 1
                 update('facts', 'running', f"{program}: reusing {existing[3]} stored functions.", completed=extracted, total=len(analyzed_programs))
@@ -1478,7 +1499,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             result = action('facts', 'mcp.execute-script', {'programPath': execution_programs[program], 'code': code, 'timeout': 600}, {**row, 'locator': execution_locators[program], 'program': execution_programs[program]})
             payload = result.get('data') or {}
             if result['ok'] and isinstance(payload, dict) and payload.get('inventoryAvailable'):
-                checkpoint.update(factsComplete=True, factsPath=str(facts_path), binaryId=payload['binaryId'], slug=payload['slug'], repoPath=payload['repoPath'], recoveryFamily=payload.get('recoveryFamily') or f"unclassified:{payload['binaryId']}", programFingerprint=payload.get('programFingerprint'), arch=payload.get('arch'), workSize=payload.get('count'))
+                checkpoint.update(factsComplete=True, factsPath=str(facts_path), binaryId=payload['binaryId'], slug=payload['slug'], repoPath=payload['repoPath'], recoveryFamily=_effective_recovery_family(payload.get('recoveryFamily'), locator, program, payload['binaryId']), programFingerprint=payload.get('programFingerprint'), arch=payload.get('arch'), workSize=payload.get('count'))
                 extracted += 1
                 update('facts', 'running', f"{program}: {payload['count']} stored functions available.", completed=extracted, total=len(programs))
             else:
@@ -1491,9 +1512,18 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             completed=extracted, total=len(analyzed_programs),
         )
         records, error = query_db(
-            'SELECT id,slug,repo_path,recovery_family,func_count,arch,bits FROM binary '
-            'WHERE EXISTS (SELECT 1 FROM func WHERE func.binary_id=binary.id)'
+            'SELECT b.id,b.slug,b.repo_path,b.recovery_family,b.func_count,b.arch,b.bits,p.locator,p.program '
+            'FROM binary b LEFT JOIN program_binding p ON p.source_path=b.repo_path AND rtrim(p.locator,\'/\')=? '
+            'WHERE EXISTS (SELECT 1 FROM func WHERE func.binary_id=b.id)',
+            (locator.rstrip('/'),),
         )
+        if error:
+            legacy_records, legacy_error = query_db(
+                'SELECT id,slug,repo_path,recovery_family,func_count,arch,bits FROM binary '
+                'WHERE EXISTS (SELECT 1 FROM func WHERE func.binary_id=binary.id)'
+            )
+            records = [(*item, None, None) for item in legacy_records]
+            error = legacy_error
         records = records if not error else []
         # A resumed project must reuse its persisted function inventory.  The
         # older gate considered only facts written during this particular
@@ -1581,7 +1611,11 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         pairs = load_match_pairs()
         source_paths = {item[2] for item in candidates}
         pairs = [pair for pair in pairs if pair[0] in source_paths or pair[1] in source_paths]
-        family_by_path = {str(item[2] or ''): str(item[3] or f'unclassified:{item[0]}') for item in records}
+        effective_family_by_id = {
+            item[0]: _effective_recovery_family(item[3], item[7], item[8], item[0])
+            for item in records
+        }
+        family_by_path = {str(item[2] or ''): effective_family_by_id[item[0]] for item in records}
         excluded_pairs = []
         compatible_pairs = []
         for src, dst, note in pairs:
@@ -1607,7 +1641,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         by_id = {item[0]: item for item in records}
         families: dict[str, list[dict[str, Any]]] = {}
         for item in project_candidates:
-            family = str(item[3] or f'unclassified:{item[0]}').strip()
+            family = effective_family_by_id[item[0]]
             families.setdefault(family, []).append({
                 'id': item[0], 'repo_path': item[2], 'func_count': item[4],
                 'arch': item[5], 'bits': item[6],

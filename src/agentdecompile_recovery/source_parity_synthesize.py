@@ -19923,6 +19923,22 @@ def attempt_candidate_with_msvc_synthetic_slice(
             )
             if candidate_compile.get("status") != "ok":
                 diagnostic_store(diagnostic_root, diagnostic_cache_key, candidate_compile)
+                # A source diagnostic is independent of optimization/profile
+                # flags; retrying the same uncompilable body four times only
+                # burns compiler slots. Profile sweeps remain available for
+                # sources that compile, or for flag-specific failures.
+                stdout_path = candidate_compile.get("stdout")
+                diagnostic_text = ""
+                if stdout_path:
+                    try:
+                        diagnostic_text = Path(stdout_path).read_text(encoding="utf-8", errors="replace")
+                    except OSError:
+                        pass
+                if candidate_compile.get("returnCode") not in (None, 0) and "error C" in diagnostic_text:
+                    attempts.append({**base_record, "attemptDir": str(attempt_dir), "compilerProfileName": profile_name,
+                                     "status": "compile-failed", "differences": -1,
+                                     "candidateCompile": candidate_compile, "skippedProfiles": len(resolved_profiles) - profile_index - 1})
+                    break
         elif diagnostic_hit:
             (attempt_dir / "compile.cache.json").write_text(json.dumps(diagnostic_hit, sort_keys=True) + "\n", encoding="utf-8")
         record = {

@@ -19932,6 +19932,13 @@ def attempt_candidate_with_msvc_synthetic_slice(
                 diagnostic_text += Path(stdout_path).read_text(encoding="utf-8", errors="replace")
             except OSError:
                 pass
+        # MSVC writes diagnostics to the object wrapper's stdout path.
+        object_stdout = candidate_compile.get("objectStdout") if isinstance(candidate_compile, dict) else None
+        if object_stdout and object_stdout != stdout_path:
+            try:
+                diagnostic_text += Path(object_stdout).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                pass
         profile_independent_failure = (
             isinstance(candidate_compile, dict)
             and candidate_compile.get("status") != "ok"

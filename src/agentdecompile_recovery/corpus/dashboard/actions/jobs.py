@@ -1008,6 +1008,32 @@ def ghidra_lock_key(params: dict[str, Any] | None) -> str:
     return str(row.get("locator") or row.get("programPath") or row.get("program") or "")
 
 
+def _active_duplicate(action_id: str, params: dict[str, Any]) -> JobRecord | None:
+    """Return an existing active job targeting the same work directory.
+
+    Recovery outputs are append-only ledgers; admitting two writers corrupts
+    reuse accounting and doubles compiler work.
+    """
+    target = str(params.get("workDir") or params.get("work_dir") or "").strip()
+    if not target:
+        return None
+    try:
+        target_key = str(Path(target).expanduser().resolve())
+    except (OSError, RuntimeError, ValueError):
+        target_key = target
+    for existing in STORE.list(compact=True):
+        if existing.action_id != action_id or existing.status not in {"queued", "running", "cancelling"}:
+            continue
+        other = str(existing.params.get("workDir") or existing.params.get("work_dir") or "").strip()
+        try:
+            other = str(Path(other).expanduser().resolve())
+        except (OSError, RuntimeError, ValueError):
+            pass
+        if other and other == target_key:
+            return existing
+    return None
+
+
 def start_job(
     action_id: str,
     params: dict[str, Any] | None = None,
@@ -1021,6 +1047,9 @@ def start_job(
     if action is None:
         return {"error": f"unknown action {action_id}"}, 404
     filled = apply_defaults(action, dict(params or {}), context)
+    duplicate = _active_duplicate(action.id, filled)
+    if duplicate is not None and not dry_run:
+        return {"ok": True, "deduplicated": True, "job": duplicate.to_dict()}, 202
     errors = validate_params(action, filled, confirm=confirm)
     if errors:
         return {"error": "; ".join(errors), "actionId": action.id}, 400

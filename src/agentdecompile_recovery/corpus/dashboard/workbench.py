@@ -1417,10 +1417,6 @@ def list_functions(
     locator = (locator or "").strip()
     if not slug and not program:
         return {"ok": False, "error": "pick a binary", "results": [], "total": 0}
-    if not slug:
-        return _list_functions_fallback(
-            program, q=q, offset=offset, limit=limit, bsim_url=bsim_url, locator=locator,
-        )
     rows: list[Any] = []
     err = None
     if locator and program:

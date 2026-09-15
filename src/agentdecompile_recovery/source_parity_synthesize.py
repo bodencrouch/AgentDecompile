@@ -22717,6 +22717,10 @@ def main(argv: list[str] | None = None) -> int:
         if item.strip()
     } or None
     compiler_profiles = [parse_profile_flag_set(value) for value in args.compiler_profile if value.strip()]
+    # Profiles are corpus-wide for a synthesis run; resolve the fallback once
+    # instead of rebuilding the default set inside every candidate worker.
+    default_profiles = default_profile_set(args.compiler) if not compiler_profiles else []
+    default_profile_name = (compiler_profiles or default_profiles or [("default", {})])[0][0]
     if args.compiler == "msvc":
         compiler_path = resolve_msvc_root(args.vc_root).expanduser().resolve() / "bin" / "cl.exe"
     else:
@@ -22967,15 +22971,10 @@ def main(argv: list[str] | None = None) -> int:
             pending_candidates.append(candidate)
 
         def _run_one(candidate: GeneratedCandidate) -> list[dict[str, Any]]:
-            profile_name = (
-                compiler_profiles[0][0]
-                if compiler_profiles
-                else (default_profile_set(args.compiler)[0][0] if default_profile_set(args.compiler) else "default")
-            )
             cache_key_value = compile_cache_key(
                 target_slice_sha=target_slice_sha256(row),
                 source_sha=source_sha256(candidate.source),
-                compiler_profile=profile_name,
+                compiler_profile=default_profile_name,
                 compiler_lane="cxx" if candidate.source_suffix.lower() in {".cpp", ".cc", ".cxx"} else "c",
                 flags=json.dumps(compiler_profiles, sort_keys=True, separators=(",", ":")),
                 toolchain_identity=toolchain_identity,

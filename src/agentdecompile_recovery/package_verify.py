@@ -516,7 +516,12 @@ def compile_with_msvc(
     if is_assembler:
         command = [wine, str(ml_exe), "/nologo", "/c", f"/Fo{out_name}", source_name]
     else:
-        command = [wine, str(cl_exe), "/nologo", "/c", *args, f"/Fo{out_name}", source_name]
+        # VC Toolkit 2003 accepts stack-cookie enablement but does not accept
+        # the later ``/GS-`` spelling; it truncates that token to ``/G-`` and
+        # fails the compile.  The profile's other flags remain explicit, while
+        # this unsupported disable token is omitted for this legacy compiler.
+        msvc_args = [flag for flag in args if flag.upper() != "/GS-"]
+        command = [wine, str(cl_exe), "/nologo", "/c", *msvc_args, f"/Fo{out_name}", source_name]
     env = msvc_environment(root, wineprefix)
     with tempfile.TemporaryDirectory(prefix=f"recovery-msvc-{stem}-") as tmp:
         work_dir = Path(tmp)

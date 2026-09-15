@@ -243,9 +243,17 @@ def _build_objdiff_diff_command(
     binary = _resolve_binary("objdiff-cli")
     if binary is None:
         raise FileNotFoundError("objdiff-cli is not on PATH.")
-    command = [binary, "diff", "-f", "json"]
-    if output_path is not None:
-        command.extend(["-o", str(output_path)])
+    # objdiff-cli uses ``--format`` for one-shot diffs. ``-f`` belongs to the
+    # report subcommand and objdiff 3.7 rejects it here before reading either
+    # target, which previously surfaced as an empty comparison result.
+    command = [
+        binary,
+        "diff",
+        "--format",
+        "json",
+        "-o",
+        str(output_path) if output_path is not None else "-",
+    ]
     if project_path is not None:
         command.extend(["-p", str(project_path)])
         if unit_name:

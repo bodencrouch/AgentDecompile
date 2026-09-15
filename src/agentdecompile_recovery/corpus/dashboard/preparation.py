@@ -1060,7 +1060,8 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                     _write(row)
                 target = str(fields.get('programPath') or fields.get('program') or context.get('program') or fields.get('src') or context.get('locator') or '')
                 update(key, 'running', f'{name}: {target}' if target else name, jobId=job_id,
-                       currentProgram=target, currentAction=name, jobStatus=response['job'].get('status', 'queued'), startedAt=time.time(), attempts=attempt + 1)
+                       lastJobId=job_id, currentProgram=target, currentAction=name,
+                       jobStatus=response['job'].get('status', 'queued'), startedAt=time.time(), attempts=attempt + 1)
                 previous_status = None
                 # A Ghidra analysis can legitimately run for a long time
                 # without changing the job's coarse status.  Persist a small
@@ -1448,7 +1449,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             if program in protection_blocked or not row['checkpoints'].get(program, {}).get('analysisConfirmed'):
                 continue
             checkpoint = row['checkpoints'].setdefault(program, {})
-            existing = inventory_by_source.get(program)
+            existing = inventory_by_source.get(f"{locator.rstrip('/')}/{program.lstrip('/')}")
             if existing:
                 checkpoint.update(
                     factsComplete=True, binaryId=existing[0], slug=existing[1],

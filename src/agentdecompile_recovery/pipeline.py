@@ -928,6 +928,7 @@ class RecoveryRunner:
         return summary
 
     def stage_synthesize_source_tasks(self, _stage: Stage) -> dict[str, Any]:
+        target = self.load_target()
         out_dir = self.run_dir / "source-synthesis"
         summary_path = out_dir / "summary.json"
         mode = self.config.source_synthesis_mode
@@ -976,6 +977,7 @@ class RecoveryRunner:
                     wine=self.config.source_synthesis_wine,
                     wineprefix=self.config.source_synthesis_wineprefix,
                     timeout=self.config.stage_timeout,
+                    target_sha=target.sha256,
                 )
             )
             export_summary = self.export_synthesized_source_slices(summary)

@@ -661,7 +661,7 @@ def run_one_shot(args: argparse.Namespace) -> int:
 
 def _analysis_digest_for_work_dir(work_dir: Path) -> str:
     """Best-effort analysis-image digest for fresh-dump gating."""
-    for rel in ("state.json", "analysis-target.json", "ghidra-analysis.json"):
+    for rel in ("target.json", "state.json", "analysis-target.json", "ghidra-analysis.json"):
         path = work_dir / rel
         if not path.is_file():
             continue
@@ -672,13 +672,15 @@ def _analysis_digest_for_work_dir(work_dir: Path) -> str:
         if not isinstance(data, dict):
             continue
         stages = data.get("stages") if isinstance(data.get("stages"), dict) else {}
-        for stage_name in ("prepare", "inventory", "batch-decompile"):
+        for stage_name in ("discover", "prepare", "inventory", "batch-decompile"):
             stage = stages.get(stage_name) if isinstance(stages.get(stage_name), dict) else {}
-            for key in ("analysisBinarySha256", "targetSha256", "binarySha256"):
-                value = str(stage.get(key) or "").strip()
-                if value:
-                    return value
-        for key in ("analysisBinarySha256", "targetSha256", "binarySha256"):
+            summary = stage.get("summary") if isinstance(stage.get("summary"), dict) else {}
+            for source in (stage, summary):
+                for key in ("sha256", "analysisBinarySha256", "targetSha256", "binarySha256"):
+                    value = str(source.get(key) or "").strip()
+                    if value:
+                        return value
+        for key in ("sha256", "analysisBinarySha256", "targetSha256", "binarySha256"):
             value = str(data.get(key) or "").strip()
             if value:
                 return value
@@ -738,6 +740,8 @@ def run_dump_source(args: argparse.Namespace, work_dir: Path) -> int:
         "source-synthesis/accepted.jsonl",
         "source-synthesis/code-slice-matches.jsonl",
         "source-synthesis/source-shape-matches.jsonl",
+        "source-synthesis/plugin-code-slice-matches.jsonl",
+        "source-synthesis/plugin-source-shape-matches.jsonl",
         "trivial-matches/summary.jsonl",
         "reloc-wrapper-matches/summary.jsonl",
     ):

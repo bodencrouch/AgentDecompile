@@ -146,6 +146,16 @@ class SourceCandidateObjdiffPlugin:
             source_shape_search=bool(context.get("sourceShapeSearch")),
             pending_rewrite_result=pending_rewrite_result,
         )
+        target_sha = str(
+            context.get("targetSha256")
+            or row.get("targetSha256")
+            or row.get("analysisBinarySha256")
+            or ""
+        ).strip()
+        if target_sha:
+            for record in records:
+                if isinstance(record, dict) and not record.get("targetSha256"):
+                    record["targetSha256"] = target_sha
         if (
             work_dir_value
             and rewrite_request_id

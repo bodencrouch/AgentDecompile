@@ -402,6 +402,10 @@ def build_parser() -> argparse.ArgumentParser:
     plugin_synth.add_argument("--wineprefix", type=Path)
     plugin_synth.add_argument("--timeout", type=int, default=120)
     plugin_synth.add_argument("--progress-every", type=int, default=0)
+    plugin_synth.add_argument(
+        "--target-sha",
+        help="Analysis binary SHA-256 stamped onto generated proof records.",
+    )
 
     cleanup = sub.add_parser("source-cleanup", help="Propose proof-preserving cleanup for a recovered source file.")
     cleanup.add_argument("--source", type=Path, required=True, help="Candidate source file to clean.")
@@ -971,6 +975,7 @@ def run_source_plugin_pipeline_command(args: argparse.Namespace) -> int:
             wineprefix=args.wineprefix.resolve() if args.wineprefix else None,
             timeout=args.timeout,
             progress_every=args.progress_every,
+            target_sha=args.target_sha,
         )
     )
     print(json.dumps(report, indent=2, sort_keys=True))

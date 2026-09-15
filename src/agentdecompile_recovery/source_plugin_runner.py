@@ -57,6 +57,7 @@ class SourcePluginRunConfig:
     wineprefix: Path | None = None
     timeout: int = 120
     progress_every: int = 0
+    target_sha: str | None = None
 
 
 def run_source_plugin_pipeline(config: SourcePluginRunConfig) -> dict[str, Any]:
@@ -122,6 +123,7 @@ def run_source_plugin_pipeline(config: SourcePluginRunConfig) -> dict[str, Any]:
                 "routedPlaybook": config.routed_playbook,
                 "workDir": str(config.work_dir) if config.work_dir else None,
                 "maxVariantsPerFunction": config.max_variants_per_function,
+                "targetSha256": config.target_sha,
                 "strategies": sorted(config.strategies) if config.strategies else None,
                 "sourceQualities": sorted(config.source_qualities) if config.source_qualities else None,
                 "autonomyBudget": {
@@ -183,6 +185,7 @@ def run_source_plugin_pipeline(config: SourcePluginRunConfig) -> dict[str, Any]:
         "compiler": config.compiler,
         "compilerProfiles": [name for name, _flags in config.compiler_profiles],
         "compilerProfileSelection": "explicit" if config.compiler_profiles else "row-hints-then-defaults",
+        "analysisBinarySha256": config.target_sha,
         "semanticOnly": config.semantic_only,
         "strategies": sorted(config.strategies) if config.strategies else None,
         "sourceQualityFilter": sorted(config.source_qualities) if config.source_qualities else None,

@@ -56,8 +56,13 @@ class ToolchainError(RuntimeError):
 
 def inspect_tool(name: str, command: list[str] | None = None) -> dict[str, Any]:
     path = shutil.which(name)
+    if path is None:
+        cargo_path = Path.home() / ".cargo" / "bin" / name
+        if cargo_path.is_file() and os.access(cargo_path, os.X_OK):
+            path = str(cargo_path)
     result: dict[str, Any] = {"name": name, "path": path, "available": path is not None}
     if path and command:
+        command = [path, *command[1:]]
         try:
             proc = subprocess.run(command, text=True, capture_output=True, check=False, timeout=10)
         except subprocess.TimeoutExpired as exc:

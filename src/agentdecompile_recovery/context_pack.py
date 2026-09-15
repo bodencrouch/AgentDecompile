@@ -113,7 +113,9 @@ def build_context_pack(
             skipped.append({"path": receipt_path(path, repo_root), "reason": f"read-failed: {exc}"})
             continue
         source_id = stable_source_id(path, text)
-        parsed_facts, parsed_items = parse_context_file(path, text, source_id=source_id, repo_root=repo_root)
+        parsed_facts, parsed_items = parse_context_file(
+            path, text, source_id=source_id, repo_root=repo_root, target=target
+        )
         facts.extend(parsed_facts)
         context_items.extend(parsed_items)
 
@@ -226,6 +228,8 @@ def is_address_bound_source_corpus(root: Path) -> bool:
 
     if not root.is_dir():
         return False
+    if next(root.rglob("run-results-*.json"), None) or next(root.rglob("partial-run-results-*.json"), None):
+        return True
     for path in sorted(root.rglob("*")):
         if path.is_file() and path.suffix.lower() in SOURCE_SUFFIXES:
             try:
@@ -235,13 +239,22 @@ def is_address_bound_source_corpus(root: Path) -> bool:
     return False
 
 
-def parse_context_file(path: Path, text: str, *, source_id: str, repo_root: Path | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def parse_context_file(
+    path: Path,
+    text: str,
+    *,
+    source_id: str,
+    repo_root: Path | None,
+    target: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     suffix = path.suffix.lower()
     if suffix == ".jsonl":
         facts = [contextualize_fact(row, path, source_id, "jsonl-fact", repo_root) for row in load_jsonl_text(text)]
         return [row for row in facts if row], []
     if suffix == ".json":
-        facts, items = parse_json_context(path, text, source_id=source_id, repo_root=repo_root)
+        facts, items = parse_json_context(
+            path, text, source_id=source_id, repo_root=repo_root, target=target
+        )
         return facts, items
     if suffix in SOURCE_SUFFIXES:
         return parse_source_dump(path, text, source_id=source_id, repo_root=repo_root), []
@@ -528,13 +541,26 @@ def corpus_binding_context_item(
     }
 
 
-def parse_json_context(path: Path, text: str, *, source_id: str, repo_root: Path | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def parse_json_context(
+    path: Path,
+    text: str,
+    *,
+    source_id: str,
+    repo_root: Path | None,
+    target: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     try:
         payload = json.loads(text)
     except json.JSONDecodeError:
         return [], [{"schema": "agentdecompile.context-item.v1", "kind": "json-unparsed", "path": receipt_path(path, repo_root), "sourceId": source_id}]
     if isinstance(payload, dict) and payload.get("schema") == "agentdecompile.one-shot-source-function-reconstruction-tasks.v1":
         return parse_one_shot_reconstruction_tasks(path, payload, source_id=source_id, repo_root=repo_root), []
+    if isinstance(payload, dict) and isinstance(payload.get("results"), list):
+        mizuchi = parse_mizuchi_run_results(
+            path, payload, source_id=source_id, repo_root=repo_root, target=target
+        )
+        if mizuchi:
+            return mizuchi, []
     rows: list[Any]
     if isinstance(payload, list):
         rows = payload
@@ -567,6 +593,129 @@ def parse_json_context(path: Path, text: str, *, source_id: str, repo_root: Path
                 }
             )
     return facts, items
+
+
+def parse_mizuchi_run_results(
+    path: Path,
+    payload: dict[str, Any],
+    *,
+    source_id: str,
+    repo_root: Path | None,
+    target: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """Import the best generated candidate per function for fresh verification."""
+
+    from .corpus.source_claims import is_machine_code_shim
+
+    target_path = Path(str((target or {}).get("binaryPath") or ""))
+    target_sha = str((target or {}).get("sha256") or "").lower()
+    if not target_path.is_file() or not target_sha:
+        return []
+    if file_digest(target_path, "sha256") != target_sha:
+        return []
+    try:
+        inventory, target_data = target_inventory_and_bytes(target, target_path)
+    except OSError:
+        return []
+    image_base = coerce_int(inventory.get("imageBase")) or 0
+    config = payload.get("config") if isinstance(payload.get("config"), dict) else {}
+    compiler_script = str(config.get("compilerScript") or "")
+    compiler_profile = hashlib.sha256(compiler_script.encode("utf-8")).hexdigest() if compiler_script else "historical-default"
+    facts: list[dict[str, Any]] = []
+    for result in payload.get("results") or []:
+        if not isinstance(result, dict):
+            continue
+        name = str(result.get("functionName") or result.get("promptPath") or "")
+        address = extract_address(name)
+        if address is None:
+            continue
+        target_object = path.parent / "target" / f"{str(result.get('promptPath') or name).removesuffix('.md')}.o"
+        target_bytes = coff_text_bytes(target_object)
+        if not target_bytes or target_bytes_at_address(
+            inventory, target_data, image_base, address, len(target_bytes)
+        ) != target_bytes:
+            continue
+        candidates: list[tuple[int, int, str, dict[str, Any]]] = []
+        for attempt in result.get("attempts") or []:
+            if not isinstance(attempt, dict):
+                continue
+            code = ""
+            differences: int | None = None
+            for plugin in attempt.get("pluginResults") or []:
+                if not isinstance(plugin, dict):
+                    continue
+                data = plugin.get("data") if isinstance(plugin.get("data"), dict) else {}
+                if plugin.get("pluginId") == "claude-runner" and data.get("generatedCode"):
+                    code = str(data["generatedCode"])
+                if plugin.get("pluginId") == "objdiff" and data.get("differenceCount") is not None:
+                    differences = coerce_int(data.get("differenceCount"))
+            if code and not is_machine_code_shim(code):
+                candidates.append((0 if differences == 0 else 1, differences if differences is not None else 1_000_000, code, attempt))
+        if not candidates:
+            continue
+        exact_rank, differences, code, attempt = min(candidates, key=lambda row: (row[0], row[1]))
+        code = code.rstrip() + "\n"
+        source_sha = hashlib.sha256(code.encode("utf-8")).hexdigest()
+        facts.append({
+            "schema": "agentdecompile.context-function-fact.v1",
+            "provider": "mizuchi",
+            "tool": "context-pack-mizuchi-run-results",
+            "sourceKind": "mizuchi-generated-source",
+            "name": normalize_function_name(name),
+            "entryOffset": address,
+            "address": address,
+            "bodyBytes": len(target_bytes),
+            "targetBytesHex": target_bytes.hex(),
+            "targetBytesSha256": hashlib.sha256(target_bytes).hexdigest(),
+            "targetSha256": target_sha,
+            "decompiled": code,
+            "decompiledSha256": source_sha,
+            "sourceSha256": source_sha,
+            "sourceQuality": "high-level-c",
+            "semanticDecompilation": True,
+            "recoveryRole": "advisory-source-candidate",
+            "historicalCompilationStatus": "objdiff-zero" if exact_rank == 0 else "near-miss" if differences < 1_000_000 else "generated",
+            "historicalDifferences": differences if differences < 1_000_000 else None,
+            "historicalAttempt": attempt.get("attemptNumber"),
+            "compilerProfile": compiler_profile,
+            "compilerScriptSha256": compiler_profile if compiler_script else None,
+            "addressBinding": {
+                "method": "exact-target-object-bytes-at-function-boundary",
+                "binarySha256": target_sha,
+                "targetObject": receipt_path(target_object, repo_root),
+                "targetBytesSha256": hashlib.sha256(target_bytes).hexdigest(),
+            },
+            "confidence": "exact-target-byte-window",
+            "contextSource": receipt_path(path, repo_root),
+            "sourceId": f"{source_id}:{address:x}:{source_sha}",
+            "claimBoundary": "historical generated source is advisory until the current compiler and objdiff-zero gate accepts it",
+        })
+    return facts
+
+
+def coff_text_bytes(path: Path) -> bytes | None:
+    """Read a COFF object's .text section without invoking an external tool."""
+
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None
+    if len(data) < 20:
+        return None
+    section_count = int.from_bytes(data[2:4], "little")
+    optional_size = int.from_bytes(data[16:18], "little")
+    offset = 20 + optional_size
+    for _ in range(section_count):
+        header = data[offset : offset + 40]
+        if len(header) < 40:
+            return None
+        name = header[:8].rstrip(b"\0")
+        size = int.from_bytes(header[16:20], "little")
+        raw = int.from_bytes(header[20:24], "little")
+        if name == b".text" and raw + size <= len(data):
+            return data[raw : raw + size]
+        offset += 40
+    return None
 
 
 def parse_one_shot_reconstruction_tasks(path: Path, payload: dict[str, Any], *, source_id: str, repo_root: Path | None) -> list[dict[str, Any]]:

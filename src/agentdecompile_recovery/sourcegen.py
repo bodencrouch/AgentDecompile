@@ -423,7 +423,10 @@ def is_context_source_fact(fact: dict[str, Any] | None) -> bool:
     return (
         fact.get("semanticDecompilation") is not False
         and bool(fact.get("contextSource"))
-        and str(fact.get("sourceKind") or "") == "context-pack-source-dump"
+        and str(fact.get("sourceKind") or "") in {
+            "context-pack-source-dump",
+            "mizuchi-generated-source",
+        }
     )
 
 
@@ -439,6 +442,9 @@ def source_witness_for_fact(fact: dict[str, Any] | None) -> dict[str, Any] | Non
         "sourceQuality": fact.get("sourceQuality"),
         "recoveryRole": fact.get("recoveryRole"),
         "historicalCompilationStatus": fact.get("historicalCompilationStatus"),
+        "historicalDifferences": fact.get("historicalDifferences"),
+        "historicalAttempt": fact.get("historicalAttempt"),
+        "compilerProfile": fact.get("compilerProfile"),
         "sha256": fact.get("decompiledSha256"),
         "targetBytesSha256": fact.get("targetBytesSha256"),
         "addressBinding": fact.get("addressBinding"),
@@ -473,6 +479,10 @@ def merge_function_facts(existing: dict[str, Any], current: dict[str, Any]) -> d
             "targetBytesHex",
             "targetBytesSha256",
             "addressBinding",
+            "historicalCompilationStatus",
+            "historicalDifferences",
+            "historicalAttempt",
+            "compilerProfile",
         ):
             if source_fact.get(key) not in (None, ""):
                 merged[key] = source_fact[key]
@@ -480,9 +490,13 @@ def merge_function_facts(existing: dict[str, Any], current: dict[str, Any]) -> d
     return merged
 
 
-def context_source_fact_priority(fact: dict[str, Any]) -> tuple[int, int, int, int]:
+def context_source_fact_priority(fact: dict[str, Any]) -> tuple[int, int, int, int, int, int]:
     source_path = Path(str(fact.get("contextSource") or ""))
+    historical_status = str(fact.get("historicalCompilationStatus") or "")
+    historical_differences = coerce_int(fact.get("historicalDifferences"))
     return (
+        2 if historical_status == "objdiff-zero" else 1 if historical_status == "near-miss" else 0,
+        -(historical_differences if historical_differences is not None else 1_000_000),
         1 if coerce_int(fact.get("bodyBytes")) else 0,
         1 if source_path.suffix.lower() in {".c", ".cc", ".cpp", ".cxx"} else 0,
         1 if source_path.is_absolute() else 0,

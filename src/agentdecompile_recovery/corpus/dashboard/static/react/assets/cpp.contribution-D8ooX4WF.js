@@ -1,0 +1,1 @@
+import{_ as e}from"./index-DRkK2x2d.js";import{r as i}from"./_.contribution-FbMpvLJZ.js";import"./monaco-runtime-CYoVPh0A.js";i({id:"c",extensions:[".c",".h"],aliases:["C","c"],loader:()=>e(()=>import("./cpp-BbWJElDN.js"),[])});i({id:"cpp",extensions:[".cpp",".cc",".cxx",".hpp",".hh",".hxx"],aliases:["C++","Cpp","cpp"],loader:()=>e(()=>import("./cpp-BbWJElDN.js"),[])});

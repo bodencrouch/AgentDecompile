@@ -46,7 +46,7 @@ function jobProgress(job:Data){
 }
 function jobLogSummary(job:Data){
   const lines=String(job.log||job.error||'').split(/\r?\n/).map(line=>line.trim()).filter(line=>line&&!/^stage-timing:/.test(line));
-  return lines.at(-1)||'';
+  return [...lines].reverse().find(line=>/^\[[^\]]*\]\s*\d+\s*\/\s*\d+\s+\S/.test(line))||[...lines].reverse().find(line=>!/^[[\]{},]|^"[^"\r\n]+"\s*:/.test(line))||'';
 }
 const sameLocator=(left:unknown,right:unknown)=>String(left||'').replace(/\/+$/,'')===String(right||'').replace(/\/+$/,'');
 function belongsToSelection(job:Data,selection:Selection){

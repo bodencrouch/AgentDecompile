@@ -104,7 +104,7 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
           const { primary, secondary } = stageDisplayProgress(stage);
           const measured = Boolean(primary);
           return <li key={stage.key} data-state={stage.status} aria-current={stage === current ? "step" : undefined}>
-            <div><strong>{stage.title}</strong><span>{stageStatusLabels[String(stage.status)] || stage.status}</span></div>
+            <div><strong>{stage.title}</strong><span>{stage.key} · {stageStatusLabels[String(stage.status)] || stage.status}</span></div>
             {measured && primary ? <progress max={primary.total} value={primary.completed} aria-label={`${stage.title}: ${primary.completed} of ${primary.total}`} /> : active(stage.status) && stage.status !== "queued" ? <progress aria-label={`${stage.title}: ${stageProgressDetail(stage)}`} /> : <div className="preparation-track" />}
             <small>{stage.total === 0 ? "No applicable items" : stageProgressDetail(stage)}</small>
             {secondary && <small className="preparation-subprogress">{stageProgressLabel(secondary)}</small>}

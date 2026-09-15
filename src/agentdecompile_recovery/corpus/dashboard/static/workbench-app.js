@@ -26,6 +26,7 @@
     matchDecide: "/dashboard/api/workbench/match-decide",
     recoverStatus: "/dashboard/api/workbench/recover-status",
     corpusStatus: "/dashboard/api/workbench/corpus-status",
+    preparations: "/dashboard/api/workbench/preparations",
     ghidraDefaults: "/dashboard/api/workbench/ghidra-defaults",
     artifacts: "/dashboard/artifact",
     evidence: "/dashboard/evidence/database",
@@ -933,14 +934,15 @@
       ${title ? html`<h3 className="wb-ladder-title">${title}</h3>` : null}
       <ol className="wb-ladder-list">
         ${list.map(function (step) {
-          const st = step.state || "unmeasured";
-          const unattempted = (st === "not started" || st === "unmeasured") && !step.done;
+          const st = step.state || step.status || "unmeasured";
+          const completed = step.done != null ? step.done : step.completed;
+          const unattempted = (st === "not started" || st === "unmeasured" || st === "queued") && !completed;
           const count = unattempted
             ? "not attempted"
-            : (fmtCount(step.done) + " / " + fmtCount(step.total) + (step.unit ? " " + step.unit : ""));
+            : (fmtCount(completed) + " / " + fmtCount(step.total) + (step.unit ? " " + step.unit : ""));
           return html`<li key=${step.key || step.title} className=${stepStateClass(st)}>
             <div className="wb-step-head">
-              <span className="wb-step-no">${step.label || ""}</span>
+              <span className="wb-step-no">${step.label || step.key || ""}</span>
               <span className="wb-step-name">${step.title || step.key}</span>
               <span className="wb-step-state">${st}</span>
               <span className="wb-step-count">${count}</span>
@@ -948,12 +950,29 @@
                 disabled=${!step.action_enabled}
                 onClick=${function () { onRun(step); }}>Run</button>` : null}
             </div>
-            <p className="wb-hint">${step.why || ""}</p>
+            <p className="wb-hint">${step.why || step.reason || ""}</p>
+            ${step.currentProgram || step.currentTarget ? html`<p className="wb-hint"><code>${step.currentProgram || step.currentTarget}</code>${step.currentAction ? " · " + step.currentAction : ""}</p>` : null}
+            ${step.receipt ? html`<p className="wb-hint">Receipt: <code>${step.receipt}</code></p>` : null}
             ${step.next ? html`<p className="wb-hint">Next: ${step.next}</p>` : null}
           </li>`;
         })}
       </ol>
     </section>`;
+  }
+
+  function selectPreparationRun(runs, locator, program, slug) {
+    const normalizedLocator = String(locator || "").replace(/\/+$/, "");
+    return (runs || []).filter(function (run) {
+      const runLocator = String(run.locator || "").replace(/\/+$/, "");
+      if (normalizedLocator) {
+        return runLocator === normalizedLocator && (!program || !run.program || run.program === program || (run.programs || []).includes(program));
+      }
+      return Boolean(slug) && run.slug === slug;
+    }).sort(function (left, right) {
+      const active = ["queued", "running", "waiting", "cancelling", "disconnected", "resync"];
+      return Number(active.includes(right.status)) - Number(active.includes(left.status))
+        || Number(right.updatedAt || 0) - Number(left.updatedAt || 0);
+    })[0] || null;
   }
 
   function BinaryCompareTable({ binaries, onOpen }) {
@@ -2287,6 +2306,7 @@
     const [detail, setDetail] = useState(null);
     const [overview, setOverview] = useState(null);
     const [corpusStatus, setCorpusStatus] = useState(null);
+    const [preparationRuns, setPreparationRuns] = useState([]);
     const [graph, setGraph] = useState(null);
     const [actions, setActions] = useState([]);
     const [jobs, setJobs] = useState([]);
@@ -2316,7 +2336,7 @@
     const [openTab, setOpenTab] = useState("local");
     const [openPaste, setOpenPaste] = useState("");
     const [funcNote, setFuncNote] = useState("");
-    const [program, setProgram] = useState("");
+    const [program, setProgram] = useState(start.get("program") || "");
     const [sessions, setSessions] = useState([]);
     const [activeSession, setActiveSession] = useState("");
     const [sessionRevision, setSessionRevision] = useState(0);
@@ -2419,6 +2439,16 @@
         setCorpusStatus(data);
       } catch (err) {
         setCorpusStatus({ ok: false, error: String(err && err.message || err) });
+      }
+    }, []);
+
+    const loadPreparations = useCallback(async function () {
+      try {
+        const res = await fetch(API.preparations, { cache: "no-store" });
+        const data = await res.json();
+        setPreparationRuns(data.runs || []);
+      } catch (_err) {
+        /* Keep the last durable preparation receipt visible while reconnecting. */
       }
     }, []);
 
@@ -2899,9 +2929,10 @@
         /* A deep link that names a build wins over the restored tab, otherwise
            /dashboard?window=…&binary=X silently shows a different build. */
         const pinned = start.get("slug") || start.get("binary") || "";
+        const pinnedProgram = start.get("program") || "";
         if (cur && cur.locator) {
           if (!pinned) setSlug(cur.projectSlug || "");
-          setProgram(cur.program || "");
+          if (!pinnedProgram) setProgram(cur.program || "");
           loadPreview(cur.locator);
         } else if (!pinned && cur && (cur.imports || []).length) {
           const first = importSlug(cur.imports[0]);
@@ -2963,6 +2994,12 @@
         window.removeEventListener("keydown", onKey);
       };
     }, [loadBinaries, loadContext, loadActions, loadBrowse, loadPreview]);
+
+    useEffect(function () {
+      loadPreparations();
+      const timer = window.setInterval(loadPreparations, 2000);
+      return function () { window.clearInterval(timer); };
+    }, [loadPreparations]);
 
     useEffect(function () {
       if (!dossier || !dossier.ok || program) return;
@@ -4676,6 +4713,7 @@
 
     function renderEditorBody() {
       const tab = centerTab || "decompile";
+      const recoveryRun = selectPreparationRun(preparationRuns, currentLocator(), program, slug);
       if (tab === "graph") {
         return html`<${Surface} id="wb-graph" title="Call trees">
           <p className="wb-hint">Incoming and outgoing calls for this function. This is not Ghidra Function Graph.</p>
@@ -4743,6 +4781,7 @@
           ${quickBar("pipeline")}
           <${StepLadder} title="Corpus" steps=${ladder.corpus_steps} onRun=${runLadderStep} />
           ${active ? html`<${StepLadder} title=${"Build " + active.slug} steps=${active.steps} onRun=${runLadderStep} />` : null}
+          ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + recoveryRun.status} steps=${recoveryRun.stages} />` : null}
         </${Surface}>`;
       }
       if (tab === "wb-jobs") {
@@ -4939,12 +4978,16 @@
         const steps = ((corpusStatus && corpusStatus.ladder && corpusStatus.ladder.corpus_steps) || []).filter(function (s) {
           return s.key === "leftover-recover" || s.key === "verify-byte-accuracy" || s.key === "apply-cross-build";
         });
+        const recoverySteps = recoveryRun ? (recoveryRun.stages || []).filter(function (stage) {
+          return ["calibrate-global", "materialize-target", "assembly-floor", "recover-source", "apply-cross-build", "leftover-recover", "verify-byte-accuracy"].includes(stage.key);
+        }) : [];
         return html`<${Surface} id="wb-roundtrip" title="Roundtrip" actions=${panelActions(
           runActionButton("reconstruct.run", "Reconstruct run"),
           runActionButton("corpus.verify-legacy-recovered", "Verify legacy"),
           runActionButton("corpus.external-bridge", "External bridge")
         )}>
           <${CorpusHeadline} headline=${corpusStatus && corpusStatus.headline} claim="Compile and byte-accuracy stay separate columns." />
+          ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + (recoveryRun.program || program || slug || recoveryRun.status)} steps=${recoverySteps} />` : null}
           <${StepLadder} title="Compile and verify" steps=${steps} onRun=${runLadderStep} />
         </${Surface}>`;
       }

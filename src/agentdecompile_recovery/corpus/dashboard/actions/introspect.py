@@ -55,7 +55,10 @@ _CONTEXT = {
 
 
 def _kind(action: argparse.Action) -> str:
-    if isinstance(action, (argparse._StoreTrueAction, argparse._StoreFalseAction)):
+    if isinstance(
+        action,
+        (argparse._StoreTrueAction, argparse._StoreFalseAction, argparse.BooleanOptionalAction),
+    ):
         return "bool"
     typ = action.type
     if typ is int:

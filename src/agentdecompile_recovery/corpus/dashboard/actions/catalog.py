@@ -422,6 +422,14 @@ def build_command(action: ActionSpec, params: dict[str, Any]) -> list[str]:
         if spec.kind == "bool":
             if value in (True, "true", "1", "yes", "on"):
                 argv.append(spec.flag or f"--{spec.name}")
+            elif spec.default is True:
+                # argparse.BooleanOptionalAction options defaulting to true
+                # need their explicit negative spelling.  Omitting the option
+                # would silently leave them enabled, while serializing False
+                # as a value lets argparse consume it as a positional argument.
+                positive_flag = spec.flag or f"--{spec.name}"
+                if positive_flag.startswith("--"):
+                    argv.append(f"--no-{positive_flag[2:]}")
             continue
         if spec.positional:
             argv.append(str(value))

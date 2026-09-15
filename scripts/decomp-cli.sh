@@ -51,7 +51,8 @@ Commands:
 EOF
 }
 
-root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+script_path="$(readlink -f "${BASH_SOURCE[0]}")"
+root_dir="$(cd "$(dirname "$script_path")/.." && pwd)"
 prompt_root="${AGENTDECOMPILE_PROMPTS_DIR:-$root_dir/prompts}"
 cmd="${1:-}"
 

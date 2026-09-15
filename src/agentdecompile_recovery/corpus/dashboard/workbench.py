@@ -619,7 +619,7 @@ def _shared_program_rows(locator: str) -> list[dict[str, Any]]:
     canonical = str(info.get("canonical") or info.get("locator") or locator).rstrip("/")
     paths = info.get("program_paths") or {}
     bound_rows, _ = query_db(
-        "SELECT b.id,b.repo_path,b.func_count,b.named_count,b.role,b.variant,b.game,b.platform,b.format,p.program "
+        "SELECT b.id,b.repo_path,b.func_count,b.named_count,b.role,b.variant,b.game,b.platform,b.format,p.program,b.slug "
         "FROM binary b JOIN program_binding p ON p.source_path=b.repo_path WHERE p.locator=?",
         (canonical,),
     )
@@ -636,7 +636,7 @@ def _shared_program_rows(locator: str) -> list[dict[str, Any]]:
         seen.add(key)
         name = str(display or Path(program).name)
         recorded = bound.get(program)
-        binary_id, source_path, funcs, named, role, label, game, platform, binary_format, _ = recorded or (None, "", 0, 0, "member", "", "", "", "", "")
+        binary_id, source_path, funcs, named, role, label, game, platform, binary_format, _, artifact_slug = recorded or (None, "", 0, 0, "member", "", "", "", "", "", name)
         rows.append({
             "id": f"shared-program:{key}",
             "libraryId": f"shared-program:{key}",
@@ -661,8 +661,8 @@ def _shared_program_rows(locator: str) -> list[dict[str, Any]]:
             "aliasSlugs": [name],
             "binaryIds": [binary_id] if binary_id is not None else [],
             "sourcePaths": [source_path] if source_path else [],
-            "decomp": decomp_rollup(name, int(funcs or 0)),
-            "validate": validate_rollup(name, int(funcs or 0)),
+            "decomp": decomp_rollup(str(artifact_slug or name), int(funcs or 0)),
+            "validate": validate_rollup(str(artifact_slug or name), int(funcs or 0)),
         })
     return rows
 
@@ -1414,18 +1414,22 @@ def list_functions(
 ) -> dict[str, Any]:
     slug = (slug or "").strip()
     program = (program or "").strip()
-    locator = (locator or "").strip()
+    locator = (locator or "").strip().replace("\\", "/").rstrip("/")
+    if locator and "://" not in locator:
+        locator = str(Path(locator).expanduser().resolve(strict=False)).replace("\\", "/").rstrip("/")
+    binding_program = program.replace("\\", "/").lstrip("/")
     if not slug and not program:
         return {"ok": False, "error": "pick a binary", "results": [], "total": 0}
     rows: list[Any] = []
     err = None
-    if locator and program:
+    if locator and binding_program:
         rows, err = query_db(
-            "SELECT b.id,b.bits FROM binary b JOIN program_binding p ON p.source_path=b.repo_path "
-            "WHERE p.locator=? AND p.program=? LIMIT 1",
-            (locator.rstrip("/"), program),
+            "SELECT b.id,b.bits,b.slug FROM binary b JOIN program_binding p ON p.source_path=b.repo_path "
+            "WHERE rtrim(replace(p.locator,char(92),'/'),'/')=? "
+            "AND ltrim(replace(p.program,char(92),'/'),'/')=? LIMIT 1",
+            (locator, binding_program),
         )
-    if not rows and not err:
+    if not rows and not err and not (locator and binding_program):
         rows, err = query_db(
             "SELECT id, bits FROM binary WHERE slug=? LIMIT 1",
             (slug,),
@@ -1439,6 +1443,7 @@ def list_functions(
             )
         return {"ok": False, "error": f"no build called {slug}", "results": [], "total": 0}
     bid, bits = rows[0][0], rows[0][1] or 32
+    artifact_slug = str(rows[0][2] if len(rows[0]) > 2 else slug)
     start, cap = page_window(offset, limit)
     from agentdecompile_recovery.corpus.dashboard.common import table_exists
 
@@ -1492,7 +1497,7 @@ def list_functions(
     for addr, name, size, logical_id, namespace, source_file, name_origin, source_type in data or []:
         addr_i = int(addr)
         shown = name or f"FUN_{format_address(addr_i, bits)[2:]}"
-        unit = _find_unit(slug, addr_i, shown)
+        unit = _find_unit(artifact_slug, addr_i, shown)
         decomp = _classify_c(unit) if unit else "none"
         obj_hit = False
         objs = obj_root()

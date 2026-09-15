@@ -1436,10 +1436,19 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         # resumed: doing so can duplicate expensive work and falsely make the
         # facts stage look empty while the corpus already contains functions.
         inventory_rows, inventory_error = query_db(
-            'SELECT id, slug, repo_path, func_count, recovery_family FROM binary '
-            'WHERE EXISTS (SELECT 1 FROM func WHERE func.binary_id=binary.id)'
+            'SELECT b.id,b.slug,b.repo_path,b.func_count,b.recovery_family,p.locator,p.program FROM binary b '
+            'LEFT JOIN program_binding p ON p.source_path=b.repo_path '
+            'WHERE EXISTS (SELECT 1 FROM func WHERE func.binary_id=b.id)'
         )
-        inventory_by_source = {str(item[2] or ''): item for item in inventory_rows} if not inventory_error else {}
+        inventory_rows = inventory_rows if not inventory_error else []
+        inventory_by_binding = {
+            (str(item[5] or '').replace('\\', '/').rstrip('/'), str(item[6] or '').replace('\\', '/').lstrip('/')): item[:5]
+            for item in inventory_rows if item[5] and item[6]
+        }
+        inventory_by_source = {
+            str(Path(str(item[2] or '')).expanduser().resolve(strict=False)): item[:5]
+            for item in inventory_rows if item[2]
+        }
         extracted = 0
         analyzed_programs = [
             program for program in programs
@@ -1449,7 +1458,9 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             if program in protection_blocked or not row['checkpoints'].get(program, {}).get('analysisConfirmed'):
                 continue
             checkpoint = row['checkpoints'].setdefault(program, {})
-            existing = inventory_by_source.get(f"{locator.rstrip('/')}/{program.lstrip('/')}")
+            binding_key = (locator.replace('\\', '/').rstrip('/'), program.replace('\\', '/').lstrip('/'))
+            canonical_source = str((Path(locator).expanduser() / program.lstrip('/')).resolve(strict=False))
+            existing = inventory_by_binding.get(binding_key) or inventory_by_source.get(canonical_source)
             if existing:
                 checkpoint.update(
                     factsComplete=True, binaryId=existing[0], slug=existing[1],
@@ -1939,7 +1950,9 @@ def _action_prior_for_retry(name: str, prior: dict[str, Any]) -> dict[str, Any]:
         and data.get('returncode') == 127
         and data.get('error') == 'Ghidra support/bsim not found (set GHIDRA_INSTALL_DIR)'
     ):
-        return {}
+        from agentdecompile_recovery.corpus.bsim_ops import find_bsim_launcher
+        if find_bsim_launcher() is not None:
+            return {}
     return prior
 
 

@@ -571,6 +571,13 @@ def resolve_msvc_root(msvc_root: Path | None) -> Path:
 
 def msvc_environment(msvc_root: Path, wineprefix: Path | None) -> dict[str, str]:
     env = dict(os.environ)
+    # ``CL`` and ``_CL_`` are implicit command-line fragments consumed by
+    # cl.exe.  They leak from developer shells/CI and can silently change the
+    # compiler profile (for example adding the unsupported ``/G-`` flag), so
+    # every isolated recovery compile must start with only explicit flags.
+    for key in tuple(env):
+        if key.upper() in {"CL", "_CL_"}:
+            env.pop(key, None)
     prefix = wineprefix or Path(env.get("WINEPREFIX") or "target/toolchain-acquire/vctoolkit2003/wineprefix")
     env["WINEPREFIX"] = str(prefix.expanduser().resolve())
     env["WINEDEBUG"] = env.get("WINEDEBUG", "-all")

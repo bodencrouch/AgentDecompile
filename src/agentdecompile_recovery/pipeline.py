@@ -1055,6 +1055,19 @@ class RecoveryRunner:
             summary = {"status": "skipped", "reason": "enable with --byte-authority", "claimBoundary": "no semantic source claim"}
             atomic_write_json(result_path, summary)
             return summary
+        rebuilt = out_dir / "package" / "rebuilt.bin"
+        if rebuilt.is_file() and sha256_file(rebuilt) == target.sha256:
+            summary = {
+                "schema": "agentdecompile.byte-authority.v1",
+                "status": "complete",
+                "identical": True,
+                "sha256Original": target.sha256,
+                "sha256Rebuilt": target.sha256,
+                "rebuilt": str(rebuilt),
+                "claimBoundary": "Byte-identical assembly substrate; not recovered authored C/C++.",
+            }
+            atomic_write_json(result_path, summary)
+            return summary
         one_shot_script = resolve_script_asset(ROOT, "one-shot-source.py")
         if one_shot_script is None:
             raise FileNotFoundError("one-shot-source.py is not available in checkout scripts or installed package data")

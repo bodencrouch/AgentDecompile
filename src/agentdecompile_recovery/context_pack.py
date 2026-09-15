@@ -47,6 +47,11 @@ ADDRESS_RE = re.compile(r"(?:0x|RVA\s*[:=]\s*0x|VA\s*[:=]\s*0x)([0-9A-Fa-f]{4,16
 NAME_ADDRESS_RE = re.compile(r"(?:sub_|fcn[._]|FUN_|F_)([0-9A-Fa-f]{4,16})", re.IGNORECASE)
 FILENAME_ADDRESS_RE = re.compile(r"^(?:0x)?([0-9A-Fa-f]{6,16})[_-]")
 FUNCTION_SIZE_RE = re.compile(r"\bsize\s*:\s*(\d+)\s*bytes?\b", re.IGNORECASE)
+SOURCE_METADATA_ADDRESS_RE = re.compile(r"^\s*\*\s*address\s*:\s*0x([0-9A-Fa-f]{4,16})\b", re.IGNORECASE | re.MULTILINE)
+SOURCE_METADATA_NAME_RE = re.compile(r"^\s*\*\s*(.+?)\s+--\s+", re.MULTILINE)
+GHIDRA_COMPILED_SOURCE_RE = re.compile(r"compiled from Ghidra(?:'s)? decompilation", re.IGNORECASE)
+COMPILE_ONLY_ASM_RE = re.compile(r"\bcompile-only-asm\b", re.IGNORECASE)
+MAX_ADDRESS_BOUND_SOURCE_FILES = 50_000
 
 
 def receipt_path(path: Path, repo_root: Path | None) -> str:
@@ -153,6 +158,8 @@ def build_context_pack(
         "inputs": [receipt_path(path, repo_root) for path in contexts],
         "filesVisited": len(files),
         "factsImported": len(facts),
+        "sourceCandidates": sum(1 for row in facts if row.get("recoveryRole") == "advisory-source-candidate"),
+        "assemblySubstrates": sum(1 for row in facts if row.get("recoveryRole") == "assembly-substrate"),
         "contextItems": len(context_items),
         "skipped": skipped,
         "failed": failed,
@@ -172,7 +179,8 @@ def build_context_pack(
 def discover_context_files(paths: list[Path], *, max_files: int) -> Iterable[Path]:
     count = 0
     for root in paths:
-        if count >= max_files:
+        root_limit = max(max_files, MAX_ADDRESS_BOUND_SOURCE_FILES) if is_address_bound_source_corpus(root) else max_files
+        if count >= root_limit:
             break
         if root.is_file():
             count += 1
@@ -183,11 +191,25 @@ def discover_context_files(paths: list[Path], *, max_files: int) -> Iterable[Pat
             yield root
             continue
         for path in sorted(root.rglob("*")):
-            if count >= max_files:
+            if count >= root_limit:
                 break
             if path.is_file():
                 count += 1
                 yield path
+
+
+def is_address_bound_source_corpus(root: Path) -> bool:
+    """Recognize a function-per-file source corpus that must not be truncated."""
+
+    if not root.is_dir():
+        return False
+    for path in sorted(root.rglob("*")):
+        if path.is_file() and path.suffix.lower() in SOURCE_SUFFIXES:
+            try:
+                return SOURCE_METADATA_ADDRESS_RE.search(path.read_text(encoding="utf-8", errors="replace")[:4096]) is not None
+            except OSError:
+                return False
+    return False
 
 
 def parse_context_file(path: Path, text: str, *, source_id: str, repo_root: Path | None) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -325,6 +347,10 @@ def coerce_hex_address(value: Any) -> int | None:
 
 
 def parse_source_dump(path: Path, text: str, *, source_id: str, repo_root: Path | None) -> list[dict[str, Any]]:
+    metadata_address = SOURCE_METADATA_ADDRESS_RE.search(text[:4096])
+    if metadata_address:
+        return [parse_address_bound_source(path, text, source_id=source_id, repo_root=repo_root, address=int(metadata_address.group(1), 16))]
+
     facts: list[dict[str, Any]] = []
     offsets = line_start_offsets(text)
     lines = text.splitlines()
@@ -378,6 +404,10 @@ def parse_source_dump(path: Path, text: str, *, source_id: str, repo_root: Path 
                 "confidence": "context-source-dump",
                 "contextSource": receipt_path(path, repo_root),
                 "sourceId": source_id,
+                "sourceQuality": "high-level-c",
+                "semanticDecompilation": True,
+                "recoveryRole": "advisory-source-candidate",
+                "historicalCompilationStatus": "not-recorded",
                 "decompiledSha256": hashlib.sha256((source + "\n").encode("utf-8")).hexdigest(),
                 "claimBoundary": "source dump text is unverified acquisition context; compile and objdiff gates remain required.",
             }
@@ -392,6 +422,56 @@ def parse_source_dump(path: Path, text: str, *, source_id: str, repo_root: Path 
         if filename_address:
             break
     return facts
+
+
+def parse_address_bound_source(
+    path: Path,
+    text: str,
+    *,
+    source_id: str,
+    repo_root: Path | None,
+    address: int,
+) -> dict[str, Any]:
+    """Keep one address-bound source file as one witness, including its prelude."""
+
+    from .corpus.source_claims import is_machine_code_shim
+
+    source = text.rstrip() + "\n"
+    metadata_name = SOURCE_METADATA_NAME_RE.search(text[:4096])
+    name = normalize_function_name(metadata_name.group(1).strip() if metadata_name else path.stem)
+    header = text[:4096]
+    compile_only_asm = COMPILE_ONLY_ASM_RE.search(header) is not None
+    ghidra_compiled = GHIDRA_COMPILED_SOURCE_RE.search(header) is not None
+    assembly_substrate = compile_only_asm or (not ghidra_compiled and is_machine_code_shim(source))
+    fact = {
+        "schema": "agentdecompile.context-function-fact.v1",
+        "provider": "agentdecompile",
+        "tool": "context-pack-ghidra-compiled-source" if ghidra_compiled else "context-pack-source-dump",
+        "sourceKind": "context-pack-assembly-substrate" if assembly_substrate else "context-pack-source-dump",
+        "name": name,
+        "entryOffset": address,
+        "address": address,
+        "language": "c" if path.suffix.lower() in {".c", ".h"} else "c++",
+        "confidence": "address-bound-source-corpus",
+        "contextSource": receipt_path(path, repo_root),
+        "sourceId": source_id,
+        "sourceQuality": "byte-emission-asm" if compile_only_asm else "inline-asm-c" if assembly_substrate else "high-level-c",
+        "semanticDecompilation": not assembly_substrate,
+        "recoveryRole": "assembly-substrate" if assembly_substrate else "advisory-source-candidate",
+        "historicalCompilationStatus": "compiled" if ghidra_compiled else "not-recorded",
+        "claimBoundary": (
+            "compile-only assembly is retained as substrate evidence and is not a readable-source candidate"
+            if assembly_substrate
+            else "address-bound source is advisory until a current compiler and objdiff-zero receipt accepts it"
+        ),
+    }
+    size_match = FUNCTION_SIZE_RE.search(text[:4096])
+    if size_match:
+        fact["bodyBytes"] = int(size_match.group(1))
+    content_key = "asm" if assembly_substrate else "decompiled"
+    fact[content_key] = source
+    fact[f"{content_key}Sha256"] = hashlib.sha256(source.encode("utf-8")).hexdigest()
+    return fact
 
 
 def line_start_offsets(text: str) -> list[int]:

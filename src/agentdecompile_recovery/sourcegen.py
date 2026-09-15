@@ -176,7 +176,7 @@ def generate_source_candidates(
                     source_language = str(fact.get("language") or source_language)
                 source_path = case_dir / f"candidate.{source_extension}"
                 source_path.write_text(source, encoding="utf-8")
-                source_quality = _GEN["sourceQuality"]
+                source_quality = str(fact.get("sourceQuality") or _GEN["sourceQuality"])
                 source_recovery_scope = "whole-function"
                 generated_by_language[source_language] = (
                     generated_by_language.get(source_language, 0) + 1
@@ -201,6 +201,7 @@ def generate_source_candidates(
                             else "external decompiler output; automatically exported, not manually authored"
                         ),
                         "semanticSource": True,
+                        "historicalCompilationStatus": fact.get("historicalCompilationStatus"),
                         "verificationTier": verification_tier_for_task(task, has_source=True),
                         "acceptanceGate": "compile with selected compiler profile and objdiff-zero against target object; target-slice checks remain pre-acceptance evidence",
                     }
@@ -419,7 +420,11 @@ def load_function_facts(path: Path) -> dict[str, dict[str, Any]]:
 def is_context_source_fact(fact: dict[str, Any] | None) -> bool:
     if not isinstance(fact, dict) or not fact.get("decompiled"):
         return False
-    return bool(fact.get("contextSource")) and str(fact.get("sourceKind") or "") == "context-pack-source-dump"
+    return (
+        fact.get("semanticDecompilation") is not False
+        and bool(fact.get("contextSource"))
+        and str(fact.get("sourceKind") or "") == "context-pack-source-dump"
+    )
 
 
 def source_witness_for_fact(fact: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -431,6 +436,9 @@ def source_witness_for_fact(fact: dict[str, Any] | None) -> dict[str, Any] | Non
         "sourceId": fact.get("sourceId"),
         "tool": fact.get("tool"),
         "sourceKind": fact.get("sourceKind"),
+        "sourceQuality": fact.get("sourceQuality"),
+        "recoveryRole": fact.get("recoveryRole"),
+        "historicalCompilationStatus": fact.get("historicalCompilationStatus"),
         "sha256": fact.get("decompiledSha256"),
         "claimBoundary": fact.get("claimBoundary")
         or "acquired source is advisory until fresh compile and objdiff acceptance",
@@ -501,9 +509,17 @@ def admit_context_source_candidates(
         if not is_context_source_fact(fact):
             continue
         address = coerce_int(fact.get("entryOffset")) or coerce_int(fact.get("address"))
-        size = coerce_int(fact.get("bodyBytes")) or 0
-        if address is None or size <= 0 or not context_fact_fits_inventory(address, size, inventory):
+        if address is None:
             continue
+        choices = candidates_by_address.get(address, [])
+        size = coerce_int(fact.get("bodyBytes")) or next(
+            (coerce_int(row.get("size")) for row in choices if coerce_int(row.get("size"))),
+            0,
+        )
+        if not context_fact_fits_inventory(address, max(size, 1), inventory):
+            continue
+        if size > 0 and not fact.get("bodyBytes"):
+            fact = {**fact, "bodyBytes": size}
         unique_facts[address] = fact
 
     admitted: list[dict[str, Any]] = []
@@ -523,14 +539,9 @@ def admit_context_source_candidates(
                 "section": (section_for_address(inventory, address) or {}).get("name"),
                 "confidence": "high",
             }
-        candidate.update(
-            {
-                "size": coerce_int(fact.get("bodyBytes")),
-                "sizeSource": "context-source-metadata",
-                "source": "context-source-dump",
-                "contextSource": fact.get("contextSource"),
-            }
-        )
+        candidate.update({"source": "context-source-dump", "contextSource": fact.get("contextSource")})
+        if coerce_int(fact.get("bodyBytes")):
+            candidate.update({"size": coerce_int(fact.get("bodyBytes")), "sizeSource": "context-source-metadata"})
         admitted.append(candidate)
 
     admitted_addresses = set(unique_facts)

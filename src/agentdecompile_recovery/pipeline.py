@@ -324,7 +324,12 @@ class RecoveryRunner:
             "sourceSynthesisSourceQualities": list(self.config.source_synthesis_source_qualities),
             "sourceSynthesisVcRoot": str(self.config.source_synthesis_vc_root) if self.config.source_synthesis_vc_root else None,
             "sourceSynthesisWine": self.config.source_synthesis_wine,
-            "sourceSynthesisWineprefix": str(self.config.source_synthesis_wineprefix) if self.config.source_synthesis_wineprefix else None,
+            "sourceSynthesisWineprefix": (
+                str(self.config.source_synthesis_wineprefix)
+                if self.config.source_synthesis_wineprefix
+                and stage.name in {"synthesize-source-tasks", "plan-strategy", "report"}
+                else None
+            ),
             "steamlessCli": str(self.config.steamless_cli) if self.config.steamless_cli else None,
             "contextFormat": self.config.context_format,
             "contextBinaryAnalysis": self.config.context_binary_analysis,

@@ -397,6 +397,7 @@ def build_parser() -> argparse.ArgumentParser:
     plugin_synth.add_argument("--skip-boundary-suspect", action="store_true")
     plugin_synth.add_argument("--source-shape-search", action="store_true")
     plugin_synth.add_argument("--clean", action="store_true")
+    plugin_synth.add_argument("--resume", action="store_true", help="Reuse terminal attempts whose target slice, candidate source, compiler/toolchain, and configuration key still match exactly.")
     plugin_synth.add_argument("--vc-root", type=Path)
     plugin_synth.add_argument("--wine", default="wine")
     plugin_synth.add_argument("--wineprefix", type=Path)
@@ -976,6 +977,7 @@ def run_source_plugin_pipeline_command(args: argparse.Namespace) -> int:
             timeout=args.timeout,
             progress_every=args.progress_every,
             target_sha=args.target_sha,
+            resume=args.resume,
         )
     )
     print(json.dumps(report, indent=2, sort_keys=True))

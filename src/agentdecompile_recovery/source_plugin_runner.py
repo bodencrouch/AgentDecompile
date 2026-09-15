@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from dataclasses import dataclass, field
@@ -9,6 +10,8 @@ from pathlib import Path
 from typing import Any
 
 from .plugin_pipeline import PluginPipeline
+from .compile_cache import target_slice_sha256
+from .match_cache import is_proven_zero, source_sha256
 from .source_export import export_recovered_source
 from .source_parity_synthesize import (
     append_packaged_fallback,
@@ -22,11 +25,16 @@ from .source_parity_synthesize import (
     iter_source_task_rows,
     packaged_source_candidate,
     parse_profile_flag_set,
+    prioritize_candidates,
     strategy_allowed,
     synthesis_row_priority,
     write_json,
 )
 from .source_plugins import SourceCandidateGeneratorPlugin, SourceCandidateObjdiffPlugin
+from .state import atomic_write_json
+
+
+TERMINAL_ATTEMPT_CACHE_SCHEMA = "agentdecompile.source-plugin-terminal-attempt.v1"
 
 
 @dataclass
@@ -58,9 +66,12 @@ class SourcePluginRunConfig:
     timeout: int = 120
     progress_every: int = 0
     target_sha: str | None = None
+    resume: bool = False
 
 
 def run_source_plugin_pipeline(config: SourcePluginRunConfig) -> dict[str, Any]:
+    if config.clean and config.resume:
+        raise ValueError("source plugin pipeline cannot combine clean and resume")
     if config.clean and config.out_dir.exists():
         shutil.rmtree(config.out_dir)
     config.out_dir.mkdir(parents=True, exist_ok=True)
@@ -69,8 +80,15 @@ def run_source_plugin_pipeline(config: SourcePluginRunConfig) -> dict[str, Any]:
     source_shape_matches_path = config.out_dir / "plugin-source-shape-matches.jsonl"
     events_path = config.out_dir / "plugin-events.jsonl"
     runs_path = config.out_dir / "plugin-runs.jsonl"
+    terminal_cache_root = config.out_dir / "terminal-attempt-cache"
+    if not config.resume and terminal_cache_root.exists():
+        shutil.rmtree(terminal_cache_root)
     for path in (attempts_path, matches_path, source_shape_matches_path, events_path, runs_path):
-        clean_jsonl(path)
+        if config.resume:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch(exist_ok=True)
+        else:
+            clean_jsonl(path)
 
     rows = collect_rows(config)
     inspected = 0
@@ -79,6 +97,9 @@ def run_source_plugin_pipeline(config: SourcePluginRunConfig) -> dict[str, Any]:
     skipped_no_candidate = 0
     succeeded = 0
     failed = 0
+    resumed_terminal_attempts = 0
+    resumed_successful_attempts = 0
+    resumed_failed_attempts = 0
     pipeline = PluginPipeline(max_retries=max(1, config.max_retries), event_handler=jsonl_event_handler(events_path))
     pipeline.register(SourceCandidateGeneratorPlugin(), SourceCandidateObjdiffPlugin())
 
@@ -97,6 +118,42 @@ def run_source_plugin_pipeline(config: SourcePluginRunConfig) -> dict[str, Any]:
             skipped_boundary += 1
             continue
         inspected += 1
+        terminal_key, terminal_key_payload = terminal_attempt_cache_key(row, config)
+        cached_terminal = (
+            load_terminal_attempt(terminal_cache_root, terminal_key, terminal_key_payload)
+            if config.resume and terminal_key
+            else None
+        )
+        if cached_terminal is not None:
+            cached_result = cached_terminal.get("result") if isinstance(cached_terminal.get("result"), dict) else {}
+            cached_success = cached_result.get("success") is True
+            if not cached_success or restore_cached_proof_rows(
+                cached_terminal,
+                matches_path=matches_path,
+                source_shape_matches_path=source_shape_matches_path,
+            ):
+                resumed_terminal_attempts += 1
+                if cached_success:
+                    succeeded += 1
+                    resumed_successful_attempts += 1
+                else:
+                    failed += 1
+                    resumed_failed_attempts += 1
+                append_jsonl(
+                    events_path,
+                    {
+                        "type": "terminal-attempt-cache-hit",
+                        "cacheKey": terminal_key,
+                        "functionName": row.get("name"),
+                        "entry": row.get("entry"),
+                        "success": cached_success,
+                    },
+                )
+                continue
+
+        attempt_offset = jsonl_size(attempts_path)
+        match_offset = jsonl_size(matches_path)
+        source_shape_match_offset = jsonl_size(source_shape_matches_path)
         result = pipeline.run_pipeline(
             prompt_path=str(row.get("source") or row.get("entry") or row.get("name") or ""),
             prompt_content="",
@@ -132,11 +189,29 @@ def run_source_plugin_pipeline(config: SourcePluginRunConfig) -> dict[str, Any]:
                 },
             },
         )
-        append_jsonl(runs_path, result.to_json())
+        result_json = result.to_json()
+        if terminal_key:
+            result_json["terminalAttemptKey"] = terminal_key
+        append_jsonl(runs_path, result_json)
         if result.success:
             succeeded += 1
         else:
             failed += 1
+        if terminal_key:
+            attempt_records = read_jsonl_tail(attempts_path, attempt_offset)
+            proof_rows = [
+                *tagged_proof_rows("code-slice", read_jsonl_tail(matches_path, match_offset)),
+                *tagged_proof_rows("source-shape", read_jsonl_tail(source_shape_matches_path, source_shape_match_offset)),
+            ]
+            if terminal_result_is_cacheable(result_json, attempt_records, proof_rows):
+                store_terminal_attempt(
+                    terminal_cache_root,
+                    terminal_key,
+                    key_payload=terminal_key_payload,
+                    result=result_json,
+                    attempt_records=attempt_records,
+                    proof_rows=proof_rows,
+                )
         if config.progress_every and inspected % config.progress_every == 0:
             print(
                 f"source-plugin-pipeline: inspected={inspected} succeeded={succeeded} failed={failed}",
@@ -175,6 +250,10 @@ def run_source_plugin_pipeline(config: SourcePluginRunConfig) -> dict[str, Any]:
         "skippedNoCompatibleCandidateFunctions": skipped_no_candidate,
         "successfulFunctions": succeeded,
         "failedFunctions": failed,
+        "resumedTerminalAttempts": resumed_terminal_attempts,
+        "resumedSuccessfulAttempts": resumed_successful_attempts,
+        "resumedFailedAttempts": resumed_failed_attempts,
+        "terminalAttemptCacheDir": str(terminal_cache_root),
         "matchedBySourceQuality": exported_quality_counts,
         "matchedByRecoveryScope": exported_scope_counts,
         "rawMatchedBySourceQuality": raw_match_quality_counts,
@@ -208,6 +287,10 @@ def collect_rows(config: SourcePluginRunConfig) -> list[dict[str, Any]]:
 
 
 def compatible_candidate_count(row: dict[str, Any], config: SourcePluginRunConfig) -> int:
+    return len(compatible_candidates(row, config))
+
+
+def compatible_candidates(row: dict[str, Any], config: SourcePluginRunConfig) -> list[Any]:
     raw_candidates = append_packaged_fallback(
         generate(row, config.max_variants_per_function),
         packaged_source_candidate(row),
@@ -217,7 +300,256 @@ def compatible_candidate_count(row: dict[str, Any], config: SourcePluginRunConfi
     candidates = compiler_compatible_candidates(row, raw_candidates, config.compiler, config.max_variants_per_function)
     if config.semantic_only:
         candidates = [candidate for candidate in candidates if candidate.semantic_source]
-    return len(candidates)
+    return prioritize_candidates(candidates)
+
+
+def terminal_attempt_cache_key(
+    row: dict[str, Any],
+    config: SourcePluginRunConfig,
+) -> tuple[str | None, dict[str, Any]]:
+    """Build a fail-closed resume key for one terminal plugin run."""
+
+    # A live rewrite queue can change independently of the source-task row. Do
+    # not cache those runs until the resolved rewrite itself is part of the key.
+    if config.work_dir is not None:
+        return None, {}
+    target_slice_sha = target_slice_sha256(row)
+    candidates = compatible_candidates(row, config)
+    if not target_slice_sha or not candidates:
+        return None, {}
+    payload = {
+        "schema": "agentdecompile.source-plugin-terminal-attempt-key.v1",
+        "targetSliceSha256": target_slice_sha,
+        "targetSha256": str(config.target_sha or row.get("targetSha256") or row.get("analysisBinarySha256") or ""),
+        "entry": str(row.get("entry") or ""),
+        "address": row.get("address"),
+        "sources": [
+            {
+                "sha256": source_sha256(candidate.source),
+                "rule": candidate.rule,
+                "variant": candidate.variant,
+                "suffix": candidate.source_suffix,
+                "extraFlags": list(candidate.extra_flags),
+                "semanticSource": bool(candidate.semantic_source),
+            }
+            for candidate in candidates
+        ],
+        "compiler": {
+            "kind": config.compiler,
+            "toolchain": compiler_toolchain_identity(config),
+            "profiles": [
+                {"name": name, "flags": list(flags)}
+                for name, flags in config.compiler_profiles
+            ],
+            "rowProfileHints": row.get("compilerProfileHints"),
+        },
+        "inventorySha256": path_sha256(config.inventory),
+        "configuration": {
+            "dryRun": config.dry_run,
+            "semanticOnly": config.semantic_only,
+            "skipBoundarySuspect": config.skip_boundary_suspect,
+            "sourceShapeSearch": config.source_shape_search,
+            "routedPlaybook": config.routed_playbook,
+            "maxVariantsPerFunction": config.max_variants_per_function,
+            "maxRetries": config.max_retries,
+            "timeout": config.timeout,
+            "strategies": sorted(config.strategies) if config.strategies else None,
+            "sourceQualities": sorted(config.source_qualities) if config.source_qualities else None,
+        },
+    }
+    material = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(material.encode("utf-8")).hexdigest(), payload
+
+
+def executable_identity(command: str) -> dict[str, Any]:
+    resolved = shutil.which(command)
+    return path_identity(Path(resolved) if resolved else Path(command))
+
+
+def compiler_toolchain_identity(config: SourcePluginRunConfig) -> dict[str, Any]:
+    if config.compiler != "msvc":
+        return {"compiler": executable_identity(config.clang)}
+    from .package_verify import resolve_msvc_root
+
+    try:
+        compiler = resolve_msvc_root(config.vc_root).expanduser().resolve() / "bin" / "cl.exe"
+    except (OSError, RuntimeError, ValueError):
+        compiler = (config.vc_root.expanduser().resolve() / "bin" / "cl.exe") if config.vc_root else Path("cl.exe")
+    return {
+        "compiler": path_identity(compiler),
+        "wine": executable_identity(config.wine),
+        "wineprefix": str(config.wineprefix.expanduser().resolve()) if config.wineprefix else None,
+    }
+
+
+def path_identity(path: Path) -> dict[str, Any]:
+    resolved = path.expanduser().resolve()
+    try:
+        stat = resolved.stat()
+    except OSError:
+        return {"path": str(resolved), "unavailable": True}
+    return {"path": str(resolved), "size": stat.st_size, "mtimeNs": stat.st_mtime_ns}
+
+
+def path_sha256(path: Path) -> str | None:
+    if not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError:
+        return None
+    return digest.hexdigest()
+
+
+def terminal_cache_path(cache_root: Path, key: str) -> Path:
+    return cache_root / f"{key}.json"
+
+
+def load_terminal_attempt(
+    cache_root: Path,
+    key: str,
+    key_payload: dict[str, Any],
+) -> dict[str, Any] | None:
+    path = terminal_cache_path(cache_root, key)
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+    if not isinstance(payload, dict) or payload.get("schema") != TERMINAL_ATTEMPT_CACHE_SCHEMA:
+        return None
+    if payload.get("cacheKey") != key or payload.get("key") != key_payload:
+        return None
+    result = payload.get("result")
+    if not isinstance(result, dict) or not isinstance(result.get("success"), bool):
+        return None
+    if result.get("success") is True:
+        proof_rows = payload.get("proofRows")
+        if not isinstance(proof_rows, list) or not proof_rows:
+            return None
+        source_shas = {str(row.get("sha256") or "") for row in key_payload.get("sources") or []}
+        target_sha = str(key_payload.get("targetSha256") or "")
+        if not all(valid_cached_proof(item, source_shas=source_shas, target_sha=target_sha) for item in proof_rows):
+            return None
+    return payload
+
+
+def valid_cached_proof(item: Any, *, source_shas: set[str], target_sha: str) -> bool:
+    if not isinstance(item, dict) or item.get("kind") not in {"code-slice", "source-shape"}:
+        return False
+    row = item.get("row")
+    if not isinstance(row, dict) or not is_proven_zero(row):
+        return False
+    row_source_sha = str(row.get("sourceSha256") or "")
+    if not row_source_sha or row_source_sha not in source_shas:
+        return False
+    row_target_sha = str(row.get("targetSha256") or row.get("analysisBinarySha256") or "")
+    if target_sha and row_target_sha != target_sha:
+        return False
+    source_path = Path(str(row.get("source") or ""))
+    return source_path.is_file() and path_sha256(source_path) == row_source_sha
+
+
+def terminal_result_is_cacheable(
+    result: dict[str, Any],
+    attempt_records: list[dict[str, Any]],
+    proof_rows: list[dict[str, Any]],
+) -> bool:
+    if result.get("success") is True:
+        return bool(proof_rows) and all(
+            isinstance(item.get("row"), dict) and is_proven_zero(item["row"])
+            for item in proof_rows
+        )
+    if not attempt_records:
+        return False
+    deterministic_statuses = {"mismatched", "compile-failed", "slice-failed", "generated-only"}
+    return all(str(row.get("status") or "") in deterministic_statuses for row in attempt_records)
+
+
+def store_terminal_attempt(
+    cache_root: Path,
+    key: str,
+    *,
+    key_payload: dict[str, Any],
+    result: dict[str, Any],
+    attempt_records: list[dict[str, Any]],
+    proof_rows: list[dict[str, Any]],
+) -> None:
+    atomic_write_json(
+        terminal_cache_path(cache_root, key),
+        {
+            "schema": TERMINAL_ATTEMPT_CACHE_SCHEMA,
+            "cacheKey": key,
+            "key": key_payload,
+            "result": result,
+            "attemptRecords": attempt_records,
+            "proofRows": proof_rows,
+            "claimBoundary": "cached terminal attempts reuse only an exact target-slice/source/toolchain/configuration key; cached proof rows remain bounded objdiff-zero receipts",
+        },
+    )
+
+
+def jsonl_size(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return 0
+
+
+def read_jsonl_tail(path: Path, offset: int) -> list[dict[str, Any]]:
+    if not path.is_file():
+        return []
+    rows: list[dict[str, Any]] = []
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            handle.seek(offset)
+            for line in handle:
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                if isinstance(row, dict):
+                    rows.append(row)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return []
+    return rows
+
+
+def tagged_proof_rows(kind: str, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [{"kind": kind, "row": row} for row in rows if is_proven_zero(row)]
+
+
+def restore_cached_proof_rows(
+    payload: dict[str, Any],
+    *,
+    matches_path: Path,
+    source_shape_matches_path: Path,
+) -> bool:
+    proof_rows = payload.get("proofRows")
+    if not isinstance(proof_rows, list) or not proof_rows:
+        return False
+    existing = {
+        "code-slice": canonical_jsonl_rows(matches_path),
+        "source-shape": canonical_jsonl_rows(source_shape_matches_path),
+    }
+    destinations = {"code-slice": matches_path, "source-shape": source_shape_matches_path}
+    for item in proof_rows:
+        kind = str(item.get("kind") or "") if isinstance(item, dict) else ""
+        row = item.get("row") if isinstance(item, dict) else None
+        if kind not in destinations or not isinstance(row, dict) or not is_proven_zero(row):
+            return False
+        serialized = json.dumps(row, sort_keys=True)
+        if serialized not in existing[kind]:
+            append_jsonl(destinations[kind], row)
+            existing[kind].add(serialized)
+    return True
+
+
+def canonical_jsonl_rows(path: Path) -> set[str]:
+    return {json.dumps(row, sort_keys=True) for row in read_jsonl_tail(path, 0)}
 
 
 def jsonl_event_handler(path: Path):

@@ -23199,7 +23199,7 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def synthesis_row_priority(row: dict[str, Any]) -> tuple[int, int, int, str]:
+def synthesis_row_priority(row: dict[str, Any]) -> tuple[int, int, int, int, str]:
     generator = row.get("automaticGenerator")
     rule = str(generator.get("rule") or "") if isinstance(generator, dict) else ""
     target_slice = row.get("targetSlice") if isinstance(row.get("targetSlice"), dict) else {}
@@ -23209,6 +23209,7 @@ def synthesis_row_priority(row: dict[str, Any]) -> tuple[int, int, int, str]:
     is_suspect = boundary_quality.get("status") == "suspect"
     body_bytes = int(row.get("bodyBytes") or 0)
     return (
+        0 if str(row.get("sourceOrigin") or "").startswith("acquired source context from ") else 1,
         0 if is_semantic else 1,
         1 if is_suspect and not is_semantic else 0,
         1 if is_bootstrap else 0,

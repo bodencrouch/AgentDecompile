@@ -18,6 +18,13 @@ from .exact_universal import mapper_for
 from .extract import slugify
 
 TARGET = {32: "i386-linux-gnu", 64: "x86_64-linux-gnu"}
+SCHEMA = "agentdecompile.assembly-floor.v1"
+REPRESENTATION = "byte-authoritative-assembly-substrate"
+CLAIM_BOUNDARY = (
+    "The emitted assembly reproduces the complete original file image. It is "
+    "machine-byte substrate, not recovered authored C/C++, and it is not a "
+    "native PE relink receipt."
+)
 
 
 def build_source(name: str, raw: bytes, regions: list[tuple[int, int, str]]) -> str:
@@ -76,22 +83,28 @@ def roundtrip(
     assemble: bool = True,
 ) -> dict:
     """Write a whole-image .S for *repo_path* and optionally assemble it."""
+    base = {
+        "schema": SCHEMA,
+        "representation": REPRESENTATION,
+        "claimBoundary": CLAIM_BOUNDARY,
+        "binary": repo_path,
+    }
     if repo_path in DRM_EXCLUDED:
-        return {"binary": repo_path, "error": "excluded"}
+        return {**base, "error": "excluded"}
     row = con.execute(
         "SELECT id, slug, bits, arch FROM binary WHERE repo_path=?",
         (repo_path,),
     ).fetchone()
     if row is None or row["arch"] != "x86":
-        return {"binary": repo_path, "error": "not an x86 binary"}
+        return {**base, "error": "not an x86 binary"}
     rawp = pathlib.Path(raw_path)
     if not rawp.exists():
-        return {"binary": repo_path, "error": "raw image not exported"}
+        return {**base, "error": "raw image not exported"}
     raw = rawp.read_bytes()
 
     va2off, kind = mapper_for(raw)
     if va2off is None:
-        return {"binary": repo_path, "error": "unrecognised container"}
+        return {**base, "error": "unrecognised container"}
 
     funcs = []
     for r in con.execute(
@@ -128,7 +141,7 @@ def roundtrip(
             )
             if not obj.exists():
                 return {
-                    "binary": repo_path,
+                    **base,
                     "error": "assemble failed",
                     "stderr": r.stderr[-300:],
                     "source": str(spath),
@@ -141,7 +154,7 @@ def roundtrip(
 
     same = rebuilt == raw if assemble else None
     return {
-        "binary": repo_path,
+        **base,
         "container": kind,
         "size": len(raw),
         "rebuilt_size": len(rebuilt),

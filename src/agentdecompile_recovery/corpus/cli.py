@@ -244,6 +244,21 @@ def build_parser() -> argparse.ArgumentParser:
     genp.add_argument("--leftover-only", action="store_true", default=True)
     genp.add_argument("--all-queue", dest="leftover_only", action="store_false")
 
+    image_roundtrip = sub.add_parser(
+        "roundtrip",
+        help="Reassemble one binary as a byte-identical assembly file image",
+    )
+    image_roundtrip.add_argument("--repo-path", required=True)
+    image_roundtrip.add_argument("--db", type=Path, required=True)
+    image_roundtrip.add_argument("--raw", type=Path, required=True)
+    image_roundtrip.add_argument("--out-dir", type=Path, required=True)
+    image_roundtrip.add_argument(
+        "--no-assemble",
+        dest="assemble",
+        action="store_false",
+        default=True,
+    )
+
     ingest_rec = sub.add_parser("ingest-recovered", help="Bind recovered C to existing identities")
     ingest_rec.add_argument("--db", type=Path, required=True)
     ingest_rec.add_argument("--recovered-dir", type=Path, required=True)
@@ -560,6 +575,21 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
+    if args.cmd == "roundtrip":
+        from .roundtrip import roundtrip, write_results
+        from .store import connect
+
+        result = roundtrip(
+            args.repo_path,
+            connect(args.db),
+            raw_path=args.raw,
+            out_dir=args.out_dir,
+            assemble=args.assemble,
+        )
+        receipt = write_results(args.out_dir, [result])
+        result["receipt"] = str(receipt)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("identical") is True else 1
     if args.cmd == "ingest-recovered":
         from .ingest_recovered import ensure_recovered_schema, ingest, print_summary
         from .store import connect

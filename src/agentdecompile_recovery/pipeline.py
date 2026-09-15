@@ -292,6 +292,8 @@ class RecoveryRunner:
             return False
         if self.config.force:
             return False
+        if self.config.force_rematch and stage.name == "synthesize-source-tasks":
+            return False
         receipt = self.state.data.get("stages", {}).get(stage.name, {})
         if receipt.get("status") != "complete":
             return False

@@ -173,7 +173,9 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
     programs = list(programs or all_programs)
     execution_routes = execution_routes or {}
     family_key = hashlib.sha256(recovery_family.encode()).hexdigest()[:16] if recovery_family else 'legacy'
-    family_receipt = row.setdefault('recoveryFamilies', {}).setdefault(recovery_family or 'legacy', {'family': recovery_family or 'legacy', 'programs': programs})
+    family_receipt = row.setdefault('recoveryFamilies', {}).setdefault(recovery_family or 'legacy', {
+        'family': recovery_family or 'legacy', 'programs': programs,
+    })
     family_receipt.update(state='running', updatedAt=time.time())
 
     def aggregate(key: str) -> tuple[int, str, list[str]]:
@@ -182,6 +184,7 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         status = 'completed' if all_programs and completed == len(all_programs) else ('partial' if any(outcome.get('status') in {'partial', 'completed'} for outcome in outcomes) else 'blocked')
         reasons = list(dict.fromkeys(str(outcome.get('reason') or '') for outcome in outcomes if outcome.get('status') != 'completed'))
         return completed, status, reasons
+
     for program in programs:
         checkpoint = row['checkpoints'].setdefault(program, {})
         states = checkpoint.setdefault('workflow', {})
@@ -245,9 +248,6 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
             original_target = Path(str(target_image['targetPath']))
             result('materialize-target', 'completed', 'Original executable bytes copied and hash-bound for independent comparison.',
                    receipt=target_image['receiptPath'], targetImage=target_image)
-        else:
-            original_target = None
-            result('materialize-target', 'blocked', str(target_image.get('reason') or 'Original byte target could not be materialized.'), targetImage=target_image)
             floor_dir = work / 'assembly-floor'
             floor = action('assembly-floor', 'corpus.roundtrip', {
                 'repo-path': checkpoint['repoPath'], 'db': str(db),
@@ -273,10 +273,10 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
                 bytesFiller=floor_data.get('bytes_filler'), representation='byte-authoritative-assembly-substrate',
                 claimBoundary='This assembly reproduces the shipped file image; it is not recovered authored C/C++.',
             )
+        else:
+            original_target = None
+            result('materialize-target', 'blocked', str(target_image.get('reason') or 'Original byte target could not be materialized.'), targetImage=target_image)
 
-        if not configured and not profile_path.exists():
-            # Bind a measured compiler profile only after Ghidra has identified
-            # the executable it actually opened.  Shared-folder names and
 
         profile_path = work / 'compiler-profile.json'
         # A project can supply its measured configuration at workspace level.
@@ -310,6 +310,9 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         elif extraction_failure:
             result('recover-source', 'partial', extraction_failure, knowledgeDb=str(program_kb))
 
+        if not configured and not profile_path.exists():
+            # Bind a measured compiler profile only after Ghidra has identified
+            # the executable it actually opened.  Shared-folder names and
             # stored corpus inventory keys are not target identities.
             from agentdecompile_recovery.source_parity_profile_corpus import admit_measured_profile
 
@@ -426,8 +429,15 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
                jobId=audit.get('jobId'), verifiedFunctions=verified, byteExact=False,
                targetImageReceipt=target_image['receiptPath'], targetSha256=target_image['targetSha256'])
 
-    family_outcomes = [row['checkpoints'].get(program, {}).get('workflow', {}).get('verify-byte-accuracy', {}) for program in programs]
-    family_receipt.update(state='completed' if family_outcomes and all(item.get('status') == 'completed' for item in family_outcomes) else 'partial', updatedAt=time.time(), outcomes={program: row['checkpoints'].get(program, {}).get('workflow', {}) for program in programs})
+    family_outcomes = [
+        row['checkpoints'].get(program, {}).get('workflow', {}).get('verify-byte-accuracy', {})
+        for program in programs
+    ]
+    family_receipt.update(
+        state='completed' if family_outcomes and all(item.get('status') == 'completed' for item in family_outcomes) else 'partial',
+        updatedAt=time.time(),
+        outcomes={program: row['checkpoints'].get(program, {}).get('workflow', {}) for program in programs},
+    )
     for key, _ in STAGES:
         completed, status, reasons = aggregate(key)
         update(key, status, '; '.join(reasons[:3]) or f'{completed} programs completed this stage.', completed=completed, total=len(all_programs), currentProgram='', currentAction='', recoveryFamily='')

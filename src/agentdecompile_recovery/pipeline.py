@@ -339,7 +339,78 @@ class RecoveryRunner:
             # Stable bundle identity — not ephemeral --context path lists — so mid-run
             # re-acquire invalidates only stages that consume acquisition facts.
             config["acquisitionIdentity"] = self.acquisition_identity()
+            config["freshEnrichmentIdentity"] = self.fresh_enrichment_identity()
         return config
+
+    def fresh_enrichment_identity(self) -> dict[str, Any] | None:
+        """Identify fresh, target-bound Ghidra facts produced by this run.
+
+        Acquisition may legitimately contain no decompiler projection.  Source
+        generation must still notice when the preceding enrich stage produced
+        facts, and resume must invalidate its later receipts when those facts
+        change.
+        """
+        receipt_path = self.run_dir / "facts" / "enrich-receipt.json"
+        if not receipt_path.is_file():
+            return None
+        try:
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            return None
+        if receipt.get("status") != "complete":
+            return None
+        target_path = self.run_dir / "target.json"
+        if target_path.is_file():
+            try:
+                target = json.loads(target_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                return None
+            if receipt.get("analysisBinarySha256") != target.get("sha256"):
+                return None
+        facts_path = Path(str(receipt.get("factsJsonl") or self.run_dir / "facts" / "function-facts.jsonl"))
+        if not facts_path.is_file() or facts_path.stat().st_size == 0:
+            return None
+        return {
+            "kind": "freshEnrichmentFacts",
+            "path": str(facts_path),
+            "analysisBinarySha256": receipt.get("analysisBinarySha256"),
+            "functionCount": receipt.get("functionCount"),
+            "sha256": hashlib.sha256(facts_path.read_bytes()).hexdigest(),
+        }
+
+    def fresh_enrichment_facts_path(self, target: dict[str, Any]) -> Path | None:
+        identity = self.fresh_enrichment_identity()
+        if identity is None or identity.get("analysisBinarySha256") != target.get("sha256"):
+            return None
+        path = Path(str(identity["path"]))
+        return path if path.is_file() and path.stat().st_size else None
+
+    def merge_function_fact_sources(self, sources: list[Path]) -> Path | None:
+        unique: list[Path] = []
+        seen: set[Path] = set()
+        for source in sources:
+            if not source.is_file() or source.stat().st_size == 0:
+                continue
+            resolved = source.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            unique.append(source)
+        if not unique:
+            return None
+        if len(unique) == 1:
+            return unique[0]
+        merged = self.run_dir / "context-pack" / "merged-function-facts.jsonl"
+        merged.parent.mkdir(parents=True, exist_ok=True)
+        pending = merged.with_suffix(".jsonl.tmp")
+        with pending.open("w", encoding="utf-8") as out:
+            for source in unique:
+                source_text = source.read_text(encoding="utf-8", errors="replace")
+                out.write(source_text)
+                if source_text and not source_text.endswith("\n"):
+                    out.write("\n")
+        pending.replace(merged)
+        return merged
 
     def acquisition_identity(self) -> dict[str, Any]:
         """Content-stable acquisition identity for resume fingerprints.
@@ -761,6 +832,10 @@ class RecoveryRunner:
             facts_path = bundle_dir / str(manifest.get("factsJsonl") or "function-facts.jsonl")
             if not facts_path.exists():
                 raise FileNotFoundError(f"bundle legacy facts projection missing: {facts_path}")
+            fresh_facts = self.fresh_enrichment_facts_path(target)
+            selected_facts = self.merge_function_fact_sources(
+                [compatibility_projection or facts_path, fresh_facts] if fresh_facts else [compatibility_projection or facts_path]
+            )
             atomic_write_json(
                 self.run_dir / "acquisition-bundle.json",
                 {
@@ -771,24 +846,17 @@ class RecoveryRunner:
                     "targetMatched": target_status["targetMatched"],
                     "conflictCount": len(conflicts),
                     "factsJsonl": str(facts_path),
+                    "freshEnrichmentFactsJsonl": str(fresh_facts) if fresh_facts else None,
+                    "selectedFactsJsonl": str(selected_facts) if selected_facts else None,
                     "claimBoundary": "bundle context is advisory acquisition evidence only; compile and objdiff gates remain required.",
                 },
             )
-            return compatibility_projection if compatibility_projection and compatibility_projection.exists() else facts_path
+            return selected_facts
+        fresh_facts = self.fresh_enrichment_facts_path(target)
+        if fresh_facts:
+            legacy_sources.append(fresh_facts)
         sources = [path for path in legacy_sources if path.exists()]
-        if not sources:
-            return None
-        if len(sources) == 1:
-            return sources[0]
-        merged = self.run_dir / "context-pack" / "merged-function-facts.jsonl"
-        merged.parent.mkdir(parents=True, exist_ok=True)
-        with merged.open("w", encoding="utf-8") as out:
-            for source in sources:
-                text = source.read_text(encoding="utf-8", errors="replace")
-                out.write(text)
-                if not text.endswith("\n"):
-                    out.write("\n")
-        return merged
+        return self.merge_function_fact_sources(sources)
 
     def stage_plan_strategy(self, _stage: Stage) -> dict[str, Any]:
         target = self.load_target()

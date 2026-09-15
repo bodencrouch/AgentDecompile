@@ -86,6 +86,26 @@ GHIDRA_MUTATE = frozenset({
 Executor = Callable[[list[str], Path, threading.Event], tuple[int, str]]
 
 
+def _json_safe(value: Any) -> Any:
+    """Return an API/persistence-safe copy of action parameters.
+
+    Action defaults retain useful typed values such as ``Path`` for command
+    construction.  Job records cross an HTTP and JSON receipt boundary, where
+    those values must be represented by their stable string form.
+    """
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, set):
+        return [_json_safe(item) for item in sorted(value, key=str)]
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
 @dataclass
 class JobRecord:
     id: str
@@ -122,7 +142,7 @@ class JobRecord:
             "finishedAt": self.finished_at,
             "returncode": self.returncode,
             "error": self.error,
-            "params": (dict(self.params) if include_details else {
+            "params": _json_safe(dict(self.params) if include_details else {
                 key: value for key, value in self.params.items()
                 if key not in {"candidateSource", "code", "script", "source"}
             }),
@@ -134,7 +154,7 @@ class JobRecord:
             "logTruncated": self.log_truncated or len(self.log) >= MAX_LOG_BYTES,
         }
         if self.work_progress is not None:
-            payload["workProgress"] = dict(self.work_progress)
+            payload["workProgress"] = _json_safe(dict(self.work_progress))
         if include_log:
             payload["log"] = self.log
             payload["progress"] = infer_job_progress(self.status, self.log, self.work_progress)

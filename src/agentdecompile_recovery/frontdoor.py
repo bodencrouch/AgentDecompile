@@ -566,7 +566,7 @@ def run_one_shot(args: argparse.Namespace) -> int:
         context_max_index_text_chars=args.context_max_index_text_chars,
         context_extract_containers=not args.no_context_extract_containers,
         context_include_low_signal_members=args.context_include_low_signal_members,
-        skip_enrichment=False,
+        skip_enrichment=bool(args.skip_enrichment),
         project=project,
         project_program=getattr(args, "project_program", None),
         **unity_config_kwargs(args),

@@ -305,7 +305,7 @@ class RecoveryRunner:
         config: dict[str, Any] = {
             "input": str(self.config.input_path),
             "preferredName": self.config.preferred_name,
-            "enableByteAuthority": self.config.enable_byte_authority,
+            "enableByteAuthority": self.config.enable_byte_authority if stage.name in {"byte-authority", "report"} else None,
             "enableLegacyAdapters": self.config.enable_legacy_adapters,
             "snapshotExistingLabel": self.config.snapshot_existing_label,
             "functionAnalysis": self.config.function_analysis,
@@ -322,7 +322,12 @@ class RecoveryRunner:
             "sourceSynthesisUpgradePackagedSource": self.config.source_synthesis_upgrade_packaged_source,
             "sourceSynthesisStrategies": list(self.config.source_synthesis_strategies),
             "sourceSynthesisSourceQualities": list(self.config.source_synthesis_source_qualities),
-            "sourceSynthesisVcRoot": str(self.config.source_synthesis_vc_root) if self.config.source_synthesis_vc_root else None,
+            "sourceSynthesisVcRoot": (
+                str(self.config.source_synthesis_vc_root)
+                if self.config.source_synthesis_vc_root
+                and stage.name in {"synthesize-source-tasks", "plan-strategy", "report"}
+                else None
+            ),
             "sourceSynthesisWine": self.config.source_synthesis_wine,
             "sourceSynthesisWineprefix": (
                 str(self.config.source_synthesis_wineprefix)

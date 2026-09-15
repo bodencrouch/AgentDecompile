@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ from .context_export import ExportConfig, export_context
 # run_acquire never validates a project that was not asked for. A function-local
 # import (frontdoor.py's pattern) would bypass the patch.
 from .ghidra_context import project_input_error
+from .inventory import build_binary_inventory
 from .package_sweep import sweep_recovered_source_package
 from .package_verify import resolve_vc_root_option, verify_recovered_source_package
 from .pipeline import RecoveryConfig, RecoveryRunner
@@ -30,7 +32,6 @@ from .source_plugin_runner import (
     parse_profile_values,
     run_source_plugin_pipeline,
 )
-from .inventory import build_binary_inventory
 from .targets import identify_binary
 from .windows import run_recovery_windows
 
@@ -202,6 +203,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     recover.add_argument("--context-pack", type=Path, help="Previously generated context-pack or acquisition-bundle directory.")
     recover.add_argument("--acquisition-bundle", type=Path, help="Explicit acquisition-bundle directory.")
+    recover.add_argument(
+        "--project",
+        type=Path,
+        help="Existing analyzed local Ghidra project (.gpr or .rep) to decompile without re-importing the raw binary.",
+    )
+    recover.add_argument(
+        "--project-program",
+        help="Program name/path within --project (required when the project holds more than one program).",
+    )
     recover.add_argument("--source-task-limit", type=int, default=500, help="Maximum function candidates to queue for automatic source generation.")
     recover.add_argument("--source-task-offset", type=int, default=0, help="Skip this many eligible function candidates before analysis/source generation.")
     recover.add_argument("--source-synthesis-engine", choices=["legacy", "plugin"], default="legacy", help="Source synthesis orchestration engine. plugin uses the upstream-style plugin lifecycle.")
@@ -595,6 +605,16 @@ def run_name_census(args: argparse.Namespace) -> int:
 def run_recover(args: argparse.Namespace) -> int:
     if args.force and args.resume:
         raise SystemExit("--force and --resume are mutually exclusive")
+    project = getattr(args, "project", None)
+    project_program = getattr(args, "project_program", None)
+    if project is not None:
+        from .reconstruct_enrich import resolve_existing_project_source
+
+        try:
+            resolve_existing_project_source(project, project_program)
+        except (OSError, ValueError) as exc:
+            print(f"agentdecompile-recovery: --project error: {exc}", file=sys.stderr)
+            return 2
     work_dir = args.work_dir or default_work_dir(args.input)
     config = RecoveryConfig(
         input_path=args.input,
@@ -648,6 +668,8 @@ def run_recover(args: argparse.Namespace) -> int:
         context_extract_containers=not args.no_context_extract_containers,
         context_include_low_signal_members=args.context_include_low_signal_members,
         skip_enrichment=bool(getattr(args, "skip_enrichment", False)),
+        project=project,
+        project_program=project_program,
         **unity_config_kwargs(args),
     )
     return RecoveryRunner(config).run()

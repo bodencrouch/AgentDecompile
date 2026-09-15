@@ -16,21 +16,21 @@ import json
 import subprocess
 import sys
 import time
+
 from pathlib import Path
 from typing import Any
 
 from .acquire import acquire_context
 from .autonomy_budget import budget_from_args
 from .claim_report import write_claim_report
+from .cli import add_unity_arguments, main as legacy_main, unity_config_kwargs
 from .critical_path import write_critical_path
 from .inventory import detect_pe_compiler_hint
-from .cli import add_unity_arguments, main as legacy_main, unity_config_kwargs
 from .package_verify import resolve_vc_root_option
 from .pipeline import RecoveryConfig, RecoveryRunner, resolve_source_synthesis_mode
 from .targets import identify_binary
 from .tools import inspect_capabilities, resolve_script_asset
 from .work_dir_diagnostics import rotational_disk_warning
-
 
 LEGACY_COMMANDS = {
     "inspect",
@@ -154,7 +154,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--project",
         type=Path,
-        help="Existing Ghidra project (.gpr file or .rep directory) to open read-only via ghidra_db for curated names.",
+        help=(
+            "Existing analyzed local Ghidra project (.gpr or .rep) to decompile "
+            "without re-importing the raw binary; also supplies curated names and types."
+        ),
     )
     parser.add_argument(
         "--project-program",
@@ -564,6 +567,8 @@ def run_one_shot(args: argparse.Namespace) -> int:
         context_extract_containers=not args.no_context_extract_containers,
         context_include_low_signal_members=args.context_include_low_signal_members,
         skip_enrichment=False,
+        project=project,
+        project_program=getattr(args, "project_program", None),
         **unity_config_kwargs(args),
     )
     rc = RecoveryRunner(config).run()

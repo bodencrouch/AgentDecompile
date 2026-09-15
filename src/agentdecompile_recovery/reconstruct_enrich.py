@@ -7,6 +7,9 @@ share behavior. Soft-degrades when PyGhidra is unavailable.
 from __future__ import annotations
 
 import json
+import re
+
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -27,8 +30,75 @@ from .rtti_recover import (
 )
 from .targets import sha256_file
 
-
 SCHEMA = "agentdecompile.reconstruct-enrich.v1"
+
+
+def resolve_existing_project_source(
+    project: Path,
+    project_program: str | None,
+) -> dict[str, Any]:
+    """Resolve one local Ghidra program and its current storage revision.
+
+    ``ghidra_db`` performs this lookup without starting a JVM or modifying the
+    project.  Keeping the database revision in the stage fingerprint makes a
+    resumed run regenerate facts after the analyzed program changes.
+    """
+
+    from .ghidra_db import list_programs, resolve_project_root
+
+    requested = project.expanduser().resolve()
+    project_root = resolve_project_root(requested).resolve()
+    if project_root.suffix.lower() != ".rep":
+        raise ValueError(
+            f"{requested}: existing-program decompilation requires a local .gpr/.rep project"
+        )
+    project_file = project_root.with_suffix(".gpr")
+    if not project_file.is_file():
+        raise ValueError(f"{project_root}: no sibling {project_file.name} project marker")
+
+    programs = list_programs(project_root)
+    if not programs:
+        raise ValueError(f"{project_root}: project has no program items")
+    if project_program:
+        wanted = str(project_program).rstrip("/")
+        matches = [
+            entry
+            for entry in programs
+            if entry.project_path == wanted or entry.name == wanted
+        ]
+        if len(matches) != 1:
+            available = ", ".join(entry.project_path for entry in programs)
+            if not matches:
+                raise ValueError(
+                    f"{project_root}: no program {project_program!r} (have: {available})"
+                )
+            raise ValueError(
+                f"{project_root}: program name {project_program!r} is ambiguous; "
+                f"use its full project path (matches: {', '.join(entry.project_path for entry in matches)})"
+            )
+        selected = matches[0]
+    elif len(programs) == 1:
+        selected = programs[0]
+    else:
+        available = ", ".join(entry.project_path for entry in programs)
+        raise ValueError(
+            f"{project_root}: multiple programs in project, pass --project-program "
+            f"to pick one (have: {available})"
+        )
+
+    stat = selected.database_path.stat()
+    return {
+        "mode": "existing-analyzed-project",
+        "project": str(project_file.resolve()),
+        "projectRoot": str(project_root),
+        "projectDirectory": str(project_file.parent.resolve()),
+        "projectName": project_file.stem,
+        "program": selected.project_path,
+        "revision": int(selected.version),
+        "databaseFile": str(selected.database_path.resolve()),
+        "databaseSize": int(stat.st_size),
+        "databaseMtimeNs": int(stat.st_mtime_ns),
+    }
 
 
 def analysis_binary_from_work_dir(work_dir: Path) -> Path | None:
@@ -176,6 +246,8 @@ def run_reconstruct_enrich(
     work_dir: Path,
     candidates_payload: dict[str, Any],
     skip: bool = False,
+    project: Path | None = None,
+    project_program: str | None = None,
 ) -> dict[str, Any]:
     """Run enrich+module-map into ``work_dir/facts/``."""
     facts_dir = work_dir / "facts"
@@ -198,7 +270,7 @@ def run_reconstruct_enrich(
         return receipt
 
     boundaries = boundaries_from_candidates(candidates_payload)
-    if not boundaries:
+    if not boundaries and project is None:
         receipt = {
             "schema": SCHEMA,
             "status": "skipped",
@@ -240,27 +312,72 @@ def run_reconstruct_enrich(
         )
         return receipt
 
-    project_root = work_dir / "pyghidra-project"
-    project_root.mkdir(parents=True, exist_ok=True)
-    project_name = resolve_project_name(binary)
+    source_project = (
+        resolve_existing_project_source(project, project_program)
+        if project is not None
+        else None
+    )
+    project_root = (
+        Path(str(source_project["projectDirectory"]))
+        if source_project is not None
+        else work_dir / "pyghidra-project"
+    )
+    if source_project is None:
+        project_root.mkdir(parents=True, exist_ok=True)
+    project_name = (
+        str(source_project["projectName"])
+        if source_project is not None
+        else resolve_project_name(binary)
+    )
     resolver = ModuleResolver(va_bands=va_bands)
     discovered: list[dict[str, Any]] = []
     module_entries: dict[str, dict[str, Any]] = {}
     names_by_entry: dict[int, tuple[str, str]] = {}
     module_by_entry: dict[int, str] = {}
     summary: dict[str, Any]
+    open_ctx = None
+    existing_project = None
+    program_ctx = None
+    gp = None
+    program = None
+    analysis_binary_sha256 = sha256_file(binary)
 
     try:
         nds_primary = _nds_container_primary(work_dir)
         flat_api = None
-        open_ctx = None
-        if nds_primary is not None:
+        if source_project is not None:
             pyghidra.start()
-            from ghidra.base.project import GhidraProject  # pyright: ignore[reportMissingImports]
             from ghidra.program.flatapi import FlatProgramAPI  # pyright: ignore[reportMissingImports]
 
+            existing_project = pyghidra.open_project(project_root, project_name)
+            program_ctx = pyghidra.program_context(
+                existing_project,
+                str(source_project["program"]),
+            )
+            program = program_ctx.__enter__()
+            flat_api = FlatProgramAPI(program)
+            domain_file = program.getDomainFile()
+            live_revision = None
+            with suppress(Exception):
+                live_revision = int(domain_file.getVersion())
+            executable_sha256 = None
+            with suppress(Exception):
+                executable_sha256 = str(program.getExecutableSHA256() or "").strip().lower()
+            if executable_sha256 and re.fullmatch(r"[0-9a-f]{64}", executable_sha256):
+                source_project["executableSha256"] = executable_sha256
+                if executable_sha256 != analysis_binary_sha256:
+                    raise ValueError(
+                        "selected Ghidra program does not match the analysis binary: "
+                        f"program SHA-256 {executable_sha256}, binary SHA-256 {analysis_binary_sha256}"
+                    )
+            if live_revision is not None:
+                source_project["ghidraVersion"] = live_revision
+        elif nds_primary is not None:
+            pyghidra.start()
             from agentdecompile_cli.mcp_utils.container_import import import_raw_binary_slice
             from agentdecompile_cli.mcp_utils.program_analysis import blocking_ensure_analyzed
+            from ghidra.base.project import GhidraProject  # pyright: ignore[reportMissingImports]
+            from ghidra.program.flatapi import FlatProgramAPI  # pyright: ignore[reportMissingImports]
 
             load_address = int(str(nds_primary.get("loadAddress") or "0"), 0)
             entry_point = int(str(nds_primary.get("entryPoint") or "0"), 0)
@@ -368,25 +485,43 @@ def run_reconstruct_enrich(
             corpus=None,
             rtti_classes=rtti_classes,
             out_facts=facts_path,
-            program_factory=lambda: PyGhidraEnrichProgram(flat_api),
+            program_factory=lambda: PyGhidraEnrichProgram(
+                flat_api,
+                mutate=source_project is None,
+            ),
             module_by_entry=module_by_entry,
             names_by_entry=names_by_entry,
             signatures_by_entry=trusted_curated_signatures(work_dir, boundaries),
         )
-        if open_ctx is not None:
-            open_ctx.__exit__(None, None, None)
     except Exception as exc:  # noqa: BLE001 - soft degrade; reconstruct continues
         receipt = {
             "schema": SCHEMA,
             "status": "failed",
             "reason": "enrich-session-error",
             "error": str(exc)[:1000],
+            "sourceProject": source_project,
             "claimBoundary": "enrichment failed; recovery continues without typed decompiles",
         }
         (facts_dir / "enrich-receipt.json").write_text(
             json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
         return receipt
+    finally:
+        if open_ctx is not None:
+            with suppress(Exception):
+                open_ctx.__exit__(None, None, None)
+        if program_ctx is not None:
+            with suppress(Exception):
+                program_ctx.__exit__(None, None, None)
+        if existing_project is not None:
+            with suppress(Exception):
+                existing_project.close()
+        if gp is not None:
+            if program is not None:
+                with suppress(Exception):
+                    gp.close(program)
+            with suppress(Exception):
+                gp.close()
 
     if facts_path.exists():
         root_facts.write_text(facts_path.read_text(encoding="utf-8"), encoding="utf-8")
@@ -426,9 +561,13 @@ def run_reconstruct_enrich(
         "boundaryCount": len(boundaries),
         "assertPathCount": len(assert_paths),
         "rttiClassCount": len(rtti_classes),
-        "analysisBinarySha256": sha256_file(binary),
+        "analysisBinarySha256": analysis_binary_sha256,
         "ghidraProjectPath": str(project_root),
         "ghidraProjectName": project_name,
+        "sourceProject": source_project,
+        "sourceProjectPath": source_project.get("project") if source_project else None,
+        "sourceProgramPath": source_project.get("program") if source_project else None,
+        "sourceProjectRevision": source_project.get("revision") if source_project else None,
         "singleSession": True,
         "claimBoundary": "enrichment facts are advisory decompilation; objdiff 0 still required for verified/",
     }

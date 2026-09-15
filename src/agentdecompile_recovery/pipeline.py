@@ -910,13 +910,19 @@ class RecoveryRunner:
         candidates = json.loads((self.run_dir / "function-candidates.json").read_text(encoding="utf-8"))
         inventory = json.loads((self.run_dir / "binary-inventory.json").read_text(encoding="utf-8"))
         facts_jsonl = self.resolve_acquisition_facts_source(target.to_json()) or default_function_facts_path(self.run_dir)
+        # A verification run must not silently discard acquired candidates.  The
+        # old fixed window made a "complete" run process only the first slice
+        # of the inventory, even when all source context was already present.
+        source_limit = self.config.source_task_limit
+        if self.config.source_synthesis_verify_packaged_source:
+            source_limit = max(source_limit, len(candidates))
         summary = generate_source_candidates(
             target=RecoveryLanguageProfile.merge_into_target(target.to_json()),
             function_candidates=candidates,
             out_dir=self.run_dir / "source-generation",
             inventory=inventory,
             function_facts_jsonl=facts_jsonl,
-            limit=self.config.source_task_limit,
+            limit=source_limit,
             offset=self.config.source_task_offset,
         )
         truncation = summary.get("candidateTruncation") if isinstance(summary, dict) else None

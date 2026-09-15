@@ -446,7 +446,8 @@ def merge_function_facts(existing: dict[str, Any], current: dict[str, Any]) -> d
     """
 
     merged = {**existing, **current}
-    source_fact = current if is_context_source_fact(current) else existing if is_context_source_fact(existing) else None
+    source_facts = [fact for fact in (existing, current) if is_context_source_fact(fact)]
+    source_fact = max(source_facts, key=context_source_fact_priority) if source_facts else None
     if source_fact is not None:
         for key in (
             "decompiled",
@@ -464,6 +465,16 @@ def merge_function_facts(existing: dict[str, Any], current: dict[str, Any]) -> d
                 merged[key] = source_fact[key]
         merged["sourceWitness"] = source_witness_for_fact(source_fact)
     return merged
+
+
+def context_source_fact_priority(fact: dict[str, Any]) -> tuple[int, int, int, int]:
+    source_path = Path(str(fact.get("contextSource") or ""))
+    return (
+        1 if coerce_int(fact.get("bodyBytes")) else 0,
+        1 if source_path.suffix.lower() in {".c", ".cc", ".cpp", ".cxx"} else 0,
+        1 if source_path.is_absolute() else 0,
+        len(str(fact.get("decompiled") or "")),
+    )
 
 
 def admit_context_source_candidates(

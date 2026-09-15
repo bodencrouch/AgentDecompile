@@ -454,8 +454,11 @@ def contextualize_fact(row: dict[str, Any], path: Path, source_id: str, source_k
     fact.setdefault("tool", "context-pack")
     fact.setdefault("sourceKind", source_kind)
     fact.setdefault("confidence", "context-fact")
-    fact["contextSource"] = receipt_path(path, repo_root)
-    fact["sourceId"] = source_id
+    acquired_through = receipt_path(path, repo_root)
+    if fact.get("contextSource") and fact.get("contextSource") != acquired_through:
+        fact.setdefault("acquiredThrough", acquired_through)
+    fact.setdefault("contextSource", acquired_through)
+    fact.setdefault("sourceId", source_id)
     fact.setdefault("claimBoundary", "context fact is acquisition evidence only; compile and objdiff gates remain required.")
     return fact
 

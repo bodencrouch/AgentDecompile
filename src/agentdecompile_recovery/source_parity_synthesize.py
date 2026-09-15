@@ -26,6 +26,7 @@ from typing import Any, Iterable
 from agentdecompile_recovery.languages import SourceLanguage, compiler_lane_for, parse_source_language
 
 from .package_verify import build_shim, compile_with_msvc
+from .tools import inspect_tool
 
 ROOT = Path.cwd()
 DEFAULT_VC_ROOT: Path | None = None
@@ -21983,8 +21984,12 @@ def run_objdiff(target_obj: Path, candidate_obj: Path, case_dir: Path, *, timeou
         }
         write_json(report_path, report)
         return report
+    # HTTP workers intentionally run with a small PATH.  Capability discovery
+    # already knows how to locate Cargo-installed tools, so use that resolved
+    # executable here instead of assuming ``objdiff`` is on the worker PATH.
+    objdiff = str(inspect_tool("objdiff").get("path") or "objdiff")
     proc = run(
-        ["objdiff", "diff", "-1", str(target_obj), "-2", str(candidate_obj), "-o", "-", "--format", "json-pretty"],
+        [objdiff, "diff", "-1", str(target_obj), "-2", str(candidate_obj), "-o", "-", "--format", "json-pretty"],
         timeout=timeout,
     )
     stdout_path.write_text(proc.stdout, encoding="utf-8")

@@ -21,6 +21,7 @@ def cache_key(
     compiler_profile: str,
     compiler_lane: str = "c",
     flags: str = "",
+    toolchain_identity: str = "",
 ) -> str:
     material = "|".join(
         [
@@ -29,6 +30,7 @@ def cache_key(
             compiler_profile or "default",
             compiler_lane or "c",
             flags or "",
+            toolchain_identity or "",
         ]
     )
     return hashlib.sha256(material.encode("utf-8")).hexdigest()

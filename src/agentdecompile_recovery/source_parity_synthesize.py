@@ -25,7 +25,7 @@ from typing import Any, Iterable
 
 from agentdecompile_recovery.languages import SourceLanguage, compiler_lane_for, parse_source_language
 
-from .package_verify import build_shim, compile_with_msvc
+from .package_verify import build_shim, compile_with_msvc, resolve_msvc_root
 from .tools import inspect_tool
 
 ROOT = Path.cwd()
@@ -397,7 +397,7 @@ def source_task_to_queue_row(task: dict[str, Any]) -> dict[str, Any] | None:
             if key not in {"bytesHex"}
         },
         "tags": source_task_tags(task),
-        "sourceOrigin": "converted from recovery source-generation task",
+        "sourceOrigin": task.get("sourceOrigin") or "converted from recovery source-generation task",
     }
     return row
 
@@ -19584,7 +19584,8 @@ def attempt_candidate(
         "outDir": str(case_dir),
         "generationEvidence": candidate.evidence,
         "sourceOrigin": (
-            "packaged source file from source-generation task; verification compares that artifact to target-slice bytes"
+            candidate.evidence.get("sourceOrigin")
+            or "packaged source file from source-generation task; verification compares that artifact to target-slice bytes"
             if candidate.evidence.get("packagedSource")
             else "generated from instruction bytes by source-parity-synthesize.py; not manually authored"
         ),
@@ -22674,6 +22675,29 @@ def main(argv: list[str] | None = None) -> int:
         if item.strip()
     } or None
     compiler_profiles = [parse_profile_flag_set(value) for value in args.compiler_profile if value.strip()]
+    if args.compiler == "msvc":
+        compiler_path = resolve_msvc_root(args.vc_root).expanduser().resolve() / "bin" / "cl.exe"
+    else:
+        compiler_path = Path(shutil.which(args.clang) or args.clang).expanduser().resolve()
+    try:
+        compiler_stat = compiler_path.stat()
+        compiler_file_identity = {
+            "path": str(compiler_path),
+            "size": compiler_stat.st_size,
+            "mtimeNs": compiler_stat.st_mtime_ns,
+        }
+    except OSError:
+        compiler_file_identity = {"path": str(compiler_path), "unavailable": True}
+    toolchain_identity = json.dumps(
+        {
+            "compiler": args.compiler,
+            "compilerFile": compiler_file_identity,
+            "wine": args.wine if args.compiler == "msvc" else None,
+            "wineprefix": str(args.wineprefix.expanduser().resolve()) if args.wineprefix else None,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     strategy_by_name = load_strategy(args.remaining_features)
     retrieval_by_name = load_retrieval(args.retrieval)
     matched = load_matched(args.matched_summary)
@@ -22910,6 +22934,8 @@ def main(argv: list[str] | None = None) -> int:
                 source_sha=source_sha256(candidate.source),
                 compiler_profile=profile_name,
                 compiler_lane="cxx" if candidate.source_suffix.lower() in {".cpp", ".cc", ".cxx"} else "c",
+                flags=json.dumps(compiler_profiles, sort_keys=True, separators=(",", ":")),
+                toolchain_identity=toolchain_identity,
             )
             if not args.force_rematch:
                 hit = compile_cache_lookup(compile_cache_root, cache_key_value)

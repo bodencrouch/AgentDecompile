@@ -998,9 +998,17 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         # can never complete for the life of the run.
         safe_replay = name in {'mcp.analyze-program', 'mcp.execute-script', 'corpus.match-pair'}
         # The facts inventory first reconciles durable SQLite state before it
-        # submits, so an owner-reload interruption has no unsafe partial write
-        # to preserve and must not spend this action's transient retry budget.
-        if key == 'facts' and name == 'mcp.execute-script' and prior.get('status') == 'interrupted':
+        # submits, so an owner-reload interruption — or this terminal
+        # 600-second tool timeout with no reconciled inventory — has no
+        # partial write to preserve. Do not broadly replay timed-out actions.
+        retry_missing_facts_timeout = (
+            key == 'facts' and name == 'mcp.execute-script'
+            and prior.get('status') == 'failed' and fields.get('timeout') == 600
+            and str((prior.get('result') or {}).get('error') or '').strip().lower() == 'error: timed out'
+        )
+        if key == 'facts' and name == 'mcp.execute-script' and (
+            prior.get('status') == 'interrupted' or retry_missing_facts_timeout
+        ):
             prior = {}
         prior = _action_prior_for_retry(name, prior)
         prior_job = jobs.get_job(prior.get('jobId', '')) if prior.get('jobId') else None

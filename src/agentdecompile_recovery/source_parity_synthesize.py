@@ -19871,6 +19871,16 @@ def attempt_candidate_with_msvc_synthetic_slice(
     resolved_profiles = resolve_profiles(row, compiler_profiles, "msvc", source_shape_search=source_shape_search)
     seen_merged_flags: set[tuple[str, ...]] = set()
     attempt_timeout = min(timeout, 30)
+    # Compiler diagnostics repeat across profile variants and resumed runs.
+    # Cache only the result metadata; successful objects are always rebuilt so
+    # objdiff paths remain local to this attempt.
+    from .compile_cache import diagnostic_key, diagnostic_lookup, diagnostic_store
+    diagnostic_root = case_dir.parent.parent / "compile-cache"
+    try:
+        vc_stat = (vc_root / "bin" / "cl.exe").stat() if vc_root else None
+        toolchain = f"{vc_stat.st_size}:{vc_stat.st_mtime_ns}" if vc_stat else "unknown"
+    except OSError:
+        toolchain = "unavailable"
     for profile_index, (profile_name, profile_args) in enumerate(resolved_profiles):
         merged_flags = normalize_profile_flags(profile_args, list(candidate.extra_flags))
         merged_key = tuple(merged_flags)
@@ -19891,17 +19901,30 @@ def attempt_candidate_with_msvc_synthetic_slice(
             object_path=target_obj,
             timeout=attempt_timeout,
         )
-        candidate_compile = compile_with_msvc(
-            source=candidate_source,
-            object_path=candidate_obj,
-            out_dir=attempt_dir,
-            stem="candidate",
-            args=merged_flags,
-            timeout=attempt_timeout,
-            msvc_root=vc_root,
-            wine=wine,
-            wineprefix=wineprefix,
+        diagnostic_cache_key = diagnostic_key(
+            source_sha=hashlib.sha256(candidate.source.encode("utf-8")).hexdigest(),
+            compiler="msvc",
+            flags=merged_flags,
+            toolchain=toolchain,
         )
+        diagnostic_hit = diagnostic_lookup(diagnostic_root, diagnostic_cache_key)
+        candidate_compile = (diagnostic_hit or {}).get("result") if diagnostic_hit else None
+        if not isinstance(candidate_compile, dict) or candidate_compile.get("status") == "ok":
+            candidate_compile = compile_with_msvc(
+                source=candidate_source,
+                object_path=candidate_obj,
+                out_dir=attempt_dir,
+                stem="candidate",
+                args=merged_flags,
+                timeout=attempt_timeout,
+                msvc_root=vc_root,
+                wine=wine,
+                wineprefix=wineprefix,
+            )
+            if candidate_compile.get("status") != "ok":
+                diagnostic_store(diagnostic_root, diagnostic_cache_key, candidate_compile)
+        elif diagnostic_hit:
+            (attempt_dir / "compile.cache.json").write_text(json.dumps(diagnostic_hit, sort_keys=True) + "\n", encoding="utf-8")
         record = {
             **base_record,
             "attemptDir": str(attempt_dir),
@@ -22791,6 +22814,7 @@ def main(argv: list[str] | None = None) -> int:
     for source_tasks in args.source_tasks:
         input_rows.extend(iter_source_task_rows(source_tasks))
     if args.source_tasks:
+        input_rows = deduplicate_synthesis_rows(input_rows)
         input_rows.sort(key=synthesis_row_priority)
 
     for row in input_rows:
@@ -23208,13 +23232,64 @@ def synthesis_row_priority(row: dict[str, Any]) -> tuple[int, int, int, int, str
     is_bootstrap = rule == "target-slice-asm-bootstrap"
     is_suspect = boundary_quality.get("status") == "suspect"
     body_bytes = int(row.get("bodyBytes") or 0)
+    # Previous near misses are the highest-value repair targets: they already
+    # established a valid source shape and only need a focused correction.
+    near_miss = row_has_near_miss(row)
     return (
         0 if str(row.get("sourceOrigin") or "").startswith("acquired source context from ") else 1,
+        0 if near_miss else 1,
         0 if is_semantic else 1,
         1 if is_suspect and not is_semantic else 0,
         1 if is_bootstrap else 0,
         f"{body_bytes:08d}:{row.get('entry')}:{row.get('name')}",
     )
+
+
+def row_has_near_miss(row: dict[str, Any]) -> bool:
+    """Recognize prior objdiff evidence without requiring one historical schema."""
+    for key in ("nearMiss", "near_miss", "priorNearMiss", "previousNearMiss"):
+        if row.get(key) is True:
+            return True
+    for key in ("priorDifferences", "previousDifferences", "nearestDifference"):
+        try:
+            if 0 <= int(row.get(key)):
+                return True
+        except (TypeError, ValueError):
+            pass
+    text = " ".join(str(row.get(key) or "") for key in ("sourceOrigin", "sourceRecoveryScope", "sourceOriginDetail")).lower()
+    return "near-miss" in text or "near miss" in text
+
+
+def synthesis_row_key(row: dict[str, Any]) -> tuple[str, str, str, str]:
+    logical = str(row.get("logicalId") or row.get("logical_id") or "")
+    address = str(row.get("entry") or row.get("address") or "")
+    target = str(row.get("targetSha256") or row.get("analysisBinarySha256") or "")
+    source = str(row.get("sourceSha256") or "")
+    if not source and row.get("source"):
+        source = hashlib.sha256(str(row["source"]).encode("utf-8")).hexdigest()
+    return logical, address, target, source
+
+
+def deduplicate_synthesis_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse repeated imports while retaining the strongest evidence row."""
+    chosen: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+
+    def rank(row: dict[str, Any]) -> tuple[int, int, int, int, int]:
+        quality = str(row.get("sourceQuality") or "")
+        return (
+            0 if row_has_near_miss(row) else 1,
+            0 if row.get("semanticSource") is True else 1,
+            0 if quality == "high-level-c" else 1,
+            0 if str(row.get("sourceOrigin") or "").startswith("acquired source context from ") else 1,
+            -int(row.get("bodyBytes") or 0),
+        )
+
+    for row in rows:
+        key = synthesis_row_key(row)
+        prior = chosen.get(key)
+        if prior is None or rank(row) < rank(prior):
+            chosen[key] = row
+    return list(chosen.values())
 
 
 if __name__ == "__main__":

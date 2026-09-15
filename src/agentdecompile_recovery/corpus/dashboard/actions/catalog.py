@@ -432,7 +432,14 @@ def build_command(action: ActionSpec, params: dict[str, Any]) -> list[str]:
                     argv.append(f"--no-{positive_flag[2:]}")
             continue
         if spec.positional:
-            argv.append(str(value))
+            if spec.kind == "array":
+                argv.extend(str(item) for item in value)
+            else:
+                argv.append(str(value))
+            continue
+        if spec.kind == "array":
+            for item in value:
+                argv.extend([spec.flag or f"--{spec.name}", str(item)])
             continue
         argv.extend([spec.flag or f"--{spec.name}", str(value)])
     argv.extend(extra)

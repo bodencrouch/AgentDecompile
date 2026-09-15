@@ -60,6 +60,8 @@ def _kind(action: argparse.Action) -> str:
         (argparse._StoreTrueAction, argparse._StoreFalseAction, argparse.BooleanOptionalAction),
     ):
         return "bool"
+    if isinstance(action, argparse._AppendAction) or action.nargs in ("+", "*", argparse.REMAINDER):
+        return "array"
     typ = action.type
     if typ is int:
         return "int"

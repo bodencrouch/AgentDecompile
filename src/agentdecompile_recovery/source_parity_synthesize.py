@@ -19470,6 +19470,10 @@ def prioritize_candidates(candidates: list[GeneratedCandidate]) -> list[Generate
         for _, candidate in sorted(
         enumerate(candidates),
         key=lambda item: (
+            0
+            if item[1].variant == "packaged-source"
+            and str(item[1].evidence.get("sourceOrigin") or "").startswith("acquired source context from ")
+            else 1,
             quality_rank.get(generated_candidate_source_quality(item[1]), 4),
             1 if item[1].variant == "packaged-source" else 0,
             item[0],

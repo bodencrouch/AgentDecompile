@@ -167,12 +167,19 @@ def generate_source_candidates(
                 source = str(fact["decompiled"]).rstrip() + "\n"
                 if not acquired_source:
                     source = msvc_thiscall_to_fastcall(source).rstrip() + "\n"
-                source_path = case_dir / f"candidate.{_GEN['extension']}"
+                source_extension = _GEN["extension"]
+                source_language = _GEN["sourceLanguage"]
+                if acquired_source:
+                    witness_suffix = Path(str(fact.get("contextSource") or "")).suffix.lower().lstrip(".")
+                    if witness_suffix in {"c", "cc", "cpp", "cxx"}:
+                        source_extension = witness_suffix
+                    source_language = str(fact.get("language") or source_language)
+                source_path = case_dir / f"candidate.{source_extension}"
                 source_path.write_text(source, encoding="utf-8")
                 source_quality = _GEN["sourceQuality"]
                 source_recovery_scope = "whole-function"
-                generated_by_language[_GEN["sourceLanguage"]] = (
-                    generated_by_language.get(_GEN["sourceLanguage"], 0) + 1
+                generated_by_language[source_language] = (
+                    generated_by_language.get(source_language, 0) + 1
                 )
                 generated_by_source_quality[source_quality] = generated_by_source_quality.get(source_quality, 0) + 1
                 generated_by_recovery_scope[source_recovery_scope] = (
@@ -184,7 +191,7 @@ def generate_source_candidates(
                         "status": "generated-unverified",
                         "source": str(source_path),
                         "sourceSha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
-                        "sourceLanguage": _GEN["sourceLanguage"],
+                        "sourceLanguage": source_language,
                         "sourceQuality": source_quality,
                         "sourceRecoveryScope": source_recovery_scope,
                         "sourceOrigin": (

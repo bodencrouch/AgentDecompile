@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 SCHEMA = "agentdecompile.compile-cache-entry.v1"
+DIAGNOSTIC_SCHEMA = "agentdecompile.compile-diagnostic-cache.v1"
 
 
 def cache_dir(work_dir: Path) -> Path:
@@ -38,6 +39,28 @@ def cache_key(
 
 def entry_path(cache_root: Path, key: str) -> Path:
     return cache_root / f"{key}.json"
+
+
+def diagnostic_key(*, source_sha: str, compiler: str, flags: list[str], toolchain: str = "") -> str:
+    """Stable key for a compiler result; target bytes are intentionally excluded."""
+    material = json.dumps([source_sha, compiler, flags, toolchain], sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
+def diagnostic_lookup(cache_root: Path, key: str) -> dict[str, Any] | None:
+    path = cache_root / f"diagnostic-{key}.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+    return data if isinstance(data, dict) and data.get("schema") == DIAGNOSTIC_SCHEMA else None
+
+
+def diagnostic_store(cache_root: Path, key: str, result: dict[str, Any]) -> Path:
+    cache_root.mkdir(parents=True, exist_ok=True)
+    path = cache_root / f"diagnostic-{key}.json"
+    path.write_text(json.dumps({"schema": DIAGNOSTIC_SCHEMA, "cacheKey": key, "result": result}, sort_keys=True) + "\n", encoding="utf-8")
+    return path
 
 
 def lookup(cache_root: Path, key: str) -> dict[str, Any] | None:

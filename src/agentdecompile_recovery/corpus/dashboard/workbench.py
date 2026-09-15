@@ -618,6 +618,12 @@ def _shared_program_rows(locator: str) -> list[dict[str, Any]]:
         return []
     canonical = str(info.get("canonical") or info.get("locator") or locator).rstrip("/")
     paths = info.get("program_paths") or {}
+    bound_rows, _ = query_db(
+        "SELECT b.id,b.repo_path,b.func_count,b.named_count,b.role,b.variant,b.game,b.platform,b.format,p.program "
+        "FROM binary b JOIN program_binding p ON p.source_path=b.repo_path WHERE p.locator=?",
+        (canonical,),
+    )
+    bound = {"/" + str(row[9] or "").replace("\\", "/").strip().lstrip("/"): row for row in bound_rows}
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
     for display, raw_program in sorted(paths.items(), key=lambda item: str(item[1]).casefold()):
@@ -629,19 +635,21 @@ def _shared_program_rows(locator: str) -> list[dict[str, Any]]:
             continue
         seen.add(key)
         name = str(display or Path(program).name)
+        recorded = bound.get(program)
+        binary_id, source_path, funcs, named, role, label, game, platform, binary_format, _ = recorded or (None, "", 0, 0, "member", "", "", "", "", "")
         rows.append({
             "id": f"shared-program:{key}",
             "libraryId": f"shared-program:{key}",
             "slug": name,
-            "repo": f"ghidra:{canonical}#{program}",
+            "repo": source_path or f"ghidra:{canonical}#{program}",
             "program": program,
-            "role": "member",
-            "label": "",
-            "funcs": 0,
-            "named": 0,
-            "game": "",
-            "platform": "",
-            "format": "",
+            "role": role or "member",
+            "label": label or "",
+            "funcs": int(funcs or 0),
+            "named": int(named or 0),
+            "game": game or "",
+            "platform": platform or "",
+            "format": binary_format or "",
             "kind": "shared-program",
             "programs": [program],
             "locator": canonical,
@@ -651,10 +659,10 @@ def _shared_program_rows(locator: str) -> list[dict[str, Any]]:
             "identityStatus": "project-entry",
             "identityReason": "Shared Ghidra program identity is confirmed by folder and name; original-byte SHA-256 has not been bound.",
             "aliasSlugs": [name],
-            "binaryIds": [],
-            "sourcePaths": [],
-            "decomp": decomp_rollup(name, 0),
-            "validate": validate_rollup(name, 0),
+            "binaryIds": [binary_id] if binary_id is not None else [],
+            "sourcePaths": [source_path] if source_path else [],
+            "decomp": decomp_rollup(name, int(funcs or 0)),
+            "validate": validate_rollup(name, int(funcs or 0)),
         })
     return rows
 
@@ -1413,10 +1421,19 @@ def list_functions(
         return _list_functions_fallback(
             program, q=q, offset=offset, limit=limit, bsim_url=bsim_url, locator=locator,
         )
-    rows, err = query_db(
-        "SELECT id, bits FROM binary WHERE slug=? LIMIT 1",
-        (slug,),
-    )
+    rows: list[Any] = []
+    err = None
+    if locator and program:
+        rows, err = query_db(
+            "SELECT b.id,b.bits FROM binary b JOIN program_binding p ON p.source_path=b.repo_path "
+            "WHERE p.locator=? AND p.program=? LIMIT 1",
+            (locator.rstrip("/"), program),
+        )
+    if not rows and not err:
+        rows, err = query_db(
+            "SELECT id, bits FROM binary WHERE slug=? LIMIT 1",
+            (slug,),
+        )
     if err:
         return {"ok": False, "error": err, "results": [], "total": 0}
     if not rows:

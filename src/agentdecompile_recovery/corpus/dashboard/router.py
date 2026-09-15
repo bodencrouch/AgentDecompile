@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import mimetypes
+import os
 from urllib.parse import quote, urlencode
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
@@ -40,6 +42,24 @@ from agentdecompile_recovery.corpus.dashboard.pages import (
     render_page,
 )
 
+_ide_url = (
+    os.environ.get("AGENTDECOMPILE_WEB_IDE_URL")
+    or os.environ.get("VITE_AGENTDECOMPILE_WEB_IDE_URL")
+    or ""
+).strip()
+try:
+    _ide_parts = urlsplit(_ide_url)
+except ValueError:
+    # A malformed optional editor URL must not prevent the dashboard from
+    # importing.  The runtime-config endpoint applies the same safe fallback.
+    _ide_parts = None
+_ide_origin = (
+    f"{_ide_parts.scheme}://{_ide_parts.netloc}"
+    if _ide_parts and _ide_parts.scheme in {"http", "https"} and _ide_parts.netloc
+    else ""
+)
+_frame_src = f"; frame-src 'self' {_ide_origin}" if _ide_origin else ""
+
 SECURITY_HEADERS = {
     "Cache-Control": "no-store, max-age=0",
     "Referrer-Policy": "no-referrer",
@@ -50,6 +70,7 @@ SECURITY_HEADERS = {
         "default-src 'self'; script-src 'self' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
         "connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"
+        + _frame_src
     ),
 }
 
@@ -94,7 +115,9 @@ def create_dashboard_router() -> APIRouter:
 
         from agentdecompile_recovery.corpus.dashboard.react_api import react_entry_redirect
 
-        if request.query_params.get("mode") == "static":
+        # The MCP dashboard is the static delivery surface. Keep React opt-in
+        # so opening /dashboard never unexpectedly switches workbenches.
+        if request.query_params.get("mode", "static") == "static":
             response = HTMLResponse(render_workbench(static_mode=True))
             for key, value in SECURITY_HEADERS.items():
                 response.headers[key] = value
@@ -201,14 +224,17 @@ def create_dashboard_router() -> APIRouter:
     async def workbench_browse(request: Request) -> JSONResponse:
         from agentdecompile_recovery.corpus.dashboard.workbench import browse_sources
 
-        payload = browse_sources(str(request.query_params.get("path") or ""))
+        payload = await asyncio.to_thread(browse_sources, str(request.query_params.get("path") or ""))
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 
     @router.get("/dashboard/api/workbench/classify")
     async def workbench_classify(request: Request) -> JSONResponse:
         from agentdecompile_recovery.corpus.dashboard.workbench import classify_source
 
-        payload = classify_source(str(request.query_params.get("locator") or request.query_params.get("path") or ""))
+        payload = await asyncio.to_thread(
+            classify_source,
+            str(request.query_params.get("locator") or request.query_params.get("path") or ""),
+        )
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 
     @router.get("/dashboard/api/workbench/ghidra-defaults")
@@ -265,7 +291,7 @@ def create_dashboard_router() -> APIRouter:
             items.append((rel, data))
         if not items:
             return JSONResponse({"ok": False, "error": "file is required"}, status_code=400)
-        payload = stage_dropped_files(items)
+        payload = await asyncio.to_thread(stage_dropped_files, items)
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 
     @router.post("/dashboard/api/workbench/resolve-drop")
@@ -273,7 +299,8 @@ def create_dashboard_router() -> APIRouter:
         from agentdecompile_recovery.corpus.dashboard.workbench import resolve_dropped_source
 
         body = await request.json()
-        payload = resolve_dropped_source(
+        payload = await asyncio.to_thread(
+            resolve_dropped_source,
             str(body.get("name") or ""),
             list(body.get("relativePaths") or body.get("relative_paths") or []),
             staging_id=str(body.get("staging_id") or body.get("stagingId") or ""),
@@ -285,7 +312,11 @@ def create_dashboard_router() -> APIRouter:
         from agentdecompile_recovery.corpus.dashboard.workbench import create_ghidra_project
 
         body = await request.json()
-        payload = create_ghidra_project(str(body.get("name") or "Project"), str(body.get("destination") or ""))
+        payload = await asyncio.to_thread(
+            create_ghidra_project,
+            str(body.get("name") or "Project"),
+            str(body.get("destination") or ""),
+        )
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 
     @router.post("/dashboard/api/workbench/save")
@@ -293,7 +324,7 @@ def create_dashboard_router() -> APIRouter:
         from agentdecompile_recovery.corpus.dashboard.workbench import save_current_project
 
         body = await request.json()
-        payload = save_current_project(str(body.get("locator") or ""))
+        payload = await asyncio.to_thread(save_current_project, str(body.get("locator") or ""))
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 
     @router.post("/dashboard/api/workbench/save-as")
@@ -315,21 +346,21 @@ def create_dashboard_router() -> APIRouter:
     async def workbench_sessions() -> JSONResponse:
         from agentdecompile_recovery.corpus.dashboard.workbench import list_sessions
 
-        payload = list_sessions()
+        payload = await asyncio.to_thread(list_sessions)
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 
     @router.put("/dashboard/api/workbench/sessions")
     async def workbench_save_sessions(request: Request) -> JSONResponse:
         from agentdecompile_recovery.corpus.dashboard.workbench import write_sessions
 
-        payload = write_sessions(await request.json())
+        payload = await asyncio.to_thread(write_sessions, await request.json())
         return JSONResponse(payload, status_code=200 if payload.get("ok") else 400)
 
     @router.get("/dashboard/api/workbench/workspace-state")
     async def workbench_workspace_state() -> JSONResponse:
         from agentdecompile_recovery.corpus.dashboard.workspace_state import load_state
 
-        return JSONResponse({"ok": True, **load_state()})
+        return JSONResponse({"ok": True, **await asyncio.to_thread(load_state)})
 
     @router.patch("/dashboard/api/workbench/workspace-state")
     async def workbench_patch_workspace_state(request: Request) -> JSONResponse:
@@ -338,7 +369,7 @@ def create_dashboard_router() -> APIRouter:
         body = await request.json()
         if not isinstance(body, dict):
             return JSONResponse({"ok": False, "error": "JSON object required"}, status_code=400)
-        payload = patch_state(body)
+        payload = await asyncio.to_thread(patch_state, body)
         if payload.get("ok"):
             return JSONResponse(payload, status_code=200)
         error = str(payload.get("error") or "workspace state update failed")
@@ -794,7 +825,7 @@ def create_dashboard_router() -> APIRouter:
     async def dashboard_api_action(action_id: str) -> JSONResponse:
         from agentdecompile_recovery.corpus.dashboard.actions.catalog import action_by_id
 
-        action = action_by_id(action_id)
+        action = await asyncio.to_thread(action_by_id, action_id)
         if action is None:
             return JSONResponse({"ok": False, "error": f"unknown action {action_id}"}, status_code=404)
         return JSONResponse({"ok": True, "action": action.to_dict()})
@@ -804,7 +835,7 @@ def create_dashboard_router() -> APIRouter:
         from agentdecompile_recovery.corpus.dashboard.actions.jobs import list_jobs
 
         rows = await asyncio.to_thread(list_jobs, compact=True)
-        return JSONResponse({"ok": True, "jobs": [job.to_dict(include_log=False) for job in rows], "total": len(rows)})
+        return JSONResponse({"ok": True, "jobs": [job.to_dict(include_log=False, include_details=False) for job in rows], "total": len(rows)})
 
     @router.get("/dashboard/api/jobs/{job_id}")
     async def dashboard_api_job(job_id: str) -> JSONResponse:
@@ -825,7 +856,8 @@ def create_dashboard_router() -> APIRouter:
             body = {}
         if not isinstance(body, dict):
             return JSONResponse({"ok": False, "error": "JSON object required"}, status_code=400)
-        payload, status = start_job(
+        payload, status = await asyncio.to_thread(
+            start_job,
             str(body.get("action") or body.get("actionId") or ""),
             body.get("params") if isinstance(body.get("params"), dict) else {},
             context=body.get("context") if isinstance(body.get("context"), dict) else {},
@@ -838,7 +870,7 @@ def create_dashboard_router() -> APIRouter:
     async def dashboard_api_cancel_job(job_id: str) -> JSONResponse:
         from agentdecompile_recovery.corpus.dashboard.actions.jobs import cancel_job
 
-        job = cancel_job(job_id)
+        job = await asyncio.to_thread(cancel_job, job_id)
         if job is None:
             return JSONResponse({"ok": False, "error": f"unknown job {job_id}"}, status_code=404)
         return JSONResponse({"ok": True, "job": job.to_dict()})

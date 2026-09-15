@@ -208,38 +208,6 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
             block_after('calibrate-global', 'Waiting for confirmed analysis and function facts.')
             continue
         work.mkdir(parents=True, exist_ok=True)
-        profile_path = work / 'compiler-profile.json'
-        # A project can supply its measured configuration at workspace level.
-        configured = os.environ.get('AGENT_DECOMPILE_COMPILER_PROFILE', '').strip()
-        profile_admission: dict[str, Any] | None = None
-        if configured:
-            profile_path = Path(configured).expanduser()
-        header = work / 'ghidra_types.h'
-        layout_config = {'db': str(db), 'binaryId': checkpoint['binaryId'], 'program': program, 'header': str(header)}
-        exported_types = action('calibrate-global', 'mcp.execute-script', {'programPath': execution_program, '_preparationProbe': True, 'code': layout_script(layout_config), 'timeout': 180}, context)
-        type_data = exported_types.get('data') or {}
-        fields = {'work-dir': str(work)}
-        if exported_types['ok'] and isinstance(type_data, dict) and type_data.get('types', 0) > 0:
-            fields['types-header'] = str(header)
-        else:
-            if header.exists():
-                header.replace(work / 'types-unavailable.h')
-            result('calibrate-global', 'blocked', exported_types.get('error') or 'Target layout evidence is unavailable. Existing metadata has been retained.', jobId=exported_types.get('jobId'))
-            block_after('assembly-floor', 'Waiting for target layout evidence.')
-            continue
-        program_kb, has_witnesses, extraction_failure = _extract_advisory_witnesses(
-            row=row, checkpoint=checkpoint, work=work, program=program,
-            context=context, action=action, update=update,
-        )
-        if has_witnesses:
-            available = int(checkpoint.get('knowledgeAvailable') or 0)
-            result('recover-source', 'partial',
-                   f'{available} recorded Ghidra C witnesses available; compilation waits for measured toolchain evidence.',
-                   knowledgeDb=str(program_kb), advisoryFunctions=available,
-                   **({'extractionNote': extraction_failure} if extraction_failure else {}))
-        elif extraction_failure:
-            result('recover-source', 'partial', extraction_failure, knowledgeDb=str(program_kb))
-
         # Target materialization and Ghidra witnesses are independent of a
         # compiler profile.  Do them before calibration: otherwise a project
         # with no prior source probes can never produce the evidence needed to
@@ -280,10 +248,68 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
         else:
             original_target = None
             result('materialize-target', 'blocked', str(target_image.get('reason') or 'Original byte target could not be materialized.'), targetImage=target_image)
+            floor_dir = work / 'assembly-floor'
+            floor = action('assembly-floor', 'corpus.roundtrip', {
+                'repo-path': checkpoint['repoPath'], 'db': str(db),
+                'raw': str(original_target), 'out-dir': str(floor_dir),
+            }, context)
+            floor_data = floor.get('data') or {}
+            floor_receipt = floor_dir / '_roundtrip.json'
+            target_hash = str(target_image.get('targetSha256') or '')
+            floor_ok = (
+                floor.get('ok') and floor_data.get('identical') is True
+                and floor_data.get('sha256_original') == target_hash
+                and floor_data.get('sha256_rebuilt') == target_hash
+                and floor_receipt.is_file()
+            )
+            result(
+                'assembly-floor', 'completed' if floor_ok else 'partial',
+                'Complete assembly substrate reproduces the original file bytes.' if floor_ok
+                else floor.get('error') or 'Assembly substrate did not reproduce the original file bytes.',
+                receipt=str(floor_receipt), source=floor_data.get('source'),
+                targetReceipt=target_image['receiptPath'], targetSha256=target_hash,
+                size=floor_data.get('size'), rebuiltSize=floor_data.get('rebuilt_size'),
+                functions=floor_data.get('functions'), bytesInFunctions=floor_data.get('bytes_in_functions'),
+                bytesFiller=floor_data.get('bytes_filler'), representation='byte-authoritative-assembly-substrate',
+                claimBoundary='This assembly reproduces the shipped file image; it is not recovered authored C/C++.',
+            )
 
         if not configured and not profile_path.exists():
             # Bind a measured compiler profile only after Ghidra has identified
             # the executable it actually opened.  Shared-folder names and
+
+        profile_path = work / 'compiler-profile.json'
+        # A project can supply its measured configuration at workspace level.
+        configured = os.environ.get('AGENT_DECOMPILE_COMPILER_PROFILE', '').strip()
+        profile_admission: dict[str, Any] | None = None
+        if configured:
+            profile_path = Path(configured).expanduser()
+        header = work / 'ghidra_types.h'
+        layout_config = {'db': str(db), 'binaryId': checkpoint['binaryId'], 'program': program, 'header': str(header)}
+        exported_types = action('calibrate-global', 'mcp.execute-script', {'programPath': execution_program, '_preparationProbe': True, 'code': layout_script(layout_config), 'timeout': 180}, context)
+        type_data = exported_types.get('data') or {}
+        fields = {'work-dir': str(work)}
+        if exported_types['ok'] and isinstance(type_data, dict) and type_data.get('types', 0) > 0:
+            fields['types-header'] = str(header)
+        else:
+            if header.exists():
+                header.replace(work / 'types-unavailable.h')
+            result('calibrate-global', 'blocked', exported_types.get('error') or 'Target layout evidence is unavailable. Existing metadata has been retained.', jobId=exported_types.get('jobId'))
+            block_after('assembly-floor', 'Waiting for target layout evidence.')
+            continue
+        program_kb, has_witnesses, extraction_failure = _extract_advisory_witnesses(
+            row=row, checkpoint=checkpoint, work=work, program=program,
+            context=context, action=action, update=update,
+        )
+        if has_witnesses:
+            available = int(checkpoint.get('knowledgeAvailable') or 0)
+            result('recover-source', 'partial',
+                   f'{available} recorded Ghidra C witnesses available; compilation waits for measured toolchain evidence.',
+                   knowledgeDb=str(program_kb), advisoryFunctions=available,
+                   **({'extractionNote': extraction_failure} if extraction_failure else {}))
+        elif extraction_failure:
+            result('recover-source', 'partial', extraction_failure, knowledgeDb=str(program_kb))
+
             # stored corpus inventory keys are not target identities.
             from agentdecompile_recovery.source_parity_profile_corpus import admit_measured_profile
 
@@ -328,12 +354,9 @@ def continue_recovery(row: dict[str, Any], root: Path, db: Path,
             continue
 
         source = work / 'source'
-        layout = action('assembly-floor', 'corpus.workspace', {'db': str(db), 'donor-slug': checkpoint['slug'], 'out': str(source)}, context)
+        layout = action('recover-source', 'corpus.workspace', {'db': str(db), 'donor-slug': checkpoint['slug'], 'out': str(source)}, context)
         if not layout['ok']:
-            result('assembly-floor', 'blocked', layout.get('error') or layout.get('log') or 'Project layout could not be written.', jobId=layout.get('jobId'))
-        else:
-            # workspace writes compilation-unit stubs, not executable assembly.
-            result('assembly-floor', 'partial', 'Source layout created. No linked assembly-floor receipt exists.', jobId=layout.get('jobId'), sourceDirectory=str(source))
+            result('recover-source', 'partial', layout.get('error') or layout.get('log') or 'Project layout could not be written.', jobId=layout.get('jobId'))
         if not _knowledge_has_program(program_kb, program):
             block_after('recover-source', 'No decompiled C is available after the recorded extraction attempts.')
             continue

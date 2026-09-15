@@ -50,6 +50,24 @@ const addr = (value: any) =>
   typeof value === "number"
     ? "0x" + value.toString(16).padStart(8, "0")
     : String(value || "");
+const normalizedLocator = (value: unknown) => String(value || "").replace(/\/+$/, "");
+const normalizedProgram = (value: unknown) => String(value || "").replace(/^\/+/, "");
+function projectBinding(row: Data, locator = "") {
+  const bindings: Data[] = row.projectBindings || row.project_bindings || [];
+  return bindings.find(item =>
+    normalizedLocator(item.locator) === normalizedLocator(locator),
+  ) || bindings[0] || {};
+}
+function buildKey(row: Data, locator = "") {
+  if (row.kind !== "shared-program") return `binary:${row.slug}`;
+  const binding = projectBinding(row, locator);
+  return `program:${normalizedLocator(binding.locator || row.locator || locator).toLowerCase()}\u001f${normalizedProgram(binding.program || row.program).toLowerCase()}`;
+}
+const asBuild = (row: Data): Data => ({
+  ...row,
+  func_count: row.func_count ?? row.funcs,
+  named_count: row.named_count ?? row.named,
+});
 function Messages({ data }: { data: Data }) {
   return (
     <>
@@ -173,30 +191,37 @@ function Overview({
       : null,
     props.revision,
   );
-  const library = useData(`${API}/binaries`, props.revision);
-  const buildsBySlug = new Map<string, Data>((data.ladder?.binaries || []).map((row: Data) => [row.slug, row]));
+  const library = useData(`${API}/binaries?locator=${encodeURIComponent(props.selection.locator)}`, props.revision);
+  const buildsByKey = new Map<string, Data>((data.ladder?.binaries || []).map((row: Data) => [buildKey(row, props.selection.locator), row]));
   for (const binary of library.data.binaries || []) {
-    if (binary.kind !== "binary") continue;
-    for (const alias of binary.aliasSlugs || []) if (alias !== binary.slug) buildsBySlug.delete(alias);
-    buildsBySlug.set(binary.slug, { ...buildsBySlug.get(binary.slug), ...binary,
-      func_count: binary.funcs, named_count: binary.named });
+    if (!['binary', 'shared-program'].includes(binary.kind)) continue;
+    for (const alias of binary.aliasSlugs || []) if (alias !== binary.slug) buildsByKey.delete(`binary:${alias}`);
+    const key = buildKey(binary, props.selection.locator);
+    buildsByKey.set(key, asBuild({ ...buildsByKey.get(key), ...binary }));
   }
-  const builds = [...buildsBySlug.values()];
-  const programName = (value: string) => String(value || "").replace(/^\/+/, "");
+  const builds = [...buildsByKey.values()];
+  const programName = normalizedProgram;
   const projectPrograms = (project.data.programs || []).map((item: any) =>
     programName(typeof item === "string" ? item : item.name || item.path || item.program),
   );
   const selectedBuilds = builds.filter(row =>
     row.slug === props.selection.slug || row.aliasSlugs?.includes(props.selection.slug) ||
     row.slug === programName(props.selection.program) ||
+    row.projectBindings?.some((binding: Data) =>
+      normalizedLocator(binding.locator) === normalizedLocator(props.selection.locator) &&
+      (!props.selection.program || normalizedProgram(binding.program) === normalizedProgram(props.selection.program))) ||
     (!props.selection.program && (projectPrograms.includes(row.slug) ||
       row.projectBindings?.some((binding: Data) => binding.locator === props.selection.locator))),
   );
   const visible = scope === "all" ? builds : selectedBuilds;
   const browse = (props as BrowsableProps).onBrowseFunctions;
+  const countBinding = visible.length === 1 ? projectBinding(visible[0], props.selection.locator) : {};
+  const countTarget = visible.length === 1 && visible[0].kind === 'shared-program'
+    ? `locator=${encodeURIComponent(countBinding.locator || visible[0].locator || props.selection.locator)}&program=${encodeURIComponent(countBinding.program || visible[0].program)}`
+    : visible.length === 1 ? `slug=${encodeURIComponent(visible[0].slug)}` : '';
   const countUrl =
     visible.length === 1
-      ? `${API}/functions?slug=${encodeURIComponent(visible[0].slug)}&limit=1&filter=`
+      ? `${API}/functions?${countTarget}&limit=1&filter=`
       : null;
   const allCount = useData(countUrl ? countUrl + "all" : null, props.revision);
   const namedCount = useData(
@@ -1123,12 +1148,17 @@ export function RecoveryWorkspace({props,catalog=[],liveRun}:{props:SurfaceProps
   const data=useData(`${API}/corpus-status?${scoped?query(props.selection):'scope=all'}`,props.revision+tick);
   const actionCatalog=useData(!catalog.length?'/dashboard/api/actions':null);
   const availableActions=catalog.length?catalog:actionCatalog.data.actions||[];
-  const library=useData(`${API}/binaries`,props.revision);
+  const library=useData(`${API}/binaries?locator=${encodeURIComponent(props.selection.locator)}`,props.revision);
   const workflow=data.data.workflow||{};
   const runs:Data[]=workflow.runs||[];
   const run=scoped?(liveRun||workflow.run||selectPreparation(runs,props.selection)):undefined;
   const scopeConfirmed=!scoped||Boolean(data.data.scope&&data.data.scope.kind!=='all');
-  const builds:Data[]=scopeConfirmed?data.data.ladder?.binaries||[]:[];
+  const buildsByKey=new Map<string,Data>((scopeConfirmed?data.data.ladder?.binaries||[]:[]).map((row:Data)=>[buildKey(row,props.selection.locator),row]));
+  for(const row of library.data.binaries||[])if(row.kind==='shared-program'){
+    const key=buildKey(row,props.selection.locator);
+    buildsByKey.set(key,asBuild({...buildsByKey.get(key),...row}));
+  }
+  const builds=[...buildsByKey.values()];
   const report=scopeConfirmed?data.data.report||{}:{};
   const evidence=data.data.evidenceSources||[];
   const match=data.data.recovery?.matching||{};

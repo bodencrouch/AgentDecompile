@@ -140,7 +140,7 @@ export function CodeBrowser(props: SurfaceProps) {
     [pane, setPane] = useState("symbols"),
     [kind, setKind] = useState("symbols"),
     [search, setSearch] = useState(""),
-    [query, setQuery] = useState(""),
+    [searchQuery, setSearchQuery] = useState(""),
     [offset, setOffset] = useState(0),
     [goto, setGoto] = useState(selection.addr),
     [typeName, setTypeName] = useState(""),
@@ -231,7 +231,7 @@ export function CodeBrowser(props: SurfaceProps) {
     setVtableAddress("");
     setCategory("");
     setSearch("");
-    setQuery("");
+    setSearchQuery("");
     setNavigation(null);
     setSymbolJump(null);
     setSymbolError("");
@@ -242,11 +242,11 @@ export function CodeBrowser(props: SurfaceProps) {
   const targets: Record<string, [string, Data]> = {
     functions: [
       "list-functions",
-      { namePattern: query, offset, limit: 80, ...functionFilters },
+      { namePattern: searchQuery, offset, limit: 80, ...functionFilters },
     ],
     symbols: [
       "manage-symbols",
-      { mode: kind, query, offset, limit: 80, filterDefaultNames: false },
+      { mode: kind, query: searchQuery, offset, limit: 80, filterDefaultNames: false },
     ],
     types: [
       "manage-data-types",
@@ -255,7 +255,7 @@ export function CodeBrowser(props: SurfaceProps) {
     memory: ["inspect-memory", { mode: "blocks" }],
     bookmarks: [
       "manage-bookmarks",
-      { mode: "search", query, offset, limit: 80 },
+      { mode: "search", query: searchQuery, offset, limit: 80 },
     ],
     references: [
       "get-references",
@@ -328,7 +328,7 @@ export function CodeBrowser(props: SurfaceProps) {
       );
       setPane("symbols");
       setKind("symbols");
-      setQuery(symbolJump.token);
+      setSearchQuery(symbolJump.token);
       setSearch(symbolJump.token);
       setOffset(0);
     }
@@ -496,7 +496,7 @@ export function CodeBrowser(props: SurfaceProps) {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  setQuery(search);
+                  setSearchQuery(search);
                   setOffset(0);
                 }}
               >
@@ -511,7 +511,7 @@ export function CodeBrowser(props: SurfaceProps) {
                   type="button"
                   onClick={() => {
                     setSearch("");
-                    setQuery("");
+                    setSearchQuery("");
                     setOffset(0);
                   }}
                 >
@@ -660,7 +660,7 @@ export function CodeBrowser(props: SurfaceProps) {
                     } else {
                       setKind("symbols");
                       setSearch(String(r.name || ""));
-                      setQuery(String(r.name || ""));
+                      setSearchQuery(String(r.name || ""));
                       setOffset(0);
                     }
                   }}

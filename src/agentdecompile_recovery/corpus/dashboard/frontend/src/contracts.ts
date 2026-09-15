@@ -104,6 +104,7 @@ export async function request<T = Data>(
     },
   });
   const raw = await response.text();
+  const accepted = response.ok || response.status === 202;
   let data: Data = {};
   if (raw.trim()) {
     try {
@@ -115,10 +116,10 @@ export async function request<T = Data>(
           : `Invalid JSON from server (${response.status})`,
       );
     }
-  } else if (!response.ok) {
+  } else if (!accepted) {
     throw new Error(`Request failed (${response.status})`);
   }
-  if (!response.ok || data.ok === false) {
+  if (!accepted || data.ok === false) {
     const detail = Array.isArray(data.detail)
       ? data.detail
           .map((item: Data) => `${(item.loc || []).join(".")}: ${item.msg}`)

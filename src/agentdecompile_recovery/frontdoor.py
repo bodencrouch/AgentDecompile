@@ -281,6 +281,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--source-synthesis-limit", type=int, default=50, help="Maximum source tasks to inspect in this invocation.")
     parser.add_argument("--source-synthesis-max-variants", type=int, default=8)
+    parser.add_argument("--source-synthesis-verify-packaged-source", action="store_true")
+    parser.add_argument("--source-synthesis-upgrade-packaged-source", action="store_true")
     parser.add_argument("--source-synthesis-strategies", help="Comma-separated strategy/tag/rule filter.")
     parser.add_argument(
         "--source-synthesis-source-quality",
@@ -551,6 +553,8 @@ def run_one_shot(args: argparse.Namespace) -> int:
         ),
         source_synthesis_limit=args.source_synthesis_limit,
         source_synthesis_max_variants=args.source_synthesis_max_variants,
+        source_synthesis_verify_packaged_source=args.source_synthesis_verify_packaged_source,
+        source_synthesis_upgrade_packaged_source=args.source_synthesis_upgrade_packaged_source,
         source_synthesis_strategies=parse_csv_string(args.source_synthesis_strategies),
         source_synthesis_source_qualities=parse_csv_values(args.source_synthesis_source_quality),
         source_synthesis_vc_root=args.source_synthesis_vc_root,

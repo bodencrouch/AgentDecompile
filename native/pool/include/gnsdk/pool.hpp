@@ -48,6 +48,9 @@ class Supervisor {
       gnsdk::proto::Kind kind, std::string_view json, std::uint64_t request_id,
       std::chrono::milliseconds timeout);
   // Escalates SIGUSR1 -> SIGTERM -> SIGKILL and reaps every child.
+  // May race requests/status queries: rejects queued work and waits for active
+  // callers before releasing worker storage. Move/destruction require callers
+  // to have joined; restart is allowed after stop returns.
   void stop() noexcept;
   [[nodiscard]] std::size_t live_workers() const noexcept;
   [[nodiscard]] std::string stderr_tail() const;

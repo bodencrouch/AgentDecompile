@@ -1,6 +1,7 @@
 #include "gnsdk/pool.hpp"
 
 #include <cerrno>
+#include <charconv>
 #include <condition_variable>
 #include <csignal>
 #include <cstring>
@@ -88,30 +89,33 @@ void validate_tmpdir(const std::filesystem::path &tmpdir)
         throw std::runtime_error("remove pool tmpdir probe: " + ec.message());
 }
 
-void sweep_dead_pid_dirs(const std::filesystem::path &root, std::string_view prefix) noexcept
+void sweep_dead_pid_dirs(const std::filesystem::path &root, std::string_view prefix)
 {
     if (root.empty())
         return;
     std::error_code ec;
     if (!std::filesystem::is_directory(root, ec) || ec)
         return;
-    for (const auto &entry : std::filesystem::directory_iterator(root, ec))
+    std::filesystem::directory_iterator entries(root, ec), end;
+    while (!ec && entries != end)
     {
-        if (ec)
-            return;
+        const auto entry = *entries;
+        entries.increment(ec);
+        std::error_code status_error;
+        if (!std::filesystem::is_directory(entry.symlink_status(status_error)) || status_error)
+            continue;
         const auto name = entry.path().filename().string();
         if (!std::string_view(name).starts_with(prefix))
             continue;
         const std::string_view pid_text(name.data() + prefix.size(), name.size() - prefix.size());
-        char *end = nullptr;
-        errno = 0;
-        const long pid = std::strtol(std::string(pid_text).c_str(), &end, 10);
-        if (errno != 0 || end == nullptr || *end != '\0' || pid <= 0)
+        pid_t pid = 0;
+        const auto parsed = std::from_chars(pid_text.data(), pid_text.data() + pid_text.size(), pid);
+        if (parsed.ec != std::errc{} || parsed.ptr != pid_text.data() + pid_text.size() || pid <= 0)
             continue;
-        if (::kill(static_cast<pid_t>(pid), 0) == 0 || errno != ESRCH)
+        if (::kill(pid, 0) == 0 || errno != ESRCH)
             continue;
-        std::filesystem::remove(entry.path(), ec);
-        ec.clear();
+        std::error_code remove_error;
+        std::filesystem::remove(entry.path(), remove_error);
     }
 }
 
@@ -181,6 +185,8 @@ struct Supervisor::Impl
     std::vector<Child> children;
     std::size_t next = 0;
     std::mutex mutex;
+    std::mutex stderr_mutex;
+    bool stopping = false;
     std::condition_variable idle;
     std::size_t queued = 0;
     std::size_t in_flight = 0;
@@ -395,7 +401,6 @@ void Supervisor::Impl::close_child(Child &child) noexcept
     close_fd(child.err);
     close_fd(child.pidfd);
     child.pid = -1;
-    child.busy = false;
 }
 
 void Supervisor::Impl::drain_stderr(Child &child) noexcept
@@ -408,6 +413,7 @@ void Supervisor::Impl::drain_stderr(Child &child) noexcept
         const ssize_t n = ::read(child.err, buf, sizeof buf);
         if (n > 0)
         {
+            std::lock_guard<std::mutex> lock(stderr_mutex);
             stderr_tail.append(buf, static_cast<std::size_t>(n));
             if (stderr_tail.size() > kStderrTailBytes)
             {
@@ -455,6 +461,9 @@ Supervisor &Supervisor::operator=(Supervisor &&) noexcept = default;
 
 void Supervisor::start()
 {
+    std::unique_lock<std::mutex> lock(impl_->mutex);
+    if (impl_->stopping)
+        throw std::logic_error("supervisor is stopping");
     if (!impl_->children.empty())
         throw std::logic_error("supervisor already started");
     std::signal(SIGPIPE, SIG_IGN);
@@ -472,6 +481,7 @@ void Supervisor::start()
     }
     catch (...)
     {
+        lock.unlock();
         stop();
         throw;
     }
@@ -480,8 +490,6 @@ void Supervisor::start()
 proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std::uint64_t id,
                                    std::chrono::milliseconds timeout)
 {
-    if (impl_->children.empty())
-        throw std::logic_error("supervisor is not started");
     if (id == 0 || proto::is_connection_kind(proto::to_u16(kind)))
         throw std::invalid_argument("request must have a nonzero request id");
     if (json.size() > impl_->config.max_queue_bytes)
@@ -490,6 +498,8 @@ proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std:
     std::size_t slot = 0;
     {
         std::unique_lock<std::mutex> lock(impl_->mutex);
+        if (impl_->children.empty() || impl_->stopping)
+            throw std::logic_error("supervisor is not started or is stopping");
         impl_->reap_exited_children();
         if (impl_->config.max_queue == 0 ||
             impl_->queued + impl_->in_flight >= impl_->config.max_queue)
@@ -507,6 +517,11 @@ proto::Message Supervisor::request(proto::Kind kind, std::string_view json, std:
         };
         for (;;)
         {
+            if (impl_->stopping)
+            {
+                remove_queued();
+                throw std::runtime_error("supervisor is stopping");
+            }
             for (std::size_t offset = 0; offset < impl_->children.size(); ++offset)
             {
                 const std::size_t candidate = (impl_->next + offset) % impl_->children.size();
@@ -541,11 +556,12 @@ admitted:
             child.busy = false;
             --impl.in_flight;
             impl.in_flight_bytes -= bytes;
-            impl.idle.notify_one();
+            impl.idle.notify_all();
         }
     } finish{*impl_, child, json.size()};
     const auto retire = [&child, this]() noexcept
     {
+        std::lock_guard<std::mutex> lock(impl_->mutex);
         this->impl_->drain_stderr(child);
         if (child.pid > 0)
         {
@@ -565,8 +581,18 @@ admitted:
     };
     for (int attempt = 0; attempt < 2; ++attempt)
     {
-        if (child.pid <= 0)
-            child = Impl::spawn_child(impl_->config);
+        {
+            // ponytail: serialize startup/retirement metadata; requests still run in parallel.
+            std::lock_guard<std::mutex> lock(impl_->mutex);
+            if (impl_->stopping)
+                throw std::runtime_error("supervisor is stopping");
+            if (child.pid <= 0)
+            {
+                auto replacement = Impl::spawn_child(impl_->config);
+                replacement.busy = true;
+                child = std::move(replacement);
+            }
+        }
         proto::FrameWriter writer(child.in);
         if (!writer.write_json(kind, id, json))
         {
@@ -639,7 +665,30 @@ void Supervisor::stop() noexcept
 {
     if (!impl_)
         return;
-    std::lock_guard<std::mutex> lock(impl_->mutex);
+    std::unique_lock<std::mutex> lock(impl_->mutex);
+    if (impl_->stopping)
+    {
+        impl_->idle.wait(lock, [this] { return !impl_->stopping; });
+        return;
+    }
+    impl_->stopping = true;
+    impl_->idle.notify_all();
+    // Cancel active I/O without closing descriptors underneath its owner. The
+    // request retires/reaps its child before releasing its stable vector slot.
+    const auto signal_busy = [this](int signal) {
+        for (auto &child : impl_->children)
+            if (child.busy && child.pid > 0)
+                (void)::kill(child.pid, signal);
+    };
+    const auto drained = [this] { return impl_->in_flight == 0 && impl_->queued == 0; };
+    signal_busy(SIGUSR1);
+    if (!impl_->idle.wait_for(lock, impl_->config.cancel_grace, drained))
+    {
+        signal_busy(SIGTERM);
+        if (!impl_->idle.wait_for(lock, impl_->config.term_grace, drained))
+            signal_busy(SIGKILL);
+    }
+    impl_->idle.wait(lock, drained);
     for (auto &child : impl_->children)
     {
         impl_->drain_stderr(child);
@@ -661,6 +710,8 @@ void Supervisor::stop() noexcept
     }
     impl_->children.clear();
     impl_->hard_memory_cap = false;
+    impl_->stopping = false;
+    impl_->idle.notify_all();
 }
 std::size_t Supervisor::live_workers() const noexcept
 {
@@ -678,7 +729,7 @@ std::string Supervisor::stderr_tail() const
 {
     if (!impl_)
         return {};
-    std::lock_guard<std::mutex> lock(impl_->mutex);
+    std::lock_guard<std::mutex> lock(impl_->stderr_mutex);
     return impl_->stderr_tail;
 }
 bool Supervisor::hard_memory_cap() const noexcept

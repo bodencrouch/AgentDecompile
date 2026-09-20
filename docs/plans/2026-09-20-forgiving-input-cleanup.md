@@ -1,11 +1,25 @@
-# Forgiving input without spelling boilerplate
+# Whole-source consolidation with forgiving inputs and implicit defaults
 
 ## Spec
 
-The user's 2026-09-20 request is the binding spec: retain forgiving command and
-argument input while making AgentDecompile's implementation readable, modular
-and less repetitive. Investigate the full input path; do not replace lists of
-spellings with another spelling-permutation framework.
+The latest 2026-09-20 user correction is binding: FIRST aggregate every Python
+file recursively under src, then investigate why the codebase has so many modules
+and design consolidation to one-fifth through a dynamic, seamless architecture.
+The prior CLI-only scope was explicitly rejected. Preserve forgiving inputs,
+implicit normal defaults and explicit customization. Do not replace duplication
+with permutation frameworks, giant concatenations, exec-based hidden modules or
+moving Python outside src to game the count.
+
+Full canonical aggregation: 456 files, 218515 lines, 9262819 bytes; target <=91
+Python files in src. The isolated branch now contains the full 456-file source
+snapshot at 64d768c. Canonical dirty and untracked files are included in
+the aggregate and must survive future migrations. Current live runtime differs
+again (444 files). Source moves require a fresh complete snapshot and import,
+entrypoint, process/state and packaging preservation, not blind deployment.
+
+Tasks 1-3 below are preserved historical input-path work, not completion of the
+new whole-source goal. Task4 is paused; complete whole-source investigation and
+dependency mapping before choosing further implementation slices.
 
 ## Global Constraints
 
@@ -55,8 +69,9 @@ Own src/agentdecompile_cli/registry.py and src/agentdecompile_cli/executor.py.
 Read this plan's Global Constraints as binding. Registry parsing already handles
 canonical keys, normalized names, tool-specific semantic aliases, natural-language
 input and forwarded unknown arguments. Executor reimplements variation generation
-and typed lookups. Route executor schema argument selection through registry and
-retain necessary executor-specific coercion, short semantic aliases, defaults and
+and typed lookups. Share registry-owned candidate and spelling lookup machinery;
+do not delegate wholesale to parse_arguments because its None, unknown-key and
+alias-priority behavior differs. Retain executor-specific coercion, short semantic aliases, defaults and
 unknown-key compatibility. Remove its duplicate spelling generator and repeated
 normalization loops. Inspect every caller before changing helper signatures.
 Separate semantic alias data from mechanical spelling normalization. Simplify the
@@ -92,6 +107,87 @@ Inline AST/source checks over all changed provider calls: before/after normalize
 lookup sequences and keyword values are equivalent; compile edited files in memory.
 Do not import provider modules/JVM. Self-review, commit, report exact file count,
 removed redundancy and residual intentional semantic cases.
+
+## Task 4: Derive convenience commands and keep backend defaults implicit
+
+User refinement: reduce hardcoded command machinery through dynamic reuse;
+normal use should need no flags and custom behavior should be explicit opt-in.
+Own cli.py and the defaults section of docs/INPUT_NORMALIZATION.md. Read Global
+Constraints. Limit this slice to symbols, strings, datatypes and structures.
+Replace their four repeated convenience-command factories with one small helper
+that derives options from the existing run Command and invokes its callback via
+native Click. Preserve command names, exposed option sets, meaningful customization,
+selector safety and validation; don't create a metadata framework or depend on a
+live backend for CLI help. Copy Option objects if reuse would share mutable state.
+Keep semantic action lists explicit; derive mechanical wiring from existing objects.
+Missing run-only inputs must not inject new workflow defaults into shortcuts.
+Fix Click destination names that disagree with callback parameter names in these
+families as part of sharing the actual callbacks. Preserve public flag spellings.
+Make only proven redundant provider-owned defaults implicit (None/absent payload);
+retain positive and negative boolean overrides, false, zero and explicit empty
+values. Preserve intentional CLI policy defaults and mutation safety flags.
+Keep validation: do not replace all typed options with permissive string options.
+Do not globally strip defaults in _call or normalize arbitrary nested values.
+Characterize native Click parsing and callbacks entirely in memory with _call
+replaced by a capture coroutine; never invoke real backend/process/filesystem
+callbacks or CliRunner filesystem isolation. Assert public option sets, no-flag
+payload omissions, explicit positive/negative overrides, selectors, false/zero,
+tuple and JSON transformations, invalid JSON rejection, and no new injection of
+run-only options into shortcuts. Compile source in memory. Report any deliberate
+behavior changes and exact code reduction. Self-review, commit, independent review.
+
+## Task 5: Consolidate container parsing at its package boundary
+
+Own only src/agentdecompile_recovery/containers/ and the task report. Read Global
+Constraints above. BASE is 64d768c. Merge the existing five files into the existing
+__init__.py, deleting detect.py, models.py, nds.py and registry.py. Preserve the
+seven-name public __all__, function signatures, NDS validation, byte extraction,
+metadata and errors. Deduplicate imports and replace internal module dispatch
+with direct functions; keep the existing parser registry, not a new framework.
+Use dataclasses.replace for the repeated frozen-image copy with extract_path changed,
+preserving every other field instead of manually copying the same field list twice.
+Inspect all package code and caller imports before editing. No known consumer
+uses the removed internal paths; do not add compatibility shims or sys.modules
+aliases. Qualified class module identities change; report that limitation.
+Do not touch languages: its internal imports need a separate compatibility decision.
+Do not run or write filesystem tests, fixtures or temporary input files. Use
+python -B inline, memory-only assertions with BytesIO/path stubs where needed;
+exercise valid/truncated NDS headers, invalid ranges, detection, registry routing,
+metadata and extraction bytes without real writes. Compile changed code in memory,
+check deleted-module references statically, and include the runnable inline check
+in the report. Record physical file count and LOC before/after; expected net four
+fewer source files is an incremental reduction, not the 91-file target achieved.
+Use apply_patch, self-review, commit only production changes with hooks disabled,
+and report commands/results and limitations. Preserve all unrelated changes.
+
+## Task 6: Share the dependency-closed x86-64 decoder implementation
+
+Own sourcegen.py, source_parity_synthesize.py and new decode_x86.py under
+src/agentdecompile_recovery/, plus the task report. Read Global Constraints.
+Use the exact 38-function/18-table manifest in this plan workspace's
+decoder-preflight.md; read that artifact before editing. Consolidate only those
+AST-identical functions and assignments into decode_x86.py with ordinary explicit
+imports preserving existing producer-level names. Do not change algorithm bodies,
+literal table values, candidate construction, _GEN, compilation, receipts, profile
+selection or verified/unverified promotion. Do not merge the differing
+X86_64_RETURN_SECOND_ARG_OPS table. No dynamic loaders, exec-based production code,
+new dependency, wrappers or generic decoder framework. Preserve existing signatures,
+return dictionaries, padding rules and immediate interpretation, even where an
+algorithm's pre-existing semantics could be improved independently.
+Inspect actual dependency closure and all table mutations/import consumers before
+editing. Keep import-time code dependency-light: stdlib typing only if sufficient.
+Use AST source extraction in an inline check to load old baseline helpers/tables
+into isolated memory namespaces; never execute full producer modules or callbacks.
+Compare both old implementations with the new shared implementation using deterministic
+opcode-table cases, immediate/displacement variants, malformed/truncated bytes,
+padding, and seeded byte inputs. Assert shared function/table AST equality,
+complete global dependency closure, and unchanged AST for non-owned definitions.
+Compile the three sources in memory with bytecode disabled. No filesystem tests,
+fixtures, temporary files, compiler processes or backend imports. Include the full
+runnable check and output in the report. Count the added physical module honestly
+against deleted duplication; this improves code ownership, not file count by itself.
+Self-review and commit only task production files with hooks disabled; independent
+spec/quality review follows. No production changes before Task 5 review passes.
 
 ## Acceptance
 

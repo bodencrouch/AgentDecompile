@@ -2831,6 +2831,11 @@
           body: JSON.stringify({ locator: locator, program: target })
         });
         const data = await res.json();
+        if (!res.ok || data.ok !== true || data.ensured !== true) {
+          const message = data.error || ("Could not open " + target + " in Ghidra.");
+          if (!opts.quiet || opts.reportFailure) showToast(message, "error");
+          return null;
+        }
         if (seq !== ensureSeqRef.current) return data;
         if (data.results && data.results.length) {
           setRows(data.results);
@@ -2864,7 +2869,9 @@
         if (data.error && !opts.quiet) showToast(data.error, data.next === "analyze-program" ? "" : "error");
         return data;
       } catch (err) {
-        if (!opts.quiet) showToast("Could not open " + target + " in Ghidra.", "error");
+        if (!opts.quiet || opts.reportFailure) {
+          showToast("Could not open " + target + " in Ghidra: " + String((err && err.message) || err), "error");
+        }
         return null;
       }
     }
@@ -4206,8 +4213,12 @@
         repo: toolContext.repo || "",
         locator: currentLocator()
       };
-      Promise.resolve(ensureGhidraProgram(target, { quiet: true, locator: targetContext.locator })).then(function (data) {
-        if (!data) throw new Error("Could not open " + target + " in the captured project.");
+      Promise.resolve(ensureGhidraProgram(target, {
+        quiet: true,
+        reportFailure: true,
+        locator: targetContext.locator
+      })).then(function (data) {
+        if (!data) return;
         if (!force && programAlreadyAnalyzed(data)) {
           return;
         }

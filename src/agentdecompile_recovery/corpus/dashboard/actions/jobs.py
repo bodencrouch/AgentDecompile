@@ -354,7 +354,13 @@ class JobStore:
                     return
                 job = self._jobs[job_id]
                 coordinator = job.action_id in {"workbench.prepare", "workbench.workflow-control", "workbench.activity-snapshot"}
-                can_run = self._running < MAX_CONCURRENT
+                # Coordinators do not consume a worker slot below, so requiring a
+                # free one here only starved them: with MAX_CONCURRENT real jobs
+                # running, a Pause (workbench.workflow-control) could never reach
+                # its ownership checks and spun in this admission loop instead of
+                # taking effect.  Full worker capacity must not block Pause.  The
+                # identity/pair/Ghidra locks below still apply unchanged.
+                can_run = coordinator or self._running < MAX_CONCURRENT
                 scope = action.identity_scope if action is not None else ""
                 if can_run and scope:
                     identity_key = identity_lock_key(job.params) or ""

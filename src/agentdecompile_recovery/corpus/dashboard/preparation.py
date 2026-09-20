@@ -273,7 +273,7 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[A
             continue
         projected = {
             key: value for key, value in stage.items()
-            if key not in {'outcomes', 'workProgress'}
+            if key != 'outcomes'
         }
         # A stored retry note describes a waiting/backoff state.  It is not
         # current once a child job is accepted and running; older receipts may
@@ -281,6 +281,14 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[A
         if projected.get('status') == 'running':
             projected.pop('nextFallback', None)
             projected.pop('retryAt', None)
+        else:
+            # A stored workProgress is the bounded {completed,total,unit} counter
+            # recorded while that stage was running.  Dropping it unconditionally
+            # made a refreshed workbench lose measured progress for the live
+            # stage, leaving only a spinner.  Keep it while the stage is running
+            # and discard the stale leftover once it is not; the live child
+            # overlay below still takes precedence when one is accepted.
+            projected.pop('workProgress', None)
         result['stages'].append(projected)
     # Checkpoints can contain complete tool responses.  The activity/stage
     # contract already carries its visible state, so expose concise evidence
@@ -475,6 +483,21 @@ def _drain_admissions() -> None:
                     break
                 command = _read_control(row['id'])
                 if command.get('operation') == 'pause':
+                    # A paused admission was silently skipped, so Pause looked
+                    # like it did nothing: the row kept its pre-pause status
+                    # while no child was ever started.  Checkpoint it visibly
+                    # instead.  admissionPending stays true because the
+                    # admission really is still pending, and the id stays in
+                    # _WAITING so an explicit resume re-admits it in queue
+                    # order.  No child is started and no ownership is released.
+                    if row.get('status') != 'paused':
+                        row.update(status='paused')
+                        row.setdefault('events', []).append({
+                            'at': time.time(), 'stage': '',
+                            'message': 'Paused before admission; no child process was started.',
+                        })
+                        row['events'] = row['events'][-250:]
+                        _write(row)
                     continue
                 if command.get('operation') == 'stop' or _budget_expired(command.get('deadline', row.get('deadline'))):
                     row.update(status='cancelled' if command.get('operation') == 'stop' else 'budget-stop', admissionPending=False)

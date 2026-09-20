@@ -47,6 +47,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     """Add kx library subcommands to the corpus CLI parser."""
 
     atlas = sub.add_parser("export-atlas-db", help="Export identity store into an Atlas work tree")
+    atlas.long_running = True
     atlas.add_argument("--binary", required=True)
     atlas.add_argument("--db", type=Path, required=True)
     atlas.add_argument("--out-root", type=Path, required=True)
@@ -56,6 +57,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     atlas.add_argument("--no-c", action="store_true")
 
     seed = sub.add_parser("seed-validation", help="Audit seed recoveries against reuse candidates")
+    seed.long_running = True
     seed.add_argument("--seeds-dir", type=Path, required=True)
     seed.add_argument("--candidates", type=Path, required=True)
     seed.add_argument("--reuse", type=Path, required=True)
@@ -66,6 +68,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     seed.add_argument("--retry-failed", action="store_true")
 
     harvest = sub.add_parser("harvest-shards", help="Collect permuter shard outputs into recovered tree")
+    harvest.long_running = True
     harvest.add_argument("patterns", nargs="+")
     harvest.add_argument("--program", required=True)
     harvest.add_argument("--recovered-dir", type=Path, required=True)
@@ -76,6 +79,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     harvest.add_argument("--dry-run", action="store_true")
 
     legacy = sub.add_parser("verify-legacy-recovered", help="Verify legacy recovered projects byte-for-byte")
+    legacy.long_running = True
     legacy.add_argument("--recovered-dir", type=Path, required=True)
     legacy.add_argument("--projects-root", type=Path, required=True)
     legacy.add_argument("--projects-json", type=Path, required=True)
@@ -87,6 +91,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     legacy.add_argument("--write-coverage", action="store_true")
 
     perm = sub.add_parser("permuter-harness", help="Sample permuter cases from the identity store")
+    perm.long_running = True
     perm.add_argument("--per-band", type=int, default=3)
     perm.add_argument("--binaries", nargs="*")
     perm.add_argument("--compiler", default="vc71")
@@ -101,6 +106,7 @@ def register(sub: argparse._SubParsersAction) -> None:
         "text-permuter",
         help="Text-mutation byte-accuracy search for k1_win_gog_swkotor.exe near-misses "
              "(relocation-masked diff scoring, no ELF-only decomp-permuter dependency)")
+    txtperm.long_running = True
     txtperm.add_argument("--seconds-per-fn", type=float, default=15.0)
     txtperm.add_argument("--min-size", type=int, default=16)
     txtperm.add_argument("--limit", type=int)
@@ -108,6 +114,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     txtperm.add_argument("--interval", type=float, default=30.0)
 
     rn = sub.add_parser("recover-named-ghidra", help="Recover named Ghidra C for unrecovered logicals")
+    rn.long_running = True
     rn.add_argument("--limit", type=int, default=40)
     rn.add_argument("--min-size", type=int, default=16)
     rn.add_argument("--compiler", default="vc8")
@@ -121,6 +128,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     rn.add_argument("--replay-jsonl", default="")
 
     inv = sub.add_parser("program-inventory", help="Census Ghidra programs into inventory JSON")
+    inv.long_running = True
     inv.add_argument("--out", type=Path, required=True)
     inv.add_argument("--programs-json", type=Path, help="JSON list of {path, version} records")
 
@@ -141,15 +149,18 @@ def register(sub: argparse._SubParsersAction) -> None:
     sm.add_argument("--out-dir", type=Path, required=True)
 
     eb = sub.add_parser("export-bytes", help="Recover on-disk FileBytes images via Ghidra")
+    eb.long_running = True
     eb.add_argument("paths", nargs="+", help="repo paths to export")
     eb.add_argument("--out-dir", type=Path, required=True)
 
     ec = sub.add_parser("export-c", help="Export whole-program decompiled C via Ghidra")
+    ec.long_running = True
     ec.add_argument("--repo-path", required=True)
     ec.add_argument("--out-dir", type=Path, required=True)
     ec.add_argument("--source-path")
 
     et = sub.add_parser("export-types", help="Export Ghidra struct/union/enum rows into the store")
+    et.long_running = True
     et.add_argument("--repo-path", required=True)
     et.add_argument("--db", type=Path, required=True)
 
@@ -159,6 +170,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     ffc.add_argument("--apply", action="store_true")
 
     bsim = sub.add_parser("bsim-eval", help="Measure Ghidra BSim against name ground truth")
+    bsim.long_running = True
     bsim.add_argument("--db", type=Path, required=True)
     bsim.add_argument("--bsim-url", required=True)
     bsim.add_argument("--out", type=Path, required=True)
@@ -166,6 +178,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     bsim.add_argument("--sample", type=int, default=400)
 
     bsim_create = sub.add_parser("bsim-createdatabase", help="Create a BSim database (bsim createdatabase)")
+    bsim_create.long_running = True
     bsim_create.add_argument("--bsim-url", help="postgresql://…/name or file:/dir/name")
     bsim_create.add_argument("--datadir", type=Path, help="BSimControl PostgreSQL data directory")
     bsim_create.add_argument("--name", default="bsim", help="Database name when URL is derived from --datadir")
@@ -174,6 +187,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     bsim_create.add_argument("--description", default="")
 
     bsim_ing = sub.add_parser("bsim-ingest", help="Generate and commit BSim signatures for every program in a Ghidra repo")
+    bsim_ing.long_running = True
     bsim_ing.add_argument("--repository", "--repo", dest="repository", required=True)
     bsim_ing.add_argument("--bsim-url")
     bsim_ing.add_argument("--datadir", type=Path)
@@ -184,11 +198,13 @@ def register(sub: argparse._SubParsersAction) -> None:
     bsim_ing.add_argument("--force", action="store_true")
 
     bsim_rep = sub.add_parser("bsim-report", help="Report whether a BSim datadir/database is empty or holds executables")
+    bsim_rep.long_running = True
     bsim_rep.add_argument("--datadir", type=Path)
     bsim_rep.add_argument("--bsim-url")
     bsim_rep.add_argument("--name", default="bsim")
 
     bridge = sub.add_parser("external-bridge", help="Emit enrichment/reuse/priority bridge artefacts")
+    bridge.long_running = True
     bridge.add_argument("--db", type=Path, required=True)
     bridge.add_argument("--out-dir", type=Path, required=True)
     bridge.add_argument("--program-map-json", type=Path, help="JSON map program_name -> repo_path")
@@ -206,6 +222,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     bth.add_argument("--out", type=Path, required=True)
 
     prop = sub.add_parser("propagate-corpus", help="Run matcher pairs from corpus config and bind identities")
+    prop.long_running = True
     prop.add_argument("--db", type=Path, required=True)
     prop.add_argument("--run", default="v1")
     prop.add_argument("--report", type=Path, help="Write propagation summary JSON")

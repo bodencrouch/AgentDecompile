@@ -249,6 +249,7 @@ class ToolMetadata:
     legacy: bool
     analysis_tier: int
     replacement: tuple[str, ...] = ()
+    long_running: bool = False
 
 
 # Backward-compat alias
@@ -1228,6 +1229,20 @@ _STATE_WRITING_TOOLS: frozenset[Tool] = frozenset(
     },
 )
 
+_LONG_RUNNING_TOOLS: frozenset[Tool] = frozenset(
+    {
+        Tool.RECONSTRUCT,
+        Tool.ANALYZE_PROGRAM,
+        Tool.IMPORT_BINARY,
+        Tool.RUN_DECOMP_MATCH,
+        Tool.DECOMPILE_FUNCTION,
+        Tool.RUN_BATCH_DECOMPILE,
+        Tool.RUN_BATCH_EXPORT_GZF,
+        Tool.RUN_BATCH_BSIM_SIGNATURES,
+        Tool.RUN_BATCH_SAST_SCAN,
+    },
+)
+
 # Tier 0 MCP tools: static file triage / recovery orchestration without Ghidra.
 _TIER0_TOOLS: frozenset[Tool] = frozenset(
     {
@@ -1419,6 +1434,7 @@ def get_tool_metadata(tool_name: Tool | str) -> ToolMetadata | None:
         legacy=tool in _LEGACY_TOOLS,
         analysis_tier=get_tool_analysis_tier(tool),
         replacement=_TOOL_REPLACEMENTS.get(tool, ()),
+        long_running=tool in _LONG_RUNNING_TOOLS,
     )
 
 

@@ -87,6 +87,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     init = sub.add_parser("init", help="Create an empty corpus file")
+    init.danger = init.mutating = True
     init.add_argument("--id", required=True, dest="corpus_id")
     init.add_argument("--out", type=Path, required=True)
 
@@ -108,16 +109,19 @@ def build_parser() -> argparse.ArgumentParser:
         "remove-binary",
         help="Delete one binary and its per-binary rows from a store",
     )
+    rmbin.danger = rmbin.mutating = True
     rmbin.add_argument("--db", type=Path, required=True)
     rmbin.add_argument("--repo", dest="repo_path")
     rmbin.add_argument("--slug")
 
     stabs = sub.add_parser("extract-stabs", help="Read Mach-O STABS into a functions snapshot")
+    stabs.long_running = True
     stabs.add_argument("--binary", type=Path, required=True)
     stabs.add_argument("--id", required=True, dest="binary_id")
     stabs.add_argument("--out-dir", type=Path, required=True)
 
     run = sub.add_parser("run", help="Run pipeline stages in contract order")
+    run.long_running = True
     run.add_argument("--corpus", type=Path, required=True)
     run.add_argument("--work-dir", type=Path, required=True)
     run.add_argument("--snapshot-dir", type=Path, required=True, help="Directory of {id}.functions.json extracts")
@@ -166,6 +170,7 @@ def build_parser() -> argparse.ArgumentParser:
     write_snap.add_argument("--out-dir", type=Path, required=True)
 
     apply_stabs = sub.add_parser("apply-stabs", help="Apply a reviewed STABS manifest to a store")
+    apply_stabs.long_running = True
     apply_stabs.add_argument("--db", type=Path, required=True)
     apply_stabs.add_argument("--binary-id", type=int, required=True)
     apply_stabs.add_argument("--manifest", type=Path, required=True)
@@ -214,12 +219,14 @@ def build_parser() -> argparse.ArgumentParser:
         "calibrate-global",
         help="Write compiler/ABI/types calibration receipt (not matcher score sweep)",
     )
+    calg.long_running = True
     calg.add_argument("--work-dir", type=Path, required=True)
     calg.add_argument("--db", type=Path)
     calg.add_argument("--types-header", type=Path)
     calg.add_argument("--compiler-profile", type=Path)
 
     merge_parts = sub.add_parser("merge-parts", help="Merge per-program part databases into one store")
+    merge_parts.danger = merge_parts.mutating = True
     merge_parts.add_argument("--parts-dir", type=Path, required=True)
     merge_parts.add_argument("--db", type=Path, required=True)
 
@@ -228,6 +235,7 @@ def build_parser() -> argparse.ArgumentParser:
     stabs_rep.add_argument("--out", type=Path, required=True)
 
     genp = sub.add_parser("genproject", help="Write a prompt project from the logical-function queue")
+    genp.long_running = True
     genp.add_argument("--queue", type=Path, required=True)
     genp.add_argument("--out", type=Path, required=True)
     genp.add_argument("--db", type=Path, required=True)
@@ -260,6 +268,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     ingest_rec = sub.add_parser("ingest-recovered", help="Bind recovered C to existing identities")
+    ingest_rec.long_running = True
     ingest_rec.add_argument("--db", type=Path, required=True)
     ingest_rec.add_argument("--recovered-dir", type=Path, required=True)
     ingest_rec.add_argument("--coverage-dir", type=Path, required=True)
@@ -277,6 +286,7 @@ def build_parser() -> argparse.ArgumentParser:
     gurl.add_argument("path")
 
     apply_ann = sub.add_parser("apply-annotations", help="Apply jsonl names to a Ghidra program (dry-run default)")
+    apply_ann.danger = apply_ann.mutating = True
     apply_ann.add_argument("jsonl", type=Path)
     apply_ann.add_argument("--program", required=True)
     apply_ann.add_argument("--min-confidence", type=float, default=0.95)
@@ -285,6 +295,7 @@ def build_parser() -> argparse.ArgumentParser:
     apply_ann.add_argument("--no-comments", action="store_true")
 
     bulk = sub.add_parser("ghidra-bulk", help="Normalize + compile Ghidra decompiled C")
+    bulk.long_running = True
     bulk.add_argument("--program", required=True)
     bulk.add_argument("--repo", required=True)
     bulk.add_argument("--db", type=Path, required=True)
@@ -311,6 +322,7 @@ def build_parser() -> argparse.ArgumentParser:
         "workspace",
         help="Write STABS folders and fill each compiling function as its own TU",
     )
+    workspace.long_running = True
     workspace.add_argument("--db", type=Path, required=True)
     workspace.add_argument("--donor-slug", required=True)
     workspace.add_argument("--out", type=Path, required=True)
@@ -321,6 +333,7 @@ def build_parser() -> argparse.ArgumentParser:
         "compile-link",
         help="Compile workspace units and link one executable (not byte-accuracy)",
     )
+    clink.long_running = True
     clink.add_argument("--src-dir", type=Path, required=True)
     clink.add_argument("--out", type=Path, required=True)
     clink.add_argument("--compiler", type=Path)
@@ -334,6 +347,7 @@ def build_parser() -> argparse.ArgumentParser:
     clink.add_argument("--no-entrypoint", dest="entrypoint", action="store_false")
 
     xplace = sub.add_parser("cross-place", help="Copy compiling C onto bound sibling binaries")
+    xplace.long_running = True
     xplace.add_argument("--from", dest="program", required=True)
     xplace.add_argument("--db", type=Path, required=True)
     xplace.add_argument("--out-dir", type=Path, required=True)

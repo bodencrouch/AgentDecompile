@@ -158,6 +158,7 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--max-index-text-chars", type=int, default=2_000, help="Maximum text copied into the consolidated LLM_CONTEXT index per file.")
 
     batch = sub.add_parser("export-context-batch", help="Find EXEs/installers/archives under a tree and export each into LLM-readable context.")
+    batch.long_running = True
     batch.add_argument("input", type=Path, help="File or directory tree to batch-export.")
     batch.add_argument("--out-dir", type=Path, required=True, help="Output directory for aggregate and per-item manifests.")
     batch.add_argument("--format", choices=["json", "md"], default="json", help="Per-file surrogate format.")
@@ -178,6 +179,7 @@ def build_parser() -> argparse.ArgumentParser:
     batch.add_argument("--max-index-text-chars", type=int, default=2_000, help="Maximum text copied into each consolidated LLM_CONTEXT index per file.")
 
     recover = sub.add_parser("recover", help="Run the resumable recovery orchestration pipeline.")
+    recover.long_running = True
     recover.add_argument("input", type=Path, help="Folder or binary path.")
     recover.add_argument("--preferred-name", help="Preferred executable basename when input is a folder.")
     recover.add_argument("--work-dir", type=Path, help="Run/state directory. Defaults to target/agentdecompile-recover/<stable-target-id>.")
@@ -242,6 +244,7 @@ def build_parser() -> argparse.ArgumentParser:
     recover.add_argument("--context-include-low-signal-members", action="store_true", help="Also export low-signal extracted members such as cursor/icon resources during recover context export.")
 
     windows = sub.add_parser("recover-windows", help="Run recovery across deterministic function-candidate windows.")
+    windows.long_running = True
     windows.add_argument("input", type=Path, help="Folder or binary path.")
     windows.add_argument("--preferred-name", help="Preferred executable basename when input is a folder.")
     windows.add_argument("--work-dir", type=Path, help="Window run/state directory. Defaults to target/agentdecompile-recover/<stable-target-id>-windows.")
@@ -316,14 +319,17 @@ def build_parser() -> argparse.ArgumentParser:
     verify.add_argument("--code-compare", action="store_true", help="Also compare candidate object .text bytes against packaged target slices.")
 
     match = sub.add_parser("match-package", help="Compile candidates and compare code bytes against packaged target slices.")
+    match.long_running = True
     add_package_verify_args(match)
 
     sweep = sub.add_parser("sweep-package", help="Generate source-shape/compiler variants and compare each against packaged target slices.")
+    sweep.long_running = True
     add_package_verify_args(sweep)
     sweep.add_argument("--max-variants-per-function", type=int, default=8, help="Maximum generated source variants per function.")
     sweep.add_argument("--compiler-profile", "--clang-profile", dest="compiler_profile", action="append", default=[], help="Comma-separated compiler args for one profile, for example --compiler-profile=-O2 or --compiler-profile=/O2,/GS-,/Oy. Repeat for multiple profiles.")
 
     profile = sub.add_parser("compiler-profile-corpus", help="Select and sweep a compiler-profile corpus from verified matched examples.")
+    profile.long_running = True
     profile.add_argument("--matched-examples", type=Path, default=Path("target/source-parity-index/default/matched-examples.jsonl"))
     profile.add_argument("--out-dir", type=Path, default=Path("target/source-parity-profile/default"))
     profile.add_argument("--max-cases", type=int, default=6)
@@ -336,6 +342,7 @@ def build_parser() -> argparse.ArgumentParser:
     profile.add_argument("--clean", action="store_true")
 
     synth = sub.add_parser("source-parity-synthesize", help="Generate and objdiff-gate source candidates from a recovery queue.")
+    synth.long_running = True
     synth.add_argument("--queue", type=Path, default=Path("target/recovery-queue/queue.jsonl"))
     synth.add_argument("--source-tasks", type=Path, action="append", default=[], help="source-generation/tasks.jsonl emitted by recover/recover-windows. Repeat for multiple task files.")
     synth.add_argument("--source-tasks-only", action="store_true", help="Only inspect rows converted from --source-tasks; do not prepend the default recovery queue.")
@@ -378,6 +385,7 @@ def build_parser() -> argparse.ArgumentParser:
     synth.add_argument("--progress-every", type=int, default=0)
 
     plugin_synth = sub.add_parser("source-plugin-pipeline", help="Run source generation and objdiff through the upstream-style plugin lifecycle.")
+    plugin_synth.long_running = True
     plugin_synth.add_argument("--queue", type=Path, default=Path("target/recovery-queue/queue.jsonl"))
     plugin_synth.add_argument("--source-tasks", type=Path, action="append", default=[], help="source-generation/tasks.jsonl emitted by recover/recover-windows. Repeat for multiple task files.")
     plugin_synth.add_argument("--source-tasks-only", action="store_true", help="Only inspect rows converted from --source-tasks; do not prepend the default recovery queue.")

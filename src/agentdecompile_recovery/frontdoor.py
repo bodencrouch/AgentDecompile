@@ -121,6 +121,9 @@ def build_parser() -> argparse.ArgumentParser:
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+    parser.danger = True
+    parser.mutating = True
+    parser.long_running = True
     parser.add_argument("input", type=Path, help="Binary, archive, installer, or app directory to recover.")
     parser.add_argument(
         "context_positional",

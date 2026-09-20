@@ -9,11 +9,13 @@ default and no db/kotorxid.sqlite fallback.
 from __future__ import annotations
 
 import html
+import hashlib
 import json
 import os
 import socket
 import sqlite3
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from .. import corpus_env as _corpus_env
@@ -174,6 +176,56 @@ def live_db() -> Path | None:
     if saved is not None:
         return saved
     return _env_path_optional("AGENT_DECOMPILE_CORPUS_DB") or DB_PATH
+
+
+def corpus_file_identity(database: Path | None) -> dict:
+    """File identity, stable across writes; not a content revision or proof hash.
+
+    ponytail: path/device/inode cannot detect in-place replacement or every inode
+    reuse; adopt a durable corpus UUID if that threat must be covered.
+    """
+    try:
+        path = database.resolve(strict=True) if database is not None else None
+        if path is None or not path.is_file():
+            return {"identity": "", "path": str(database or "")}
+        stat = path.stat()
+        key = json.dumps([str(path), stat.st_dev, stat.st_ino])
+        return {"identity": hashlib.sha256(key.encode()).hexdigest(), "path": str(path)}
+    except (OSError, RuntimeError, ValueError):
+        return {"identity": "", "path": str(database or "")}
+
+
+class CorpusReadError(Exception):
+    def __init__(self, message: str, status: int = 503):
+        super().__init__(message)
+        self.status = status
+
+
+@contextmanager
+def corpus_read_snapshot(expected_identity: str = ""):
+    """One selected database and one read snapshot for a logical response."""
+    database = live_db()
+    corpus = corpus_file_identity(database)
+    if not corpus["identity"]:
+        raise CorpusReadError("Selected corpus database is unavailable")
+    if expected_identity and expected_identity != corpus["identity"]:
+        raise CorpusReadError("Corpus database changed; explicitly select an identity from the current corpus", 409)
+    connection = None
+    try:
+        connection = sqlite3.connect(Path(corpus["path"]).as_uri() + "?mode=ro", uri=True, timeout=10)
+        connection.execute("PRAGMA query_only = ON")
+        connection.execute("BEGIN")
+        connection.execute("SELECT name FROM sqlite_master LIMIT 1").fetchall()
+        if corpus_file_identity(database) != corpus:
+            raise CorpusReadError("Corpus database was replaced while opening it", 409)
+        yield connection, corpus
+        if corpus_file_identity(live_db()) != corpus:
+            raise CorpusReadError("Corpus database changed while reading; retry from the current corpus", 409)
+    except sqlite3.Error as exc:
+        raise CorpusReadError(f"Corpus read failed: {exc}") from exc
+    finally:
+        if connection is not None:
+            connection.close()
 
 
 def runtime_project_root() -> Path | None:
@@ -372,13 +424,14 @@ def tag(text: str, kind: str = "") -> str:
     return f'<span class="tag {kind}">{esc(text)}</span>'
 
 
-def table_exists(name: str, db: Path | None = None) -> bool:
+def table_exists(name: str, db: Path | None = None, *, connection: sqlite3.Connection | None = None) -> bool:
     """True when *name* is a table in the target database."""
     rows, err = query_db(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name=? LIMIT 1",
         (name,),
         db=db,
         ignore_missing=False,
+        connection=connection,
     )
     return bool(rows) and err is None
 
@@ -389,6 +442,7 @@ def query_db(
     db: Path | None = None,
     *,
     ignore_missing: bool = False,
+    connection: sqlite3.Connection | None = None,
 ):
     """Run a read-only query. Returns (rows, error). Never raises.
 
@@ -399,6 +453,13 @@ def query_db(
     returns ``([], None)`` instead of an error — for optional schema the
     pipeline has not populated yet.
     """
+    if connection is not None:
+        try:
+            return connection.execute(sql, params).fetchall(), None
+        except sqlite3.Error as exc:
+            if ignore_missing and "no such table" in str(exc).lower():
+                return [], None
+            return [], f"query failed: {exc}"
     target = db if db is not None else live_db()
     if target is None:
         return [], "AGENT_DECOMPILE_CORPUS_DB is unset"

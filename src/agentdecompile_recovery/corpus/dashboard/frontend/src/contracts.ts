@@ -38,6 +38,8 @@ export interface Selection {
   program: string;
   addr: string;
   logicalId: string;
+  /** Opaque database-file identity; not a content revision or equivalence proof. */
+  corpusIdentity?: string;
   locator: string;
   projectId?: string;
   binaryHash?: string;
@@ -143,7 +145,7 @@ export function query(
   const params = new URLSearchParams();
   Object.entries({ ...selection, ...extras }).forEach(([key, value]) => {
     if (value !== "" && value !== undefined && value !== null)
-      params.set(key === "logicalId" ? "logical_id" : key, String(value));
+      params.set(key === "logicalId" ? "logical_id" : key === "corpusIdentity" ? "corpus_identity" : key, String(value));
   });
   return params.toString();
 }
@@ -156,6 +158,7 @@ export function functionKey(selection: Selection): string {
     selection.functionId,
     selection.addr,
     selection.logicalId,
+    selection.corpusIdentity,
     selection.region?.start.offset,
     selection.region?.end?.offset,
   ].join("\u001f");

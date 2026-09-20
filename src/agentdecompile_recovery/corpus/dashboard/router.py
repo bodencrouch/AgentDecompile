@@ -459,7 +459,7 @@ def create_dashboard_router() -> APIRouter:
 
     @router.get("/dashboard/api/workbench/corpus-db")
     async def workbench_corpus_db() -> JSONResponse:
-        from agentdecompile_recovery.corpus.dashboard.common import find_candidate_dbs, live_db
+        from agentdecompile_recovery.corpus.dashboard.common import find_candidate_dbs, live_db, corpus_file_identity
 
         def _collect() -> dict:
             current = live_db()
@@ -467,6 +467,7 @@ def create_dashboard_router() -> APIRouter:
                 "ok": True,
                 "current": str(current) if current is not None else None,
                 "exists": bool(current is not None and current.exists()),
+                "corpus": corpus_file_identity(current),
                 "candidates": [str(p) for p in find_candidate_dbs()],
             }
 
@@ -475,7 +476,7 @@ def create_dashboard_router() -> APIRouter:
 
     @router.post("/dashboard/api/workbench/corpus-db")
     async def workbench_select_corpus_db(request: Request) -> JSONResponse:
-        from agentdecompile_recovery.corpus.dashboard.common import find_candidate_dbs, live_db, set_runtime_db_path
+        from agentdecompile_recovery.corpus.dashboard.common import find_candidate_dbs, live_db, set_runtime_db_path, corpus_file_identity
 
         try:
             body = await request.json()
@@ -506,6 +507,7 @@ def create_dashboard_router() -> APIRouter:
                 "ok": True,
                 "current": str(current) if current is not None else None,
                 "exists": True,
+                "corpus": corpus_file_identity(current),
                 "candidates": [str(p) for p in find_candidate_dbs()],
             }
 

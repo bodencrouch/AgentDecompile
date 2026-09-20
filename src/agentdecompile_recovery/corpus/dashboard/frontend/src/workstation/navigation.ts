@@ -4,8 +4,8 @@ export const analysisTabs = ['Logical','Disassembly','Decompiler','Hex','Strings
 export type AnalysisTab = typeof analysisTabs[number] | 'Scripts' | 'Flags' | 'Types' | 'Providers';
 export const extraTabs: AnalysisTab[] = ['Scripts','Flags','Types','Providers'];
 export type Route = {selection: Selection; tab: AnalysisTab};
-const routeKeys = ['slug','program','addr','logicalId','locator','binaryHash','projectId','functionId','lastFunctionAddr'] as const;
-const routeAliases = {binary:'slug',function:'addr',logical_id:'logicalId',project:'locator',binary_hash:'binaryHash',project_id:'projectId',function_id:'functionId'} as const;
+const routeKeys = ['slug','program','addr','logicalId','corpusIdentity','locator','binaryHash','projectId','functionId','lastFunctionAddr'] as const;
+const routeAliases = {binary:'slug',function:'addr',logical_id:'logicalId',corpus_identity:'corpusIdentity',project:'locator',binary_hash:'binaryHash',project_id:'projectId',function_id:'functionId'} as const;
 const legacyViews:Record<string,AnalysisTab> = {logical:'Logical',listing:'Disassembly',fnbrowse:'Disassembly',functions:'Disassembly',decompile:'Decompiler',decompiler:'Decompiler',disassembly:'Disassembly',hex:'Hex',strings:'Strings',graph:'Graph',xrefs:'Xrefs',imports:'Imports',exports:'Exports',sections:'Sections',overview:'Info',corpus:'Logical',info:'Info',matching:'Matching',scratch:'Matching',scripts:'Scripts',flags:'Flags',types:'Types',stabs:'Types',providers:'Providers'};
 export function readRoute(search: string, fallback: Route): Route {
   const p = new URLSearchParams(search);
@@ -27,29 +27,34 @@ export function routeUrl(url: string, route: Route): string {
   next.searchParams.set('view',route.tab);
   return next.pathname+next.search+next.hash;
 }
-export function sessionKey(s:Selection) {return [s.locator,s.projectId,s.slug,s.program,s.binaryHash].join('\u001f');}
+export function sessionKey(s:Selection) {return [s.locator,s.projectId,s.slug,s.program,s.binaryHash,s.corpusIdentity].join('\u001f');}
 /** Only an explicitly selected returned member can carry an identity between builds. */
 export function mergeSelection(current:Selection,patch:Partial<Selection>,member=false):Selection {
   const changed=(['locator','projectId','slug','program','binaryHash'] as const).some(key=>patch[key]!==undefined&&patch[key]!==current[key]);
   const logicalOnly=Boolean(patch.logicalId)&&!Object.hasOwn(patch,'addr')&&!Object.hasOwn(patch,'slug')&&!Object.hasOwn(patch,'program');
-  const base=changed||logicalOnly?{...emptySelection}:current;
+  const corpusChanged=patch.corpusIdentity!==undefined&&patch.corpusIdentity!==current.corpusIdentity;
+  const base=logicalOnly?{...emptySelection,locator:current.locator,projectId:current.projectId}:changed||corpusChanged?{...emptySelection}:current;
   const next=normalizeSelection({...base,...patch});
   if(patch.addr!==undefined&&patch.addr!==current.addr){
     next.functionId=patch.functionId??'';next.logicalId=patch.logicalId??'';
     next.region=patch.region;next.evidenceIds=patch.evidenceIds;
   }
   if(changed&&!member)next.logicalId='';
+  if(patch.logicalId&&!patch.corpusIdentity)next.corpusIdentity='';
   return next;
 }
 export function memberSelection(member:Data,binaries:Data[],current:Selection):Selection {
   const matches=binaries.filter(binary=>binary.slug===member.slug||binary.aliasSlugs?.includes(member.slug));
   const bindings=matches.flatMap(binary=>(binary.projectBindings||[]).map((binding:Data)=>({...binding,binaryHash:binary.sha256||''})));
-  const unique=[...new Map(bindings.filter(binding=>binding.locator&&binding.program).map(binding=>[[canonicalProjectLocator(binding.locator),binding.program].join('\u001f'),binding])).values()];
-  const scoped=unique.filter(binding=>canonicalProjectLocator(binding.locator)===canonicalProjectLocator(current.locator));
-  const available=current.locator?scoped:unique;
+  const unique=[...new Map(bindings.filter(binding=>binding.locator&&binding.program).map(binding=>[[canonicalProjectLocator(binding.locator),binding.projectId||binding.project_id||'',binding.program].join('\u001f'),binding])).values()];
+  const scoped=unique.filter(binding=>
+    (!current.locator||canonicalProjectLocator(binding.locator)===canonicalProjectLocator(current.locator))&&
+    (!current.projectId||((binding.projectId||binding.project_id)?(binding.projectId||binding.project_id)===current.projectId:Boolean(current.locator))));
+  const available=current.locator||current.projectId?scoped:unique;
   const binding=matches.length===1&&available.length===1?available[0]:undefined;
   return {...emptySelection,slug:String(member.slug||''),addr:addressOf(member),lastFunctionAddr:addressOf(member),logicalId:current.logicalId,
-    locator:binding?.locator||'',program:binding?.program||'',binaryHash:binding?.binaryHash||''};
+    corpusIdentity:current.corpusIdentity,projectId:current.projectId||binding?.projectId||binding?.project_id||'',
+    locator:current.locator||binding?.locator||'',program:binding?.program||'',binaryHash:binding?.binaryHash||''};
 }
 export function addressOf(row:Record<string,any>):string {return String(row.addr||row.address||row.fromAddress||row.start||'');}
 export function shellShortcut(event:Pick<KeyboardEvent,'defaultPrevented'|'ctrlKey'|'metaKey'|'key'>,modalOpen:boolean) {

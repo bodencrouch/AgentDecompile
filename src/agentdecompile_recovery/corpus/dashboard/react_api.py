@@ -492,10 +492,10 @@ def create_react_router() -> APIRouter:
         return {"ok": True, "rows": [dict(zip(("slug", "name", "kind", "definition", "origin"), row)) for row in rows], "total": total, "offset": start, "limit": "all" if cap is None else cap, "hasMore": cap is not None and start + len(rows) < total, "state": "populated" if total else "empty", "claim": "context hint"}
 
     @router.get("/dashboard/api/workbench/logical/{logical_id}")
-    def logical(logical_id: str):
+    def logical(logical_id: str, corpus_identity: str = ""):
         from agentdecompile_recovery.corpus.dashboard.pages import logical_detail_json
 
-        payload, status = logical_detail_json(logical_id)
+        payload, status = logical_detail_json(logical_id, expected_corpus=corpus_identity)
         return JSONResponse(payload, status_code=status)
 
     @router.get("/api/v1/batches")

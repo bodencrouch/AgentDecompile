@@ -1,25 +1,33 @@
-# Whole-source consolidation with forgiving inputs and implicit defaults
+# Simplify AgentDecompile around shared, composable capabilities
 
 ## Spec
 
-The latest 2026-09-20 user correction is binding: FIRST aggregate every Python
-file recursively under src, then investigate why the codebase has so many modules
-and design consolidation to one-fifth through a dynamic, seamless architecture.
-The prior CLI-only scope was explicitly rejected. Preserve forgiving inputs,
+The latest user correction supersedes both file-count and CLI-only objectives:
+there is no required number of files, and spelling aliases are only one example.
+Infer the broader intent from current canonical VISION, STRATEGY, AGENTS, design
+and brainstorm records, and actual git changes over time. Remove duplicated
+hardcoded machinery across capability discovery, workflow policy, ownership,
+resume, presentation and inputs where evidence identifies a shared owner.
+The whole-source aggregation is
+complete and remains useful evidence, not a mandate to merge unrelated modules.
+Preserve forgiving inputs,
 implicit normal defaults and explicit customization. Do not replace duplication
 with permutation frameworks, giant concatenations, exec-based hidden modules or
 moving Python outside src to game the count.
 
-Full canonical aggregation: 456 files, 218515 lines, 9262819 bytes; target <=91
-Python files in src. The isolated branch now contains the full 456-file source
+Full canonical aggregation: 456 files, 218515 lines, 9262819 bytes; the former
+91-file target is withdrawn. The isolated branch contains the full source
 snapshot at 64d768c. Canonical dirty and untracked files are included in
 the aggregate and must survive future migrations. Current live runtime differs
 again (444 files). Source moves require a fresh complete snapshot and import,
 entrypoint, process/state and packaging preservation, not blind deployment.
 
-Tasks 1-3 below are preserved historical input-path work, not completion of the
-new whole-source goal. Task4 is paused; complete whole-source investigation and
-dependency mapping before choosing further implementation slices.
+Tasks 1-3 are completed input-path deduplication. Task5 is completed; finish
+Task6's accepted-path evidence correction because it removes actual duplication.
+Task4 remains a candidate, not the automatic next priority. Complete the parallel
+charter/history/documentation/implementation investigation before choosing the
+next slice. Choose by duplicated behavior and maintenance burden, never physical
+file-count quotas or the easiest isolated spelling cleanup.
 
 ## Global Constraints
 
@@ -112,14 +120,16 @@ removed redundancy and residual intentional semantic cases.
 
 User refinement: reduce hardcoded command machinery through dynamic reuse;
 normal use should need no flags and custom behavior should be explicit opt-in.
-Own cli.py and the defaults section of docs/INPUT_NORMALIZATION.md. Read Global
+Own cli.py, registry.py's redundant builtin alias registrations only, and the
+defaults section of docs/INPUT_NORMALIZATION.md. Read Global
 Constraints. Limit this slice to symbols, strings, datatypes and structures.
 Replace their four repeated convenience-command factories with one small helper
 that derives options from the existing run Command and invokes its callback via
 native Click. Preserve command names, exposed option sets, meaningful customization,
 selector safety and validation; don't create a metadata framework or depend on a
 live backend for CLI help. Copy Option objects if reuse would share mutable state.
-Keep semantic action lists explicit; derive mechanical wiring from existing objects.
+Keep semantic choices explicit once in each owning run command's click.Choice;
+derive shortcut names from those choices, retaining genuine exclusions only.
 Missing run-only inputs must not inject new workflow defaults into shortcuts.
 Fix Click destination names that disagree with callback parameter names in these
 families as part of sharing the actual callbacks. Preserve public flag spellings.
@@ -128,6 +138,22 @@ retain positive and negative boolean overrides, false, zero and explicit empty
 values. Preserve intentional CLI policy defaults and mutation safety flags.
 Keep validation: do not replace all typed options with permissive string options.
 Do not globally strip defaults in _call or normalize arbitrary nested values.
+Read task-4-preflight.md in this plan workspace. It records exact excluded options,
+symbols mutation-mode exclusions, destination mismatches and provider-default evidence.
+Native ctx.invoke(Command) fills missing values: explicitly suppress omitted
+run-only options so shortcuts do not acquire new defaults. Use native Click's
+kebab-to-snake destination inference instead of a destination translation table.
+Only filterDefaultNames=True and includeReferencingFunctions=False are proven
+provider-owned defaults for omission in this slice. Preserve other CLI policies.
+Retain explicit negative boolean overrides, tuple and JSON handling. Explicit empty
+ordinary string inputs are retained; whitespace-only program selection remains absent.
+In registry._add_builtin_param_aliases remove only the nine later normalized-
+equivalent registrations: binary_path, shared_mode, ghidra_server_host,
+ghidra_server_port, ghidra_server_username, ghidra_server_password,
+ghidra_server_repository, server_repository, repository_name. Keep first spellings,
+semantic synonyms and all existing normalization/precedence algorithms. Inline
+old/new replay must prove the resulting normalized maps identical, including
+replace=True behavior; no second normalization algorithm in production.
 Characterize native Click parsing and callbacks entirely in memory with _call
 replaced by a capture coroutine; never invoke real backend/process/filesystem
 callbacks or CliRunner filesystem isolation. Assert public option sets, no-flag
@@ -188,6 +214,36 @@ runnable check and output in the report. Count the added physical module honestl
 against deleted duplication; this improves code ownership, not file count by itself.
 Self-review and commit only task production files with hooks disabled; independent
 spec/quality review follows. No production changes before Task 5 review passes.
+
+## Task 7: One owner for MCP provider enrollment
+
+History fd1d660 establishes derived capability surfaces instead of parallel stale
+catalogs; May's analysis-coordinator simplification establishes one behavior owner.
+Current provider enrollment repeats class imports/exports and a manager-local class
+tuple. Own only src/agentdecompile_cli/mcp_server/providers/__init__.py and
+src/agentdecompile_cli/mcp_server/tool_providers.py, plus the task report.
+Read Global Constraints. Keep the existing providers package as enrollment owner:
+explicit provider imports, one PROVIDER_CLASSES tuple in the exact current manager
+registration order, and __all__ derived from that tuple. Preserve the same exported
+provider-name set; its introspection order may follow registration order and must
+be disclosed. Do not export PROVIDER_CLASSES through wildcard imports. Manager
+imports the tuple lazily inside register_all_providers and iterates it; remove
+its duplicated class import list and tuple. Preserve constructor arguments,
+registration order, tool collision behavior, and per-provider exception/logging
+continuation exactly. No filesystem scanning, subclass auto-discovery, plugin
+loader, new dependency, or change to import failure boundaries. Update misleading
+package docstring about registration ownership. Inspect actual consumers first.
+Use pure inline AST extraction with fake provider classes and an import stub;
+do not import real providers or start JVM/backend. Assert exact pre/post provider
+sequence and public-name set, all names resolve to imported classes, no duplicated
+enrollment list in manager, and that inserting one stub provider into the package
+tuple automatically reaches manager registration without manager changes. Verify
+one constructor failure still permits later providers to register with the same
+warning. Compare actual manager registration method's behavior, not a reimplemented
+loop. Compile both sources in memory, diff-check, write full runnable check/output,
+self-review and commit only owned production changes with hooks disabled. This is
+the first capability-ownership slice, not completion of catalog/resource/resume
+consolidation or runtime activation.
 
 ## Acceptance
 

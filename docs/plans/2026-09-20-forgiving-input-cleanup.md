@@ -403,6 +403,10 @@ Report full runnable commands/output, self-review and commit own files only.
 
 ## Acceptance
 
+Implementation Tasks 1-13 are complete and independently approved. The evidence
+and exact commit boundaries are retained in this plan's SDD ledger. Whole-branch
+review is the remaining local gate; deployment/integration is not implied.
+
 Each task receives independent spec/quality review, then the complete branch gets
 one broad review. Evidence is inline parser/normalization equivalence, not live
 Ghidra behavior. Integration must preserve canonical edits and not restart or

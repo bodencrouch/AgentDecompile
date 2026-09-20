@@ -50,25 +50,26 @@ correct.
   existing owners. Keep explicit false, zero and meaningful empty values; never
   silently select another target or database.
 
-## Concrete remaining duplication
+## Consolidation status and remaining boundaries
 
 | Area | Current observation | Next repair boundary |
 |---|---|---|
 | Provider enrollment | Repeated package/manager enrollment lists identified and consolidated in `03e8a89` | Existing providers package now owns the ordered tuple; manager and exports derive from it |
 | Capability policy | MCP duration now belongs to ToolMetadata; argparse duration/confirmation belong to owning parsers | Dashboard projects metadata, preserving existing classifications; resource ownership remains separate |
-| Pipeline projections | Contract stages, step action defaults and browser quick actions repeat related definitions | Trace the differing recipes, then derive shared projections without collapsing genuinely different stages |
+| Pipeline projections | Contract owns stage tokens, actions, labels, aliases and display gates; steps and browser derive their projections | Internal workflow stages, receipts, proof gates and catalog field definitions remain distinct owners |
 | Resource admission | Parser/ActionSpec metadata now owns identity scope; remove-binary/reclassify-matches are covered | Database-wide and directed-pair claims overlap correctly under the existing scheduler lock; external processes remain a distinct boundary |
-| Resume | Single-target stage fingerprints and plugin proof reuse exist, while corpus-stage reuse follows different paths | Reuse established identity/proof checks; declare dependencies once rather than create another universal runner |
-| Workspace paths | Corpus workspace resolution duplicates the shared fallback; historical materializers have a different source-tree warehouse contract | Share compatible defaults without silently relocating historical artifacts |
-| Input/shortcut wiring | Normalization is shared, but redundant alias registrations and copied Click factories remain | Derive spelling matches and shortcut definitions from existing owners; retain genuine semantic distinctions |
+| Resume | Repeated stage-relevance predicates now have one local definition; existing stage fingerprints and plugin proof checks remain their own owners | No new cache, relaxed proof gate or changed fingerprint format |
+| Workspace paths | Corpus workspace resolution delegates to the shared default owner; recovered-source fallback reuses external-root resolution | Historical warehouse, container, bootstrap and saved-selection layouts remain unchanged |
+| Input/shortcut wiring | All eleven shortcut families derive names/options/callbacks from their owning Click commands | Explicit omissions, semantic aliases and boundary-specific precedence remain intentional policy |
 
-These are investigation findings, not claims of live defects reproduced through
-8080. In particular, resource admission, corpus resume and legacy identity
-fallback require focused verification before implementation. The identity writer
+These are source findings and bounded source-level repairs, not claims of live
+defects reproduced through 8080. Broader resource admission, corpus resume and
+legacy identity changes require their own contract verification. The identity writer
 set initially had seven entries, not five. The earlier corpus.run assertion was
-incorrect for the dashboard entrypoint: its parser has no --db and its caller
-does not pass the optional database to the underlying pipeline API. Do not inject
-an unrelated selected database or unsupported argument. Invalidated evidence must rerun even
+incorrect for the dashboard entrypoint: its parser has no --db and its dashboard
+caller passes none. DB-keyed identity locking is not applicable without a
+separately traced resource contract. Do not inject an unrelated selected database
+or unsupported argument. Invalidated evidence must rerun even
 without a force flag; valid completed work must not be overwritten gratuitously.
 
 ## Changes already made in the isolated branch
@@ -110,10 +111,34 @@ without a force flag; valid completed work must not be overwritten gratuitously.
   Admission release covers running-persistence, cwd and final-persistence errors.
   In-memory extracted lifecycle checks and independent review passed; no threaded
   scheduler, filesystem or external-process serialization proof is claimed.
+- `c05ec77`: the pipeline contract owns the eight-stage presentation, with derived
+  numbering, aliases, action maps and browser items. All nine non-pipeline quick
+  sets remain unchanged. Missing catalog actions disable only derived stage items.
+  Alias mappings are unchanged; diagnostic/serialization order follows stages.
+  Actual Python/JS adapter checks and independent review passed, not live-browser
+  proof. Preceding snapshot `0587b74` preserves canonical frontend context-loading
+  work and is not attributed to this refactor.
+- `5567d83`: two repeated stage-relevance predicates are shared inside the existing
+  fingerprint owner. All 209 full configuration/hash comparisons passed, including
+  conditional evidence identities and source-project success/error branches. This
+  does not add new resume behavior or strengthen receipt proof.
+- `475fe2e`: compatible corpus workspace defaults share one resolver; existing
+  public delegation and dashboard search order are preserved. All 120 path-output
+  comparisons passed without filesystem checks or state relocation.
+- `e450617`: the remaining seven copied shortcut factories reuse the same helper,
+  preserving their 35 established shortcut selectors. Net 218 production lines
+  removed in this task. Native Click capture checks cover all selectors, options,
+  hidden-field omissions, false/zero/empty values and the prior four families.
+  Baseline callback-destination defects are explicitly characterized and fixed;
+  broken baseline commands are not described as working-behavior parity.
+
+All thirteen implementation tasks have independent task-level approval. The
+final cross-task review is separate; task approval is not deployment approval.
 
 The source inventory (456 Python files, 218,515 lines) and earlier allocation maps
-remain investigation history, not a file-reduction quota. The two consolidation
-container/decoder increments remove 1,121 lines; that is not whole-product completion.
+remain investigation history, not a current inventory or file-reduction quota.
+The container/decoder tasks removed 1,121 lines; that task-local count is not
+whole-product completion evidence.
 
 ## Execution and evidence limits
 
@@ -123,7 +148,7 @@ servers, recovery workers, systemctl, process restarts, or direct recovery CLI
 runs are authorized by this cleanup. Pure inline checks do not prove live
 dashboard behavior, job continuity, compiler results or recovery parity.
 
-No refactor here has been activated in the live 8080 runtime. The current
+These checks did not verify deployment or behavior in the live 8080 runtime. The
 whole-image compiler/objdiff acceptance requirements, separately attributed
 byte-accurate and max-C variants, and runtime-reuse evidence boundaries remain
 unchanged.

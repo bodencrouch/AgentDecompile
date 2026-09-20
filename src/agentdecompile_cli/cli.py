@@ -3014,19 +3014,18 @@ def list_functions_grp() -> None:
     default="all",
 )
 @click.option("--query")
-@click.option("--search-string", "searchString")
-@click.option("--min-reference-count", "minReferenceCount", type=int)
+@click.option("--search-string")
+@click.option("--min-reference-count", type=int)
 @click.option("--identifiers", multiple=True)
-@click.option("--start-index", "startIndex", type=int)
+@click.option("--start-index", type=int)
 @click.option("--offset", type=int)
 @click.option(
     "--filter-default-names/--no-filter-default-names",
-    "filterDefaultNames",
     default=True,
 )
-@click.option("--filter-by-tag", "filterByTag")
+@click.option("--filter-by-tag")
 @click.option("--untagged", is_flag=True)
-@click.option("--has-tags", "hasTags", is_flag=True)
+@click.option("--has-tags", is_flag=True)
 @click.option("--verbose", is_flag=True)
 @click.pass_context
 def list_functions_run(
@@ -3064,50 +3063,22 @@ def list_functions_run(
     payload["filterDefaultNames"] = filter_default_names
     if filter_by_tag is not None and filter_by_tag.strip():
         payload["filterByTag"] = filter_by_tag
-    payload["untagged"] = untagged
-    payload["hasTags"] = has_tags
+    if untagged is not None:
+        payload["untagged"] = untagged
+    if has_tags is not None:
+        payload["hasTags"] = has_tags
     payload["verbose"] = verbose
     _run_async(_call(ctx, Tool.LIST_FUNCTIONS.value, **payload))
 
 
-# --- Convenience subcommands (``list-functions all``, ``list-functions search``, …) ---
-
-
-def _list_functions_mode_command(mode_name: str, help_text: str | None = None):
-    """Factory for ``list-functions <mode>`` shorthand subcommands."""
-
-    @list_functions_grp.command(mode_name, help=help_text or f"list-functions mode={mode_name}")
-    @click.option("-b", "--binary", "program_path")
-    @click.option("--query")
-    @click.option("--offset", type=int)
-    @click.option("--filter-default-names/--no-filter-default-names", "filter_default_names", default=True)
-    @click.option("--verbose", is_flag=True)
-    @click.pass_context
-    def _cmd(
-        ctx: click.Context,
-        program_path: str | None,
-        query: str | None,
-        offset: int | None,
-        filter_default_names: bool,
-        verbose: bool,
-    ) -> None:
-        payload: dict[str, Any] = {"mode": mode_name}
-        if program_path:
-            payload["programPath"] = program_path
-        if query:
-            payload["query"] = query
-        if offset is not None:
-            payload["offset"] = offset
-        payload["filterDefaultNames"] = filter_default_names
-        payload["verbose"] = verbose
-        _run_async(_call(ctx, Tool.LIST_FUNCTIONS.value, **payload))
-
-    logger.debug("diag.enter %s", "cli.py:_list_functions_mode_command")
-    return _cmd
-
-
-for _mode in ("all", "search", "similarity", "undefined", "count", "by_identifiers"):
-    _list_functions_mode_command(_mode)
+_derive_convenience_commands(
+    list_functions_grp,
+    list_functions_run,
+    "mode",
+    omitted_options=frozenset(
+        {"search_string", "min_reference_count", "identifiers", "start_index", "filter_by_tag", "untagged", "has_tags"},
+    ),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -3522,11 +3493,11 @@ def references_grp() -> None:
 @click.option("--mode", type=click.Choice(["to", "from", "both", "function", "referencers_decomp", "import", "thunk"]), default="both")
 @click.option("--direction", type=click.Choice(["to", "from", "both"]))
 @click.option("--offset", type=int)
-@click.option("--library-name", "libraryName")
-@click.option("--start-index", "startIndex", type=int)
-@click.option("--max-referencers", "maxReferencers", type=int)
-@click.option("--include-ref-context/--no-include-ref-context", "includeRefContext", default=True)
-@click.option("--include-data-refs/--no-include-data-refs", "includeDataRefs", default=True)
+@click.option("--library-name")
+@click.option("--start-index", type=int)
+@click.option("--max-referencers", type=int)
+@click.option("--include-ref-context/--no-include-ref-context", default=True)
+@click.option("--include-data-refs/--no-include-data-refs", default=True)
 @click.pass_context
 def references_run(
     ctx: click.Context,
@@ -3555,45 +3526,21 @@ def references_run(
         payload["startIndex"] = start_index
     if max_referencers is not None:
         payload["maxReferencers"] = max_referencers
-    payload["includeRefContext"] = include_ref_context
-    payload["includeDataRefs"] = include_data_refs
+    if include_ref_context is not None:
+        payload["includeRefContext"] = include_ref_context
+    if include_data_refs is not None:
+        payload["includeDataRefs"] = include_data_refs
     _run_async(_call(ctx, Tool.GET_REFERENCES.value, **payload))
 
 
-# --- Convenience subcommands (``references to``, ``references from``, …) ---
-
-
-def _references_mode_command(mode_name: str, help_text: str | None = None):
-    """Factory for ``references <mode>`` shorthand subcommands."""
-
-    @references_grp.command(mode_name, help=help_text or f"get-references mode={mode_name}")
-    @click.option("-b", "--binary", "program_path")
-    @click.option("--target", required=True, help="Address, symbol, function, or import name")
-    @click.option("--direction", type=click.Choice(["to", "from", "both"]))
-    @click.option("--offset", type=int)
-    @click.pass_context
-    def _cmd(
-        ctx: click.Context,
-        program_path: str | None,
-        target: str,
-        direction: str | None,
-        offset: int | None,
-    ) -> None:
-        payload: dict[str, Any] = {"target": target, "mode": mode_name}
-        if program_path:
-            payload["programPath"] = program_path
-        if direction is not None:
-            payload["direction"] = direction
-        if offset is not None:
-            payload["offset"] = offset
-        _run_async(_call(ctx, Tool.GET_REFERENCES.value, **payload))
-
-    logger.debug("diag.enter %s", "cli.py:_references_mode_command")
-    return _cmd
-
-
-for _mode in ("to", "from", "both", "function", "referencers_decomp", "import", "thunk"):
-    _references_mode_command(_mode)
+_derive_convenience_commands(
+    references_grp,
+    references_run,
+    "mode",
+    omitted_options=frozenset(
+        {"library_name", "start_index", "max_referencers", "include_ref_context", "include_data_refs"},
+    ),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -3777,19 +3724,19 @@ def comments_grp() -> None:
 @comments_grp.command("run", help="Run manage-comments with --action")
 @click.option("-b", "--binary", "program_path")
 @click.option("--action", type=click.Choice(["set", "get", "remove", "search", "search_decomp"]), required=True)
-@click.option("--address-or-symbol", "addressOrSymbol")
+@click.option("--address-or-symbol")
 @click.option("--function")
-@click.option("--line-number", "lineNumber", type=int)
+@click.option("--line-number", type=int)
 @click.option("--comment")
-@click.option("--comment-type", "commentType", type=click.Choice(["pre", "eol", "post", "plate", "repeatable"]))
+@click.option("--comment-type", type=click.Choice(["pre", "eol", "post", "plate", "repeatable"]))
 @click.option("--comments", help="JSON array of comment objects")
 @click.option("--start")
 @click.option("--end")
-@click.option("--comment-types", "commentTypes")
-@click.option("--search-text", "searchText")
+@click.option("--comment-types")
+@click.option("--search-text")
 @click.option("--pattern")
-@click.option("--case-sensitive", "caseSensitive", is_flag=True)
-@click.option("--override-max-functions-limit", "overrideMaxFunctionsLimit", is_flag=True)
+@click.option("--case-sensitive", is_flag=True)
+@click.option("--override-max-functions-limit", is_flag=True)
 @click.pass_context
 def comments_run(
     ctx: click.Context,
@@ -3838,55 +3785,21 @@ def comments_run(
         payload["searchText"] = search_text
     if pattern is not None:
         payload["pattern"] = pattern
-    payload["caseSensitive"] = case_sensitive
-    payload["overrideMaxFunctionsLimit"] = override_max_functions_limit
+    if case_sensitive is not None:
+        payload["caseSensitive"] = case_sensitive
+    if override_max_functions_limit is not None:
+        payload["overrideMaxFunctionsLimit"] = override_max_functions_limit
     _run_async(_call(ctx, Tool.MANAGE_COMMENTS.value, **payload))
 
 
-# --- Convenience subcommands (``comments set``, ``comments get``, …) ---
-
-
-def _comments_action_command(action_name: str, help_text: str | None = None):
-    """Factory for ``comments <action>`` shorthand subcommands."""
-
-    @comments_grp.command(action_name, help=help_text or f"manage-comments action={action_name}")
-    @click.option("-b", "--binary", "program_path")
-    @click.option("--address-or-symbol", "addressOrSymbol")
-    @click.option("--function")
-    @click.option("--comment")
-    @click.option("--comment-type", "commentType", type=click.Choice(["pre", "eol", "post", "plate", "repeatable"]))
-    @click.option("--search-text", "searchText")
-    @click.pass_context
-    def _cmd(
-        ctx: click.Context,
-        program_path: str | None,
-        address_or_symbol: str | None,
-        function: str | None,
-        comment: str | None,
-        comment_type: str | None,
-        search_text: str | None,
-    ) -> None:
-        payload: dict[str, Any] = {"action": action_name}
-        if program_path:
-            payload["programPath"] = program_path
-        if address_or_symbol is not None:
-            payload["addressOrSymbol"] = address_or_symbol
-        if function is not None:
-            payload["function"] = function
-        if comment is not None:
-            payload["comment"] = comment
-        if comment_type is not None:
-            payload["commentType"] = comment_type
-        if search_text is not None:
-            payload["searchText"] = search_text
-        _run_async(_call(ctx, Tool.MANAGE_COMMENTS.value, **payload))
-
-    logger.debug("diag.enter %s", "cli.py:_comments_action_command")
-    return _cmd
-
-
-for _action in ("set", "get", "remove", "search", "search_decomp"):
-    _comments_action_command(_action)
+_derive_convenience_commands(
+    comments_grp,
+    comments_run,
+    "action",
+    omitted_options=frozenset(
+        {"line_number", "comments", "start", "end", "comment_types", "pattern", "case_sensitive", "override_max_functions_limit"},
+    ),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -3903,13 +3816,13 @@ def bookmarks_grp() -> None:
 @bookmarks_grp.command("run", help="Run manage-bookmarks with --action")
 @click.option("-b", "--binary", "program_path")
 @click.option("--action", type=click.Choice(["set", "get", "search", "remove", "removeAll", "categories"]), required=True)
-@click.option("--address-or-symbol", "addressOrSymbol")
+@click.option("--address-or-symbol")
 @click.option("--type", "type_", type=click.Choice(["Note", "Warning", "TODO", "Bug", "Analysis"]))
 @click.option("--category")
 @click.option("--comment")
 @click.option("--bookmarks", help="JSON array of bookmark objects")
-@click.option("--search-text", "searchText")
-@click.option("--remove-all", "removeAll", is_flag=True)
+@click.option("--search-text")
+@click.option("--remove-all", is_flag=True)
 @click.pass_context
 def bookmarks_run(
     ctx: click.Context,
@@ -3942,54 +3855,18 @@ def bookmarks_run(
             raise click.BadParameter("--bookmarks must be valid JSON array")
     if search_text is not None:
         payload["searchText"] = search_text
-    payload["removeAll"] = remove_all
+    if remove_all is not None:
+        payload["removeAll"] = remove_all
     _run_async(_call(ctx, Tool.MANAGE_BOOKMARKS.value, **payload))
 
 
-# --- Convenience subcommands (``bookmarks set``, ``bookmarks get``, …) ---
-
-
-def _bookmarks_action_command(action_name: str, help_text: str | None = None):
-    """Factory for ``bookmarks <action>`` shorthand subcommands."""
-
-    @bookmarks_grp.command(action_name, help=help_text or f"manage-bookmarks action={action_name}")
-    @click.option("-b", "--binary", "program_path")
-    @click.option("--address-or-symbol", "addressOrSymbol")
-    @click.option("--type", "type_", type=click.Choice(["Note", "Warning", "TODO", "Bug", "Analysis"]))
-    @click.option("--category")
-    @click.option("--comment")
-    @click.option("--search-text", "searchText")
-    @click.pass_context
-    def _cmd(
-        ctx: click.Context,
-        program_path: str | None,
-        address_or_symbol: str | None,
-        type_: str | None,
-        category: str | None,
-        comment: str | None,
-        search_text: str | None,
-    ) -> None:
-        payload: dict[str, Any] = {"action": action_name}
-        if program_path:
-            payload["programPath"] = program_path
-        if address_or_symbol is not None:
-            payload["addressOrSymbol"] = address_or_symbol
-        if type_ is not None:
-            payload["type"] = type_
-        if category is not None:
-            payload["category"] = category
-        if comment is not None:
-            payload["comment"] = comment
-        if search_text is not None:
-            payload["searchText"] = search_text
-        _run_async(_call(ctx, Tool.MANAGE_BOOKMARKS.value, **payload))
-
-    logger.debug("diag.enter %s", "cli.py:_bookmarks_action_command")
-    return _cmd
-
-
-for _action in ("set", "get", "search", "remove", "categories"):
-    _bookmarks_action_command(_action)
+_derive_convenience_commands(
+    bookmarks_grp,
+    bookmarks_run,
+    "action",
+    omitted_options=frozenset({"bookmarks", "remove_all"}),
+    omitted_choices=frozenset({"removeAll"}),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -4039,15 +3916,15 @@ def callgraph_grp() -> None:
 
 @callgraph_grp.command("run", help="Run get-call-graph")
 @click.option("-b", "--binary", "program_path")
-@click.option("--function", "functionIdentifier", required=True)
+@click.option("--function", "function_identifier", required=True)
 @click.option("--mode", type=click.Choice(["graph", "tree", "callers", "callees", "callers_decomp", "common_callers"]), default="graph")
 @click.option("--depth", type=int)
 @click.option("--direction", type=click.Choice(["callers", "callees"]))
-@click.option("--max-depth", "maxDepth", type=int)
-@click.option("--start-index", "startIndex", type=int)
-@click.option("--max-callers", "maxCallers", type=int)
-@click.option("--include-call-context/--no-include-call-context", "includeCallContext", default=True)
-@click.option("--function-addresses", "functionAddresses", help="Comma-separated for common_callers")
+@click.option("--max-depth", type=int)
+@click.option("--start-index", type=int)
+@click.option("--max-callers", type=int)
+@click.option("--include-call-context/--no-include-call-context", default=True)
+@click.option("--function-addresses", help="Comma-separated for common_callers")
 @click.pass_context
 def callgraph_run(
     ctx: click.Context,
@@ -4076,50 +3953,19 @@ def callgraph_run(
         payload["startIndex"] = start_index
     if max_callers is not None:
         payload["maxCallers"] = max_callers
-    payload["includeCallContext"] = include_call_context
+    if include_call_context is not None:
+        payload["includeCallContext"] = include_call_context
     if function_addresses is not None:
         payload["functionAddresses"] = function_addresses
     _run_async(_call(ctx, Tool.GET_CALL_GRAPH.value, **payload))
 
 
-# --- Convenience subcommands (``callgraph callers``, ``callgraph callees``, …) ---
-
-
-def _callgraph_mode_command(mode_name: str, help_text: str | None = None):
-    """Factory for ``callgraph <mode>`` shorthand subcommands."""
-
-    @callgraph_grp.command(mode_name, help=help_text or f"get-call-graph mode={mode_name}")
-    @click.option("-b", "--binary", "program_path")
-    @click.option("--function", "functionIdentifier", required=True)
-    @click.option("--depth", type=int)
-    @click.option("--max-depth", "maxDepth", type=int)
-    @click.option("--max-callers", "maxCallers", type=int)
-    @click.pass_context
-    def _cmd(
-        ctx: click.Context,
-        program_path: str | None,
-        function_identifier: str,
-        depth: int | None,
-        max_depth: int | None,
-        max_callers: int | None,
-    ) -> None:
-        payload: dict[str, Any] = {"functionIdentifier": function_identifier, "mode": mode_name}
-        if program_path:
-            payload["programPath"] = program_path
-        if depth is not None:
-            payload["depth"] = depth
-        if max_depth is not None:
-            payload["maxDepth"] = max_depth
-        if max_callers is not None:
-            payload["maxCallers"] = max_callers
-        _run_async(_call(ctx, Tool.GET_CALL_GRAPH.value, **payload))
-
-    logger.debug("diag.enter %s", "cli.py:_callgraph_mode_command")
-    return _cmd
-
-
-for _mode in ("graph", "tree", "callers", "callees", "callers_decomp", "common_callers"):
-    _callgraph_mode_command(_mode)
+_derive_convenience_commands(
+    callgraph_grp,
+    callgraph_run,
+    "mode",
+    omitted_options=frozenset({"direction", "start_index", "include_call_context", "function_addresses"}),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -4137,9 +3983,9 @@ def constants_grp() -> None:
 @click.option("-b", "--binary", "program_path")
 @click.option("--mode", type=click.Choice(["specific", "range", "common"]), required=True)
 @click.option("--value")
-@click.option("--min-value", "minValue")
-@click.option("--max-value", "maxValue")
-@click.option("--include-small-values", "includeSmallValues", is_flag=True)
+@click.option("--min-value")
+@click.option("--max-value")
+@click.option("--include-small-values", is_flag=True)
 @click.pass_context
 def constants_run(
     ctx: click.Context,
@@ -4160,46 +4006,17 @@ def constants_run(
         payload["minValue"] = min_value
     if max_value is not None:
         payload["maxValue"] = max_value
-    payload["includeSmallValues"] = include_small_values
+    if include_small_values is not None:
+        payload["includeSmallValues"] = include_small_values
     _run_async(_call(ctx, Tool.SEARCH_CONSTANTS.value, **payload))
 
 
-# --- Convenience subcommands (``constants specific``, ``constants range``, …) ---
-
-
-def _constants_mode_command(mode_name: str, help_text: str | None = None):
-    """Factory for ``constants <mode>`` shorthand subcommands."""
-
-    @constants_grp.command(mode_name, help=help_text or f"search-constants mode={mode_name}")
-    @click.option("-b", "--binary", "program_path")
-    @click.option("--value")
-    @click.option("--min-value", "minValue")
-    @click.option("--max-value", "maxValue")
-    @click.pass_context
-    def _cmd(
-        ctx: click.Context,
-        program_path: str | None,
-        value: str | None,
-        min_value: str | None,
-        max_value: str | None,
-    ) -> None:
-        payload: dict[str, Any] = {"mode": mode_name}
-        if program_path:
-            payload["programPath"] = program_path
-        if value is not None:
-            payload["value"] = value
-        if min_value is not None:
-            payload["minValue"] = min_value
-        if max_value is not None:
-            payload["maxValue"] = max_value
-        _run_async(_call(ctx, Tool.SEARCH_CONSTANTS.value, **payload))
-
-    logger.debug("diag.enter %s", "cli.py:_constants_mode_command")
-    return _cmd
-
-
-for _mode in ("specific", "range", "common"):
-    _constants_mode_command(_mode)
+_derive_convenience_commands(
+    constants_grp,
+    constants_run,
+    "mode",
+    omitted_options=frozenset({"include_small_values"}),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -4216,9 +4033,9 @@ def vtables_grp() -> None:
 @vtables_grp.command("run", help="Run analyze-vtables")
 @click.option("-b", "--binary", "program_path")
 @click.option("--mode", type=click.Choice(["analyze", "callers", "containing"]), required=True)
-@click.option("--vtable-address", "vtableAddress")
-@click.option("--function-address", "functionAddress")
-@click.option("--max-entries", "maxEntries", type=int)
+@click.option("--vtable-address")
+@click.option("--function-address")
+@click.option("--max-entries", type=int)
 @click.pass_context
 def vtables_run(
     ctx: click.Context,
@@ -4241,42 +4058,7 @@ def vtables_run(
     _run_async(_call(ctx, Tool.ANALYZE_VTABLES.value, **payload))
 
 
-# --- Convenience subcommands (``vtables analyze``, ``vtables callers``, …) ---
-
-
-def _vtables_mode_command(mode_name: str, help_text: str | None = None):
-    """Factory for ``vtables <mode>`` shorthand subcommands."""
-
-    @vtables_grp.command(mode_name, help=help_text or f"analyze-vtables mode={mode_name}")
-    @click.option("-b", "--binary", "program_path")
-    @click.option("--vtable-address", "vtableAddress")
-    @click.option("--function-address", "functionAddress")
-    @click.option("--max-entries", "maxEntries", type=int)
-    @click.pass_context
-    def _cmd(
-        ctx: click.Context,
-        program_path: str | None,
-        vtable_address: str | None,
-        function_address: str | None,
-        max_entries: int | None,
-    ) -> None:
-        payload: dict[str, Any] = {"mode": mode_name}
-        if program_path:
-            payload["programPath"] = program_path
-        if vtable_address is not None:
-            payload["vtableAddress"] = vtable_address
-        if function_address is not None:
-            payload["functionAddress"] = function_address
-        if max_entries is not None:
-            payload["maxEntries"] = max_entries
-        _run_async(_call(ctx, Tool.ANALYZE_VTABLES.value, **payload))
-
-    logger.debug("diag.enter %s", "cli.py:_vtables_mode_command")
-    return _cmd
-
-
-for _mode in ("analyze", "callers", "containing"):
-    _vtables_mode_command(_mode)
+_derive_convenience_commands(vtables_grp, vtables_run, "mode")
 
 
 # ---------------------------------------------------------------------------

@@ -22,11 +22,15 @@ output/schema field names remain unchanged.
 
 ## Defaults and convenience commands
 
-The `symbols`, `strings`, `datatypes`, and `structures` convenience commands
-derive their options and selector choices from each family's owning `run`
-command. The shorter commands therefore retain Click's declared types, choices,
-tuple handling, and validation instead of maintaining a second option schema.
-Their intentionally omitted mutation-only inputs remain unavailable.
+The `symbols`, `strings`, `list-functions`, `references`, `datatypes`,
+`structures`, `comments`, `bookmarks`, `callgraph`, `constants`, and `vtables`
+convenience commands derive their options and selector choices from each
+family's owning `run` command. The shorter commands therefore retain Click's
+declared types, choices, tuple handling, and validation instead of maintaining
+a second option schema. Their intentionally omitted run-only inputs remain
+unavailable. The shortcut choice surface is also preserved: for example,
+`bookmarks removeAll` remains available through `bookmarks run --action
+removeAll`, not as a convenience subcommand.
 
 Normal use leaves backend-owned defaults implicit. In this bounded surface,
 `symbols --filter-default-names` and

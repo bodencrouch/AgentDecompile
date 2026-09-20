@@ -538,7 +538,7 @@ class GetFunctionToolProvider(ToolProvider):
             self._touch_listing_for_shared_checkin(program)
 
         self._run_program_transaction(program, "rename-function", _rename_function)
-        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "program_path", "path"))
+        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"))
         return create_success_response(
             {
                 "action": "rename",
@@ -761,7 +761,7 @@ class GetFunctionToolProvider(ToolProvider):
         func_id: str,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_rename_variable")
-        mappings = parse_colon_mappings(self._get_str(args, "variablemappings", "variableMappings", default=""), label="variableMappings")
+        mappings = parse_colon_mappings(self._get_str(args, "variablemappings", default=""), label="variableMappings")
         if mappings:
             results: list[dict[str, Any]] = []
             for old_name, new_name in mappings:
@@ -772,7 +772,7 @@ class GetFunctionToolProvider(ToolProvider):
                 if isinstance(response, list):
                     return response
                 results.append(response)
-            self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "program_path", "path"))
+            self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"))
             return create_success_response(
                 {
                     "action": "rename_variable",
@@ -783,14 +783,14 @@ class GetFunctionToolProvider(ToolProvider):
                 },
             )
 
-        variable_name = self._get_str(args, "variablename", "variableName", "oldname", "oldName", default="").strip()
-        new_name = self._get_str(args, "newname", "newName", "name", default="").strip()
+        variable_name = self._get_str(args, "variablename", "oldname", default="").strip()
+        new_name = self._get_str(args, "newname", "name", default="").strip()
         if not variable_name or not new_name:
             raise ValueError("variableName (or oldName) and newName are required for rename_variable")
         result = await self._apply_single_variable_rename(args, program, func, variable_name, new_name)
         if isinstance(result, list):
             return result
-        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "program_path", "path"))
+        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"))
         return create_success_response(
             {
                 "action": "rename_variable",
@@ -837,7 +837,7 @@ class GetFunctionToolProvider(ToolProvider):
         func_id: str,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_set_variable_type")
-        mappings = parse_colon_mappings(self._get_str(args, "datatypemappings", "datatypeMappings", default=""), label="datatypeMappings")
+        mappings = parse_colon_mappings(self._get_str(args, "datatypemappings", default=""), label="datatypeMappings")
         if mappings:
             results: list[dict[str, Any]] = []
             for var_name, type_str in mappings:
@@ -848,7 +848,7 @@ class GetFunctionToolProvider(ToolProvider):
                 if isinstance(response, list):
                     return response
                 results.append(response)
-            self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "program_path", "path"))
+            self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"))
             return create_success_response(
                 {
                     "action": "set_variable_type",
@@ -859,14 +859,14 @@ class GetFunctionToolProvider(ToolProvider):
                 },
             )
 
-        variable_name = self._get_str(args, "variablename", "variableName", default="").strip()
-        new_type = self._get_str(args, "newtype", "newType", "type", default="").strip()
+        variable_name = self._get_str(args, "variablename", default="").strip()
+        new_type = self._get_str(args, "newtype", "type", default="").strip()
         if not variable_name or not new_type:
             raise ValueError("variableName and newType are required for set_variable_type")
         result = await self._apply_single_variable_type(args, program, func, variable_name, new_type)
         if isinstance(result, list):
             return result
-        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "program_path", "path"))
+        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"))
         return create_success_response(
             {
                 "action": "set_variable_type",
@@ -923,8 +923,8 @@ class GetFunctionToolProvider(ToolProvider):
         func_id: str,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_change_datatypes")
-        datatype_mappings = parse_colon_mappings(self._get_str(args, "datatypemappings", "datatypeMappings", default=""), label="datatypeMappings")
-        rename_mappings = parse_colon_mappings(self._get_str(args, "variablemappings", "variableMappings", default=""), label="variableMappings")
+        datatype_mappings = parse_colon_mappings(self._get_str(args, "datatypemappings", default=""), label="datatypeMappings")
+        rename_mappings = parse_colon_mappings(self._get_str(args, "variablemappings", default=""), label="variableMappings")
         if not datatype_mappings and not rename_mappings:
             raise ValueError("change_datatypes requires datatypeMappings and/or variableMappings")
 
@@ -946,7 +946,7 @@ class GetFunctionToolProvider(ToolProvider):
                 return response
             results.append({"kind": "rename", **response})
 
-        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "program_path", "path"))
+        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"))
         return create_success_response(
             {
                 "action": "change_datatypes",
@@ -1533,7 +1533,7 @@ class GetFunctionToolProvider(ToolProvider):
         # Cross-program: single function or all functions (when no functionIdentifier given)
         assert self.program_info is not None
         program: GhidraProgram = self.program_info.program
-        source_path: str = self._get_str(args, "programpath", "programpath", default="") or getattr(self.program_info, "file_path", None) or getattr(self.program_info, "path", None) or ""
+        source_path: str = self._get_str(args, "programpath", default="") or getattr(self.program_info, "file_path", None) or getattr(self.program_info, "path", None) or ""
         source_path = str(source_path).strip() if source_path else ""
         # Resolve targets: from args or discover from session (so bulk works without targetProgramPaths)
         resolved_targets: list[str] = target_paths if target_paths else self._discover_target_paths(source_path or "unknown")
@@ -1574,7 +1574,7 @@ class GetFunctionToolProvider(ToolProvider):
 
             # No functionIdentifier: iterate all functions (bulk migration)
             targets: list[str] = resolved_targets
-            include_externals: bool = self._get_bool(args, "includeexternals", "includeexternals", default=True)
+            include_externals: bool = self._get_bool(args, "includeexternals", default=True)
             limit: int | None = self._get_int(args, "limit", "maxfunctions", "maxcount", default=None)
             # Treat limit<=0 as no limit (process all functions)
             if limit is not None and limit <= 0:

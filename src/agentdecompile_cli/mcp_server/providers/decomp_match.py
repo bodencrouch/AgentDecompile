@@ -135,34 +135,30 @@ class DecompMatchToolProvider(ToolProvider):
             tool = self._get_str(args, "tool")
             raw_tools = self._get_list(args, "tools")
             tools = [str(item) for item in raw_tools] if raw_tools else None
-            assembly_path = self._get_str(args, "assemblyPath", "assembly_path", "asmPath", "asm_path")
-            function_name = self._get_str(args, "functionName", "function_name", "function")
+            assembly_path = self._get_str(args, "assemblyPath", "asmPath")
+            function_name = self._get_str(args, "functionName", "function")
             target = self._get_str(args, "target")
-            context_path = self._get_str(args, "contextPath", "context_path", "context")
-            project_path = self._get_str(args, "projectPath", "project_path", "project")
-            unit_name = self._get_str(args, "unitName", "unit_name", "unit")
+            context_path = self._get_str(args, "contextPath", "context")
+            project_path = self._get_str(args, "projectPath", "project")
+            unit_name = self._get_str(args, "unitName", "unit")
             target_object_path = self._get_str(
                 args,
                 "targetObjectPath",
-                "target_object_path",
                 "targetPath",
-                "target_path",
             )
             base_object_path = self._get_str(
                 args,
                 "baseObjectPath",
-                "base_object_path",
                 "basePath",
-                "base_path",
             )
-            symbol = self._get_str(args, "symbol", "functionSymbol", "function_symbol")
-            objdiff_mode = self._get_str(args, "objdiffMode", "objdiff_mode") or "report"
-            permuter_dir = self._get_str(args, "permuterDir", "permuter_dir", "permuterPath")
-            permuter_script = self._get_str(args, "permuterScript", "permuter_script")
+            symbol = self._get_str(args, "symbol", "functionSymbol")
+            objdiff_mode = self._get_str(args, "objdiffMode") or "report"
+            permuter_dir = self._get_str(args, "permuterDir", "permuterPath")
+            permuter_script = self._get_str(args, "permuterScript")
             jobs = self._get_int(args, "jobs")
-            raw_extra = self._get_list(args, "extraArgs", "extra_args")
+            raw_extra = self._get_list(args, "extraArgs")
             extra_args = [str(item) for item in raw_extra] if raw_extra else None
-            output_limit = self._get_int(args, "outputLimit", "output_limit", "limit", default=200) or 200
+            output_limit = self._get_int(args, "outputLimit", "limit", default=200) or 200
             timeout_ms = self._get_int(args, "timeout", default=120_000) or 120_000
 
             common_kwargs = {

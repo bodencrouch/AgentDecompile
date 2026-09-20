@@ -148,19 +148,19 @@ class ContextSubstrateToolProvider(ToolProvider):
             from agentdecompile_recovery.context_export import ExportConfig, export_context
 
             input_path = self._require_str(
-                args, "inputPath", "input_path", "input", "path", name="inputPath"
+                args, "inputPath", "input", "path", name="inputPath"
             )
-            out_dir = self._require_str(args, "outDir", "out_dir", "output", name="outDir")
-            output_format = self._get_str(args, "format", "outputFormat", "output_format") or "json"
+            out_dir = self._require_str(args, "outDir", "output", name="outDir")
+            output_format = self._get_str(args, "format", "outputFormat") or "json"
             binary_analysis = (
-                self._get_str(args, "binaryAnalysis", "binary_analysis") or "light"
+                self._get_str(args, "binaryAnalysis") or "light"
             )
-            extract_containers = self._get_bool(args, "extractContainers", "extract_containers", default=True)
+            extract_containers = self._get_bool(args, "extractContainers", default=True)
             include_low = self._get_bool(
-                args, "includeLowSignalMembers", "include_low_signal_members", default=False
+                args, "includeLowSignalMembers", default=False
             )
-            max_files = self._get_int(args, "maxFiles", "max_files", default=250)
-            max_depth = self._get_int(args, "maxDepth", "max_depth", default=3)
+            max_files = self._get_int(args, "maxFiles", default=250)
+            max_depth = self._get_int(args, "maxDepth", default=3)
 
             src = Path(input_path)
             if not src.exists():
@@ -200,7 +200,7 @@ class ContextSubstrateToolProvider(ToolProvider):
             from agentdecompile_recovery import acquisition_registry
             from agentdecompile_recovery.acquisition_mcp import query_bundle
 
-            bundle_dir = self._get_str(args, "bundleDir", "bundle_dir", "bundle")
+            bundle_dir = self._get_str(args, "bundleDir", "bundle")
             action = self._get_str(args, "action") or "inspect"
             query = self._get_str(args, "query")
             address_raw = self._get_str(args, "address")

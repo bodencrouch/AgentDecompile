@@ -280,17 +280,16 @@ class BatchAnalysisToolProvider(ToolProvider):
             binary_path = self._require_str(
                 args,
                 "binaryPath",
-                "binary_path",
                 "path",
                 name="binaryPath",
             )
-            output_path = self._get_str(args, "outputPath", "output_path") or "ghidrecomps"
-            project_path = self._get_str(args, "projectPath", "project_path") or "ghidra_projects"
-            function_filter = self._get_str(args, "functionFilter", "function_filter", "filter")
-            skip_cache = self._get_bool(args, "skipCache", "skip_cache", default=False)
-            force_analysis = self._get_bool(args, "forceAnalysis", "force_analysis", "fa", default=False)
+            output_path = self._get_str(args, "outputPath") or "ghidrecomps"
+            project_path = self._get_str(args, "projectPath") or "ghidra_projects"
+            function_filter = self._get_str(args, "functionFilter", "filter")
+            skip_cache = self._get_bool(args, "skipCache", default=False)
+            force_analysis = self._get_bool(args, "forceAnalysis", "fa", default=False)
             callgraphs = self._get_bool(args, "callgraphs", default=False)
-            thread_count = self._get_int(args, "threadCount", "thread_count", default=None)
+            thread_count = self._get_int(args, "threadCount", default=None)
 
             payload = build_batch_decompile_payload(
                 Path(binary_path),
@@ -319,15 +318,14 @@ class BatchAnalysisToolProvider(ToolProvider):
             binary_path = self._require_str(
                 args,
                 "binaryPath",
-                "binary_path",
                 "path",
                 name="binaryPath",
             )
-            output_path = self._get_str(args, "outputPath", "output_path") or "ghidrecomps"
-            gzf_path = self._get_str(args, "gzfPath", "gzf_path") or "gzfs"
-            project_path = self._get_str(args, "projectPath", "project_path") or "ghidra_projects"
-            force_analysis = self._get_bool(args, "forceAnalysis", "force_analysis", "fa", default=False)
-            skip_symbols = self._get_bool(args, "skipSymbols", "skip_symbols", default=True)
+            output_path = self._get_str(args, "outputPath") or "ghidrecomps"
+            gzf_path = self._get_str(args, "gzfPath") or "gzfs"
+            project_path = self._get_str(args, "projectPath") or "ghidra_projects"
+            force_analysis = self._get_bool(args, "forceAnalysis", "fa", default=False)
+            skip_symbols = self._get_bool(args, "skipSymbols", default=True)
 
             payload = build_batch_gzf_payload(
                 Path(binary_path),
@@ -354,17 +352,16 @@ class BatchAnalysisToolProvider(ToolProvider):
             binary_path = self._require_str(
                 args,
                 "binaryPath",
-                "binary_path",
                 "path",
                 name="binaryPath",
             )
-            output_path = self._get_str(args, "outputPath", "output_path") or "ghidrecomps"
-            bsim_sig_path = self._get_str(args, "bsimSigPath", "bsim_sig_path") or "bsim-xmls"
-            bsim_template = self._get_str(args, "bsimTemplate", "bsim_template") or "medium_nosize"
-            project_path = self._get_str(args, "projectPath", "project_path") or "ghidra_projects"
-            function_filter = self._get_str(args, "functionFilter", "function_filter", "filter")
-            force_analysis = self._get_bool(args, "forceAnalysis", "force_analysis", "fa", default=False)
-            raw_categories = self._get_list(args, "bsimCategories", "bsim_categories", "bsimCat")
+            output_path = self._get_str(args, "outputPath") or "ghidrecomps"
+            bsim_sig_path = self._get_str(args, "bsimSigPath") or "bsim-xmls"
+            bsim_template = self._get_str(args, "bsimTemplate") or "medium_nosize"
+            project_path = self._get_str(args, "projectPath") or "ghidra_projects"
+            function_filter = self._get_str(args, "functionFilter", "filter")
+            force_analysis = self._get_bool(args, "forceAnalysis", "fa", default=False)
+            raw_categories = self._get_list(args, "bsimCategories", "bsimCat")
             bsim_categories = [str(item) for item in raw_categories] if raw_categories else None
 
             payload = build_batch_bsim_payload(
@@ -394,16 +391,15 @@ class BatchAnalysisToolProvider(ToolProvider):
             binary_path = self._require_str(
                 args,
                 "binaryPath",
-                "binary_path",
                 "path",
                 name="binaryPath",
             )
-            output_path = self._get_str(args, "outputPath", "output_path") or "ghidrecomps"
-            project_path = self._get_str(args, "projectPath", "project_path") or "ghidra_projects"
-            function_filter = self._get_str(args, "functionFilter", "function_filter", "filter")
-            force_analysis = self._get_bool(args, "forceAnalysis", "force_analysis", "fa", default=False)
-            codeql_rules = self._get_str(args, "codeqlRules", "codeql_rules")
-            raw_rules = self._get_list(args, "semgrepRules", "semgrep_rules")
+            output_path = self._get_str(args, "outputPath") or "ghidrecomps"
+            project_path = self._get_str(args, "projectPath") or "ghidra_projects"
+            function_filter = self._get_str(args, "functionFilter", "filter")
+            force_analysis = self._get_bool(args, "forceAnalysis", "fa", default=False)
+            codeql_rules = self._get_str(args, "codeqlRules")
+            raw_rules = self._get_list(args, "semgrepRules")
             semgrep_rules = [str(item) for item in raw_rules] if raw_rules else None
 
             payload = build_batch_sast_payload(
@@ -426,8 +422,8 @@ class BatchAnalysisToolProvider(ToolProvider):
     async def _handle_bsim_createdatabase(self, args: dict[str, Any]) -> list[types.TextContent]:
         from agentdecompile_recovery.corpus import bsim_ops as bo
 
-        url = self._get_str(args, "bsimUrl", "bsim_url") or ""
-        datadir = self._get_str(args, "datadir", "dataDir")
+        url = self._get_str(args, "bsimUrl") or ""
+        datadir = self._get_str(args, "datadir")
         name = self._get_str(args, "name") or "bsim"
         if not url:
             url = bo.default_bsim_url(datadir=datadir, name=name)
@@ -450,11 +446,11 @@ class BatchAnalysisToolProvider(ToolProvider):
         programs = [str(item) for item in raw_programs] if raw_programs else None
         payload = bo.ingest(
             repository,
-            bsim_url=self._get_str(args, "bsimUrl", "bsim_url") or "",
-            datadir=self._get_str(args, "datadir", "dataDir"),
+            bsim_url=self._get_str(args, "bsimUrl") or "",
+            datadir=self._get_str(args, "datadir"),
             name=self._get_str(args, "name") or "bsim",
             programs=programs,
-            ghidra_url=self._get_str(args, "ghidraUrl", "ghidra_url") or "",
+            ghidra_url=self._get_str(args, "ghidraUrl") or "",
             receipt=self._get_str(args, "receipt"),
             force=self._get_bool(args, "force", default=False),
         )
@@ -466,8 +462,8 @@ class BatchAnalysisToolProvider(ToolProvider):
         from agentdecompile_recovery.corpus import bsim_ops as bo
 
         payload = bo.report(
-            datadir=self._get_str(args, "datadir", "dataDir"),
-            bsim_url=self._get_str(args, "bsimUrl", "bsim_url") or "",
+            datadir=self._get_str(args, "datadir"),
+            bsim_url=self._get_str(args, "bsimUrl") or "",
             name=self._get_str(args, "name") or "bsim",
         )
         if payload.get("ok"):

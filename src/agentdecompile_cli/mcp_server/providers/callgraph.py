@@ -112,7 +112,7 @@ class CallGraphToolProvider(ToolProvider):
             mode = mode_explicit
         else:
             mode = "callees" if direction == "called" else "callers"
-        display_type = self._get_str(args, "displaytype", "displayType", default="flow")
+        display_type = self._get_str(args, "displaytype", default="flow")
         include_refs = self._get_bool(args, "includerefs", default=True)
         max_depth_raw = self._get(args, "maxdepth")
         max_depth = None

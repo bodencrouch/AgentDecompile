@@ -234,7 +234,7 @@ def _ghidra_project_open_program_for_domain_file_save(ghidra_project: GhidraProj
 def _normalize_import_destination_folder(args: dict[str, Any]) -> str:
     """Ghidra folder pathname for saveAs (e.g. '/' or '/bin')."""
     logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:_normalize_import_destination_folder")
-    raw = ToolProvider._get_str(args, "destinationfolder", "destination_folder", default="/")
+    raw = ToolProvider._get_str(args, "destinationfolder", default="/")
     s = (raw or "/").strip().replace("\\", "/")
     if not s:
         s = "/"
@@ -3792,7 +3792,7 @@ class ImportExportToolProvider(ToolProvider):
 
     async def _handle_checkin(self, args: dict[str, Any]) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_checkin")
-        program_path = self._get_str(args, "programpath", "program_path", "path", default="").strip()
+        program_path = self._get_str(args, "programpath", "path", default="").strip()
         comment = self._get_str(args, "comment", "message", default="AgentDecompile checkin")
         keep_checked_out = self._get_bool(args, "keepcheckedout", default=False)
         auto_checkin_flow = self._get_bool(args, "__auto_checkin_invocation", default=False)
@@ -4788,7 +4788,7 @@ class ImportExportToolProvider(ToolProvider):
     async def _handle_checkout(self, args: dict[str, Any]) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_checkout")
         exclusive: bool = self._get_bool(args, "exclusive", default=False)
-        program_path: str = self._get_str(args, "programpath", "program_path", "path").strip()
+        program_path: str = self._get_str(args, "programpath", "path").strip()
         if program_path:
             program_path = self._canonical_program_path_for_session(program_path)
 
@@ -5351,7 +5351,7 @@ class ImportExportToolProvider(ToolProvider):
 
     async def _handle_checkout_status(self, args: dict[str, Any]) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_checkout_status")
-        program_path = self._get_str(args, "programpath", "program_path", "path").strip()
+        program_path = self._get_str(args, "programpath", "path").strip()
         if program_path:
             program_path = self._canonical_program_path_for_session(program_path)
 

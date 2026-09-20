@@ -337,7 +337,7 @@ class DataTypeToolProvider(ToolProvider):
         logger.debug("diag.enter %s", "mcp_server/providers/datatypes.py:DataTypeToolProvider._update")
         name = self._require_str(args, "name", "typename", name="name")
         cat_path = self._get_str(args, "categorypath", "category", "path")
-        new_name = self._get_str(args, "newname", "new_name")
+        new_name = self._get_str(args, "newname")
         dt_str = self._get_str(args, "datatypestring", "datatype", "typestring", "type")
         description_provided = any(args.get(n(k)) is not None for k in ("description", "comment"))
         description = self._get_str(args, "description", "comment", default="")

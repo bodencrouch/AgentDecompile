@@ -142,14 +142,14 @@ class RecoveryToolProvider(ToolProvider):
         try:
             from agentdecompile_recovery.frontdoor import run_reconstruct_job
 
-            binary_path = self._require_str(args, "binaryPath", "binary_path", "input", "path", name="binaryPath")
-            work_dir = self._get_str(args, "workDir", "work_dir")
-            preferred_name = self._get_str(args, "preferredName", "preferred_name")
-            raw_context = self._get_list(args, "contextPaths", "context_paths", "context")
+            binary_path = self._require_str(args, "binaryPath", "input", "path", name="binaryPath")
+            work_dir = self._get_str(args, "workDir")
+            preferred_name = self._get_str(args, "preferredName")
+            raw_context = self._get_list(args, "contextPaths", "context")
             context_paths = [Path(str(item)) for item in raw_context] if raw_context else None
-            context_pack = self._get_str(args, "contextPack", "context_pack")
-            acquisition_bundle = self._get_str(args, "acquisitionBundle", "acquisition_bundle")
-            stop_after = self._get_str(args, "stopAfter", "stop_after")
+            context_pack = self._get_str(args, "contextPack")
+            acquisition_bundle = self._get_str(args, "acquisitionBundle")
+            stop_after = self._get_str(args, "stopAfter")
             autonomous = self._get_bool(args, "autonomous", default=False)
             force = self._get_bool(args, "force", default=False)
             resume = self._get_bool(args, "resume", default=True)
@@ -179,7 +179,7 @@ class RecoveryToolProvider(ToolProvider):
         try:
             from agentdecompile_recovery.recovery_status import build_recovery_status
 
-            work_dir = self._require_str(args, "workDir", "work_dir", "path", name="workDir")
+            work_dir = self._require_str(args, "workDir", "path", name="workDir")
             path = Path(work_dir)
             if not path.exists():
                 raise FileNotFoundError(f"workDir not found: {path}")
@@ -198,8 +198,8 @@ class RecoveryToolProvider(ToolProvider):
         try:
             from agentdecompile_recovery.claim_report import build_claim_report, write_claim_report
 
-            work_dir = self._require_str(args, "workDir", "work_dir", "path", name="workDir")
-            terminal_status = self._get_str(args, "terminalStatus", "terminal_status", "status") or "partial"
+            work_dir = self._require_str(args, "workDir", "path", name="workDir")
+            terminal_status = self._get_str(args, "terminalStatus", "status") or "partial"
             write = self._get_bool(args, "write", default=False)
             path = Path(work_dir)
             if not path.exists():

@@ -1,13 +1,14 @@
-"""Base ToolProvider with centralized normalization, dispatch, and manager.
+"""Base ToolProvider with shared normalization, dispatch, and manager.
 
-ALL normalization happens HERE, in ONE place.  The single canonical function
-is ``n()`` (alias for ``registry.normalize_identifier``).  It strips everything
-except lowercase ASCII letters: ``re.sub(r'[^a-z]', '', s.lower())``.
+Input boundaries reuse one canonical algorithm: ``n()`` is an alias for
+``registry.normalize_identifier`` and strips everything except lowercase ASCII
+letters. This module applies it at the provider boundary; CLI and registry
+boundaries use the same algorithm with their own precedence contracts.
 
 Flow:
   1. MCP Server → ToolProviderManager.call_tool(name, arguments)
   2. Manager normalizes ``name`` → looks up the owning ToolProvider
-  3. Provider.call_tool() normalizes ALL argument keys, dispatches to handler.
+  3. Provider.call_tool() normalizes top-level argument keys, dispatches to handler.
   4. Handler uses ``self._get(args, ...)`` helpers on already-normalized dicts.
 
 Consolidation Helpers (Phase 2b):
@@ -821,17 +822,18 @@ class ToolProvider:
                     return create_success_response({...})
 
     **Normalization Contract:**
-        1. All tool names and argument keys are normalized via ``n()`` (alias for
+        1. Tool names and top-level argument keys are normalized via ``n()`` (alias for
            ``registry.normalize_identifier()``): ``re.sub(r'[^a-z]', '', s.lower())``.
            This strips everything except lowercase letters, making matching case/punct-insensitive.
-        2. Handlers NEVER receive raw keys; the base class normalizes ALL keys before dispatch.
+        2. Handlers receive normalized top-level keys. Nested dictionaries, values,
+           and output field names remain opaque.
         3. Handlers use the helper methods ``_get*()`` which handle alias lookup
            on already-normalized dicts.
 
     **call_tool() Flow:**
         1. Normalize tool name via ``resolve_tool_name()`` in registry.
         2. Find the handler method in HANDLERS dict.
-        3. Normalize ALL argument keys (recursively for nested dicts).
+        3. Normalize top-level argument keys; later duplicate spellings win.
         4. Dispatch to handler method.
         5. Wrap any exception as an error response with context and guidance.
 
@@ -874,7 +876,7 @@ class ToolProvider:
         return []
 
     # ------------------------------------------------------------------
-    # Dispatch – the ONLY normalization site
+    # Dispatch – provider input boundary
     # ------------------------------------------------------------------
 
     async def call_tool(
@@ -904,8 +906,8 @@ class ToolProvider:
 
         handler: Callable[..., Awaitable[list[types.TextContent]]] = getattr(self, handler_method_name)
 
-        # Normalize ALL argument keys here – the single place normalization happens so handlers
-        # always see lowercase a-z keys (e.g. programpath, function, mode).
+        # Normalize top-level argument keys at the provider boundary. Dict assignment
+        # preserves the existing last-spelling-wins behavior for colliding inputs.
         norm_args: dict[str, Any] = {n(k): v for k, v in (arguments or {}).items()}
         auto_prereq_invocation: bool = self._get_bool(norm_args, "autoprereqinvocation", default=False)
 

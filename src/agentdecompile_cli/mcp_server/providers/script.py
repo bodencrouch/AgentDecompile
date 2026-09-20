@@ -389,7 +389,7 @@ class ScriptToolProvider(ToolProvider):
         # execute-script accepts programPath, not a generic project/file path.
         # Treating "path" as a program alias causes .gpr project markers to be
         # misclassified as programs during script execution.
-        requested_program_path = self._get_str(args, "programpath", "program_path", default="")
+        requested_program_path = self._get_str(args, "programpath", default="")
         # ToolProviderManager resolves programPath per invocation.  Providers are
         # long-lived, so self.program_info can still name a previous program.
         effective_program_info = program_info

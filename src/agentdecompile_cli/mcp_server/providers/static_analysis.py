@@ -149,21 +149,20 @@ class StaticAnalysisToolProvider(ToolProvider):
             binary_path = self._require_str(
                 args,
                 "binaryPath",
-                "binary_path",
                 "path",
                 name="binaryPath",
             )
-            string_limit = self._get_int(args, "stringLimit", "string_limit", "limit", default=100) or 100
-            string_filter = self._get_str(args, "stringFilter", "string_filter", "filter")
-            try_yara = self._get_bool(args, "tryYara", "try_yara", default=True)
-            try_capa = self._get_bool(args, "tryCapa", "try_capa", default=True)
-            try_binwalk = self._get_bool(args, "tryBinwalk", "try_binwalk", default=True)
+            string_limit = self._get_int(args, "stringLimit", "limit", default=100) or 100
+            string_filter = self._get_str(args, "stringFilter", "filter")
+            try_yara = self._get_bool(args, "tryYara", default=True)
+            try_capa = self._get_bool(args, "tryCapa", default=True)
+            try_binwalk = self._get_bool(args, "tryBinwalk", default=True)
             timeout_ms = self._get_int(args, "timeout", default=30_000) or 30_000
-            raw_external_tools = self._get_list(args, "externalScanTools", "external_scan_tools")
+            raw_external_tools = self._get_list(args, "externalScanTools")
             external_scan_tools = [str(item) for item in raw_external_tools] if raw_external_tools else None
-            rules_path = self._get_str(args, "rulesPath", "rules_path", "rules")
-            scan_output_limit = self._get_int(args, "scanOutputLimit", "scan_output_limit", default=100) or 100
-            scan_timeout_ms = self._get_int(args, "scanTimeout", "scan_timeout", default=60_000) or 60_000
+            rules_path = self._get_str(args, "rulesPath", "rules")
+            scan_output_limit = self._get_int(args, "scanOutputLimit", default=100) or 100
+            scan_timeout_ms = self._get_int(args, "scanTimeout", default=60_000) or 60_000
 
             payload = build_file_triage_payload(
                 Path(binary_path),
@@ -195,13 +194,12 @@ class StaticAnalysisToolProvider(ToolProvider):
             binary_path = self._require_str(
                 args,
                 "binaryPath",
-                "binary_path",
                 "path",
                 name="binaryPath",
             )
             tool = self._get_str(args, "tool")
-            rules_path = self._get_str(args, "rulesPath", "rules_path", "rules")
-            output_limit = self._get_int(args, "outputLimit", "output_limit", "limit", default=100) or 100
+            rules_path = self._get_str(args, "rulesPath", "rules")
+            output_limit = self._get_int(args, "outputLimit", "limit", default=100) or 100
             timeout_ms = self._get_int(args, "timeout", default=60_000) or 60_000
             raw_tools = self._get_list(args, "tools")
             tools = [str(item) for item in raw_tools] if raw_tools else None

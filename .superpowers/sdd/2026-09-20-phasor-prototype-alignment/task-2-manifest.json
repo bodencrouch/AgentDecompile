@@ -317,7 +317,7 @@
     "canonicalOriginallyPresent": true,
     "canonicalSha256": "d0d7afc09822d85cb94dacde20e1815192c1b280714271abdf1eec26c85b2700",
     "expectedCanonicalSHA256": "d0d7afc09822d85cb94dacde20e1815192c1b280714271abdf1eec26c85b2700",
-    "finalSHA256": "b77066c4f5b1ee623ad88ca5f8069728654e51594b89e8d0f4cc0666de26de8e"
+    "finalSHA256": "f86b9b85d2527dc8d23be0f9448259ee52a8910e6186bb95ac6d6aa4a822fca1"
   },
   {
     "path": "METHODOLOGY.md",
@@ -485,6 +485,22 @@
     "canonicalOriginallyPresent": false,
     "canonicalSha256": null,
     "expectedCanonicalSHA256": null,
-    "finalSHA256": "ecd9d2edf6b7eb9f61c253825cd4bd5a86d32da674da76881bcc460e2b51abdc"
+    "finalSHA256": "d8a4341348268d38a5370878e8186aa07bbc83431696663cccc07ffe6c0994b7"
+  },
+  {
+    "path": ".claude/skills/lfg/SKILL.md",
+    "baselineCommit": "3e9811f",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "56340ae102103becbae73259dbdc34daabf3d9d8072f220584611a2e8482bb84",
+    "expectedCanonicalSHA256": "56340ae102103becbae73259dbdc34daabf3d9d8072f220584611a2e8482bb84",
+    "finalSHA256": "56f21c04a18ef48283164f224464c92f6292e857d9bf9402f5ddeae5b12cecf6"
+  },
+  {
+    "path": ".cursor/skills/lfg/SKILL.md",
+    "baselineCommit": "3e9811f",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "7044659fa32fe1369a46d4e68af56365380803c9318662d59d83d885822d04c1",
+    "expectedCanonicalSHA256": "7044659fa32fe1369a46d4e68af56365380803c9318662d59d83d885822d04c1",
+    "finalSHA256": "56f21c04a18ef48283164f224464c92f6292e857d9bf9402f5ddeae5b12cecf6"
   }
 ]

@@ -29,6 +29,11 @@ changing MCP/Ghidra integration.
   owner, PID/start time, command, cwd, target, workspace and logs. Job labels alone
   do not establish ownership. Never duplicate compiler/Wine work or Ghidra
   writers; do not kill or restart another owner's process to make room.
+- Before Python edits, corroborate the serving process PID/start time and cwd
+  against the loaded module's `__file__` and source revision. The canonical repo
+  and executing checkout may differ; editing another checkout is not activation.
+  Reconcile source roots and changes explicitly, preserving dirty work. Do not
+  blindly sync, overwrite files or restart processes to make an edit take effect.
 - **Do not use systemctl for any reason.** Do not restart the server as routine
   documentation/UI verification or click Restart/Shutdown. If 8080 is unavailable,
   diagnose ownership and report the blocker; do not switch ports or kill on-port.

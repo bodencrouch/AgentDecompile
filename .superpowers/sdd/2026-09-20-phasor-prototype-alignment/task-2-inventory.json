@@ -151,8 +151,8 @@
   },
   {
     "path": ".claude/skills/lfg/SKILL.md",
-    "disposition": "unchanged",
-    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+    "disposition": "changed",
+    "reason": "Review correction: read actual client body, replaced Claude automatic shipping pipeline and aligned Cursor metadata with canonical authorized-continuation loader."
   },
   {
     "path": ".claude/skills/lfg/references/next-work-handoff.md",
@@ -286,8 +286,8 @@
   },
   {
     "path": ".cursor/skills/lfg/SKILL.md",
-    "disposition": "unchanged",
-    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+    "disposition": "changed",
+    "reason": "Review correction: read actual client body, replaced Claude automatic shipping pipeline and aligned Cursor metadata with canonical authorized-continuation loader."
   },
   {
     "path": ".cursor/skills/mcp-debugging/SKILL.md",

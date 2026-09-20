@@ -30,6 +30,16 @@ The source locations above are relative to `src/agentdecompile_recovery/` in the
 canonical AgentDecompile checkout unless another repository is named. Read-only
 inspection is evidence about implementation shape, never live completion.
 
+Hot-reload source-root observation, 2026-09-20: the controller inspected the
+running Python environment at `/home/brunner56/agentdecompile-nvme`, while the
+canonical repository is
+`/run/media/brunner56/MyBook/Workspaces/ai-projects/AgentDecompile`.
+These are this investigation's paths, not a universal deployment layout.
+Before editing, reconcile the server PID/cwd, loaded module `__file__`, and source
+revisions; changing canonical files alone does not activate code in the NVMe
+process. Preserve both checkouts' changes and the running jobs; no blind sync,
+overwrite or restart is authorized by this observation.
+
 ## Original-user evidence locators
 
 Only task-related intent is retained; raw private conversation content is not

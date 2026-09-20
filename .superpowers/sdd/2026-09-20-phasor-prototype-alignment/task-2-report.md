@@ -1,7 +1,7 @@
 # Task 2 report — active guidance and unfinished intent
 
 Status: implemented for review; no runtime completion claimed. Delivery is limited
-to the 61 paths in `task-2-manifest.json`. The controller owns reviewed canonical
+to the 63 paths in `task-2-manifest.json`. The controller owns reviewed canonical
 integration. No canonical file, runtime code, test, frozen plan, historical proof
 report, global plugin or external KotorPhasor file was changed.
 
@@ -102,7 +102,7 @@ The inventory records every unchanged path individually. In particular:
 - Read-only `git diff --check` passed repeatedly after edits.
 - Scoped contradiction search found only prohibitions/current claim boundaries,
   detached shipping references, and explicitly historical mission snapshots.
-- Inline Node checks across the 61 delivery files: no missing local Markdown
+- Inline Node checks across the 63 delivery files: no missing local Markdown
   links, no missing skill name/description frontmatter, valid plugin/example JSON,
   exactly one example connection and a native-HTTP-only plugin configuration.
   Frontmatter check is structural, not a full YAML/schema certification.
@@ -129,3 +129,21 @@ Storage made some local Git operations take more than ten seconds despite the
 NVMe worktree because Git metadata is shared with the mounted checkout. Every
 completed baseline commit is identified above. Do not terminate unrelated Git
 or recovery processes; the byte manifest supports direct reviewed integration.
+
+## Narrow follow-up after review
+
+Base implementation commit: `3e9811f`. Added the AGENTS rule to corroborate
+the serving PID/cwd, loaded module `__file__` and source revision before Python
+edits, plus a dated outcome-ledger observation distinguishing the inspected NVMe
+runtime from the canonical mounted repository. Editing another checkout is not
+activation; no blind synchronization, overwrite or restart follows from the rule.
+Updated those two final manifest hashes; expected canonical hashes and baseline
+commits remain unchanged. No runtime operations or tests were performed.
+
+Review also found that the Claude lfg entrypoint was a full copied automatic
+shipping pipeline, incorrectly inventoried as a loader. Read its complete body
+and all sibling lfg/source-command-lfg bodies, replaced Claude with the canonical
+loader, and aligned Cursor metadata. Both files were byte-identical to canonical
+before editing and are preserved in baseline `3e9811f`; exact pre-edit hashes
+are in the expanded 63-file manifest. Corrected their inventory dispositions.
+The remaining project lfg entrypoints route to the same canonical body.

@@ -111,7 +111,28 @@ export function WorkstationApp(){
   useEffect(()=>{setAddress(selection.addr);setEvidence({});},[selection.addr]);
   useEffect(()=>{const timer=setTimeout(()=>{setFunctionQuery(filter);setOffset(0);},250);return()=>clearTimeout(timer);},[filter]);
   useEffect(()=>{void runtime.current.restore().then(async model=>{const saved=readPref<Data|null>('workstation.snapshot',null);if(saved){const snapshot=await projectStore.loadSnapshot(saved.projectId,saved.revision);if(!snapshot)throw new Error('Selected snapshot is unavailable. Open a stored revision from Binary menu.');runtime.current.index.replace(snapshot.model);setLocalModel(snapshot.model);}else setLocalModel(model);}).catch(e=>notify(`Local storage could not restore: ${e.message}`,'error'));},[notify]);
-  useEffect(()=>{let alive=true;const poll=async()=>{try{const result=await request('/dashboard/api/jobs',{signal:AbortSignal.timeout(8000)});if(alive){setJobs(result.jobs||[]);setJobsError('');const prepared=(result.jobs||[]).find((job:Data)=>job.id===pendingPrepare.current&&['ok','failed','cancelled','interrupted','blocked'].includes(job.status));if(prepared){pendingPrepare.current=null;savePref('workstation.prepareJob',null);notify(`Preparation ${prepared.status}; refreshing recorded inventory.`,prepared.status==='ok'?'info':'warning',{jobId:prepared.id,error:prepared.error});setRevision(r=>r+1);}}}catch(e){if(alive)setJobsError(String(e));}};void poll();const timer=setInterval(()=>{if(!document.hidden)void poll();},5000);return()=>{alive=false;clearInterval(timer);};},[revision,notify]);
+  useEffect(()=>{
+    let alive=true;
+    let timer:ReturnType<typeof setTimeout>;
+    let controller:AbortController;
+    const poll=async()=>{
+      if(document.hidden){timer=setTimeout(()=>void poll(),5000);return;}
+      controller=new AbortController();
+      const timeout=setTimeout(()=>controller.abort(),8000);
+      try{
+        const result=await request('/dashboard/api/jobs',{signal:controller.signal});
+        if(!Array.isArray(result.jobs))throw new Error('Invalid job response');
+        if(alive){
+          setJobs(result.jobs);setJobsError('');
+          const prepared=result.jobs.find((job:Data)=>job.id===pendingPrepare.current&&['ok','failed','cancelled','interrupted','blocked'].includes(job.status));
+          if(prepared){pendingPrepare.current=null;savePref('workstation.prepareJob',null);notify(`Preparation ${prepared.status}; refreshing recorded inventory.`,prepared.status==='ok'?'info':'warning',{jobId:prepared.id,error:prepared.error});setRevision(r=>r+1);}
+        }
+      }catch(e){if(alive)setJobsError(String(e));}
+      finally{clearTimeout(timeout);if(alive)timer=setTimeout(()=>void poll(),5000);}
+    };
+    void poll();
+    return()=>{alive=false;clearTimeout(timer);controller?.abort();};
+  },[revision,notify]);
   useEffect(()=>{const key=(e:globalThis.KeyboardEvent)=>{
     const shortcut=shellShortcut(e,Boolean(dialog||action||projectDialog)||Boolean(document.querySelector('[role="dialog"][aria-modal="true"]')));
     if(!shortcut)return;

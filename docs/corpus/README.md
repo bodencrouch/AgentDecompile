@@ -23,7 +23,7 @@ Skip a row when its receipt or Ghidra state already exists.
 
 Old `--stop-after` names (`compile`, `generate-projects`, `merge-knowledge`, `preparse`, `llm-cleanup`) stay aliases for one release. `compile` means recover-source (C compiled), not the assembly-floor link.
 
-Use the existing 8080 catalog for operations. Keep C+assembly-floor and max-C variants separately measured. A VA is an instance of a `logical_id`. `corpus.export-hookpack` writes `agentdecompile.hookpack/v1` from the identity store so a host (KotorPhasor, or a clone for another corpus) can resolve by signature when the recorded address is missing or stale.
+Use the existing 8080 catalog for operations. Keep C+assembly-floor and max-C variants separately measured. A VA is an instance of a `logical_id`. `corpus.export-hookpack` writes `agentdecompile.hookpack/v1` from the identity store. In KotorPhasor, compatible `expected_bytes` and target bindings permit a unique executable-region scan when the recorded address hint is missing or stale; instances without those bytes may remain address-based. Exported signature strings alone do not establish portable resolution.
 
 Exporter and loader presence do not prove a ready-to-call workflow. See
 [RUNTIME_REUSE.md](../RUNTIME_REUSE.md) for implemented seams and missing gates.

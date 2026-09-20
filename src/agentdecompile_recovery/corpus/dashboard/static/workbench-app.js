@@ -2332,7 +2332,6 @@
     const [graph, setGraph] = useState(null);
     const [actions, setActions] = useState([]);
     const [jobs, setJobs] = useState([]);
-    const [programProgress, setProgramProgress] = useState({});
     const [reaction, setReaction] = useState(null);
     const [path, setPath] = useState("");
     const [newSlug, setNewSlug] = useState("");
@@ -2407,9 +2406,7 @@
     const [checkAnchor, setCheckAnchor] = useState("");
     const [jobLiveText, setJobLiveText] = useState("");
     const jobsSnapshotRef = useRef(null);
-    const pipelineChainedRef = useRef({});
     const ensureSeqRef = useRef(0);
-    const chainAfterAnalyzeRef = useRef(function () {});
     const funcSeqRef = useRef(0);
     const funcSlugRef = useRef(slug);
     const fileRef = useRef(null);
@@ -2826,11 +2823,6 @@
       if (!target || !locator) return null;
       ensureSeqRef.current += 1;
       const seq = ensureSeqRef.current;
-      setProgramProgress(function (prev) {
-        const next = Object.assign({}, prev);
-        next[target] = { pct: 12, tool: "open", status: "running" };
-        return next;
-      });
       if (!opts.quiet) showToast("Opening " + target + "…");
       try {
         const res = await fetch(API.ensureProgram, {
@@ -2864,34 +2856,14 @@
                 + " functions from the Ghidra project\n" + (first.name || "") + "  @ " + (first.addr || "")
             };
           });
-          setProgramProgress(function (prev) {
-            const next = Object.assign({}, prev);
-            next[target] = { pct: 70, tool: "workspace", status: "running" };
-            return next;
-          });
           await loadWorkspace(target, first, locator);
-          setProgramProgress(function (prev) {
-            const next = Object.assign({}, prev);
-            next[target] = { pct: 100, tool: "list-functions", status: "ok" };
-            return next;
-          });
           if (!opts.quiet) showToast(target + " — " + (data.total || data.results.length) + " functions", "success");
           return data;
         }
-        setProgramProgress(function (prev) {
-          const next = Object.assign({}, prev);
-          next[target] = { pct: 40, tool: "list-functions", status: data.next === "analyze-program" ? "ok" : "failed" };
-          return next;
-        });
         await loadFuncs();
         if (data.error && !opts.quiet) showToast(data.error, data.next === "analyze-program" ? "" : "error");
         return data;
       } catch (err) {
-        setProgramProgress(function (prev) {
-          const next = Object.assign({}, prev);
-          next[target] = { pct: 0, tool: "open", status: "failed" };
-          return next;
-        });
         if (!opts.quiet) showToast("Could not open " + target + " in Ghidra.", "error");
         return null;
       }
@@ -3246,18 +3218,6 @@
             showToast(note, /failed|cancelled/.test(note) ? "error" : "info");
           }
           setJobs(list);
-          const nextProgress = {};
-          list.forEach(function (job) {
-            chainAfterAnalyzeRef.current(job);
-            const params = job.params || {};
-            const key = String(params.program || params.programPath || params.binary || params.name || "").trim();
-            if (!key) return;
-            const pct = measuredJobPercent(job);
-            nextProgress[key] = { pct: pct, tool: job.actionId || "", status: job.status };
-          });
-          if (Object.keys(nextProgress).length) {
-            setProgramProgress(function (prev) { return Object.assign({}, prev, nextProgress); });
-          }
           const sig = list.map(function (job) { return job.id + job.status + job.returncode; }).join("|");
           if (sig !== last) {
             last = sig;
@@ -3939,7 +3899,6 @@
         const target = program || "";
         if (!target) { showToast("Select a program first", "error"); return; }
         startImportPipeline(target);
-        showToast("analyze-program started on " + target);
         return;
       }
       if (id === "analyze.bsim-ingest") {
@@ -4089,6 +4048,28 @@
       };
     }, [binaries, slug, program, selected, rows, currentSession, dossier, envDefaults, recoveredRoot]);
 
+    const programProgress = useMemo(function () {
+      const locator = currentLocator();
+      if (!locator) return {};
+      const projection = {};
+      jobs.forEach(function (job) {
+        const params = job.params || {};
+        const jobLocator = String(params.locator || "").trim();
+        const jobProgram = String(params.program || params.programPath || "").trim();
+        if (jobLocator !== locator || !jobProgram) return;
+        const active = job.status === "running" || job.status === "queued";
+        const previous = projection[jobProgram];
+        if (previous && (previous.active || !active)) return;
+        projection[jobProgram] = {
+          active: active,
+          pct: measuredJobPercent(job),
+          tool: job.actionId || "",
+          status: job.status
+        };
+      });
+      return projection;
+    }, [jobs, dossier, currentSession]);
+
     async function executeAction(actionId, paramOverrides, options) {
       const opts = options || {};
       if (!actionId) return null;
@@ -4135,10 +4116,15 @@
         return ok;
       }
       const row = opts.targetRow;
+      const targetContext = opts.targetContext || {};
+      const captured = function (key, fallback) {
+        return Object.prototype.hasOwnProperty.call(targetContext, key) ? targetContext[key] : fallback;
+      };
       const ctx = {
-        slug: toolContext.slug || "",
-        program: toolContext.program || "",
-        repo: toolContext.repo || "",
+        slug: captured("slug", toolContext.slug) || "",
+        program: captured("program", toolContext.program) || "",
+        repo: captured("repo", toolContext.repo) || "",
+        locator: captured("locator", currentLocator()) || "",
         addr: (row && row.addr) || params.addr || toolContext.addr || "",
         name: (row && row.name) || params.name || toolContext.name || "",
         db: toolContext.db || "",
@@ -4146,13 +4132,22 @@
         kb: toolContext.kb || ""
       };
       if (!opts.quiet) showToast("Starting " + (act.title || actionId) + "…", "info");
-      const body = Object.assign({ confirm: true, context: ctx }, params);
-      const res = await fetch("/api/v1/actions/" + actionId.replace(/\./g, "/"), {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json();
+      const body = Object.assign({}, params, { confirm: true, context: ctx });
+      let res;
+      let data;
+      try {
+        res = await fetch("/api/v1/actions/" + actionId.replace(/\./g, "/"), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        data = await res.json();
+      } catch (err) {
+        const message = "Action request failed: " + String((err && err.message) || err);
+        if (!opts.quiet) showToast(message, "error");
+        reactJob(actionId, { error: message });
+        return null;
+      }
       if (!res.ok) {
         if (!opts.quiet) showToast(data.error || "Action failed", "error");
         reactJob(actionId, data);
@@ -4205,49 +4200,25 @@
       const target = String(programName || "").trim();
       if (!target) return;
       const force = !!(opts && opts.force);
-      setProgramProgress(function (prev) {
-        const next = Object.assign({}, prev);
-        next[target] = { pct: 4, tool: "open", status: "queued" };
-        return next;
-      });
-      Promise.resolve(ensureGhidraProgram(target, { quiet: true, locator: currentLocator() })).then(function (data) {
+      const targetContext = {
+        slug: toolContext.slug || "",
+        program: target,
+        repo: toolContext.repo || "",
+        locator: currentLocator()
+      };
+      Promise.resolve(ensureGhidraProgram(target, { quiet: true, locator: targetContext.locator })).then(function (data) {
+        if (!data) throw new Error("Could not open " + target + " in the captured project.");
         if (!force && programAlreadyAnalyzed(data)) {
-          setProgramProgress(function (prev) {
-            const next = Object.assign({}, prev);
-            next[target] = { pct: 100, tool: "list-functions", status: "ok" };
-            return next;
-          });
           return;
         }
-        executeAction("mcp.analyze-program", {
+        return executeAction("mcp.analyze-program", {
           program: target,
-          locator: currentLocator()
-        }, { skipConfirm: true, quiet: true });
+          locator: targetContext.locator
+        }, { skipConfirm: true, targetContext: targetContext });
+      }).catch(function (err) {
+        showToast("Analyze request failed: " + String((err && err.message) || err), "error");
       });
     }
-
-    function chainAfterAnalyze(job) {
-      if (!job || job.status !== "ok") return;
-      const actionId = String(job.actionId || "");
-      if (actionId !== "mcp.analyze-program" && actionId.indexOf("analyze-program") < 0) return;
-      if (pipelineChainedRef.current[job.id]) return;
-      pipelineChainedRef.current[job.id] = true;
-      const prog = String((job.params && (job.params.program || job.params.programPath || job.params.binary)) || program || "").trim();
-      const loc = currentLocator();
-      const after = { program: prog, locator: loc };
-      executeAction("corpus.extract-stabs", after, { skipConfirm: true, quiet: true });
-      executeAction("corpus.bsim-ingest", after, { skipConfirm: true, quiet: true });
-      if (prog) {
-        setProgramProgress(function (prev) {
-          const next = Object.assign({}, prev);
-          next[prog] = { pct: 70, tool: "extract-stabs", status: "running" };
-          return next;
-        });
-        loadFuncs();
-        loadBinaries();
-      }
-    }
-    chainAfterAnalyzeRef.current = chainAfterAnalyze;
 
     function runFromActionStrip() {
       const act = actions.find(function (item) { return item.id === pendingActionId; });
@@ -4353,7 +4324,6 @@
       closeDialog();
       setIngestNote("Imported " + prog + " into the project");
       showToast("Imported " + prog + " into the project", "success");
-      if (prog) startImportPipeline(prog);
       return data;
     }
 
@@ -5256,7 +5226,6 @@
                 onClick=${function () {
                   if (!program) { showToast("Select a program first", "error"); return; }
                   startImportPipeline(program);
-                  showToast("analyze-program started on " + program);
                 }}>Analyze</button>
               <button type="button" id="wb-listing-decompile" className="wb-btn wb-btn-mini"
                 onClick=${function () {
@@ -5711,7 +5680,7 @@
                 ${((projectCard.programs || []).length) ? html`<ul className="wb-programs">
                   ${(projectCard.programs || []).map(function (name) {
                     const meter = programProgress[name] || null;
-                    const live = meter && (meter.status === "queued" || meter.status === "running");
+                    const live = meter && meter.active;
                     const measured = live && Number.isFinite(meter.pct);
                     return html`<li key=${"prog-" + name} className=${"wb-program" + (program === name && slug === activeProjectSlug ? " on" : "") + (live ? " live" : "")}
                       onContextMenu=${function (ev) { openCtx(ev, programCtxItems(name)); }}>

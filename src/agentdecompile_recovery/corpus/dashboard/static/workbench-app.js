@@ -2581,11 +2581,16 @@
 
     const loadContext = useCallback(async function () {
       try {
-        const res = await fetch(API.context, { cache: "no-store" });
+        const query = "?slug=" + encodeURIComponent(slug || "")
+          + "&program=" + encodeURIComponent(program || "");
+        const res = await fetch(API.context + query, { cache: "no-store" });
         const data = await res.json();
         if (data.defaults) setEnvDefaults(data.defaults);
+        const session = data.session || {};
+        if (!program && session.program) setProgram(session.program);
+        if (!slug && session.slug) setSlug(session.slug);
       } catch (_err) { /* optional */ }
-    }, []);
+    }, [program, slug]);
 
     const loadActions = useCallback(async function () {
       const res = await fetch(API.actions, { cache: "no-store" });

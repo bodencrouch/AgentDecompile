@@ -317,7 +317,11 @@ progress); relevant pipeline block must still match the preflight. Never edit th
 canonical checkout. Use one small immutable stage record in contract.py to own
 the existing eight tokens, rail action IDs, labels and legacy aliases. Derive
 existing public PIPELINE_STAGES/STAGE_ALIASES and stage-action mapping, retaining
-their exact order/values and recover-source split. Expose presentation in the
+stage order, alias mapping values and recover-source split. Alias dictionary
+insertion order may follow stage order: do not preserve accidental old display
+order using numbered alias metadata. Store unnumbered labels and derive visible
+step numbers from enumeration, so adding a stage needs no renumbering edits.
+Expose presentation in the
 existing workbench_context payload, consumed through the existing actions API.
 Replace repeated steps mapping and browser eight-stage list with derived data.
 Preserve existing stage quick-action project gating and flags explicitly in the

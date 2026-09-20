@@ -55,9 +55,9 @@ correct.
 | Area | Current observation | Next repair boundary |
 |---|---|---|
 | Provider enrollment | Repeated package/manager enrollment lists identified and consolidated in `03e8a89` | Existing providers package now owns the ordered tuple; manager and exports derive from it |
-| Capability policy | Provider schemas, registry metadata and dashboard name lists overlap | Extend existing metadata ownership; keep safety classifications explicit, not name-inferred |
+| Capability policy | MCP duration now belongs to ToolMetadata; argparse duration/confirmation belong to owning parsers | Dashboard projects metadata, preserving existing classifications; resource ownership remains separate |
 | Pipeline projections | Contract stages, step action defaults and browser quick actions repeat related definitions | Trace the differing recipes, then derive shared projections without collapsing genuinely different stages |
-| Resource admission | Identity writers are enumerated by action ID; remove-binary/reclassify-matches are missing and pair keys do not overlap whole-DB keys | Ground resource claims in owning operations and preserve exclusion across whole-database and pair scopes |
+| Resource admission | Parser/ActionSpec metadata now owns identity scope; remove-binary/reclassify-matches are covered | Database-wide and directed-pair claims overlap correctly under the existing scheduler lock; external processes remain a distinct boundary |
 | Resume | Single-target stage fingerprints and plugin proof reuse exist, while corpus-stage reuse follows different paths | Reuse established identity/proof checks; declare dependencies once rather than create another universal runner |
 | Workspace paths | Corpus workspace resolution duplicates the shared fallback; historical materializers have a different source-tree warehouse contract | Share compatible defaults without silently relocating historical artifacts |
 | Input/shortcut wiring | Normalization is shared, but redundant alias registrations and copied Click factories remain | Derive spelling matches and shortcut definitions from existing owners; retain genuine semantic distinctions |
@@ -95,9 +95,25 @@ without a force flag; valid completed work must not be overwritten gratuitously.
   actual extracted manager method. Independent spec/quality review passed.
   Net reduction: 62 lines. No automatic module scanning or plugin framework added.
 
+- `8f27e7a`: four CLI shortcut families derive their names/options from the owning
+  Click commands. Nine normalized-equivalent registry aliases removed; net 134
+  production lines removed. Only two proven provider defaults become implicit;
+  explicit positive/negative overrides remain. Independent review approved.
+- `3b9535c`: metadata owns MCP duration and argparse duration/confirmation instead
+  of separate dashboard command lists. Exact classifications checked across 77
+  MCP tools, 76 corpus commands and 26 recovery commands. This adds 34 production
+  lines while removing a synchronization obligation; it is not a line-count win.
+  Independent review approved.
+- `d750038`: identity scopes are declared on the owning operations and projected
+  through ActionSpec. Two omitted identity writers are covered, and database-wide
+  claims now conflict with pair claims. Existing distinct pairs remain concurrent.
+  Admission release covers running-persistence, cwd and final-persistence errors.
+  In-memory extracted lifecycle checks and independent review passed; no threaded
+  scheduler, filesystem or external-process serialization proof is claimed.
+
 The source inventory (456 Python files, 218,515 lines) and earlier allocation maps
 remain investigation history, not a file-reduction quota. The two consolidation
-increments remove 1,121 lines; that is not whole-product completion.
+container/decoder increments remove 1,121 lines; that is not whole-product completion.
 
 ## Execution and evidence limits
 

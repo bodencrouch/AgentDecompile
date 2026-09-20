@@ -1872,74 +1872,10 @@ class ToolProviderManager:
     def register_all_providers(self) -> None:
         """Import and register every concrete provider; called at server startup so _tool_map has all HANDLERS."""
         logger.debug("diag.enter %s", "mcp_server/tool_providers.py:ToolProviderManager.register_all_providers")
-        from agentdecompile_cli.mcp_server.providers import (
-            BookmarkToolProvider,
-            BatchAnalysisToolProvider,
-            DecompMatchToolProvider,
-            CallGraphToolProvider,
-            CommentToolProvider,
-            ConflictResolutionToolProvider,
-            ConstantSearchToolProvider,
-            ContextSubstrateToolProvider,
-            CrossReferencesToolProvider,
-            DataFlowToolProvider,
-            DataToolProvider,
-            DataTypeToolProvider,
-            DecompilerToolProvider,
-            EnumToolProvider,
-            FunctionToolProvider,
-            GetFunctionAioToolProvider,
-            GetFunctionToolProvider,
-            ImportExportToolProvider,
-            MemoryToolProvider,
-            ProjectToolProvider,
-            PromptToolProvider,
-            ScriptToolProvider,
-            StaticAnalysisToolProvider,
-            RecoveryToolProvider,
-            WorkflowToolProvider,
-            SearchEverythingToolProvider,
-            StringToolProvider,
-            StructureToolProvider,
-            SuggestionToolProvider,
-            SymbolToolProvider,
-            VtableToolProvider,
-        )
+        from agentdecompile_cli.mcp_server.providers import PROVIDER_CLASSES
 
         # Register each provider; one failure does not block others
-        for cls in (
-            BookmarkToolProvider,
-            BatchAnalysisToolProvider,
-            DecompMatchToolProvider,
-            CallGraphToolProvider,
-            CommentToolProvider,
-            ConflictResolutionToolProvider,
-            ConstantSearchToolProvider,
-            ContextSubstrateToolProvider,
-            CrossReferencesToolProvider,
-            DataFlowToolProvider,
-            DataToolProvider,
-            DataTypeToolProvider,
-            DecompilerToolProvider,
-            EnumToolProvider,
-            GetFunctionAioToolProvider,
-            FunctionToolProvider,
-            GetFunctionToolProvider,
-            ImportExportToolProvider,
-            MemoryToolProvider,
-            ProjectToolProvider,
-            PromptToolProvider,
-            ScriptToolProvider,
-            StaticAnalysisToolProvider,
-            RecoveryToolProvider,
-            WorkflowToolProvider,
-            SearchEverythingToolProvider,
-            StringToolProvider,
-            StructureToolProvider,
-            SuggestionToolProvider,
-            SymbolToolProvider,
-            VtableToolProvider,
-        ):
+        for cls in PROVIDER_CLASSES:
             try:
                 self._register(cls(self.program_info))
             except Exception as e:

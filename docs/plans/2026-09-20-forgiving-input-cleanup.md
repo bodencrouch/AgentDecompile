@@ -22,12 +22,11 @@ the aggregate and must survive future migrations. Current live runtime differs
 again (444 files). Source moves require a fresh complete snapshot and import,
 entrypoint, process/state and packaging preservation, not blind deployment.
 
-Tasks 1-3 are completed input-path deduplication. Task5 is completed; finish
-Task6's accepted-path evidence correction because it removes actual duplication.
-Task4 remains a candidate, not the automatic next priority. Complete the parallel
-charter/history/documentation/implementation investigation before choosing the
-next slice. Choose by duplicated behavior and maintenance burden, never physical
-file-count quotas or the easiest isolated spelling cleanup.
+Tasks 1-3 and 5-7 are completed and independently reviewed, including Task6's
+accepted-path evidence correction. The resumed completion pass implements Task4
+and the remaining ownership repairs below. Choose by duplicated behavior and
+maintenance burden, never physical file-count quotas. Different policies remain
+different; completion does not mean replacing them with inferred universal rules.
 
 ## Global Constraints
 
@@ -244,6 +243,148 @@ loop. Compile both sources in memory, diff-check, write full runnable check/outp
 self-review and commit only owned production changes with hooks disabled. This is
 the first capability-ownership slice, not completion of catalog/resource/resume
 consolidation or runtime activation.
+
+## Task 8: Capability policy belongs with its definition
+
+Own registry.py and recovery dashboard/actions/introspect.py plus existing
+argparse command-owner files corpus/cli.py, corpus/kx_cli.py,
+corpus/mizuchi_tools_cli.py, recovery/cli.py and recovery/frontdoor.py.
+Read Global Constraints and policy-resource-preflight.md section A and duration/
+confirmation extension, subject to these explicit limits: do not replace the
+single shared _CONTEXT convention with per-field annotations, or annotate every
+Click command to restate a uniform backend default. Those are not duplicate
+owners. Keep existing Click duration/confirmation policy if moving it requires
+a new decorator framework rather than less code.
+Append defaulted long_running to existing ToolMetadata, explicitly classify the
+current finite Tool set there and derive MCP dashboard duration/danger from that
+metadata. Preserve all previous classifications including batch tools; remove
+redundant danger exceptions only after exhaustive equality check.
+Put argparse long_running and danger metadata directly on existing owning
+subparser objects; projection reads attributes, no argv/default namespace entries
+and no second action-ID table. Preserve prior argparse mutating=danger projection
+as its existing contract, not a claim of accurate resource ownership. Move the
+reconstruct.one-shot unconditional danger to its parser; remove _DANGER_FLAGS
+field-name guessing. Preserve delegate and special executor timeout policies.
+Use absent metadata for False; do not add a registry, subclass or framework.
+Inline AST-extracted old/new registry/parser projections compare all classifications,
+fields, defaults, contexts, pages and emitted IDs. No real CLI/provider imports
+or backend initialization. All moved policies must be checked against actual
+commands, not presumed names. Report full runnable checks/output, self-review,
+commit only task files, and independently review.
+
+## Task 9: Operation-owned identity admission
+
+Own corpus/cli.py, corpus/kx_cli.py, dashboard/actions/catalog.py,
+dashboard/actions/introspect.py and dashboard/actions/jobs.py under
+src/agentdecompile_recovery. Read Global Constraints and section B of
+.superpowers/sdd/2026-09-20-forgiving-input-cleanup/policy-resource-preflight.md.
+Existing parser objects own identity_scope attributes; existing ActionSpec gains
+one defaulted scope field; the argparse projection copies it without argv fields.
+Move six existing CLI database-writer classifications to their parser owners;
+retain workbench.merge-evidence at its ActionSpec owner. Add the confirmed
+remove-binary and reclassify-matches writers, and pair scope for match-pair.
+corpus.run stays unclassified: its actual parser/caller does not accept/pass db.
+Both validation and admission consume that scope, eliminating IDENTITY_WRITERS
+and identity-related match-pair ID checks. Preserve unrelated action behavior.
+Repair database/pair overlap under the existing JobStore lock: exclusive DB
+blocks every pair on that DB; active pair blocks exclusive DB and the identical
+directed run/pair, but permits other directed pairs and other DBs. Release only
+the current job's entries on success/failure/cancellation; pre-acquisition cancel
+must not release another owner. Reuse existing dictionaries/locking, no generic
+resource framework or cross-process serialization claim. Move the single
+GHIDRA_MUTATE exception to apply-annotations parser ghidra_exclusive metadata,
+projected through existing ActionSpec; preserve its exact locking behavior and
+the distinct MCP mutation rule. Preserve remaining Ghidra policy,
+external ownership, coordinator exemptions, queues and durable-history semantics.
+Inline AST-extracted actual admission logic and parser projection checks must
+cover the full scope set and overlap/release matrix in the preflight. No real
+JobStore construction or thread/process/executor operations. Compile in memory,
+report full runnable commands/output, self-review and commit own source only.
+
+## Task 10: Derive pipeline presentation from its existing contract
+
+Own corpus/contract.py, dashboard/panels/steps.py, dashboard/actions/context.py,
+and dashboard/static/workbench-app.js under src/agentdecompile_recovery.
+Read Global Constraints and presentation sections of pipeline-resume-preflight.md.
+First preserve canonical frontend drift in a separate snapshot commit (not cleanup
+progress); relevant pipeline block must still match the preflight. Never edit the
+canonical checkout. Use one small immutable stage record in contract.py to own
+the existing eight tokens, rail action IDs, labels and legacy aliases. Derive
+existing public PIPELINE_STAGES/STAGE_ALIASES and stage-action mapping, retaining
+their exact order/values and recover-source split. Expose presentation in the
+existing workbench_context payload, consumed through the existing actions API.
+Replace repeated steps mapping and browser eight-stage list with derived data.
+Preserve existing stage quick-action project gating and flags explicitly in the
+record where catalog policy is not equivalent; do not infer safety from names.
+Keep Stages/Run pipeline launchers and other non-pipeline quick sets unchanged.
+Action fields/defaults still belong to the live action catalog. Missing metadata
+must not create guessed stage actions; missing catalog actions stay disabled.
+Do not touch internal workflow.STAGES, proof semantics, receipts or stage order.
+Inline Python/JS source extraction checks: baseline stage/alias/action equality,
+JSON serialization, insertion of a record reaches both projections, catalog
+absence disables dispatch, preserved flags and non-pipeline sets. No browser,
+server or fixtures. Compile Python and parse JS in memory. Report full runnable
+commands/output, snapshot versus refactor commits and limitations; self-review.
+
+## Task 11: Keep stage dependency predicates in one place
+
+Own only src/agentdecompile_recovery/pipeline.py. Read Global Constraints and
+resume-consolidation-preflight.md. Compute the two repeated stage-relevance
+predicates once in stage_config and reuse them across their existing fields.
+Preserve all 33 keys and every conditional fallback, path conversion and tuple
+conversion, including synthesis limit 25 in config but 50 outside relevant stages.
+Do not introduce dataclass metadata, configuration interpreters, new receipt
+schemas or shared plugin cache policy. Existing stage_config already owns its
+projection; terminal plugin reuse has different source/toolchain/proof inputs.
+Pure AST-extracted baseline/new full dictionary and SHA fingerprint equivalence
+across every stage plus unknown stages and false/zero/empty/custom configs.
+Compile in memory, report complete runnable check/output and commit own source.
+This is a modest local deletion, not stronger receipt verification.
+
+## Task 12: Share compatible corpus workspace defaults
+
+Own corpus/corpus_env.py, corpus/ghidra_env.py and corpus/dashboard/common.py
+under src/agentdecompile_recovery. Read Global Constraints and
+workspace-owner-preflight.md. Add project_workspace(path=None) at corpus_env with
+the exact existing ghidra_env.resolve_workspace precedence and no I/O: explicit
+argument, stripped AGENT_DECOMPILE_PROJECT_PATH, DEFAULT_PROJECT_ROOT. Preserve
+resolve_workspace as a delegate and all its callers. Replace only the duplicate
+relative default in dashboard candidate search with DEFAULT_PROJECT_ROOT.
+Also let recovered_source_root reuse external_recovery_root for its identical
+fallback instead of restating environment/default logic; preserve explicit path.
+Do not redirect historical package_binaries, .agentdecompile bootstrap, container
+paths, dashboard saved/live selection or legacy direct-module cwd defaults.
+Those are materially different policies, not equivalent duplication. Memory-only
+AST execution compares old/new outputs for absent, empty, whitespace, relative,
+absolute and explicit inputs; verify unchanged discovery list order and caller
+wiring. No filesystem path existence checks or module side effects. Full runnable
+commands/output, self-review and commit only owned production files.
+
+## Task 13: Finish shared Click shortcut wiring
+
+Own src/agentdecompile_cli/cli.py and docs/INPUT_NORMALIZATION.md. Read Global
+Constraints, completed Task4 report, and remaining-shortcuts-preflight.md.
+Remove the remaining seven handwritten shortcut factories (list-functions,
+references, comments, bookmarks, callgraph, constants, vtables) by reusing Task4's
+native Click helper. Preserve exact public shortcut sets, including missing
+removeAll and other established exclusions; do not add speculative options to
+fill old convenience-surface gaps. Owning run choices remain authoritative.
+Use copied owning Options with explicit omissions and only genuine differing
+defaults/requiredness overrides, not another option schema or payload factory.
+Fix owning option/callback destination mismatches with native Click inference
+where necessary. Omitted run-only arguments must remain absent from payloads:
+callbacks should conditionally serialize None-sensitive fields without changing
+normal run defaults/explicit false. Do not infer provider defaults or globally
+strip None. Preserve existing typed validation, aliases, opaque values and
+one/many tuple transformations. Preserve established shortcut-specific policy
+where it actually differs from run; explain any unavoidable correctness repair.
+Inline native Click capture-only checks across every selector and option-family:
+complete old/new payload comparison (baseline destination errors explicitly
+characterized), omitted versus None versus false, zero, empty, tuple, bool,
+pagination, invalid values, requiredness, public option sets, helper no-shared-
+mutable-Options and Tasks1/4 passthrough/normalization regressions. No real CLI
+callbacks/backend imports or filesystem fixtures. No CliRunner isolation.
+Report full runnable commands/output, self-review and commit own files only.
 
 ## Acceptance
 

@@ -57,15 +57,18 @@ correct.
 | Provider enrollment | Repeated package/manager enrollment lists identified and consolidated in `03e8a89` | Existing providers package now owns the ordered tuple; manager and exports derive from it |
 | Capability policy | Provider schemas, registry metadata and dashboard name lists overlap | Extend existing metadata ownership; keep safety classifications explicit, not name-inferred |
 | Pipeline projections | Contract stages, step action defaults and browser quick actions repeat related definitions | Trace the differing recipes, then derive shared projections without collapsing genuinely different stages |
-| Resource admission | Identity writers are enumerated by action ID; `corpus.run` also writes identity state but is absent | Ground resource claims in owning operations and feed existing lock machinery; verify all writers before changing it |
+| Resource admission | Identity writers are enumerated by action ID; remove-binary/reclassify-matches are missing and pair keys do not overlap whole-DB keys | Ground resource claims in owning operations and preserve exclusion across whole-database and pair scopes |
 | Resume | Single-target stage fingerprints and plugin proof reuse exist, while corpus-stage reuse follows different paths | Reuse established identity/proof checks; declare dependencies once rather than create another universal runner |
-| Legacy migration paths | Historical materializers derive ROOT from installed package location instead of shared corpus configuration | Resolve workspace and invocation contracts before consolidating or exposing these operations |
+| Workspace paths | Corpus workspace resolution duplicates the shared fallback; historical materializers have a different source-tree warehouse contract | Share compatible defaults without silently relocating historical artifacts |
 | Input/shortcut wiring | Normalization is shared, but redundant alias registrations and copied Click factories remain | Derive spelling matches and shortcut definitions from existing owners; retain genuine semantic distinctions |
 
 These are investigation findings, not claims of live defects reproduced through
 8080. In particular, resource admission, corpus resume and legacy identity
 fallback require focused verification before implementation. The identity writer
-set currently has seven entries, not five. Invalidated evidence must rerun even
+set initially had seven entries, not five. The earlier corpus.run assertion was
+incorrect for the dashboard entrypoint: its parser has no --db and its caller
+does not pass the optional database to the underlying pipeline API. Do not inject
+an unrelated selected database or unsupported argument. Invalidated evidence must rerun even
 without a force flag; valid completed work must not be overwritten gratuitously.
 
 ## Changes already made in the isolated branch

@@ -74,6 +74,7 @@ from agentdecompile_cli.registry import (
     TOOLS,
     Tool,
     get_tool_params,
+    normalize_identifier,
     to_snake_case,
     tool_registry,
 )
@@ -1965,8 +1966,7 @@ _CLI_UNSUPPORTED_RESULT_LIMIT_PARAMS: frozenset[str] = frozenset({"limit", "maxr
 
 def _is_cli_result_limit_param(param: str) -> bool:
     logger.debug("diag.enter %s", "cli.py:_is_cli_result_limit_param")
-    normalized: str = param.replace("_", "").replace("-", "").lower()
-    return normalized in _CLI_UNSUPPORTED_RESULT_LIMIT_PARAMS
+    return normalize_identifier(param) in _CLI_UNSUPPORTED_RESULT_LIMIT_PARAMS
 
 
 def _supported_cli_tool_params(tool_name: str) -> list[str]:
@@ -1991,8 +1991,39 @@ def _ensure_dynamic_commands_registered() -> None:
     _dynamic_commands_registered = True
 
 
+def _normalize_cli_token(token: str) -> str:
+    """Normalize command and long-option tokens while preserving short-option case."""
+    return token if len(token) == 1 else normalize_identifier(token)
+
+
+class ForgivingCliGroup(click.Group):
+    """Resolve exact commands first, then spelling variants, then semantic aliases."""
+
+    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
+        exact = super().get_command(ctx, cmd_name)
+        if exact is not None:
+            return exact
+
+        normalized_name = normalize_identifier(cmd_name)
+        matches = [command for name, command in self.commands.items() if normalize_identifier(name) == normalized_name]
+        unique_matches = {id(command): command for command in matches}
+        if len(unique_matches) > 1:
+            raise click.UsageError(f"Ambiguous command spelling: {cmd_name}", ctx)
+        if unique_matches:
+            return next(iter(unique_matches.values()))
+
+        canonical_name = tool_registry.resolve_tool_name(cmd_name)
+        if canonical_name is None:
+            return None
+        return super().get_command(ctx, canonical_name)
+
+
 @click.group(
-    context_settings={"help_option_names": ["-h", "--help"]},
+    cls=ForgivingCliGroup,
+    context_settings={
+        "help_option_names": ["-h", "--help"],
+        "token_normalize_func": _normalize_cli_token,
+    },
     epilog=MAIN_AGENT_EPILOG,
 )
 @click.option("--host", default="127.0.0.1", help="Server host")
@@ -2035,8 +2066,6 @@ def _ensure_dynamic_commands_registered() -> None:
 @click.option("--verbose", "-v", is_flag=True, help="Enable verbose logs (including HTTP request diagnostics)")
 @click.option(
     "--program-path",
-    "--programpath",
-    "--programPath",
     "--program",
     "-b",
     "--binary",
@@ -2046,8 +2075,6 @@ def _ensure_dynamic_commands_registered() -> None:
 )
 @click.option(
     "--binary-name",
-    "--binaryname",
-    "--binaryName",
     "cli_default_binary_name",
     default=None,
     help="Default binaryName when the tool expects it and arguments omit it. Environment: AGENTDECOMPILE_BINARY_NAME.",
@@ -2194,7 +2221,7 @@ def main(
         "local_project_name": (local_project_name or "").strip() or existing_obj.get("local_project_name") or "agentdecompile",
     }
 
-    # Ensure command surface includes canonical + snake_case tool commands.
+    # Ensure the complete canonical command surface is registered.
     _ensure_dynamic_commands_registered()
     _register_output_format_option_on_all_commands(main)
 
@@ -3424,14 +3451,14 @@ def memory_run(
 @click.option("--shared/--no-shared", "shared", default=False, help="Force shared Ghidra repository mode for open")
 @click.option("--open-all-programs", "open_all_programs", is_flag=True, default=False, help="Open all programs in the project")
 @click.option("--extensions", help="Comma-separated extensions for bulk open (e.g. exe,dll)")
-@click.option("--destination_folder", "--destination-folder", "destination_folder", default="/")
-@click.option("--analyze_after_import/--no-analyze_after_import", "--analyze-after-import/--no-analyze-after-import", "analyze_after_import", default=True)
-@click.option("--enable_version_control/--no-enable_version_control", "--enable-version-control/--no-enable-version-control", "enable_version_control", default=False)
-@click.option("--server_username", "--server-username", "--ghidra_server_username", "--ghidra-server-username", "server_username")
-@click.option("--server_password", "--server-password", "--ghidra_server_password", "--ghidra-server-password", "server_password")
-@click.option("--server_host", "--server-host", "--ghidra_server_host", "--ghidra-server-host", "server_host")
-@click.option("--server_port", "--server-port", "--ghidra_server_port", "--ghidra-server-port", "server_port", type=int)
-@click.option("--server_repository", "--server-repository", "--ghidra_server_repository", "--ghidra-server-repository", "server_repository")
+@click.option("--destination_folder", "destination_folder", default="/")
+@click.option("--analyze_after_import/--no-analyze_after_import", "analyze_after_import", default=True)
+@click.option("--enable_version_control/--no-enable_version_control", "enable_version_control", default=False)
+@click.option("--server_username", "--ghidra_server_username", "server_username")
+@click.option("--server_password", "--ghidra_server_password", "server_password")
+@click.option("--server_host", "--ghidra_server_host", "server_host")
+@click.option("--server_port", "--ghidra_server_port", "server_port", type=int)
+@click.option("--server_repository", "--ghidra_server_repository", "server_repository")
 @click.pass_context
 def open_cmd(
     ctx: click.Context,
@@ -4932,8 +4959,6 @@ def alias_cmd(name: str) -> None:
 @click.option("--list-tools", is_flag=True, help="List valid tool names and exit (use -f json for machine-readable output)")
 @click.option(
     "--program-path",
-    "--programpath",
-    "--programPath",
     "--program",
     "-b",
     "--binary",
@@ -4943,8 +4968,6 @@ def alias_cmd(name: str) -> None:
 )
 @click.option(
     "--binary-name",
-    "--binaryname",
-    "--binaryName",
     expose_value=False,
     callback=_cli_binary_name_option_callback,
     help="Default binaryName when JSON omits it.",
@@ -5021,8 +5044,6 @@ def tool_cmd(
 )
 @click.option(
     "--program-path",
-    "--programpath",
-    "--programPath",
     "--program",
     "-b",
     "--binary",
@@ -5032,8 +5053,6 @@ def tool_cmd(
 )
 @click.option(
     "--binary-name",
-    "--binaryname",
-    "--binaryName",
     expose_value=False,
     callback=_cli_binary_name_option_callback,
     help="Default binaryName for steps that omit it.",
@@ -5203,8 +5222,6 @@ def _run_parsed_tool_sequence(
 )
 @click.option(
     "--program-path",
-    "--programpath",
-    "--programPath",
     "--program",
     "-b",
     "--binary",
@@ -5214,8 +5231,6 @@ def _run_parsed_tool_sequence(
 )
 @click.option(
     "--binary-name",
-    "--binaryname",
-    "--binaryName",
     expose_value=False,
     callback=_cli_binary_name_option_callback,
     help="Default binaryName for steps that omit it.",

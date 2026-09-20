@@ -119,9 +119,11 @@ without a force flag; valid completed work must not be overwritten gratuitously.
   proof. Preceding snapshot `0587b74` preserves canonical frontend context-loading
   work and is not attributed to this refactor.
 - `5567d83`: two repeated stage-relevance predicates are shared inside the existing
-  fingerprint owner. All 209 full configuration/hash comparisons passed, including
-  conditional evidence identities and source-project success/error branches. This
-  does not add new resume behavior or strengthen receipt proof.
+  fingerprint owner. Final review caught and corrected a handwritten dependency
+  constant in the evidence harness. The source-derived rerun passed all 209 full
+  dictionary/hash comparisons, exact stage-dependent identity-key presence, and
+  source-project success/error branches. No production fingerprint regression was
+  identified. This does not add new resume behavior or strengthen receipt proof.
 - `475fe2e`: compatible corpus workspace defaults share one resolver; existing
   public delegation and dashboard search order are preserved. All 120 path-output
   comparisons passed without filesystem checks or state relocation.
@@ -131,9 +133,16 @@ without a force flag; valid completed work must not be overwritten gratuitously.
   hidden-field omissions, false/zero/empty values and the prior four families.
   Baseline callback-destination defects are explicitly characterized and fixed;
   broken baseline commands are not described as working-behavior parity.
+- `b4ba829`: final review exposed a cross-task gap in nested command spelling.
+  Click's native `group_class = type` propagates the existing resolver to nested
+  groups. Twelve actual derived shortcut spelling cases passed; resolver order,
+  ambiguity rejection and command-surface exclusions remain unchanged.
 
-All thirteen implementation tasks have independent task-level approval. The
-final cross-task review is separate; task approval is not deployment approval.
+All thirteen implementation tasks have independent task-level approval. Cumulative
+review and the single final fix-wave re-review passed at `b4ba829`; no blocking
+findings remain. This completes the planned source cleanup in the isolated branch,
+not live integration or deployment. The complete runnable evidence and decisions
+remain in `.superpowers/sdd/2026-09-20-forgiving-input-cleanup/`.
 
 The source inventory (456 Python files, 218,515 lines) and earlier allocation maps
 remain investigation history, not a current inventory or file-reduction quota.

@@ -22,9 +22,9 @@ the aggregate and must survive future migrations. Current live runtime differs
 again (444 files). Source moves require a fresh complete snapshot and import,
 entrypoint, process/state and packaging preservation, not blind deployment.
 
-Tasks 1-3 and 5-7 are completed and independently reviewed, including Task6's
-accepted-path evidence correction. The resumed completion pass implements Task4
-and the remaining ownership repairs below. Choose by duplicated behavior and
+Tasks 1-13 are completed and independently reviewed, including Task6's
+accepted-path evidence correction and the final nested-command and fingerprint
+evidence fixes. Choose by duplicated behavior and
 maintenance burden, never physical file-count quotas. Different policies remain
 different; completion does not mean replacing them with inferred universal rules.
 
@@ -404,8 +404,11 @@ Report full runnable commands/output, self-review and commit own files only.
 ## Acceptance
 
 Implementation Tasks 1-13 are complete and independently approved. The evidence
-and exact commit boundaries are retained in this plan's SDD ledger. Whole-branch
-review is the remaining local gate; deployment/integration is not implied.
+and exact commit boundaries are retained in this plan's SDD ledger. Cumulative
+review and the single final fix-wave re-review passed at b4ba829: nested Click
+groups inherit forgiving resolution, and the fingerprint evidence now extracts
+the actual source constants. No blocking review findings remain. The source
+cleanup is complete in the isolated branch; deployment/integration is not implied.
 
 Each task receives independent spec/quality review, then the complete branch gets
 one broad review. Evidence is inline parser/normalization equivalence, not live

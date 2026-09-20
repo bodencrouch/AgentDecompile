@@ -252,6 +252,23 @@ def _owner_alive(row: dict[str, Any]) -> bool:
         return False
 
 
+_WORK_PROGRESS_FIELDS = ('completed', 'total', 'unit', 'currentTarget')
+
+
+def _bounded_work_progress(value: Any) -> dict[str, Any] | None:
+    """Keep the measured counter the UI reads, not the whole producer event.
+
+    A stage counter can come from the durable receipt writer, which emits
+    ``{completed, total, unit}``, or from a parsed ``match-pair-progress`` log
+    event, which is returned whole and carries further producer fields.  The
+    live feed only needs the measured facets ``stageDisplayProgress`` reads.
+    """
+    if not isinstance(value, dict):
+        return None
+    bounded = {key: value[key] for key in _WORK_PROGRESS_FIELDS if key in value}
+    return bounded or None
+
+
 def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[Any] | None = None) -> dict[str, Any]:
     """Return the live UI contract without replaying every historical action.
 
@@ -281,13 +298,18 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[A
         if projected.get('status') == 'running':
             projected.pop('nextFallback', None)
             projected.pop('retryAt', None)
+            # Dropping every stored counter made a refreshed workbench lose
+            # measured progress for the live stage and fall back to a spinner.
+            # Keep only the measured facets: the stored value may be a whole
+            # parsed producer event rather than the receipt writer's compact
+            # counter.  The live child overlay below still takes precedence.
+            bounded = _bounded_work_progress(projected.get('workProgress'))
+            if bounded:
+                projected['workProgress'] = bounded
+            else:
+                projected.pop('workProgress', None)
         else:
-            # A stored workProgress is the bounded {completed,total,unit} counter
-            # recorded while that stage was running.  Dropping it unconditionally
-            # made a refreshed workbench lose measured progress for the live
-            # stage, leaving only a spinner.  Keep it while the stage is running
-            # and discard the stale leftover once it is not; the live child
-            # overlay below still takes precedence when one is accepted.
+            # A finished or waiting stage's leftover counter is not current work.
             projected.pop('workProgress', None)
         result['stages'].append(projected)
     # Checkpoints can contain complete tool responses.  The activity/stage
@@ -337,9 +359,9 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[A
             if pair:
                 stage.update(currentProgram=f"{source} → {target}", currentPair=pair)
                 result.update(currentProgram=stage['currentProgram'], currentPair=pair)
-            work_progress = getattr(job, 'work_progress', None)
-            if isinstance(work_progress, dict):
-                stage['workProgress'] = dict(work_progress)
+            work_progress = _bounded_work_progress(getattr(job, 'work_progress', None))
+            if work_progress:
+                stage['workProgress'] = work_progress
             result['currentStage'] = stage.get('key', result.get('currentStage', ''))
             result['currentAction'] = stage.get('currentAction', result.get('currentAction', ''))
     return result

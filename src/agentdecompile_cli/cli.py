@@ -26,6 +26,7 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import copy
 import contextlib
 import hashlib
 import json
@@ -2794,6 +2795,45 @@ def functions_calls(ctx: click.Context, program_path: str | None, identifier: st
 # ---------------------------------------------------------------------------
 
 
+def _derive_convenience_commands(
+    group: click.Group,
+    run_command: click.Command,
+    selector_name: str,
+    *,
+    omitted_options: frozenset[str] = frozenset(),
+    omitted_choices: frozenset[str] = frozenset(),
+) -> None:
+    """Derive fixed-selector shortcuts from an owning ``run`` command."""
+    selector = next(param for param in run_command.params if param.name == selector_name)
+    if not isinstance(selector.type, click.Choice):
+        raise TypeError(f"{selector_name} must use click.Choice")
+
+    shortcut_params = [
+        copy.copy(param)
+        for param in run_command.params
+        if param.name != selector_name and param.name not in omitted_options
+    ]
+    omitted_values = {name: None for name in omitted_options}
+    for choice in selector.type.choices:
+        if choice in omitted_choices:
+            continue
+
+        def callback(ctx: click.Context, _choice: str = choice, **values: Any) -> Any:
+            return ctx.invoke(
+                run_command,
+                **{selector_name: _choice, **omitted_values, **values},
+            )
+
+        group.add_command(
+            click.Command(
+                choice,
+                params=[copy.copy(param) for param in shortcut_params],
+                callback=click.pass_context(callback),
+                help=f"Run {group.name} {selector_name}={choice}",
+            ),
+        )
+
+
 @main.group(
     "symbols",
     help="Symbol operations: classes, namespaces, imports, exports, create_label, symbols, count, rename_data, demangle",
@@ -2836,8 +2876,7 @@ def symbols_grp() -> None:
 @click.option("--include-external", "include_external", is_flag=True)
 @click.option(
     "--filter-default-names/--no-filter-default-names",
-    "filter_default_names",
-    default=True,
+    default=None,
 )
 @click.option("--demangle-all", "demangle_all", is_flag=True)
 @click.pass_context
@@ -2853,8 +2892,8 @@ def symbols_run(
     offset: int | None,
     group_by_library: bool,
     include_external: bool,
-    filter_default_names: bool,
-    demangle_all: bool,
+    filter_default_names: bool | None,
+    demangle_all: bool | None,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:symbols_run")
     payload: dict[str, Any] = {"mode": mode}
@@ -2874,53 +2913,20 @@ def symbols_run(
         payload["offset"] = offset
     payload["groupByLibrary"] = group_by_library
     payload["includeExternal"] = include_external
-    payload["filterDefaultNames"] = filter_default_names
-    if mode == "demangle":
+    if filter_default_names is not None:
+        payload["filterDefaultNames"] = filter_default_names
+    if mode == "demangle" and demangle_all is not None:
         payload["demangleAll"] = demangle_all
     _run_async(_call(ctx, Tool.MANAGE_SYMBOLS.value, **payload))
 
 
-# --- Convenience subcommands (``symbols classes``, ``symbols imports``, …) ---
-
-
-def _symbols_mode_command(mode_name: str, help_text: str | None = None):
-    """Factory for ``symbols <mode>`` shorthand subcommands."""
-
-    @symbols_grp.command(mode_name, help=help_text or f"Run symbols mode={mode_name}")
-    @click.option("-b", "--binary", "program_path")
-    @click.option("--offset", type=int)
-    @click.option("--library-filter", "library_filter")
-    @click.option("--group-by-library/--no-group-by-library", "group_by_library", default=True)
-    @click.option("--include-external", "include_external", is_flag=True)
-    @click.option("--filter-default-names/--no-filter-default-names", "filter_default_names", default=True)
-    @click.pass_context
-    def _cmd(
-        ctx: click.Context,
-        program_path: str | None,
-        offset: int | None,
-        library_filter: str | None,
-        group_by_library: bool,
-        include_external: bool,
-        filter_default_names: bool,
-    ) -> None:
-        payload: dict[str, Any] = {"mode": mode_name}
-        if program_path:
-            payload["programPath"] = program_path
-        if offset is not None:
-            payload["offset"] = offset
-        if library_filter:
-            payload["libraryFilter"] = library_filter
-        payload["groupByLibrary"] = group_by_library
-        payload["includeExternal"] = include_external
-        payload["filterDefaultNames"] = filter_default_names
-        _run_async(_call(ctx, Tool.MANAGE_SYMBOLS.value, **payload))
-
-    logger.debug("diag.enter %s", "cli.py:_symbols_mode_command")
-    return _cmd
-
-
-for _mode in ("classes", "namespaces", "imports", "exports", "symbols", "count", "demangle"):
-    _symbols_mode_command(_mode)
+_derive_convenience_commands(
+    symbols_grp,
+    symbols_run,
+    "mode",
+    omitted_options=frozenset({"address", "label_name", "new_name", "start_index", "demangle_all"}),
+    omitted_choices=frozenset({"create_label", "rename_data"}),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -2942,11 +2948,11 @@ def strings_grp() -> None:
     default="list",
 )
 @click.option("--pattern")
-@click.option("--search-string", "searchString")
+@click.option("--search-string")
 @click.option("--filter")
-@click.option("--start-index", "startIndex", type=int)
+@click.option("--start-index", type=int)
 @click.option("--offset", type=int)
-@click.option("--include-referencing-functions", "includeReferencingFunctions", is_flag=True)
+@click.option("--include-referencing-functions/--no-include-referencing-functions", default=None)
 @click.pass_context
 def strings_run(
     ctx: click.Context,
@@ -2957,7 +2963,7 @@ def strings_run(
     filter: str | None,
     start_index: int | None,
     offset: int | None,
-    include_referencing_functions: bool,
+    include_referencing_functions: bool | None,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:strings_run")
     payload: dict[str, Any] = {"mode": mode}
@@ -2973,53 +2979,17 @@ def strings_run(
         payload["startIndex"] = start_index
     if offset is not None:
         payload["offset"] = offset
-    payload["includeReferencingFunctions"] = include_referencing_functions
+    if include_referencing_functions is not None:
+        payload["includeReferencingFunctions"] = include_referencing_functions
     _run_async(_call(ctx, Tool.MANAGE_STRINGS.value, **payload))
 
 
-# --- Convenience subcommands (``strings list``, ``strings regex``, …) ---
-
-
-def _strings_mode_command(mode_name: str, help_text: str | None = None):
-    """Factory for ``strings <mode>`` shorthand subcommands."""
-
-    @strings_grp.command(mode_name, help=help_text or f"Run strings mode={mode_name}")
-    @click.option("-b", "--binary", "program_path")
-    @click.option("--pattern")
-    @click.option("--search-string", "search_string")
-    @click.option("--filter")
-    @click.option("--offset", type=int)
-    @click.option("--include-referencing-functions", "include_refs", is_flag=True)
-    @click.pass_context
-    def _cmd(
-        ctx: click.Context,
-        program_path: str | None,
-        pattern: str | None,
-        search_string: str | None,
-        filter: str | None,
-        offset: int | None,
-        include_refs: bool,
-    ) -> None:
-        payload: dict[str, Any] = {"mode": mode_name}
-        if program_path:
-            payload["programPath"] = program_path
-        if pattern:
-            payload["pattern"] = pattern
-        if search_string:
-            payload["searchString"] = search_string
-        if filter:
-            payload["filter"] = filter
-        if offset is not None:
-            payload["offset"] = offset
-        payload["includeReferencingFunctions"] = include_refs
-        _run_async(_call(ctx, Tool.MANAGE_STRINGS.value, **payload))
-
-    logger.debug("diag.enter %s", "cli.py:_strings_mode_command")
-    return _cmd
-
-
-for _mode in ("list", "regex", "count", "similarity"):
-    _strings_mode_command(_mode)
+_derive_convenience_commands(
+    strings_grp,
+    strings_run,
+    "mode",
+    omitted_options=frozenset({"start_index"}),
+)
 
 
 # ---------------------------------------------------------------------------
@@ -3640,12 +3610,12 @@ def datatypes_grp() -> None:
 @datatypes_grp.command("run", help="Run manage-data-types with --action")
 @click.option("-b", "--binary", "program_path")
 @click.option("--action", type=click.Choice(["archives", "list", "by_string", "apply"]), required=True)
-@click.option("--archive-name", "archiveName")
-@click.option("--category-path", "categoryPath", default="/")
-@click.option("--include-subcategories", "includeSubcategories", is_flag=True)
-@click.option("--start-index", "startIndex", type=int)
-@click.option("--data-type-string", "dataTypeString")
-@click.option("--address-or-symbol", "addressOrSymbol")
+@click.option("--archive-name")
+@click.option("--category-path", default="/")
+@click.option("--include-subcategories", is_flag=True)
+@click.option("--start-index", type=int)
+@click.option("--data-type-string")
+@click.option("--address-or-symbol")
 @click.pass_context
 def datatypes_run(
     ctx: click.Context,
@@ -3675,52 +3645,7 @@ def datatypes_run(
     _run_async(_call(ctx, Tool.MANAGE_DATA_TYPES.value, **payload))
 
 
-# --- Convenience subcommands (``datatypes archives``, ``datatypes list``, …) ---
-
-
-def _datatypes_action_command(action_name: str, help_text: str | None = None):
-    """Factory for ``datatypes <action>`` shorthand subcommands."""
-
-    @datatypes_grp.command(action_name, help=help_text or f"manage-data-types action={action_name}")
-    @click.option("-b", "--binary", "program_path")
-    @click.option("--archive-name", "archiveName")
-    @click.option("--category-path", "categoryPath", default="/")
-    @click.option("--include-subcategories", "includeSubcategories", is_flag=True)
-    @click.option("--start-index", "startIndex", type=int)
-    @click.option("--data-type-string", "dataTypeString")
-    @click.option("--address-or-symbol", "addressOrSymbol")
-    @click.pass_context
-    def _cmd(
-        ctx: click.Context,
-        program_path: str | None,
-        archive_name: str | None,
-        category_path: str,
-        include_subcategories: bool,
-        start_index: int | None,
-        data_type_string: str | None,
-        address_or_symbol: str | None,
-    ) -> None:
-        payload: dict[str, Any] = {"action": action_name}
-        if program_path:
-            payload["programPath"] = program_path
-        if archive_name is not None:
-            payload["archiveName"] = archive_name
-        payload["categoryPath"] = category_path
-        payload["includeSubcategories"] = include_subcategories
-        if start_index is not None:
-            payload["startIndex"] = start_index
-        if data_type_string is not None:
-            payload["dataTypeString"] = data_type_string
-        if address_or_symbol is not None:
-            payload["addressOrSymbol"] = address_or_symbol
-        _run_async(_call(ctx, Tool.MANAGE_DATA_TYPES.value, **payload))
-
-    logger.debug("diag.enter %s", "cli.py:_datatypes_action_command")
-    return _cmd
-
-
-for _action in ("archives", "list", "by_string", "apply"):
-    _datatypes_action_command(_action)
+_derive_convenience_commands(datatypes_grp, datatypes_run, "action")
 
 
 # ---------------------------------------------------------------------------
@@ -3754,9 +3679,9 @@ def structures_grp() -> None:
     ),
     required=True,
 )
-@click.option("--c-definition", "cDefinition")
-@click.option("--header-content", "headerContent")
-@click.option("--structure-name", "structureName")
+@click.option("--c-definition")
+@click.option("--header-content")
+@click.option("--structure-name")
 @click.option("--name")
 @click.option("--size", type=int)
 @click.option("--type", "type_", type=click.Choice(["structure", "union"]))
@@ -3764,11 +3689,11 @@ def structures_grp() -> None:
 @click.option("--packed", is_flag=True)
 @click.option("--description")
 @click.option("--fields", help="JSON array of field objects")
-@click.option("--address-or-symbol", "addressOrSymbol", multiple=True)
-@click.option("--clear-existing/--no-clear-existing", "clearExisting", default=True)
+@click.option("--address-or-symbol", multiple=True)
+@click.option("--clear-existing/--no-clear-existing", default=True)
 @click.option("--force", is_flag=True)
-@click.option("--name-filter", "nameFilter")
-@click.option("--include-built-in", "includeBuiltIn", is_flag=True)
+@click.option("--name-filter")
+@click.option("--include-built-in", is_flag=True)
 @click.pass_context
 def structures_run(
     ctx: click.Context,
@@ -3781,12 +3706,12 @@ def structures_run(
     size: int | None,
     type_: str | None,
     category: str,
-    packed: bool,
+    packed: bool | None,
     description: str | None,
     fields: str | None,
     address_or_symbol: tuple[str, ...],
-    clear_existing: bool,
-    force: bool,
+    clear_existing: bool | None,
+    force: bool | None,
     name_filter: str | None,
     include_built_in: bool,
 ) -> None:
@@ -3807,7 +3732,8 @@ def structures_run(
     if type_ is not None:
         payload["type"] = type_
     payload["category"] = category
-    payload["packed"] = packed
+    if packed is not None:
+        payload["packed"] = packed
     if description is not None:
         payload["description"] = description
     if fields is not None:
@@ -3817,75 +3743,24 @@ def structures_run(
             raise click.BadParameter("--fields must be valid JSON array")
     if address_or_symbol:
         payload["addressOrSymbol"] = list(address_or_symbol) if len(address_or_symbol) != 1 else address_or_symbol[0]
-    payload["clearExisting"] = clear_existing
-    payload["force"] = force
+    if clear_existing is not None:
+        payload["clearExisting"] = clear_existing
+    if force is not None:
+        payload["force"] = force
     if name_filter is not None:
         payload["nameFilter"] = name_filter
     payload["includeBuiltIn"] = include_built_in
     _run_async(_call(ctx, Tool.MANAGE_STRUCTURES.value, **payload))
 
 
-# --- Convenience subcommands (``structures parse``, ``structures create``, …) ---
-
-
-def _structures_action_command(action_name: str, help_text: str | None = None):
-    """Factory for ``structures <action>`` shorthand subcommands."""
-
-    @structures_grp.command(action_name, help=help_text or f"manage-structures action={action_name}")
-    @click.option("-b", "--binary", "program_path")
-    @click.option("--c-definition", "cDefinition")
-    @click.option("--structure-name", "structureName")
-    @click.option("--name")
-    @click.option("--size", type=int)
-    @click.option("--category", default="/")
-    @click.option("--description")
-    @click.option("--fields", help="JSON array of field objects")
-    @click.option("--name-filter", "nameFilter")
-    @click.option("--include-built-in", "includeBuiltIn", is_flag=True)
-    @click.pass_context
-    def _cmd(
-        ctx: click.Context,
-        program_path: str | None,
-        c_definition: str | None,
-        structure_name: str | None,
-        name: str | None,
-        size: int | None,
-        category: str,
-        description: str | None,
-        fields: str | None,
-        name_filter: str | None,
-        include_built_in: bool,
-    ) -> None:
-        payload: dict[str, Any] = {"action": action_name}
-        if program_path:
-            payload["programPath"] = program_path
-        if c_definition is not None:
-            payload["cDefinition"] = c_definition
-        if structure_name is not None:
-            payload["structureName"] = structure_name
-        if name is not None:
-            payload["name"] = name
-        if size is not None:
-            payload["size"] = size
-        payload["category"] = category
-        if description is not None:
-            payload["description"] = description
-        if fields is not None:
-            try:
-                payload["fields"] = json.loads(fields)
-            except json.JSONDecodeError:
-                raise click.BadParameter("--fields must be valid JSON array")
-        if name_filter is not None:
-            payload["nameFilter"] = name_filter
-        payload["includeBuiltIn"] = include_built_in
-        _run_async(_call(ctx, Tool.MANAGE_STRUCTURES.value, **payload))
-
-    logger.debug("diag.enter %s", "cli.py:_structures_action_command")
-    return _cmd
-
-
-for _action in ("parse", "validate", "create", "add_field", "modify_field", "modify_from_c", "info", "apply", "delete", "parse_header"):
-    _structures_action_command(_action)
+_derive_convenience_commands(
+    structures_grp,
+    structures_run,
+    "action",
+    omitted_options=frozenset(
+        {"header_content", "type_", "packed", "address_or_symbol", "clear_existing", "force"},
+    ),
+)
 
 
 # ---------------------------------------------------------------------------

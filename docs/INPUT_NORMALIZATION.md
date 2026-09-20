@@ -20,6 +20,28 @@ The boundaries intentionally have different jobs and precedence:
 Normalization is not recursive. Nested dictionary keys, argument values, and
 output/schema field names remain unchanged.
 
+## Defaults and convenience commands
+
+The `symbols`, `strings`, `datatypes`, and `structures` convenience commands
+derive their options and selector choices from each family's owning `run`
+command. The shorter commands therefore retain Click's declared types, choices,
+tuple handling, and validation instead of maintaining a second option schema.
+Their intentionally omitted mutation-only inputs remain unavailable.
+
+Normal use leaves backend-owned defaults implicit. In this bounded surface,
+`symbols --filter-default-names` and
+`strings --include-referencing-functions` are omitted from the payload when the
+user supplies neither form of the paired flag. Their positive and negative forms
+send explicit `true` and `false` overrides. Other CLI policy and mutation-safety
+defaults remain explicit because they are not proven redundant with provider
+behavior. Missing run-only options are suppressed when a shortcut invokes its
+owning command, so a shortcut does not acquire hidden workflow defaults.
+
+Ordinary explicit empty strings are preserved. Program selection is narrower:
+an empty or whitespace-only `--binary` remains absent rather than selecting a
+target. This selector policy does not recursively normalize or trim arbitrary
+payload values.
+
 ## Inline compatibility check
 
 This check uses only the pure registry normalizer; it does not import providers

@@ -1100,7 +1100,6 @@ def _add_builtin_param_aliases() -> None:
     for alias_name, canonical_param in (
         ("filePath", "path"),
         ("binaryPath", "path"),
-        ("binary_path", "path"),
         ("destFolder", "destinationFolder"),
         ("recurse", "recursive"),
         ("autoAnalyze", "analyzeAfterImport"),
@@ -1116,21 +1115,13 @@ def _add_builtin_param_aliases() -> None:
     for tool_name in (Tool.OPEN.value,):
         _add(tool_name, "isShared", "shared")
         _add(tool_name, "sharedMode", "shared")
-        _add(tool_name, "shared_mode", "shared")
         _add(tool_name, "ghidraServerHost", "serverHost")
-        _add(tool_name, "ghidra_server_host", "serverHost")
         _add(tool_name, "ghidraServerPort", "serverPort")
-        _add(tool_name, "ghidra_server_port", "serverPort")
         _add(tool_name, "ghidraServerUsername", "serverUsername")
-        _add(tool_name, "ghidra_server_username", "serverUsername")
         _add(tool_name, "ghidraServerPassword", "serverPassword")
-        _add(tool_name, "ghidra_server_password", "serverPassword")
         _add(tool_name, "ghidraServerRepository", "path")
-        _add(tool_name, "ghidra_server_repository", "path")
         _add(tool_name, "serverRepository", "path")
-        _add(tool_name, "server_repository", "path")
         _add(tool_name, "repositoryName", "path")
-        _add(tool_name, "repository_name", "path")
 
 
 _add_builtin_param_aliases()

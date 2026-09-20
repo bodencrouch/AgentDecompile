@@ -57,13 +57,30 @@ The MCP endpoint is `http://127.0.0.1:8080/mcp`. `/` and `/api` are metadata onl
 uv run agentdecompile-cli --server-url http://127.0.0.1:8080/mcp tool --list-tools
 ```
 
-**Development:** run the HTTP server under `watchfiles` so it reloads on save instead of needing a manual restart after every edit:
+**Development:** keep the local PyGhidra server persistent. It owns the JVM and Ghidra project, so do not run it under a source watcher:
 
 ```bash
-uv run --with watchfiles watchfiles --ignore-permission-denied "agentdecompile-server -t streamable-http" src
+AGENT_DECOMPILE_DASHBOARD_ALLOW_SERVER_CONTROL=0 \
+uv run agentdecompile-server -t streamable-http --host 127.0.0.1 --port 8080
 ```
 
-Notes: quote the target command as one argument — `watchfiles TARGET [PATHS...]` is positional, so an unquoted `-t streamable-http` is parsed as (nonexistent) watch paths instead of server flags, and nothing gets watched. Scope watching to `src` rather than the whole repo: this tree has a `vendor/` wine-prefix/container-storage path that a non-root user can't stat, which otherwise crashes the watcher (`--ignore-permission-denied` also covers this). Don't run this with `sudo` — it resets `HOME`, so `uv` resolves an unrelated ephemeral venv under `/root/.cache` instead of this project's `.venv`, and edits silently stop being picked up.
+Run the reloadable dashboard/proxy boundary separately; it forwards MCP calls to the persistent server but never starts PyGhidra:
+
+```bash
+AGENT_DECOMPILE_MCP_URL=http://127.0.0.1:8080/mcp \
+AGENT_DECOMPILE_WEBUI_ENABLED=0 \
+AGENT_DECOMPILE_BACKEND_URL=http://127.0.0.1:8080/mcp \
+uv run --with watchfiles python scripts/watch-dashboard-proxy.py
+```
+
+Then run Vite with `AGENTDECOMPILE_BACKEND=http://127.0.0.1:8080`. Vite serves the React frontend on `5174` with native HMR while the persistent dashboard/MCP backend remains on `8080`; no proxy port is required. Do not watch the whole `src` tree or use `sudo`: either makes ordinary edits restart the JVM owner or breaks the project virtualenv.
+
+For a browser IDE, set `VITE_AGENTDECOMPILE_WEB_IDE_URL` while building or
+running Vite and expose the same origin to the dashboard process as either
+`AGENTDECOMPILE_WEB_IDE_URL` or `VITE_AGENTDECOMPILE_WEB_IDE_URL`. Embedding
+also requires `VITE_AGENTDECOMPILE_WEB_IDE_EMBED=1` and a browser IDE whose
+frame policy permits this dashboard origin; otherwise the workbench keeps the
+external browser-IDE link as the honest fallback.
 
 Success: the CLI prints the advertised tool list.
 

@@ -33,6 +33,16 @@ Current integrated entrypoints:
 
 Corpus contract and stages: [docs/CORPUS_PIPELINE.md](docs/CORPUS_PIPELINE.md). Living plan: [docs/plans/2026-08-30-corpus-semantic-pipeline-living-plan.md](docs/plans/2026-08-30-corpus-semantic-pipeline-living-plan.md). Add binaries with `agentdecompile-corpus add-binary`; do not hardcode product stems. First priority is linking one STABS/DWARF donor project to a complete executable. Do not claim completion from the `/dashboard` or `/atlas` pages on the MCP HTTP server.
 
+## Operating rules (kotorxid/swkotor recovery)
+
+This corpus is mature, not greenfield — there is extensive completed recovery on disk and in DBs. Before doing recovery work:
+
+1. **Discover before you produce; reuse is the default, regeneration is opt-in.** Inventory what already exists first — `db/kotorxid.sqlite` (`recovered_function`, `reuse_candidate`, `identity`), `db/ghidra_knowledge.sqlite` (decompiled C cache), `output/binaries/<slug>/source/verified_c` (byte-exact files), warehouse audit JSON — and import/bind it. Never run ghidra-bulk/permuter/analysis from scratch until you confirm the result isn't already recovered. Do not re-analyze a program that already has Ghidra analysis.
+2. **Follow the documented cross match pipeline** (STRATEGY.md), don't invent one: Ghidra-first → compile-gate → cross-place by `logical_id` → byte-exact (verify → permuter → LLM/Mizuchi last). Byte-exact is relocation-aware (objdiff), never raw bytes. Metadata/labels/comments/structs/STABS merge bidirectionally per field, strongest source wins.
+3. **One operator surface: the 8080 dashboard.** The kotorxid 8791/8173/3000 dashboards are retired. Drive the workbench UI via Chromium/Playwright over CDP (system chromium; bundled Playwright browser is absent). Point the runtime corpus DB at `kotorxid.sqlite`; bind loaded `.gpr` projects to the recovered `binary_id` via `program_binding` when a known-recovered binary shows 0 recovered source.
+4. **Act, don't ask** when a set goal makes the next step obvious and authorized; launch long jobs in the background rather than requesting permission.
+5. **Session working data on NVMe** (`/home/brunner56/...`, `/tmp` tmpfs), never the MyBook HDD.
+
 Fast recovery dump (AgentDecompile only): see [docs/CRITICAL_PATH.md](docs/CRITICAL_PATH.md) — `agentdecompile-reconstruct … --resume --dump-source DIR`. Default reconstruct runs PyGhidra enrich-decompile before source generation (`--skip-enrichment` to opt out). Never claim match without objdiff 0; never promote byte-emitters into `verified/`. Profiles are format/stem-derived (PE vs ELF); do not hardcode product binaries into recovery defaults.
 
 **Source recovery must be self-contained.** A run that is supposed to produce source (decompile, synthesize, match, or dump) should write its own inventory, facts, and match receipts in that execution. Do not skip those stages and point at leftover `target/` files, old dumps, or backfilled JSONL. Flags like `--resume`, match cache, and `--dump-source-only` exist for operators doing incremental work — not for agents to avoid running the pipeline. When the task is to obtain source, run the producing stages (or `--force-rematch` if rematch is the point).

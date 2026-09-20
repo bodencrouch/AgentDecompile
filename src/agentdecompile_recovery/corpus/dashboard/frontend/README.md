@@ -1,37 +1,44 @@
 # Use the AgentDecompile interfaces
 
-AgentDecompile serves the built workbench at `/dashboard` on its MCP HTTP server. The installed Python package includes the assets; serving them does not require Node.
+AgentDecompile serves the built React/Vite workstation at `/react/` on its MCP HTTP server. The installed Python package includes the assets; serving them does not require Node.
 
-The operator workbench is the **static** page at `/dashboard` (`workbench-app.js`). The Vite frontend is **Atlas only**, built into `static/react` and served at `/dashboard?mode=atlas` (and at the Vite DEV server on `:5174`). Keep `/dashboard` as the static fallback until the server-side route rollout makes a different default explicit.
+`/react/` is the canonical entry in both Vite and packaged delivery; `/react` also works. Built assets remain in `static/react` and the Python MCP server serves them without Node. Reloading a document such as `/react/foo` serves the app; missing asset URLs return 404. `/dashboard` and the old `/dashboard/static/react/` entry redirect to `/react/`, retaining the query and browser fragment. Existing `/dashboard/static/react/assets/...` asset links remain supported.
+
+`/dashboard?mode=static` opens the legacy static workbench. A missing or incomplete packaged entry returns a visible 503 with a link to that fallback, preserving selection parameters and the fragment. The fallback does not redirect back to React.
 
 For frontend development, run these commands from this directory:
 
 ```bash
 npm ci
-npm run build
 AGENTDECOMPILE_BACKEND=http://127.0.0.1:8080 npm run dev
 ```
 
-Vite runs on `http://127.0.0.1:5174/`. It fails if 5174 is occupied. It proxies API requests to AgentDecompile; credentials stay on the backend. The production build writes to `../static/react` and is served by both full and proxy MCP servers.
+Vite runs on `http://127.0.0.1:5174/react/`. It fails if 5174 is occupied; use the existing server instead of starting a duplicate. It proxies API requests to AgentDecompile; credentials stay on the backend. The production build writes to `../static/react` and is served by both full and proxy MCP servers.
 
-`AGENTDECOMPILE_BACKEND` is the preferred development proxy target; `VITE_AGENTDECOMPILE_BACKEND` is accepted for compatibility. Vite emits entry chunks, dynamically loaded Monaco language chunks, the Monaco editor worker, and fonts below `/dashboard/static/react/`. There is no current WASM import in this package. Node is needed only to check or package the frontend, never by the installed server. Do not hand-edit `static/react`; rebuild it as the release artifact when a packaging run is authorized.
+`AGENTDECOMPILE_BACKEND` is the preferred development backend target; `VITE_AGENTDECOMPILE_BACKEND` is accepted for compatibility. Development uses the single persistent backend on `127.0.0.1:8080`; the Vite server on `127.0.0.1:5174` hot-reloads the frontend directly and no proxy port is required. Vite emits entry chunks, dynamically loaded Monaco language chunks, the Monaco editor worker, and fonts below `/react/`. There is no current WASM import in this package. Node is needed only to check or package the frontend, never by the installed server. Do not hand-edit `static/react`; rebuild it as the release artifact when a packaging run is authorized.
 
 ```mermaid
 flowchart LR
   frontend[frontend React source] --> react[static/react assets]
   frontend --> vite[Vite 5174]
-  react --> dashboard[MCP dashboard]
+  react --> dashboard[MCP /react/]
   vite --> api[Shared action and data APIs]
   dashboard --> api
 ```
 
-The workspace keeps one selection across the explorer, functions, source, graph, evidence, and commands. Project tabs represent sessions. Section navigation moves through the document. Drag the separators to resize panes; View provides density, visibility, and layout reset controls.
+The workspace keeps one selection across the explorer, functions, source, graph, evidence, and commands. Binary tabs and a compact analysis tab strip provide the RzWeb-style analysis workflow: choose a function in the navigator, then inspect its listing, decompilation, graph, or other analysis view in the main pane. The Evidence rail and resizable Activity/Logs/Jobs/Problems dock retain context while switching tabs. Header actions open binaries, create scratches, search, and invoke commands.
 
 Logs and Jobs share the bottom Activity dock. Logs remain inspectable. Job completion is distinct from compilation and byte verification. Unknown progress is indeterminate; object-file presence does not establish function proof.
 
-Use the command palette or Commands section to select a catalog action. Fields receive the current target and server defaults. Batch selections survive paging and filtering, clear on program changes, and are frozen on submission. Batch receipts live in `workbench-batches` under the configured corpus workspace. Reloading the browser does not restart a batch. A server restart reconciles durable workflow checkpoints and process ownership. Completed work is retained; ambiguous non-import mutations remain blocked for reconciliation.
+Use the command palette or Commands control to select a catalog action. Fields receive the current target and server defaults. Batch selections survive paging and filtering, clear on program changes, and are frozen on submission. Batch receipts live in `workbench-batches` under the configured corpus workspace. Reloading the browser does not restart a batch. A server restart reconciles durable workflow checkpoints and process ownership. Completed work is retained; ambiguous non-import mutations remain blocked for reconciliation.
 
 Save workspace writes metadata. Copy project reports whether program databases were copied. Save connection creates a reopenable reference; it does not upload a Ghidra repository.
+
+The [AIO redesign verification record](../../../../../../docs/verification/2026-09-11-react-aio-redesign.md) records the new shell, reference review, browser checks, and current native-engine boundaries.
+
+## Create and edit a scratch
+
+New scratch opens a decomp.me-style workflow with platform, preset/compiler, diff label, required target assembly, and optional context. The Matching surface places Source/Context/Options beside target assembly and compilation/objdiff output. Drafts stay local, survive reloads, and can be downloaded. Compilation uses the existing backend action and requires a valid configured target; provider failures remain visible beside output. A completed job or a local draft is not byte proof: that requires a revision-bound objdiff receipt.
 
 ## Follow the Ghidra guide
 
@@ -60,9 +67,16 @@ Project preparation checks existing analysis, extracts missing function features
 
 Run `npm run check` for the frontend type gate. A packaging run uses `npm run build` and rewrites `static/react`; do not substitute stale generated assets for that release step. Browser acceptance must exercise both MCP production delivery and Vite against actual handler paths. Use inline Playwright or browser tools to open/import projects, inspect functions, follow references, edit justified analysis, save state, resize panes, run recovery/export operations, and inspect their evidence. Verify installed-wheel serving with Node absent from the server's environment.
 
-For this implementation session, do not run saved test files or create or modify tests. Browser screenshots and JSON interaction receipts are evidence of the observed workflows, not corpus-recovery proof.
+Routing can be checked without a live server or production build using temporary assets:
 
-See the [verification record](../../../../../docs/verification/2026-09-08-react-workbench.md) for observed workflows, defects found during live use, and remaining claim boundaries.
+```bash
+# From the repository root
+PYTHONPATH=src .venv/bin/python tests/test_react_canonical_routing.py
+```
+
+Browser screenshots and interaction receipts are evidence of observed workflows, not corpus-recovery proof.
+
+See the [verification record](../../../../../../docs/verification/2026-09-08-react-workbench.md) for observed workflows, defects found during live use, and remaining claim boundaries.
 
 ## Follow work in the explorer
 

@@ -413,7 +413,7 @@ def _setup_main_argument_parser() -> argparse.ArgumentParser:
 
 def _handle_connect_mode(args: argparse.Namespace, backend_url: str) -> None:
     """Handle connect mode to existing MCP server.
-    
+
     Args:
         args: Parsed command-line arguments
         backend_url: Resolved backend URL (from --server-url or env vars)
@@ -523,12 +523,34 @@ def _run_async_execution(launcher: AgentDecompileLauncher, project_manager: Proj
         sys.exit(1)
 
 
+import os
+from pathlib import Path
+
+
+def apply_default_env() -> None:
+    root = Path.cwd()
+    work = root / ".agentdecompile"
+
+    defaults = {
+        "AGENT_DECOMPILE_CORPUS_ROOT": str(root),
+        "AGENT_DECOMPILE_CORPUS_WORK_DIR": str(work),
+        "AGENT_DECOMPILE_CORPUS_DB": str(work / "corpus.sqlite"),
+        "AGENT_DECOMPILE_KNOWLEDGE_DB": str(work / "knowledge.sqlite"),
+        "AGENT_DECOMPILE_CORPUS_CONFIG_DIR": str(work / "config"),
+        "AGENT_DECOMPILE_CORPUS_TMP": str(work / "tmp"),
+    }
+
+    for name, value in defaults.items():
+        os.environ.setdefault(name, value)
+
 def main():
     """Main entry point for mcp-agentdecompile command.
 
     Flow: parse args → resolve backend URL → if URL given, connect mode (stdio bridge only);
-    else spawn PyGhidra + local server, then run stdio bridge to that server.
+    else spawn PyGhidra + l
+    apply_default_env()ocal server, then run stdio bridge to that server.
     """
+    apply_default_env()
     logger.debug("diag.enter %s", "__main__.py:main")
     parser = _setup_main_argument_parser()
     args = parser.parse_args()

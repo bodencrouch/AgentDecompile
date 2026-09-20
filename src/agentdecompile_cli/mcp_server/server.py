@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import socket
+import sys
 import threading
 import time
 
@@ -533,19 +534,13 @@ class PythonMcpServer:
 
         @self.app.get("/health", tags=["meta"])
         async def health_check() -> dict[str, Any]:
-            """Health check endpoint, including optional supervisor state."""
+            """Health check endpoint with in-process source update observations."""
             runtime: dict[str, Any] = {
                 "pid": os.getpid(),
                 "revision": os.environ.get("AGENT_DECOMPILE_RUNTIME_REVISION", ""),
             }
-            state_path = os.environ.get("AGENT_DECOMPILE_RUNTIME_STATE_FILE", "")
-            if state_path:
-                try:
-                    recorded = json.loads(open(state_path, encoding="utf-8").read())
-                    if isinstance(recorded, dict):
-                        runtime["reload"] = recorded.get("reload", {"status": "current"})
-                except (OSError, ValueError, TypeError):
-                    runtime["reload"] = {"status": "state-unavailable"}
+            reloader = sys.modules.get("inplace_hotreload")
+            runtime["reload"] = reloader.status() if reloader else {"enabled": False}
             return {
                 "status": "healthy" if self._running else "starting",
                 "server": self.config.name,
@@ -553,6 +548,7 @@ class PythonMcpServer:
                 "programs": (1 if self.program_info and self.program_info.program else 0),
                 "sessions": SESSION_CONTEXTS.stats(),
                 "runtime": runtime,
+                "reloadPolicy": "Compatible Python updates retain the running process; rejected edits never trigger a restart.",
             }
 
         @self.app.get("/.well-known/oauth-authorization-server", tags=["meta"], include_in_schema=False)

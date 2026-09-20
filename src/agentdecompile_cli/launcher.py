@@ -664,11 +664,12 @@ class PyGhidraContext:
             except Exception as e:
                 # Log warning but continue - individual program failures shouldn't crash server
                 logger.warning(
-                    "pyghidra_startup_open_program_fail index=%s total=%s basename=%s exc_type=%s",
+                    "pyghidra_startup_open_program_fail index=%s total=%s basename=%s exc_type=%s detail=%s",
                     idx,
                     total_bin,
                     basename_hint(PurePosixPath(binary_path_str).name),
                     type(e).__name__,
+                    str(e)[:500],
                 )
                 continue
 
@@ -1423,9 +1424,24 @@ class PyGhidraContext:
                     GhidraProgramUtilities.markProgramAnalyzed(program)
                 else:
                     raise Exception("Missing set analyzed flag method!")
+            except Exception as exc:
+                # Ghidra can finish analysis and then reject a redundant
+                # transaction while a domain-file save is being coordinated.
+                # The analyzed flag is authoritative here: retain completed
+                # work instead of reporting it as a failed analysis job.
+                if "active transaction" in str(exc).lower() and not GhidraProgramUtilities.shouldAskToAnalyze(program):
+                    logger.warning("analysis_save_transaction_reconciled program=%s", program.getName())
+                else:
+                    raise
             finally:
                 GhidraScriptUtil.releaseBundleHostReference()
-                self.project.save(program)
+                try:
+                    self.project.save(program)
+                except Exception as exc:
+                    if "active transaction" in str(exc).lower() and not GhidraProgramUtilities.shouldAskToAnalyze(program):
+                        logger.warning("analysis_project_save_reconciled program=%s", program.getName())
+                    else:
+                        raise
         else:
             logger.info("Analysis already complete.. skipping %s!", program)
 

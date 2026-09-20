@@ -1467,15 +1467,7 @@
     ],
     pipeline: [
       { id: "corpus.stages", label: "Stages" },
-      { id: "corpus.run", label: "Run pipeline", danger: true },
-      { id: "corpus.extract-stabs", label: "1 Extract", needsProject: true },
-      { id: "corpus.match-pair", label: "2 Match", needsProject: true, mutating: true },
-      { id: "corpus.calibrate-global", label: "3 Calibrate global", mutating: true },
-      { id: "corpus.workspace", label: "4 Link floor", mutating: true },
-      { id: "corpus.ghidra-bulk", label: "5 Ghidra bulk", mutating: true },
-      { id: "corpus.cross-place", label: "6 Cross-place" },
-      { id: "corpus.genproject", label: "7 Leftover" },
-      { id: "corpus.objdiff-check", label: "8 Objdiff audit", mutating: true }
+      { id: "corpus.run", label: "Run pipeline", danger: true }
     ],
     function: [
       { id: "mcp.decompile-function", label: "Decompile", needsFunction: true },
@@ -1504,6 +1496,23 @@
     return false;
   }
 
+  function pipelineQuickActions(baseItems, stages) {
+    return (baseItems || []).concat((stages || []).map(function (stage) {
+      return {
+        id: stage.actionId,
+        label: stage.label,
+        needsProject: stage.needsProject === true,
+        mutating: stage.mutating === true,
+        requiresCatalog: true
+      };
+    }));
+  }
+
+  function quickActionUnavailable(item, catalog, flags) {
+    const act = item.id ? catalog.find(function (row) { return row.id === item.id; }) : null;
+    return quickActionDisabled(item, flags) || (item.requiresCatalog && !act);
+  }
+
   function QuickActions({ items, catalog, onPress, flags }) {
     if (!items || !items.length) return null;
     const gate = flags || {};
@@ -1511,7 +1520,7 @@
       ${items.map(function (item, index) {
         const act = item.id ? catalog.find(function (row) { return row.id === item.id; }) : null;
         const label = item.label || (act && act.title) || item.id || "Action";
-        const off = quickActionDisabled(item, gate);
+        const off = quickActionUnavailable(item, catalog, gate);
         return html`<button key=${item.id || item.ui || String(index)} type="button"
           className=${"wb-qact" + (item.danger ? " danger" : "") + (off ? " off" : "")}
           disabled=${off}
@@ -2356,6 +2365,7 @@
     const [dropCandidates, setDropCandidates] = useState([]);
     const [treeExpanded, setTreeExpanded] = useState(true);
     const [envDefaults, setEnvDefaults] = useState({ db: "", work_dir: "", kb: "", mcp_url: "" });
+    const [pipelineStages, setPipelineStages] = useState([]);
     const [recoveredRoot, setRecoveredRoot] = useState("");
     const [bsimStatus, setBsimStatus] = useState(null);
     const [recoverInfo, setRecoverInfo] = useState(null);
@@ -2586,6 +2596,7 @@
         const res = await fetch(API.context + query, { cache: "no-store" });
         const data = await res.json();
         if (data.defaults) setEnvDefaults(data.defaults);
+        if (Array.isArray(data.pipelineStages)) setPipelineStages(data.pipelineStages);
         const session = data.session || {};
         if (!program && session.program) setProgram(session.program);
         if (!slug && session.slug) setSlug(session.slug);
@@ -2598,6 +2609,7 @@
       const list = data.actions || [];
       setActions(list);
       if (data.context && data.context.defaults) setEnvDefaults(data.context.defaults);
+      if (data.context && Array.isArray(data.context.pipelineStages)) setPipelineStages(data.context.pipelineStages);
     }, []);
 
     const loadMatchStatus = useCallback(async function () {
@@ -4585,8 +4597,11 @@
     }
 
     function quickBar(setName) {
+      const items = setName === "pipeline"
+        ? pipelineQuickActions(QUICK_ACTION_SETS.pipeline, pipelineStages)
+        : (QUICK_ACTION_SETS[setName] || []);
       return html`<${QuickActions}
-        items=${QUICK_ACTION_SETS[setName] || []}
+        items=${items}
         catalog=${actions}
         onPress=${runQuickAction}
         flags=${quickActionFlags()} />`;

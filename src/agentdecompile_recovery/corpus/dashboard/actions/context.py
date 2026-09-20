@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from agentdecompile_recovery.corpus.contract import pipeline_stage_presentation
 from agentdecompile_recovery.corpus.dashboard.actions.catalog import env_defaults
 from agentdecompile_recovery.corpus.dashboard.common import query_db
 
@@ -30,4 +31,5 @@ def workbench_context() -> dict[str, Any]:
         "defaults": defaults,
         "binaries": binaries,
         "storeError": err,
+        "pipelineStages": pipeline_stage_presentation(),
     }

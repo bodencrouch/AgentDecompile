@@ -38,6 +38,9 @@ Use a small Group resolver: exact registered commands first, normalized register
 command names second, registry semantic aliases only to existing commands last.
 Never invoke a backend to resolve a name, and detect ambiguous command matches.
 Use registry.normalize_identifier for _is_cli_result_limit_param too.
+Collapse redundant normalized-equivalent long option declarations when native
+normalization makes them unnecessary; preserve the first public spelling, explicit
+destination, every short option and genuinely different semantic alias.
 Inline checks: native Click parsing of representative canonical/camel/Pascal/snake/
 kebab/uppercase long flags and command names, unchanged path/JSON values, boolean
 flags, exact curated command precedence, semantic aliases, short-option casing,

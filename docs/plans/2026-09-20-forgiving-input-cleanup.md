@@ -290,15 +290,21 @@ Repair database/pair overlap under the existing JobStore lock: exclusive DB
 blocks every pair on that DB; active pair blocks exclusive DB and the identical
 directed run/pair, but permits other directed pairs and other DBs. Release only
 the current job's entries on success/failure/cancellation; pre-acquisition cancel
-must not release another owner. Reuse existing dictionaries/locking, no generic
+must not release another owner. Cleanup must cover failures after the first
+acquisition, including running-status persistence and cwd resolution; final
+persistence errors must not bypass release. Track actual ownership/acquisition
+instead of decrementing worker counts for cancelled queued work.
+Reuse existing dictionaries/locking, no generic
 resource framework or cross-process serialization claim. Move the single
 GHIDRA_MUTATE exception to apply-annotations parser ghidra_exclusive metadata,
 projected through existing ActionSpec; preserve its exact locking behavior and
 the distinct MCP mutation rule. Preserve remaining Ghidra policy,
 external ownership, coordinator exemptions, queues and durable-history semantics.
 Inline AST-extracted actual admission logic and parser projection checks must
-cover the full scope set and overlap/release matrix in the preflight. No real
-JobStore construction or thread/process/executor operations. Compile in memory,
+cover the full scope set and overlap/release matrix in the preflight, including
+setup/persistence failure injection against actual extracted lifecycle code with
+inert executors and in-memory jobs. No real JobStore construction or thread,
+process or filesystem executor operations. Compile in memory,
 report full runnable commands/output, self-review and commit own source only.
 
 ## Task 10: Derive pipeline presentation from its existing contract
@@ -318,7 +324,9 @@ Preserve existing stage quick-action project gating and flags explicitly in the
 record where catalog policy is not equivalent; do not infer safety from names.
 Keep Stages/Run pipeline launchers and other non-pipeline quick sets unchanged.
 Action fields/defaults still belong to the live action catalog. Missing metadata
-must not create guessed stage actions; missing catalog actions stay disabled.
+must not create guessed stage actions. New derived stage items with missing
+catalog actions are disabled (intentional fail-closed change); do not change
+shared QuickActions behavior for existing non-pipeline items.
 Do not touch internal workflow.STAGES, proof semantics, receipts or stage order.
 Inline Python/JS source extraction checks: baseline stage/alias/action equality,
 JSON serialization, insertion of a record reaches both projections, catalog
@@ -331,13 +339,16 @@ commands/output, snapshot versus refactor commits and limitations; self-review.
 Own only src/agentdecompile_recovery/pipeline.py. Read Global Constraints and
 resume-consolidation-preflight.md. Compute the two repeated stage-relevance
 predicates once in stage_config and reuse them across their existing fields.
-Preserve all 33 keys and every conditional fallback, path conversion and tuple
+Preserve all 33 base keys and every conditional fallback, path conversion and tuple
 conversion, including synthesis limit 25 in config but 50 outside relevant stages.
 Do not introduce dataclass metadata, configuration interpreters, new receipt
 schemas or shared plugin cache policy. Existing stage_config already owns its
 projection; terminal plugin reuse has different source/toolchain/proof inputs.
 Pure AST-extracted baseline/new full dictionary and SHA fingerprint equivalence
 across every stage plus unknown stages and false/zero/empty/custom configs.
+Compare complete dictionaries including conditional acquisitionIdentity,
+freshEnrichmentIdentity and sourceProject success/error branches with inert
+identity methods/project resolver; checking only the base literal is insufficient.
 Compile in memory, report complete runnable check/output and commit own source.
 This is a modest local deletion, not stronger receipt verification.
 

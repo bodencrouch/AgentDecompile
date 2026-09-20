@@ -7,6 +7,13 @@ Start with [README.md](README.md), [USAGE.md](USAGE.md), the
 Search [documented solutions](docs/solutions/README.md) by module or tag before
 changing MCP/Ghidra integration.
 
+Frontend requirements are consolidated in [FRONTEND_INTENT.md](docs/FRONTEND_INTENT.md)
+with source locators and supersession decisions; [DELIVERY_STATUS.md](docs/DELIVERY_STATUS.md)
+separates implementation from observed outcomes. The optional full Vite application
+(default5174, packageable at /react/) and the static8080 alternative share backend
+capabilities/state. The recovery-operation port restriction below does not turn
+Vite into a development-preview-only product or replace static /dashboard.
+
 ## Recovery operations
 
 - AgentDecompile is the only active recovery checkout. The

@@ -1,0 +1,737 @@
+[
+  {
+    "path": ".agents/skills/agentdecompile-rewrite-worker/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/agentdecompile-server-env/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/bsim-corpus/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/lfg/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/lfg/references/next-work-handoff.md",
+    "disposition": "unchanged",
+    "reason": "Former shipping helper reference, no longer routed by project lfg; retained as historical/general-development material, not active authority."
+  },
+  {
+    "path": ".agents/skills/lfg/references/review-followup.md",
+    "disposition": "unchanged",
+    "reason": "Former shipping helper reference, no longer routed by project lfg; retained as historical/general-development material, not active authority."
+  },
+  {
+    "path": ".agents/skills/lfg/references/tracker-defer.md",
+    "disposition": "unchanged",
+    "reason": "Former shipping helper reference, no longer routed by project lfg; retained as historical/general-development material, not active authority."
+  },
+  {
+    "path": ".agents/skills/mcp-debugging/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/mcp-debugging/references/CLAUDE_MCP_DEBUG.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/mcp-debugging/references/CLIS_AND_META_DEBUG.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/mcp-debugging/references/WORKFLOWS.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/re-aggregator/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/re-critic/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/re-planner/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/re-worker/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/skill-authoring/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/skill-authoring/references/SITE.md",
+    "disposition": "unchanged",
+    "reason": "Skill format reference only; current authoring body supplies repository authority and validation restriction."
+  },
+  {
+    "path": ".agents/skills/source-command-capabilities/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/source-command-help/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/source-command-lfg/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/source-recovery/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".agents/skills/tiered-re-analysis/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".agents/skills/web-design-guidelines/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Vendored design guidance and sync contract; no recovery/startup policy conflict identified."
+  },
+  {
+    "path": ".agents/skills/web-design-guidelines/SYNC.md",
+    "disposition": "unchanged",
+    "reason": "Vendored design guidance and sync contract; no recovery/startup policy conflict identified."
+  },
+  {
+    "path": ".agents/skills/workbench-operator/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".claude-plugin/marketplace.json",
+    "disposition": "unchanged",
+    "reason": "Package discovery metadata only; startup owned by edited plugin manifest."
+  },
+  {
+    "path": ".claude-plugin/plugin.json",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".claude/skills/agentdecompile-rewrite-worker/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".claude/skills/agentdecompile-server-env/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".claude/skills/bsim-corpus/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".claude/skills/lfg/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".claude/skills/lfg/references/next-work-handoff.md",
+    "disposition": "unchanged",
+    "reason": "Former shipping helper reference, no longer routed by project lfg; retained as historical/general-development material, not active authority."
+  },
+  {
+    "path": ".claude/skills/lfg/references/review-followup.md",
+    "disposition": "unchanged",
+    "reason": "Former shipping helper reference, no longer routed by project lfg; retained as historical/general-development material, not active authority."
+  },
+  {
+    "path": ".claude/skills/lfg/references/tracker-defer.md",
+    "disposition": "unchanged",
+    "reason": "Former shipping helper reference, no longer routed by project lfg; retained as historical/general-development material, not active authority."
+  },
+  {
+    "path": ".claude/skills/mcp-debugging/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".claude/skills/mcp-debugging/references/CLAUDE_MCP_DEBUG.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".claude/skills/mcp-debugging/references/CLIS_AND_META_DEBUG.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".claude/skills/mcp-debugging/references/WORKFLOWS.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".claude/skills/re-aggregator/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".claude/skills/re-critic/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".claude/skills/re-planner/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".claude/skills/re-worker/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".claude/skills/skill-authoring/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".claude/skills/source-recovery/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".claude/skills/tiered-re-analysis/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".claude/skills/web-design-guidelines/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Vendored design guidance and sync contract; no recovery/startup policy conflict identified."
+  },
+  {
+    "path": ".claude/skills/web-design-guidelines/SYNC.md",
+    "disposition": "unchanged",
+    "reason": "Vendored design guidance and sync contract; no recovery/startup policy conflict identified."
+  },
+  {
+    "path": ".claude/skills/workbench-operator/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".cursor/commands/capabilities.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".cursor/commands/help.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".cursor/commands/lfg.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".cursor/prompts/ralphy-archive.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".cursor/prompts/ralphy-implement.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".cursor/prompts/ralphy-plan.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".cursor/prompts/ralphy-validate.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".cursor/settings.json",
+    "disposition": "unchanged",
+    "reason": "Existing local plugin enablement only; no MCP process configuration."
+  },
+  {
+    "path": ".cursor/skills/bsim-corpus/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".cursor/skills/lfg/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".cursor/skills/mcp-debugging/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".cursor/skills/mcp-debugging/references/CLAUDE_MCP_DEBUG.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".cursor/skills/mcp-debugging/references/CLIS_AND_META_DEBUG.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".cursor/skills/mcp-debugging/references/WORKFLOWS.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".cursor/skills/re-aggregator/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".cursor/skills/re-critic/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".cursor/skills/re-planner/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".cursor/skills/re-worker/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".cursor/skills/skill-authoring/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".cursor/skills/source-recovery/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".cursor/skills/tiered-re-analysis/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".cursor/skills/workbench-operator/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": ".github/agents/README.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".github/agents/re-aggregator.agent.md",
+    "disposition": "unchanged",
+    "reason": "Copilot metadata and loader only; routes to reconciled canonical role."
+  },
+  {
+    "path": ".github/agents/re-critic.agent.md",
+    "disposition": "unchanged",
+    "reason": "Copilot metadata and loader only; routes to reconciled canonical role."
+  },
+  {
+    "path": ".github/agents/re-planner.agent.md",
+    "disposition": "unchanged",
+    "reason": "Copilot metadata and loader only; routes to reconciled canonical role."
+  },
+  {
+    "path": ".github/agents/re-worker.agent.md",
+    "disposition": "unchanged",
+    "reason": "Copilot metadata and loader only; routes to reconciled canonical role."
+  },
+  {
+    "path": ".github/copilot-instructions.md",
+    "disposition": "unchanged",
+    "reason": "Already reconciled and reviewed in Task 1 at 8f3d6281; preserved."
+  },
+  {
+    "path": ".github/instructions/re-artifact-protocol.instructions.md",
+    "disposition": "unchanged",
+    "reason": "Already reconciled and reviewed in Task 1 at 8f3d6281; preserved."
+  },
+  {
+    "path": ".kilocode/rules/memory-service.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".mission/assumptions.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".mission/decisions.md",
+    "disposition": "unchanged",
+    "reason": "Dated historical decision/verification evidence; inspected canonical contents and intentionally unchanged."
+  },
+  {
+    "path": ".mission/mission.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".mission/queue.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".mission/roles.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".mission/state.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".mission/verification.md",
+    "disposition": "unchanged",
+    "reason": "Dated historical decision/verification evidence; inspected canonical contents and intentionally unchanged."
+  },
+  {
+    "path": ".roo/rules/memory-service.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": ".vscode/mcp.json",
+    "disposition": "unchanged",
+    "reason": "Existing empty server map; JSONC configuration does not start servers."
+  },
+  {
+    "path": "AGENTS.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "CONCEPTS.md",
+    "disposition": "unchanged",
+    "reason": "Already reconciled and reviewed in Task 1 at 8f3d6281; preserved."
+  },
+  {
+    "path": "CONTRIBUTING.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "METHODOLOGY.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "README.md",
+    "disposition": "unchanged",
+    "reason": "Already reconciled and reviewed in Task 1 at 8f3d6281; preserved."
+  },
+  {
+    "path": "SECURITY.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "STRATEGY.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "TOOLS_LIST.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "USAGE.md",
+    "disposition": "unchanged",
+    "reason": "Already reconciled and reviewed in Task 1 at 8f3d6281; preserved."
+  },
+  {
+    "path": "VISION.md",
+    "disposition": "unchanged",
+    "reason": "Already reconciled and reviewed in Task 1 at 8f3d6281; preserved."
+  },
+  {
+    "path": "docs/CONTEXT_FUSION.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "docs/CORPUS_PIPELINE.md",
+    "disposition": "unchanged",
+    "reason": "Already reconciled and reviewed in Task 1 at 8f3d6281; preserved."
+  },
+  {
+    "path": "docs/CRITICAL_PATH.md",
+    "disposition": "unchanged",
+    "reason": "Already reconciled and reviewed in Task 1 at 8f3d6281; preserved."
+  },
+  {
+    "path": "docs/HERO.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "docs/IMPORT_EXPORT_GUIDE.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "docs/INDEX.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "docs/MCP_CONFIGURATION_SECURITY.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "docs/MCP_Resources_Zero_Arg_Tools_Research.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "docs/PROTOTYPE_OUTCOMES.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "docs/Podman-Windows-Complete-Setup-Guide.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "docs/PyGhidra_API_Reference.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "docs/PyGhidra_API_Reference_AUDIT.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "docs/QUICKSTART_IMPORT_EXPORT.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "docs/RUNTIME_REUSE.md",
+    "disposition": "unchanged",
+    "reason": "Already reconciled and reviewed in Task 1 at 8f3d6281; preserved."
+  },
+  {
+    "path": "docs/SharedProjectCLI.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "docs/UNITY_RECONSTRUCTION.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "docs/UPSTREAM_DONOR_ARCHIVE.md",
+    "disposition": "unchanged",
+    "reason": "Already reconciled and reviewed in Task 1 at 8f3d6281; preserved."
+  },
+  {
+    "path": "docs/agent-native-architecture-review-2026-05-24.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "docs/agent-native-review-prompt-providers.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "docs/audits/README.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "docs/corpus/README.md",
+    "disposition": "unchanged",
+    "reason": "Already reconciled and reviewed in Task 1 at 8f3d6281; preserved."
+  },
+  {
+    "path": "docs/e2e_shared_local_checkout_sync.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "docs/plans/README.md",
+    "disposition": "unchanged",
+    "reason": "Already reconciled and reviewed in Task 1 at 8f3d6281; preserved."
+  },
+  {
+    "path": "docs/prototypes/README.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "docs/session-handling.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "docs/solutions/README.md",
+    "disposition": "unchanged",
+    "reason": "Technical, security or general-development reference; AGENTS/STRATEGY govern current recovery. Retained without changing historical evidence."
+  },
+  {
+    "path": "skills/README.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "skills/bsim-corpus/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "skills/lfg/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "skills/lfg/references/next-work-handoff.md",
+    "disposition": "unchanged",
+    "reason": "Former shipping helper reference, no longer routed by project lfg; retained as historical/general-development material, not active authority."
+  },
+  {
+    "path": "skills/lfg/references/review-followup.md",
+    "disposition": "unchanged",
+    "reason": "Former shipping helper reference, no longer routed by project lfg; retained as historical/general-development material, not active authority."
+  },
+  {
+    "path": "skills/lfg/references/tracker-defer.md",
+    "disposition": "unchanged",
+    "reason": "Former shipping helper reference, no longer routed by project lfg; retained as historical/general-development material, not active authority."
+  },
+  {
+    "path": "skills/mcp-debugging/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "skills/mcp-debugging/references/CLAUDE_MCP_DEBUG.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "skills/mcp-debugging/references/CLIS_AND_META_DEBUG.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "skills/mcp-debugging/references/WORKFLOWS.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "skills/re-aggregator/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "skills/re-critic/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "skills/re-planner/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "skills/re-worker/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "skills/skill-authoring/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "skills/skill-authoring/references/SITE.md",
+    "disposition": "unchanged",
+    "reason": "Skill format reference only; current authoring body supplies repository authority and validation restriction."
+  },
+  {
+    "path": "skills/source-recovery/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": "skills/tiered-re-analysis/SKILL.md",
+    "disposition": "changed",
+    "reason": "Reconciled in Task 2; exact canonical and final bytes in task-2-manifest.json."
+  },
+  {
+    "path": "skills/web-design-guidelines/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Vendored design guidance and sync contract; no recovery/startup policy conflict identified."
+  },
+  {
+    "path": "skills/web-design-guidelines/SYNC.md",
+    "disposition": "unchanged",
+    "reason": "Vendored design guidance and sync contract; no recovery/startup policy conflict identified."
+  },
+  {
+    "path": "skills/workbench-operator/SKILL.md",
+    "disposition": "unchanged",
+    "reason": "Client loader already routes to the reconciled canonical body, or source-recovery/workbench body completed in Task 1; no duplicate policy edit needed."
+  },
+  {
+    "path": "src/CLAUDE.md",
+    "disposition": "unchanged",
+    "reason": "Already reconciled and reviewed in Task 1 at 8f3d6281; preserved."
+  },
+  {
+    "path": "src/agentdecompile_cli/CLAUDE.md",
+    "disposition": "unchanged",
+    "reason": "Already reconciled and reviewed in Task 1 at 8f3d6281; preserved."
+  },
+  {
+    "path": "src/agentdecompile_recovery/corpus/dashboard/frontend/README.md",
+    "disposition": "unchanged",
+    "reason": "Already reconciled and reviewed in Task 1 at 8f3d6281; preserved."
+  }
+]

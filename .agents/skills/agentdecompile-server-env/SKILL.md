@@ -10,19 +10,23 @@ metadata:
 
 # AgentDecompile server environment
 
-Start paths: `README.md`. Full env-var and HTTP-header catalog: `USAGE.md`. Bind and MCP HTTP auth: `docs/MCP_CONFIGURATION_SECURITY.md`. Session ids: `docs/session-handling.md`.
+Read [AGENTS](../../../AGENTS.md) for current operations,
+[USAGE](../../../USAGE.md) for environment/session reference and
+[MCP security](../../../docs/MCP_CONFIGURATION_SECURITY.md) for authentication.
 
-## First run
+Attach to the existing `http://127.0.0.1:8080/mcp`. The project plugin uses native
+HTTP configuration and starts no proxy, JVM or dashboard. If a client requires
+stdio, the existing `agentdecompile-proxy --transport stdio --backend-url
+http://127.0.0.1:8080/mcp` with `AGENT_DECOMPILE_WEBUI_ENABLED=false` is the
+compatibility option. Source: `src/agentdecompile_cli/server.py:proxy_main` and
+`src/agentdecompile_cli/webui.py:launch_webui_sidecar`. Inspection is not a
+successful client-connection claim.
 
-1. Set `GHIDRA_INSTALL_DIR` to the real Ghidra install folder name.
-2. Stdio: `uv run mcp-agentdecompile`. HTTP: `uv run agentdecompile-server -t streamable-http` then `http://127.0.0.1:8080/mcp`.
-3. Do not set `AGENT_DECOMPILE_HOST=0.0.0.0` without `AGENT_DECOMPILE_AUTH_ENABLED` plus firewall/TLS.
-4. `AGENT_DECOMPILE_GHIDRA_SERVER_*` authenticates Ghidra Server, not the MCP listener.
+Do not start another server, switch ports, clear sessions or restart services
+during the current recovery mission. Diagnose an unavailable backend and report
+the owner/blocker. No systemctl. Ghidra Server uses RMI/SSL; its credentials and
+headers do not authenticate the MCP listener. Session IDs are not authentication.
 
-## Session and proxy
-
-Session IDs are not authentication. Send `mcp-session-id` on HTTP follow-ups. Use `tool-seq` when state must survive. Details: `docs/session-handling.md`.
-
-## Analysis tier
-
-`AGENT_DECOMPILE_TOOL_SURFACE` is `full`, `curated`, or `legacy`. See `USAGE.md` and `skills/tiered-re-analysis`.
+Global Codex MCP defaults are Hugging Face and Zapier; this project plugin does
+not change them. Local JVM setup requires the real Ghidra installation and Java
+as documented in USAGE, but those generic startup recipes are reference-only here.

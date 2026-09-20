@@ -1,3 +1,20 @@
+# Current routing — 2026-09-20
+
+The September 8–9 capsule below is retained as a dated snapshot, not current
+operating authority or live ownership evidence. Current operations follow
+[AGENTS](../AGENTS.md); pipeline priorities follow [STRATEGY](../STRATEGY.md).
+[Unfinished outcomes](../docs/PROTOTYPE_OUTCOMES.md) carries the recovered requests.
+The current thread goal is paused; this routing update does not resume it.
+
+Old active-role labels, port 8767/5174 instructions, test/build recipes, last-resort
+byte-window ordering and completion claims below are superseded or historical.
+Use existing 8080 only, corroborate current process ownership, reuse valid receipts,
+and keep runtime observations separate from recovery proof. True Python hot reload
+remains unimplemented; do not follow an old sidecar/restart next action. No systemctl.
+The original notes, decision records and verification history remain untouched.
+
+---
+
 # Operating Contract
 
 ## Original request

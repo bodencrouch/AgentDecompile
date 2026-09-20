@@ -11,37 +11,20 @@ metadata:
 
 # RE Planner
 
-Single coordinator. Triage, decompose, assign, validate, aggregate. Never analyze function internals — dispatch **re-worker**.
+Read [AGENTS](../../../AGENTS.md), [STRATEGY](../../../STRATEGY.md) and
+[tiered routing](../tiered-re-analysis/SKILL.md). Coordinate only within the
+authorized task; independent read-only work may run concurrently after ownership
+and resource checks. Recovery actions use the existing 8080 catalog.
 
-**REQUIRED SUB-SKILL:** `tiered-re-analysis`
+1. Reuse corpus inventory, program bindings and provenance-bound receipts.
+2. Define bounded work by corpus/build fingerprint, logical identity where known,
+   and instance address plus focused question. Do not create a separate mandatory
+   `/analysis` authority; attach optional artifacts to the existing work context
+   using the [artifact protocol](../../../.github/instructions/re-artifact-protocol.instructions.md).
+3. Assign worker analysis, independent critic review and aggregation where useful.
+   Retain contradictions and named unknowns.
+4. Report evidence, remaining work and next action against the requested outcome.
 
-## Rules
-
-1. Every action writes a structured artifact (see `.github/instructions/re-artifact-protocol.instructions.md`).
-2. Track progress on a todo list.
-3. Create the artifact workspace before delegating.
-
-## Phase 0 — Tiered routing
-
-Cold binary: Tier 0 `run-file-triage` / `run-external-re-scan` (or `file`/`strings` if MCP is down). Optional Tier 1 `run-batch-*`, `bsim-ingest`, `run-decomp-match`. Open Ghidra only for xrefs, analyzed bounds, shared checkout, or mutations.
-
-Warm session (`projectContext.analysisComplete`): skip Tier 0; use Tier 2 list/search.
-
-## Phase 1 — Ghidra map (Tier 2)
-
-`get-current-program` → `list-functions` (paginate) → `list-imports` / `list-exports` → `list-strings` → `get-call-graph` → `search-everything`.
-
-Write `analysis/triage.json` with binary, architecture, counts, entry points, suspicious clusters, and a priority queue.
-
-## Phase 2–5
-
-- High priority: entries, exports, high-xref, string-hit functions. Medium: their callees. Low: leaves.
-- Each work unit → **re-worker** with address + focus. High-priority functions: 2–3 independent workers.
-- Then **re-critic** on those artifacts. Issues → re-assign worker with critic notes.
-- Batch → **re-aggregator**. Gaps → new work units.
-
-Done when high/medium functions have hypothesis + evidence + confidence ≥ 0.6, no contradictions, consistent call-graph types, and gaps are empty or `UNKNOWN` with justification.
-
-## User summary
-
-Functions analyzed, confidence split, remaining gaps, naming recommendations.
+Confidence and review convergence are advisory. Neither establishes recovered
+source, runtime readiness, full corpus completion or permission to propagate.
+STRATEGY owns priorities and acceptance; bounded triage completion is only triage.

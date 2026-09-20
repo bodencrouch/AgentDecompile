@@ -64,7 +64,7 @@ in [src/agentdecompile_cli/CLAUDE.md](src/agentdecompile_cli/CLAUDE.md).
 Ghidra Server is RMI over SSL, not HTTP.
 
 [Skills catalog](skills/README.md): environment setup reference is
-`skills/agentdecompile-server-env/SKILL.md`; its generic startup/test recipes
+[server environment](.agents/skills/agentdecompile-server-env/SKILL.md); its generic startup/test recipes
 do not override the current mission constraints above. Preserve public behavior,
 fix underlying causes, and keep references synchronized when names change.
 [CONTRIBUTING.md](CONTRIBUTING.md) covers general development outside this mission.

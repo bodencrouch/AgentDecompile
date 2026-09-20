@@ -12,8 +12,8 @@
   "license": "AGPL-3.0-only",
   "mcpServers": {
     "agentdecompile": {
-      "command": "uv",
-      "args": ["run", "--project", "${CLAUDE_PLUGIN_ROOT}", "mcp-agentdecompile"]
+      "type": "http",
+      "url": "http://127.0.0.1:8080/mcp"
     }
   }
 }

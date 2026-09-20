@@ -54,6 +54,12 @@ The point is to reverse each function once and share the result across every bui
 
 ### Ghidra shared state
 
+Name precedence is human-authored annotations → STABS/original source paths →
+symbol-table/demangled names → meaningful Ghidra-derived names → placeholders.
+Preserve the winning tier, provenance, rejected alternatives and conflicts. This
+ordering applies to names; types/layouts/source retain their own compatibility
+and verification gates. No placeholder may replace a stronger name.
+
 One store, BSim, prompt evidence from this tree's venv CLI, session-stable `ensure-program`. Label/type edits flow through identity, not per-address copies. Ghidra Server is RMI over SSL, not HTTP.
 
 _Why it serves the approach:_ Cross-match metadata only works if Ghidra state and recovery receipts share the same program binding.
@@ -67,6 +73,32 @@ Runtime reuse is a parallel branch after sufficient identity/ABI evidence, not a
 [Runtime reuse](docs/RUNTIME_REUSE.md) records source pointers, architecture/ABI limits and missing readiness proof. Keep the core generic with target adapters and build profiles: all BioWare corpus builds remain in scope, with future other-game support requiring adapter work. A resolved address is not a universal C-call interface.
 
 ## Priority ladder (do not reorder)
+
+### Per-target loop and corpus roll-up
+
+The ladder below describes stages within recovery, not a single global pass that
+finishes the prototype. Drive one target through its requested byte-accurate source
+outcome; enrich/replace its Ghidra knowledge with justified recovered information;
+cross-match and apply eligible knowledge to sibling builds; repeat for the next
+target using that accumulated evidence. Keep a per-binary ladder and a corpus
+roll-up. Identity and field-level knowledge work may proceed concurrently, and
+compile-gated source may cross-place before full-image completion; this target
+loop must not block those useful branches or runtime reuse.
+
+Within a target, reuse STABS-derived workspace/templates where available, then
+Ghidra decompilation and deterministic preparse/sanitizer/helpers, compile, and
+cross-place only on compile success. Retry supported helpers on failures, then a
+bounded LLM cleanup and recompile. Byte verification, applicable m2c/permuter,
+Mizuchi and other recovery plugins address measured residue under cheap-first,
+LLM-last policy. Continue safe independent lanes when one tool/provider fails;
+never let orchestration consume the recovery work or relax acceptance.
+
+The user's “priorities 1–9” describes continuing the complete mission. This stage
+list has eight named stages; no ninth stage is inferred from that shorthand.
+[Unfinished outcomes](docs/PROTOTYPE_OUTCOMES.md) preserves the requested results
+and evidence gaps without becoming a separate priority authority.
+
+### Stages
 
 1. **Identity:** extract facts once; short-circuit identical images; then bind `logical_id` by independent channels (authentic symbols/provenance → unique exact/reloc hashes → rare refs / C++ metadata → neighborhood propagation → CFG/SPP → BSim significance → ABI → optional BinDiff/BinExport → optional emulation). Candidate generation is not acceptance. Preserve ambiguity; quarantine bad seeds. Do not re-analyze a program that already has Ghidra analysis unless incomplete or corrupted.
 2. **Global calibration:** compiler versions, flags, ABIs, and global struct layouts before per-function recovery.

@@ -10,6 +10,11 @@ metadata:
 
 # Author AgentDecompile skills
 
+Read [AGENTS](../../../AGENTS.md) and [STRATEGY](../../../STRATEGY.md) first.
+Current recovery operations use the existing 8080 catalog; CLI, test and startup
+recipes below are implementation references subject to the mission restrictions.
+
+
 Read [references/SITE.md](references/SITE.md) for every agentskills.io page. Do not stop at the specification.
 
 ## Available scripts
@@ -29,7 +34,7 @@ Paths in this skill are relative to the skill directory except the repo validato
 | Path | Why |
 |---|---|
 | `.agents/skills/<name>/` | VS Code / Copilot default ([quickstart](https://agentskills.io/skill-creation/quickstart.md)); cross-client scan path ([client implementation](https://agentskills.io/client-implementation/adding-skills-support.md)) |
-| `skills/<name>/` | Same files; human + git-friendly canonical copy |
+| `skills/<name>/` | Human-facing loaders pointing to the canonical `.agents/skills/` body |
 | `.cursor/skills/`, `.claude/skills/` | Client-native stubs; same `name`/`description`, then Read the canonical `SKILL.md` |
 
 Project skills override user skills. `name` must match the folder.
@@ -54,4 +59,4 @@ Do not pack the whole workflow into the description — the body loads only afte
 
 ## Subagents
 
-Copilot `.github/agents/*.agent.md` may keep Copilot-only keys (`tools`, `agents`). The procedure lives in `skills/re-*/SKILL.md`. Edit the skill; keep the agent as a loader.
+Copilot `.github/agents/*.agent.md` may keep Copilot-only keys (`tools`, `agents`). The procedure lives in `.agents/skills/re-*/SKILL.md`. Edit the skill; keep the agent as a loader.

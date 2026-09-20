@@ -7,8 +7,23 @@ metadata:
   version: "1.0"
 ---
 
-# tiered-re-analysis
+# Tiered RE analysis
 
-Canonical skill: [../../../.agents/skills/tiered-re-analysis/SKILL.md](../../../.agents/skills/tiered-re-analysis/SKILL.md)
+Read [AGENTS](../../../AGENTS.md) before operations and [STRATEGY](../../../STRATEGY.md)
+for matcher order and acceptance. Use existing 8080 catalog actions for recovery.
 
-Read that file immediately and follow it. Do not continue from this stub.
+| Tier | Use |
+|---|---|
+| 0 | Existing metadata, file triage, strings and static witnesses |
+| 1 | Stored batch decompilation, BSim and export evidence |
+| 2 | Read-only queries against existing analyzed Ghidra state |
+| 3 | Missing deep analysis or authorized mutations after ownership checks |
+
+Choose the cheapest sufficient evidence. First resolve program bindings and
+stored analysis; an empty view or a false session flag alone does not justify
+reanalysis. Reuse valid receipts, retain conflicts, and serialize shared writers.
+These tiers classify tools; they do not reorder the corpus matcher or prove
+recovery. Tool availability comes from the current advertised catalog.
+
+Historical [routing research](../../../docs/solutions/architecture-patterns/tiered-re-analysis-knowledgebase.md)
+is reference-only where its storage, confidence or operating rules differ.

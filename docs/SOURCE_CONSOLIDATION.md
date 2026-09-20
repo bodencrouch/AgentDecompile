@@ -151,6 +151,26 @@ whole-product completion evidence.
 
 ## Execution and evidence limits
 
+### Recovery follow-up: unused AST work
+
+After restoring the existing NVMe dashboard with explicit user authorization,
+live K1 job `7d44c7ca408a` exposed a normalization bottleneck. `clang_scribe`
+launched Clang per candidate, but `_apply_ast_edits` never populated its edit list.
+The isolated branch now retains the local dialect transformation and public entry
+point without that subprocess, temporary source, or unused traversal. Missing-Clang
+diagnostics are preserved. Metadata now says `used: false` and explains that no AST
+rewrites are implemented, rather than treating a successful parse as a rewrite.
+
+Seventy-two pure in-memory baseline/current source-output comparisons passed in
+both normalization modes with present, missing and failing AST results. Forty-eight
+baseline AST requests used inert capture stubs; the new production path has none.
+This is output-equivalence and call-elimination evidence, not a measured runtime
+speedup. The first check had a missing `NM` alias in its extraction harness; the
+corrected check passed. Runnable evidence is in the SDD progress ledger.
+
+This follow-up was self-reviewed, not part of the thirteen-task independent review.
+It has not been deployed into NVMe or injected into the active external worker.
+
 Work stays in the isolated worktree. Preserve canonical changes and the separate
 NVMe runtime. No filesystem tests, fixtures, temporary test inputs, additional
 servers, recovery workers, systemctl, process restarts, or direct recovery CLI

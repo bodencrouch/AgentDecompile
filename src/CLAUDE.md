@@ -20,7 +20,11 @@ This file provides guidance for Claude Code when working with the AgentDecompile
 - **Startup:** Initialize PyGhidra, create ProjectManager, setup MCP server
 - **Communication:** MCP server exposes tools via stdio or HTTP bridge, depending on connection mode
 
-## Testing Guidelines
+## Testing reference
+
+Current recovery mission constraints in [AGENTS.md](../AGENTS.md) take precedence:
+no filesystem tests, suites, builds, systemctl, process restarts or alternate ports.
+The recipes below apply only to separately authorized development outside that mission.
 
 ### Test Types and Locations
 
@@ -53,7 +57,7 @@ This file provides guidance for Claude Code when working with the AgentDecompile
 | PyGhidra import fails | Ensure Ghidra is installed; set `GHIDRA_INSTALL_DIR` |
 | Tool not found | Check normalization: `normalize_identifier('tool-name')` should resolve |
 | Test failures | Run `uv run pytest -v` for detailed output; check markers |
-| Port already in use | Change `port` or kill process on port: `lsof -ti:PORT \| xargs kill` |
+| Port already in use | Corroborate the existing 8080 owner, target and job; reuse it or report a blocker under AGENTS.md |
 
 ## Related Documentation
 

@@ -11,14 +11,19 @@ Skip a row when its receipt or Ghidra state already exists.
 | Stage | What it does | What it does not do |
 |---|---|---|
 | extract | Read functions already pulled from each binary | Re-analyze a program that already has Ghidra analysis |
-| identify | Bind the same function across builds to one `logical_id` (debug, content channels, BSim; byte-window last) | Copy C, or treat a VA as the identity |
+| identify | Bind the same function across builds to one `logical_id` (STRATEGY evidence-fusion cascade) | Copy C, or treat a VA as the identity |
 | calibrate-global | Solve compiler, flags, ABI, and global layouts once | Tune matcher score/margin (`corpus calibrate`) |
 | assembly-floor | One file per function; exact inline asm if no C; must link | Prove bytes |
 | recover-source | Write Ghidra C; keep asm on compile fail | Copy C or claim `byte_exact` |
 | apply-cross-build | Place compiling assembly-free C onto bound siblings | Place failing C or wrappers |
 | leftover-recover | Targeted AI / genproject on stamped leftovers only | Decompile a `logical_id` that already has `real_c` |
 | verify-byte-accuracy | Isolated objdiff vs the shipped binary | Confuse compile with match |
+| Whole-image acceptance (goal, not a new verb) | Fresh compile, exact-placement relink and whole-file comparison | Treat per-function parity or original-byte floor as recovered C |
+| Runtime reuse (parallel branch) | Supported bindings, adapters and independently observed feedback | Count calls into original code as source recovery |
 
 Old `--stop-after` names (`compile`, `generate-projects`, `merge-knowledge`, `preparse`, `llm-cleanup`) stay aliases for one release. `compile` means recover-source (C compiled), not the assembly-floor link.
 
-A VA is an instance of a `logical_id`. `corpus.export-hookpack` writes `agentdecompile.hookpack/v1` from the identity store so a host (KotorPhasor, or a clone for another corpus) can resolve by signature when the recorded address is missing or stale.
+Use the existing 8080 catalog for operations. Keep C+assembly-floor and max-C variants separately measured. A VA is an instance of a `logical_id`. `corpus.export-hookpack` writes `agentdecompile.hookpack/v1` from the identity store so a host (KotorPhasor, or a clone for another corpus) can resolve by signature when the recorded address is missing or stale.
+
+Exporter and loader presence do not prove a ready-to-call workflow. See
+[RUNTIME_REUSE.md](../RUNTIME_REUSE.md) for implemented seams and missing gates.

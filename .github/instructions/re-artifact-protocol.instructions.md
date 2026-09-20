@@ -7,15 +7,22 @@ applyTo: "**"
 
 ## Workspace Layout
 
-All agents in the RE pipeline share a structured workspace under `/analysis/` (relative to the working directory). This is the single source of ground truth.
+This optional analysis protocol uses a task-scoped directory only when needed.
+It is an advisory workspace, not another authoritative corpus store. Follow
+[AGENTS.md](../../AGENTS.md) for operations and [STRATEGY.md](../../STRATEGY.md)
+for evidence, identity and recovery acceptance. Existing corpus/Ghidra bindings
+remain authoritative for their claim types. Record binary digest/build, program
+binding, logical identity (when known), address/region, tool revision, provenance
+and conflicts; an address alone is not identity. The example below is relative
+to a chosen task workspace, not a required filesystem-root directory.
 
 ```
-/analysis/
+analysis/
   triage.json                    # Binary triage from Planner
   status.json                    # Current analysis status from Aggregator
   /functions/
-    0x401000.json                # Merged artifact per function (by address)
-    0x401200.json
+    <build>_<logical-or-region>.json # Advisory artifact with full provenance
+    <build>_<other-region>.json
   /worker_raw/
     0x401000_worker_1.json       # Raw Worker output (kept for audit)
     0x401000_worker_2.json
@@ -42,7 +49,7 @@ All agents in the RE pipeline share a structured workspace under `/analysis/` (r
 
 | Score | Level | Meaning |
 |-------|-------|---------|
-| 0.9–1.0 | Certain | String/API evidence, trivial wrapper, well-known pattern |
+| 0.9–1.0 | High advisory confidence | String/API evidence, trivial wrapper, well-known pattern |
 | 0.7–0.8 | High | Strong circumstantial, Critic-confirmed, caller-consistent |
 | 0.5–0.6 | Medium | Plausible, some gaps remain, partial evidence |
 | 0.3–0.4 | Low | Educated guess, significant unknowns |
@@ -50,13 +57,17 @@ All agents in the RE pipeline share a structured workspace under `/analysis/` (r
 
 ## Convergence Rules
 
-A function is **converged** when:
+These scores and stopping rules guide optional hypothesis review only. They do
+not establish corpus identity, safe ABI calls, compiling source, objdiff parity
+or whole-image recovery. See [runtime readiness](../../docs/RUNTIME_REUSE.md).
+
+A hypothesis is **review-converged** when:
 1. Confidence ≥ 0.6
 2. Critic has reviewed and not disputed core hypothesis
 3. No `blocking` gaps remain
 4. Types are consistent with all callers and callees
 
-The analysis is **complete** when:
+The scoped advisory review may stop when:
 1. All high/medium priority functions are converged
 2. No cross-function type inconsistencies exist
 3. Call graph is fully consistent
@@ -73,7 +84,7 @@ Use Ghidra MCP **only when necessary**. Full matrix: `docs/solutions/architectur
 | 2 | MCP read-only | `list-*`, `search-*`, `get-references`, `get-call-graph` |
 | 3 | MCP deep/mutate | `decompile-function`, `analyze-data-flow`, `manage-*`, `match-function` |
 
-**Planner:** Tier 0 triage before `open-project` on cold binaries. **Worker/Critic:** Tier 2 before Tier 3. **Aggregator:** Tier 3 mutations only when confidence ≥ 0.7.
+**Planner:** Tier 0 triage before `open-project` on cold binaries. **Worker/Critic:** Tier 2 before Tier 3. **Aggregator:** a score alone never authorizes Tier 3 mutation; use field-level evidence, type/layout gates and the ordinary modification-conflict flow.
 
 ## MCP Tool Mapping
 
@@ -115,11 +126,9 @@ These are the AgentDecompile MCP tools available for each analysis phase:
 - `match-function` — cross-binary function matching
 - `execute-script` — arbitrary PyGhidra script (last resort)
 
-### Naming Conventions (from project standards)
-- Local variables / parameters: `camelCase`
-- Struct fields: `snake_case`
-- Types / classes: `PascalCase`
-- Enum constants: `SCREAMING_SNAKE_CASE`
+### Naming conventions
+
+Use [AGENTS.md](../../AGENTS.md), the single naming reference.
 
 ## Anti-Hallucination Rules
 

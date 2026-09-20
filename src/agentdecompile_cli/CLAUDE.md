@@ -1,6 +1,6 @@
 # CLAUDE.md - `agentdecompile_cli` Working Guide
 
-This guide is for contributors/agents working specifically in `src/agentdecompile_cli`. User how-to: [USAGE.md](../../USAGE.md). Repo rules: [AGENTS.md](../../AGENTS.md). Root pointer: [CLAUDE.md](../../CLAUDE.md).
+This guide is for contributors/agents working specifically in `src/agentdecompile_cli`. User how-to: [USAGE.md](../../USAGE.md). Repo rules: [AGENTS.md](../../AGENTS.md).
 
 ```mermaid
 flowchart TD
@@ -76,7 +76,7 @@ Before changing any tool behavior:
 ## 8) MCP Tool Advertisement Guidance
 
 For advertised schemas and docs:
-- Prefer canonical snake_case for displayed names/params.
+- Follow [USAGE.md](../../USAGE.md): canonical tool names are kebab-case and JSON keys camelCase.
 - Keep execution compatibility broad through normalization.
 - Ensure schema reflects what handlers actually accept/require.
 
@@ -102,6 +102,12 @@ When touching bridge/server forwarding paths:
 - Keep one behavior path from CLI/MCP to provider handlers.
 
 ## 12) Testing Priorities in This Package
+
+These are general development references. For the current recovery mission,
+[AGENTS.md](../../AGENTS.md) forbids filesystem tests and duplicate servers/writers;
+use read-only documentation checks and authorized 8080 observations. Neither
+confidence scores nor successful tool calls replace [STRATEGY.md](../../STRATEGY.md)
+acceptance or [runtime readiness](../../docs/RUNTIME_REUSE.md).
 
 Primary confidence tests after behavior changes:
 - Provider-specific tests under `tests/test_provider_*.py` for the area you touched
@@ -162,7 +168,7 @@ If adding skill/workflow docs in the repo:
 - When Ghidra exposes multiple overloads for the same operation (e.g. `Listing.getComment` variants), support both with try/fallback for compatibility across backends.
 - Comments, bookmarks, function rename/prototype, function-tags, create-label, and manage-symbols are advertised by default (not in registry _DEFAULT_HIDDEN_TOOLS or CLI curated-only list).
 - Cross-binary match-function uses signature (param count, return type), name, and call graph (caller/callee names) to find the same function in another binary; it does not use byte or instruction-level comparison, so it works when addresses, registers, and stack layout differ across builds.
-- Strict proof sequence `/lfg` is defined in `.cursor/commands/lfg.md` (shared Ghidra Server, MCP restarts, `tool-seq`). For automation, avoid unmodified stock `ghidraSvr.bat console` (separate JVM window and poor terminal logging); use the driver's patched background start or a dedicated Ghidra window per that doc.
+- Historical `/lfg` recipes do not authorize MCP/Ghidra restarts or a duplicate owner in the current mission. Follow AGENTS.md and the existing 8080 catalog.
 - Setting `AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY` (or the legacy alias) on the MCP server process can make shared-session bootstrap treat the repository name as a program key; LFG scripting avoids exporting repository into MCP env, and program activation skips treating the repo name as a program when it matches the open shared handle's repository.
 - ContextStream Claude Code hooks should be launched via `scripts/contextstream_claude_hook.ps1` (or a stable copy under `~/.claude/scripts`), resolving the global `@contextstream/mcp-server` install instead of stale `npx` cache paths to `index.js`.
 - For JPype buffers passed to Ghidra `Memory.getBytes`, allocate with `jpype.JArray(jpype.JByte)(length)`; Pyright may need `cast(Any, ...)` around the constructor when stubs disagree.

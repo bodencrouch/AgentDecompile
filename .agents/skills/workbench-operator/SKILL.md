@@ -9,25 +9,21 @@ metadata:
 
 # Workbench operator
 
-The 8080/8767 workbench is the human loop for the same catalog agents call. It is not a settings page or a Swagger wrapper.
+Read [AGENTS.md](../../../AGENTS.md) for operations and
+[STRATEGY.md](../../../STRATEGY.md) for recovery policy. Use the existing 8080
+workbench and its action catalog.
 
-## Default loop
+Open the intended existing repository/program. If functions are absent, inspect
+selection, Ghidra analysis and corpus program binding before initiating work.
+An empty UI does not authorize forced Analyze or BSim regeneration. Reuse valid
+analysis and receipts; run only justified missing stages through the catalog.
+Inspect real function interactions and resulting evidence; job success or a
+screenshot is not recovery proof.
 
-1. File → Open a Ghidra repository (shared-fs / `.gpr` / `ghidra://`).
-2. Pick a **program** in Explorer (not an Import slug unless you want corpus-SQLite).
-3. Functions + Listing should show that program. Empty list → Analyze → Ingest repository into BSim (skill `bsim-corpus`), then Refresh.
-4. Select a function → Listing tools (decompile, comment, label, xrefs) via the action strip. **Run**, do not only open the strip.
-5. Jobs stay in the dock. Finished ≠ match.
-
-## Implementation rules
-
-- Authoritative UI: `src/agentdecompile_recovery/corpus/dashboard/static/workbench-app.js`.
-- After UI changes: restart the dogfood server (do **not** click Restart/Shutdown in the page). Playwright-verify. Do not use curl as the proof.
-- If the port is wedged (listen but no HTTP, or D-state): kill −9 or switch port. Never idle-wait.
-- Do not claim Functions work from leftover `target/` or backfilled JSONL.
-
-## Anti-patterns
-
-- Treating the Functions window as corpus-only when a Ghidra program is selected.
-- Burying BSim ingest in a 193-command list with no Analyze menu.
-- Declaring the dashboard done from a screenshot.
+Static workbench source remains `dashboard/static/workbench-app.js`; React
+source lives in `dashboard/frontend/` with packaged assets in `static/react/`.
+Consult the [interface guide](../../../src/agentdecompile_recovery/corpus/dashboard/frontend/README.md)
+and the active 8080 serving mode. React is the strategy; source/asset presence
+does not prove a completed migration or runtime parity. Do not restart, kill
+on-port or switch ports for validation. Follow AGENTS.md ownership and mission
+constraints; [runtime reuse](../../../docs/RUNTIME_REUSE.md) has separate gates.

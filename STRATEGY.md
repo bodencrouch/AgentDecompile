@@ -1,6 +1,6 @@
 ---
 name: AgentDecompile
-last_updated: 2026-09-09
+last_updated: 2026-09-20
 charter: VISION.md
 active_living_plan: docs/plans/2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md
 ---
@@ -17,7 +17,7 @@ The end state is not per-function byte parity — it is a **whole-image byte-ide
 
 ## Our approach
 
-Link the builds, recover on the easiest one, and propagate. Treat **cross-build identity**, **code equality**, and **behavioral equivalence** as separate claims—never collapse them into one similarity score. Extract fingerprints once; reuse them. Prefer authoritative debug/provenance and unique exact evidence, then rare refs and neighborhood propagation, then structure/BSim, then optional second-opinion tools and emulation only on the residue. Require uniqueness and a margin; keep ambiguity and alternatives instead of inventing a pair. When inlining or fission breaks one-to-one boundaries, match regions—not forced 1↔1. A `logical_id` bind does not by itself authorize copying types, layouts, or recovered source; those have their own gates. Hook-pack export still picks one portable signature family. Do not re-run Ghidra analysis on a program that already has it. Calibrate compiler/ABI/layout once, scaffold, compile C, cross-place, leftover AI, objdiff last. One catalog on 8080.
+Link the builds, recover on the easiest one, and propagate. Treat **cross-build identity**, **code equality**, and **behavioral equivalence** as separate claims—never collapse them into one similarity score. Extract fingerprints once; reuse them. Prefer authoritative debug/provenance and unique exact evidence, then rare refs and neighborhood propagation, then structure/BSim, then optional second-opinion tools and emulation only on the residue. Require uniqueness and a margin; keep ambiguity and alternatives instead of inventing a pair. When inlining or fission breaks one-to-one boundaries, match regions—not forced 1↔1. A `logical_id` bind does not by itself authorize copying types, layouts, or recovered source; those have their own gates. Hook-pack export still picks one portable signature family. Do not re-run Ghidra analysis on a program that already has it. Calibrate compiler/ABI/layout once, scaffold, compile C, cross-place, leftover AI, objdiff, then fresh whole-image acceptance. One catalog on 8080.
 
 ## Who it's for
 
@@ -44,7 +44,7 @@ _Why it serves the approach:_ Agents and humans must share one catalog and one p
 
 ### Corpus recovery pipeline
 
-Extract facts → `logical_id` (evidence-fusion cascade) → global calibration → scaffolding (assembly floor) → readable C (`ghidra-bulk`) → propagation (`cross-place`) → targeted AI on leftovers → parity (objdiff) last. Skip a step when its receipt or Ghidra state already exists. Parallelize analysis, evidence extract, bulk C, and cheap index queries; run pairwise graph or emulation only on the residue. Serialize `logical_id` writes, mutations to one Ghidra project, and isolated compiler/objdiff environments.
+Extract facts → `logical_id` (evidence-fusion cascade) → global calibration → scaffolding (assembly floor) → readable C (`ghidra-bulk`) → propagation (`cross-place`) → targeted AI on leftovers → parity (objdiff) → fresh whole-image acceptance. Skip a step when its receipt or Ghidra state already exists. Within measured memory/swap and ownership limits, parallelize independent analysis, evidence extract, bulk C, and cheap index queries; run pairwise graph or emulation only on the residue. Serialize `logical_id` writes, mutations to one Ghidra project, and isolated compiler/objdiff environments.
 
 _Why it serves the approach:_ Recover once on the easy build and share the win. Do not reverse twenty versions independently.
 
@@ -60,9 +60,11 @@ _Why it serves the approach:_ Cross-match metadata only works if Ghidra state an
 
 ### Portable identity / hook-pack export
 
-`corpus.export-hookpack` writes a Phasor-shaped pack: logical site names, the preferred signature family, and per-build addrs only as a cache. Binding a `logical_id` may use several independent channels; the pack still exports one family a host can resolve without the corpus. KotorPhasor (or a clone for another corpus) resolves by unique `expected_bytes` when the recorded VA is missing or stale. Game names stay in data packs, not the resolver.
+The implemented `corpus.export-hookpack` is advertised through the 8080 catalog. It exports identities, signature strings and per-build instances; it does not prove a ready-to-call adapter. KotorPhasor already loads v1 packs and overlays, admits known builds and can fall back from a stale address hint to a unique executable-region byte scan. Matching hints and instances without expected bytes retain weaker checks. Export site names/build slugs must map to native adapter keys/profiles; raw export is not automatically drop-in.
 
-_Why it serves the approach:_ The matcher already refuses raw addresses. A hook host that still keys on `0x005D45D0` per exe repeats the hunt the corpus just finished.
+Runtime reuse is a parallel branch after sufficient identity/ABI evidence, not a mandatory stage after full recovery. Shared corpus → runtime pack and target bindings → supported typed adapter or cave plan → preflight → controlled install/call → independently observed behavior → provenance feedback. KotorPhasor consumes original binaries; it does not replace recovery or turn original bytes into recovered C. Feed names, types, fields and behavioral observations back through the same field-level evidence gates.
+
+[Runtime reuse](docs/RUNTIME_REUSE.md) records source pointers, architecture/ABI limits and missing readiness proof. Keep the core generic with target adapters and build profiles: all BioWare corpus builds remain in scope, with future other-game support requiring adapter work. A resolved address is not a universal C-call interface.
 
 ## Priority ladder (do not reorder)
 
@@ -77,9 +79,11 @@ _Why it serves the approach:_ The matcher already refuses raw addresses. A hook 
 
 ## Whole-image byte identity (dedicated track)
 
-Per-function objdiff-0 and a whole-image byte-identical rebuild are **separate claims** — the second is the project's terminal deliverable and the harder one. A source project can have every function compile byte-exact and still relink to a different file, because the linker owns layout: virtual addresses, section order and padding, the PE/ELF header fields, the import table / IAT, TLS, resources, and the base-relocation table. Closing this needs an exact-placement link: a layout spec derived from the original image (per-symbol VA, section geometry, header bytes, reloc sites) that the link honors, plus a rebuild-validation stage that compares whole-file hashes and localizes any residual byte delta back to the owning function/section. Assembly-floor bodies (embedded original bytes) guarantee per-function parity and let the image link early; each is then replaced by real C that must still pass both the per-function gate and the whole-image relink. Until a build produces a file whose hash equals the shipped binary, whole-image recovery is unproven — say so plainly and keep the exact-placement work visible on the ladder.
+Per-function objdiff-0 and a whole-image byte-identical rebuild are **separate claims** — the second is the project's terminal deliverable and the harder one. A source project can have every function compile byte-exact and still relink to a different file, because the linker owns layout: virtual addresses, section order and padding, the PE/ELF header fields, the import table / IAT, TLS, resources, and the base-relocation table. Closing this needs an exact-placement link: a layout spec derived from the original image (per-symbol VA, section geometry, header bytes, reloc sites) that the link honors, plus a rebuild-validation stage that compares whole-file hashes and localizes any residual byte delta back to the owning function/section. Assembly-floor bodies preserve original instruction bytes and let the image link early; placement and relocation still require verification. Each is then replaced by real C that must still pass both the per-function gate and the whole-image relink. Until a build produces a file whose hash equals the shipped binary, whole-image recovery is unproven — say so plainly and keep the exact-placement work visible on the ladder.
 
 _Why it serves the approach:_ "Decompiled" means rebuildable to the original artifact, not just readable per function. Without this tier the corpus can look 100% recovered while no build reproduces the shipped file — the exact gap the mission audit flagged as never proven.
+
+Maintain two separately measured variants: **byte-accurate C+assembly-floor**, with every assembly/original-byte contribution explicitly counted, and **max-C**, maximizing readable assembly-free C. Never count floor bytes toward recovered-C coverage or borrow one variant's receipt for the other. Final acceptance needs a fresh compiler/toolchain run on the complete current source, per-function relocation-aware objdiff and an exact-placement whole-image relink/hash comparison for each claimed build. Cached receipts guide reuse; they do not substitute for this terminal fresh rebuild. Cheap deterministic compile/repair/verification comes first; permuter next where applicable; LLM/Mizuchi last on measured residue.
 
 ## Marketing
 

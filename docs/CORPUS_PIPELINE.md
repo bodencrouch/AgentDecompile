@@ -10,7 +10,9 @@ extracts functions, binds the same function across builds to one `logical_id`,
 calibrates compiler and layout once, links a donor tree (assembly floor),
 replaces assembly with compiling Ghidra C, copies that C onto siblings, then
 spends agent compute only on leftovers. Later it compares compiled output to
-the shipped bytes. A dashboard light is not proof.
+the shipped bytes. Terminal acceptance also requires a fresh whole-image rebuild and comparison.
+Keep byte-accurate C+assembly-floor and max-C variants separately accounted.
+A dashboard light is not proof. [STRATEGY.md](../STRATEGY.md) owns policy.
 
 Do not decompile the same logical function twice. Do not re-analyze a Ghidra
 program that already has analysis. Open that project and use what is there.
@@ -24,9 +26,12 @@ flowchart TD
   recover --> apply[apply-cross-build]
   apply --> leftover[leftover-recover]
   leftover --> verify[verify-byte-accuracy]
+  verify --> image[Fresh whole-image identity]
+  identify --> runtime[Runtime reuse and observed feedback]
+  runtime --> identify
 ```
 
-Identity matching (`identify`) is not source copy. It is also not "paste a nearby instruction run into the other binary." Debug names, compilation unit, strings/constants, and BSim bind first; a unique byte window is last. Source copy (`apply-cross-build`) is after donor C compiles. `analyze-program` runs only when that program has no analysis yet. `export-hookpack` writes those identities for a Phasor-shaped host.
+Identity matching (`identify`) is not source copy. It is also not "paste a nearby instruction run into the other binary." Use STRATEGY's evidence-fusion cascade, including early unique exact/relocation-normalized evidence. A runtime byte-window fallback is a separate local resolution operation. Source copy (`apply-cross-build`) is after donor C compiles. `analyze-program` runs only when that program has no analysis yet. `corpus.export-hookpack` is already in the catalog. It writes identities for a runtime consumer; [RUNTIME_REUSE.md](RUNTIME_REUSE.md) separates export, compatible bindings, ABI readiness and behavior proof.
 
 ## Priorities
 
@@ -39,8 +44,14 @@ Identity matching (`identify`) is not source copy. It is also not "paste a nearb
 6. Targeted AI only on leftovers.
 7. Compare compiled output to each shipped binary. `real_c` and byte-accuracy
    are two different scores.
+8. Fresh exact-placement whole-image relink and hash comparison: the terminal
+   goal, not a new claimed CLI stage. Per-function success is insufficient.
 
-## Commands
+## Catalog operations and CLI reference
+
+Use the existing 8080 workbench and `GET /api/v1/actions` for recovery; inspect
+advertised parameters rather than inventing action names or argv. The following
+CLI forms document implementation only and do not authorize a direct bypass.
 
 ```bash
 uv run agentdecompile-corpus init --id my-corpus --out target/corpus.json

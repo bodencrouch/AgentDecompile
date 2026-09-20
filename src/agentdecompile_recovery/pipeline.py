@@ -304,6 +304,8 @@ class RecoveryRunner:
         return all(path.exists() for path in stage.outputs)
 
     def stage_config(self, stage: Stage) -> dict[str, Any]:
+        source_batch_stage = stage.name in {"generate-source-candidates", "synthesize-source-tasks", "report"}
+        compiler_stage = stage.name in {"synthesize-source-tasks", "plan-strategy", "report"}
         config: dict[str, Any] = {
             "input": str(self.config.input_path),
             "preferredName": self.config.preferred_name,
@@ -312,11 +314,11 @@ class RecoveryRunner:
             "snapshotExistingLabel": self.config.snapshot_existing_label,
             "functionAnalysis": self.config.function_analysis,
             "skipEnrichment": self.config.skip_enrichment,
-            "sourceTaskLimit": self.config.source_task_limit if stage.name in {"generate-source-candidates", "synthesize-source-tasks", "report"} else 500,
-            "sourceTaskOffset": self.config.source_task_offset if stage.name in {"generate-source-candidates", "synthesize-source-tasks", "report"} else 0,
+            "sourceTaskLimit": self.config.source_task_limit if source_batch_stage else 500,
+            "sourceTaskOffset": self.config.source_task_offset if source_batch_stage else 0,
             "sourceSynthesisEngine": self.config.source_synthesis_engine,
             "sourceSynthesisMode": self.config.source_synthesis_mode,
-            "sourceSynthesisLimit": self.config.source_synthesis_limit if stage.name in {"synthesize-source-tasks", "plan-strategy", "report"} else 50,
+            "sourceSynthesisLimit": self.config.source_synthesis_limit if compiler_stage else 50,
             "sourceSynthesisMaxVariants": self.config.source_synthesis_max_variants,
             "sourceSynthesisSemanticOnly": self.config.source_synthesis_semantic_only,
             "sourceSynthesisSkipBoundarySuspect": self.config.source_synthesis_skip_boundary_suspect,
@@ -327,14 +329,14 @@ class RecoveryRunner:
             "sourceSynthesisVcRoot": (
                 str(self.config.source_synthesis_vc_root)
                 if self.config.source_synthesis_vc_root
-                and stage.name in {"synthesize-source-tasks", "plan-strategy", "report"}
+                and compiler_stage
                 else None
             ),
             "sourceSynthesisWine": self.config.source_synthesis_wine,
             "sourceSynthesisWineprefix": (
                 str(self.config.source_synthesis_wineprefix)
                 if self.config.source_synthesis_wineprefix
-                and stage.name in {"synthesize-source-tasks", "plan-strategy", "report"}
+                and compiler_stage
                 else None
             ),
             "steamlessCli": str(self.config.steamless_cli) if self.config.steamless_cli else None,

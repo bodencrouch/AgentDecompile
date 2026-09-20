@@ -42,6 +42,8 @@ export interface Selection {
   projectId?: string;
   binaryHash?: string;
   functionId?: string;
+  /** Last explicitly inspected function; data-address navigation leaves it intact. */
+  lastFunctionAddr?: string;
   region?: import("./analysis/contracts").Region;
   evidenceIds?: string[];
 }

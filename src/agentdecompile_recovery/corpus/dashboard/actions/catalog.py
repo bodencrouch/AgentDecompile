@@ -15,7 +15,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from agentdecompile_recovery.corpus.dashboard.common import KNOWLEDGE_DB, live_db, live_root
+from agentdecompile_recovery.corpus.dashboard.common import (
+    KNOWLEDGE_DB,
+    live_db,
+    query_db,
+    runtime_project_root,
+    runtime_work_dir,
+)
 
 PROGRAM_KEYS = frozenset({"programPath", "program", "binary", "path", "repo"})
 ADDR_KEYS = frozenset({
@@ -131,6 +137,17 @@ def list_actions() -> list[ActionSpec]:
             backend="bsim-cli", command="commitsigs", mutating=True, danger=True, long_running=True,
             summary="Import generated BSim signature XML without opening a Ghidra project.",
             fields=(FieldSpec("bsimUrl", required=True), FieldSpec("signatureDirectory", kind="path", required=True)),
+        ), ActionSpec(
+            id="workbench.match-candidate", title="Compile and verify candidate", group="workbench",
+            backend="matching", command="match-candidate", danger=True, long_running=True,
+            summary="Compile one source draft with an operator-owned preset and compare its object with objdiff. Job completion or compile success alone is not byte proof.",
+            fields=(
+                FieldSpec("artifactHash", required=True, from_context="artifactHash"),
+                FieldSpec("targetRevision", required=True),
+                FieldSpec("function", required=True, from_context="name"),
+                FieldSpec("candidateSource", required=True, schema={"maxLength": 2 * 1024 * 1024}),
+                FieldSpec("compilerPreset", required=True),
+            ),
         )]
     return _ACTIONS
 
@@ -144,14 +161,19 @@ def action_by_id(action_id: str) -> ActionSpec | None:
 
 def env_defaults() -> dict[str, str]:
     db = live_db()
-    root = live_root()
+    project_root = runtime_project_root()
+    work_dir = runtime_work_dir()
     kb = KNOWLEDGE_DB
+    if db is not None:
+        sibling_knowledge = db.parent / "ghidra_knowledge.sqlite"
+        if sibling_knowledge.is_file():
+            kb = sibling_knowledge
     if kb is None:
         ghidra_kb = os.environ.get("AGENT_DECOMPILE_GHIDRA_KNOWLEDGE_DB", "").strip()
         if ghidra_kb:
             kb = Path(ghidra_kb).expanduser()
-        elif root is not None:
-            kb = root / "ghidra_knowledge.sqlite"
+        elif project_root is not None:
+            kb = project_root / "ghidra_knowledge.sqlite"
         else:
             kb = Path("ghidra_knowledge.sqlite")
     mcp = (
@@ -162,8 +184,8 @@ def env_defaults() -> dict[str, str]:
     )
     return {
         "db": str(db) if db else "",
-        "work_dir": str(root) if root else "",
-        "report_file": str(root / "recovery-report.json") if root else "",
+        "work_dir": str(work_dir) if work_dir else "",
+        "report_file": str(project_root / "recovery-report.json") if project_root else "",
         "kb": str(kb) if kb else "",
         "mcp_url": mcp,
     }
@@ -186,6 +208,17 @@ def apply_defaults(action: ActionSpec, params: dict[str, Any], context: dict[str
         for key, value in context.items():
             if value not in (None, ""):
                 ctx[key] = value
+    # A slug is a display identifier, not a pipeline program path. Resolve it
+    # from the active corpus before filling action fields, so every dashboard
+    # entry point receives the same target instead of guessing from UI state.
+    if ctx.get("slug") and not (ctx.get("program") or ctx.get("repo")):
+        rows, _ = query_db(
+            "SELECT repo_path FROM binary WHERE slug=? LIMIT 1", (str(ctx["slug"]),),
+            ignore_missing=True,
+        )
+        if rows and rows[0][0]:
+            ctx["program"] = str(rows[0][0])
+            ctx["repo"] = str(rows[0][0])
     alias = {
         "program": ctx.get("program") or ctx.get("slug") or ctx.get("repo") or "",
         "slug": ctx.get("slug") or "",
@@ -381,7 +414,7 @@ def build_command(action: ActionSpec, params: dict[str, Any]) -> list[str]:
         if launcher is None:
             raise ValueError("Ghidra support/bsim not found; configure GHIDRA_INSTALL_DIR")
         return [str(launcher), "commitsigs", str(params["bsimUrl"]), str(params["signatureDirectory"])]
-    if action.backend in {"workflow-control", "activity-snapshot", "merge-evidence", "source-archive"}:
+    if action.backend in {"workflow-control", "activity-snapshot", "merge-evidence", "source-archive", "matching"}:
         return [action.id]
     if action.backend == "preparation":
         return ["workbench.prepare"]

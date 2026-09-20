@@ -294,6 +294,13 @@ class FeatureIndex:
         self.by_shape: dict[tuple, list[str]] = defaultdict(list)
         self.by_unit: dict[str, list[str]] = defaultdict(list)
         self.by_skeleton: dict[str, list[str]] = defaultdict(list)
+        # Exact/normalized fingerprints are candidate anchors only when the
+        # fingerprint is unique on both sides.  Keep separate indexes so the
+        # provenance of an accepted anchor is never lost.
+        self.by_hash_raw: dict[str, list[str]] = defaultdict(list)
+        self.by_hash_reloc: dict[str, list[str]] = defaultdict(list)
+        self.by_hash_instr: dict[str, list[str]] = defaultdict(list)
+        self.by_hash_mnemonic: dict[str, list[str]] = defaultdict(list)
         self.callees: dict[str, set[str]] = defaultdict(set)
         self.callers: dict[str, set[str]] = defaultdict(set)
         for fid, fn in self.funcs.items():
@@ -310,6 +317,15 @@ class FeatureIndex:
             skel = (fn.get("decomp") or {}).get("skeleton_hash")
             if skel:
                 self.by_skeleton[skel].append(fid)
+            for field, target in (
+                ("hash_raw", self.by_hash_raw),
+                ("hash_reloc", self.by_hash_reloc),
+                ("hash_instr", self.by_hash_instr),
+                ("hash_mnemonic", self.by_hash_mnemonic),
+            ):
+                value = str(fn.get(field) or "")
+                if value and (field != "hash_raw" or value.startswith("B_raw:")):
+                    target[value].append(fid)
             for callee in _callees_of(fn):
                 self.callees[fid].add(callee)
                 self.callers[callee].add(fid)
@@ -394,6 +410,25 @@ def match_binaries(
     left_names = {k: [str(x) for x in v] for k, v in authentic_named_index(left_index.funcs).items()}
     right_names = {k: [str(x) for x in v] for k, v in authentic_named_index(index.funcs).items()}
     absorb_anchors(mapping, unique_index_anchors(left_names, right_names, src_eligible=src_eligible, dst_eligible=dst_eligible))
+    hash_channels: dict[str, str] = {}
+    for channel, left_hashes, right_hashes in (
+        ("hash_raw", left_index.by_hash_raw, index.by_hash_raw),
+        ("hash_reloc", left_index.by_hash_reloc, index.by_hash_reloc),
+        ("hash_instr", left_index.by_hash_instr, index.by_hash_instr),
+        ("hash_mnemonic", left_index.by_hash_mnemonic, index.by_hash_mnemonic),
+    ):
+        before = set(mapping)
+        absorb_anchors(
+            mapping,
+            unique_index_anchors(
+                left_hashes,
+                right_hashes,
+                src_eligible=src_eligible,
+                dst_eligible=dst_eligible,
+            ),
+        )
+        for src in set(mapping) - before:
+            hash_channels[src] = channel
     absorb_anchors(
         mapping,
         unique_index_anchors(
@@ -422,6 +457,16 @@ def match_binaries(
         round_label="anchor",
         pair_class=pair_class,
     )
+    for src, channel in hash_channels.items():
+        row = results.get(src)
+        if row is None:
+            continue
+        row["anchor_channel"] = channel
+        row["method"] = channel
+        evidence = row.setdefault("evidence", {})
+        evidence[channel] = 1.0
+        evidence["anchor_channel"] = channel
+        row.setdefault("signals", {})[channel] = 1.0
     record_pairs(
         results,
         propagate_call_graph(
@@ -438,6 +483,48 @@ def match_binaries(
         pair_class=pair_class,
     )
     taken = set(mapping.values())
+
+    # Consume unique CFG/MD-index + mnemonic-SPP pairs before scoring fuzzy
+    # residue.  These are deterministic structural anchors and must not lose
+    # their destination to a weaker locality fingerprint.
+    unmatched_src = [left_index.funcs[sid] for sid in src_ids if sid not in mapping]
+    unmatched_dst = [index.funcs[did] for did in dst_eligible if did not in taken]
+    for sid, bid in unique_structural_pairs(unmatched_src, unmatched_dst, id_of=_fid):
+        if sid in mapping or bid in taken:
+            continue
+        mapping[sid] = bid
+        taken.add(bid)
+        fa, fb = left_index.funcs[sid], index.funcs[bid]
+        ev = island_evidence(fa, fb)
+        results[sid] = {
+            "left_id": fa.get("id"),
+            "right_id": fb.get("id"),
+            "score": 0.8,
+            "margin": 1.0,
+            "content": int(ev.get("_content") or 1),
+            "pair_class": pair_class,
+            "status": "verify",
+            "signals": {k: v for k, v in ev.items() if not str(k).startswith("_")},
+            "kind": "structural",
+        }
+    if mapping:
+        record_pairs(
+            results,
+            propagate_call_graph(
+                left_index.callees,
+                left_index.callers,
+                index.callees,
+                index.callers,
+                mapping,
+                src_eligible=src_eligible,
+                dst_eligible=dst_eligible,
+            ),
+            left_lookup=left_index.funcs,
+            right_lookup=index.funcs,
+            round_label="structural",
+            pair_class=pair_class,
+        )
+        taken = set(mapping.values())
 
     for rnd in range(rounds):
         scored: list[tuple[float, float, str, str, dict[str, float]]] = []
@@ -554,7 +641,7 @@ def match_binaries(
         }
     for hit in leftover_inlines(
         [left_index.funcs[sid] for sid in src_ids if sid not in mapping],
-        [index.funcs[did] for did in taken],
+        [index.funcs[did] for did in dst_eligible if did not in taken],
     ):
         results.setdefault(
             str(hit["missing_id"]),
@@ -570,6 +657,25 @@ def match_binaries(
                 "kind": "inline",
             },
         )
+    # Identity/structural rows are one-to-one.  A destination collision is
+    # ambiguous evidence, not two accepted matches; keep the strongest row
+    # deterministically and demote the rest.  Inline/fold/split evidence is
+    # intentionally excluded because it describes non-1:1 compiler effects.
+    identity_rows = [
+        row for row in results.values()
+        if row["status"] != "unresolved" and row.get("kind") != "inline"
+    ]
+    by_destination: dict[Any, list[dict[str, Any]]] = defaultdict(list)
+    for row in identity_rows:
+        by_destination[row.get("right_id")].append(row)
+    for rows in by_destination.values():
+        if len(rows) < 2:
+            continue
+        winner = max(rows, key=lambda row: (float(row.get("score") or 0.0), float(row.get("margin") or 0.0), str(row.get("left_id"))))
+        for row in rows:
+            if row is not winner:
+                row["status"] = "unresolved"
+                row["ambiguity"] = "destination_collision"
     accepted = [row for row in results.values() if row["status"] != "unresolved"]
     if tier == "auto":
         accepted = [row for row in accepted if row["status"] == "auto"]

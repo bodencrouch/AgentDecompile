@@ -22,7 +22,7 @@ _LONG_CORPUS = frozenset({
     "calibrate-global",
     "ingest-recovered", "genproject", "extract-stabs", "apply-stabs",
     "export-atlas-db", "seed-validation", "harvest-shards", "verify-legacy-recovered",
-    "permuter-harness", "recover-named-ghidra", "program-inventory", "export-bytes",
+    "permuter-harness", "text-permuter", "recover-named-ghidra", "program-inventory", "export-bytes",
     "export-c", "export-types", "bsim-eval", "bsim-createdatabase", "bsim-ingest",
     "bsim-report", "propagate-corpus", "external-bridge",
     "collect-source", "rebuild-ledger", "compile-unit",

@@ -260,7 +260,15 @@ def _build(con: sqlite3.Connection, locator: str, slug: str, program: str = '') 
     library = _library()
     binaries = library.get('binaries', [])
     runs = _read_runs()
-    jobs = [job.to_dict() for job in list_jobs(compact=True)]
+    # Activity is a live index, not a console export.  Retained job logs can
+    # be megabytes across a corpus and parsing every historical log blocks the
+    # SSE feed.  The selected job still loads its complete durable output from
+    # its job endpoint; only active jobs retain a small in-memory log here so
+    # their measured progress can be reflected immediately.
+    jobs = [
+        job.to_dict(include_log=job.status in _ACTIVE, include_details=False)
+        for job in list_jobs(compact=True)[:500]
+    ]
     timing_contexts: dict[str, dict] = {}
     for run in reversed(runs):
         timing_contexts.update(run.get('jobTimingContexts') or {})

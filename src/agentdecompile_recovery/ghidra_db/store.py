@@ -405,11 +405,119 @@ def _committed_manifest(entries: list[ProgramEntry]) -> dict[str, tuple[int, int
 _NATIVE_CHECKOUT_LOCK = threading.RLock()
 
 
+def native_checkout_root(work_dir: Path, *, required_bytes: int = 0) -> Path:
+    """Return a checkout root that Ghidra's project locator can open.
+
+    Ghidra rejects every project path containing a component that starts with
+    ``.``.  The normal corpus work directory is intentionally under
+    ``~/.cache``, so it is suitable for receipts but not for a native
+    ``GhidraProject`` checkout.  Keep caller-supplied safe roots intact and
+    otherwise stage native projects in a stable, non-hidden temporary root.
+    """
+    configured = os.environ.get("AGENT_DECOMPILE_NATIVE_CHECKOUT_ROOT")
+    candidate = Path(configured).expanduser() if configured else Path(work_dir).expanduser()
+    resolved = candidate.resolve()
+
+    def has_hidden_component(path: Path) -> bool:
+        return any(part.startswith(".") for part in path.parts if part not in {path.anchor, "/"})
+
+    if has_hidden_component(resolved):
+        if configured:
+            raise ProjectLayoutError(
+                "AGENT_DECOMPILE_NATIVE_CHECKOUT_ROOT must not contain path components beginning with '.': "
+                f"{resolved}"
+            )
+        resolved = (Path(tempfile.gettempdir()) / "agentdecompile-native-projects").resolve()
+    if has_hidden_component(resolved):
+        raise ProjectLayoutError(
+            "Native Ghidra checkout root contains a path component beginning with '.': "
+            f"{resolved}. Set AGENT_DECOMPILE_NATIVE_CHECKOUT_ROOT to a non-hidden directory."
+        )
+    if configured or not required_bytes:
+        return resolved
+    # A local checkout needs one complete project snapshot plus copy overhead.
+    # Keep the durable recovery-workspace fallback outside hidden directories;
+    # Ghidra refuses a project locator containing a hidden path component.
+    workspace_root = Path(__file__).resolve().parents[3] / "target" / "native-checkouts"
+    choices = [Path("/run") / "agentdecompile-native-projects", Path(tempfile.gettempdir()) / "agentdecompile-native-projects", workspace_root, resolved]
+    required_with_margin = required_bytes + 256 * 1024 * 1024
+    for item in choices:
+        try:
+            item.mkdir(parents=True, exist_ok=True)
+            if not has_hidden_component(item.resolve()) and shutil.disk_usage(item).free >= required_with_margin:
+                return item.resolve()
+        except OSError:
+            continue
+    return resolved
+
+
+def _source_snapshot_size(entries: list[ProgramEntry]) -> int:
+    """Approximate the space needed for a materialized local Ghidra project."""
+    return sum(
+        path.stat().st_size
+        for entry in entries
+        for path in (entry.property_file, *entry.database_dir.rglob('*'))
+        if path.is_file()
+    )
+
+
+def _native_checkout_size(destination: Path) -> int:
+    """Return the bytes occupied by the project files being refreshed."""
+    total = 0
+    for path in (destination, destination.with_suffix(PROJECT_DIR_SUFFIX)):
+        if path.is_file():
+            total += path.stat().st_size
+        elif path.is_dir():
+            total += sum(item.stat().st_size for item in path.rglob('*') if item.is_file())
+    return total
+
+
+def _native_checkout_preserve_root(destination: Path) -> Path:
+    """Keep an old checkout on another volume when its current volume is full."""
+    local_root = destination.parent / "preserved"
+    needed = _native_checkout_size(destination)
+    if shutil.disk_usage(destination.parent).free >= needed:
+        return local_root
+    temporary_root = Path(tempfile.gettempdir()) / "agentdecompile-preserved-checkouts"
+    temporary_root.mkdir(parents=True, exist_ok=True)
+    if temporary_root.stat().st_dev != destination.parent.stat().st_dev and shutil.disk_usage(temporary_root).free >= needed:
+        return temporary_root / destination.parent.name
+    return local_root
+
+
+def _move_native_checkout_part(source: Path, destination: Path) -> None:
+    if source.parent.stat().st_dev == destination.parent.stat().st_dev:
+        source.replace(destination)
+    else:
+        shutil.move(str(source), str(destination))
+
+
+def _preserve_native_checkout(destination: Path, source_manifest: str) -> tuple[Path, Path]:
+    """Move the prior local project aside before refreshing its source snapshot."""
+    prior_root = _native_checkout_preserve_root(destination) / f"{int(time.time() * 1000)}-{source_manifest[:12]}"
+    prior_root.mkdir(parents=True, exist_ok=False)
+    prior_gpr = prior_root / destination.name
+    prior_rep = prior_root / destination.with_suffix(PROJECT_DIR_SUFFIX).name
+    try:
+        _move_native_checkout_part(destination, prior_gpr)
+        _move_native_checkout_part(destination.with_suffix(PROJECT_DIR_SUFFIX), prior_rep)
+    except BaseException:
+        if prior_gpr.exists() and not destination.exists():
+            _move_native_checkout_part(prior_gpr, destination)
+        if prior_rep.exists() and not destination.with_suffix(PROJECT_DIR_SUFFIX).exists():
+            _move_native_checkout_part(prior_rep, destination.with_suffix(PROJECT_DIR_SUFFIX))
+        raise
+    return prior_gpr, prior_rep
+
+
 def native_local_checkout(source: str | Path, work_dir: Path) -> tuple[Path, dict[str, Any]]:
     """Reuse one owned native checkout while preserving the source repository."""
     source_path = Path(source).expanduser().resolve()
     source_key = hashlib.sha256(str(source_path).encode()).hexdigest()
-    directory = Path(work_dir) / 'native-checkouts' / source_key
+    entries = list_store_programs(source_path)
+    if not entries:
+        raise ProjectLayoutError(f'{source_path}: no program databases found')
+    directory = native_checkout_root(work_dir, required_bytes=_source_snapshot_size(entries)) / 'native-checkouts' / source_key
     directory.mkdir(parents=True, exist_ok=True)
     destination = directory / 'Workspace.gpr'
     receipt_path = directory / 'source.json'
@@ -421,9 +529,6 @@ def native_local_checkout(source: str | Path, work_dir: Path) -> tuple[Path, dic
         else:
             import fcntl
             fcntl.flock(lease.fileno(), fcntl.LOCK_EX)
-        entries = list_store_programs(source_path)
-        if not entries:
-            raise ProjectLayoutError(f'{source_path}: no program databases found')
         manifest = _committed_manifest(entries)
         revision = hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
         if destination.exists():
@@ -431,9 +536,38 @@ def native_local_checkout(source: str | Path, work_dir: Path) -> tuple[Path, dic
                 receipt = json.loads(receipt_path.read_text())
             except (OSError, ValueError) as exc:
                 raise ProjectLayoutError('Owned native checkout has no source receipt; reconciliation is required before it can be reused.') from exc
-            if receipt.get('sourceLocator') != str(source_path) or receipt.get('sourceManifest') != revision:
-                raise ProjectLayoutError('Source repository changed after the native checkout was created. Its local annotations are preserved; reconcile the changed source before continuing.')
-            return destination, {**receipt, 'reused': True}
+            if receipt.get('sourceLocator') == str(source_path) and receipt.get('sourceManifest') == revision:
+                return destination, {**receipt, 'reused': True}
+            prior_gpr, prior_rep = _preserve_native_checkout(destination, str(receipt.get('sourceManifest') or 'unknown'))
+            try:
+                materialize_local_project(source_path, destination)
+                if _committed_manifest(list_store_programs(source_path)) != manifest:
+                    raise ProjectLayoutError('Source changed during native checkout reconciliation; the prior local project was restored.')
+            except BaseException:
+                if destination.exists():
+                    destination.unlink()
+                dest_rep = destination.with_suffix(PROJECT_DIR_SUFFIX)
+                if dest_rep.exists():
+                    shutil.rmtree(dest_rep)
+                _move_native_checkout_part(prior_gpr, destination)
+                _move_native_checkout_part(prior_rep, dest_rep)
+                raise
+            receipt = {
+                'sourceLocator': str(source_path),
+                'localProjectPath': str(destination),
+                'sourceManifest': revision,
+                'sourceFileCount': len(manifest),
+                'createdAt': time.time(),
+                'mode': 'owned-local-checkout',
+                'sourceModified': True,
+                'analysisRequested': False,
+                'reconciledFrom': str(prior_gpr),
+                'previousSourceManifest': receipt.get('sourceManifest'),
+            }
+            temporary = receipt_path.with_suffix('.tmp')
+            temporary.write_text(json.dumps(receipt, indent=2))
+            temporary.replace(receipt_path)
+            return destination, {**receipt, 'reused': False, 'reconciled': True}
         materialize_local_project(source_path, destination)
         # The copy helper verifies its own start/end manifest. This additional
         # check binds the receipt to the snapshot observed before admission.

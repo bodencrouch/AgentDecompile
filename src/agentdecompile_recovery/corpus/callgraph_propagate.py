@@ -41,11 +41,15 @@ def unique_index_anchors(
         dst_hits = dst_index.get(key)
         if not dst_hits:
             continue
-        src_ids = [fid for fid in src_hits if fid in src_eligible]
-        dst_ids = [fid for fid in dst_hits if fid in dst_eligible]
-        if len(src_ids) != 1 or len(dst_ids) != 1:
+        # Uniqueness is target-wide. A tiny/thunk collision is still a
+        # collision even though that function is ineligible for auto-binding.
+        src_all = list(src_hits)
+        dst_all = list(dst_hits)
+        if len(src_all) != 1 or len(dst_all) != 1:
             continue
-        proposals.append((src_ids[0], dst_ids[0], "anchor"))
+        if src_all[0] not in src_eligible or dst_all[0] not in dst_eligible:
+            continue
+        proposals.append((src_all[0], dst_all[0], "anchor"))
     return {src: dst for src, dst, _ in _consistent(proposals)}
 
 
@@ -102,7 +106,8 @@ def propagate_call_graph(
     *,
     src_eligible: set[Id],
     dst_eligible: set[Id],
-) -> list[tuple[Id, Id, str]]:
+    with_dependencies: bool = False,
+) -> list[tuple]:
     """Grow *mapping* to a unique-neighbor fixpoint. Returns newly added pairs."""
     added: list[tuple[Id, Id, str]] = []
     while True:
@@ -122,7 +127,17 @@ def propagate_call_graph(
                 continue
             mapping[src] = dst
             taken.add(dst)
-            added.append((src, dst, kind))
+            if with_dependencies:
+                parents = [
+                    parent for parent, mapped in mapping.items()
+                    if parent != src and (
+                        (src in set(src_callees.get(parent, ())) and dst in set(dst_callees.get(mapped, ())))
+                        or (src in set(src_callers.get(parent, ())) and dst in set(dst_callers.get(mapped, ())))
+                    )
+                ]
+                added.append((src, dst, kind, parents))
+            else:
+                added.append((src, dst, kind))
             grew = True
         if not grew:
             return added
@@ -172,13 +187,16 @@ def record_pairs(
 ) -> int:
     """Write result rows for already-accepted pairs. Returns how many were new."""
     added = 0
-    for src, dst, kind in pairs:
+    for pair in pairs:
+        src, dst, kind, *rest = pair
         existing = results.get(src)
         if existing is not None and existing.get("kind") in {"callgraph", "anchor"}:
             continue
         left = (left_lookup or {}).get(src) or {}
         right = (right_lookup or {}).get(dst) or {}
         ev = propagation_evidence(kind)
+        if rest:
+            ev["dependencies"] = list(rest[0])
         results[src] = {
             "left_id": left.get(id_field, src),
             "right_id": right.get(id_field, dst),

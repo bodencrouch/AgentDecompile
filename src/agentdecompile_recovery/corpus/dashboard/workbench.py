@@ -1364,6 +1364,13 @@ def workbench_context_payload(
         "slug": slug.strip(),
         "locator": locator.strip(),
     }
+    if session["slug"] and not session["program"]:
+        rows, _ = query_db(
+            "SELECT repo_path FROM binary WHERE slug=? LIMIT 1", (session["slug"],),
+            ignore_missing=True,
+        )
+        if rows and rows[0][0]:
+            session["program"] = str(rows[0][0])
     if not any(session.values()):
         data = load_sessions(live_root())
         active_id = str(data.get("active") or "")

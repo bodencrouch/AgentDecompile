@@ -7,8 +7,8 @@ from collections.abc import Callable, Iterable, Mapping
 from typing import Any, Hashable
 
 from .block_inline import inline_hits
-from .cfg_signature import md_index_from_counts, structural_candidates
-from .mnemonic_spp import small_prime_product, spp_candidates
+from .cfg_signature import cfg_compatible, md_index_from_adj, md_index_from_counts
+from .mnemonic_spp import small_prime_product
 
 Id = Hashable
 Fn = Mapping[str, Any]
@@ -18,6 +18,16 @@ def _has_mnem_bag(fn: Fn) -> bool:
     raw = fn.get("mnem")
     return isinstance(raw, Mapping) and bool(raw)
 
+def _md(fn: Fn) -> int:
+    nodes = fn.get("cfg_nodes")
+    edges = fn.get("cfg_edges")
+    if isinstance(nodes, Iterable) and isinstance(edges, Iterable):
+        try:
+            return md_index_from_adj(nodes, edges)
+        except (TypeError, ValueError):
+            pass
+    return md_index_from_counts(fn)
+
 
 def unique_structural_pairs(
     unmatched_src: Iterable[Fn],
@@ -26,13 +36,34 @@ def unique_structural_pairs(
     id_of: Callable[[Fn], Id],
 ) -> list[tuple[Id, Id]]:
     """1-to-1 leftover pairs that share CFG MD-Index (or shape) and SPP."""
-    dests = list(unmatched_dst)
+    # Cache the expensive arbitrary-precision SPP once per function.  The old
+    # fallback recalculated every destination signature for every source and
+    # scanned all destinations before applying SPP.  Indexing by SPP first is
+    # equivalent: structural_candidates(src, dests) followed by
+    # spp_candidates(src, pool) retains exactly the compatible destinations
+    # with the source SPP.
+    dests = [fn for fn in unmatched_dst if _has_mnem_bag(fn)]
+    by_md: dict[int, list[Fn]] = defaultdict(list)
+    by_md_spp: dict[tuple[int, int], list[Fn]] = defaultdict(list)
+    by_spp: dict[int, list[Fn]] = defaultdict(list)
+    for dst in dests:
+        signature = small_prime_product(dst["mnem"])
+        md = _md(dst)
+        by_md[md].append(dst)
+        by_md_spp[(md, signature)].append(dst)
+        by_spp[signature].append(dst)
+
     proposals: list[tuple[Id, Id]] = []
     for src in unmatched_src:
         if not _has_mnem_bag(src):
             continue
-        pool = structural_candidates(src, dests)
-        pool = spp_candidates(src, pool)
+        signature = small_prime_product(src["mnem"])
+        md = _md(src)
+        if md in by_md:
+            pool = by_md_spp.get((md, signature), ())
+        else:
+            pool = (dst for dst in by_spp.get(signature, ()) if cfg_compatible(src, dst))
+        pool = list(pool)
         if len(pool) != 1:
             continue
         proposals.append((id_of(src), id_of(pool[0])))
@@ -53,7 +84,7 @@ def unique_structural_pairs(
 
 
 def island_evidence(src: Fn, dst: Fn) -> dict[str, Any]:
-    same_md = md_index_from_counts(src) == md_index_from_counts(dst)
+    same_md = _md(src) == _md(dst)
     src_mnem = src.get("mnem") if isinstance(src.get("mnem"), Mapping) else None
     dst_mnem = dst.get("mnem") if isinstance(dst.get("mnem"), Mapping) else None
     same_spp = bool(src_mnem) and bool(dst_mnem) and small_prime_product(src_mnem) == small_prime_product(dst_mnem)

@@ -45,6 +45,13 @@ def hash_instr(block_hashes: list[str] | None) -> str:
     return _digest("H_instr|" + "\0".join(str(h) for h in block_hashes))
 
 
+def hash_raw_bytes(data: bytes | bytearray | memoryview | None) -> str:
+    """B_raw — exact bytes as extracted from the analyzed function body."""
+    if not data:
+        return ""
+    return "B_raw:" + hashlib.sha256(bytes(data)).hexdigest()
+
+
 def hash_raw(n_instr: int | None, size: int | None, mnem: Mapping[str, Any] | None) -> str:
     """Optional weak H_raw stand-in when true bytes are unavailable in the store."""
     if not n_instr and not size:
@@ -77,7 +84,8 @@ def attach_hashes(row: dict[str, Any]) -> dict[str, Any]:
     row["hash_mnemonic"] = hash_mnemonic(mnem)
     row["hash_reloc"] = hash_reloc(mnem, list(consts))
     row["hash_instr"] = hash_instr(list(blocks))
-    row["hash_raw"] = hash_raw(row.get("n_instr"), row.get("size"), mnem)
+    if not str(row.get("hash_raw") or "").startswith("B_raw:"):
+        row["hash_raw"] = hash_raw(row.get("n_instr"), row.get("size"), mnem)
     return row
 
 
@@ -86,5 +94,6 @@ __all__ = [
     "hash_instr",
     "hash_mnemonic",
     "hash_raw",
+    "hash_raw_bytes",
     "hash_reloc",
 ]

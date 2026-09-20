@@ -70,7 +70,7 @@ def functions_from_program(program, monitor=None) -> list[dict[str, Any]]:
 
 
 def recovery_family(repo_path: str, slug: str, meta: dict[str, Any]) -> str:
-    """Use an explicit catalog assignment; unknown builds stay isolated."""
+    """Use only an explicit catalog assignment; unknown builds stay isolated."""
     maps = load_maps()
     families = maps.get("recovery_families") or maps.get("recoveryFamilies") or {}
     if isinstance(families, dict):
@@ -176,6 +176,8 @@ def persist_functions(con, binary_id: int, functions: list[dict[str, Any]]) -> i
                 j(row.get("consts")),
                 j(row.get("ext_calls")),
                 j(row.get("block_hashes")),
+                j(row.get("cfg_nodes")),
+                j(row.get("cfg_edges")),
                 row.get("hash_reloc") or None,
                 row.get("hash_instr") or None,
                 row.get("hash_mnemonic") or None,
@@ -199,9 +201,9 @@ def persist_functions(con, binary_id: int, functions: list[dict[str, Any]]) -> i
                stack_frame_size, stack_param_size, stack_local_size, plate, signature,
                n_instr, n_blocks, n_edges, back_edges, cyclomatic, n_callees,
                indirect_calls, data_refs, mnem, strings, consts, ext_calls, block_hashes,
-               hash_reloc, hash_instr, hash_mnemonic, hash_raw,
+               cfg_nodes, cfg_edges, hash_reloc, hash_instr, hash_mnemonic, hash_raw,
                canon_class, canon_method, canon_key, canon_arity, name_origin, symbol_provenance
-           ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+           ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         payload,
     )
     if edges:

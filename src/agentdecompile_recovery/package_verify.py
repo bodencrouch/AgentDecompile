@@ -40,6 +40,37 @@ typedef char *LPSTR;
 #endif
 """.strip()
 
+# Name -> single TYPE_SHIM typedef line. ~98% of the K1 corpus's packaged
+# candidate sources already embed their own Ghidra-style typedef preamble
+# (gen-project.py's ctx.h), which redefines most of these names with
+# different underlying types (e.g. `code` as `typedef int code();` here vs.
+# `typedef unsigned char code;` there). MSVC rejects that as C2373
+# redefinition before objdiff ever runs. When the candidate source already
+# typedefs a given name itself, drop just that TYPE_SHIM line instead of the
+# whole shim, so sources that still rely on TYPE_SHIM (no embedded preamble,
+# or using only a subset of these names) keep working.
+_TYPE_SHIM_LINES: list[tuple[str, str]] = [
+    (name, line)
+    for line in TYPE_SHIM.splitlines()
+    for name in [
+        (line.split()[-1].strip(";()*") if line.startswith("typedef ") else "")
+    ]
+    if name
+]
+_TYPE_SHIM_OTHER_LINES = [
+    line for line in TYPE_SHIM.splitlines() if not line.startswith("typedef ")
+]
+
+
+def _source_already_typedefs(source: str, name: str) -> bool:
+    pattern = re.compile(r"typedef\b[^;]*?\b" + re.escape(name) + r"\s*;")
+    return bool(pattern.search(source))
+
+
+def _type_shim_for(source: str) -> str:
+    kept = [line for name, line in _TYPE_SHIM_LINES if not _source_already_typedefs(source, name)]
+    return "\n".join(kept + _TYPE_SHIM_OTHER_LINES)
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -909,7 +940,7 @@ def build_shim(source: str) -> str:
             declarations.append(f"extern int {name};")
     for name in sorted(set(STACK_SYMBOL_RE.findall(source))):
         declarations.append(f"extern undefined4 {name};")
-    return TYPE_SHIM + ("\n" + "\n".join(declarations) if declarations else "")
+    return _type_shim_for(source) + ("\n" + "\n".join(declarations) if declarations else "")
 
 
 def resolve_manifest_path(package: Path) -> Path:

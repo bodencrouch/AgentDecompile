@@ -9,6 +9,7 @@ ghidra-bulk.
 from __future__ import annotations
 
 import shutil
+import json
 from pathlib import Path
 from typing import Any
 
@@ -53,6 +54,100 @@ def merge_names(functions_by_binary: dict[str, list[dict[str, Any]]]) -> None:
             )
             row["name"] = name
             row["name_tier"] = tier
+
+
+def bind_store_cascade(
+    corpus: CorpusManifest,
+    *,
+    db: Path,
+    run: str = "corpus-run",
+) -> tuple[list[dict[str, Any]], dict[str, Any]] | None:
+    """Run the provenance-aware SQLite cascade for corpus identify."""
+    from .store import connect
+    from . import propagate as store_propagate
+
+    entries = [entry for entry in corpus.binaries if not entry.exclude]
+    if len(entries) < 2:
+        return [], {"engine": "store_cascade", "pairs": [], "bound": 0}
+    con = connect(db)
+    try:
+        store_binaries = {
+            str(row["repo_path"]): int(row["id"])
+            for row in con.execute("SELECT id, repo_path FROM binary")
+        }
+        if not any(entry.path in store_binaries for entry in entries):
+            return None
+        manifest_by_store_id = {
+            store_binaries[entry.path]: entry.id
+            for entry in entries
+            if entry.path in store_binaries
+        }
+        pair_receipts: list[dict[str, Any]] = []
+        skipped: list[dict[str, str]] = []
+        for index, left in enumerate(entries):
+            for right in entries[index + 1:]:
+                if left.path not in store_binaries or right.path not in store_binaries:
+                    skipped.append({
+                        "left": left.id,
+                        "right": right.id,
+                        "reason": "binary_not_in_store",
+                    })
+                    continue
+                pair_receipts.append(
+                    store_propagate.run_pair(
+                        con,
+                        left.path,
+                        right.path,
+                        "corpus.run identify",
+                        run,
+                    )
+                )
+        bound = store_propagate.bind_identities(con, run, commit=False)
+        accepted = con.execute(
+            """SELECT m.src_binary, m.src_addr, m.dst_binary, m.dst_addr,
+                      m.score, m.margin, m.evidence, m.status, m.relation,
+                      i.logical_id
+                 FROM match m
+                 LEFT JOIN identity i
+                   ON i.binary_id=m.src_binary AND i.addr=m.src_addr
+                WHERE m.run=? AND m.status IN ('auto','verify')
+                  AND m.relation='one_to_one'
+                ORDER BY m.score DESC""",
+            (run,),
+        ).fetchall()
+        bindings: list[dict[str, Any]] = []
+        for row in accepted:
+            left_binary = manifest_by_store_id.get(int(row["src_binary"]))
+            right_binary = manifest_by_store_id.get(int(row["dst_binary"]))
+            if not left_binary or not right_binary:
+                continue
+            evidence = json.loads(row["evidence"] or "{}")
+            bindings.append({
+                "left": {"binary": left_binary, "id": row["src_addr"]},
+                "right": {"binary": right_binary, "id": row["dst_addr"]},
+                "logical_id": row["logical_id"] or row["src_addr"],
+                "confidence": row["score"],
+                "signals": evidence,
+                "provenance": [
+                    "store_cascade",
+                    f"status {row['status']}",
+                    f"relation {row['relation']}",
+                    f"margin {row['margin']}",
+                ],
+                "threshold": None,
+                "kind": "identity",
+            })
+        con.commit()
+        return bindings, {
+            "engine": "store_cascade",
+            "run": run,
+            "pairs": pair_receipts,
+            "skipped": skipped,
+            "bound": bound,
+            "accepted": len(bindings),
+        }
+    finally:
+        con.close()
 
 
 def recover_units(functions_by_binary: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
@@ -343,6 +438,7 @@ def run_corpus_pipeline(
         write_json(work_dir / "extract.json", receipts["extract"])
 
     if "identify" in planned:
+        identify_engine: dict[str, Any] = {"engine": "snapshot_legacy"}
         thresholds = {}
         for pair in corpus.pair_thresholds:
             thresholds[(pair.left, pair.right)] = pair.min_confidence
@@ -355,7 +451,19 @@ def run_corpus_pipeline(
             }
             for entry in corpus.binaries
         }
-        bindings = bind_identities(functions, thresholds=thresholds, metas=metas)
+        store_result = (
+            bind_store_cascade(corpus, db=Path(db))
+            if db is not None and Path(db).is_file()
+            else None
+        )
+        if store_result is not None:
+            bindings, identify_engine = store_result
+        else:
+            bindings = bind_identities(functions, thresholds=thresholds, metas=metas)
+            identify_engine = {
+                "engine": "snapshot_legacy",
+                "reason": "corpus_store_missing_or_has_no_manifest_binaries",
+            }
         merge_names(functions)
         by_logical: dict[str, list] = {}
         for rows in functions.values():
@@ -371,6 +479,7 @@ def run_corpus_pipeline(
                 for row in members:
                     row["name"], row["name_tier"] = won["name"], won["tier"]
         receipts["identify"] = {
+            **identify_engine,
             "bindings": len(bindings),
             "rows": bindings,
             "named": sum(1 for rows in functions.values() for r in rows if r.get("name")),

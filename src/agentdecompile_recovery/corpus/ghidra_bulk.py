@@ -71,6 +71,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import hashlib
 import json
 import os
 import pathlib
@@ -89,7 +90,19 @@ from .normalize_pipeline import NormalizeMode, normalize_decompiled, summarize_b
 
 ROOT = pathlib.Path(".")
 KB = pathlib.Path(os.environ.get("AGENT_DECOMPILE_GHIDRA_KNOWLEDGE_DB") or "ghidra_knowledge.sqlite")
-COMPILE = pathlib.Path(os.environ.get("AGENT_DECOMPILE_MSVC_COMPILER") or "cl")
+def _find_compiler(*hint_paths: pathlib.Path) -> pathlib.Path:
+    env = os.environ.get("AGENT_DECOMPILE_MSVC_COMPILER")
+    if env:
+        return pathlib.Path(env)
+    for base in (*hint_paths, ROOT, pathlib.Path(__file__).resolve().parent):
+        for ancestor in (base, *base.parents):
+            for name in ("compile-msvc71.sh", "compile-msvc-x86.sh"):
+                cand = ancestor / "scripts" / name
+                if cand.is_file():
+                    return cand
+    return pathlib.Path("cl")
+
+COMPILE = _find_compiler()
 LLM_CLEANUP = False
 LLM_MODEL: str | None = None
 COMPILE_COMPLETE = 0.95
@@ -1289,7 +1302,9 @@ def _try_compile_inner(entry_hex, name, header, body, tmpdir, prog_dir, program_
         ok, err, header = _drain_cl_named_callees(src, obj, name, header, body, err)
     if compile_only and (not ok) and not err.startswith("INFRA"):
         ok, err, header = _drain_cl_named_pointers(src, obj, name, header, body, err)
-    if compile_only and (not ok) and not err.startswith("INFRA") and not LLM_CLEANUP:
+    # Deterministic repair is a cheaper tier than the LLM, so it always runs
+    # first; Claude only sees what diagnostics-repair could not fix.
+    if compile_only and (not ok) and not err.startswith("INFRA"):
         for _round in range(REPAIR_ROUNDS):
             new_header, new_body, changed = repair_from_diagnostics(header, body, err)
             if not changed:
@@ -1404,7 +1419,7 @@ def _try_compile_inner(entry_hex, name, header, body, tmpdir, prog_dir, program_
 
 
 def main(argv: list[str] | None = None) -> int:
-    global OUT_DIR, KB, COMPILE, NORMALIZE_MODE, ASM_FALLBACK, EXTRACT_RAW, _CROSS_INDEX
+    global OUT_DIR, KB, COMPILE, NORMALIZE_MODE, ASM_FALLBACK, EXTRACT_RAW, _CROSS_INDEX, _RAW_IMAGE
     ap = argparse.ArgumentParser()
     ap.add_argument("--program", required=True)
     ap.add_argument("--repo", required=True, help="binary repo_path in the store")
@@ -1420,6 +1435,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument("--compiler", type=pathlib.Path)
     ap.add_argument("--sample", type=int, default=None)
+    ap.add_argument("--resume-failures-sha256", help="Continue the same inputs/toolchain; skip addresses in the current failure log only when its SHA256 matches")
     ap.add_argument("--workers", type=int, default=2,
                     help="Wine is shared; 2 is the safe default.")
     ap.add_argument("--write", action="store_true", default=True,
@@ -1435,13 +1451,28 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--force-c-replace",
         action="store_true",
+        default=True,
         help="retry C on compile-only-asm; keep existing asm on fail "
-             "(no second cl.exe). Does not rewrite real C.",
+             "(default on). Does not rewrite real C.",
+    )
+    ap.add_argument(
+        "--no-force-c-replace",
+        dest="force_c_replace",
+        action="store_false",
+        help="disable automatic retry of compile-only-asm files",
     )
     ap.add_argument(
         "--llm-cleanup",
         action="store_true",
-        help="after preparse+cl.exe still fail, edit that Ghidra C with claude CLI and retry once",
+        default=True,
+        help="after preparse+cl.exe still fail, edit that Ghidra C with "
+             "claude CLI and retry once (default on)",
+    )
+    ap.add_argument(
+        "--no-llm-cleanup",
+        dest="llm_cleanup",
+        action="store_false",
+        help="disable LLM-assisted cleanup of failed Ghidra C",
     )
     ap.add_argument("--llm-model", default=None, help="optional claude --model for cleanup")
     ap.add_argument(
@@ -1475,6 +1506,8 @@ def main(argv: list[str] | None = None) -> int:
     KB = pathlib.Path(args.kb)
     if getattr(args, 'compiler', None):
         COMPILE = pathlib.Path(args.compiler)
+    else:
+        COMPILE = _find_compiler(OUT_DIR, pathlib.Path(args.db))
     global LLM_CLEANUP, LLM_MODEL, CTX_H, KNOWN_GLOBALS, KNOWN_INT_GLOBALS, _CTX_TEXT
     global COMPILE_COMPLETE
     LLM_CLEANUP = bool(args.llm_cleanup)
@@ -1494,10 +1527,51 @@ def main(argv: list[str] | None = None) -> int:
     con = connect(args.db)
     brow = con.execute("SELECT id FROM binary WHERE repo_path=?", (args.repo,)).fetchone()
     if not brow:
+        suffix = args.repo.lstrip("/")
+        cands = con.execute(
+            "SELECT id, repo_path FROM binary WHERE repo_path LIKE ?",
+            (f"%/{suffix}",),
+        ).fetchall()
+        if len(cands) > 1:
+            paths = ", ".join(str(r["repo_path"]) for r in cands)
+            sys.exit(f"ambiguous repo {args.repo}: matches {paths}")
+        brow = cands[0] if cands else None
+    if not brow:
         sys.exit(f"not in database: {args.repo}")
     bid = int(brow["id"])
 
     load_asm_fallback(args.program, args.repo)
+    # DRM/packing gate: recovering from encrypted code sections produces garbage
+    # C, so detect packing on the raw image first and refuse (or unpack) when
+    # necessary. Runs automatically; a clean image passes straight through.
+    if _RAW_IMAGE:
+        from . import unpack as _unpack
+        _det = _unpack.detect_packing(_RAW_IMAGE)
+        if _det.get("packed"):
+            import tempfile as _tf
+            with _tf.NamedTemporaryFile(suffix=".bin", delete=False) as _src, \
+                    _tf.NamedTemporaryFile(suffix=".unp", delete=False) as _dst:
+                _src.write(_RAW_IMAGE)
+                _src.flush()
+                # Autonomous: escalate through UPX -> emulate -> runtime-dump.
+                # allow_run executes the binary under Wine to capture the
+                # decrypted image (opt-out via AGENT_DECOMPILE_NO_RUNTIME_DUMP).
+                _allow_run = os.environ.get("AGENT_DECOMPILE_NO_RUNTIME_DUMP", "") == ""
+                _res = _unpack.try_unpack(
+                    pathlib.Path(_src.name), pathlib.Path(_dst.name),
+                    allow_run=_allow_run,
+                    wineprefix=os.environ.get("WINEPREFIX") or None)
+            if _res.get("ok"):
+                _RAW_IMAGE = pathlib.Path(_dst.name).read_bytes()
+                print(f"unpacked {args.program} via {_res['method']} "
+                      f"(packer={_det.get('packer')}); recovering from decrypted image",
+                      flush=True)
+            else:
+                sys.exit(
+                    f"GATED {args.program}: packed/DRM ({_det.get('packer')}, "
+                    f"{_det.get('evidence')}) and automatic unpack failed "
+                    f"({_res.get('reason')}). Refusing to recover from ciphertext -- "
+                    f"supply an external runtime dump (Scylla/x64dbg) then re-run.")
     from . import cross_place
     _CROSS_INDEX = cross_place.load_index(con, bid)
     types = ctxtypes.load_types(con, bid)
@@ -1512,6 +1586,19 @@ def main(argv: list[str] | None = None) -> int:
 
     rows = load_functions(args.program, args.sample)
     prog_dir = OUT_DIR / args.program
+    resumed_failures = set()
+    if args.resume_failures_sha256:
+        receipt = (prog_dir / "_failures.jsonl").read_bytes()
+        if hashlib.sha256(receipt).hexdigest() != args.resume_failures_sha256:
+            raise ValueError("Continuation failure receipt changed; refusing stale resume")
+        for line in receipt.decode("utf-8").splitlines():
+            fields = line.split("\t", 2)
+            if len(fields) != 3:
+                raise ValueError("Malformed continuation failure receipt")
+            resumed_failures.add(int(fields[0], 16))
+        known_addresses = {int(row["entry_hex"], 16) for row in rows}
+        if not resumed_failures <= known_addresses:
+            raise ValueError("Continuation receipt contains addresses outside this target")
     if args.write:
         prog_dir.mkdir(parents=True, exist_ok=True)
         if ASM_FALLBACK:
@@ -1535,6 +1622,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.write and prog_dir.exists() and policy != "force":
         kept = []
         for r in rows:
+            if int(r["entry_hex"], 16) in resumed_failures:
+                skipped_tried += 1
+                continue
             kind = existing_kind(prog_dir, r["name"] or "", r["entry_hex"])
             try:
                 addr_i = int(r["entry_hex"], 16)
@@ -1577,7 +1667,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     fail_log = (prog_dir / "_failures.jsonl") if args.write else None
-    if fail_log is not None and fail_log.exists():
+    if fail_log is not None and fail_log.exists() and not args.resume_failures_sha256:
         fail_log.replace(fail_log.with_name("_failures.jsonl.prev"))
 
     tmp_parent = os.environ.get("AGENT_DECOMPILE_CORPUS_TMP", "").strip()

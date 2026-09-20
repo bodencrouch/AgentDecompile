@@ -92,6 +92,8 @@ class ActionSpec:
     danger: bool = False
     mutating: bool = False
     long_running: bool = False
+    identity_scope: str = ""
+    ghidra_exclusive: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -114,7 +116,7 @@ def list_actions() -> list[ActionSpec]:
             fields=tuple(FieldSpec(name, from_context=name) for name in ("locator", "program", "slug")) + (FieldSpec("resume", kind="bool", default=False),),
         ), ActionSpec(
             id="workbench.merge-evidence", title="Bind compared knowledge", group="workbench",
-            backend="merge-evidence", command="merge-evidence", mutating=True,
+            backend="merge-evidence", command="merge-evidence", mutating=True, identity_scope="database",
             summary="Bind accepted matches without rebuilding existing identities. Fill missing source attribution while retaining human metadata.",
             fields=(FieldSpec("db", required=True, from_context="db"), FieldSpec("run", required=True)),
         ), ActionSpec(

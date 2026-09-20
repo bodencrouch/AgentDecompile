@@ -223,16 +223,19 @@ def register(sub: argparse._SubParsersAction) -> None:
 
     prop = sub.add_parser("propagate-corpus", help="Run matcher pairs from corpus config and bind identities")
     prop.long_running = True
+    prop.identity_scope = "database"
     prop.add_argument("--db", type=Path, required=True)
     prop.add_argument("--run", default="v1")
     prop.add_argument("--report", type=Path, help="Write propagation summary JSON")
     prop.add_argument("--filter", nargs="*", help="Only pairs whose paths contain any token")
 
     bind = sub.add_parser("bind-identities", help="Bind match rows to logical identities for one run")
+    bind.identity_scope = "database"
     bind.add_argument("--db", type=Path, required=True)
     bind.add_argument("--run", default="v1")
 
     recl = sub.add_parser("reclassify-matches", help="Downgrade conflicts and rebuild match identities")
+    recl.identity_scope = "database"
     recl.add_argument("--db", type=Path, required=True)
     recl.add_argument("--run", default="v1")
 

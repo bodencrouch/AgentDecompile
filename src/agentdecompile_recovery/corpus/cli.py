@@ -110,6 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Delete one binary and its per-binary rows from a store",
     )
     rmbin.danger = rmbin.mutating = True
+    rmbin.identity_scope = "database"
     rmbin.add_argument("--db", type=Path, required=True)
     rmbin.add_argument("--repo", dest="repo_path")
     rmbin.add_argument("--slug")
@@ -171,11 +172,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     apply_stabs = sub.add_parser("apply-stabs", help="Apply a reviewed STABS manifest to a store")
     apply_stabs.long_running = True
+    apply_stabs.identity_scope = "database"
     apply_stabs.add_argument("--db", type=Path, required=True)
     apply_stabs.add_argument("--binary-id", type=int, required=True)
     apply_stabs.add_argument("--manifest", type=Path, required=True)
 
     prop = sub.add_parser("propagate-source", help="Carry source_file across logical identities")
+    prop.identity_scope = "database"
     prop.add_argument("--db", type=Path, required=True)
 
     ev = sub.add_parser("evaluate-pair", help="Measure matcher vs unique-name ground truth")
@@ -197,6 +200,7 @@ def build_parser() -> argparse.ArgumentParser:
     hookpack.add_argument("--out", type=Path, required=True)
 
     match_pair = sub.add_parser("match-pair", help="Run the store matcher on one directed pair")
+    match_pair.identity_scope = "pair"
     match_pair.add_argument("--db", type=Path, required=True)
     match_pair.add_argument("--src", required=True)
     match_pair.add_argument("--dst", required=True)
@@ -205,6 +209,7 @@ def build_parser() -> argparse.ArgumentParser:
     match_pair.add_argument("--progress-json", action="store_true", help="Emit matcher progress JSONL while scoring")
 
     logical_build = sub.add_parser("logical-build", help="Rebuild name-first logical identities")
+    logical_build.identity_scope = "database"
     logical_build.add_argument("--db", type=Path, required=True)
 
     pkg = sub.add_parser("package", help="Copy a workspace tree to an output directory")
@@ -227,6 +232,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     merge_parts = sub.add_parser("merge-parts", help="Merge per-program part databases into one store")
     merge_parts.danger = merge_parts.mutating = True
+    merge_parts.identity_scope = "database"
     merge_parts.add_argument("--parts-dir", type=Path, required=True)
     merge_parts.add_argument("--db", type=Path, required=True)
 
@@ -287,6 +293,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     apply_ann = sub.add_parser("apply-annotations", help="Apply jsonl names to a Ghidra program (dry-run default)")
     apply_ann.danger = apply_ann.mutating = True
+    apply_ann.ghidra_exclusive = True
     apply_ann.add_argument("jsonl", type=Path)
     apply_ann.add_argument("--program", required=True)
     apply_ann.add_argument("--min-confidence", type=float, default=0.95)

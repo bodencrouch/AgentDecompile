@@ -143,6 +143,8 @@ def specs_from_argparse(
                 danger=danger,
                 mutating=mutating,
                 long_running=bool(getattr(sub, "long_running", False)),
+                identity_scope=str(getattr(sub, "identity_scope", "")),
+                ghidra_exclusive=bool(getattr(sub, "ghidra_exclusive", False)),
             )
         )
     return rows

@@ -70,19 +70,6 @@ def _auto_checkin_enabled() -> bool:
 def _tool_key(name: str) -> str:
     return re.sub(r"[^a-z]", "", (name or "").lower())
 
-IDENTITY_WRITERS = frozenset({
-    "corpus.logical-build",
-    "workbench.merge-evidence",
-    "corpus.propagate-corpus",
-    "corpus.bind-identities",
-    "corpus.merge-parts",
-    "corpus.apply-stabs",
-    "corpus.propagate-source",
-})
-GHIDRA_MUTATE = frozenset({
-    "corpus.apply-annotations",
-})
-
 Executor = Callable[[list[str], Path, threading.Event], tuple[int, str]]
 
 
@@ -228,6 +215,7 @@ class JobStore:
         self._cancels: dict[str, threading.Event] = {}
         self._running = 0
         self._identity_held: dict[str, str] = {}
+        self._pair_held: dict[tuple[str, str], str] = {}
         self._ghidra_held: dict[str, str] = {}
         self.executor: Executor | None = None
         self._persisted_at: dict[str, float] = {}
@@ -352,7 +340,9 @@ class JobStore:
 
     def _run(self, job_id: str, cancel: threading.Event) -> None:
         identity_key = ""
+        pair_entry: tuple[str, str] | None = None
         ghidra_key = ""
+        worker_acquired = False
         action = action_by_id(self._jobs[job_id].action_id)
         while True:
             with self._lock:
@@ -365,16 +355,24 @@ class JobStore:
                 job = self._jobs[job_id]
                 coordinator = job.action_id in {"workbench.prepare", "workbench.workflow-control", "workbench.activity-snapshot"}
                 can_run = self._running < MAX_CONCURRENT
-                if can_run and (job.action_id in IDENTITY_WRITERS or job.action_id == "corpus.match-pair"):
-                    identity_key = (
-                        match_pair_lock_key(job.params)
-                        if job.action_id == "corpus.match-pair"
-                        else identity_lock_key(job.params)
-                    ) or ""
-                    holder = self._identity_held.get(identity_key)
-                    if identity_key and holder and holder != job_id:
-                        can_run = False
-                mutates_ghidra = job.action_id in GHIDRA_MUTATE or (action is not None and action.backend == "mcp-cli" and action.mutating)
+                scope = action.identity_scope if action is not None else ""
+                if can_run and scope:
+                    identity_key = identity_lock_key(job.params) or ""
+                    if scope == "database":
+                        holder = self._identity_held.get(identity_key)
+                        if identity_key and (
+                            (holder and holder != job_id)
+                            or any(db == identity_key and owner != job_id for (db, _pair), owner in self._pair_held.items())
+                        ):
+                            can_run = False
+                    elif scope == "pair":
+                        pair_key = match_pair_lock_key(job.params) or ""
+                        pair_entry = (identity_key, pair_key) if identity_key and pair_key else None
+                        holder = self._identity_held.get(identity_key)
+                        pair_holder = self._pair_held.get(pair_entry) if pair_entry else None
+                        if (holder and holder != job_id) or (pair_holder and pair_holder != job_id):
+                            can_run = False
+                mutates_ghidra = bool(action and action.ghidra_exclusive) or (action is not None and action.backend == "mcp-cli" and action.mutating)
                 if can_run and mutates_ghidra:
                     ghidra_key = ghidra_lock_key(job.params)
                     holder = self._ghidra_held.get(ghidra_key)
@@ -388,18 +386,28 @@ class JobStore:
                     # preparation runs, leaving every real MCP job queued.
                     if not coordinator:
                         self._running += 1
-                    if identity_key:
+                        worker_acquired = True
+                    if identity_key and scope == "database":
                         self._identity_held[identity_key] = job_id
+                    if pair_entry and scope == "pair":
+                        self._pair_held[pair_entry] = job_id
                     if ghidra_key:
                         self._ghidra_held[ghidra_key] = job_id
                     job.status = "running"
                     job.started_at = time.time()
-                    self._persist_locked(job, force=True)
+                    try:
+                        self._persist_locked(job, force=True)
+                    except Exception as exc:  # noqa: BLE001 — admission must never leak
+                        job.error = str(exc)
+                        job.status = "failed"
+                        job.finished_at = time.time()
+                        self._release_admission_locked(job_id, identity_key, pair_entry, ghidra_key, worker_acquired)
+                        return
                     argv = list(job.argv)
                     break
             time.sleep(POLL_S)
-        cwd = live_root() or Path.cwd()
         try:
+            cwd = live_root() or Path.cwd()
             if action is not None and action.backend == "preparation":
                 from agentdecompile_recovery.corpus.dashboard.preparation import execute
                 code, log = execute(dict(job.params), cancel)
@@ -554,13 +562,25 @@ class JobStore:
                 job.finished_at = time.time()
         finally:
             with self._lock:
+                self._release_admission_locked(job_id, identity_key, pair_entry, ghidra_key, worker_acquired)
                 self._persist_locked(self._jobs[job_id], force=True)
-                if not coordinator:
-                    self._running = max(0, self._running - 1)
-                if identity_key and self._identity_held.get(identity_key) == job_id:
-                    self._identity_held.pop(identity_key, None)
-                if ghidra_key and self._ghidra_held.get(ghidra_key) == job_id:
-                    self._ghidra_held.pop(ghidra_key, None)
+
+    def _release_admission_locked(
+        self,
+        job_id: str,
+        identity_key: str,
+        pair_entry: tuple[str, str] | None,
+        ghidra_key: str,
+        worker_acquired: bool,
+    ) -> None:
+        if worker_acquired:
+            self._running = max(0, self._running - 1)
+        if identity_key and self._identity_held.get(identity_key) == job_id:
+            self._identity_held.pop(identity_key, None)
+        if pair_entry and self._pair_held.get(pair_entry) == job_id:
+            self._pair_held.pop(pair_entry, None)
+        if ghidra_key and self._ghidra_held.get(ghidra_key) == job_id:
+            self._ghidra_held.pop(ghidra_key, None)
 
     def _trim_locked(self) -> None:
         while len(self._order) > MAX_JOBS:
@@ -1097,7 +1117,7 @@ def start_job(
             "error": "External pipeline already owns this database and workspace; inspect or adopt it before starting another writer.",
             "externalOwner": owner,
         }, 409
-    if action.id in IDENTITY_WRITERS or action.id == "corpus.match-pair":
+    if action.identity_scope:
         key = identity_lock_key(filled)
         if not key:
             return {"error": "identity writer needs --db", "actionId": action.id}, 400

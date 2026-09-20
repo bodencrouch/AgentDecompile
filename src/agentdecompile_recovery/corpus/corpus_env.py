@@ -33,6 +33,12 @@ def require_env_path(name: str, default: Path | None = None) -> Path:
     raise MissingCorpusPath(f"{name} is required")
 
 
+def project_workspace(*, path: Path | str | None = None) -> Path:
+    if path is not None:
+        return Path(path)
+    return require_env_path("AGENT_DECOMPILE_PROJECT_PATH", DEFAULT_PROJECT_ROOT)
+
+
 def corpus_db_path(*, path: Path | str | None = None) -> Path:
     if path is not None:
         return Path(path)
@@ -60,5 +66,4 @@ def knowledge_db_path(*, path: Path | str | None = None) -> Path | None:
 def recovered_source_root(*, path: Path | str | None = None) -> Path:
     if path is not None:
         return Path(path)
-    root = env_path("AGENT_DECOMPILE_EXTERNAL_RECOVERY_ROOT") or DEFAULT_PROJECT_ROOT / "external_recovery"
-    return root / "recovered-source"
+    return external_recovery_root() / "recovered-source"

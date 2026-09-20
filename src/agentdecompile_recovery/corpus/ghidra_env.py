@@ -12,6 +12,7 @@ import contextlib
 import os
 from pathlib import Path
 
+from . import corpus_env
 from .corpus_config import load_ghidra_server
 
 _STARTED = False
@@ -26,12 +27,7 @@ def resolve_workspace(path: Path | str | None = None) -> Path:
     Argument, then ``AGENT_DECOMPILE_PROJECT_PATH``, then the repo-wide
     ``./agentdecompile_projects`` default.
     """
-    if path is not None:
-        return Path(path)
-    env = os.environ.get("AGENT_DECOMPILE_PROJECT_PATH", "").strip()
-    if env:
-        return Path(env)
-    return Path("agentdecompile_projects")
+    return corpus_env.project_workspace(path=path)
 
 
 def pyghidra_available() -> bool:

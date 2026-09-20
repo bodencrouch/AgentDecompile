@@ -153,7 +153,7 @@ def set_runtime_db_path(path: Path | str | None) -> None:
 def find_candidate_dbs() -> list[Path]:
     """Scan conventional locations for an existing corpus sqlite file."""
     seen: dict[str, Path] = {}
-    search_dirs = [Path("agentdecompile_projects"), Path.cwd(), Path.home() / "agentdecompile_projects"]
+    search_dirs = [_corpus_env.DEFAULT_PROJECT_ROOT, Path.cwd(), Path.home() / "agentdecompile_projects"]
     for directory in search_dirs:
         try:
             if not directory.is_dir():

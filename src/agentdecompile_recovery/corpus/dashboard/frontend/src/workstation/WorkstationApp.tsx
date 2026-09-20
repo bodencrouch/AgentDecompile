@@ -84,6 +84,7 @@ export function WorkstationApp(){
   const pendingPrepare=useRef(readPref<string|null>('workstation.prepareJob',null));
   const runtime=useRef(new LocalProjectRuntime('local:workbench'));
   const reportedReadErrors=useRef<Record<string,string>>({});
+  const jumpSequence=useRef(0);
   const searchRef=useRef<HTMLInputElement>(null),fileRef=useRef<HTMLInputElement>(null);
   const binaries=useData(`${API}/binaries?locator=${encodeURIComponent(selection.locator)}`,revision);
   const preparation=usePreparationRuns();
@@ -94,6 +95,7 @@ export function WorkstationApp(){
   const [jobs,setJobs]=useState<Data[]>([]),[jobsError,setJobsError]=useState('');
   const notify:Notify=useCallback((message,level='info',details={})=>{setEvents(old=>[...old,{id:crypto.randomUUID(),time:new Date().toISOString(),message,level,details}].slice(-500));if(level==='error'){if(!isMobile)setDockOpen(true);setDockTab('Problems');}},[setEvents,setDockOpen,setDockTab,isMobile]);
   const navigate=useCallback((next:Route,replace=false)=>{
+    jumpSequence.current++;
     const url=routeUrl(location.href,next);
     if(location.pathname+location.search+location.hash!==url)history[replace?'replaceState':'pushState']({},'',url);
     setRoute(next);
@@ -105,7 +107,7 @@ export function WorkstationApp(){
   const refresh=()=>setRevision(r=>r+1);
   const onAction=useCallback((id:string,params?:Data,targets?:Selection[])=>{setDialog(null);setAction({id,params,targets:targets||[{...selection}]});},[selection]);
   const props={selection,onSelect:select,onAction,notify,revision};
-  useEffect(()=>{const handle=()=>{setRoute(readRoute(location.search,{selection:emptySelection,tab:'Disassembly'}));setMobilePane(null);};addEventListener('popstate',handle);return()=>removeEventListener('popstate',handle);},[]);
+  useEffect(()=>{const handle=()=>{jumpSequence.current++;setRoute(readRoute(location.search,{selection:emptySelection,tab:'Disassembly'}));setMobilePane(null);};addEventListener('popstate',handle);return()=>{jumpSequence.current++;removeEventListener('popstate',handle);};},[]);
   useEffect(()=>{savePref('workstation.route',route);if(selection.slug||selection.program||selection.binaryHash){setSessions(old=>{const key=sessionKey(selection),existing=old.find(s=>sessionKey(s.selection)===key);const next={selection,name:existing?.name||selection.program.split('/').pop()||selection.slug||localModel?.artifacts.find(a=>a.hash===selection.binaryHash)?.name||selection.binaryHash?.slice(0,12)||'Binary'};return existing?old.map(s=>sessionKey(s.selection)===key?next:s):[...old,next];});}},[route,localModel,setSessions]);
   useEffect(()=>{setOffset(0);setFilter('');setFunctionQuery('');setEvidence({});},[selection.slug,selection.program,selection.locator,selection.binaryHash]);
   useEffect(()=>{setAddress(selection.addr);setEvidence({});},[selection.addr]);
@@ -153,11 +155,12 @@ export function WorkstationApp(){
     catch(e){notify(String(e),'error');}finally{setBusy(false);if(fileRef.current)fileRef.current.value='';}
   }
   async function jumpAddress(){
+    const sequence=++jumpSequence.current;
     const value=address.trim();if(!value)return;
     if(/^(0x)?[0-9a-f]+$/i.test(value)){select({addr:value,logicalId:''});return;}
     if(local){notify('Local byte navigation requires a hexadecimal file offset.','error');return;}
-    try{const result=await request(`${API}/functions?${query(selection,{q:value,filter:'all',offset:0,limit:100})}`);const rows:Data[]=result.functions||result.results||[];const exact=rows.filter(r=>String(r.name).toLowerCase()===value.toLowerCase());const found=exact.length===1?exact[0]:rows.length===1?rows[0]:undefined;if(found)select({addr:addressOf(found),logicalId:String(found.logical_id||'')});else{setFilter(value);setNavOpen(true);setMobilePane('functions');notify(rows.length?'Choose a function from the matching results.':`No recorded function found for ${value}`,'warning');}}
-    catch(e){notify(String(e),'error');}
+    try{const result=await request(`${API}/functions?${query(selection,{q:value,filter:'all',offset:0,limit:100})}`);if(sequence!==jumpSequence.current)return;const rows:Data[]=result.functions||result.results||[];const exact=rows.filter(r=>String(r.name).toLowerCase()===value.toLowerCase());const found=exact.length===1?exact[0]:rows.length===1?rows[0]:undefined;if(found)select({addr:addressOf(found),logicalId:String(found.logical_id||'')});else{setFilter(value);setNavOpen(true);setMobilePane('functions');notify(rows.length?'Choose a function from the matching results.':`No recorded function found for ${value}`,'warning');}}
+    catch(e){if(sequence===jumpSequence.current)notify(String(e),'error');}
   }
   const currentKey=sessionKey(selection);
   function closeSession(key:string){const remaining=sessions.filter(s=>sessionKey(s.selection)!==key);setSessions(remaining);if(key===currentKey)navigate({selection:remaining.at(-1)?.selection||emptySelection,tab});}

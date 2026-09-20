@@ -1802,17 +1802,30 @@
     (nextList || []).forEach(function (job) {
       const was = prev[job.id];
       if (was === job.status) return;
+      const id = String(job.id || "unknown").slice(0, 80);
       if (!was && (job.status === "running" || job.status === "queued")) {
-        parts.push("Job " + job.id + " started");
-      } else if (job.status === "error" || job.status === "failed") {
-        parts.push("Job " + job.id + " failed");
-      } else if (job.status === "done" || job.status === "finished" || job.status === "ok" || job.status === "completed") {
-        parts.push("Job " + job.id + " finished. A finished job is not a match.");
-      } else if (job.status === "cancelled" || job.status === "canceled") {
-        parts.push("Job " + job.id + " cancelled");
+        parts.push("Job " + id + " started");
+      } else if (was && (job.status === "error" || job.status === "failed")) {
+        parts.push("Job " + id + " failed");
+      } else if (was && (job.status === "done" || job.status === "finished" || job.status === "ok" || job.status === "completed")) {
+        parts.push("Job " + id + " finished. A finished job is not a match.");
+      } else if (was && (job.status === "cancelled" || job.status === "canceled")) {
+        parts.push("Job " + id + " cancelled");
       }
     });
-    return parts.join(". ");
+    const shown = parts.slice(0, 3);
+    if (parts.length > shown.length) shown.push("and " + (parts.length - shown.length) + " more job updates");
+    return shown.join(". ");
+  }
+
+  function measuredJobPercent(job) {
+    const progress = job && job.workProgress;
+    if (!progress) return null;
+    const completed = progress.completed;
+    const total = progress.total;
+    if (typeof completed !== "number" || typeof total !== "number") return null;
+    if (!Number.isFinite(completed) || !Number.isFinite(total) || total <= 0 || completed < 0 || completed > total) return null;
+    return Math.round(100 * completed / total);
   }
 
   function JobLiveRegion({ text }) {
@@ -2393,7 +2406,7 @@
     const [checkedAddrs, setCheckedAddrs] = useState([]);
     const [checkAnchor, setCheckAnchor] = useState("");
     const [jobLiveText, setJobLiveText] = useState("");
-    const jobsSnapshotRef = useRef([]);
+    const jobsSnapshotRef = useRef(null);
     const pipelineChainedRef = useRef({});
     const ensureSeqRef = useRef(0);
     const chainAfterAnalyzeRef = useRef(function () {});
@@ -3226,7 +3239,7 @@
           const res = await fetch(API.jobs, { cache: "no-store" });
           const data = await res.json();
           const list = data.jobs || [];
-          const note = jobLiveAnnouncement(jobsSnapshotRef.current, list);
+          const note = jobsSnapshotRef.current === null ? "" : jobLiveAnnouncement(jobsSnapshotRef.current, list);
           jobsSnapshotRef.current = list;
           if (note) {
             setJobLiveText(note);
@@ -3239,7 +3252,7 @@
             const params = job.params || {};
             const key = String(params.program || params.programPath || params.binary || params.name || "").trim();
             if (!key) return;
-            const pct = typeof job.progress === "number" ? job.progress : (job.status === "ok" ? 100 : job.status === "queued" ? 4 : 22);
+            const pct = measuredJobPercent(job);
             nextProgress[key] = { pct: pct, tool: job.actionId || "", status: job.status };
           });
           if (Object.keys(nextProgress).length) {
@@ -5699,6 +5712,7 @@
                   ${(projectCard.programs || []).map(function (name) {
                     const meter = programProgress[name] || null;
                     const live = meter && (meter.status === "queued" || meter.status === "running");
+                    const measured = live && Number.isFinite(meter.pct);
                     return html`<li key=${"prog-" + name} className=${"wb-program" + (program === name && slug === activeProjectSlug ? " on" : "") + (live ? " live" : "")}
                       onContextMenu=${function (ev) { openCtx(ev, programCtxItems(name)); }}>
                       <button type="button" className="wb-text-action"
@@ -5723,8 +5737,8 @@
                           ev.stopPropagation();
                           removeProgramFromProject(name);
                         }}>Remove</button>
-                      ${live ? html`<span className="wb-prog-pct" title=${meter.tool || ""}>${meter.pct}%</span>` : null}
-                      ${live ? html`<span className="wb-prog-meter" aria-hidden="true"><i style=${{ transform: "scaleX(" + (Number(meter.pct) / 100) + ")" }}></i></span>` : null}
+                      ${live ? html`<span className="wb-prog-pct" title=${meter.tool || ""}>${measured ? meter.pct + "%" : meter.status}</span>` : null}
+                      ${measured ? html`<span className="wb-prog-meter" aria-hidden="true"><i style=${{ transform: "scaleX(" + (meter.pct / 100) + ")" }}></i></span>` : null}
                     </li>`;
                   })}
                 </ul>` : html`<ul className="wb-programs">

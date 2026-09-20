@@ -1996,6 +1996,11 @@ def _normalize_cli_token(token: str) -> str:
     return token if len(token) == 1 else normalize_identifier(token)
 
 
+def _identity_cli_token(token: str) -> str:
+    """Keep opaque passthrough tokens out of the parent context's normalizer."""
+    return token
+
+
 class ForgivingCliGroup(click.Group):
     """Resolve exact commands first, then spelling variants, then semantic aliases."""
 
@@ -4833,7 +4838,7 @@ def read_cmd(ctx: click.Context, program_path: str | None, address: str, length:
 
 @main.command(
     "svr-admin",
-    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True, "token_normalize_func": _identity_cli_token},
     help=("Run bundled Ghidra svrAdmin with full passthrough. Use --arg repeatedly or pass raw trailing tokens after '--'."),
 )
 @click.option("--arg", "args", multiple=True, help="Raw token forwarded to svrAdmin (repeatable).")
@@ -5265,7 +5270,7 @@ def _run_embedded_cli(entrypoint: Any, args: tuple[str, ...]) -> None:
 
 @main.command(
     "recover",
-    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True, "token_normalize_func": _identity_cli_token},
     add_help_option=False,
     help="Run the integrated staged recovery CLI. Pass subcommand args directly, for example `agentdecompile-cli recover inspect <path>`.",
 )
@@ -5278,7 +5283,7 @@ def recover_passthrough_cmd(args: tuple[str, ...]) -> None:
 
 @main.command(
     "reconstruct",
-    context_settings={"ignore_unknown_options": True, "allow_extra_args": True},
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True, "token_normalize_func": _identity_cli_token},
     add_help_option=False,
     help="Run the integrated reconstruction front door. Pass arguments directly, for example `agentdecompile-cli reconstruct <binary>` or `agentdecompile-cli reconstruct self-check`.",
 )

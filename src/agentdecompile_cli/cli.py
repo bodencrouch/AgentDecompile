@@ -2005,6 +2005,8 @@ def _identity_cli_token(token: str) -> str:
 class ForgivingCliGroup(click.Group):
     """Resolve exact commands first, then spelling variants, then semantic aliases."""
 
+    group_class = type
+
     def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
         exact = super().get_command(ctx, cmd_name)
         if exact is not None:

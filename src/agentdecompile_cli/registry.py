@@ -21,6 +21,7 @@ import logging
 import os
 import re
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
 from functools import lru_cache
@@ -36,8 +37,7 @@ _NON_ALPHA_PATTERN = re.compile(r"[^a-z]")
 # ---------------------------------------------------------------------------
 # These are compiled once at module load, not in hot loops/functions
 
-_CAMEL_TO_SNAKE_PATTERN = re.compile(r"([a-z0-9])([A-Z])")
-_CAMEL_TO_KEBAB_PATTERN = re.compile(r"([a-z0-9])([A-Z])")
+_CAMEL_BOUNDARY_PATTERN = re.compile(r"([a-z0-9])([A-Z])")
 
 # Natural language value patterns
 _QUOTED_STR_PATTERN = re.compile(r'"[^\\"]*"|\'[^\']*\'')
@@ -871,6 +871,42 @@ def normalize_identifier(s: str) -> str:
     """
     logger.debug("diag.enter %s", "registry.py:normalize_identifier")
     return _NON_ALPHA_PATTERN.sub("", s.lower().strip())
+
+
+@lru_cache(maxsize=512)
+def parameter_name_variations(
+    param_name: str,
+    semantic_aliases: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    """Return canonical, snake, kebab, then contextual semantic spellings."""
+    variations: list[str] = [param_name]
+    snake_case = _CAMEL_BOUNDARY_PATTERN.sub(r"\1_\2", param_name).lower()
+    kebab_case = _CAMEL_BOUNDARY_PATTERN.sub(r"\1-\2", param_name).lower()
+    if snake_case != param_name.lower():
+        variations.append(snake_case)
+    if kebab_case != param_name.lower():
+        variations.append(kebab_case)
+    variations.extend(semantic_aliases)
+    return tuple(dict.fromkeys(variations))
+
+
+def iter_argument_candidates(
+    arguments: dict[str, Any],
+    keys: tuple[str, ...],
+    *,
+    normalized_fallback_keys: tuple[str, ...] | None = None,
+) -> Iterator[Any]:
+    """Yield exact candidates by key priority, then normalized input-order matches."""
+    for key in keys:
+        if key in arguments:
+            yield arguments[key]
+
+    fallback_keys = keys if normalized_fallback_keys is None else normalized_fallback_keys
+    normalized_keys = {normalize_identifier(key) for key in fallback_keys}
+    exact_keys = set(keys)
+    for arg_key, value in arguments.items():
+        if arg_key not in exact_keys and normalize_identifier(arg_key) in normalized_keys:
+            yield value
 
 
 def _find_repo_root_for_tools_list() -> Path | None:
@@ -2207,27 +2243,14 @@ class ToolRegistry:
             List of parameter name variations
         """
         logger.debug("diag.enter %s", "registry.py:ToolRegistry._generate_param_variations")
-        variations: list[str] = [param_name]
-
-        # Convert camelCase to snake_case using precompiled pattern
-        snake_case: str = _CAMEL_TO_SNAKE_PATTERN.sub(r"\1_\2", param_name).lower()
-        if snake_case != param_name.lower():
-            variations.append(snake_case)
-
-        # Convert camelCase to kebab-case using precompiled pattern
-        kebab_case: str = _CAMEL_TO_KEBAB_PATTERN.sub(r"\1-\2", param_name).lower()
-        if kebab_case != param_name.lower():
-            variations.append(kebab_case)
-
-        # Handle special cases with explicit aliases
+        semantic_aliases: tuple[str, ...] = ()
         if param_name == "addressOrSymbol":
-            variations.extend(["address_or_symbol", "addressOrSymbol", "address"])
+            semantic_aliases = ("address",)
         elif param_name == "programPath":
-            variations.extend(["program_path", "program-path", "program", "filepath", "path"])
+            semantic_aliases = ("program", "filepath", "path")
         elif param_name == "maxResults":
-            variations.extend(["max_results", "max-results", "limit", "maxResults", "limits"])
-
-        return tuple(dict.fromkeys(variations))
+            semantic_aliases = ("limit", "limits")
+        return parameter_name_variations(param_name, semantic_aliases)
 
     def validate_required_arguments(
         self,

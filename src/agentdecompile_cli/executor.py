@@ -28,7 +28,9 @@ from mcp import types
 from agentdecompile_cli.app_logger import norm_arg_keys
 from agentdecompile_cli.registry import (
     Tool,
+    iter_argument_candidates,
     normalize_identifier,
+    parameter_name_variations,
     resolve_tool_name,
     tool_registry,
 )
@@ -39,6 +41,15 @@ if TYPE_CHECKING:
     )
 
 logger = logging.getLogger(__name__)
+
+_EXECUTOR_PARAM_ALIASES: dict[str, tuple[str, ...]] = {
+    "addressOrSymbol": ("address", "symbol", "addr"),
+    "programPath": ("path", "program", "binary", "file", "filepath"),
+    "maxResults": ("limit", "count", "max"),
+    "startIndex": ("offset", "start"),
+    "includeSignature": ("signature", "include_sig"),
+    "simplifyExpressions": ("simplify", "simple"),
+}
 
 # ---------------------------------------------------------------------------
 # Response helpers (formerly responses.py – that file never existed on disk)
@@ -578,17 +589,10 @@ def get_argument_variations(arguments: dict[str, Any], *keys: str) -> Any:
         path = get_argument_variations(args, "program_path")
         # Matches "program_path", "programPath", "program-path", etc.
     """
-    # Fast path: exact match
     logger.debug("diag.enter %s", "executor.py:get_argument_variations")
-    for key in keys:
-        val = arguments.get(key)
-        if val is not None:
-            return val
-    # Slow path: normalized (alphabet-only, lowercase) match
-    normalized_keys = {normalize_identifier(k) for k in keys}
-    for arg_key, arg_val in arguments.items():
-        if arg_val is not None and normalize_identifier(arg_key) in normalized_keys:
-            return arg_val
+    for value in iter_argument_candidates(arguments, keys):
+        if value is not None:
+            return value
     return None
 
 
@@ -618,15 +622,9 @@ def get_optional_bool(
             return raw.strip().lower() in ("true", "1", "yes", "on")
         return bool(raw)
 
-    # Fast path: exact match
-    for key, _ in key_defaults:
-        raw = arguments.get(key)
+    keys = tuple(key for key, _ in key_defaults)
+    for raw in iter_argument_candidates(arguments, keys):
         if raw is not None:
-            return _to_bool(raw)
-    # Slow path: normalized match
-    normalized_keys = {normalize_identifier(k) for k, _ in key_defaults}
-    for arg_key, raw in arguments.items():
-        if raw is not None and normalize_identifier(arg_key) in normalized_keys:
             return _to_bool(raw)
     return fallback
 
@@ -655,18 +653,9 @@ def get_optional_int(
     """
     logger.debug("diag.enter %s", "executor.py:get_optional_int")
     fallback: int = key_defaults[0][1] if key_defaults else 0
-    # Fast path: exact match
-    for key, _ in key_defaults:
-        raw = arguments.get(key)
+    keys = tuple(key for key, _ in key_defaults)
+    for raw in iter_argument_candidates(arguments, keys):
         if raw is not None:
-            try:
-                return int(raw)
-            except (TypeError, ValueError):
-                pass
-    # Slow path: normalized match
-    normalized_keys = {normalize_identifier(k) for k, _ in key_defaults}
-    for arg_key, raw in arguments.items():
-        if raw is not None and normalize_identifier(arg_key) in normalized_keys:
             try:
                 return int(raw)
             except (TypeError, ValueError):
@@ -697,15 +686,9 @@ def get_optional_str(
     """
     logger.debug("diag.enter %s", "executor.py:get_optional_str")
     fallback: str = key_defaults[0][1] if key_defaults else ""
-    # Fast path: exact match
-    for key, _ in key_defaults:
-        raw = arguments.get(key)
+    keys = tuple(key for key, _ in key_defaults)
+    for raw in iter_argument_candidates(arguments, keys):
         if raw is not None and str(raw).strip():
-            return str(raw)
-    # Slow path: normalized match
-    normalized_keys = {normalize_identifier(k) for k, _ in key_defaults}
-    for arg_key, raw in arguments.items():
-        if raw is not None and str(raw).strip() and normalize_identifier(arg_key) in normalized_keys:
             return str(raw)
     return fallback
 
@@ -852,77 +835,25 @@ class DynamicToolExecutor:
         parsed_args: dict[str, Any] = {}
         tool = Tool.from_string(canonical_tool_name)
         expected_params: list[str] = tool.params if tool is not None else self._registry.get_tool_params(canonical_tool_name)
+        missing = object()
 
         for param_name in expected_params:
-            # Try all possible variations of the parameter name
-            param_variations = self._generate_param_variations(param_name)
-
-            found = False
-            for variation in param_variations:
-                if variation in raw_arguments:
-                    value = raw_arguments[variation]
-                    parsed_value = self._coerce_value_dynamically(param_name, value)
-                    parsed_args[param_name] = parsed_value
-                    found = True
-                    break
-
-            if not found:
-                # Normalized fallback: strip all non-alpha chars from both sides
-                # and compare.  Accepts any casing or separator style as long
-                # as the alphabetic characters match.
-                normalized_param = normalize_identifier(param_name)
-                for key, value in raw_arguments.items():
-                    if normalize_identifier(key) == normalized_param:
-                        parsed_value = self._coerce_value_dynamically(param_name, value)
-                        parsed_args[param_name] = parsed_value
-                        break
+            param_variations = parameter_name_variations(
+                param_name,
+                _EXECUTOR_PARAM_ALIASES.get(param_name, ()),
+            )
+            value = next(
+                iter_argument_candidates(
+                    raw_arguments,
+                    param_variations,
+                    normalized_fallback_keys=(param_name,),
+                ),
+                missing,
+            )
+            if value is not missing:
+                parsed_args[param_name] = self._coerce_value_dynamically(param_name, value)
 
         return parsed_args
-
-    def _generate_param_variations(
-        self,
-        param_name: str,
-    ) -> list[str]:
-        """Generate all possible variations of a parameter name.
-
-        Supports: camelCase, snake_case, kebab-case
-
-        Args:
-        ----
-            param_name: The canonical parameter name to generate variations for.
-
-        Returns:
-        -------
-            A list of possible parameter name variations to check against input arguments.
-        """
-        logger.debug("diag.enter %s", "executor.py:DynamicToolExecutor._generate_param_variations")
-        variations: list[str] = [param_name]
-
-        # Convert camelCase to snake_case
-        snake_case = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", param_name).lower()
-        if snake_case != param_name.lower():
-            variations.append(snake_case)
-
-        # Convert camelCase to kebab-case
-        kebab_case = re.sub(r"([a-z0-9])([A-Z])", r"\1-\2", param_name).lower()
-        if kebab_case != param_name.lower():
-            variations.append(kebab_case)
-
-        # Common schema param names and their common aliases (so CLI/agents can pass short names)
-        if param_name == "addressOrSymbol":
-            variations.extend(["address", "symbol", "addr"])
-        elif param_name == "programPath":
-            variations.extend(["path", "program", "binary", "file", "filepath"])
-        elif param_name == "maxResults":
-            variations.extend(["limit", "count", "max"])
-        elif param_name == "startIndex":
-            variations.extend(["offset", "start"])
-        elif param_name == "includeSignature":
-            variations.extend(["signature", "include_sig"])
-        elif param_name == "simplifyExpressions":
-            variations.extend(["simplify", "simple"])
-
-        return variations
 
     def _coerce_value_dynamically(
         self,

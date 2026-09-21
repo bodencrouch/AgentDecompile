@@ -85,7 +85,9 @@ def _consistent(proposals: list[tuple[Id, Id, str]]) -> list[tuple[Id, Id, str]]
     for src, dst, kind in proposals:
         by_src[src].add(dst)
         by_dst[dst].add(src)
-        kinds.setdefault((src, dst), kind)
+        # One pair can be proposed as callee by one anchor and caller by another;
+        # pick the kind by value, not by which anchor the mapping iterated first.
+        kinds[(src, dst)] = min(kinds.get((src, dst), kind), kind)
     accepted: list[tuple[Id, Id, str]] = []
     for src, dests in by_src.items():
         if len(dests) != 1:
@@ -135,7 +137,8 @@ def propagate_call_graph(
                         or (src in set(src_callers.get(parent, ())) and dst in set(dst_callers.get(mapped, ())))
                     )
                 ]
-                added.append((src, dst, kind, parents))
+                # Persisted into match.evidence; do not leak mapping insertion order.
+                added.append((src, dst, kind, sorted(parents)))
             else:
                 added.append((src, dst, kind))
             grew = True

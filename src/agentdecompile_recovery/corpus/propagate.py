@@ -108,6 +108,10 @@ def run_pair(
                 ranges.get("dst_end"),
             )
         )
+    # match.id follows insert order. Sort on (src_addr, dst_addr) - the pair's
+    # natural key within one directed run - so ids do not inherit the result
+    # dict's insertion order.
+    rows.sort(key=lambda r: (r[2], r[4]))
     con.executemany(
         """INSERT INTO match(run, src_binary, src_addr, dst_binary, dst_addr,
                              score, margin, evidence, status, relation, src_end, dst_end)
@@ -160,13 +164,16 @@ def bind_identities(con, run: str, *, commit: bool = True) -> int:
              FROM match m
              JOIN identity i ON i.binary_id=m.src_binary AND i.addr=m.src_addr
             WHERE m.run=? AND m.status IN ('auto','verify')
-              AND m.relation='one_to_one'""",
+              AND m.relation='one_to_one'
+            ORDER BY m.dst_binary, m.dst_addr, i.logical_id, m.src_binary, m.src_addr""",
         (run,),
     )
     candidates: list[tuple[float, tuple, dict]] = []
+    # Last write wins per (logical_id, binary_id); the ORDER BY makes that the
+    # highest addr rather than whichever row the scan happened to yield last.
     logical_members = {
         (row["logical_id"], row["binary_id"]): row["addr"]
-        for row in con.execute("SELECT logical_id,binary_id,addr FROM identity")
+        for row in con.execute("SELECT logical_id,binary_id,addr FROM identity ORDER BY logical_id, binary_id, addr")
     }
     conflicts: list[tuple[str, int, int, int]] = []
     for row in cur:
@@ -192,7 +199,18 @@ def bind_identities(con, run: str, *, commit: bool = True) -> int:
         candidates.append((conf, cand, dict(row)))
     best: dict[tuple[int, int], tuple] = {}
     selected_logical: dict[tuple[int, int], int] = dict(logical_members)
-    for _conf, cand, row in sorted(candidates, key=lambda item: item[0], reverse=True):
+    # Total order, dst-major by design: the race decides which source claims a
+    # destination, so ties at equal confidence break on the destination first,
+    # then logical_id, then source. Changing this key changes which rows win
+    # and is a versioned algorithm change, not a refactor.
+    candidates.sort(
+        key=lambda item: (
+            -item[0],
+            item[2]["dst_binary"], item[2]["dst_addr"],
+            item[2]["logical_id"], item[2]["src_binary"], item[2]["src_addr"],
+        )
+    )
+    for _conf, cand, row in candidates:
         key = (row["dst_binary"], row["dst_addr"])
         logical_key = (row["logical_id"], row["dst_binary"])
         occupied = selected_logical.get(logical_key)

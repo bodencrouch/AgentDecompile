@@ -85,15 +85,26 @@ Hindsight is expected, not a failure: the plan is rewritten as often as building
 - Companions (audit files, risk register, this charter, the goal) are inputs, not competing
   plans.
 
-## 6. Cadence and limits
+## 6. Cadence and limits — grill sparingly
 
-- Each iteration: integrate → attest (verbs touched since last time) → one workflow round on
-  the one or two areas with the oldest audit or the most code change (`risk-hangs` every other
-  round, `feasibility` every third, all areas every sixth) → apply → dispatch. At most four
-  concurrent agents until the repo leaves the USB drive (register R1/R11).
-- Attestation runs against a `.backup` copy of the real store, never the live file; slugs are
-  hashed; every verb has a deadline; exceeding it is a finding.
-- A round that changes nothing is recorded as a no-op tick, not hidden.
+Grilling is a tool with a cost; the default iteration is **build, integrate, attest** — not
+grill. A grill round runs only when one of these is true:
+
+- an area has **never** been audited (each area gets one full round, once);
+- a **hindsight trigger** (§4) fired for an area → one targeted round on that area only;
+- code landed that touches an area's "what exists today" claims → one targeted round, and only
+  if attestation or a worker report suggests the claims moved;
+- the **sanity cadence**: `risk-hangs` every fourth iteration, `feasibility` every eighth, the
+  full set only when the user asks or the plan is about to be declared converged.
+
+Inside a round, three-lens refutation runs only on `blocks-goal` / `wrong-when-implemented`
+findings; `stale` and `clarity` findings are applied directly without a refuter panel. A round
+with nothing substantive is a no-op tick and does not schedule another.
+
+Per iteration otherwise: integrate → attest (verbs touched since last time) → dispatch. At
+most four concurrent agents until the repo leaves the USB drive (register R1/R11). Attestation
+runs against a `.backup` copy of the real store, never the live file; slugs hashed; every verb
+has a deadline; exceeding it is a finding.
 
 ## 7. Restart (the loop is session-bound)
 

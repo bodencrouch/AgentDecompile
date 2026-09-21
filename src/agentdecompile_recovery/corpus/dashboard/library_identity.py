@@ -45,10 +45,19 @@ def canonical_library(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]],
 
     identities, identity_error = query_db("SELECT source_path,sha256 FROM binary_content_identity")
     recorded = dict(identities) if not identity_error else {}
+    aliases, _ = query_db("SELECT source_path,binary_slug,sha256 FROM binary_source_alias", ignore_missing=True)
+    by_slug: dict[str, list[tuple[str, str]]] = {}
+    for path, slug, sha256 in aliases:
+        by_slug.setdefault(slug, []).append((path, sha256))
     groups: dict[str, list[dict[str, Any]]] = {}
     unresolved = []
     for row in rows:
         digest = binary_sha256(row['repo']) if row['kind'] == 'binary' else ''
+        if not digest and row['kind'] == 'binary':
+            confirmed = {sha256 for path, sha256 in by_slug.get(row['slug'], [])
+                         if binary_sha256(path) == sha256}
+            if len(confirmed) == 1:
+                digest = confirmed.pop()
         row.update(sha256=digest or None, identityStatus='confirmed' if digest else 'unavailable')
         prior_digest = recorded.get(row['repo'])
         if row['kind'] == 'binary' and (not digest or (prior_digest and prior_digest != digest)):

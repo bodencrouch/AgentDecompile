@@ -1,0 +1,6 @@
+{
+  global:
+    gnsdk_*;
+  local:
+    *;
+};

@@ -538,9 +538,11 @@ def _default_executor(argv: list[str], cwd: Path, cancel: threading.Event, *, on
             # Process exit can precede the reader thread delivering its final
             # buffered output. Only the pipe EOF sentinel proves it is drained.
             continue
-        if line is None: break
+        if line is None:
+            break
         log = (log + line)[-MAX_LOG_BYTES:]
-        if on_output: on_output(log)
+        if on_output:
+            on_output(log)
     return int(proc.wait()), log
 
 

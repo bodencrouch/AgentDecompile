@@ -52,7 +52,19 @@ def _budget_expired(deadline: Any) -> bool:
 def _merge_stages(previous: dict[str, Any]) -> list[dict[str, Any]]:
     by_key = {item.get('key'): dict(item) for item in previous.get('stages') or [] if item.get('key')}
     stages = []
+    seen: set[str] = set()
+    stage_titles = dict(_STAGES)
+    for item in previous.get('stages') or []:
+        key = item.get('key') if isinstance(item, dict) else None
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        row = dict(item)
+        row['title'] = stage_titles.get(key, row.get('title'))
+        stages.append(row)
     for key, title in _STAGES:
+        if key in seen:
+            continue
         if key in by_key:
             row = by_key[key]
             row['title'] = title
@@ -865,7 +877,6 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             update('matching', 'blocked', 'No other binary has stored function features to compare. Import or analyze a comparison binary.')
         else:
             matched = 0
-            admitted = 0
             deferred = 0
             to_run = []
             for src, dst, note in pairs:
@@ -875,7 +886,6 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                     update('matching', 'running', f'Reusing completed comparison receipt: {Path(src).name} → {Path(dst).name}.', completed=matched, total=len(pairs))
                     continue
                 to_run.append((src, dst, note))
-            admitted = len(to_run)
             # Each corpus.match-pair call is a standalone subprocess reading
             # sqlite-persisted facts; it never opens the shared PyGhidra
             # project, so these comparisons are independent and safe to run

@@ -868,6 +868,7 @@ def _drop_search_roots(work_dir: Path | None, staging_root: Path | None) -> list
             staged = None
         if staged is not None and staged.is_dir() and staged not in roots:
             roots.append(staged)
+            return roots
     for root in search_roots(work_dir):
         if root not in roots:
             roots.append(root)
@@ -913,7 +914,7 @@ def resolve_drop(
         return {"ok": False, "error": f"no on-disk project named {filename}"}
     if filename.lower().endswith(".rep") or any(".rep" in Path(item).parts[0] for item in rels if Path(item).parts):
         stem = filename[:-4] if filename.lower().endswith(".rep") else Path(rels[0]).parts[0][:-4]
-        return resolve_drop(name=stem + ".gpr", work_dir=work_dir)
+        return resolve_drop(name=stem + ".gpr", work_dir=work_dir, staging_root=staging_root)
     return {"ok": False, "error": "drop a .gpr, a .rep folder, or a shared-server repos folder"}
 
 

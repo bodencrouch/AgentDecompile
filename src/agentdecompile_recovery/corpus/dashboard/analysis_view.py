@@ -306,7 +306,8 @@ def analysis(slug: str = '', locator: str = '', program: str = '', view: str = '
         address_query = int(needle, 16) if needle.startswith('0x') else None
     except ValueError:
         address_query = None
-    matches = lambda row: not needle or needle in row['name'].casefold() or needle in row['addr'].casefold() or (address_query is not None and int(row['addr'], 16) == address_query)
+    def matches(row: dict) -> bool:
+        return not needle or needle in row['name'].casefold() or needle in row['addr'].casefold() or (address_query is not None and int(row['addr'], 16) == address_query)
     base = {'ok': True, 'slug': data['slug'], 'view': view, 'revision': data['revision'], 'binaryTotal': len(data['rows']), 'sourceEvidence': data['sourceEvidence'], 'claim': 'Advisory structure only. Neither projection nor complexity proves function identity, recovery, compilation, or byte parity.'}
     if view == 'embeddings':
         points = [row for row in data['points'] if matches(row)]

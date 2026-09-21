@@ -7,7 +7,6 @@ import pytest
 from agentdecompile_recovery.corpus import compile_link, store
 from agentdecompile_recovery.corpus.cli import main as corpus_main
 from agentdecompile_recovery.corpus.workspace_skeleton import (
-    build_workspace,
     cu_unit_dir,
     fill_from_ghidra,
     rel_source,

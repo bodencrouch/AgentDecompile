@@ -76,6 +76,23 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
             item.add_marker(pytest.mark.timeout(_DEFAULT_HARD_TIMEOUT))
 
 
+@pytest.fixture(scope="session")
+def gnsdk_build_dir() -> Path:
+    """Configured native SDK build directory, or a clear integration skip.
+
+    Native tests are opt-in so the default AgentDecompile Python path remains
+    useful without compiling Ghidra's C++ sources.
+    """
+    raw = os.environ.get("GNSDK_BUILD_DIR", "").strip()
+    if not raw:
+        pytest.skip("set GNSDK_BUILD_DIR to a native SDK build for this integration test")
+    root = Path(raw)
+    required = (root / "ghidra-decomp" / "sleigh-home",)
+    if not root.is_dir() or not all(path.is_dir() for path in required):
+        pytest.skip(f"GNSDK_BUILD_DIR is not a usable native SDK build: {root}")
+    return root
+
+
 def _assert_node_invariants(node: pytest.Item) -> None:
     assert node is not None
     assert hasattr(node, "name")

@@ -132,6 +132,11 @@ def create_worktree(
     path, so without this a single crash would poison that branch name forever.
     """
 
+    root = project_root.resolve()
+    top_level = _run(["git", "rev-parse", "--show-toplevel"], root, runner=runner)
+    if Path(top_level.stdout.strip()).resolve() != root:
+        raise GitError(f"{root} is not a git repository root")
+
     base = worktree_base_dir(base_dir)
     base.mkdir(parents=True, exist_ok=True)
 
@@ -140,11 +145,11 @@ def create_worktree(
         worktree_path = base / actual_branch.replace("/", "-")
 
         if worktree_path.exists():
-            _remove_stale_worktree(project_root, worktree_path, runner=runner)
+            _remove_stale_worktree(root, worktree_path, runner=runner)
 
         result = _run(
             ["git", "worktree", "add", "-b", actual_branch, str(worktree_path), "HEAD"],
-            project_root,
+            root,
             runner=runner,
             check=False,
         )

@@ -529,8 +529,9 @@ def test_workbench_workflow_matrix(
             json={"path": str(pe), "slug": "second-name"},
         )
         assert second.json()["ok"] is True
+        assert second.json()["reused"] is True
         slugs = [row["slug"] for row in client.get("/dashboard/api/workbench/binaries").json()["binaries"]]
-        assert "second-name" in slugs
+        assert slugs == ["first"]
         return
 
     if case == "session_active_preserved_on_put":

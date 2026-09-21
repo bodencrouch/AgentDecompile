@@ -19,6 +19,7 @@ Update these when the work they name changes:
 | [2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md](./2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md) | Recovery ladder (STRATEGY `active_living_plan`) |
 | [2026-09-08-0225-feat-portable-signatures-phasor-export-plan.md](./2026-09-08-0225-feat-portable-signatures-phasor-export-plan.md) | Portable signatures + Phasor hook-pack export |
 | [2026-07-24-perf-recovery-one-shot-living-plan.md](./2026-07-24-perf-recovery-one-shot-living-plan.md) | One-shot perf backlog G14–G16 |
+| [2026-09-08-2330-feat-ghidra-native-sdk-plan.md](./2026-09-08-2330-feat-ghidra-native-sdk-plan.md) | Native Ghidra SDK: export savefiles once, replay without a JVM (WP0–WP11 in progress) |
 
 The 2026-08-30 corpus living plan is historical. Do not rewrite its deltas.
 

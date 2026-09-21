@@ -34,10 +34,10 @@ def _iso(ts: float) -> str:
 
 def match_source(logical_id: int | None, evidence: str | None) -> str:
     if (evidence or "").startswith("seed-validation-byte-exact:"):
-        return "recorded-seed-evidence"
+        return "destination-compiled-seed"
     if logical_id:
-        return "recorded-source-with-logical-identity"
-    return "recorded-source"
+        return "verified-recovery-with-independent-identity"
+    return "verified-recovery"
 
 
 def build(con) -> dict:

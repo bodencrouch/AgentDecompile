@@ -12,6 +12,7 @@ from typing import Any
 
 from .canon import canonicalize
 from .corpus_config import load_maps
+from .determinism_basis import BasisError, basis_hash_for, install_analyzer_version, processor_spec_hash_for
 from .features import merge_tiers, tier1, tier2
 from .io import write_json
 from .fingerprint_hashes import attach_hashes
@@ -88,8 +89,84 @@ def recovery_family(repo_path: str, slug: str, meta: dict[str, Any]) -> str:
     return f"unclassified:{slug}"
 
 
+def live_analyzer_version() -> str | None:
+    """Version of the analyzer this process runs inside, or None outside one."""
+    try:
+        from ghidra.framework import Application  # type: ignore[import-not-found]
+
+        value = str(Application.getApplicationVersion() or "").strip()
+        return value or None
+    except Exception:  # noqa: BLE001 -- not running inside the analyzer
+        return None
+
+
+def stamp_analyzer_identity(
+    con,
+    *,
+    analyzer_version: str | None,
+    binary_ids: list[int] | None = None,
+    source: str = "ingest",
+    overwrite: bool = False,
+) -> dict[str, list[int]]:
+    """Write ``analyzer_version``, ``processor_spec_hash``, ``basis_hash`` and
+    ``basis_source`` for *binary_ids* (default: every row).
+
+    The one primitive both ingest and the ``analyzer_identity`` backfill pass
+    use, so the two paths cannot drift. With ``overwrite=False`` a value
+    already present is kept and only NULL columns are filled; a row whose
+    three identity columns are all present is reported under ``unchanged``.
+    Returns ``{"stamped": [...ids], "unchanged": [...ids], "skipped": [...ids]}``;
+    ``skipped`` holds rows that could not be completed (no analyzer version
+    or no language id). Nothing is committed here.
+    """
+    version = str(analyzer_version or "").strip() or None
+    if version == "unknown":
+        version = None
+    where, params = "", ()
+    if binary_ids is not None:
+        marks = ",".join("?" for _ in binary_ids)
+        where, params = f" WHERE id IN ({marks})", tuple(int(b) for b in binary_ids)
+    rows = con.execute(
+        "SELECT id, language_id, analyzer_version, processor_spec_hash, basis_hash FROM binary" + where + " ORDER BY id",
+        params,
+    ).fetchall()
+    out: dict[str, list[int]] = {"stamped": [], "unchanged": [], "skipped": []}
+    for row in rows:
+        bid = int(row[0])
+        have_version = row[2] if not overwrite else None
+        have_spec = row[3] if not overwrite else None
+        have_hash = row[4] if not overwrite else None
+        if have_version and have_spec and have_hash:
+            out["unchanged"].append(bid)
+            continue
+        new_version = have_version or version
+        new_spec = have_spec or processor_spec_hash_for(row[1])
+        if not new_version or not new_spec:
+            out["skipped"].append(bid)
+            continue
+        try:
+            new_hash = have_hash or basis_hash_for(new_version)
+        except BasisError:
+            out["skipped"].append(bid)
+            continue
+        con.execute(
+            "UPDATE binary SET analyzer_version=?, processor_spec_hash=?, basis_hash=?, basis_source=? WHERE id=?",
+            (new_version, new_spec, new_hash, source, bid),
+        )
+        out["stamped"].append(bid)
+    return out
+
+
 def upsert_binary(con, *, repo_path: str, slug: str, program=None, meta: dict[str, Any] | None = None) -> int:
-    """Insert or update a binary row. *meta* supplies game/platform/arch when known."""
+    """Insert or update a binary row. *meta* supplies game/platform/arch when known.
+
+    Also captures the analyzer identity: the version of the analyzer this
+    process runs inside (or ``meta["analyzer_version"]``, or the configured
+    install's version as a last resort), the processor-spec hash of the
+    program's language, and the package ``basis_hash`` under that analyzer.
+    When no analyzer version can be read the identity columns stay NULL and
+    the basis refuses at export, naming the row.
+    """
     ensure_binary_columns(con)
     info = dict(meta or {})
     if program is not None:
@@ -100,6 +177,8 @@ def upsert_binary(con, *, repo_path: str, slug: str, program=None, meta: dict[st
         info.setdefault("format", str(program.getExecutableFormat()))
         info.setdefault("md5", str(program.getExecutableMD5()))
         info.setdefault("image_base", int(program.getImageBase().getOffset()))
+        info.setdefault("analyzer_version", live_analyzer_version())
+    analyzer_version = info.get("analyzer_version") or install_analyzer_version()
     digest = info.get("content_sha256") or content_digest(repo_path)
     if digest:
         info["content_sha256"] = digest
@@ -131,8 +210,12 @@ def upsert_binary(con, *, repo_path: str, slug: str, program=None, meta: dict[st
         ),
     )
     row = con.execute("SELECT id FROM binary WHERE repo_path=?", (repo_path,)).fetchone()
+    binary_id = int(row[0])
+    # A re-ingest is a fresh capture: overwrite whatever an earlier ingest or
+    # backfill recorded for this row.
+    stamp_analyzer_identity(con, analyzer_version=analyzer_version, binary_ids=[binary_id], overwrite=True)
     con.commit()
-    return int(row[0])
+    return binary_id
 
 
 def persist_functions(con, binary_id: int, functions: list[dict[str, Any]]) -> int:

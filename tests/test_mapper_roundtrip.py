@@ -16,6 +16,7 @@ import pytest
 
 from agentdecompile_recovery.corpus import exact_universal as eu
 from agentdecompile_recovery.corpus import export_hookpack as hp
+from agentdecompile_recovery.corpus.extract import stamp_analyzer_identity
 from agentdecompile_recovery.corpus.store import connect
 from agentdecompile_recovery.targets import inspect_magic
 
@@ -338,6 +339,8 @@ def _hookpack_store(path: Path, *, image_base: int | None):
         "INSERT INTO binary(id, repo_path, slug, image_base) VALUES (1, '/a', 'build32', ?)",
         (image_base,),
     )
+    con.execute("UPDATE binary SET language_id='x86:LE:32:default'")
+    stamp_analyzer_identity(con, analyzer_version="test-analyzer")
     con.execute(
         "INSERT INTO logical_function(id, best_name, best_signature, n_members) VALUES (3, 'Run', 'void Run()', 1)"
     )

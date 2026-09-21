@@ -4,29 +4,35 @@ from pathlib import Path
 
 import pytest
 
+from agentdecompile_recovery.corpus.determinism_basis import BasisError, basis
 from agentdecompile_recovery.corpus.export_hookpack import (
-    FORMAT,
     export_hookpack,
     unique_window,
 )
+from agentdecompile_recovery.corpus.extract import stamp_analyzer_identity
 from agentdecompile_recovery.corpus.store import connect
 
 pytestmark = pytest.mark.unit
 
 
-def test_empty_store_writes_empty_sites(tmp_path: Path) -> None:
+def _stamp(con) -> None:
+    """Give every binary row the analyzer identity the basis refuses without."""
+    con.execute("UPDATE binary SET language_id=COALESCE(language_id, 'x86:LE:32:default')")
+    stamp_analyzer_identity(con, analyzer_version="test-analyzer")
+
+
+def test_empty_store_refuses_without_a_basis(tmp_path: Path) -> None:
     db = tmp_path / "c.sqlite"
     out = tmp_path / "pack.json"
-    summary = export_hookpack(connect(db), out)
-    assert summary["sites"] == 0
-    pack = __import__("json").loads(out.read_text(encoding="utf-8"))
-    assert pack["format"] == FORMAT
-    assert pack["sites"] == {}
+    with pytest.raises(BasisError, match="analyzer.version has no producer row"):
+        export_hookpack(connect(db), out)
+    assert not out.exists()
 
 
 def test_one_logical_two_binaries_majority_signature(tmp_path: Path) -> None:
     con = connect(tmp_path / "c.sqlite")
     con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1, '/a', 'debug'), (2, '/b', 'release')")
+    _stamp(con)
     con.execute(
         "INSERT INTO logical_function(id, best_name, best_signature, n_members) VALUES (9, 'RunScript', 'void RunScript()', 2)"
     )
@@ -48,6 +54,7 @@ def test_one_logical_two_binaries_majority_signature(tmp_path: Path) -> None:
 def test_missing_signature_is_kind_none(tmp_path: Path) -> None:
     con = connect(tmp_path / "c.sqlite")
     con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1, '/a', 'debug')")
+    _stamp(con)
     con.execute(
         "INSERT INTO logical_function(id, best_name, best_signature, n_members) VALUES (3, 'Anon', NULL, 1)"
     )
@@ -63,6 +70,7 @@ def test_missing_signature_is_kind_none(tmp_path: Path) -> None:
 def test_shared_members_win_over_stale_best(tmp_path: Path) -> None:
     con = connect(tmp_path / "c.sqlite")
     con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1, '/a', 'debug'), (2, '/b', 'release')")
+    _stamp(con)
     con.execute(
         "INSERT INTO logical_function(id, best_name, best_signature, n_members) "
         "VALUES (4, 'Split', 'void Old()', 2)"
@@ -99,6 +107,7 @@ def test_export_copies_unique_bytes_from_image(tmp_path: Path, monkeypatch) -> N
     monkeypatch.setattr(hp, "_file_offset", lambda image, addr: 64)
     con = connect(tmp_path / "c.sqlite")
     con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1, '/a', 'debug')")
+    _stamp(con)
     con.execute(
         "INSERT INTO logical_function(id, best_name, best_signature, n_members) VALUES (3, 'Run', 'void Run()', 1)"
     )
@@ -120,6 +129,7 @@ def _two_logical_store(path: Path, *, forward: bool):
     (identity) come back in insertion order without an ORDER BY."""
     con = connect(path)
     con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1, '/a', 'debug'), (2, '/b', 'release')")
+    _stamp(con)
     con.execute(
         "INSERT INTO logical_function(id, best_name, best_signature, n_members) "
         "VALUES (1, 'Tick', NULL, 3), (2, 'Tick', NULL, 1)"
@@ -168,14 +178,14 @@ def test_preferred_signature_breaks_count_ties_by_value() -> None:
 
 def test_pack_is_serialized_with_sorted_keys_and_basis(tmp_path: Path) -> None:
     out = tmp_path / "pack.json"
-    export_hookpack(_two_logical_store(tmp_path / "c.sqlite", forward=True), out)
+    con = _two_logical_store(tmp_path / "c.sqlite", forward=True)
+    export_hookpack(con, out)
     text = out.read_text(encoding="utf-8")
     pack = __import__("json").loads(text)
     assert text == __import__("json").dumps(pack, indent=2, sort_keys=True) + "\n"
-    assert pack["basis"]["algorithm_version"] == "phase0.1"
-    assert set(pack["basis"]) == {
-        "decoder", "algorithm_version", "masking_rule_version", "threshold_params", "corpus_manifest_hash",
-    }
+    # The pack root carries the store's declared basis verbatim; its key set
+    # is pinned in test_determinism_basis.
+    assert pack["basis"] == basis(con)
 
 
 # ------------------------------------------------------------- U1 identity
@@ -199,6 +209,7 @@ def _identity_store(path: Path):
         "        (2, '/computed', 'alpha', 'g', 'pc', 'pe', 'x86', 32, NULL, NULL),"
         "        (3, '/nothing', 'mid', 'g', 'pc', 'elf', 'arm', 64, 65536, '')"
     )
+    _stamp(con)
     con.commit()
     return con
 
@@ -242,6 +253,7 @@ def _windows_store(path: Path):
         "INSERT INTO binary(id, repo_path, slug) VALUES"
         " (1, '/z', 'zeta'), (2, '/a', 'alpha'), (3, '/n', 'noimg'), (4, '/d', 'dup')"
     )
+    _stamp(con)
     con.execute(
         "INSERT INTO logical_function(id, best_name, best_signature, n_members) VALUES (7, 'Run', 'void Run()', 4)"
     )
@@ -291,6 +303,7 @@ def test_site_expected_bytes_rule_unchanged_when_all_agree(tmp_path: Path, monke
     monkeypatch.setattr(hp, "_file_offset", lambda image, addr, load_base=None: 64)
     con = connect(tmp_path / "c.sqlite")
     con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1, '/a', 'debug'), (2, '/b', 'release')")
+    _stamp(con)
     con.execute("INSERT INTO logical_function(id, best_name, best_signature, n_members) VALUES (3, 'Run', 'void Run()', 2)")
     con.execute("INSERT INTO identity(logical_id, binary_id, addr, confidence, method) VALUES (3, 1, 256, 1.0, 'a'), (3, 2, 256, 1.0, 'a')")
     con.commit()
@@ -346,6 +359,7 @@ def test_site_without_any_window_has_no_agreement(tmp_path: Path) -> None:
 def _policy_store(path: Path):
     con = connect(path)
     con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1, '/a', 'debug')")
+    _stamp(con)
     con.execute(
         "INSERT INTO logical_function(id, best_name, best_signature, n_members) VALUES"
         " (9, 'RunScript', 'void RunScript()', 1), (10, 'SlotTable', NULL, 1), (11, 'Plain', NULL, 1)"

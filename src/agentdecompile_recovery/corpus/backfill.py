@@ -43,8 +43,47 @@ def _pass_content_sha256(con: sqlite3.Connection, binary_row: dict, raw: bytes |
     return {"status": "updated", "content_sha256": digest}
 
 
+def _pass_analyzer_identity(con: sqlite3.Connection, binary_row: dict, raw: bytes | None) -> dict:
+    """Fill NULL ``analyzer_version`` / ``processor_spec_hash`` / ``basis_hash``
+    from the *current* install and mark the row ``basis_source='backfill'``.
+
+    Never overwrites a value that is already present, so a row an ingest
+    stamped keeps its captured identity. A row whose three columns are all
+    present is ``unchanged``. When the install's version cannot be read the
+    row is ``skipped`` with reason ``no_install`` rather than stamped
+    ``"unknown"``; a row without a language id is ``skipped`` with reason
+    ``no_language_id``.
+    """
+    from .determinism_basis import install_analyzer_version
+    from .extract import stamp_analyzer_identity
+
+    bid = int(binary_row["id"])
+    present = all(binary_row.get(c) for c in ("analyzer_version", "processor_spec_hash", "basis_hash"))
+    if present:
+        return {"status": "unchanged", "basis_hash": binary_row["basis_hash"]}
+    version = binary_row.get("analyzer_version") or install_analyzer_version()
+    if not version:
+        return {"status": "skipped", "reason": "no_install"}
+    if not binary_row.get("processor_spec_hash") and not str(binary_row.get("language_id") or "").strip():
+        return {"status": "skipped", "reason": "no_language_id"}
+    result = stamp_analyzer_identity(con, analyzer_version=version, binary_ids=[bid], source="backfill")
+    if bid in result["skipped"]:
+        return {"status": "skipped", "reason": "basis_incomplete"}
+    row = con.execute(
+        "SELECT analyzer_version, processor_spec_hash, basis_hash FROM binary WHERE id=?", (bid,)
+    ).fetchone()
+    return {
+        "status": "updated",
+        "analyzer_version": row[0],
+        "processor_spec_hash": row[1],
+        "basis_hash": row[2],
+        "basis_source": "backfill",
+    }
+
+
 PASSES: dict[str, BackfillPass] = {
     "content_sha256": BackfillPass("content_sha256", True, _pass_content_sha256),
+    "analyzer_identity": BackfillPass("analyzer_identity", False, _pass_analyzer_identity),
 }
 
 

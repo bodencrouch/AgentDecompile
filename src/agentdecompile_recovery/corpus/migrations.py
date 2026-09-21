@@ -22,8 +22,6 @@ Rules every migration follows:
 
 from __future__ import annotations
 
-import hashlib
-import json
 import sqlite3
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -94,8 +92,37 @@ def _baseline(con: sqlite3.Connection) -> None:
     _store.ensure_priority_index(con)
 
 
+#: Columns migration 2 adds to ``binary``. Added by ALTER TABLE on both the
+#: fresh and the legacy path (never put into ``store.SCHEMA``) so the two
+#: paths yield identical ``PRAGMA table_info`` shapes.
+ANALYZER_IDENTITY_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("basis_hash", "TEXT"),
+    ("decoder_revision", "TEXT"),
+    ("analyzer_version", "TEXT"),
+    ("processor_spec_hash", "TEXT"),
+    ("basis_source", "TEXT"),
+)
+
+
+def _analyzer_identity(con: sqlite3.Connection) -> None:
+    """Version 2: per-binary analyzer identity and basis hash.
+
+    ``analyzer_version`` and ``processor_spec_hash`` are captured at ingest,
+    ``basis_hash`` is the package basis under that analyzer, ``basis_source``
+    says which path wrote them (``ingest`` or ``backfill``) and
+    ``decoder_revision`` waits for the unit that picks the decoder. Existing
+    rows stay NULL here; ``corpus.backfill --pass analyzer_identity`` fills
+    them from the current install. A NULL row makes the basis refuse.
+    """
+    cols = {row[1] for row in con.execute("PRAGMA table_info(binary)")}
+    for col, decl in ANALYZER_IDENTITY_COLUMNS:
+        if col not in cols:
+            con.execute(f"ALTER TABLE binary ADD COLUMN {col} {decl}")
+
+
 MIGRATIONS: list[Migration] = [
     Migration(1, "baseline", _baseline),
+    Migration(2, "analyzer_identity", _analyzer_identity),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1].version
@@ -136,15 +163,16 @@ def ledger_rows(con: sqlite3.Connection) -> list[dict]:
 
 def _basis_hash(con: sqlite3.Connection) -> str | None:
     """Stable hash of the determinism basis, or None when it cannot be built."""
-    try:
-        from .determinism_basis import basis
+    from .determinism_basis import BasisError, basis_hash
 
-        payload = json.dumps(basis(con), sort_keys=True, separators=(",", ":"))
-    except sqlite3.Error:
-        # The basis is a hook, never a gate: a store whose tables cannot be
-        # read yet records NULL and a later re-baseline fills it in.
+    try:
+        return basis_hash(con)
+    except (sqlite3.Error, BasisError):
+        # The ledger is a hook, never a gate: a store whose tables cannot be
+        # read yet (baseline runs before the identity columns exist) or whose
+        # rows carry no analyzer identity records NULL; a later re-baseline
+        # fills it in.
         return None
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _rollback(con: sqlite3.Connection) -> None:

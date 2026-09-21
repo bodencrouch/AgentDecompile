@@ -188,3 +188,126 @@ def test_cli_backfill_rejects_unknown_pass(fixture_db: Path, tmp_path: Path) -> 
         corpus_main([
             "backfill", "--db", str(fixture_db), "--pass", "nope", "--receipts", str(tmp_path / "r"),
         ])
+
+
+# --- analyzer_identity pass -------------------------------------------------
+
+
+def _identity(db: Path) -> list[tuple]:
+    con = sqlite3.connect(db)
+    try:
+        return con.execute(
+            "SELECT id, analyzer_version, processor_spec_hash, basis_hash, basis_source FROM binary ORDER BY id"
+        ).fetchall()
+    finally:
+        con.close()
+
+
+@pytest.fixture
+def install(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    root = tmp_path / "install"
+    (root / "Ghidra").mkdir(parents=True)
+    (root / "Ghidra" / "application.properties").write_text("application.version=77.0\n", encoding="utf-8")
+    monkeypatch.setenv("GHIDRA_INSTALL_DIR", str(root))
+    return root
+
+
+def test_registry_ships_analyzer_identity() -> None:
+    step = backfill.PASSES["analyzer_identity"]
+    assert step.name == "analyzer_identity"
+    assert step.needs_raw_image is False
+
+
+def test_analyzer_identity_fills_only_null_rows_and_resumes(fixture_db: Path, tmp_path: Path, install: Path) -> None:
+    from agentdecompile_recovery.corpus.determinism_basis import basis_hash_for, processor_spec_hash_for
+    from agentdecompile_recovery.corpus.extract import stamp_analyzer_identity
+
+    receipts = tmp_path / "receipts"
+    con = store.connect(fixture_db)
+    con.execute("UPDATE binary SET language_id='x86:LE:32:default' WHERE id=1")
+    con.execute("UPDATE binary SET language_id='arm:LE:32:v7' WHERE id=2")
+    # Row 1 was stamped at ingest under an older analyzer; the pass must keep it.
+    stamp_analyzer_identity(con, analyzer_version="70.1", binary_ids=[1])
+    con.commit()
+    summary = backfill.run(con, ["analyzer_identity"], receipts_dir=receipts)
+    con.close()
+    report = summary["passes"]["analyzer_identity"]
+    assert report["counts"] == {"updated": 1, "unchanged": 1, "skipped": 0, "resumed": 0}
+    assert _identity(fixture_db) == [
+        (1, "70.1", processor_spec_hash_for("x86:LE:32:default"), basis_hash_for("70.1"), "ingest"),
+        (2, "77.0", processor_spec_hash_for("arm:LE:32:v7"), basis_hash_for("77.0"), "backfill"),
+    ]
+    body = json.loads((receipts / "analyzer_identity" / "slug-build-b.json").read_text(encoding="utf-8"))
+    assert body["result"] == {
+        "analyzer_version": "77.0",
+        "processor_spec_hash": processor_spec_hash_for("arm:LE:32:v7"),
+        "basis_hash": basis_hash_for("77.0"),
+        "basis_source": "backfill",
+    }
+    assert body["raw_image"] is None or body["raw_image"].endswith(_raw_slug(WITHOUT_IMAGE))
+
+    con = store.connect(fixture_db)
+    again = backfill.run(con, ["analyzer_identity"], receipts_dir=receipts)
+    assert again["passes"]["analyzer_identity"]["counts"] == {
+        "updated": 0, "unchanged": 0, "skipped": 0, "resumed": 2,
+    }
+    fresh = backfill.run(con, ["analyzer_identity"], receipts_dir=receipts, resume=False)
+    con.close()
+    assert fresh["passes"]["analyzer_identity"]["counts"] == {
+        "updated": 0, "unchanged": 2, "skipped": 0, "resumed": 0,
+    }
+
+
+def test_analyzer_identity_fills_a_partially_null_row(fixture_db: Path, tmp_path: Path, install: Path) -> None:
+    from agentdecompile_recovery.corpus.determinism_basis import basis_hash_for, processor_spec_hash_for
+
+    con = store.connect(fixture_db)
+    con.execute("UPDATE binary SET language_id='x86:LE:32:default', analyzer_version='70.1' WHERE id=1")
+    con.execute("UPDATE binary SET language_id='x86:LE:32:default' WHERE id=2")
+    con.commit()
+    backfill.run(con, ["analyzer_identity"], receipts_dir=tmp_path / "r")
+    con.close()
+    rows = _identity(fixture_db)
+    # The recorded version wins; only the NULL columns were derived from it.
+    assert rows[0] == (1, "70.1", processor_spec_hash_for("x86:LE:32:default"), basis_hash_for("70.1"), "backfill")
+    assert rows[1] == (2, "77.0", processor_spec_hash_for("x86:LE:32:default"), basis_hash_for("77.0"), "backfill")
+
+
+def test_analyzer_identity_skips_without_an_install_or_language(
+    fixture_db: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("GHIDRA_INSTALL_DIR", raising=False)
+    con = store.connect(fixture_db)
+    con.execute("UPDATE binary SET language_id='x86:LE:32:default'")
+    con.commit()
+    summary = backfill.run(con, ["analyzer_identity"], receipts_dir=tmp_path / "r")
+    report = summary["passes"]["analyzer_identity"]
+    assert report["counts"] == {"updated": 0, "unchanged": 0, "skipped": 2, "resumed": 0}
+    assert {e["reason"] for e in report["binaries"]} == {"no_install"}
+    assert _identity(fixture_db) == [(1, None, None, None, None), (2, None, None, None, None)]
+
+    monkeypatch.setenv("GHIDRA_INSTALL_DIR", str(tmp_path / "missing"))
+    con.execute("UPDATE binary SET language_id=NULL WHERE id=2")
+    con.commit()
+    (tmp_path / "missing" / "Ghidra").mkdir(parents=True)
+    (tmp_path / "missing" / "Ghidra" / "application.properties").write_text("application.version=77.0\n")
+    summary = backfill.run(con, ["analyzer_identity"], receipts_dir=tmp_path / "r", resume=False)
+    con.close()
+    report = summary["passes"]["analyzer_identity"]
+    assert report["counts"] == {"updated": 1, "unchanged": 0, "skipped": 1, "resumed": 0}
+    assert report["binaries"][1] == {"id": 2, "slug": "build-b", "status": "skipped", "reason": "no_language_id"}
+    assert "unknown" not in json.dumps(_identity(fixture_db))
+
+
+def test_cli_backfill_analyzer_identity(fixture_db: Path, tmp_path: Path, install: Path) -> None:
+    con = store.connect(fixture_db)
+    con.execute("UPDATE binary SET language_id='x86:LE:32:default'")
+    con.commit()
+    con.close()
+    rc = corpus_main([
+        "backfill", "--db", str(fixture_db), "--pass", "analyzer_identity", "--receipts", str(tmp_path / "r"),
+    ])
+    assert rc == 0
+    from agentdecompile_recovery.corpus.determinism_basis import basis_hash_for
+
+    assert {r[3] for r in _identity(fixture_db)} == {basis_hash_for("77.0")}

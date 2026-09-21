@@ -717,16 +717,27 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(export_sibling_conflicts(connect(args.db), args.out)))
         return 0
     if args.cmd in {"export-hookpack", "export-hook-pack"}:
+        from .determinism_basis import BasisError
         from .export_hookpack import export_hookpack
         from .store import connect
 
-        print(json.dumps(export_hookpack(connect(args.db), args.out)))
+        try:
+            summary = export_hookpack(connect(args.db), args.out)
+        except BasisError as exc:
+            # The store cannot declare one complete basis; nothing was written.
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(summary))
         return 0
     if args.cmd == "verify-determinism":
-        from .determinism_basis import verify_export
+        from .determinism_basis import BasisError, verify_export
         from .export_hookpack import export_hookpack
 
-        result = verify_export(args.db, export_hookpack)
+        try:
+            result = verify_export(args.db, export_hookpack)
+        except BasisError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
         print(json.dumps(result))
         return 0 if result["identical"] else 1
     if args.cmd == "backfill":

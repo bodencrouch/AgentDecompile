@@ -315,7 +315,9 @@ def test_second_writer_rechecks_version_under_the_lock(tmp_path: Path) -> None:
         a_inside.set()
         assert release_a.wait(30)
 
-    registry_a = [migrations.Migration(1, "baseline", gated_baseline)]
+    # A runs the whole registry with only the baseline gated, so both writers
+    # target the same version and B has nothing left to apply.
+    registry_a = [migrations.Migration(1, "baseline", gated_baseline)] + migrations.MIGRATIONS[1:]
 
     def writer_a() -> None:
         con = sqlite3.connect(legacy, timeout=30)
@@ -339,10 +341,10 @@ def test_second_writer_rechecks_version_under_the_lock(tmp_path: Path) -> None:
     release_a.set()
     ta.join(timeout=30)
     tb.join(timeout=30)
-    assert outcome["a"] == ["baseline"]
+    assert outcome["a"] == [m.name for m in migrations.MIGRATIONS]
     assert outcome["b"] == []
     assert outcome["b_version"] == migrations.SCHEMA_VERSION
-    assert _ledger(legacy) == [(1, "baseline")]
+    assert _ledger(legacy) == [(m.version, m.name) for m in migrations.MIGRATIONS]
 
 
 def _connect_worker(db: str, barrier, result_path: str) -> None:
@@ -373,3 +375,98 @@ def test_two_processes_migrate_the_same_legacy_store_once(tmp_path: Path) -> Non
     texts = [out.read_text(encoding="utf-8") for out in results]
     assert texts == [f"ok {migrations.SCHEMA_VERSION}"] * 2, texts
     assert _ledger(legacy) == [(m.version, m.name) for m in migrations.MIGRATIONS]
+
+
+# --- migration 2: analyzer identity ----------------------------------------
+
+IDENTITY_COLUMNS = {"basis_hash", "decoder_revision", "analyzer_version", "processor_spec_hash", "basis_source"}
+
+
+def _binary_columns(con: sqlite3.Connection) -> set[str]:
+    return {r[1] for r in con.execute("PRAGMA table_info(binary)")}
+
+
+def test_registry_has_migration_2_analyzer_identity() -> None:
+    assert [(m.version, m.name) for m in migrations.MIGRATIONS][:2] == [
+        (1, "baseline"),
+        (2, "analyzer_identity"),
+    ]
+    assert {c for c, _ in migrations.ANALYZER_IDENTITY_COLUMNS} == IDENTITY_COLUMNS
+    assert migrations.SCHEMA_VERSION >= 2
+
+
+def test_migration_2_is_idempotent_on_a_fresh_store(tmp_path: Path) -> None:
+    con = store.connect(tmp_path / "fresh.sqlite")
+    assert IDENTITY_COLUMNS <= _binary_columns(con)
+    # ALTER TABLE only: the columns are absent from the CREATE statement.
+    create_sql = con.execute("SELECT sql FROM sqlite_master WHERE name='binary'").fetchone()[0]
+    for col in IDENTITY_COLUMNS:
+        assert col not in create_sql.split("CREATE TABLE", 1)[0]
+    shape = _table_infos(con)["binary"]
+    migrations._analyzer_identity(con)
+    migrations._analyzer_identity(con)
+    assert _table_infos(con)["binary"] == shape
+    assert _ledger(tmp_path / "fresh.sqlite") == [(m.version, m.name) for m in migrations.MIGRATIONS]
+    con.close()
+
+
+def test_migration_2_on_a_legacy_store_matches_the_fresh_shape_and_keeps_rows(tmp_path: Path) -> None:
+    legacy = tmp_path / "legacy.sqlite"
+    _legacy_db(legacy)
+    raw = sqlite3.connect(legacy)
+    raw.execute("INSERT INTO binary(id, repo_path, slug, language_id) VALUES (1, '/r/one', 'one', 'x86:LE:32:default')")
+    raw.commit()
+    assert not (IDENTITY_COLUMNS & _binary_columns(raw))
+    raw.close()
+
+    con = store.connect(legacy)
+    assert _pragma(con, "user_version") == migrations.SCHEMA_VERSION
+    assert IDENTITY_COLUMNS <= _binary_columns(con)
+    row = con.execute(
+        "SELECT slug, analyzer_version, processor_spec_hash, basis_hash, basis_source FROM binary"
+    ).fetchone()
+    assert tuple(row) == ("one", None, None, None, None)
+    legacy_shape = _table_infos(con)["binary"]
+    con.close()
+    # Both migrations ran in one connect and each recorded a ledger row.
+    assert _ledger(legacy) == [(1, "baseline"), (2, "analyzer_identity")]
+
+    fresh = store.connect(tmp_path / "fresh.sqlite")
+    assert _table_infos(fresh)["binary"] == legacy_shape
+    fresh.close()
+
+
+def test_ledger_basis_hash_is_null_without_identity_and_real_with_it(tmp_path: Path) -> None:
+    from agentdecompile_recovery.corpus import determinism_basis
+    from agentdecompile_recovery.corpus.extract import stamp_analyzer_identity
+
+    # Fresh store: migration 1 runs before the identity columns exist
+    # (sqlite error path); migration 2 runs with no rows (BasisError path).
+    db = tmp_path / "ledger.sqlite"
+    con = store.connect(db)
+    assert [r["basis_hash"] for r in migrations.ledger_rows(con)] == [None] * len(migrations.MIGRATIONS)
+
+    # Legacy store with an unstamped row: both paths still record NULL.
+    legacy = tmp_path / "legacy.sqlite"
+    _legacy_db(legacy)
+    raw = sqlite3.connect(legacy)
+    raw.execute("INSERT INTO binary(id, repo_path, slug, language_id) VALUES (1, '/r/one', 'one', 'x86:LE:32:default')")
+    raw.commit()
+    raw.close()
+    lcon = store.connect(legacy)
+    assert [r["basis_hash"] for r in migrations.ledger_rows(lcon)] == [None] * len(migrations.MIGRATIONS)
+    lcon.close()
+
+    # A stamped store: a probe migration records the same hash the rows carry.
+    con.execute("INSERT INTO binary(id, repo_path, slug, language_id) VALUES (1, '/r/one', 'one', 'x86:LE:32:default')")
+    stamp_analyzer_identity(con, analyzer_version="11.4.1")
+    con.commit()
+    probe = migrations.MIGRATIONS + [
+        migrations.Migration(migrations.SCHEMA_VERSION + 1, "probe", lambda c: None)
+    ]
+    applied = migrations.apply_pending(con, migrations=probe)
+    assert [m.name for m in applied] == ["probe"]
+    recorded = migrations.ledger_rows(con)[-1]["basis_hash"]
+    assert recorded == determinism_basis.basis_hash(con)
+    assert recorded == con.execute("SELECT basis_hash FROM binary").fetchone()[0]
+    con.close()

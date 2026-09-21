@@ -30,8 +30,12 @@ TARGET = {
 }
 
 
-def pe_mapper(raw: bytes):
-    if raw[:2] != b"MZ":
+XBE_SECTION_HEADER = 56
+
+
+def _pe_sections(raw: bytes):
+    """Parse a PE header. Returns (header_base, [(vaddr, size, roff)]) or None."""
+    if raw[:2] != b"MZ" or len(raw) < 0x40:
         return None
     pe = struct.unpack_from("<I", raw, 0x3C)[0]
     if raw[pe : pe + 4] != b"PE\0\0":
@@ -49,6 +53,20 @@ def pe_mapper(raw: bytes):
         o = pe + 24 + opt + i * 40
         vsize, vaddr, rsize, roff = struct.unpack_from("<IIII", raw, o + 8)
         secs.append((vaddr, max(vsize, rsize), roff))
+    return base, secs
+
+
+def pe_mapper(raw: bytes, load_base: int | None = None):
+    """Map a loaded VA to a file offset for a PE32 or PE32+ image.
+
+    *load_base* is the address the analyzer loaded the image at. When it is
+    None the optional header's ImageBase is used.
+    """
+    parsed = _pe_sections(raw)
+    if parsed is None:
+        return None
+    header_base, secs = parsed
+    base = load_base if load_base is not None else header_base
 
     def f(va):
         r = va - base
@@ -60,7 +78,33 @@ def pe_mapper(raw: bytes):
     return f
 
 
-def elf_mapper(raw: bytes):
+def _segment_mapper(segs, load_base: int | None):
+    """Shared closure for segment tables keyed by their format address.
+
+    *segs* is ``[(format_vaddr, size, file_off)]``. When *load_base* is
+    given, the delta from the lowest mapped format address is subtracted
+    from every incoming VA before lookup.
+    """
+    delta = 0
+    if load_base is not None and segs:
+        delta = load_base - min(vaddr for vaddr, _size, _off in segs)
+
+    def f(va):
+        r = va - delta
+        for vaddr, size, off in segs:
+            if vaddr <= r < vaddr + size:
+                return off + (r - vaddr)
+        return None
+
+    return f
+
+
+def elf_mapper(raw: bytes, load_base: int | None = None):
+    """Map a loaded VA to a file offset through the ELF PT_LOAD table.
+
+    The format base is the lowest PT_LOAD vaddr (0 for PIE). With
+    *load_base* set, VAs are shifted by ``load_base - format_base`` first.
+    """
     if raw[:4] != b"\x7fELF":
         return None
     is64 = raw[4] == 2
@@ -84,17 +128,15 @@ def elf_mapper(raw: bytes):
             off, vaddr = struct.unpack_from(end + "II", raw, o + 4)
             filesz = struct.unpack_from(end + "I", raw, o + 16)[0]
         segs.append((vaddr, filesz, off))
-
-    def f(va):
-        for vaddr, size, off in segs:
-            if vaddr <= va < vaddr + size:
-                return off + (va - vaddr)
-        return None
-
-    return f
+    return _segment_mapper(segs, load_base)
 
 
-def macho_mapper(raw: bytes):
+def macho_mapper(raw: bytes, load_base: int | None = None):
+    """Map a loaded VA to a file offset through Mach-O segments.
+
+    The format base is the lowest vmaddr among segments with file bytes
+    (so a zero page is ignored). Same *load_base* delta rule as ELF.
+    """
     from . import machostabs as ms
 
     try:
@@ -103,19 +145,66 @@ def macho_mapper(raw: bytes):
     except Exception:
         return None
     segs = [(s["vmaddr"], s["filesize"], s["fileoff"] + mo.base) for s in mo.segments if s["filesize"]]
+    return _segment_mapper(segs, load_base)
+
+
+def xbe_sections(raw: bytes):
+    """Parse an XBE image header.
+
+    Returns ``(base, [(flags, vaddr, size, roff)])`` or None when the
+    image is not an XBE or its section table is out of bounds. *size* is
+    ``max(virtual size, raw size)``, matching the PE contract.
+    """
+    if raw[:4] != b"XBEH" or len(raw) < 0x124:
+        return None
+    base = struct.unpack_from("<I", raw, 0x104)[0]
+    nsec = struct.unpack_from("<I", raw, 0x11C)[0]
+    ptr = struct.unpack_from("<I", raw, 0x120)[0]
+    table = ptr - base
+    if table < 0 or nsec > 0xFFFF or table + nsec * XBE_SECTION_HEADER > len(raw):
+        return None
+    secs = []
+    for i in range(nsec):
+        o = table + i * XBE_SECTION_HEADER
+        flags, vaddr, vsize, roff, rsize = struct.unpack_from("<IIIII", raw, o)
+        secs.append((flags, vaddr, max(vsize, rsize), roff))
+    return base, secs
+
+
+def xbe_mapper(raw: bytes, load_base: int | None = None):
+    """Map a loaded VA to a file offset through the XBE section table.
+
+    XBE section headers carry absolute virtual addresses, so with
+    *load_base* set the VA is shifted by ``load_base - header base``
+    before lookup. The parsed ``(flags, vaddr, size, roff)`` tuples are
+    attached to the returned function as ``sections`` so callers can
+    scope by section flags without re-parsing.
+    """
+    parsed = xbe_sections(raw)
+    if parsed is None:
+        return None
+    header_base, secs = parsed
+    delta = load_base - header_base if load_base is not None else 0
 
     def f(va):
-        for vmaddr, size, off in segs:
-            if vmaddr <= va < vmaddr + size:
-                return off + (va - vmaddr)
+        r = va - delta
+        for _flags, vaddr, size, roff in secs:
+            if vaddr <= r < vaddr + size:
+                return roff + (r - vaddr)
         return None
 
+    f.sections = tuple(secs)
     return f
 
 
-def mapper_for(raw: bytes):
-    for m in (pe_mapper, elf_mapper, macho_mapper):
-        f = m(raw)
+def mapper_for(raw: bytes, load_base: int | None = None):
+    """Return ``(va2off, kind)`` for *raw*, or ``(None, None)``.
+
+    *load_base* is the address the analyzer loaded the image at; pass the
+    ``binary.image_base`` column when it is known.
+    """
+    for m in (pe_mapper, elf_mapper, macho_mapper, xbe_mapper):
+        f = m(raw, load_base)
         if f is not None:
             return f, m.__name__
     return None, None
@@ -231,7 +320,7 @@ def process(
     """Emit GNU ``.byte`` sources for *repo_path*. *raw_dir* is required."""
     con = connect(store_path)
     row = con.execute(
-        "SELECT id, arch, bits FROM binary WHERE repo_path=?",
+        "SELECT id, arch, bits, image_base FROM binary WHERE repo_path=?",
         (repo_path,),
     ).fetchone()
     if row is None:
@@ -248,7 +337,7 @@ def process(
     raw_path = pathlib.Path(raw_dir) / slug
     if raw_path.exists():
         raw = raw_path.read_bytes()
-        va2off, kind = mapper_for(raw)
+        va2off, kind = mapper_for(raw, row["image_base"])
         if va2off is not None:
             for r in con.execute(
                 "SELECT addr, size FROM func WHERE binary_id=? AND n_instr>0 AND size>0",

@@ -65,10 +65,15 @@ def _raw_image(repo_path: str) -> bytes | None:
         return None
 
 
-def _file_offset(image: bytes, addr: int) -> int | None:
-    from .genproject import pe_va_mapper
+def _file_offset(image: bytes, addr: int, load_base: int | None = None) -> int | None:
+    """File offset of the loaded VA *addr* inside *image*, or None.
 
-    mapper = pe_va_mapper(image)
+    *load_base* is the store's ``binary.image_base``; None means use the
+    image header's own base.
+    """
+    from .exact_universal import mapper_for
+
+    mapper, _kind = mapper_for(image, load_base)
     if mapper is None:
         return None
     return mapper(int(addr))
@@ -77,7 +82,9 @@ def _file_offset(image: bytes, addr: int) -> int | None:
 def export_hookpack(con, out: Path) -> dict:
     binaries = {
         int(r["id"]): dict(r)
-        for r in con.execute("SELECT id, slug, game, platform, format, repo_path FROM binary ORDER BY id")
+        for r in con.execute(
+            "SELECT id, slug, game, platform, format, repo_path, image_base FROM binary ORDER BY id"
+        )
     }
     raw_by_bid: dict[int, bytes | None] = {}
     logicals = list(con.execute(
@@ -115,7 +122,11 @@ def export_hookpack(con, out: Path) -> dict:
                 raw_by_bid[bid] = _raw_image(str(b.get("repo_path") or ""))
             image = raw_by_bid.get(bid)
             if image:
-                off = _file_offset(image, int(m["addr"] or 0))
+                load_base = b.get("image_base")
+                addr = int(m["addr"] or 0)
+                # No store base means the header base. Keep the two-argument
+                # call for that case so two-argument stand-ins still work.
+                off = _file_offset(image, addr) if load_base is None else _file_offset(image, addr, load_base)
                 if off is not None:
                     window = unique_window(image, off, int(m["size"] or 0))
                     if window:

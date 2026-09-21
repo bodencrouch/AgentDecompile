@@ -15,36 +15,11 @@ import subprocess
 import tempfile
 import time
 
+from .exact_universal import pe_mapper
 from .extract import slugify
 from .store import connect
 
 BATCH = 500
-
-
-def pe_va_mapper(raw: bytes):
-    """Return (va->file offset) for a PE image, or None if not a PE."""
-    if raw[:2] != b"MZ":
-        return None
-    pe = struct.unpack_from("<I", raw, 0x3C)[0]
-    if raw[pe : pe + 4] != b"PE\0\0":
-        return None
-    nsec = struct.unpack_from("<H", raw, pe + 6)[0]
-    opt = struct.unpack_from("<H", raw, pe + 20)[0]
-    base = struct.unpack_from("<I", raw, pe + 24 + 28)[0]
-    secs = []
-    for i in range(nsec):
-        o = pe + 24 + opt + i * 40
-        vsize, vaddr, rsize, roff = struct.unpack_from("<IIII", raw, o + 8)
-        secs.append((vaddr, max(vsize, rsize), roff))
-
-    def va2off(va: int):
-        r = va - base
-        for vaddr, size, roff in secs:
-            if vaddr <= r < vaddr + size:
-                return roff + (r - vaddr)
-        return None
-
-    return va2off
 
 
 def emit_tu(funcs: list[tuple[int, bytes]]) -> str:
@@ -142,11 +117,10 @@ def process(
     if not src.exists():
         return {"repo_path": repo_path, "error": f"raw image not exported: {src}"}
     raw = src.read_bytes()
-    va2off = pe_va_mapper(raw)
+    row = con.execute("SELECT id, image_base FROM binary WHERE repo_path=?", (repo_path,)).fetchone()
+    va2off = pe_mapper(raw, row["image_base"] if row is not None else None)
     if va2off is None:
         return {"repo_path": repo_path, "error": "not a PE image"}
-
-    row = con.execute("SELECT id FROM binary WHERE repo_path=?", (repo_path,)).fetchone()
     if row is None:
         return {"repo_path": repo_path, "error": "not in database"}
 

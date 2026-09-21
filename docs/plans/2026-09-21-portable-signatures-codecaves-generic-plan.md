@@ -33,7 +33,7 @@ project name appears anywhere in this design; targets are described only by clas
 
 ### Delta Update (2026-09-21, after the 3b/U21c wave)
 - **Landed:** Step 0 `0256ca0`; Phase 0 D1–D7 + U5c (`16f0823`…`8d2c041`, `5225722`, `559dc46`); U7/U7b `f935db7`;
-  U22 `f5f6a88`; U1–U3 + U1b `b58a2e1`/`b271ba6`; U21c `0191303`; 3b basis hardening ✔ (`5bf8a11`) · **3d U25 re-baseline verb** (load-bearing now: package-constant changes strand stamped stores until it exists) `5bf8a11`
+  U22 `f5f6a88`; U1–U3 + U1b `b58a2e1`/`b271ba6`; U21c `0191303`; 3b basis hardening `5bf8a11`
   (basis v2 store-derived, `PENDING_FIELDS`, migration 2, `analyzer_identity` backfill, `BasisError`, exit 2).
 - **Partial:** D8/D9 + harness (o) in flight (`unit/d8d9-harness`); the U5c(b) build-order shuffle is not
   yet in the gate; `export-hookpack` on an empty store now refuses (basis needs one stamped row) — settle by
@@ -1973,8 +1973,13 @@ pretend otherwise.
      lands.
 3. **U22 ✔** (`f5f6a88`). Remaining per U22's bullet (DDL ownership, delete registry,
    migration 2).
-   - **3b. Basis hardening** — D8, D9, the normative basis object (Determinism section),
-     migration 2 (`basis_hash`, `decoder_revision`, `analyzer_version`), harness (o)/(p).
+   - **3b. Basis hardening** — the normative basis object (Determinism section) and
+     migration 2 (`basis_hash`, `decoder_revision`, `analyzer_version`) **✔** (`5bf8a11`);
+     D8, D9 and harness (o) ⏳ (`unit/d8d9-harness`); harness (p) waits for U30's `stable_key`.
+   - **3d. U25 re-baseline verb** — load-bearing since 3b: any package-constant change or a
+     `PENDING_FIELDS` removal makes every stamped store refuse with "re-baseline", and the
+     backfill fills NULLs only, so the verb that re-stamps under a recorded supersession must
+     exist before the first such change (hindsight, charter §4).
    - **3c. U28x inline-CLI attestation** — `corpus attest` against a copy-on-write temp
      copy of the real store, wired into the loop; every later wave compares its receipts
      (U28 (r)) and a hang is a named failure, never a wait.

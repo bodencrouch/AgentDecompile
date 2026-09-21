@@ -64,6 +64,7 @@ def test_verify_determinism_verb(tmp_path: Path, monkeypatch, capsys) -> None:
     con.execute("INSERT INTO logical_function(id, best_name, best_signature, n_members) VALUES (1, 'Run', 'void Run()', 1)")
     con.execute("INSERT INTO identity(logical_id, binary_id, addr, confidence, method) VALUES (1, 1, 16, 1.0, 'a')")
     con.commit()
+    con.close()  # the verb runs in a fresh process with nothing else attached
     assert corpus_main(["verify-determinism", "--db", str(db)]) == 0
     assert '"identical": true' in capsys.readouterr().out
 

@@ -8,6 +8,8 @@ from collections import Counter, defaultdict
 
 from . import canon, match
 
+BACKFILL_HINT = "run `corpus.backfill --pass content_sha256` on the store first"
+
 GENERIC = re.compile(
     r"^(map|set|list|vector|string|pair|iterator|allocator|_?init|_?fini|main|"
     r"entry|start|operator[^A-Za-z]|__.*)$"
@@ -28,6 +30,52 @@ def eligible(row) -> bool:
     return True
 
 
+def content_hash_index(con, binary_ids) -> dict[int, str]:
+    """``binary.id`` -> ``content_sha256`` for the builds in *binary_ids*.
+
+    The content hash is the only build key the cascade may order or tie-break
+    on (never a rowid, never a slug). A build without one, or two builds
+    sharing one, leaves that key undefined, so this refuses instead of
+    falling back: ``ValueError`` names the offending slugs (sorted) and the
+    backfill verb that supplies the hash.
+    """
+    ids = sorted({int(i) for i in binary_ids})
+    if not ids:
+        return {}
+    marks = ",".join("?" for _ in ids)
+    rows = con.execute(
+        f"SELECT id, slug, content_sha256 FROM binary WHERE id IN ({marks})", ids
+    ).fetchall()
+    index: dict[int, str] = {}
+    missing: list[str] = []
+    by_hash: dict[str, list[str]] = defaultdict(list)
+    seen: set[int] = set()
+    for row in rows:
+        seen.add(int(row["id"]))
+        digest = str(row["content_sha256"] or "").strip()
+        if not digest:
+            missing.append(str(row["slug"]))
+            continue
+        index[int(row["id"])] = digest
+        by_hash[digest].append(str(row["slug"]))
+    # A referenced id with no binary row has no hash either.
+    missing.extend(f"binary id {i} (no binary row)" for i in ids if i not in seen)
+    if missing:
+        raise ValueError(
+            "binary.content_sha256 is NULL or blank for "
+            + ", ".join(sorted(missing))
+            + f"; the cascade keys on it and refuses to guess; {BACKFILL_HINT}"
+        )
+    dupes = {h: sorted(slugs) for h, slugs in by_hash.items() if len(slugs) > 1}
+    if dupes:
+        detail = "; ".join(f"{h[:16]}: {', '.join(slugs)}" for h, slugs in sorted(dupes.items()))
+        raise ValueError(
+            "binary.content_sha256 is shared by more than one build, so it is not a "
+            f"total key: {detail}. Register each image once."
+        )
+    return index
+
+
 def build(con) -> dict[str, int]:
     con.execute("DELETE FROM identity")
     con.execute("DELETE FROM logical_function")
@@ -36,33 +84,39 @@ def build(con) -> dict[str, int]:
     excluded = tuple(sorted(canon.DRM_EXCLUDED))
     if excluded:
         marks = ",".join("?" for _ in excluded)
-        rows = con.execute(
-            f"""SELECT f.binary_id, f.addr, f.canon_key, f.canon_class, f.canon_method,
-                      f.canon_arity, f.name_origin, f.is_thunk, f.n_instr, f.n_blocks,
-                      f.cyclomatic, f.n_callees, f.size, f.signature, f.plate,
-                      f.strings, f.consts, f.param_count, f.name,
-                      b.game, b.slug, b.role
-                 FROM func f JOIN binary b ON b.id=f.binary_id
-                WHERE f.canon_key IS NOT NULL
-                  AND b.repo_path NOT IN ({marks})
-                ORDER BY f.canon_key, f.binary_id, f.addr""",
-            excluded,
-        ).fetchall()
+        scope_where = f"WHERE f.canon_key IS NOT NULL AND b.repo_path NOT IN ({marks})"
+        params = excluded
     else:
-        rows = con.execute(
-            """SELECT f.binary_id, f.addr, f.canon_key, f.canon_class, f.canon_method,
-                      f.canon_arity, f.name_origin, f.is_thunk, f.n_instr, f.n_blocks,
-                      f.cyclomatic, f.n_callees, f.size, f.signature, f.plate,
-                      f.strings, f.consts, f.param_count, f.name,
-                      b.game, b.slug, b.role
-                 FROM func f JOIN binary b ON b.id=f.binary_id
-                WHERE f.canon_key IS NOT NULL
-                ORDER BY f.canon_key, f.binary_id, f.addr"""
-        ).fetchall()
+        scope_where = "WHERE f.canon_key IS NOT NULL"
+        params = ()
+    # Refuse before the driving SELECT: an ORDER BY over a NULL hash would
+    # sort silently, which is the fallback design decision 3 forbids.
+    content_hash_index(
+        con,
+        (
+            r[0]
+            for r in con.execute(
+                f"SELECT DISTINCT f.binary_id FROM func f JOIN binary b ON b.id=f.binary_id {scope_where}",
+                params,
+            )
+        ),
+    )
+    rows = con.execute(
+        f"""SELECT f.binary_id, f.addr, f.canon_key, f.canon_class, f.canon_method,
+                  f.canon_arity, f.name_origin, f.is_thunk, f.n_instr, f.n_blocks,
+                  f.cyclomatic, f.n_callees, f.size, f.signature, f.plate,
+                  f.strings, f.consts, f.param_count, f.name,
+                  b.game, b.slug, b.role, b.content_sha256
+             FROM func f JOIN binary b ON b.id=f.binary_id
+            {scope_where}
+            ORDER BY f.canon_key, b.content_sha256, f.addr""",
+        params,
+    ).fetchall()
 
-    # Rows arrive sorted by (canon_key, binary_id, addr), so every dict built
-    # below in insertion order (groups, subgroups, sub_by_bin) is totally
-    # ordered and logical ids are assigned in canon_key order.
+    # Rows arrive sorted by (canon_key, content_sha256, addr), so every dict
+    # built below in insertion order (groups, subgroups, sub_by_bin) is totally
+    # ordered on build-invariant keys and logical ids are assigned in
+    # canon_key order. binary.id never reaches a persisted value here.
     groups: dict[str, list] = defaultdict(list)
     for row in rows:
         if eligible(row):
@@ -84,9 +138,10 @@ def build(con) -> dict[str, int]:
             subgroups[None] = members
 
         for arity, sub in subgroups.items():
-            sub_by_bin: dict[int, list] = defaultdict(list)
+            # Keyed by the build's content hash, never by binary.id.
+            sub_by_bin: dict[str, list] = defaultdict(list)
             for m in sub:
-                sub_by_bin[m["binary_id"]].append(m)
+                sub_by_bin[m["content_sha256"]].append(m)
 
             if all(len(v) == 1 for v in sub_by_bin.values()):
                 n_logical += 1
@@ -145,23 +200,27 @@ def _similar(a, b) -> float:
     return score / weight
 
 
-def resolve_ambiguous(sub_by_bin: dict[int, list]):
-    """Split a same-name group using structure. Prefer donor/anchor roles."""
+def resolve_ambiguous(sub_by_bin: dict[str, list]):
+    """Split a same-name group using structure. Prefer donor/anchor roles.
 
-    def rank(bid):
-        role = (sub_by_bin[bid][0]["role"] or "") if "role" in sub_by_bin[bid][0].keys() else ""
+    *sub_by_bin* is keyed by ``binary.content_sha256``; the reference build
+    and the slot order tie-break on that hash, never on a rowid.
+    """
+
+    def rank(digest):
+        role = (sub_by_bin[digest][0]["role"] or "") if "role" in sub_by_bin[digest][0].keys() else ""
         pri = 0 if role in ("donor", "anchor") else 1
-        return (len(sub_by_bin[bid]), pri, bid)
+        return (len(sub_by_bin[digest]), pri, digest)
 
-    ref_bid = min(sub_by_bin, key=rank)
+    ref_hash = min(sub_by_bin, key=rank)
     slots = [
         [(m, 0.97, "name-reference")]
-        for m in sorted(sub_by_bin[ref_bid], key=lambda m: (-(m["n_instr"] or 0), m["binary_id"], m["addr"]))
+        for m in sorted(sub_by_bin[ref_hash], key=lambda m: (-(m["n_instr"] or 0), m["content_sha256"], m["addr"]))
     ]
 
-    for bid in sorted(sub_by_bin):
-        lst = sub_by_bin[bid]
-        if bid == ref_bid:
+    for digest in sorted(sub_by_bin):
+        lst = sub_by_bin[digest]
+        if digest == ref_hash:
             continue
         pairs = []
         for mi, m in enumerate(lst):
@@ -264,9 +323,10 @@ def _game_of(members) -> str | None:
 
 def _best_signature(members) -> tuple[str | None, str | None]:
     name = members[0]["canon_key"]
-    # First-wins picks below run over (binary_id, addr) order, not slot or
-    # insertion order, so the chosen prototype is a function of the members.
-    ordered = sorted(members, key=lambda m: (m["binary_id"], m["addr"]))
+    # First-wins picks below run over (content_sha256, addr) order, not slot
+    # or insertion order, so the chosen prototype is a function of the
+    # members' bytes and never of build-ingest order.
+    ordered = sorted(members, key=lambda m: (m["content_sha256"], m["addr"]))
     sig = None
     for m in ordered:
         if m["name_origin"] == "mangled" and m["plate"]:

@@ -201,7 +201,10 @@ def test_legacy_store_keeps_its_rows(tmp_path: Path) -> None:
     con = store.connect(legacy)
     con.commit()
     rows = con.execute("SELECT id, slug, recovery_family FROM binary ORDER BY id").fetchall()
-    assert [tuple(r) for r in rows] == [(1, "one", "fam"), (2, "two", "unclassified:2")]
+    # A legacy row without content_sha256 cannot be classified: the family
+    # is derived from the image hash (D9), never from the rowid, so it stays
+    # NULL until `corpus.backfill --pass content_sha256` supplies the hash.
+    assert [tuple(r) for r in rows] == [(1, "one", "fam"), (2, "two", None)]
     assert con.execute("SELECT count(*) FROM func").fetchone()[0] == 1
     con.close()
 

@@ -34,14 +34,27 @@ SAME_LOGICAL_TIE = [
 ]
 
 
-def _build(path: Path, matches: list[tuple[int, int, int, int]], identities: list[tuple[int, int, int]]):
+# Build content hashes. Build 1 sorts first by hash as well as by id, so the
+# existing dst-major expectations are unchanged; the D8 tests below swap them.
+HASHES = {1: "1" * 64, 2: "2" * 64, 3: "3" * 64}
+
+
+def _build(
+    path: Path,
+    matches: list[tuple[int, int, int, int]],
+    identities: list[tuple[int, int, int]],
+    *,
+    hashes: dict[int, str | None] | None = None,
+):
     con = store.connect(path)
     con.executescript(
         """
-        INSERT INTO binary(id, repo_path, slug) VALUES (1,'src/a','a'),(2,'dst/b','b');
+        INSERT INTO binary(id, repo_path, slug) VALUES (1,'src/a','a'),(2,'dst/b','b'),(3,'src/c','c');
         INSERT INTO logical_function(id, best_name) VALUES (1,'fn1'),(2,'fn2'),(3,'fn3');
         """
     )
+    for bid, digest in (hashes or HASHES).items():
+        con.execute("UPDATE binary SET content_sha256=? WHERE id=?", (digest, bid))
     con.executemany(
         "INSERT INTO identity(logical_id, binary_id, addr, confidence, method) VALUES (?,?,?,0.9,'seed')",
         identities,
@@ -74,8 +87,8 @@ def _snapshot(con) -> tuple[list[tuple], list[tuple]]:
     return identity, demoted
 
 
-def _bind_with_order(tmp_path: Path, name: str, matches, identities):
-    con = _build(tmp_path / f"{name}.sqlite", matches, identities)
+def _bind_with_order(tmp_path: Path, name: str, matches, identities, *, hashes=None):
+    con = _build(tmp_path / f"{name}.sqlite", matches, identities, hashes=hashes)
     bind_identities(con, RUN)
     snap = _snapshot(con)
     con.close()
@@ -126,6 +139,60 @@ def test_logical_members_conflicting_addr_is_seed_order_invariant(tmp_path: Path
     assert forward == reverse
     _identity, demoted = forward
     assert json.loads(demoted[0][5])["conflicting_addr"] == 0x420
+
+
+# --- D8: the source-build tie-break keys on content_sha256, never binary.id --
+
+# One logical function seeded in two source builds (1 and 3); both claim the
+# same unowned destination at equal confidence. Only the source build's key
+# can decide the winner.
+OTHER_SRC = 3
+TWO_SRC_BUILDS_TIE = [
+    (SRC, 0x10, DST, 0x100),
+    (OTHER_SRC, 0x10, DST, 0x100),
+]
+TWO_SRC_SEEDS = [(1, SRC, 0x10), (1, OTHER_SRC, 0x10)]
+
+
+def _loser(demoted) -> int:
+    assert len(demoted) == 1, demoted
+    assert json.loads(demoted[0][5])["reason"] == "logical_id_binary_conflict"
+    return demoted[0][0]
+
+
+def test_source_build_tie_follows_content_hash_not_rowid(tmp_path: Path) -> None:
+    # Ids order 1 < 3; hashes order build 3 first. The winner is the lowest hash.
+    _identity, demoted = _bind_with_order(
+        tmp_path, "hash-first", TWO_SRC_BUILDS_TIE, TWO_SRC_SEEDS,
+        hashes={1: "f" * 64, 2: "2" * 64, 3: "0" * 64},
+    )
+    assert _loser(demoted) == SRC  # build 1 lost although it has the lower id
+    _identity, demoted = _bind_with_order(
+        tmp_path, "id-first", TWO_SRC_BUILDS_TIE, TWO_SRC_SEEDS,
+        hashes={1: "0" * 64, 2: "2" * 64, 3: "f" * 64},
+    )
+    assert _loser(demoted) == OTHER_SRC
+
+
+def test_source_build_tie_is_insert_order_invariant(tmp_path: Path) -> None:
+    hashes = {1: "f" * 64, 2: "2" * 64, 3: "0" * 64}
+    forward = _bind_with_order(tmp_path, "fwd", TWO_SRC_BUILDS_TIE, TWO_SRC_SEEDS, hashes=hashes)
+    reverse = _bind_with_order(tmp_path, "rev", list(reversed(TWO_SRC_BUILDS_TIE)), list(reversed(TWO_SRC_SEEDS)), hashes=hashes)
+    assert forward == reverse
+
+
+def test_bind_refuses_null_content_sha256_and_names_the_build(tmp_path: Path) -> None:
+    con = _build(tmp_path / "null.sqlite", SAME_DST_TIE, [(1, SRC, 0x10), (2, SRC, 0x20)], hashes={1: "1" * 64, 2: None, 3: "3" * 64})
+    with pytest.raises(ValueError, match=r"content_sha256.*\bb\b.*backfill --pass content_sha256"):
+        bind_identities(con, RUN)
+    # Nothing was bound and nothing was demoted.
+    assert con.execute("SELECT COUNT(*) FROM match WHERE status='review'").fetchone()[0] == 0
+
+
+def test_bind_guard_scope_is_the_run_s_match_builds(tmp_path: Path) -> None:
+    """Build 3 is in the store but in no match row of this run; its NULL hash is out of scope."""
+    con = _build(tmp_path / "scope.sqlite", SAME_DST_TIE, [(1, SRC, 0x10), (2, SRC, 0x20)], hashes={1: "1" * 64, 2: "2" * 64, 3: None})
+    assert bind_identities(con, RUN) == 1
 
 
 def _two_parent_graph():

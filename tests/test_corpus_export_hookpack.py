@@ -14,6 +14,10 @@ from agentdecompile_recovery.corpus.store import connect
 
 pytestmark = pytest.mark.unit
 
+# Synthetic build content hashes, in id order, for fixtures whose builds an
+# identity row references (the exporter refuses a referenced build without one).
+H1, H2, H3, H4 = "1" * 64, "2" * 64, "3" * 64, "4" * 64
+
 
 def _stamp(con) -> None:
     """Give every binary row the analyzer identity the basis refuses without."""
@@ -31,7 +35,7 @@ def test_empty_store_refuses_without_a_basis(tmp_path: Path) -> None:
 
 def test_one_logical_two_binaries_majority_signature(tmp_path: Path) -> None:
     con = connect(tmp_path / "c.sqlite")
-    con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1, '/a', 'debug'), (2, '/b', 'release')")
+    con.execute(f"INSERT INTO binary(id, repo_path, slug, content_sha256) VALUES (1, '/a', 'debug', '{H1}'), (2, '/b', 'release', '{H2}')")
     _stamp(con)
     con.execute(
         "INSERT INTO logical_function(id, best_name, best_signature, n_members) VALUES (9, 'RunScript', 'void RunScript()', 2)"
@@ -53,7 +57,7 @@ def test_one_logical_two_binaries_majority_signature(tmp_path: Path) -> None:
 
 def test_missing_signature_is_kind_none(tmp_path: Path) -> None:
     con = connect(tmp_path / "c.sqlite")
-    con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1, '/a', 'debug')")
+    con.execute(f"INSERT INTO binary(id, repo_path, slug, content_sha256) VALUES (1, '/a', 'debug', '{H1}')")
     _stamp(con)
     con.execute(
         "INSERT INTO logical_function(id, best_name, best_signature, n_members) VALUES (3, 'Anon', NULL, 1)"
@@ -69,7 +73,7 @@ def test_missing_signature_is_kind_none(tmp_path: Path) -> None:
 
 def test_shared_members_win_over_stale_best(tmp_path: Path) -> None:
     con = connect(tmp_path / "c.sqlite")
-    con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1, '/a', 'debug'), (2, '/b', 'release')")
+    con.execute(f"INSERT INTO binary(id, repo_path, slug, content_sha256) VALUES (1, '/a', 'debug', '{H1}'), (2, '/b', 'release', '{H2}')")
     _stamp(con)
     con.execute(
         "INSERT INTO logical_function(id, best_name, best_signature, n_members) "
@@ -106,7 +110,7 @@ def test_export_copies_unique_bytes_from_image(tmp_path: Path, monkeypatch) -> N
     monkeypatch.setattr(hp, "_raw_image", lambda repo: hay)
     monkeypatch.setattr(hp, "_file_offset", lambda image, addr: 64)
     con = connect(tmp_path / "c.sqlite")
-    con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1, '/a', 'debug')")
+    con.execute(f"INSERT INTO binary(id, repo_path, slug, content_sha256) VALUES (1, '/a', 'debug', '{H1}')")
     _stamp(con)
     con.execute(
         "INSERT INTO logical_function(id, best_name, best_signature, n_members) VALUES (3, 'Run', 'void Run()', 1)"
@@ -128,7 +132,7 @@ def _two_logical_store(path: Path, *, forward: bool):
     """Same content, opposite insertion order: rows that are not rowid-aliased
     (identity) come back in insertion order without an ORDER BY."""
     con = connect(path)
-    con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1, '/a', 'debug'), (2, '/b', 'release')")
+    con.execute(f"INSERT INTO binary(id, repo_path, slug, content_sha256) VALUES (1, '/a', 'debug', '{H1}'), (2, '/b', 'release', '{H2}')")
     _stamp(con)
     con.execute(
         "INSERT INTO logical_function(id, best_name, best_signature, n_members) "
@@ -164,6 +168,39 @@ def test_shared_best_name_never_overwrites_a_site(tmp_path: Path) -> None:
     assert pack["sites"]["Tick__1"]["logical_id"] == 1
     assert pack["sites"]["Tick__2"]["logical_id"] == 2
     assert [i["addr"] for i in pack["sites"]["Tick__1"]["instances"]] == [100, 300, 200]
+
+
+# --- D8: instances[] order keys on binary.content_sha256, never binary.id ----
+
+
+def _hash_vs_id_store(path: Path, *, hashes: tuple[str | None, str | None]):
+    """Two builds, ids and slugs in one order, content hashes as given."""
+    con = connect(path)
+    con.execute(
+        "INSERT INTO binary(id, repo_path, slug, content_sha256) VALUES (1, '/a', 'alpha', ?), (2, '/b', 'beta', ?)",
+        hashes,
+    )
+    con.execute("INSERT INTO logical_function(id, best_name, best_signature, n_members) VALUES (1, 'Run', 'void Run()', 2)")
+    con.execute("INSERT INTO identity(logical_id, binary_id, addr, confidence, method) VALUES (1, 1, 100, 0.9, 'a'), (1, 2, 200, 0.9, 'a')")
+    con.execute("INSERT INTO func(binary_id, addr, name, signature) VALUES (1, 100, 'Run', 'void Run()'), (2, 200, 'Run', 'void Run()')")
+    con.commit()
+    return con
+
+
+def test_instances_order_follows_content_hash_not_rowid(tmp_path: Path) -> None:
+    out = tmp_path / "id.json"
+    export_hookpack(_hash_vs_id_store(tmp_path / "id.sqlite", hashes=(H1, H2)), out)
+    assert [i["binary"] for i in __import__("json").loads(out.read_text())["sites"]["Run"]["instances"]] == ["alpha", "beta"]
+    out = tmp_path / "hash.json"
+    export_hookpack(_hash_vs_id_store(tmp_path / "hash.sqlite", hashes=(H2, H1)), out)
+    assert [i["binary"] for i in __import__("json").loads(out.read_text())["sites"]["Run"]["instances"]] == ["beta", "alpha"]
+
+
+def test_export_refuses_referenced_build_without_content_sha256(tmp_path: Path) -> None:
+    out = tmp_path / "pack.json"
+    with pytest.raises(ValueError, match=r"content_sha256.*beta.*backfill --pass content_sha256"):
+        export_hookpack(_hash_vs_id_store(tmp_path / "null.sqlite", hashes=(H1, None)), out)
+    assert not out.exists()
 
 
 def test_preferred_signature_breaks_count_ties_by_value() -> None:
@@ -250,8 +287,8 @@ def _windows_store(path: Path):
     """Four builds of one site. Slugs are deliberately out of id order."""
     con = connect(path)
     con.execute(
-        "INSERT INTO binary(id, repo_path, slug) VALUES"
-        " (1, '/z', 'zeta'), (2, '/a', 'alpha'), (3, '/n', 'noimg'), (4, '/d', 'dup')"
+        "INSERT INTO binary(id, repo_path, slug, content_sha256) VALUES"
+        f" (1, '/z', 'zeta', '{H1}'), (2, '/a', 'alpha', '{H2}'), (3, '/n', 'noimg', '{H3}'), (4, '/d', 'dup', '{H4}')"
     )
     _stamp(con)
     con.execute(
@@ -302,7 +339,7 @@ def test_site_expected_bytes_rule_unchanged_when_all_agree(tmp_path: Path, monke
     monkeypatch.setattr(hp, "_raw_image", lambda repo: HAY)
     monkeypatch.setattr(hp, "_file_offset", lambda image, addr, load_base=None: 64)
     con = connect(tmp_path / "c.sqlite")
-    con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1, '/a', 'debug'), (2, '/b', 'release')")
+    con.execute(f"INSERT INTO binary(id, repo_path, slug, content_sha256) VALUES (1, '/a', 'debug', '{H1}'), (2, '/b', 'release', '{H2}')")
     _stamp(con)
     con.execute("INSERT INTO logical_function(id, best_name, best_signature, n_members) VALUES (3, 'Run', 'void Run()', 2)")
     con.execute("INSERT INTO identity(logical_id, binary_id, addr, confidence, method) VALUES (3, 1, 256, 1.0, 'a'), (3, 2, 256, 1.0, 'a')")
@@ -358,7 +395,7 @@ def test_site_without_any_window_has_no_agreement(tmp_path: Path) -> None:
 
 def _policy_store(path: Path):
     con = connect(path)
-    con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1, '/a', 'debug')")
+    con.execute(f"INSERT INTO binary(id, repo_path, slug, content_sha256) VALUES (1, '/a', 'debug', '{H1}')")
     _stamp(con)
     con.execute(
         "INSERT INTO logical_function(id, best_name, best_signature, n_members) VALUES"

@@ -9,19 +9,29 @@ insertion order and SQLite physical layout.
 Procedure:
 
 1. Snapshot the fixture store's ``binary``, ``func`` and ``calledge`` rows.
+   Every table in ``FIXTURE_TABLES`` must be present; a missing one is an
+   error, never a skip.
 2. Run ``canonical``: fresh DB file, rows inserted in canonical order, cascade.
-3. Run ``reingest`` (U28 e): fresh DB file, rows inserted in a seeded shuffled
-   order (``func`` rows get fresh rowids so the shuffle is physical), cascade.
+3. Run ``reingest`` (U28 e/o): fresh DB file, rows inserted in a seeded
+   shuffled order. ``func`` and ``calledge`` rows get fresh rowids so the
+   shuffle is physical, and ``binary`` rows are inserted in shuffled order
+   with fresh ids too, so ``binary.id`` differs from the canonical run; every
+   ``binary_id`` foreign key is remapped through the old-to-new id map.
 4. Run ``vacuum_analyze`` (U5c b): same shuffled insert, then ``VACUUM`` and
    ``ANALYZE`` before the cascade, so the planner sees different statistics.
-5. Dump ``identity``, ``match`` and ``logical_function`` from every run in a
-   canonical sorted form and byte-compare against ``canonical``. The first
+5. Dump ``identity``, ``match`` (including ``id``), ``logical_function`` and
+   ``binary.recovery_family`` from every run in a canonical sorted form and
+   byte-compare against ``canonical``. Build references (``binary_id``,
+   ``src_binary``, ``dst_binary``) are dumped as the build's
+   ``content_sha256`` so a fresh rowid is not itself a difference. The first
    differing row is named.
 
 Both perturbations are kept because they reach different code paths: with
 ``ANALYZE`` statistics the planner tends to drive the unordered SELECTs through
 ``ix_func_bin_addr`` (which happens to return canonical order), while a plain
 re-ingest keeps the rowid scan and exposes the insertion order directly.
+Shuffling ``binary`` rows is what exposes a tie-break keyed on ``binary.id``
+(D8) and a ``recovery_family`` derived from it (D9).
 
 No Ghidra, no real binaries: the fixture is synthetic and generated from a
 seed by :func:`generate_fixture`.
@@ -42,9 +52,20 @@ from . import canon, logical, propagate, store
 from .fingerprint_hashes import attach_hashes
 
 FIXTURE_TABLES = ("binary", "func", "calledge")
-OUTPUT_TABLES = ("identity", "match", "logical_function")
+# ``recovery_family`` is the per-build column, compared as a
+# (content_sha256, recovery_family) row-set; the rest are whole tables.
+OUTPUT_TABLES = ("identity", "match", "logical_function", "recovery_family")
+# Columns that reference binary.id. Remapped on a shuffled load and dumped
+# as the build's content hash.
+BINARY_REF_COLUMNS = ("binary_id", "src_binary", "dst_binary")
 RUN = "determinism"
 FIXTURE_SEED = 7
+# Shuffle seeds the gate runs under. With three builds, seed 7 puts them in
+# fresh-id order (c, a, b) and seed 4 in (c, b, a): the full reversal of the
+# content-hash order (a, b, c), so every pairwise build tie-break is flipped
+# at least once. A seed whose fresh ids happen to follow hash order proves
+# nothing; the gate test checks that.
+SHUFFLE_SEEDS = (FIXTURE_SEED, 4)
 FIXTURE_JSON_NAME = "cascade_fixture.json"
 
 
@@ -103,7 +124,11 @@ def snapshot(con: sqlite3.Connection) -> dict[str, list[dict]]:
 
     ``func.id`` is dropped: nothing in the cascade reads it, and re-assigning it
     on insert is what lets a shuffled load change physical row order.
-    ``binary.id`` is kept because every output table carries ``binary_id``.
+    ``binary.id`` is kept so the canonical load reproduces the fixture's ids
+    and a shuffled load can map them to the fresh ones it assigns.
+    ``binary.recovery_family`` is dropped: it is a compared *output*, derived
+    by the store's backfill in every layout, and the fixture store's own
+    connect() has already written one that must not leak into the runs.
     """
     orders = {
         "binary": "id",
@@ -113,8 +138,12 @@ def snapshot(con: sqlite3.Connection) -> dict[str, list[dict]]:
     out: dict[str, list[dict]] = {}
     for table in FIXTURE_TABLES:
         cols = _columns(con, table)
+        if not cols:
+            raise ValueError(f"fixture store has no {table!r} table; the harness needs every table in FIXTURE_TABLES")
         if table == "func":
             cols = [c for c in cols if c != "id"]
+        elif table == "binary":
+            cols = [c for c in cols if c != "recovery_family"]
         sel = ", ".join(cols)
         rows = con.execute(f"SELECT {sel} FROM {table} ORDER BY {orders[table]}").fetchall()
         out[table] = [dict(zip(cols, tuple(r))) for r in rows]
@@ -126,21 +155,49 @@ def load_snapshot(
     snap: dict[str, list[dict]],
     *,
     rng: random.Random | None = None,
-) -> None:
-    """Insert snapshot rows. With *rng*, every table's rows are shuffled."""
+) -> dict[int, int]:
+    """Insert snapshot rows; returns the snapshot ``binary.id`` -> stored id map.
+
+    With *rng*, every table's rows are shuffled before insert. ``binary`` rows
+    are then inserted without their ``id`` so the store assigns fresh ids in
+    the shuffled order, and every ``BINARY_REF_COLUMNS`` value in the other
+    tables is remapped through the resulting map. Without *rng* the snapshot
+    ids are kept and the map is the identity.
+    """
+    missing = [t for t in FIXTURE_TABLES if t not in snap]
+    if missing:
+        raise ValueError(f"fixture is missing table(s) {', '.join(missing)}; a missing table is an error, not a skip")
+    id_map: dict[int, int] = {}
     for table in FIXTURE_TABLES:
-        rows = list(snap.get(table, ()))
+        rows = [dict(r) for r in snap[table]]
         if rng is not None:
             rng.shuffle(rows)
-        if not rows:
+        if table == "binary":
+            if rng is not None:
+                for r in rows:
+                    r.pop("id", None)
+            _insert_rows(con, table, rows)
+            stored = {str(r["slug"]): int(r["id"]) for r in con.execute("SELECT id, slug FROM binary")}
+            id_map = {int(r["id"]): stored[str(r["slug"])] for r in snap["binary"]}
             continue
-        cols = sorted({c for r in rows for c in r})
-        marks = ",".join("?" for _ in cols)
-        con.executemany(
-            f"INSERT INTO {table}({', '.join(cols)}) VALUES({marks})",
-            [tuple(r.get(c) for c in cols) for r in rows],
-        )
+        for r in rows:
+            for col in BINARY_REF_COLUMNS:
+                if r.get(col) is not None:
+                    r[col] = id_map[int(r[col])]
+        _insert_rows(con, table, rows)
     con.commit()
+    return id_map
+
+
+def _insert_rows(con: sqlite3.Connection, table: str, rows: list[dict]) -> None:
+    if not rows:
+        return
+    cols = sorted({c for r in rows for c in r})
+    marks = ",".join("?" for _ in cols)
+    con.executemany(
+        f"INSERT INTO {table}({', '.join(cols)}) VALUES({marks})",
+        [tuple(r.get(c) for c in cols) for r in rows],
+    )
 
 
 # --------------------------------------------------------------------------
@@ -151,9 +208,11 @@ def load_snapshot(
 def run_cascade(con: sqlite3.Connection, run: str = RUN) -> dict:
     """The existing match → bind cascade, exactly as the CLIs sequence it."""
     summary: dict = {"logical": logical.build(con)}
-    bins = con.execute("SELECT id, repo_path FROM binary ORDER BY id").fetchall()
+    # Pair direction is a cascade input, so it is fixed by the builds' content
+    # hashes, never by binary.id: a shuffled ingest must yield the same pairs.
+    bins = con.execute("SELECT repo_path, content_sha256 FROM binary ORDER BY content_sha256").fetchall()
     pairs = [
-        (str(a["repo_path"]), str(b["repo_path"]), f"{a['id']}->{b['id']}")
+        (str(a["repo_path"]), str(b["repo_path"]), f"{str(a['content_sha256'])[:8]}->{str(b['content_sha256'])[:8]}")
         for i, a in enumerate(bins)
         for b in bins[i + 1:]
     ]
@@ -172,9 +231,17 @@ def run_cascade(con: sqlite3.Connection, run: str = RUN) -> dict:
 
 
 def _canonical_lines(con: sqlite3.Connection, table: str, *, drop: tuple[str, ...] = ()) -> list[str]:
-    cols = [c for c in _columns(con, table) if c not in drop]
-    sel = ", ".join(cols)
-    rows = con.execute(f"SELECT {sel} FROM {table}").fetchall()
+    """Sorted canonical JSON rows; build references are dumped as content hashes."""
+    if table == "recovery_family":
+        cols = ["content_sha256", "recovery_family"]
+        rows = con.execute("SELECT content_sha256, recovery_family FROM binary").fetchall()
+    else:
+        cols = [c for c in _columns(con, table) if c not in drop]
+        sel = ", ".join(
+            f"(SELECT b.content_sha256 FROM binary b WHERE b.id={table}.{c}) AS {c}" if c in BINARY_REF_COLUMNS else c
+            for c in cols
+        )
+        rows = con.execute(f"SELECT {sel} FROM {table}").fetchall()
     lines = [
         json.dumps(dict(zip(cols, tuple(r))), sort_keys=True, separators=(",", ":"))
         for r in rows
@@ -275,6 +342,10 @@ def _run_once(path: pathlib.Path, snap: dict[str, list[dict]], *, seed: int | No
             con.execute("VACUUM")
             con.execute("ANALYZE")
             con.commit()
+        # What the next connect() would do on this store: derive the family
+        # for rows the fixture left unclassified. Part of the compared output.
+        store.backfill_recovery_family(con)
+        con.commit()
         cascade = run_cascade(con)
         return cascade, dump_tables(con)
     finally:
@@ -408,6 +479,15 @@ def _roster(rng: random.Random) -> list[dict]:
         feat = _feature(rng, f"tie{k}", n_instr=30 + k, strings=[f"tie-text-{k}-long-enough"], consts=[0x3000 + k, 0x3100 + k], ext_calls=[f"ext_tie{k}"], source_file=f"tie_{k}.c")
         for copy in range(2):
             roster.append({"kind": "tie", "key": f"tie{k}_{copy}", "cls": "Omega", "method": f"tie{k}", "arity": 2, "feature": dict(feat)})
+    # Source-side tie (D8, propagate): one name-unique logical function whose
+    # members in build-a and build-b both match the same unnamed function in
+    # build-c at equal confidence, so bind_identities' first-wins race is
+    # decided by the source build's key alone.
+    for k in range(2):
+        roster.append({
+            "kind": "twin", "key": f"twin{k}", "cls": "Sigma", "method": f"twin{k}", "arity": 1,
+            "feature": _feature(rng, f"twin{k}", n_instr=26 + k, strings=[f"twin-text-{k}-long-enough"], consts=[0x5000 + k, 0x5100 + k], ext_calls=[f"ext_twin{k}"], source_file=f"twin_{k}.c"),
+        })
     # 6 unnamed, unique-everywhere fillers: stable H/X anchors.
     for k in range(6):
         roster.append({
@@ -426,7 +506,7 @@ def _present(entry: dict, slug: str) -> bool:
 
 def _name_for(entry: dict, slug: str, addr: int) -> dict:
     kind = entry["kind"]
-    if kind in {"hub", "dup"} or (kind == "tie" and slug == "build-a"):
+    if kind in {"hub", "dup"} or (kind == "tie" and slug == "build-a") or (kind == "twin" and slug != "build-c"):
         cls, method, arity = entry["cls"], entry["method"], entry["arity"]
         params = [f"p{i}" for i in range(arity)]
         plate = f"int {cls}::{method}({', '.join(f'int {p}' for p in params)}) [{slug}]"
@@ -453,8 +533,11 @@ def generate_fixture(seed: int = FIXTURE_SEED) -> dict[str, list[dict]]:
             "id": bid, "repo_path": f"/fixture/{slug}", "slug": slug, "game": "g0",
             "platform": "p0", "variant": None, "language_id": "l0", "arch": "a32", "bits": 32,
             "format": "f0", "md5": None, "image_base": 0x400000, "func_count": None,
-            "named_count": None, "role": None, "recovery_family": "family-0",
-            "content_sha256": _digest("image", slug),
+            # No raw image exists for a synthetic build, so the content hash is
+            # a declared synthetic one. recovery_family is left for the store's
+            # backfill to derive, so the harness exercises that path (D9).
+            "named_count": None, "role": None, "recovery_family": None,
+            "content_sha256": hashlib.sha256(f"fixture:{slug}".encode("utf-8")).hexdigest(),
         })
         # Per-build address layout: a fixed permutation so addr order differs
         # from roster order and from the other builds.
@@ -540,7 +623,7 @@ def dump_fixture_json(snap: dict[str, list[dict]]) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="agentdecompile_recovery.corpus.determinism_harness", description="Run the identity cascade twice from one fixture store and byte-compare identity/match/logical_function.")
+    ap = argparse.ArgumentParser(prog="agentdecompile_recovery.corpus.determinism_harness", description="Run the identity cascade under three layouts from one fixture store and byte-compare identity/match/logical_function/recovery_family.")
     ap.add_argument("store", type=pathlib.Path, help="fixture store (binary/func/calledge rows)")
     ap.add_argument("--seed", type=int, default=FIXTURE_SEED, help="shuffle seed for run B")
     ap.add_argument("--build-fixture", action="store_true", help="first write the synthetic fixture (from --seed) into <store>")

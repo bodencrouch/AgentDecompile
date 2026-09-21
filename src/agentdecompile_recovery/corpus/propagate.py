@@ -158,14 +158,32 @@ def bind_identities(con, run: str, *, commit: bool = True) -> int:
         f"{row['src_binary']}:{row['src_addr']}" for row in con.execute("SELECT src_binary,src_addr,evidence FROM match WHERE run=?", (run,))
         if json.loads(row["evidence"] or "{}").get("quarantine")
     }
+    scope = "FROM match m WHERE m.run=? AND m.status IN ('auto','verify') AND m.relation='one_to_one'"
+    # Refuse before the candidate SELECT: the first-wins race below keys on
+    # binary.content_sha256 (design decision 3), and a NULL would otherwise
+    # sort first silently.
+    from .logical import content_hash_index
+
+    content_hash_index(
+        con,
+        (
+            r[0]
+            for r in con.execute(
+                f"SELECT m.src_binary {scope} UNION SELECT m.dst_binary {scope}", (run, run)
+            )
+        ),
+    )
     cur = con.execute(
         """SELECT m.dst_binary, m.dst_addr, m.score, m.status, m.evidence,
-                  i.logical_id, m.src_binary, m.src_addr
+                  i.logical_id, m.src_binary, m.src_addr,
+                  bd.content_sha256 AS dst_hash, bs.content_sha256 AS src_hash
              FROM match m
              JOIN identity i ON i.binary_id=m.src_binary AND i.addr=m.src_addr
+             JOIN binary bd ON bd.id=m.dst_binary
+             JOIN binary bs ON bs.id=m.src_binary
             WHERE m.run=? AND m.status IN ('auto','verify')
               AND m.relation='one_to_one'
-            ORDER BY m.dst_binary, m.dst_addr, i.logical_id, m.src_binary, m.src_addr""",
+            ORDER BY bd.content_sha256, m.dst_addr, i.logical_id, bs.content_sha256, m.src_addr""",
         (run,),
     )
     candidates: list[tuple[float, tuple, dict]] = []
@@ -201,13 +219,15 @@ def bind_identities(con, run: str, *, commit: bool = True) -> int:
     selected_logical: dict[tuple[int, int], int] = dict(logical_members)
     # Total order, dst-major by design: the race decides which source claims a
     # destination, so ties at equal confidence break on the destination first,
-    # then logical_id, then source. Changing this key changes which rows win
-    # and is a versioned algorithm change, not a refactor.
+    # then logical_id, then source. Builds are keyed by content_sha256, never
+    # by binary.id, so build-ingest order cannot pick the winner. Changing
+    # this key changes which rows win and is a versioned algorithm change,
+    # not a refactor.
     candidates.sort(
         key=lambda item: (
             -item[0],
-            item[2]["dst_binary"], item[2]["dst_addr"],
-            item[2]["logical_id"], item[2]["src_binary"], item[2]["src_addr"],
+            item[2]["dst_hash"], item[2]["dst_addr"],
+            item[2]["logical_id"], item[2]["src_hash"], item[2]["src_addr"],
         )
     )
     for _conf, cand, row in candidates:

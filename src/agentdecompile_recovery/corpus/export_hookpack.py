@@ -145,6 +145,14 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> di
             raw_by_bid[bid] = _raw_image(str((binaries.get(bid) or {}).get("repo_path") or ""))
         return raw_by_bid[bid]
 
+    # Instance order below keys on binary.content_sha256 (design decision 3);
+    # refuse up front for every build an identity row references rather than
+    # let a NULL sort first silently. Builds no identity references keep the
+    # image-derived fallback in _binary_entry.
+    from .logical import content_hash_index
+
+    content_hash_index(con, (r[0] for r in con.execute("SELECT DISTINCT binary_id FROM identity")))
+
     logicals = list(con.execute(
         "SELECT id, best_name, best_signature, canon_class, canon_method, canon_key, n_members"
         " FROM logical_function ORDER BY id"
@@ -156,13 +164,16 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> di
     adapter_keys_by_site: dict[str, str] = {}
     for lf in logicals:
         lid = int(lf["id"])
+        # instances[] is emitted in this order, so the key must be
+        # build-invariant: the build's content hash, then the address.
         members = list(con.execute(
             """SELECT i.binary_id, i.addr, i.confidence, i.method,
                       f.name, f.signature, f.source_file, f.object_file, f.size
                  FROM identity i
+                 JOIN binary b ON b.id=i.binary_id
                  LEFT JOIN func f ON f.binary_id=i.binary_id AND f.addr=i.addr
                 WHERE i.logical_id=?
-                ORDER BY i.binary_id, i.addr""",
+                ORDER BY b.content_sha256, i.addr""",
             (lid,),
         ))
         member_sigs = [str(m["signature"]) for m in members if m["signature"]]

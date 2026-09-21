@@ -268,34 +268,52 @@ def ensure_binary_columns(con: sqlite3.Connection) -> None:
     backfill_recovery_family(con)
 
 
-def backfill_recovery_family(con: sqlite3.Connection) -> None:
-    """Give every unclassified binary an isolating family. Data, not schema."""
+def backfill_recovery_family(con: sqlite3.Connection) -> int:
+    """Give every unclassified binary an isolating family. Data, not schema.
+
+    The family is ``'unclassified:' || substr(content_sha256, 1, 16)``: a
+    function of the image bytes, so it is identical however the build rows
+    were ingested. Rows still carrying the older rowid form
+    (``'unclassified:' || id``) are rewritten; that value moved with build
+    order and was never a classification. A row with no ``content_sha256``
+    cannot be classified: it is left as it is and counted.
+
+    Returns the number of rows that could not be classified.
+    """
     # Existing inventories predate explicit recovery-family catalog entries.
     # Keep each such build isolated until an operator supplies a catalog map;
     # format, architecture, and game names are intentionally not classifiers.
     # Read-check first: this runs on every connect(), and an unconditional
     # write here made every concurrent connection contend for the write lock
     # (orchestrator: 5 processes connecting at once -> "database is locked").
+    stale = (
+        "(recovery_family IS NULL OR trim(recovery_family)='' "
+        "OR recovery_family = 'unclassified:' || id)"
+    )
+    has_hash = "(content_sha256 IS NOT NULL AND trim(content_sha256)<>'')"
+    unclassifiable = con.execute(
+        f"SELECT COUNT(*) FROM binary WHERE {stale} AND NOT {has_hash}"
+    ).fetchone()
     needs = con.execute(
-        "SELECT 1 FROM binary WHERE recovery_family IS NULL "
-        "OR trim(recovery_family)='' LIMIT 1"
+        f"SELECT 1 FROM binary WHERE {stale} AND {has_hash} LIMIT 1"
     ).fetchone()
     if needs:
         # Best-effort backfill. This is data, not schema -- reads work without
         # it -- so a read-only consumer that cannot get the write lock (many
         # concurrent orchestrator watchers hold WAL read locks) must proceed
         # rather than crash. Whichever connection wins the lock backfills it;
-        # the value is a function of each row's own id, so the winner and the
-        # visit order cannot change what gets written. Only the lock/read-only
-        # cases are tolerated; any other failure surfaces.
+        # the value is a function of each row's own content hash, so the
+        # winner and the visit order cannot change what gets written. Only
+        # the lock/read-only cases are tolerated; any other failure surfaces.
         try:
             con.execute(
-                "UPDATE binary SET recovery_family='unclassified:' || id "
-                "WHERE recovery_family IS NULL OR trim(recovery_family)=''"
+                "UPDATE binary SET recovery_family='unclassified:' || substr(trim(content_sha256), 1, 16) "
+                f"WHERE {stale} AND {has_hash}"
             )
         except sqlite3.OperationalError as exc:
             if not _is_lock_or_readonly(exc):
                 raise
+    return int(unclassifiable[0]) if unclassifiable else 0
 
 
 def _is_lock_or_readonly(exc: sqlite3.OperationalError) -> bool:

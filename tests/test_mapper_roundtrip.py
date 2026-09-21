@@ -336,8 +336,8 @@ def test_hookpack_file_offset_pe32_unchanged() -> None:
 def _hookpack_store(path: Path, *, image_base: int | None):
     con = connect(path)
     con.execute(
-        "INSERT INTO binary(id, repo_path, slug, image_base) VALUES (1, '/a', 'build32', ?)",
-        (image_base,),
+        "INSERT INTO binary(id, repo_path, slug, image_base, content_sha256) VALUES (1, '/a', 'build32', ?, ?)",
+        (image_base, "1" * 64),
     )
     con.execute("UPDATE binary SET language_id='x86:LE:32:default'")
     stamp_analyzer_identity(con, analyzer_version="test-analyzer")

@@ -180,30 +180,82 @@ def test_place_tree_glob_order_is_directory_order_independent(tmp_path: Path, mo
     assert "int a(void)" in (out_root / "dst_prog" / "fn_00002000.c").read_text()
 
 
-# --- store.ensure_binary_columns ----------------------------------------------
+# --- store.backfill_recovery_family (D9) --------------------------------------
+
+# Synthetic image hashes; the family is 'unclassified:' + the first 16 hex.
+HA = "a1" * 32
+HC = "c3" * 32
 
 
-def _binary_db(path: Path) -> None:
+def _binary_db(path: Path, rows=None) -> None:
     con = sqlite3.connect(path)
     con.executescript(store.SCHEMA)
     con.execute("ALTER TABLE binary ADD COLUMN content_sha256 TEXT")
     con.executemany(
-        "INSERT INTO binary (id, repo_path, slug, recovery_family) VALUES (?,?,?,?)",
-        [(3, "r3", "s3", None), (1, "r1", "s1", ""), (2, "r2", "s2", "fam")],
+        "INSERT INTO binary (id, repo_path, slug, recovery_family, content_sha256) VALUES (?,?,?,?,?)",
+        rows if rows is not None else [(3, "r3", "s3", None, HC), (1, "r1", "s1", "", HA), (2, "r2", "s2", "fam", None)],
     )
     con.commit()
     con.close()
 
 
-def test_ensure_binary_columns_backfill_is_a_function_of_id(tmp_path: Path) -> None:
+def _families(db: Path) -> list[tuple]:
+    con = sqlite3.connect(db)
+    try:
+        return con.execute("SELECT id, recovery_family FROM binary ORDER BY id").fetchall()
+    finally:
+        con.close()
+
+
+def test_recovery_family_backfill_is_a_function_of_content_hash(tmp_path: Path) -> None:
     db = tmp_path / "corpus.sqlite"
     _binary_db(db)
     con = sqlite3.connect(db)
     store.ensure_binary_columns(con)
     con.commit()
-    rows = con.execute("SELECT id, recovery_family FROM binary ORDER BY id").fetchall()
     con.close()
-    assert rows == [(1, "unclassified:1"), (2, "fam"), (3, "unclassified:3")]
+    assert _families(db) == [(1, f"unclassified:{HA[:16]}"), (2, "fam"), (3, f"unclassified:{HC[:16]}")]
+
+
+def test_recovery_family_backfill_is_insert_order_invariant(tmp_path: Path) -> None:
+    """Same builds, opposite rowids: each build's family is the same string."""
+    rows_a = [(1, "ra", "sa", None, HA), (2, "rc", "sc", None, HC)]
+    rows_b = [(2, "ra", "sa", None, HA), (1, "rc", "sc", None, HC)]
+    out = {}
+    for name, rows in (("a", rows_a), ("b", rows_b)):
+        db = tmp_path / f"{name}.sqlite"
+        _binary_db(db, rows)
+        con = sqlite3.connect(db)
+        store.backfill_recovery_family(con)
+        con.commit()
+        out[name] = dict(con.execute("SELECT slug, recovery_family FROM binary").fetchall())
+        con.close()
+    assert out["a"] == out["b"] == {"sa": f"unclassified:{HA[:16]}", "sc": f"unclassified:{HC[:16]}"}
+
+
+def test_recovery_family_rowid_form_is_rewritten_to_the_hash_form(tmp_path: Path) -> None:
+    db = tmp_path / "corpus.sqlite"
+    _binary_db(db, [(1, "r1", "s1", "unclassified:1", HA), (2, "r2", "s2", "unclassified:7", HC), (3, "r3", "s3", "unclassified:custom", HC)])
+    con = sqlite3.connect(db)
+    assert store.backfill_recovery_family(con) == 0
+    con.commit()
+    con.close()
+    # Only the exact rowid form ('unclassified:' || id) is a placeholder; other
+    # values are user data and stay.
+    assert _families(db) == [(1, f"unclassified:{HA[:16]}"), (2, "unclassified:7"), (3, "unclassified:custom")]
+
+
+def test_recovery_family_without_content_hash_stays_null_and_is_counted(tmp_path: Path) -> None:
+    db = tmp_path / "corpus.sqlite"
+    _binary_db(db, [(1, "r1", "s1", None, None), (2, "r2", "s2", "", "  "), (3, "r3", "s3", None, HC)])
+    con = sqlite3.connect(db)
+    assert store.backfill_recovery_family(con) == 2
+    con.commit()
+    # Idempotent: the count is the same on the next connect and nothing else moves.
+    assert store.backfill_recovery_family(con) == 2
+    con.commit()
+    con.close()
+    assert _families(db) == [(1, None), (2, ""), (3, f"unclassified:{HC[:16]}")]
 
 
 def test_ensure_binary_columns_tolerates_readonly_but_not_other_errors(tmp_path: Path) -> None:
@@ -211,7 +263,7 @@ def test_ensure_binary_columns_tolerates_readonly_but_not_other_errors(tmp_path:
     _binary_db(db)
     ro = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
     store.ensure_binary_columns(ro)  # read-only consumer must proceed
-    assert ro.execute("SELECT recovery_family FROM binary WHERE id=3").fetchone() == (None,)
+    assert ro.execute("SELECT recovery_family FROM binary WHERE id=3").fetchone() == (None,)  # row 3 has a hash; the write was refused, not the read
     ro.close()
 
     class _Con:

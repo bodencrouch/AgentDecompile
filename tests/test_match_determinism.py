@@ -87,6 +87,53 @@ def test_cosine_visits_keys_in_sorted_order():
     assert b.seen == sorted(b.seen)
 
 
+# --- D5: match_engine.match_binaries candidate iteration ---------------------
+
+_ENGINE_TIE_SNIPPET = """
+import json
+from agentdecompile_recovery.corpus.match_engine import match_binaries
+
+def fn(fid, **over):
+    base = {
+        "id": fid, "addr": int(fid.rsplit("_", 1)[-1], 16), "name": None, "canon_key": None,
+        "name_origin": "matcher_inferred", "is_thunk": 0, "n_instr": 20, "n_blocks": 3,
+        "n_edges": 2, "back_edges": 0, "cyclomatic": 2, "n_callees": 0, "indirect_calls": 0,
+        "data_refs": 0, "size": 40, "strings": ["fmt"], "consts": [0x1234, 0x5678],
+        "ext_calls": [], "mnem": {"MOV": 5, "ADD": 3, "RET": 1}, "block_hashes": ["deadbeef"],
+    }
+    base.update(over)
+    return base
+
+left = [fn("left_1000")]
+# Eight identical near-match candidates: no anchor stage is unique, every
+# candidate ties in the fuzzy round, and the string ids sit in a set.
+right = [
+    fn(f"right_{0x3000 + i * 0x10:x}", mnem={"MOV": 6, "ADD": 2, "RET": 1, "SUB": 2},
+       n_instr=23, size=46, block_hashes=["feedface"])
+    for i in range(8)
+]
+meta = {"arch": "x86", "bits": 32, "format": "PE"}
+rows = match_binaries(left, right, left_meta=meta, right_meta=meta, tier="review")
+print(json.dumps(sorted((r["left_id"], r["right_id"], r["score"], r["margin"], r["status"]) for r in rows)))
+"""
+
+
+def _engine_tie_in_subprocess(seed: str) -> str:
+    env = {**os.environ, "PYTHONHASHSEED": seed, "PYTHONPATH": str(SRC_DIR)}
+    out = subprocess.run(
+        [sys.executable, "-c", _ENGINE_TIE_SNIPPET],
+        env=env, capture_output=True, text=True, check=True,
+    )
+    return out.stdout.strip()
+
+
+def test_engine_tied_candidates_resolve_identically_across_hash_seeds():
+    outcomes = {seed: _engine_tie_in_subprocess(seed) for seed in ("1", "2", "3", "4", "5", "6")}
+    assert len(set(outcomes.values())) == 1, outcomes
+    rows = json.loads(next(iter(outcomes.values())))
+    assert rows == [["left_1000", "right_3000", 0.9455, 0.0, "review"]]
+
+
 # --- D4: match_store greedy cascade -----------------------------------------
 
 

@@ -28,6 +28,17 @@ it, or records why it is accepted. Rows are removed only when the mitigation is 
 | R10 | Each grill round costs ~120–290 k tokens; the loop is deliberately expensive. | energy | session usage | Accepted for now; one grill per iteration, targeted by "oldest audit or most code change". | accepted |
 | R11 | Slow-disk contention when many agents read the tree at once (five grills made simple commands take minutes). | bottleneck | session timings | R1 removes most of it; until then cap concurrent agents at four. | orchestrator |
 
+## Hangs and starvation — the user's top class (grilled first every iteration)
+
+| # | Risk | Evidence | Mitigation | Owner / when |
+|---|---|---|---|---|
+| H1 | SQLite writer starvation: several orchestrator and dashboard processes contend for the write lock; "database is locked" already observed; a long cascade or backfill transaction can starve readers and watchers, and a watcher holding a WAL read lock can block checkpoints indefinitely. | `store.py` lock-tolerance comments; U22 worker | Single-writer acceptance queue for identity/receipt/backfill writes; bounded transactions; `busy_timeout` plus a deadline that surfaces as a named stall, never a silent wait; WAL checkpoint policy with a receipt. | unit after R1 |
+| H2 | Analyzer/decompiler jobs hang (JVM startup, headless analysis, decompile timeouts): no global timeout policy; a hung job holds the per-program lock forever. | U65 "effectively unbounded"; `_collectors.py:194-196` 30 s timeout | Per-job deadline recorded in the basis (`analyzer.timeout_policy`), heartbeat receipts, lock lease with expiry; a hung job is reported as a named failover, not a spinner. | Phase 2 wave |
+| H3 | Review-lane starvation: thousands of `review` matches with no triage → nothing promotes → coverage stalls and the operator waits on nothing. | S12 | Auto-triage order, batch accept above evidence thresholds with receipts, keyboard-driven review; a starvation metric (age of oldest unreviewed row) drawn on both surfaces. | Phase 14 surfaces |
+| H4 | CLI verbs and agents hang on slow I/O with no progress signal (routine commands hit 120 s; worktree creation > 5 min). | session timings | R1 disk move; every long verb streams progress receipts; the loop caps concurrent agents. | orchestrator |
+| H5 | Admission cannot drain what it cannot see: `backfill`, `verify-determinism`, `export-hookpack` carry no `mutating`/`identity_scope`/`long_running` flags, so pause/resume and the lock model skip them — a stall that looks like a hang. | grill 6, `cli.py:195-215`, `jobs.py:363-386` | Catalog flags (U29 addition); admission loop honours them; test that pause drains a running backfill. | next wave |
+| H6 | Compile-pool and lane starvation: one lane holding the shared corpus mutation point blocks siblings; resource-aware admission today is measured memory only. | design docs §locks | Fair scheduling at the acceptance point (FIFO with lane quotas); starvation metric per lane; failover rule draws the named unmet dependency. | Phase 14 + U29 |
+
 ## Anticipated — think-ahead rows (speculative until the risk grill verifies each)
 
 The loop's risk grill re-examines every row here each iteration as a senior reverse-engineering
@@ -49,8 +60,8 @@ record why it is accepted. New speculative rows are added whenever one is forese
 | S11 | Corpus DB and analysis projects have no backup and sit on a USB drive; WAL under several writers already reports "database is locked". | data loss / SPOF | hours of analysis at stake | Snapshot verb (`VACUUM INTO` to the other disk, content-addressed); single-writer acceptance service for identity/receipt writes. |
 | S12 | Review-lane starvation: thousands of `review` matches nobody triages → nothing promotes → coverage stalls. | throughput / UX | any real corpus | Auto-triage order, batch accept above evidence thresholds with receipts, keyboard-driven review in the 5174 design. |
 | S13 | Synthetic fixtures do not exercise real compiler idioms; green on synthetic, wrong on real. | verification | every unit so far | Reference corpus: an open-source program built at O0/O1/O2/Os with two compilers; legal, generic, deterministic; used by ladders, divergence, struct and ABI tests. |
-| S14 | Packs carry original byte windows and cave `original_bytes`: distributing packs distributes machine-code fragments; a pack plus Lua can inject arbitrary code. | legal / security | public distribution | Prefer hashes where verification allows; short windows; pack signing and a trust policy (U24 extension). |
-| S15 | Anti-cheat in multiplayer titles bans accounts for detours. | user harm | runtime host | Explicit refusal/warning policy keyed by the build profile; never silent. |
+| S14 | Packs carry original byte windows / cave `original_bytes`; packs plus Lua inject code. | legal / security | — | **Deprioritized by the user 2026-09-21: copyright and trust are assumed.** Keep short windows; no unit. |
+| S15 | Anti-cheat bans for detours in multiplayer titles. | user harm | — | **Deprioritized by the user 2026-09-21: niche; not now.** |
 | S16 | String-anchored locators break on localized builds. | correctness | localized releases | Anchor only to ID-stable strings (resource ids, script names); U85 classifies. |
 | S17 | Ambiguity of "byte-accurate" when sibling builds used different compilers: parity receipts cannot be shared across toolchains. | ambiguity | mixed corpora | Parity receipts keyed by toolchain identity; never borrowed across it (extends U62). |
 

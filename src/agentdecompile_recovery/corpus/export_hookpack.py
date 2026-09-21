@@ -12,6 +12,8 @@ import json
 from collections import Counter
 from pathlib import Path
 
+from .determinism_basis import basis
+
 
 FORMAT = "agentdecompile.hookpack/v1"
 
@@ -23,13 +25,18 @@ def _preferred_signature(best: str | None, member_sigs: list[str]) -> dict:
         return {"kind": "none", "value": ""}
     if best_s and all(sig == best_s for sig in members):
         return {"kind": "shared", "value": best_s, "hits": len(members), "of": len(members)}
-    value, count = Counter(members).most_common(1)[0]
+    # Count ties resolve by value, not by insertion order.
+    value, count = max(Counter(members).items(), key=lambda kv: (kv[1], kv[0]))
     return {
         "kind": "shared" if count == len(members) else "majority",
         "value": value,
         "hits": count,
         "of": len(members),
     }
+
+
+def _site_key(lf) -> str:
+    return (lf["best_name"] or lf["canon_key"] or f"logical_{int(lf['id'])}").replace(" ", "_")
 
 
 def unique_window(image: bytes, offset: int, size: int, *, min_n: int = 8, max_n: int = 24) -> bytes | None:
@@ -68,11 +75,16 @@ def _file_offset(image: bytes, addr: int) -> int | None:
 
 
 def export_hookpack(con, out: Path) -> dict:
-    binaries = {int(r["id"]): dict(r) for r in con.execute("SELECT id, slug, game, platform, format, repo_path FROM binary")}
+    binaries = {
+        int(r["id"]): dict(r)
+        for r in con.execute("SELECT id, slug, game, platform, format, repo_path FROM binary ORDER BY id")
+    }
     raw_by_bid: dict[int, bytes | None] = {}
     logicals = list(con.execute(
-        "SELECT id, best_name, best_signature, canon_class, canon_method, canon_key, n_members FROM logical_function"
+        "SELECT id, best_name, best_signature, canon_class, canon_method, canon_key, n_members"
+        " FROM logical_function ORDER BY id"
     ))
+    site_keys = Counter(_site_key(lf) for lf in logicals)
     sites: dict[str, dict] = {}
     for lf in logicals:
         lid = int(lf["id"])
@@ -82,7 +94,7 @@ def export_hookpack(con, out: Path) -> dict:
                  FROM identity i
                  LEFT JOIN func f ON f.binary_id=i.binary_id AND f.addr=i.addr
                 WHERE i.logical_id=?
-                ORDER BY i.binary_id""",
+                ORDER BY i.binary_id, i.addr""",
             (lid,),
         ))
         member_sigs = [str(m["signature"]) for m in members if m["signature"]]
@@ -116,7 +128,11 @@ def export_hookpack(con, out: Path) -> dict:
             hex_win, n = counts.most_common(1)[0]
             if n == len(windows):
                 site_bytes = hex_win
-        key = (lf["best_name"] or lf["canon_key"] or f"logical_{lid}").replace(" ", "_")
+        key = _site_key(lf)
+        if site_keys[key] > 1:
+            key = f"{key}__{lid}"
+        if key in sites:
+            raise ValueError(f"hook pack site key collision: {key}")
         sites[key] = {
             "logical_id": lid,
             "cls": lf["canon_class"] or "",
@@ -129,6 +145,7 @@ def export_hookpack(con, out: Path) -> dict:
 
     pack = {
         "format": FORMAT,
+        "basis": basis(con),
         "note": "VA is a cache. Resolve with signature; bind by logical_id.",
         "binaries": [
             {"slug": b["slug"], "game": b["game"], "platform": b["platform"], "format": b["format"]}
@@ -138,5 +155,5 @@ def export_hookpack(con, out: Path) -> dict:
     }
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(pack, indent=2) + "\n", encoding="utf-8")
+    out.write_text(json.dumps(pack, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return {"wrote": str(out), "sites": len(sites), "binaries": len(binaries)}

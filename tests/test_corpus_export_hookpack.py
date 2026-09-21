@@ -113,3 +113,66 @@ def test_export_copies_unique_bytes_from_image(tmp_path: Path, monkeypatch) -> N
     site = pack["sites"]["Run"]
     assert site["expected_bytes"] == "535556578B7C2414"
     assert site["instances"][0]["expected_bytes"] == "535556578B7C2414"
+
+
+def _two_logical_store(path: Path, *, forward: bool):
+    """Same content, opposite insertion order: rows that are not rowid-aliased
+    (identity) come back in insertion order without an ORDER BY."""
+    con = connect(path)
+    con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1, '/a', 'debug'), (2, '/b', 'release')")
+    con.execute(
+        "INSERT INTO logical_function(id, best_name, best_signature, n_members) "
+        "VALUES (1, 'Tick', NULL, 3), (2, 'Tick', NULL, 1)"
+    )
+    identities = [(1, 1, 100, 0.9, 'a'), (1, 1, 300, 0.9, 'a'), (1, 2, 200, 0.9, 'a'), (2, 2, 400, 0.9, 'a')]
+    funcs = [
+        (1, 100, 'Tick', 'void Tick(int)'),
+        (1, 300, 'Tick', 'void Tick(long)'),
+        (2, 200, 'FUN_200', 'void Tick(int)'),
+        (2, 400, 'FUN_400', 'void Tick(char)'),
+    ]
+    if not forward:
+        identities.reverse()
+        funcs.reverse()
+    con.executemany("INSERT INTO identity(logical_id, binary_id, addr, confidence, method) VALUES (?,?,?,?,?)", identities)
+    con.executemany("INSERT INTO func(binary_id, addr, name, signature) VALUES (?,?,?,?)", funcs)
+    con.commit()
+    return con
+
+
+def test_export_is_insertion_order_independent(tmp_path: Path) -> None:
+    export_hookpack(_two_logical_store(tmp_path / "f.sqlite", forward=True), tmp_path / "f.json")
+    export_hookpack(_two_logical_store(tmp_path / "r.sqlite", forward=False), tmp_path / "r.json")
+    assert (tmp_path / "f.json").read_bytes() == (tmp_path / "r.json").read_bytes()
+
+
+def test_shared_best_name_never_overwrites_a_site(tmp_path: Path) -> None:
+    out = tmp_path / "pack.json"
+    export_hookpack(_two_logical_store(tmp_path / "c.sqlite", forward=True), out)
+    pack = __import__("json").loads(out.read_text(encoding="utf-8"))
+    assert sorted(pack["sites"]) == ["Tick__1", "Tick__2"]
+    assert pack["sites"]["Tick__1"]["logical_id"] == 1
+    assert pack["sites"]["Tick__2"]["logical_id"] == 2
+    assert [i["addr"] for i in pack["sites"]["Tick__1"]["instances"]] == [100, 300, 200]
+
+
+def test_preferred_signature_breaks_count_ties_by_value() -> None:
+    from agentdecompile_recovery.corpus.export_hookpack import _preferred_signature
+
+    ab = _preferred_signature(None, ["void A()", "void B()"])
+    ba = _preferred_signature(None, ["void B()", "void A()"])
+    assert ab == ba
+    assert ab["value"] == "void B()"
+    assert ab["kind"] == "majority"
+
+
+def test_pack_is_serialized_with_sorted_keys_and_basis(tmp_path: Path) -> None:
+    out = tmp_path / "pack.json"
+    export_hookpack(_two_logical_store(tmp_path / "c.sqlite", forward=True), out)
+    text = out.read_text(encoding="utf-8")
+    pack = __import__("json").loads(text)
+    assert text == __import__("json").dumps(pack, indent=2, sort_keys=True) + "\n"
+    assert pack["basis"]["algorithm_version"] == "phase0.1"
+    assert set(pack["basis"]) == {
+        "decoder", "algorithm_version", "masking_rule_version", "threshold_params", "corpus_manifest_hash",
+    }

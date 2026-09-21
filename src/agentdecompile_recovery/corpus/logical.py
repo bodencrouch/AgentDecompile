@@ -44,7 +44,8 @@ def build(con) -> dict[str, int]:
                       b.game, b.slug, b.role
                  FROM func f JOIN binary b ON b.id=f.binary_id
                 WHERE f.canon_key IS NOT NULL
-                  AND b.repo_path NOT IN ({marks})""",
+                  AND b.repo_path NOT IN ({marks})
+                ORDER BY f.canon_key, f.binary_id, f.addr""",
             excluded,
         ).fetchall()
     else:
@@ -55,9 +56,13 @@ def build(con) -> dict[str, int]:
                       f.strings, f.consts, f.param_count, f.name,
                       b.game, b.slug, b.role
                  FROM func f JOIN binary b ON b.id=f.binary_id
-                WHERE f.canon_key IS NOT NULL"""
+                WHERE f.canon_key IS NOT NULL
+                ORDER BY f.canon_key, f.binary_id, f.addr"""
         ).fetchall()
 
+    # Rows arrive sorted by (canon_key, binary_id, addr), so every dict built
+    # below in insertion order (groups, subgroups, sub_by_bin) is totally
+    # ordered and logical ids are assigned in canon_key order.
     groups: dict[str, list] = defaultdict(list)
     for row in rows:
         if eligible(row):
@@ -146,12 +151,16 @@ def resolve_ambiguous(sub_by_bin: dict[int, list]):
     def rank(bid):
         role = (sub_by_bin[bid][0]["role"] or "") if "role" in sub_by_bin[bid][0].keys() else ""
         pri = 0 if role in ("donor", "anchor") else 1
-        return (len(sub_by_bin[bid]), pri)
+        return (len(sub_by_bin[bid]), pri, bid)
 
     ref_bid = min(sub_by_bin, key=rank)
-    slots = [[(m, 0.97, "name-reference")] for m in sorted(sub_by_bin[ref_bid], key=lambda m: -(m["n_instr"] or 0))]
+    slots = [
+        [(m, 0.97, "name-reference")]
+        for m in sorted(sub_by_bin[ref_bid], key=lambda m: (-(m["n_instr"] or 0), m["binary_id"], m["addr"]))
+    ]
 
-    for bid, lst in sub_by_bin.items():
+    for bid in sorted(sub_by_bin):
+        lst = sub_by_bin[bid]
         if bid == ref_bid:
             continue
         pairs = []
@@ -255,16 +264,19 @@ def _game_of(members) -> str | None:
 
 def _best_signature(members) -> tuple[str | None, str | None]:
     name = members[0]["canon_key"]
+    # First-wins picks below run over (binary_id, addr) order, not slot or
+    # insertion order, so the chosen prototype is a function of the members.
+    ordered = sorted(members, key=lambda m: (m["binary_id"], m["addr"]))
     sig = None
-    for m in members:
+    for m in ordered:
         if m["name_origin"] == "mangled" and m["plate"]:
             return name, m["plate"].splitlines()[0]
-    for m in members:
+    for m in ordered:
         if m["name_origin"] == "plate" and m["plate"]:
             sig = m["plate"].splitlines()[0]
             break
     if sig is None:
-        for m in members:
+        for m in ordered:
             if m["signature"]:
                 sig = m["signature"]
                 break

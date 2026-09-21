@@ -199,6 +199,12 @@ def build_parser() -> argparse.ArgumentParser:
     hookpack.add_argument("--db", type=Path, required=True)
     hookpack.add_argument("--out", type=Path, required=True)
 
+    verify_det = sub.add_parser(
+        "verify-determinism",
+        help="Export the hook pack from two temp copies of a store and byte-diff the results",
+    )
+    verify_det.add_argument("--db", type=Path, required=True)
+
     match_pair = sub.add_parser("match-pair", help="Run the store matcher on one directed pair")
     match_pair.identity_scope = "pair"
     match_pair.add_argument("--db", type=Path, required=True)
@@ -707,6 +713,13 @@ def main(argv: list[str] | None = None) -> int:
 
         print(json.dumps(export_hookpack(connect(args.db), args.out)))
         return 0
+    if args.cmd == "verify-determinism":
+        from .determinism_basis import verify_export
+        from .export_hookpack import export_hookpack
+
+        result = verify_export(args.db, export_hookpack)
+        print(json.dumps(result))
+        return 0 if result["identical"] else 1
     if args.cmd == "match-pair":
         from .propagate import run_pair
         from .store import connect

@@ -110,7 +110,7 @@ def _fmt_eta(be: int, total: int, per_hour: float | None) -> str:
     days = hours / 24
     if days < 60:
         return f"ETA at current rate: ~{days:.0f} days to full coverage"
-    return f"ETA: months+ (the hard tail needs manual work — honest estimate)"
+    return "ETA: months+ (the hard tail needs manual work — honest estimate)"
 
 
 def announce_progress(*, program: str, byte_exact: int, total: int,

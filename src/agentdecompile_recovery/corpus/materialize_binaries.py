@@ -11,14 +11,13 @@ from __future__ import annotations
 import json
 import pathlib
 import shutil
-import sqlite3
 import sys
 from collections import defaultdict
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from . import corpus_config, db
-from .package_binaries import ROOT, OUT, SAFE, artifact_key, load_json, project_manifests, representation_dir
+from .package_binaries import ROOT, OUT, SAFE, artifact_key, project_manifests, representation_dir
 
 
 def replace_link_and_move(source: pathlib.Path | None, destination: pathlib.Path,

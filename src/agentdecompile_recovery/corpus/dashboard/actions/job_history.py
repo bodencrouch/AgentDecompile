@@ -7,7 +7,6 @@ import socket
 import threading
 import time
 from pathlib import Path
-from typing import Any
 from ..common import live_root
 
 _CACHE: dict[str, tuple[tuple[int, int], list[dict]]] = {}

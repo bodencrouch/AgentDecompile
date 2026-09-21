@@ -140,7 +140,7 @@ def test_workbench_workflow_matrix(
     client = _client(monkeypatch, tmp_path)
     # Browsing is confined to corpus and project roots; the work dir is one.
     work = tmp_path / "work"
-    work.mkdir()
+    work.mkdir(exist_ok=True)
     pe = _write_pe(work, "witcher-6.exe")
     pe2 = _write_pe(work, "addon.dll")
 

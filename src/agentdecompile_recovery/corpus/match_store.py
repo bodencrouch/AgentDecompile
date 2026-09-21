@@ -14,7 +14,6 @@ from typing import Callable
 
 from . import canon
 from .callgraph_propagate import (
-    absorb_anchors,
     interesting_const,
     interesting_string,
     propagate_call_graph,

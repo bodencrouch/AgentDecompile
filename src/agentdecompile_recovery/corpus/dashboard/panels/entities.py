@@ -46,7 +46,6 @@ from __future__ import annotations
 
 from urllib.parse import urlencode
 
-from agentdecompile_recovery.corpus.dashboard.app.models import BinaryRef, ConcreteFunctionRef
 from agentdecompile_recovery.corpus.dashboard.app.routes import function_url, functions_url, logical_url
 
 from agentdecompile_recovery.corpus.dashboard.panels.common import (

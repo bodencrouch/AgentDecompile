@@ -82,7 +82,7 @@ def test_resolve_drop_finds_gpr_by_name(
 ) -> None:
     client = _client(monkeypatch, tmp_path)
     work = tmp_path / "work"
-    work.mkdir()
+    work.mkdir(exist_ok=True)
     gpr = _write_gpr(work, "Dropped")
     resolved = client.post(
         "/dashboard/api/workbench/resolve-drop",
@@ -177,7 +177,7 @@ def test_resolve_drop_rep_folder(
 ) -> None:
     client = _client(monkeypatch, tmp_path)
     work = tmp_path / "work"
-    work.mkdir()
+    work.mkdir(exist_ok=True)
     gpr = _write_gpr(work, "Packed")
     resolved = client.post(
         "/dashboard/api/workbench/resolve-drop",
@@ -196,7 +196,7 @@ def test_browse_marks_shared_fs_folder(
     client = _client(monkeypatch, tmp_path)
     # Browsing is confined to corpus and project roots; the work dir is one of them.
     work = tmp_path / "work"
-    work.mkdir()
+    work.mkdir(exist_ok=True)
     repos = _write_shared_fs(work)
     listed = client.get("/dashboard/api/workbench/browse", params={"path": str(repos.parent)})
     assert listed.status_code == 200
@@ -253,7 +253,7 @@ def test_save_as_local_to_shared_fs_and_back(
 ) -> None:
     client = _client(monkeypatch, tmp_path)
     work = tmp_path / "work"
-    work.mkdir()
+    work.mkdir(exist_ok=True)
     gpr = _write_gpr(work, "Packed")
     exported = client.post(
         "/dashboard/api/workbench/save-as",
@@ -277,7 +277,7 @@ def test_save_as_local_to_http_writes_checkout(
 ) -> None:
     client = _client(monkeypatch, tmp_path)
     work = tmp_path / "work"
-    work.mkdir()
+    work.mkdir(exist_ok=True)
     gpr = _write_gpr(work, "Packed")
     linked = client.post(
         "/dashboard/api/workbench/save-as",

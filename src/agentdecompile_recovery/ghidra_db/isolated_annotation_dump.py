@@ -51,7 +51,6 @@ def dump(project_file: Path, only_program: str = "") -> dict[str, Any]:
         raise RuntimeError("PyGhidra is unavailable for isolated annotation reconciliation")
     from ghidra.base.project import GhidraProject
     from ghidra.program.model.listing import CodeUnit
-    from ghidra.util.task import TaskMonitor
 
     project = GhidraProject.openProject(str(project_file.parent), project_file.stem, False)
     programs: dict[str, Any] = {}

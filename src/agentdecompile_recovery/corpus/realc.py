@@ -7,7 +7,6 @@ machine-code constructs to ``source_claims`` so all recovery callers agree.
 from .source_claims import (
     SHIM_RE,
     SYMBOL_ALIAS_RE,
-    _strip_symbol_aliases,
     is_real_c,
     shim_reason,
 )

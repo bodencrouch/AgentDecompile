@@ -16,7 +16,6 @@ import asyncio
 import json as _json
 import logging
 import os
-import re
 import sys
 
 from pathlib import Path

@@ -18,8 +18,6 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 
 from .atlas_server import (
     AtlasServerState,
-    atlas_ui_fragment,
-    atlas_ui_html,
     handle_build_prompt,
     handle_load_project,
     handle_save_prompt,
@@ -28,20 +26,13 @@ from .corpus.dashboard import create_dashboard_router
 from .corpus.dashboard.pages import (
     WORKSPACE_NAME,
     graph_to_function_target,
-    is_partial_query,
     query_from_mapping,
-    render_artifact as dashboard_render_artifact,
-    render_binary_page,
-    render_function_page,
-    render_functions_page,
-    render_logical_page,
     render_page as dashboard_render_page,
     _action_dock_html,
     _page_context,
 )
 from .corpus.io import read_json
 from .corpus.store import connect as store_connect
-from .run_report import html_report_text
 
 CLAIM = (
     "These pages are a live view. They are not completion. Real C and "

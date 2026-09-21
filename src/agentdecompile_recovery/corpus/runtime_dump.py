@@ -72,7 +72,6 @@ def _maps_linux(pid: int) -> list[tuple[int, int, str]]:
 
 def _read_windows(pid: int, addr: int, size: int) -> bytes | None:  # pragma: no cover
     import ctypes
-    from ctypes import wintypes
     PROCESS_VM_READ = 0x0010
     k = ctypes.windll.kernel32
     h = k.OpenProcess(PROCESS_VM_READ, False, pid)

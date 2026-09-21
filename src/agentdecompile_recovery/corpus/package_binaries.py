@@ -13,7 +13,6 @@ import json
 import os
 import pathlib
 import re
-import sqlite3
 import sys
 from collections import Counter
 from typing import Any

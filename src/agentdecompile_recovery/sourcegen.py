@@ -16,23 +16,7 @@ from typing import Any
 
 from .curated_enrichment import msvc_thiscall_to_fastcall
 from .decode_x86 import (
-    X86_64_ARG_ACCUM_IMM32_BINARY_OPS,
-    X86_64_ARG_CONST_MIN_MAX_CMOV,
-    X86_64_ARG_IMM32_BINARY64_OPS,
-    X86_64_ARG_IMM8_BINARY_OPS,
-    X86_64_ARG_SDIV_MAGIC_OPS,
-    X86_64_ARG_SREM_MAGIC_OPS,
-    X86_64_ARG_UDIV_MAGIC_OPS,
-    X86_64_ARG_UREM_MAGIC_OPS,
     X86_64_SIGNED_COMPARE_SETCC,
-    X86_64_SIGNED_ZERO_COMPARE_SETCC,
-    X86_64_THREE_ARGS_ARITHMETIC64_PATTERNS,
-    X86_64_THREE_ARGS_ARITHMETIC_PATTERNS,
-    X86_64_THREE_ARGS_BITWISE64_OPS,
-    X86_64_THREE_ARGS_BITWISE64_OPS_SECOND,
-    X86_64_THREE_ARGS_BITWISE_OPS,
-    X86_64_THREE_ARGS_SELECT64_OPS,
-    X86_64_THREE_ARGS_SELECT_OPS,
     X86_64_UNSIGNED_COMPARE_SETCC,
     decode_x86_64_arg64_bitmask_bool,
     decode_x86_64_arg64_rotate,
@@ -68,8 +52,6 @@ from .decode_x86 import (
     decode_x86_64_two_args_affine_lea64,
     decode_x86_64_two_args_compare,
     decode_x86_64_two_args_compare64,
-    format_x86_64_two_args_affine_expression,
-    format_x86_64_two_args_affine_expression64,
     normalize_x86_64_arg_imm8_compare_operator,
     strip_alignment_padding,
 )

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import errno
+import hashlib
 import os
 import stat
-import hashlib
 
 from pathlib import Path
 
@@ -136,3 +137,54 @@ def test_offer_recovers_a_pending_store_directory_anchor(tmp_path: Path, monkeyp
     assert state_path.parent in synced
     assert tmp_path in synced
     assert not marker.exists()
+
+
+def test_offer_recovers_exchange_and_rewrite_markers_through_outermost_anchor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_path = tmp_path / "new" / "state" / "exchange.json"
+    state_path.parent.mkdir(parents=True)
+    monkeypatch.setenv("AGENT_DECOMPILE_EXCHANGE_ENABLED", "true")
+    monkeypatch.setenv("AGENTDECOMPILE_EXCHANGE_STATE", str(state_path))
+    exchange_marker = state_path.parent / (
+        ".exchange-init-" + hashlib.sha256(os.fsencode(state_path.absolute())).hexdigest() + ".pending"
+    )
+    rewrite_marker = tmp_path / (
+        ".rewrite-queue-init-" + hashlib.sha256(os.fsencode(state_path.parent.absolute())).hexdigest() + ".pending"
+    )
+    exchange_marker.write_text("", encoding="utf-8")
+    rewrite_marker.write_text("", encoding="utf-8")
+    synced: list[tuple[Path, bool]] = []
+
+    def sync(directory: Path, *, required: bool = False) -> bool:
+        synced.append((directory, required))
+        return True
+
+    monkeypatch.setattr(producers, "_sync_directory", sync)
+    assert producers.offer_rewrite_unit(work_dir=tmp_path / "recovery", request_id="request", **REQUEST)
+    assert {(state_path.parent, True), (state_path.parent.parent, True), (tmp_path, True)} <= set(synced)
+    assert not exchange_marker.exists()
+    assert not rewrite_marker.exists()
+
+
+def test_offer_retains_adopted_rewrite_marker_when_directory_fsync_is_unsupported(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_path = tmp_path / "state" / "exchange.json"
+    state_path.parent.mkdir()
+    monkeypatch.setenv("AGENT_DECOMPILE_EXCHANGE_ENABLED", "true")
+    monkeypatch.setenv("AGENTDECOMPILE_EXCHANGE_STATE", str(state_path))
+    marker = tmp_path / (
+        ".rewrite-queue-init-" + hashlib.sha256(os.fsencode(state_path.parent.absolute())).hexdigest() + ".pending"
+    )
+    marker.write_text("", encoding="utf-8")
+
+    def unsupported(_: Path, *, required: bool = False) -> bool:
+        if required:
+            raise OSError(errno.ENOTSUP, "directory fsync unsupported")
+        return False
+
+    monkeypatch.setattr(producers, "_sync_directory", unsupported)
+    assert producers.offer_rewrite_unit(work_dir=tmp_path / "recovery", request_id="request", **REQUEST) is None
+    assert marker.exists()
+    assert not (state_path.parent / producers.SPOOL_DIRNAME).exists()

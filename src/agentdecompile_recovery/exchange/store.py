@@ -53,7 +53,7 @@ import threading
 import time
 
 from collections import deque
-from collections.abc import Awaitable, Callable, Iterator
+from collections.abc import Awaitable, Callable, Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -216,26 +216,101 @@ def _file_lock(path: Path) -> Iterator[None]:
             fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
 
-def _sync_directory(path: Path) -> None:
+def _sync_directory(path: Path, *, required: bool = False) -> bool:
     """Persist directory entries where the platform/filesystem supports it."""
 
     if os.name == "nt":  # Windows cannot open directories for os.fsync.
-        return
+        if required:
+            raise OSError(errno.ENOTSUP, "exchange forwarding requires directory fsync")
+        return False
     unsupported = {errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP}
     try:
         descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
     except OSError as exc:
-        if exc.errno in unsupported:
-            return
+        if exc.errno in unsupported and not required:
+            return False
         raise
     try:
         try:
             os.fsync(descriptor)
         except OSError as exc:
-            if exc.errno not in unsupported:
-                raise
+            if exc.errno in unsupported and not required:
+                return False
+            raise
     finally:
         os.close(descriptor)
+    return True
+
+
+def _initialization_marker(prefix: str, target: Path) -> str:
+    return prefix + hashlib.sha256(os.fsencode(target.absolute())).hexdigest() + ".pending"
+
+
+def _rewrite_marker_names(directory: Path) -> tuple[str, ...]:
+    """Exact rewrite markers whose mkdir obligations contain ``directory``."""
+
+    directory = directory.absolute()
+    return tuple(
+        _initialization_marker(".rewrite-queue-init-", target)
+        for target in (directory, *directory.parents)
+    )
+
+
+def _prepare_directory(
+    directory: Path,
+    *,
+    marker_names: Iterable[str],
+    create_marker_name: str | None = None,
+    sync_directory: Callable[..., bool | None] = _sync_directory,
+) -> bool:
+    """Recover exact mkdir markers, syncing through the outermost obligation.
+
+    Rewrite-queue markers are retained when an ordinary queue writer cannot
+    fsync directories. An exchange caller adopting one is a strict forwarding
+    path, so unsupported directory fsync must fail before that marker is
+    removed. Marker names are supplied explicitly; no ancestor is scanned.
+    """
+
+    directory = directory.absolute()
+    ancestors = (directory, *directory.parents)
+    initial_anchor = next(parent for parent in ancestors if parent.is_dir())
+    names = tuple(dict.fromkeys(marker_names))
+    markers = [parent / name for parent in ancestors for name in names if (parent / name).exists()]
+    if not markers:
+        if create_marker_name is None:
+            return False
+        if initial_anchor == directory:
+            return False
+        markers = [initial_anchor / create_marker_name]
+
+    required = any(marker.name.startswith(".rewrite-queue-init-") for marker in markers)
+
+    def sync(path: Path) -> None:
+        if required:
+            sync_directory(path, required=True)
+        else:
+            sync_directory(path)
+
+    marker_parents = tuple(dict.fromkeys(marker.parent for marker in markers))
+    for marker in markers:
+        with marker.open("a", encoding="utf-8") as handle:
+            handle.flush()
+            os.fsync(handle.fileno())
+    for parent in marker_parents:
+        sync(parent)
+
+    directory.mkdir(parents=True, exist_ok=True)
+    outermost = max(marker_parents, key=ancestors.index)
+    for parent in ancestors:
+        sync(parent)
+        if parent == outermost:
+            break
+
+    for marker in markers:
+        marker.unlink(missing_ok=True)
+    for parent in marker_parents:
+        sync(parent)
+    return True
 
 
 @dataclass(slots=True)
@@ -506,36 +581,17 @@ class ExchangeStore:
         if self._directory_ready:
             return
         directory = self.state_path.absolute().parent
-        marker_name = ".exchange-init-" + hashlib.sha256(os.fsencode(self.state_path.absolute())).hexdigest() + ".pending"
+        marker_name = _initialization_marker(".exchange-init-", self.state_path)
         # The pipeline can create the sibling spool hierarchy first. Its marker
         # has the same parent-anchoring obligation as ours; recognize it before
         # treating a merely visible state directory as operator-provisioned.
-        spool_marker_name = ".exchange-spool-init-" + hashlib.sha256(
-            os.fsencode(directory / "exchange-spool")
-        ).hexdigest() + ".pending"
-        ancestors = (directory, *directory.parents)
-        marker = next(
-            (parent / name for parent in ancestors for name in (marker_name, spool_marker_name) if (parent / name).exists()),
-            None,
+        spool_marker_name = _initialization_marker(".exchange-spool-init-", directory / "exchange-spool")
+        _prepare_directory(
+            directory,
+            marker_names=(marker_name, spool_marker_name, *_rewrite_marker_names(directory)),
+            create_marker_name=marker_name,
+            sync_directory=_sync_directory,
         )
-        anchor = marker.parent if marker is not None else None
-        if anchor is None:
-            anchor = next(parent for parent in ancestors if parent.is_dir())
-            if anchor == directory:
-                self._directory_ready = True
-                return
-        marker = marker or (anchor / marker_name)
-        with marker.open("a", encoding="utf-8") as handle:
-            handle.flush()
-            os.fsync(handle.fileno())
-        _sync_directory(anchor)
-        directory.mkdir(parents=True, exist_ok=True)
-        for parent in ancestors:
-            _sync_directory(parent)
-            if parent == anchor:
-                break
-        marker.unlink()
-        _sync_directory(anchor)
         self._directory_ready = True
 
     def _write_snapshot(self, text: str, generation: int) -> None:

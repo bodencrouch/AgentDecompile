@@ -248,6 +248,68 @@ def test_store_recovers_pending_producer_directory_anchor(tmp_path: Path, monkey
     assert not marker.exists()
 
 
+def test_store_recovers_all_exchange_and_rewrite_markers_through_outermost_anchor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "new" / "state" / "exchange.json"
+    path.parent.mkdir(parents=True)
+    spool = path.parent / "exchange-spool"
+    spool_marker = path.parent / (
+        ".exchange-spool-init-" + hashlib.sha256(os.fsencode(spool.absolute())).hexdigest() + ".pending"
+    )
+    rewrite_marker = tmp_path / (
+        ".rewrite-queue-init-" + hashlib.sha256(os.fsencode(path.parent.absolute())).hexdigest() + ".pending"
+    )
+    spool_marker.write_text("", encoding="utf-8")
+    rewrite_marker.write_text("", encoding="utf-8")
+    events: list[tuple[str, Path, bool]] = []
+    real_unlink = Path.unlink
+
+    def sync(directory: Path, *, required: bool = False) -> bool:
+        events.append(("sync", directory, required))
+        return True
+
+    def unlink(marker: Path, *args, **kwargs) -> None:
+        if marker.name.endswith(".pending"):
+            events.append(("unlink", marker, False))
+        real_unlink(marker, *args, **kwargs)
+
+    monkeypatch.setattr(exchange, "_sync_directory", sync)
+    monkeypatch.setattr(Path, "unlink", unlink)
+    exchange.ExchangeStore(path)._write_snapshot("{}", 1)
+
+    first_cleanup = next(index for index, event in enumerate(events) if event[0] == "unlink")
+    synced_before_cleanup = {
+        item for event, item, required in events[:first_cleanup] if event == "sync" and required
+    }
+    assert {path.parent, path.parent.parent, tmp_path} <= synced_before_cleanup
+    assert not spool_marker.exists()
+    assert not rewrite_marker.exists()
+
+
+def test_store_fails_closed_when_adopted_rewrite_marker_cannot_be_synced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "state" / "exchange.json"
+    path.parent.mkdir()
+    marker = tmp_path / (
+        ".rewrite-queue-init-" + hashlib.sha256(os.fsencode(path.parent.absolute())).hexdigest() + ".pending"
+    )
+    marker.write_text("", encoding="utf-8")
+
+    def unsupported(_: Path, *, required: bool = False) -> bool:
+        if required:
+            raise OSError(errno.ENOTSUP, "directory fsync unsupported")
+        return False
+
+    monkeypatch.setattr(exchange, "_sync_directory", unsupported)
+    with pytest.raises(OSError) as error:
+        exchange.ExchangeStore(path)._write_snapshot("{}", 1)
+    assert error.value.errno == errno.ENOTSUP
+    assert marker.exists()
+    assert not path.exists()
+
+
 @pytest.mark.skipif(os.name == "nt", reason="POSIX directory synchronization")
 def test_directory_sync_ignores_only_unsupported_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     def unsupported(descriptor: int) -> None:

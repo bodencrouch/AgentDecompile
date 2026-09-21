@@ -39,7 +39,15 @@ from itertools import islice
 from pathlib import Path
 from typing import Any
 
-from .store import ExchangeStore, _sync_directory, default_state_path, derive_unit_id
+from .store import (
+    ExchangeStore,
+    _initialization_marker,
+    _prepare_directory,
+    _rewrite_marker_names,
+    _sync_directory,
+    default_state_path,
+    derive_unit_id,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -91,25 +99,13 @@ def _ensure_directory(directory: Path) -> None:
     """
 
     directory = directory.absolute()
-    marker_name = ".exchange-spool-init-" + hashlib.sha256(os.fsencode(directory)).hexdigest() + ".pending"
-    ancestors = (directory, *directory.parents)
-    anchor = next((parent for parent in ancestors if (parent / marker_name).exists()), None)
-    if anchor is None:
-        anchor = next(parent for parent in ancestors if parent.is_dir())
-        if anchor == directory:
-            return
-    marker = anchor / marker_name
-    with marker.open("a", encoding="utf-8") as stream:
-        stream.flush()
-        os.fsync(stream.fileno())
-    _sync_directory(anchor)
-    directory.mkdir(parents=True, exist_ok=True)
-    for parent in ancestors:
-        _sync_directory(parent)
-        if parent == anchor:
-            break
-    marker.unlink()
-    _sync_directory(anchor)
+    marker_name = _initialization_marker(".exchange-spool-init-", directory)
+    _prepare_directory(
+        directory,
+        marker_names=(marker_name, *_rewrite_marker_names(directory)),
+        create_marker_name=marker_name,
+        sync_directory=_sync_directory,
+    )
 
 
 def _sync_directory_tree(directory: Path) -> None:
@@ -130,18 +126,15 @@ def _recover_pending_state_directory(state_path: Path) -> None:
 
     state_path = state_path.absolute()
     directory = state_path.parent
-    marker_name = ".exchange-init-" + hashlib.sha256(os.fsencode(state_path)).hexdigest() + ".pending"
-    ancestors = (directory, *directory.parents)
-    anchor = next((parent for parent in ancestors if (parent / marker_name).exists()), None)
-    if anchor is None:
-        return
-    for parent in ancestors:
-        _sync_directory(parent)
-        if parent == anchor:
-            break
-    marker = anchor / marker_name
-    marker.unlink()
-    _sync_directory(anchor)
+    _prepare_directory(
+        directory,
+        marker_names=(
+            _initialization_marker(".exchange-init-", state_path),
+            _initialization_marker(".exchange-spool-init-", directory / SPOOL_DIRNAME),
+            *_rewrite_marker_names(directory),
+        ),
+        sync_directory=_sync_directory,
+    )
 
 
 def _write_record(path: Path, record: dict[str, Any]) -> None:

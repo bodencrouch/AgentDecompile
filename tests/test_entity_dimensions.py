@@ -78,6 +78,29 @@ async def test_activity_broadcaster_reuses_inflight_snapshot_across_reconnect() 
 
 
 @pytest.mark.asyncio
+async def test_activity_broadcaster_keeps_inflight_scope_charged_after_disconnect() -> None:
+    started = threading.Event()
+    release = threading.Event()
+
+    def snapshotter(*_args: str) -> dict:
+        started.set()
+        assert release.wait(timeout=1)
+        return {"ok": True, "revision": 1, "entities": []}
+
+    broadcaster = ActivityBroadcaster(interval_seconds=60, max_observers=1, snapshotter=snapshotter)
+    first = await broadcaster.subscribe("first", "", "")
+    await asyncio.wait_for(asyncio.to_thread(started.wait), timeout=1)
+    await broadcaster.unsubscribe("first", "", "", first)
+    with pytest.raises(ActivityObserverLimitError, match="observer limit"):
+        await broadcaster.subscribe("second", "", "")
+    release.set()
+    await asyncio.wait_for(next(iter(broadcaster._tasks.values())), timeout=1)
+    second = await broadcaster.subscribe("second", "", "")
+    assert (await asyncio.wait_for(second.get(), timeout=1))[0] == "snapshot"
+    await broadcaster.unsubscribe("second", "", "", second)
+
+
+@pytest.mark.asyncio
 async def test_activity_broadcaster_republishes_snapshot_after_unavailable() -> None:
     attempts = 0
 
@@ -93,6 +116,26 @@ async def test_activity_broadcaster_republishes_snapshot_after_unavailable() -> 
     assert (await asyncio.wait_for(queue.get(), timeout=1))[0] == "snapshot"
     assert (await asyncio.wait_for(queue.get(), timeout=1))[0] == "unavailable"
     assert (await asyncio.wait_for(queue.get(), timeout=1))[0] == "snapshot"
+    await broadcaster.unsubscribe("", "", "", queue)
+
+
+@pytest.mark.asyncio
+async def test_activity_read_does_not_return_a_stale_snapshot_after_unavailable() -> None:
+    attempts = 0
+
+    def snapshotter(*_args: str) -> dict:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            return {"ok": True, "revision": 1, "entities": []}
+        raise OSError("workspace unavailable")
+
+    broadcaster = ActivityBroadcaster(interval_seconds=0.001, max_observers=2, snapshotter=snapshotter)
+    queue = await broadcaster.subscribe("", "", "")
+    assert (await asyncio.wait_for(queue.get(), timeout=1))[0] == "snapshot"
+    assert (await asyncio.wait_for(queue.get(), timeout=1))[0] == "unavailable"
+    with pytest.raises(OSError, match="workspace unavailable"):
+        await asyncio.wait_for(broadcaster.read("", "", ""), timeout=1)
     await broadcaster.unsubscribe("", "", "", queue)
 
 

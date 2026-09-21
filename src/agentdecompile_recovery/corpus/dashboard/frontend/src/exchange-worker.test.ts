@@ -295,4 +295,30 @@ describe("browser rewrite worker acceptance", () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(calls("/claim")).toHaveLength(2);
   });
+
+  it("does not wait for a stale heartbeat after an accepted submission", async () => {
+    const held = lease(3);
+    let resolveHeartbeat: ((response: Response) => void) | undefined;
+    let resolveProvider: ((response: Response) => void) | undefined;
+    await install(url => {
+      if (url.endsWith("/enroll")) return json({ workerId: "worker-1" });
+      if (url.endsWith("/claim")) return calls("/claim").length === 1 ? json(held) : noContent();
+      if (url.endsWith("/heartbeat")) return new Promise<Response>(resolve => { resolveHeartbeat = resolve; });
+      if (url.startsWith("https://api.openai.com/")) return new Promise<Response>(resolve => { resolveProvider = resolve; });
+      if (url.endsWith("/submit")) return json({ accepted: true, verdict: "candidate" });
+      throw new Error(`unexpected request ${url}`);
+    });
+
+    start();
+    await settle();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(calls("/heartbeat")).toHaveLength(1);
+    resolveProvider?.(json({ choices: [{ message: { content: "```c\nint f(void) { return 2; }\n```" } }] }));
+    await settle();
+
+    expect(calls("/submit")).toHaveLength(1);
+    expect(calls("/claim")).toHaveLength(2);
+    resolveHeartbeat?.(json({ leaseExpiresAt: held.leaseExpiresAt + 3, leaseSeconds: 3 }));
+    await settle();
+  });
 });

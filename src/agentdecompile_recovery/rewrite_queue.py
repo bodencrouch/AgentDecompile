@@ -164,7 +164,7 @@ def derive_request_id(function_name: str, candidate_source: str) -> str:
 
 
 def _empty_queue() -> dict[str, Any]:
-    return {"schema": SCHEMA, "claimBoundary": CLAIM_BOUNDARY, "entries": {}, "requestCounts": {}}
+    return {"schema": SCHEMA, "claimBoundary": CLAIM_BOUNDARY, "entries": {}, "requestCounts": {}, "consumedExchangeReceipts": {}}
 
 
 def read_rewrite_queue(work_dir: Path) -> dict[str, Any]:
@@ -179,6 +179,8 @@ def read_rewrite_queue(work_dir: Path) -> dict[str, Any]:
         return _empty_queue()
     if not isinstance(data.get("requestCounts"), dict):
         data["requestCounts"] = {}
+    if "consumedExchangeReceipts" not in data:
+        data["consumedExchangeReceipts"] = {}
     return data
 
 
@@ -194,6 +196,7 @@ def _read_queue_for_mutation(work_dir: Path) -> dict[str, Any]:
         or data.get("schema") != SCHEMA
         or not isinstance(data.get("entries"), dict)
         or not isinstance(data.get("requestCounts"), dict)
+        or ("consumedExchangeReceipts" in data and not isinstance(data["consumedExchangeReceipts"], dict))
     ):
         raise ValueError("invalid rewrite queue structure")
     return data
@@ -390,13 +393,21 @@ def prune_consumed_entries(work_dir: Path, request_ids: list[str]) -> None:
     with _locked(work_dir):
         queue = _read_queue_for_mutation(work_dir)
         changed = False
+        retired_exchange_receipt = False
         for request_id in request_ids:
             entry = queue["entries"].get(request_id)
             if isinstance(entry, dict) and entry.get("status") in (STATUS_COMPLETED, STATUS_FAILED):
+                receipt = entry.get("exchangeReceipt")
+                if isinstance(receipt, str) and receipt:
+                    queue.setdefault("consumedExchangeReceipts", {})[receipt] = now()
+                    retired_exchange_receipt = True
                 del queue["entries"][request_id]
                 changed = True
         if changed:
-            atomic_write_json(queue_path(work_dir), queue)
+            atomic_write_json(
+                queue_path(work_dir), queue,
+                require_directory_sync=retired_exchange_receipt,
+            )
 
 
 def import_exchange_result(
@@ -414,6 +425,8 @@ def import_exchange_result(
         return False
     with _locked(work_dir, require_directory_sync=True):
         queue = _read_queue_for_mutation(work_dir)
+        if receipt in queue.get("consumedExchangeReceipts", {}):
+            return False
         entry = queue["entries"].get(request_id)
         if not isinstance(entry, dict) or entry.get("requestId") != request_id:
             return False

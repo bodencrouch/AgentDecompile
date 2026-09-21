@@ -74,12 +74,13 @@ class ActivityBroadcaster:
         self._latest: dict[tuple[str, str, str], tuple[dict, int]] = {}
         self._generations: dict[tuple[str, str, str], int] = {}
         self._observer_count = 0
+        self._replay_gate = asyncio.Semaphore(1)
 
     @property
     def observer_count(self) -> int:
         return self._observer_count
 
-    async def subscribe(self, locator: str, slug: str, program: str) -> asyncio.Queue[tuple[str, dict, int]]:
+    async def subscribe(self, locator: str, slug: str, program: str, *, include_latest: bool = True) -> asyncio.Queue[tuple[str, dict, int]]:
         scope = (locator, slug, program)
         queue: asyncio.Queue[tuple[str, dict, int]] = asyncio.Queue(maxsize=1)
         async with self._lock:
@@ -90,10 +91,19 @@ class ActivityBroadcaster:
             observers.add(queue)
             self._observer_count += 1
             latest = self._latest.get(scope)
-            if latest is not None:
+            if include_latest and latest is not None:
                 payload, generation = latest
                 queue.put_nowait(('snapshot', payload, generation))
             if scope not in self._tasks:
+                # A disconnected scope can still own an uncancellable
+                # executor snapshot.  Do not release that work slot merely
+                # because its SSE connection went away.
+                if len(self._tasks) >= self._max_observers:
+                    observers.remove(queue)
+                    self._observer_count -= 1
+                    if not observers:
+                        self._observers.pop(scope, None)
+                    raise ActivityObserverLimitError(f'Activity observer limit ({self._max_observers}) reached.')
                 self._wakeups[scope] = asyncio.Event()
                 self._tasks[scope] = asyncio.create_task(self._produce(scope), name=f'activity-broadcast:{scope[1]}')
             elif was_empty:
@@ -102,6 +112,29 @@ class ActivityBroadcaster:
                 # Reuse that task; it will see this observer before teardown.
                 self._wakeups[scope].set()
         return queue
+
+    async def read(self, locator: str, slug: str, program: str) -> dict:
+        """Return a shared snapshot without letting polling bypass admission."""
+        queue = await self.subscribe(locator, slug, program, include_latest=False)
+        try:
+            event, payload, _generation = await queue.get()
+            if event == 'unavailable':
+                raise OSError(str(payload.get('error') or 'Activity is temporarily unavailable.'))
+            return payload
+        finally:
+            await self.unsubscribe(locator, slug, program, queue)
+
+    async def replay(self, locator: str, slug: str, after: int, program: str) -> list[dict] | None:
+        """Bound uncancellable journal reads before they reach the executor."""
+        await self._replay_gate.acquire()
+        task = asyncio.create_task(asyncio.to_thread(_replay, locator, slug, after, program))
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            task.add_done_callback(lambda _task: self._replay_gate.release())
+            raise
+        else:
+            self._replay_gate.release()
 
     async def unsubscribe(self, locator: str, slug: str, program: str, queue: asyncio.Queue[tuple[str, dict, int]]) -> None:
         scope = (locator, slug, program)
@@ -681,7 +714,9 @@ def create_activity_router() -> APIRouter:
     @router.get('/dashboard/api/workbench/activity')
     async def activity(locator: str = '', slug: str = '', program: str = ''):
         try:
-            return await asyncio.to_thread(snapshot, locator, slug, program)
+            return await broadcaster.read(locator, slug, program)
+        except ActivityObserverLimitError as exc:
+            return JSONResponse({'ok': False, 'error': str(exc), 'code': 'activity-observer-limit'}, status_code=429, headers={'Retry-After': '2'})
         except (ValueError, OSError, sqlite3.Error) as exc:
             return JSONResponse({'ok': False, 'error': str(exc), 'entities': []}, status_code=503)
 
@@ -702,7 +737,7 @@ def create_activity_router() -> APIRouter:
             try:
                 # Resuming a cursor is a one-time journal read.  Rebuilds are
                 # shared by the broadcaster rather than repeated per stream.
-                changes = await asyncio.to_thread(_replay, locator, slug, cursor, program) if cursor else None
+                changes = await broadcaster.replay(locator, slug, cursor, program) if cursor else None
                 if changes is None:
                     # The journal was pruned or recreated.  Treat the next
                     # complete broadcast as an authoritative reset instead of

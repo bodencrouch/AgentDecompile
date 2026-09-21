@@ -51,6 +51,9 @@ async function heartbeat(lease: Lease, alive: { value: boolean; lost: boolean },
     }
     catch (error) {
       renewal.inFlight = null;
+      // A successful submission releases this lease. Its late renewal may
+      // correctly be rejected after the next lease has already started.
+      if (!alive.value || stopped) return;
       const status = (error as { status?: number }).status || 0;
       if (status === 404 || status === 410 || performance.now() >= renewal.deadline) {
         alive.lost = true;
@@ -84,6 +87,7 @@ async function run() {
       const renewal = { inFlight: null as Promise<void> | null, deadline: leaseDeadline(lease.leaseSeconds) };
       void heartbeat(lease, alive, leaseController, renewal).catch(() => {});
       let letLeaseExpire = false;
+      let accepted = false;
       try {
         emit("generating", "Generating a readable C proposal…");
         const source = extractRewriteSource(await provider(rewritePrompt(lease.unit.payload), leaseController.signal), String(lease.unit.payload.candidateSource || ""));
@@ -91,7 +95,6 @@ async function run() {
         if (!source) throw new Error("provider did not return a changed fenced C function");
         const body = { workerId, leaseToken: lease.leaseToken, fence: lease.fence, idempotencyKey: crypto.randomUUID(), artifact: { source }, verdict: "candidate" };
         emit("submitting", "Submitting proposal for coordinator verification…");
-        let accepted = false;
         for (let attempt = 0; !stopped && attempt < 4; attempt++) {
           try { await api("/submit", body); accepted = true; break; }
           catch (error) {
@@ -121,9 +124,10 @@ async function run() {
       } finally {
         alive.value = false;
         // A heartbeat request may already have reached the coordinator just as
-        // generation ended. Observe its returned deadline before deciding when
-        // another claim is safe.
-        await renewal.inFlight?.catch(() => {});
+        // generation ended. It matters only while this worker still owns the
+        // lease: a successful submission already released it server-side, so
+        // an indefinitely stalled old heartbeat must not park the worker.
+        if (!accepted) await renewal.inFlight?.catch(() => {});
         if (letLeaseExpire && !stopped) {
           const remaining = Math.max(0, Math.ceil(renewal.deadline - performance.now()));
           emit("waiting", "Attempt was not submitted; waiting for its lease to expire.");

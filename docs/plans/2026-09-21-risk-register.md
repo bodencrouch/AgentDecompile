@@ -22,7 +22,7 @@ it, or records why it is accepted. Rows are removed only when the mitigation is 
 | R4 | The loop is bound to one session and one orchestrator context; if the session ends the loop stops. | SPOF | `/loop` semantics | All state is durable (branch, plan with ✔ marks, audit files, this register); each iteration writes a resume line under "Resume point" below; restart is `/loop` with the same prompt. | continuous |
 | R5 | Full test suite exceeds ten minutes; one test reads a real image from the USB drive and times out; 7–18 pre-existing failures hide regressions; workers therefore run slices. | time / masking | worker reports | Triage unit: mark/skip the environment-bound test, fix or quarantine the pre-existing failures with receipts, keep fixtures on the fast disk, define the `unit` slice every worker must run. | dispatch after R1 |
 | R6 | CI name gate fails closed without the repository secret `AGENT_DECOMPILE_NAME_DENYLIST`. | blocked CI | U21c design | The user adds the secret (contents of the out-of-repo denylist). | user |
-| R7 | The plan has no units for the 5174/8080 surfaces ("draw the work", one control, corpus-first); "done" would exclude the UI. | ambiguity / scope | design docs vs Recommended order | Grill 6 (design vs plan) adds a surfaces phase with units and acceptance; the loop's "done" includes it. | grill 6, this iteration |
+| R7 | The plan has no units for the 5174/8080 surfaces ("draw the work", one control, corpus-first); "done" would exclude the UI. | ambiguity / scope | design docs vs Recommended order | **Mitigated by Phase 14 (pending implementation):** U104–U112 with acceptance tests, surface-ownership rule, goal done-definition (6); audit 3. | Phase 14 wave |
 | R8 | Shared `refs/stash` across worktrees: a `git stash pop` in one worktree popped another branch's stash (happened once). | data loss | worker incident 2026-09-21 | Worker packets forbid stash; baselines via `git show <base>:<path>`. Keep the rule in every packet. | continuous |
 | R9 | `raw_image_path` falls back to a cwd-relative path when the env var is unset, so pack bytes depend on the operator's working directory. | ambiguity / determinism | U1–U3 worker report; `ghidra_bulk.py` | Unit: refuse when the env var is unset and no absolute root is configured; record the root in the basis. | Phase 2 wave |
 | R10 | Each grill round costs ~120–290 k tokens; the loop is deliberately expensive. | energy | session usage | Accepted for now; one grill per iteration, targeted by "oldest audit or most code change". | accepted |
@@ -67,7 +67,10 @@ record why it is accepted. New speculative rows are added whenever one is forese
 
 ## Resume point
 
-- Branch `feat/portable-signatures-codecaves-generic`; last docs commit records audit 2 and the
-  ten resolved decisions. Landed: Step 0, Phase 0 D1–D7, U5c, U7/U7b, U22, U1–U3/U1b. In
-  flight: U21c (gate), D8/D9 + harness (o), 3b basis hardening; grill 6 (design vs plan).
-  Next: R3 unit, R1 disk move, U21a/U21b, U19a, U82/U69/U20/U70.
+- Branch `feat/portable-signatures-codecaves-generic`; audit 3 (grill 6, design vs plan)
+  applied to the plan, ledger, goal, design docs and the pipeline diagram: surface
+  ownership, Phase 14 surfaces (U104–U112), U28x inline-CLI attestation, the no-Start
+  supersession and the Autonomy rule; R7 mitigated pending implementation. Landed: Step 0,
+  Phase 0 D1–D7, U5c, U7/U7b, U22, U1–U3/U1b. In flight: U21c (gate), D8/D9 + harness (o),
+  3b basis hardening. Next: R3 unit, R1 disk move, 3c U28x attestation, U104 (H5),
+  U21a/U21b, U19a, U82/U69/U20/U70.

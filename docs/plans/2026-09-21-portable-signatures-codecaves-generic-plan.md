@@ -4,7 +4,7 @@ type: feat
 date: 2026-09-21
 extends: the 2026-09-08 portable-signatures export plan (docs/plans/2026-09-08-0225-*; rename that file to drop its product token under U21)
 authority: STRATEGY.md (recovery ordering) · VISION.md (engine-agnostic) · RUNTIME_REUSE.md (integration contract)
-status: implementation-ready plan, audit 2 applied; Step 0, Phase 0 (D1–D7), U5c, U7/U7b, U22, U1–U3/U1b landed on feat/portable-signatures-codecaves-generic (b271ba6)
+status: implementation-ready plan, audits 2 and 3 applied; Step 0, Phase 0 (D1–D7), U5c, U7/U7b, U22, U1–U3/U1b landed on feat/portable-signatures-codecaves-generic (b271ba6)
 ---
 
 # Portable Signatures, Codecaves, and ABI Export — engine-generic
@@ -13,6 +13,8 @@ status: implementation-ready plan, audit 2 applied; Step 0, Phase 0 (D1–D7), U
 
 - 2026-09-21 — audit 2 (five grill sessions + cross-grill): A1–A31 applied; see
   docs/plans/2026-09-21-plan-audit-2.md
+- 2026-09-21 — audit 3 (design vs plan, grill 6): surface ownership, Phase 14 surfaces,
+  U28x attestation, no-Start supersession; see docs/plans/2026-09-21-plan-audit-3.md
 
 Goal (user, 2026-09-21): make the recovery pipeline (1) generate a **portable
 signature for every cross-build entity** — functions first, but equally globals,
@@ -27,6 +29,20 @@ work on as many builds as possible, implementable in Lua; (4) do this **engine-g
 family, and unrelated engines, formats, and architectures alike. **No product, binary, or
 project name appears anywhere in this design; targets are described only by class
 (format × architecture × toolchain × engine-adapter).**
+
+
+### Delta Update (2026-09-21, after the 3b/U21c wave)
+- **Landed:** Step 0 `0256ca0`; Phase 0 D1–D7 + U5c (`16f0823`…`8d2c041`, `5225722`, `559dc46`); U7/U7b `f935db7`;
+  U22 `f5f6a88`; U1–U3 + U1b `b58a2e1`/`b271ba6`; U21c `0191303`; 3b basis hardening ✔ (`5bf8a11`) · **3d U25 re-baseline verb** (load-bearing now: package-constant changes strand stamped stores until it exists) `5bf8a11`
+  (basis v2 store-derived, `PENDING_FIELDS`, migration 2, `analyzer_identity` backfill, `BasisError`, exit 2).
+- **Partial:** D8/D9 + harness (o) in flight (`unit/d8d9-harness`); the U5c(b) build-order shuffle is not
+  yet in the gate; `export-hookpack` on an empty store now refuses (basis needs one stamped row) — settle by
+  attestation on the real corpus (running). U25 is now load-bearing: any package-constant change or a
+  `PENDING_FIELDS` removal makes every stamped store refuse with "re-baseline", and only a U25 verb can
+  re-stamp — **U25 moves to order step 3d, immediately after 3b** (hindsight, charter §4).
+- **Next:** R3 (`upsert_binary` must never clear a stored `content_sha256`), R1 (repo off the USB drive),
+  U28x attest verb, U104 verb admission flags (H5), U21a/U21b scrub, U19a. Receipt keys for backfill passes
+  with `needs_raw_image=False` must not read the raw image (perf; from the 3b report).
 
 ## The governing principle
 
@@ -69,6 +85,19 @@ fork STRATEGY's recovery ladder. The former live-recovery operational guards wer
 by the user on 2026-09-21; what remains is engineering rigor — every change revertable
 (Step 0 below), deterministic (the Determinism section), and verified on a temp copy of
 the store before it touches the working one.
+
+**Autonomy rule (user, 2026-09-21).** AgentDecompile one-shots all of it — cross-match,
+byte-accurate C, codecaves, function and entity signatures, ABI, Lua bindings, headers,
+readiness and divergence reports, learn-the-build — **without a human continually
+addressing things inside it.** Consequences, binding on every unit: (1) no unit may
+require a human action to reach an output; (2) review is an **override applied
+afterwards**, never a gate on progress; (3) `ambiguous` and `contested` entities are
+still exported, with their evidence and ordered candidates, and **refuse at use time**
+rather than wait for triage; (4) therefore the review lane's starvation (risk register
+H3) cannot stall coverage — it can only delay overrides. The source-recovery ladder
+(STRATEGY stages 1–8) and this plan's substrate both run unattended from one project
+open; whole-image byte identity stays program scope (goal), but nothing on the way to it
+pauses for a person.
 
 ## Source trees and scope — read this first
 
@@ -637,6 +666,28 @@ object in the Determinism section), `pack_sha256` (U24), `corpus_manifest_hash`.
   `--format v2` (default v1; `RH/src/hooks/registry.cpp:336` matches v1 exactly, else the
   legacy parser). Consumers ignore unknown kinds and refuse unknown formats.
 
+### Surface ownership (FI §2 rule)
+
+Both frontends read one backend. The static 8080 workbench is the required surface for
+every artifact this plan produces; the 5174 app renders the same objects with richer
+drawing and is never the only place a field exists. Ownership: **review lane + U17
+fields** → 8080 `wb-review` (`ReviewReact`, `workbench-app.js:907`) now; 5174 after a
+Compare tab exists (REC N3) — not `Surfaces.tsx`, which is unmounted. **U90 readiness +
+coverage-per-build** → the entity × build matrix inside the corpus-first view (8080
+`wb-logical`; 5174 `Logical`), keyed by `stable_key`, not a separate report page.
+**Ladder residue** (members tried, per-member reason, `contested` evidence pairs) → the
+evidence rail for the selected entity on both surfaces. **Divergence report** → the same
+Compare surface, per pair. Status glyphs: identity-edge state
+(candidate/accepted/rejected/unresolved) and U30 locator state are two axes and are
+never rolled into one badge; `observed_status` is a third. **Starvation is drawn, not
+inferred:** the age of the oldest unreviewed review row, the oldest waiting lane and the
+longest-running job against its deadline appear on both surfaces (risk register H1–H6;
+U111). **Control (user, 2026-09-21; supersedes "one start/pause/resume control"):**
+there is no Start button. Admission of eligible missing work begins on its own when a
+project is opened, binaries are added, or prior work is resumed — reopening known
+material still admits nothing that already has a receipt — and the single control is
+pause/resume plus its scope, never start. Phase 14 holds the units.
+
 ## Implementation units (phased, ranked)
 
 ### Phase 1 — Close the exporter↔consumer asymmetry (exporter side; the consumer half is U23)
@@ -869,8 +920,9 @@ object in the Determinism section), `pack_sha256` (U24), `corpus_manifest_hash`.
   score, status, relation, divergence_class, components{nodes_only_in_A, nodes_only_in_B,
   edge_symdiff, neighborhood_symdiff, size_A, size_B, nbr_A, nbr_B}, thresholds_version,
   producing_channel, channel_weight, reason`; total order `status, relation, score DESC,
-  src_binary_slug, src_addr, dst_binary_slug, dst_addr`. A **Divergence** column/badge in
-  the review lane (`Surfaces.tsx:1286`); the static compare page renders the same object.
+  src_binary_slug, src_addr, dst_binary_slug, dst_addr`. A **Divergence** column in 8080
+  `ReviewReact` (`workbench-app.js:907-929`); the 5174 shell gains the same columns when
+  REC N3 lands (U109). `Surfaces.tsx` is unmounted and is not the target (U106).
 - **(U0 withdrawn.)** `func.block_hashes` is already computed and persisted; what is wrong
   is its *basis* (Ghidra `BasicBlockModel` blocks). U6b re-derives block hashes from the
   decode-driven flow walk; U22's backfill repopulates the column under the new basis, which
@@ -1018,8 +1070,20 @@ implementation-ready.
   propagate them. (o) **Build-order shuffle** in (e): `binary` rows inserted in shuffled
   order with fresh ids. (p) **Key-stability run:** fixture + one added build, then
   remove/re-add; every `stable_key` unchanged. (q) **Name gate:**
-  `scripts/check-anonymization.sh` returns 0 over `src/` and `docs/`. **U28 holds
-  cross-cutting gates only; every other unit names its acceptance test in its own bullet.**
+  `scripts/check-anonymization.sh` returns 0 over `src/` and `docs/`. (r) **Attestation:**
+  receipts from the real corpus (U28x) are compared each loop iteration; a regression in
+  any verb blocks the wave. **U28 holds cross-cutting gates only; every other unit names
+  its acceptance test in its own bullet.**
+- **U28x. Inline-CLI attestation against the real corpus** (`corpus attest`, cataloged
+  read-only). Runs a declared set of corpus verbs against a **copy-on-write temp copy** of
+  a real store — never the live file — each under a **per-verb deadline**: a verb that
+  overruns is reported as `hang` with the verb name and elapsed time, never waited on
+  (risk register H2/H4). Emits sorted JSON receipts, one per verb, with build slugs
+  **hashed** so no product token can reach a receipt, into a receipts directory outside
+  the repo; diffs against the previous attestation. Exit codes: 0 same, 3 changed, 4 hang
+  or failure. Acceptance: on a synthetic two-build store the verb produces byte-identical
+  receipts twice and reports a change (exit 3) after one row is edited; a verb that
+  sleeps past its deadline is reported as `hang` (exit 4).
 - **U29. Concurrency × determinism.** The companion recommendations doc widens
   parallelism (per-environment compile pools, laned worker cap, parallel pairwise
   compare). Every such change must keep persisted outputs independent of thread timing:
@@ -1030,6 +1094,13 @@ implementation-ready.
   (parallelize `run_pair` inside `bind_store_cascade`) would make `match.id` race-dependent
   — the very defect Phase 0 names (`propagate.py:71`). C4 is **barred** until it collects
   results and inserts in a sorted total order (or assigns deterministic ids).
+  **Catalog flags (grill 6):** `backfill` → `mutating`, `long_running`,
+  `identity_scope="database"` (it rewrites the D8 tie-break key); `export-bundle` /
+  `export-hookpack` → output-tree scoped; `verify-determinism` → read-only on temp
+  copies; `attest` (U28x) → read-only temp copy. The dashboard's admission loop
+  (`jobs.py:363-386`) must see these before the design's pause-drain can be truthful —
+  risk register H5 (admission cannot drain what it cannot see) and H6 (lane starvation
+  at the acceptance point). U104 lands the flags.
 - **Note on the design mockup.** The interactive frontend mockup produced in this session
   uses illustrative example build and function names. It lives outside the repo; if any
   part of it is ever brought into AgentDecompile, genericize its sample data first — the
@@ -1416,9 +1487,12 @@ mode a primary source documents.
 - **U65. Analyzer timeout policy.** Run extraction with an effectively unbounded
   decompiler timeout, or persist per-function `timed_out` as data under the basis —
   never let a wall-clock cutoff silently shape a persisted prototype.
-- **U66. Content-addressed receipts** (recommended). Key every receipt by
-  `hash(inputs + basis)` so an identical-basis re-run is a cache hit, not a recompute
-  (Bazel action-cache model); this is also the cheapest possible determinism check.
+- **U66. Content-addressed receipts** (required — grill 6: the draw-the-work replay has
+  nothing to replay without it). Key every receipt by `hash(inputs + basis)` so an
+  identical-basis re-run is a cache hit, not a recompute (Bazel action-cache model); this
+  is also the cheapest possible determinism check. Receipts carry
+  `{stable_key, build, operation, member, outcome}` so both surfaces can replay them
+  (CDP §6.1; U110). Acceptance: a recorded backfill replays identically on both surfaces.
 
 ### Phase 11 — Unify the machine the mod runs on (cross-platform sweep)
 Verdict of the sweep: earlier phases unify *what* is located; this phase unifies *the
@@ -1663,8 +1737,9 @@ Each member names the v2 locator kind it consumes (in brackets).
 10. **Offline only, for the residue:** emulation-based behavioural fingerprint (the corpus
     already has an emulation path, `unpack_emulate.py`) and BSim over the full corpus. Never
     at runtime. (U5d, U98)
-11. **Annotation with provenance** — a human or model proposes; recorded as `proposed`, never
-    as resolved, until a deterministic member confirms it. (U26)
+11. **Annotation with provenance** — a human or model proposes; recorded as a
+    `runtime_claim`-style annotation claim outside the closed set, never as resolved; the
+    entity's status stays `unresolved` until a deterministic member confirms it. (U26)
 Only after all eleven: `unresolved`, with the per-member reasons.
 
 ### Ladder B — a cave that is missing or too small on build B
@@ -1775,6 +1850,61 @@ forbids executable allocation *and* the image has no slack, which the readiness 
   stripped-build struct answer: exact per-build offsets from decoded accesses, offline
   (U32c) and live (U91).
 
+### Phase 14 — Surfaces (both frontends draw what Phases 1–13 produce)
+Ownership rule: "Surface ownership" above — 8080 required, 5174 richer, no field on only
+one surface. Hangs and starvation are the top risk class (register H1–H6), so U104 lands
+first and U111 before any drawing unit. The Autonomy rule (governing principle) applies:
+every surface draws outputs that already exist; no surface is a gate, and the review lane
+is an override, so its starvation (H3) delays overrides and never coverage.
+- **U104. Verb admission flags** (`corpus/cli.py`, `dashboard/actions/introspect.py`,
+  `dashboard/actions/jobs.py`). `backfill` → `mutating`, `long_running`,
+  `identity_scope="database"`; `export-bundle` / `export-hookpack` → output-tree scope;
+  `verify-determinism` → read-only on temp copies; `attest` (U28x) → read-only temp
+  copy. The admission loop (`jobs.py:363-386`) reads them (H5/H6). Acceptance: pause
+  drains a running backfill; the catalog JSON shows the flags on all four verbs.
+- **U105. Autonomous start + single admission-scoped control.** Remove the per-stage
+  Run buttons (`workbench-app.js:948-951`, `panels/steps.py:282-299`) and the "Run
+  pipeline" / "Stages" controls (`workbench-app.js:4791`); the three renderers of
+  `workbench.workflow-control` (`PreparationActivity.tsx:45`,
+  `ExplorerProjectActions.tsx:35`, `StageTrace.tsx:117-119`) collapse to one
+  admission-scoped pause/resume with its scope named. Opening a project, adding binaries
+  or resuming prior work admits eligible missing work without a click; reopening known
+  material admits nothing that already has a receipt. Expert verbs stay in Commands,
+  never as ladder Run buttons; the review lane is an override applied afterwards, never a
+  gate the pipeline waits on (Autonomy rule). Acceptance: no `Run` control in the required 8080
+  surface; a fixture project auto-admits on open and a re-open admits zero jobs; pause
+  stops admission within one tick and resume continues from receipts.
+- **U106. Review lane U17 fields on 8080** (`ReviewReact`, `workbench-app.js:907-929`):
+  `relation`, `divergence_class`, `components`, `thresholds_version`,
+  `producing_channel`, `reason`; U17's total ORDER BY. Acceptance: the queue JSON and the
+  rendered rows carry every U17 field, in U17's order.
+- **U107. Readiness × coverage matrix inside the corpus-first Logical view** (8080
+  `wb-logical`, 5174 `Logical`), keyed by `stable_key`; the six U30 statuses and
+  `observed_status` are separate glyph axes; `pinned` is drawn as a non-portable pin
+  labelled `module_rva` / `section_offset`; never merged with identity-edge state.
+  Acceptance: matrix rows equal U90's JSON row for row.
+- **U108. Evidence rail: ladder residue and contested pairs.** For the selected entity:
+  members tried in family order, per-member reason, and for `contested` two locator
+  arrows landing on different addresses in one build lane, both with evidence, no
+  winner. Acceptance: a fixture `contested` entity renders both members' evidence.
+- **U109. 5174 Compare tab (REC N3)** rendering the same U17 object per pair;
+  `Surfaces.tsx` stays unmounted and is not the target. Acceptance: one U17 object,
+  identical on both surfaces for the same pair.
+- **U110. Draw the work from receipts.** U66 is required; receipts carry
+  `{stable_key, build, operation, member, outcome}`; the fifth design verb
+  **Derive/backfill** draws build row → derived column → receipt; replay over the
+  existing poll (CDP §6.1), never a progress bar. Acceptance: a recorded backfill replays
+  identically on both surfaces.
+- **U111. Starvation and hang metrics** (H1–H6). Age of the oldest unreviewed review
+  row, oldest waiting lane, longest-running job against its deadline — drawn on both
+  surfaces and emitted in receipts; a job past its deadline is drawn through the failover
+  rule as a named failure, never a spinner. Acceptance: a fixture with a stale review row
+  shows its age; a fixture job past its deadline is drawn as a named failover.
+- **U112. Product vocabulary in the surfaces.** The `game` column/field and the fixture
+  names under `frontend/src` and `static/` (grill 6: 7 files / 19 hits; schema-level at
+  `AtlasApp.tsx:579` and `workbench-app.js:989`) are renamed under U21a/U21b rules.
+  Acceptance: the name gate returns 0 in `--strict` mode over those two trees.
+
 ## Feasibility determination
 
 | Capability | Feasibility | Deciding factor |
@@ -1845,6 +1975,9 @@ pretend otherwise.
    migration 2).
    - **3b. Basis hardening** — D8, D9, the normative basis object (Determinism section),
      migration 2 (`basis_hash`, `decoder_revision`, `analyzer_version`), harness (o)/(p).
+   - **3c. U28x inline-CLI attestation** — `corpus attest` against a copy-on-write temp
+     copy of the real store, wired into the loop; every later wave compares its receipts
+     (U28 (r)) and a hang is a named failure, never a wait.
 4. **U1–U3 + U1b ✔** (`b58a2e1`, `b271ba6`) — v1-shaped; `--format v2` stays off until U23
    (the v1 loader matches the format string exactly and any other pack falls through to
    the legacy parser).
@@ -1863,6 +1996,9 @@ pretend otherwise.
    U67) → Phase 6 rest (U19) → U25–U27, U62–U66 → **Phase 13** (U91–U103) → **Phase 12**
    (U87–U90; U88 after U13c) — the terminal deliverable; `export-bundle` byte-identical
    across two runs under one basis is the whole plan's acceptance.
+9. **Phase 14 surfaces** — U104 first (H5), then U105, U110, U111, U106–U109, U112. Both
+   surfaces draw the bundle's readiness matrix, residue and receipts; "surfaces phase
+   landed" is part of the goal's done definition.
 All of 1–7 are additive and testable on a temp copy of the store; nothing touches the
 working store until its determinism and migration receipts are green. Every unit is
 built by subagent-driven development against this plan, one bounded file scope at a

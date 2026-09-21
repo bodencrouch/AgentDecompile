@@ -68,7 +68,10 @@ overlaps this exact granularity (`match_pair_lock_key`, `DASH/actions/jobs.py:10
 and each pair writes distinct `match` rows (`REC/corpus/propagate.py:112-117`), safe
 under WAL. Fix: pool the pairs, each with its own read connection, then do the one
 serialized `bind_identities` + commit. Needs the candidate/read vs bind/write
-separation made explicit.
+separation made explicit. **Barred (2026-09-21, plan U29)** until results are
+collected by submission index and inserted in a sorted total order (or given
+deterministic ids): as written, `match.id` would depend on thread timing
+(`propagate.py:71`), the very defect the plan's Phase 0 removes.
 
 **C5 · Re-key `corpus.apply-stabs` per `(db, binary-id)`.** All seven
 `IDENTITY_WRITERS` mutually exclude on the whole DB path (`identity_lock_key`,
@@ -191,4 +194,11 @@ Operational guard: the canonical AGENTS.md/STRATEGY constraints for the active
 recovery mission (no 5174 start, no server restart, in-process reload only, no
 filesystem test suites) still bind. These are code-shape changes; land them under
 those guards, not by starting new services during live recovery.
+
+> **Superseded 2026-09-21:** the live-recovery guards (no 5174, no tests) were lifted
+> by the user (plan, "governing principle"); safety now means revertable steps plus
+> verification on a temp copy of the store. The paragraph above is kept for history.
+> Expert verbs gained by the plan (`backfill`, `verify-determinism`, `export-hookpack`,
+> `attest`) must carry admission flags before P0's pause/resume can drain them (plan
+> U104; risk register H5/H6).
 </content>

@@ -351,6 +351,13 @@ Four work verbs get first-class visualization (`FRONTEND_INTENT.md` §4.3;
   donor to concrete recipient builds, with compatibility gates, conflicts and
   recipient validation. No animation of a successful transfer before its
   receipt/event exists.
+- **Derive/backfill** (fifth verb, added 2026-09-21 from grill 6) — a build row's
+  derived column (content hash, basis hash, block hashes) changes only after its
+  receipt exists; draw the row → column → receipt, never a progress bar. Receipts
+  carry `{stable_key, build, operation, member, outcome}` (plan U66, required) so
+  both surfaces replay the same deltas (plan U110). Starvation is drawn beside the
+  work: the age of the oldest unreviewed review row, the oldest waiting lane and the
+  longest-running job against its deadline (plan U111; risk register H1–H6).
 
 Rules: motion **follows observed events only** — no simulated packet travel, random
 graph motion, or timer-driven "compiling" decoration. Unknown internals stay
@@ -394,6 +401,15 @@ a match"; "Real C and a complete executable are separate facts."
 
 ### 4.4 The single pipeline control
 
+> **Superseded 2026-09-21 (user directive):** there is no Start button. Analysis —
+> admission of eligible missing work — begins on its own when a project is opened,
+> binaries are added, or prior work is resumed; reopening known material admits nothing
+> that already has a receipt. The single control is **pause/resume and its scope**,
+> never start. The text below stands as written for history; "start/resume" in it is
+> the automatic admission just described. Plan: Phase 14, U105 (per-stage Run buttons
+> removed; the three renderers of `workbench.workflow-control` collapse to one
+> admission-scoped pause/resume).
+
 One context-aware start/pause/resume control. The user's words (2026-09-16): "one
 button representing start/pause/resume … individual parts of the pipeline (like
 ghidra bulk or veriff-cross) should not be buttons anywhere." Pipeline steps are
@@ -425,6 +441,16 @@ master switch.**
   one Ghidra project). Sequence this arbitration **before** the pause/resume
   contract can be met.
 
+**Honest current state (2026-09-21, grill 6; do not mark delivered):** the required
+8080 surface still shows per-stage Run buttons (`workbench-app.js:948-951`,
+`panels/steps.py:282-299`) and a "Run pipeline" / "Stages" control
+(`workbench-app.js:4791`); the one backend verb `workbench.workflow-control` has three
+renderers (`PreparationActivity.tsx:45`, `ExplorerProjectActions.tsx:35`,
+`StageTrace.tsx:117-119`), none scoped to the admission boundary; and the expert verbs
+`backfill`, `verify-determinism` and `export-hookpack` carry no `mutating` /
+`identity_scope` / `long_running` flags, so pause cannot drain a running backfill
+(risk register H5). Plan U104 lands the flags, U105 the single control.
+
 ### 4.5 Responsive behavior
 
 Implemented breakpoints (`workstation.css`): ~1100px (rails shrink, keyboard hints
@@ -451,11 +477,21 @@ must be reachable from the UI (and the Swagger/API). **Operational guard:** reco
 operations and live acceptance stay exclusively on 8080; the delivery requirement
 does **not** authorize starting 5174 during a live recovery mission.
 
+> **Superseded 2026-09-21:** the live-recovery guards (no 5174, no tests) were lifted
+> by the user (plan, "governing principle"); safety now means revertable steps plus
+> verification on a temp copy of the store. Every surface assignment in this document
+> is read under the lifted guard: 8080 remains the required surface, 5174 the richer
+> one, and no field exists on only one of them (plan, "Surface ownership").
+
 > Chronology note: `verification/2026-09-11-react-aio-redesign.md` records checks on
 > port 5174 and a final PASS at `8767/react`; the "no 5174 process" guard is
 > 2026-09-20, so that acceptance *predates* the guard. Port **8767** appears in
-> acceptance evidence but in neither delivery-contract surface — an unexplained
-> third port worth reconciling.
+> acceptance evidence but in neither delivery-contract surface. **Reconciled
+> 2026-09-21:** the verification logs call 8767 the "packaged proxy" — a second
+> instance of the same backend, started only so the packaged `/react/` route could be
+> checked without touching the live 8080 server. It is not a third surface; the
+> contract's ports stay 8080 (with `/react/`) and 5174, and an acceptance that cites
+> another port must say which of the two it stood in for.
 
 ### 4.7 Cross-cutting behavior requirements
 
@@ -464,7 +500,17 @@ does **not** authorize starting 5174 during a live recovery mission.
   approval-required, failed, recovered — each rendered distinctly (implemented as a
   lifecycle matrix in the shell; see design-system doc). Transient read errors
   (408/429/5xx/timeout) demote to reassuring info, not alarms, and keep the last
-  received content.
+  received content. **Added 2026-09-21 (grill 6):** the cross-build plan's closed
+  locator set is a second vocabulary, **per entity × build** and separate from the job
+  lifecycle above: `resolved(member) / pinned(member) / degraded(member, reason) /
+  ambiguous / unresolved / contested`, with `observed_status` as a third axis and the
+  identity-edge state (candidate / accepted / rejected / unresolved) as a fourth. They
+  are drawn as separate glyph axes and never rolled into one badge: `contested` is two
+  locator arrows landing on different addresses in one build lane, both with evidence,
+  no winner; `pinned` is a single non-portable pin labelled `module_rva` /
+  `section_offset` (plan U107, U108). Starvation has its own glyphs: the age of the
+  oldest unreviewed review row and the oldest waiting lane, and a job past its deadline
+  drawn through the failover rule as a named failure (plan U111).
 - **Real-time, crash-safe persistence:** everything the frontends do saves back to
   the project in real time; force-killing the server never loses work; durable
   acknowledgement is observable (never promise arbitrary unsaved RAM survives).
@@ -568,6 +614,8 @@ model built from all sources. These are the crux additions.
   owned lanes (runtime-reuse, distributed workers, independent reads), which it
   surfaces but does not start/stop. Pause = stop admitting + drain *this* context's
   accepted work; it is not cancel and claims nothing over lanes it doesn't own.
+  *2026-09-21:* the control never starts — admission begins by itself on open / add /
+  resume (§4.4 supersession); the control is pause/resume plus its scope.
 - **Real owner/lock admission arbitration is a prerequisite for pause/resume**,
   because the `mutating:false`-despite-write bug makes the drain unscoped and
   admission unsafe until fixed.

@@ -90,7 +90,9 @@ Do not call a requirement complete merely because an assistant once said “done
 - **F04 — Merge:** show a file-manager-like merge review. Match actual artifact
   identity, retain richer compatible fields, preserve conflicts and human edits.
   Afterwards show which binaries, names, types, comments and relationships were
-  added, reused, skipped or contested—not just “Project data combined.”
+  added, reused, skipped or conflicting—not just “Project data combined.”
+  (Reworded 2026-09-21 from “contested”: that word now names one status in the
+  cross-build plan's closed locator set and is reserved for it.)
 - **F05 — Deduplicate and group:** SHA-256 identifies identical input artifacts;
   retain aliases/provenance rather than delete unrelated files. Group related
   variants from match evidence, not filename guesses. Insufficient evidence means
@@ -252,6 +254,15 @@ Strongest **per field** wins; no single build is donor for every field.
 
 ### Start/pause/resume without stage babysitting
 
+> **Superseded 2026-09-21 (user directive):** there is no Start button. Analysis —
+> admission of eligible missing work — begins on its own when a project is opened,
+> binaries are added, or prior work is resumed; reopening known material still admits
+> nothing that already has a receipt. The single control is **pause/resume and its
+> scope**, never start. The paragraphs below are kept as written for history; read
+> “start/resume” as the automatic admission they describe. Plan: Phase 14, U105.
+> The same directive makes the pipeline unattended end to end: review is an override
+> applied afterwards, never a gate on progress (plan “Autonomy rule”).
+
 There is one context-aware workflow control, with truthful state and a clear scope.
 Routine stage transitions, supported repair and eligible resume are automatic.
 Adding new material can admit the authorized default workflow after deduplication
@@ -381,6 +392,8 @@ simplification after accepting diminishing returns. [D2:35561–36106]
 | Vite merely a development server | Incorrect reduction, corrected by current user and Sep8 source. Optional application is required. |
 | “None… static, all React” | Refined by explicit dual-surface request. Static-served HTML/JS can still be interactive/reactive. |
 | Every input automatically starts everything | New imports admit authorized missing work; reopening/selection reuses and inspects existing state. One workflow owner, no duplicate analysis. |
+| One context-aware start/pause/resume control (2026-09-16) | 2026-09-21: no Start button. Open / add / resume admits eligible work by itself; the one control is pause/resume + scope. Per-stage buttons stay banned; admission still gates only mutation. |
+| Review lane as a gate before propagation or export | 2026-09-21: review is an override applied afterwards; ambiguous/contested entities export with evidence and refuse at use time. Nothing waits on a person. |
 | Two left trees including Functions | Current explicit duplicate-widget removal wins; retain functionality once in the main workspace. |
 | Numeric bars/ETA and “Running” as main feedback | Current user requires drawing actual work. Preserve numbers as secondary detail, not primary experience. |
 | 24-hour default workflow budget | D1:10121 explicitly changes default to unlimited. Resource limits and bounded per-attempt behavior remain. |

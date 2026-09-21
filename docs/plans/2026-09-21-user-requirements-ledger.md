@@ -30,6 +30,14 @@ the supersession is stated.
 - **Exhaustive, not fast-pathed:** "I don't want a fast path — I want it to simply *be*
   fast while still comprehensive and deep"; 100% exhaustive authoritative source that
   recompiles to byte parity. (2026-07.)
+- **One-shot, unattended:** AgentDecompile "one-shots all of it without a human
+  continually addressing things inside it" — cross-match, byte-accurate C, codecaves,
+  function and entity signatures, ABI, Lua bindings, headers, readiness and divergence
+  reports, learn-the-build. No unit may require a human action to reach an output; review
+  is an override applied afterwards, never a gate on progress; ambiguous or contested
+  entities are still exported with their evidence and ordered candidates and refuse at
+  use time; the review lane's starvation therefore cannot stall coverage. (2026-09-21;
+  the plan's "Autonomy rule".)
 
 ## 2. The recovery pipeline (order and rules)
 
@@ -140,6 +148,15 @@ the supersession is stated.
   circle isn't informative — actually animate/draw what is being done." One
   start/pause/resume control; no per-stage buttons; corpus-first ("all the binaries as
   one"); one Functions surface. (2026-09-16.)
+- **No Start button (2026-09-21, supersedes "one start/pause/resume control"):** analysis
+  begins on its own when a project is opened, binaries are added, or prior work is
+  resumed — admission of eligible missing work, never a re-run of work that already has a
+  receipt. The single control is **pause/resume (and its scope)**, never start.
+  Per-stage buttons stay banned; expert verbs stay in Commands. Admission still gates only
+  mutation (priority-zero rule).
+- **Starvation is visible:** the age of the oldest unreviewed review row and the oldest
+  waiting lane are drawn on both surfaces; a job past its deadline is a named failure,
+  never a spinner. (2026-09-21; hangs and starvation are the top risk class.)
 - **Feel:** dense, legible, intuitive; think desktop RE tools; ideally one page, minimal
   tabs; menu bar; resizable widgets; a bottom logging widget with jobs as a tab; no
   hardcoded list limiters; realtime function search; reduce clicks; several ways to reach
@@ -162,6 +179,8 @@ the supersession is stated.
 | functions-only cross-matching | every entity kind |
 | "coverage recorded, universality never asserted" | exhaustive ladders; residue is what remains after every strategy |
 | operational guards protecting live recovery | lifted; rigor retained |
+| "one start/pause/resume control" | no Start button: analysis starts by itself on open / add / resume; the one control is pause/resume + scope |
+| review as a gate before propagation or export | review is an override applied afterwards; ambiguous/contested entities export with evidence and refuse at use time (Autonomy rule) |
 
 ## Source ledger
 

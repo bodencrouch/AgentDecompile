@@ -62,7 +62,7 @@ class Binary:
                       cyclomatic,n_callees,indirect_calls,data_refs,mnem,strings,consts,
                       ext_calls,block_hashes,cfg_nodes,cfg_edges,plate,signature,source,param_count,
                       source_file,object_file,calling_convention{hash_select}
-                 FROM func WHERE binary_id=?""",
+                 FROM func WHERE binary_id=? ORDER BY addr""",
             (binary_id,),
         ):
             d = dict(rec)
@@ -91,7 +91,7 @@ class Binary:
             for rec in con.execute(
                 f"""SELECT addr,n_tokens,n_lines,max_nest,n_calls,n_locals,n_deref,
                           n_index,n_field,ctrl,ops,skeleton_hash{fp_select}
-                     FROM decomp WHERE binary_id=? AND ok=1""",
+                     FROM decomp WHERE binary_id=? AND ok=1 ORDER BY addr""",
                 (binary_id,),
             ):
                 d = dict(rec)
@@ -104,7 +104,8 @@ class Binary:
         self.callees: dict[int, set[int]] = defaultdict(set)
         self.callers: dict[int, set[int]] = defaultdict(set)
         for a, b in con.execute(
-            "SELECT caller_addr, callee_addr FROM calledge WHERE binary_id=?", (binary_id,)
+            "SELECT caller_addr, callee_addr FROM calledge WHERE binary_id=? ORDER BY caller_addr, callee_addr",
+            (binary_id,),
         ):
             self.callees[a].add(b)
             self.callers[b].add(a)
@@ -271,7 +272,8 @@ def _fuse_bsim(con, sa: Binary, sb: Binary, mapping: dict[int, int], results: di
     try:
         rows = con.execute(
             """SELECT src_addr, dst_addr, similarity, significance
-               FROM bsim_hit WHERE src_binary=? AND dst_binary=?""",
+               FROM bsim_hit WHERE src_binary=? AND dst_binary=?
+               ORDER BY src_addr, dst_addr""",
             (sa.id, sb.id),
         ).fetchall()
     except Exception as exc:
@@ -284,10 +286,10 @@ def _fuse_bsim(con, sa: Binary, sb: Binary, mapping: dict[int, int], results: di
         if sim_f > 1.0:
             sim_f = sim_f / 100.0
         by_src[int(src)].append((int(dst), max(0.0, min(1.0, sim_f)), float(sig or 0)))
-    for src, hits in by_src.items():
+    for src, hits in sorted(by_src.items()):
         if src in mapping or src not in sa.funcs:
             continue
-        hits = sorted(hits, key=lambda t: (-t[2], -t[1]))
+        hits = sorted(hits, key=lambda t: (-t[2], -t[1], t[0]))
         if not hits:
             continue
         best_dst, sim, sig = hits[0]
@@ -308,8 +310,8 @@ def _fuse_bsim(con, sa: Binary, sb: Binary, mapping: dict[int, int], results: di
         taken.add(best_dst)
         results[src] = {
             "dst": best_dst,
-            "score": min(0.95, 0.55 + sim * 0.4),
-            "margin": max(0.1, (sig - second_sig) / 100.0),
+            "score": round(min(0.95, 0.55 + sim * 0.4), 4),
+            "margin": round(max(0.1, (sig - second_sig) / 100.0), 4),
             "evidence": enrich_evidence(
                 {"bsim": sim, "bsim_significance": sig, "channel": "S"},
                 kind="bsim",
@@ -467,7 +469,7 @@ def match_binaries(
         if len(destinations) != 1 or conflicting_destinations:
             quarantined.add(src)
             mapping.pop(src, None)
-            dst = next(iter(destinations))
+            dst = min(destinations)
             results[src] = {
                 "dst": dst, "score": 0.0, "margin": 0.0, "kind": "anchor", "status": "review", "round": "anchor",
                 "evidence": enrich_evidence({"channels": sorted({channel for _, channel in candidates}), "conflict": "source" if len(destinations) != 1 else "destination"}, kind="anchor", status="ambiguous", alternatives=[{"dst": value} for value in sorted(destinations)], identity_claim=False, quarantine=True, stage="anchor"),
@@ -571,7 +573,7 @@ def match_binaries(
     taken = set(mapping.values())
     for src_addr, dst_addr in unique_structural_pairs(
         [sa.funcs[a] for a in src_addrs if a not in mapping],
-        [sb.funcs[b] for b in dst_eligible if b not in taken],
+        [sb.funcs[b] for b in sorted(dst_eligible) if b not in taken],
         id_of=lambda fn: fn["addr"],
     ):
         if src_addr in mapping or dst_addr in taken:
@@ -662,7 +664,7 @@ def match_binaries(
             fa_score = {**fa, "canon_arity": None} if use_name_features is False else fa
             if sa.decomp.get(a):
                 fa_score = {**fa_score, "decomp": sa.decomp[a]}
-            for b in cands:
+            for b in sorted(cands):
                 raw_fb = sb.funcs[b]
                 needs_copy = use_name_features is False or bool(sb.decomp.get(b))
                 fb = dict(raw_fb) if needs_copy else raw_fb
@@ -699,7 +701,7 @@ def match_binaries(
 
         report(len(src_addrs), round_index=rnd)
 
-        scored.sort(key=lambda t: (-t[0], -t[1]))
+        scored.sort(key=lambda t: (-t[0], -t[1], t[2], t[3]))
         for best, margin, a, b, ev, second, second_b in scored:
             if a in mapping or b in taken:
                 continue
@@ -718,21 +720,21 @@ def match_binaries(
                 taken.add(b)
                 results[a] = {
                     "dst": b,
-                    "score": best,
-                    "margin": margin,
+                    "score": round(best, 4),
+                    "margin": round(margin, 4),
                     "evidence": enrich_evidence(ev, status="verify", identity_claim=True, stage="fuzzy_residue"),
                     "round": rnd,
                     "kind": "fuzzy",
                 }
                 new += 1
             elif a not in results or (results[a].get("kind") not in {"callgraph", "anchor", "bsim"} and best > results[a]["score"]):
-                alts = [{"dst": b, "score": best}]
+                alts = [{"dst": b, "score": round(best, 4)}]
                 if second_b is not None and second > 0 and abs(best - second) < 0.05:
-                    alts.append({"dst": second_b, "score": second})
+                    alts.append({"dst": second_b, "score": round(second, 4)})
                     results[a] = {
                         "dst": b,
-                        "score": best,
-                        "margin": margin,
+                        "score": round(best, 4),
+                        "margin": round(margin, 4),
                         "evidence": enrich_evidence(ev, status="ambiguous", alternatives=alts, identity_claim=False, stage="fuzzy_residue"),
                         "round": rnd,
                         "status": "review",
@@ -741,8 +743,8 @@ def match_binaries(
                 else:
                     results[a] = {
                         "dst": b,
-                        "score": best,
-                        "margin": margin,
+                        "score": round(best, 4),
+                        "margin": round(margin, 4),
                         "evidence": enrich_evidence(ev, stage="fuzzy_residue"),
                         "round": rnd,
                         "kind": "fuzzy",
@@ -819,7 +821,7 @@ def match_binaries(
     # therefore cannot establish a block-level non-1:1 correspondence.
     inlines = [] if src_id == dst_id else leftover_inlines(
         [sa.funcs[a] for a in src_addrs if a not in mapping],
-        [sb.funcs[b] for b in dst_eligible if b not in mapping.values()],
+        [sb.funcs[b] for b in sorted(dst_eligible) if b not in mapping.values()],
     )
     for hit in inlines:
         src_addr = hit["missing_id"]

@@ -1,18 +1,32 @@
-"""Emit a Phasor-shaped hook pack from the identity store.
+"""Emit a hook pack for the runtime host from the identity store.
 
 A VA is an instance. The pack's identity is the logical site plus the
 signature family that hits the most registered builds. expected_bytes
 are copied from a registered image when that window is unique. They
 are never invented.
+
+Per binary the pack carries the identity the host rebases against
+(image_base, sha256). Per site it carries every instance window so a
+resolver can try them in turn on an unknown build, plus the kind,
+required flag, field extent and adapter key that a site policy and an
+adapter map supply. Those two are data files, never core.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 from collections import Counter
 from pathlib import Path
 
 from .determinism_basis import basis
+from .hookpack_policy import (
+    check_adapter_key_collisions,
+    file_sha256,
+    load_adapter_map,
+    load_site_policy,
+    lookup_site,
+)
 
 
 FORMAT = "agentdecompile.hookpack/v1"
@@ -79,20 +93,67 @@ def _file_offset(image: bytes, addr: int, load_base: int | None = None) -> int |
     return mapper(int(addr))
 
 
-def export_hookpack(con, out: Path) -> dict:
+def _binary_entry(b: dict, image_for) -> dict:
+    """One ``binaries[]`` row: the identity the host rebases and verifies against.
+
+    *image_for* is a lazy loader; it is only called when no hash is stored,
+    so a backfilled store never touches the raw image for a binary that no
+    instance references.
+    """
+    entry = {
+        "slug": b["slug"],
+        "game": b["game"],
+        "platform": b["platform"],
+        "format": b["format"],
+        "arch": b.get("arch"),
+        "bits": b.get("bits"),
+    }
+    if b.get("image_base") is not None:
+        entry["image_base"] = int(b["image_base"])
+    stored = str(b.get("content_sha256") or "").strip()
+    if stored:
+        entry["sha256"] = stored
+        entry["sha256_source"] = "stored"
+    else:
+        image = image_for()
+        if image:
+            entry["sha256"] = hashlib.sha256(image).hexdigest()
+            entry["sha256_source"] = "computed"
+    return entry
+
+
+def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> dict:
+    """Write the pack for *con* to *out*.
+
+    *site_policy* and *adapter_map* are optional file paths; see
+    :mod:`hookpack_policy` for their shapes. With neither given the pack
+    carries default site kinds and no adapter keys.
+    """
+    policy = load_site_policy(site_policy)
+    amap = load_adapter_map(adapter_map)
     binaries = {
         int(r["id"]): dict(r)
         for r in con.execute(
-            "SELECT id, slug, game, platform, format, repo_path, image_base FROM binary ORDER BY id"
+            "SELECT id, slug, game, platform, format, arch, bits, repo_path, image_base, content_sha256"
+            " FROM binary ORDER BY id"
         )
     }
     raw_by_bid: dict[int, bytes | None] = {}
+
+    def image_for(bid: int) -> bytes | None:
+        if bid not in raw_by_bid:
+            raw_by_bid[bid] = _raw_image(str((binaries.get(bid) or {}).get("repo_path") or ""))
+        return raw_by_bid[bid]
+
     logicals = list(con.execute(
         "SELECT id, best_name, best_signature, canon_class, canon_method, canon_key, n_members"
         " FROM logical_function ORDER BY id"
     ))
     site_keys = Counter(_site_key(lf) for lf in logicals)
     sites: dict[str, dict] = {}
+    matched_policy: set[str] = set()
+    matched_map: set[str] = set()
+    adapter_keys_by_site: dict[str, str] = {}
     for lf in logicals:
         lid = int(lf["id"])
         members = list(con.execute(
@@ -107,6 +168,7 @@ def export_hookpack(con, out: Path) -> dict:
         member_sigs = [str(m["signature"]) for m in members if m["signature"]]
         instances = []
         windows: list[bytes] = []
+        instance_windows: list[dict] = []
         for m in members:
             bid = int(m["binary_id"])
             b = binaries.get(bid) or {}
@@ -118,20 +180,23 @@ def export_hookpack(con, out: Path) -> dict:
                 "method": m["method"] or "",
                 "source_file": m["source_file"] or "",
             }
-            if bid not in raw_by_bid:
-                raw_by_bid[bid] = _raw_image(str(b.get("repo_path") or ""))
-            image = raw_by_bid.get(bid)
+            image = image_for(bid)
             if image:
                 load_base = b.get("image_base")
                 addr = int(m["addr"] or 0)
                 # No store base means the header base. Keep the two-argument
                 # call for that case so two-argument stand-ins still work.
                 off = _file_offset(image, addr) if load_base is None else _file_offset(image, addr, load_base)
-                if off is not None:
-                    window = unique_window(image, off, int(m["size"] or 0))
-                    if window:
-                        row["expected_bytes"] = window.hex().upper()
-                        windows.append(window)
+                window = unique_window(image, off, int(m["size"] or 0)) if off is not None else None
+                if window:
+                    hex_win = window.hex().upper()
+                    row["expected_bytes"] = hex_win
+                    windows.append(window)
+                    instance_windows.append({"binary": row["binary"], "expected_bytes": hex_win})
+                else:
+                    row["window"] = "not_unique"
+            else:
+                row["window"] = "no_image"
             instances.append(row)
         site_bytes = ""
         if windows:
@@ -139,31 +204,73 @@ def export_hookpack(con, out: Path) -> dict:
             hex_win, n = counts.most_common(1)[0]
             if n == len(windows):
                 site_bytes = hex_win
-        key = _site_key(lf)
+        base_key = _site_key(lf)
+        key = base_key
         if site_keys[key] > 1:
             key = f"{key}__{lid}"
         if key in sites:
             raise ValueError(f"hook pack site key collision: {key}")
-        sites[key] = {
+
+        policy_key, site_policy_entry = lookup_site(policy["sites"], key, base_key)
+        if policy_key is not None:
+            matched_policy.add(policy_key)
+        rule = site_policy_entry or policy["default"]
+        site = {
             "logical_id": lid,
             "cls": lf["canon_class"] or "",
             "method": lf["canon_method"] or "",
             "signature": _preferred_signature(lf["best_signature"], member_sigs),
+            "kind": rule["kind"],
+            "required": bool(rule["required"]),
             "instances": instances,
+            # Sort by (slug, bytes): one build may carry several instances,
+            # and slug alone would leave their order to insertion.
+            "instance_windows": sorted(instance_windows, key=lambda w: (w["binary"], w["expected_bytes"])),
         }
+        if rule.get("field"):
+            site["offset"] = int(rule["field"]["offset"])
+            site["size"] = int(rule["field"]["size"])
         if site_bytes:
-            sites[key]["expected_bytes"] = site_bytes
+            site["expected_bytes"] = site_bytes
+        if windows:
+            hits = max(Counter(w.hex().upper() for w in windows).values())
+            site["expected_bytes_agreement"] = {"hits": hits, "of": len(windows)}
+
+        map_key, adapter_key = lookup_site(amap["keys"], key, base_key)
+        if map_key is not None:
+            matched_map.add(map_key)
+            site["adapter_key"] = adapter_key
+            adapter_keys_by_site[key] = adapter_key
+        alias_key, aliases = lookup_site(amap["aliases"], key, base_key)
+        if alias_key is not None:
+            matched_map.add(alias_key)
+            site["aliases"] = list(aliases)
+        sites[key] = site
+
+    # A base-key fallback can hand one adapter key to several suffixed sites.
+    # That is the same collision the loader rejects, so reject it here too.
+    check_adapter_key_collisions(adapter_keys_by_site, where="hook pack")
 
     pack = {
         "format": FORMAT,
         "basis": basis(con),
         "note": "VA is a cache. Resolve with signature; bind by logical_id.",
-        "binaries": [
-            {"slug": b["slug"], "game": b["game"], "platform": b["platform"], "format": b["format"]}
-            for b in binaries.values()
-        ],
+        "binaries": sorted(
+            (_binary_entry(b, lambda bid=bid: image_for(bid)) for bid, b in binaries.items()),
+            key=lambda e: e["slug"],
+        ),
         "sites": sites,
     }
+    if site_policy is not None or adapter_map is not None:
+        pack["policy_hashes"] = {
+            "site_policy": file_sha256(site_policy),
+            "adapter_map": file_sha256(adapter_map),
+        }
+        map_site_keys = set(amap["keys"]) | set(amap["aliases"])
+        pack["policy_unmatched"] = {
+            "sites": sorted(set(policy["sites"]) - matched_policy),
+            "adapter_keys": sorted(map_site_keys - matched_map),
+        }
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(pack, indent=2, sort_keys=True) + "\n", encoding="utf-8")

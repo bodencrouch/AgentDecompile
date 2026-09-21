@@ -380,3 +380,6 @@ codex-session-*.md
 node_modules/
 /package.json
 /package-lock.json
+
+# Claude Code worktrees live beside the checkout; never track them as gitlinks.
+.claude/worktrees/

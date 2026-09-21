@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+
 from types import SimpleNamespace
 
 import pytest
@@ -9,6 +10,7 @@ from agentdecompile_cli.mcp_server.program_metadata import payload_has_mutating_
 from agentdecompile_cli.mcp_server.providers.datatypes import DataTypeToolProvider
 from agentdecompile_cli.mcp_server.tool_providers import n
 from agentdecompile_cli.registry import Tool, resolve_tool_name
+
 from tests.helpers import create_test_program, ghidra_install_available
 
 _INTEGRATION_SKIP = pytest.mark.skipif(

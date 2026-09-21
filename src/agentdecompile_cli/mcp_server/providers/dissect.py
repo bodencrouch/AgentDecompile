@@ -292,7 +292,7 @@ class GetFunctionAioToolProvider(ToolProvider):
                         diag["dataAtAddress"] = {
                             "dataType": str(dt.getName()) if dt is not None else "unknown",
                             "length": int(data.getLength()),
-                            "value": str(data.getValue()) if not isinstance(data.getValue(), type(None)) else None,
+                            "value": str(data.getValue()) if data.getValue() is not None else None,
                         }
                 except Exception:
                     pass

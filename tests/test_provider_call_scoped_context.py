@@ -103,7 +103,7 @@ def test_unavailable_wrapper_preserves_direct_api_fallback(monkeypatch):
 @pytest.mark.asyncio
 async def test_datatype_nested_dispatch_uses_target_program():
     category = SimpleNamespace(getName=lambda: "program-A", getCategoryPath=lambda: "/program-A")
-    root = SimpleNamespace(getCategories=lambda: [category], getDataTypes=lambda: [])
+    root = SimpleNamespace(getCategories=lambda: [category], getDataTypes=list)
     target = SimpleNamespace(program=SimpleNamespace(getDataTypeManager=lambda: SimpleNamespace(getRootCategory=lambda: root)))
     provider = DataTypeToolProvider()
     provider.program_info = SimpleNamespace(program=object())

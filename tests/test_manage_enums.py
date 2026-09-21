@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-from mcp import types
 
 from agentdecompile_cli.mcp_server.providers.enums import (
     EnumToolProvider,
@@ -12,6 +11,7 @@ from agentdecompile_cli.mcp_server.providers.enums import (
 from agentdecompile_cli.mcp_server.response_formatter import render_tool_response
 from agentdecompile_cli.mcp_server.tool_providers import create_success_response
 from agentdecompile_cli.registry import Tool, resolve_tool_name
+from mcp import types
 
 
 @pytest.mark.unit

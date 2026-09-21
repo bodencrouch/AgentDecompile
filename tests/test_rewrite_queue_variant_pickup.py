@@ -10,8 +10,8 @@ from typing import Any
 import pytest
 
 from agentdecompile_recovery import rewrite_queue
-from agentdecompile_recovery.autonomy_budget import AutonomyBudget
 from agentdecompile_recovery.autonomous_policy import choose_next_action
+from agentdecompile_recovery.autonomy_budget import AutonomyBudget
 from agentdecompile_recovery.mismatch_classify import CLASS_OPERAND
 from agentdecompile_recovery.plugin_pipeline import AUTONOMY_STOP_ACTIONS
 from agentdecompile_recovery.source_parity_synthesize import (

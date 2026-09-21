@@ -21,9 +21,10 @@ import sys
 import time
 import uuid
 
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, Callable, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from mcp import types
 
@@ -1839,9 +1840,7 @@ class ProjectToolProvider(ToolProvider):
                     [
                         "Verify the path exists in the backend filesystem.",
                         "Retry with an absolute path visible to the backend runtime.",
-                        "Call `{}` with `mode=list` on the parent directory to verify available files.".format(
-                            recommend_tool(Tool.MANAGE_FILES.value, Tool.LIST_PROJECT_FILES.value) or Tool.LIST_PROJECT_FILES.value
-                        ),
+                        f"Call `{recommend_tool(Tool.MANAGE_FILES.value, Tool.LIST_PROJECT_FILES.value) or Tool.LIST_PROJECT_FILES.value}` with `mode=list` on the parent directory to verify available files.",
                         "Retry with an absolute path that exists in the backend filesystem.",
                     ],
                 ),
@@ -1938,9 +1937,7 @@ class ProjectToolProvider(ToolProvider):
                     [
                         "Verify the path exists in the backend filesystem.",
                         "Retry with an absolute path visible to the backend runtime.",
-                        "Call `{}` with `mode=list` on the parent directory to verify available files.".format(
-                            recommend_tool(Tool.MANAGE_FILES.value, Tool.LIST_PROJECT_FILES.value) or Tool.LIST_PROJECT_FILES.value
-                        ),
+                        f"Call `{recommend_tool(Tool.MANAGE_FILES.value, Tool.LIST_PROJECT_FILES.value) or Tool.LIST_PROJECT_FILES.value}` with `mode=list` on the parent directory to verify available files.",
                         "Retry with an absolute path that exists in the backend filesystem.",
                     ],
                 ),
@@ -2848,7 +2845,7 @@ class ProjectToolProvider(ToolProvider):
         if not base_path.exists():
             manage_files_tool = recommend_tool(Tool.MANAGE_FILES.value, Tool.LIST_PROJECT_FILES.value)
             steps = [
-                "Run `{}` `mode=list` on the parent directory to discover valid paths.".format(manage_files_tool or Tool.LIST_PROJECT_FILES.value),
+                f"Run `{manage_files_tool or Tool.LIST_PROJECT_FILES.value}` `mode=list` on the parent directory to discover valid paths.",
                 "Retry with an existing directory path.",
             ]
             raise ActionableError(

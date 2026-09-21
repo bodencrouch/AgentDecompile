@@ -21,11 +21,12 @@ import sys
 import tempfile
 import time
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 from itertools import islice
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 from mcp import types
 
@@ -1528,7 +1529,7 @@ class ImportExportToolProvider(ToolProvider):
                             if hasattr(program, "setName"):
                                 program.setName(name)
                             elif hasattr(program, "name"):
-                                setattr(program, "name", name)
+                                program.name = name
                         except Exception:
                             pass
                         await _native_call(ghidra_project.saveAs, program, dest_folder, name, True)

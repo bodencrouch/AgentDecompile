@@ -10,10 +10,9 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 
-from fastapi import FastAPI
-
 from agentdecompile_recovery.exchange import routes
 from agentdecompile_recovery.exchange.store import ExchangeStore
+from fastapi import FastAPI
 
 pytestmark = [pytest.mark.unit, pytest.mark.asyncio]
 BASE = "/dashboard/api/exchange"

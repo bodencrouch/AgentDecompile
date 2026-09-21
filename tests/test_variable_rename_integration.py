@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+
 from types import SimpleNamespace
 from typing import Any
 
@@ -13,6 +14,7 @@ from agentdecompile_cli.mcp_server.providers.getfunction import (
     GetFunctionToolProvider,
     is_default_decompiler_var_name,
 )
+
 from tests.helpers import create_test_program_with_stack_function, ghidra_install_available
 
 _INTEGRATION_SKIP = pytest.mark.skipif(

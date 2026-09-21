@@ -1144,8 +1144,7 @@ class SearchEverythingToolProvider(ToolProvider):
         best = 0.0
         for candidate in candidates:
             similarity = float(difflib.SequenceMatcher(None, query, candidate).ratio())
-            if similarity > best:
-                best = similarity
+            best = max(best, similarity)
             if best >= 1.0:
                 break
         return best

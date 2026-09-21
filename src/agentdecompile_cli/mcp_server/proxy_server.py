@@ -15,10 +15,10 @@ import socket
 import threading
 import time
 
-from typing import Callable
+from collections.abc import Awaitable, Callable
 from contextlib import AbstractContextManager
 from contextvars import Token
-from typing import TYPE_CHECKING, Any, Awaitable
+from typing import TYPE_CHECKING, Any
 
 import uvicorn
 

@@ -20,9 +20,10 @@ import subprocess
 import sys
 import tempfile
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from .objdiff_verification import is_objdiff_match
 from .package_verify import build_shim, compile_with_msvc
@@ -20356,7 +20357,7 @@ def run_msvc_source_shape_search(
     attempts: list[dict[str, Any]] = []
     for variant_index, variant in enumerate(variants[:8]):
         for profile_index, (profile_name, profile_args) in enumerate(profiles[:4]):
-            variant_key = hashlib.sha1(f"{variant.get('name')}|{profile_name}".encode("utf-8")).hexdigest()[:8]
+            variant_key = hashlib.sha1(f"{variant.get('name')}|{profile_name}".encode()).hexdigest()[:8]
             variant_dir = search_dir / f"v{variant_index:02d}_p{profile_index:02d}_{variant_key}"
             variant_dir.mkdir(parents=True, exist_ok=True)
             source_path = variant_dir / "candidate.c"

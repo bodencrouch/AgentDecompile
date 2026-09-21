@@ -7,9 +7,9 @@ from contextlib import nullcontext
 from types import ModuleType, SimpleNamespace
 from typing import Any, cast
 
+import agentdecompile_cli.mcp_server.providers.search_everything as search_module
 import pytest
 
-import agentdecompile_cli.mcp_server.providers.search_everything as search_module
 from agentdecompile_cli.mcp_server.providers.search_everything import SearchEverythingToolProvider
 
 
@@ -176,9 +176,9 @@ def test_search_decompilation_counts_cancelled_timeouts(monkeypatch: pytest.Monk
     fake_ghidra_util = ModuleType("ghidra.util")
     fake_ghidra_task = ModuleType("ghidra.util.task")
 
-    setattr(fake_ghidra_decompiler, "DecompileResults", FakeDecompileResults)
-    setattr(fake_ghidra_decompiler, "DecompiledFunction", object)
-    setattr(fake_ghidra_task, "ConsoleTaskMonitor", object)
+    fake_ghidra_decompiler.DecompileResults = FakeDecompileResults
+    fake_ghidra_decompiler.DecompiledFunction = object
+    fake_ghidra_task.ConsoleTaskMonitor = object
 
     monkeypatch.setitem(sys.modules, "ghidra", fake_ghidra)
     monkeypatch.setitem(sys.modules, "ghidra.app", fake_ghidra_app)
@@ -252,7 +252,7 @@ def test_search_decompilation_prefers_target_program_info_decompiler(monkeypatch
     fake_ghidra = ModuleType("ghidra")
     fake_ghidra_util = ModuleType("ghidra.util")
     fake_ghidra_task = ModuleType("ghidra.util.task")
-    setattr(fake_ghidra_task, "ConsoleTaskMonitor", object)
+    fake_ghidra_task.ConsoleTaskMonitor = object
     monkeypatch.setitem(sys.modules, "ghidra", fake_ghidra)
     monkeypatch.setitem(sys.modules, "ghidra.util", fake_ghidra_util)
     monkeypatch.setitem(sys.modules, "ghidra.util.task", fake_ghidra_task)
@@ -366,7 +366,7 @@ def test_search_structures_enriches_field_preview_and_related_class(monkeypatch:
     fake_ghidra_program = ModuleType("ghidra.program")
     fake_ghidra_model = ModuleType("ghidra.program.model")
     fake_ghidra_symbol = ModuleType("ghidra.program.model.symbol")
-    setattr(fake_ghidra_symbol, "SymbolType", FakeSymbolType)
+    fake_ghidra_symbol.SymbolType = FakeSymbolType
 
     monkeypatch.setitem(sys.modules, "ghidra.program", fake_ghidra_program)
     monkeypatch.setitem(sys.modules, "ghidra.program.model", fake_ghidra_model)
@@ -433,7 +433,7 @@ def test_search_classes_enriches_related_structure_and_references(monkeypatch: p
     fake_ghidra_program = ModuleType("ghidra.program")
     fake_ghidra_model = ModuleType("ghidra.program.model")
     fake_ghidra_symbol = ModuleType("ghidra.program.model.symbol")
-    setattr(fake_ghidra_symbol, "SymbolType", FakeSymbolType)
+    fake_ghidra_symbol.SymbolType = FakeSymbolType
 
     monkeypatch.setitem(sys.modules, "ghidra.program", fake_ghidra_program)
     monkeypatch.setitem(sys.modules, "ghidra.program.model", fake_ghidra_model)

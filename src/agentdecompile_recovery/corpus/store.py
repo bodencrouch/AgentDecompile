@@ -256,14 +256,23 @@ def ensure_binary_columns(con: sqlite3.Connection) -> None:
         # Best-effort backfill. This is data, not schema -- reads work without
         # it -- so a read-only consumer that cannot get the write lock (many
         # concurrent orchestrator watchers hold WAL read locks) must proceed
-        # rather than crash. Whichever connection wins the lock backfills it.
+        # rather than crash. Whichever connection wins the lock backfills it;
+        # the value is a function of each row's own id, so the winner and the
+        # visit order cannot change what gets written. Only the lock/read-only
+        # cases are tolerated; any other failure surfaces.
         try:
             con.execute(
                 "UPDATE binary SET recovery_family='unclassified:' || id "
                 "WHERE recovery_family IS NULL OR trim(recovery_family)=''"
             )
-        except sqlite3.OperationalError:
-            pass
+        except sqlite3.OperationalError as exc:
+            if not _is_lock_or_readonly(exc):
+                raise
+
+
+def _is_lock_or_readonly(exc: sqlite3.OperationalError) -> bool:
+    text = str(exc).lower()
+    return "locked" in text or "busy" in text or "readonly" in text or "read-only" in text
 
 
 def ensure_priority_index(con: sqlite3.Connection) -> None:

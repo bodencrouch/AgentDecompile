@@ -531,10 +531,13 @@ def fix_scalar_dot_fields(code: str) -> str:
 def load_functions(program: str, sample: int | None):
     kb = sqlite3.connect(f"file:{KB}?mode=ro", uri=True)
     kb.row_factory = sqlite3.Row
+    # Shortest-first is the work order; ``entry_hex`` makes the ORDER BY
+    # total so ties (and therefore ``sample`` and the queue that feeds the
+    # failure log) do not follow the query plan.
     rows = kb.execute(
         "SELECT entry_hex, name, decompiled, size FROM func_knowledge"
         " WHERE program=? AND decompiled IS NOT NULL AND decompiled<>''"
-        " ORDER BY length(decompiled), size", (program,)).fetchall()
+        " ORDER BY length(decompiled), size, entry_hex", (program,)).fetchall()
     kb.close()
     return rows[:sample] if sample else rows
 
@@ -835,7 +838,7 @@ def write_compile_receipt(out_dir: pathlib.Path, program: str, ok_ids: list[str]
     dest = pathlib.Path(out_dir) / "compile-receipt.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(
-        json.dumps({"program": program, "ok": list(ok_ids)}, indent=2) + "\n",
+        json.dumps({"program": program, "ok": sorted(ok_ids)}, indent=2) + "\n",
         encoding="utf-8",
     )
     return dest

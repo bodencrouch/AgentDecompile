@@ -1,10 +1,11 @@
 """Basic-block hash containment as an inlining failsafe.
 
 When a function disappears on one side of a match and another function grew,
-callers can pass optional per-block hashes (``block_hashes`` or ``blocks``)
-and ask whether the missing body's blocks sit inside exactly one survivor.
-Empty hash sets never participate — stored ``func`` rows today have
-``n_blocks`` but not per-block hashes, and an empty set is not evidence.
+callers can pass per-block hashes (``block_hashes`` or ``blocks``) and ask
+whether the missing body's blocks sit inside exactly one survivor. Stored
+``func`` rows carry ``block_hashes`` (computed in ``features.py``, persisted
+by ``store.py``); rows without them yield an empty set, which never
+participates — an empty set is not evidence.
 """
 
 from __future__ import annotations
@@ -110,6 +111,10 @@ def inline_hits(missing: list[Fn], survivors: list[Fn]) -> list[dict[str, Any]]:
 
     All emitted relations are review evidence. They must not become logical
     identity bindings unless a later stage proves a real one-to-one function.
+
+    Output does not depend on the order of ``missing`` or ``survivors``:
+    every host/fragment pick uses a total key and the hit list is emitted
+    sorted by (missing id, host id, kind).
     """
     # This used to evaluate ``blocks_contained`` against every surviving
     # function for every missing function.  A large cross-build comparison can
@@ -254,6 +259,7 @@ def inline_hits(missing: list[Fn], survivors: list[Fn]) -> list[dict[str, Any]]:
                     evidence={"coverage": round(coverage, 4), "host_unique": True},
                 ))
                 handled.add(missing_id)
+    hits.sort(key=lambda hit: (str(hit["missing_id"]), str(hit["host_id"]), hit["kind"]))
     return hits
 
 

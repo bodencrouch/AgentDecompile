@@ -366,6 +366,8 @@ def test_hookpack_pe32_output_identical_with_and_without_store_base(tmp_path: Pa
     out_base = tmp_path / "base.json"
     hp.export_hookpack(_hookpack_store(tmp_path / "base.sqlite", image_base=0x400000), out_base)
 
-    assert out_null.read_bytes() == out_base.read_bytes()
+    # The mapper claim: a NULL store base and the header base map every site identically.
+    # binaries[] now carries image_base from the row (U1), so compare the sites only.
     pack = json.loads(out_null.read_text(encoding="utf-8"))
+    assert pack["sites"] == json.loads(out_base.read_text(encoding="utf-8"))["sites"]
     assert pack["sites"]["Run"]["expected_bytes"] == "535556578B7C2414"

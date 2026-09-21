@@ -220,6 +220,31 @@ def test_prune_consumed_entries_removes_completed_and_failed(tmp_path: Path) -> 
     assert rewrite_queue.find_entry(tmp_path, pending_id) is not None, "pending entries must never be pruned"
 
 
+def test_consumed_exchange_receipt_does_not_replay_when_request_is_reissued(tmp_path: Path) -> None:
+    kwargs = dict(
+        function_name="sub_1000", entry="0x1000", candidate_source="int sub_1000(void) { return 0; }",
+        mismatch_class="operand", mismatch_histogram={"ARGUMENT_MISMATCH": 1},
+    )
+    request_id = rewrite_queue.write_rewrite_request(tmp_path, **kwargs)
+    entry = rewrite_queue.find_entry(tmp_path, request_id)
+    assert entry is not None
+    payload = {key: entry[key] for key in (
+        "functionName", "entry", "candidateSource", "mismatchClass", "mismatchHistogram", "alignedDiff", "compilerProfile",
+    )}
+    receipt = "exchange:unit-1:proposal-1"
+
+    assert rewrite_queue.import_exchange_result(
+        tmp_path, request_id=request_id, payload=payload, source="int sub_1000(void) { return 1; }", receipt=receipt,
+    )
+    rewrite_queue.prune_consumed_entries(tmp_path, [request_id])
+    assert rewrite_queue.write_rewrite_request(tmp_path, **kwargs) == request_id
+
+    assert not rewrite_queue.import_exchange_result(
+        tmp_path, request_id=request_id, payload=payload, source="int sub_1000(void) { return 1; }", receipt=receipt,
+    )
+    assert rewrite_queue.find_entry(tmp_path, request_id)["status"] == rewrite_queue.STATUS_PENDING
+
+
 def test_count_requests_for_function(tmp_path: Path) -> None:
     rewrite_queue.write_rewrite_request(
         tmp_path, function_name="sub_1000", entry="0x1000", candidate_source="s1", mismatch_class=None, mismatch_histogram=None

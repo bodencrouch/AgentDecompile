@@ -7,17 +7,20 @@ overwrite custom data. Use resolution=overwrite to apply the change or resolutio
 from __future__ import annotations
 
 import logging
+
+from types import SimpleNamespace
 from typing import Any
 
 from mcp import types
 
 from agentdecompile_cli.app_logger import redact_session_id
+from agentdecompile_cli.context import ProgramInfo
 from agentdecompile_cli.mcp_server.conflict_store import get as conflict_get, remove as conflict_remove
 from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
 from agentdecompile_cli.mcp_server.tool_providers import (
     ToolProvider,
-    create_success_response,
     create_error_response,
+    create_success_response,
     n,
 )
 from agentdecompile_cli.registry import Tool
@@ -56,7 +59,7 @@ class ConflictResolutionToolProvider(ToolProvider):
             ),
         ]
 
-    async def _handle(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/conflict_resolution.py:ConflictResolutionToolProvider._handle")
         conflict_id = self._require_str(args, "conflictid", name="conflictId")
         resolution = self._get_str(args, "resolution", "action")
@@ -91,7 +94,7 @@ class ConflictResolutionToolProvider(ToolProvider):
             invoke_args["programPath"] = pending.program_path
         src_tool = pending.tool
         try:
-            result = await self._manager.call_tool(pending.tool, invoke_args, program_info=self.program_info)
+            result = await self._manager.call_tool(pending.tool, invoke_args, program_info=program_info)
         except Exception as e:
             logger.warning(
                 "resolve-modification-conflict overwrite failed exc_type=%s",

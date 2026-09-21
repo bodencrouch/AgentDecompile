@@ -26,23 +26,27 @@ import re
 import uuid
 
 from collections import defaultdict
-from pathlib import Path
 from dataclasses import dataclass
 from itertools import islice
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 if TYPE_CHECKING:
+    from types import SimpleNamespace
+
     from ghidra.program.model.listing import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
         Function as GhidraFunction,
         FunctionManager as GhidraFunctionManager,
         Program as GhidraProgram,
     )
 
+    from agentdecompile_cli.launcher import ProgramInfo
+
 from mcp import types
 
 from agentdecompile_cli.app_logger import basename_hint, redact_session_id
-from agentdecompile_cli.mcp_server.providers._collectors import iter_items, make_task_monitor
 from agentdecompile_cli.mcp_server.profiling import ProfileCapture
+from agentdecompile_cli.mcp_server.providers._collectors import iter_items, make_task_monitor
 from agentdecompile_cli.mcp_server.session_context import (
     SESSION_CONTEXTS,
     get_current_mcp_session_id,
@@ -339,23 +343,24 @@ class GetFunctionToolProvider(ToolProvider):
     async def _handle_manage(
         self,
         args: dict[str, Any],
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_manage")
-        self._require_program()
+        self._require_program(program_info=program_info)
         action = self._require_str(args, "mode", "action", "operation", name="mode")
         func_id = self._get_address_or_symbol(args)
-        assert self.program_info is not None, "program_info should not be None after _require_program()"
-        program = self.program_info.program
+        assert program_info is not None, "program_info should not be None after _require_program()"
+        program = program_info.program
 
         action_n = n(action)
         # Handle create early (no target function required)
         if action_n == "create":
             addr_str = self._require_address_or_symbol(args)
-            addr = self._resolve_address(addr_str, program=program)
+            addr = self._resolve_address(addr_str, program=program, program_info=program_info)
             name = self._get_str(args, "newname", "name", "functionname", default="")
 
             def _create_function():
-                fm = self._get_function_manager(program)
+                fm = self._get_function_manager(program, program_info=program_info)
                 from ghidra.program.model.symbol import SourceType  # pyright: ignore[reportMissingModuleSource]
 
                 return fm.createFunction(name or None, addr, None, SourceType.USER_DEFINED)
@@ -366,7 +371,7 @@ class GetFunctionToolProvider(ToolProvider):
         # All other actions need an existing function (rename, set_prototype, delete, etc.)
         if not func_id:
             raise ValueError("function or addressOrSymbol required")
-        func = self._resolve_function(func_id, program=program)
+        func = self._resolve_function(func_id, program=program, program_info=program_info)
         if func is None:
             raise ValueError(f"Function not found: {func_id}")
 
@@ -393,49 +398,50 @@ class GetFunctionToolProvider(ToolProvider):
             program=program,
             func=func,
             func_id=func_id,
+            program_info=program_info,
         )
 
-    async def _handle_guide_function(self, args, program, func, func_id):
+    async def _handle_guide_function(self, args, program, func, func_id, *, program_info: ProgramInfo | SimpleNamespace | None):
         from .guide_function import function_properties, update_function
         mode = n(self._get_str(args, "mode"))
         before = function_properties(program, func)
         if mode == "info":
             return create_success_response({"action": "info", **before})
         if not args.get(FORCE_APPLY_CONFLICT_ID_KEY):
-            return self._store_variable_conflict(args, "Change function properties/storage. Current values:\n" + json.dumps({k: v for k, v in before.items() if not k.startswith("available")}, indent=2) + "\nRequested values:\n" + json.dumps(args, default=str))
+            return self._store_variable_conflict(args, "Change function properties/storage. Current values:\n" + json.dumps({k: v for k, v in before.items() if not k.startswith("available")}, indent=2) + "\nRequested values:\n" + json.dumps(args, default=str), program_info=program_info)
         self._run_program_transaction(program, mode, lambda: update_function(program, func, args, mode))
-        self._notify_versioned_checkout_after_program_edit(program)
+        self._notify_versioned_checkout_after_program_edit(program, program_info=program_info)
         return create_success_response({"success": True, "action": mode, **function_properties(program, func)})
 
-    async def _handle_mode_alias(self, args: dict[str, Any], mode: str) -> list[types.TextContent]:
+    async def _handle_mode_alias(self, args: dict[str, Any], mode: str, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         forwarded_args = dict(args)
         forwarded_args.setdefault("mode", mode)
-        return await self._handle_manage(forwarded_args)
+        return await self._handle_manage(forwarded_args, program_info=program_info)
 
-    async def _handle_rename_variable_alias(self, args: dict[str, Any]) -> list[types.TextContent]:
-        return await self._handle_mode_alias(args, "rename_variable")
+    async def _handle_rename_variable_alias(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        return await self._handle_mode_alias(args, "rename_variable", program_info=program_info)
 
-    async def _handle_set_variable_type_alias(self, args: dict[str, Any]) -> list[types.TextContent]:
-        return await self._handle_mode_alias(args, "set_variable_type")
+    async def _handle_set_variable_type_alias(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        return await self._handle_mode_alias(args, "set_variable_type", program_info=program_info)
 
-    async def _handle_change_datatypes_alias(self, args: dict[str, Any]) -> list[types.TextContent]:
-        return await self._handle_mode_alias(args, "change_datatypes")
+    async def _handle_change_datatypes_alias(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        return await self._handle_mode_alias(args, "change_datatypes", program_info=program_info)
 
-    def _session_decompiler(self) -> Any | None:
-        if self.program_info is None:
+    def _session_decompiler(self, *, program_info: ProgramInfo | SimpleNamespace | None) -> Any | None:
+        if program_info is None:
             return None
-        getter = getattr(self.program_info, "get_decompiler", None)
+        getter = getattr(program_info, "get_decompiler", None)
         if callable(getter):
             try:
                 return getter()
             except Exception:
-                return getattr(self.program_info, "decompiler", None)
-        return getattr(self.program_info, "decompiler", None)
+                return getattr(program_info, "decompiler", None)
+        return getattr(program_info, "decompiler", None)
 
-    def _decompile_high_function(self, program: GhidraProgram, func: GhidraFunction, timeout_s: int = 60) -> Any:
+    def _decompile_high_function(self, program: GhidraProgram, func: GhidraFunction, timeout_s: int = 60, *, program_info: ProgramInfo | SimpleNamespace | None) -> Any:
         from agentdecompile_cli.mcp_utils.decompiler_util import acquire_decompiler_for_program
 
-        session_decomp = self._session_decompiler()
+        session_decomp = self._session_decompiler(program_info=program_info)
         with acquire_decompiler_for_program(session_decomp, program) as lease:
             result = lease.decompiler.decompileFunction(func, timeout_s, make_task_monitor())
             if result is None or not result.decompileCompleted():
@@ -475,6 +481,7 @@ class GetFunctionToolProvider(ToolProvider):
         self,
         args: dict[str, Any],
         summary: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         from agentdecompile_cli.mcp_server.conflict_store import store as conflict_store_store
 
@@ -483,8 +490,8 @@ class GetFunctionToolProvider(ToolProvider):
             f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" '
             f'and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
         )
-        program_path = args.get(n("programPath")) or (getattr(self.program_info, "path", None) if self.program_info else None) or (
-            getattr(self.program_info, "file_path", None) if self.program_info else None
+        program_path = args.get(n("programPath")) or (getattr(program_info, "path", None) if program_info else None) or (
+            getattr(program_info, "file_path", None) if program_info else None
         )
         conflict_store_store(
             get_current_mcp_session_id(),
@@ -502,6 +509,7 @@ class GetFunctionToolProvider(ToolProvider):
         program: GhidraProgram,
         func: GhidraFunction,
         func_id: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_rename")
         new_name = self._require_str(args, "newname", "name", name="newName")
@@ -514,7 +522,7 @@ class GetFunctionToolProvider(ToolProvider):
                 conflict_id = str(uuid.uuid4())
                 conflict_summary = f"Rename would overwrite existing custom function name:\n\n```diff\n- {current_name}\n+ {new_name}\n```"
                 next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                program_path = args.get(n("programPath")) or (getattr(self.program_info, "path", None) if self.program_info else None) or (getattr(self.program_info, "file_path", None) if self.program_info else None)
+                program_path = args.get(n("programPath")) or (getattr(program_info, "path", None) if program_info else None) or (getattr(program_info, "file_path", None) if program_info else None)
                 conflict_store_store(
                     get_current_mcp_session_id(),
                     conflict_id,
@@ -538,7 +546,7 @@ class GetFunctionToolProvider(ToolProvider):
             self._touch_listing_for_shared_checkin(program)
 
         self._run_program_transaction(program, "rename-function", _rename_function)
-        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"))
+        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"), program_info=program_info)
         return create_success_response(
             {
                 "action": "rename",
@@ -548,7 +556,7 @@ class GetFunctionToolProvider(ToolProvider):
             },
         )
 
-    def _notify_versioned_checkout_after_program_edit(self, program: GhidraProgram, program_path: str | None = None) -> None:
+    def _notify_versioned_checkout_after_program_edit(self, program: GhidraProgram, program_path: str | None = None, *, program_info: ProgramInfo | SimpleNamespace | None) -> None:
         """Align shared checkout metadata with function edits so versioned checkin can persist updates."""
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._notify_versioned_checkout_after_program_edit")
         if program is None:
@@ -575,7 +583,7 @@ class GetFunctionToolProvider(ToolProvider):
                 if iep is not None:
                     if hasattr(iep, "_bump_versioned_checkout_dirty_bookmark"):
                         iep._bump_versioned_checkout_dirty_bookmark(program)
-                    iep._persist_open_program_for_versioned_checkin(program)
+                    iep._persist_open_program_for_versioned_checkin(program, program_info=program_info)
 
             _ImportExport._force_domain_object_changed_for_versioned_checkin(program)
             df = None
@@ -586,7 +594,7 @@ class GetFunctionToolProvider(ToolProvider):
             if df is not None:
                 if iep is not None and hasattr(iep, "_save_domain_file_before_versioned_checkin"):
                     try:
-                        iep._save_domain_file_before_versioned_checkin(df, program)
+                        iep._save_domain_file_before_versioned_checkin(df, program, program_info=program_info)
                     except Exception as flush_exc:
                         logger.debug("save_domain_file_before_versioned_checkin after edit: %s", flush_exc)
                 _ImportExport._try_mark_versioned_checkout_dirty(df)
@@ -626,6 +634,7 @@ class GetFunctionToolProvider(ToolProvider):
         program: GhidraProgram,
         func: GhidraFunction,
         func_id: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_set_prototype")
         proto = self._require_str(args, "prototype", "signature", name="prototype")
@@ -638,7 +647,7 @@ class GetFunctionToolProvider(ToolProvider):
                 conflict_id = str(uuid.uuid4())
                 conflict_summary = f"Set prototype would overwrite existing signature:\n\n```diff\n- {current_sig}\n+ {proto}\n```"
                 next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                program_path = args.get(n("programPath")) or (getattr(self.program_info, "path", None) if self.program_info else None) or (getattr(self.program_info, "file_path", None) if self.program_info else None)
+                program_path = args.get(n("programPath")) or (getattr(program_info, "path", None) if program_info else None) or (getattr(program_info, "file_path", None) if program_info else None)
                 conflict_store_store(
                     get_current_mcp_session_id(),
                     conflict_id,
@@ -668,6 +677,7 @@ class GetFunctionToolProvider(ToolProvider):
         program: GhidraProgram,
         func: GhidraFunction,
         func_id: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_set_calling_convention")
         cc = self._require_str(args, "callingconvention", "convention", name="callingConvention")
@@ -680,7 +690,7 @@ class GetFunctionToolProvider(ToolProvider):
                 conflict_id = str(uuid.uuid4())
                 conflict_summary = f"Set calling convention would overwrite existing:\n\n```diff\n- {current_cc}\n+ {cc}\n```"
                 next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                program_path = args.get(n("programPath")) or (getattr(self.program_info, "path", None) if self.program_info else None) or (getattr(self.program_info, "file_path", None) if self.program_info else None)
+                program_path = args.get(n("programPath")) or (getattr(program_info, "path", None) if program_info else None) or (getattr(program_info, "file_path", None) if program_info else None)
                 conflict_store_store(
                     get_current_mcp_session_id(),
                     conflict_id,
@@ -710,6 +720,7 @@ class GetFunctionToolProvider(ToolProvider):
         program: GhidraProgram,
         func: GhidraFunction,
         func_id: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_set_return_type")
         rt_str = self._require_str(args, "returntype", "newtype", "type", name="returnType")
@@ -727,7 +738,7 @@ class GetFunctionToolProvider(ToolProvider):
                 conflict_id = str(uuid.uuid4())
                 conflict_summary = f"Set return type would overwrite existing:\n\n```diff\n- {current_rt}\n+ {rt_str}\n```"
                 next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                program_path = args.get(n("programPath")) or (getattr(self.program_info, "path", None) if self.program_info else None) or (getattr(self.program_info, "file_path", None) if self.program_info else None)
+                program_path = args.get(n("programPath")) or (getattr(program_info, "path", None) if program_info else None) or (getattr(program_info, "file_path", None) if program_info else None)
                 conflict_store_store(
                     get_current_mcp_session_id(),
                     conflict_id,
@@ -759,6 +770,7 @@ class GetFunctionToolProvider(ToolProvider):
         program: GhidraProgram,
         func: GhidraFunction,
         func_id: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_rename_variable")
         mappings = parse_colon_mappings(self._get_str(args, "variablemappings", default=""), label="variableMappings")
@@ -768,11 +780,11 @@ class GetFunctionToolProvider(ToolProvider):
                 item_args = dict(args)
                 item_args["variableName"] = old_name
                 item_args["newName"] = new_name
-                response = await self._apply_single_variable_rename(item_args, program, func, old_name, new_name)
+                response = await self._apply_single_variable_rename(item_args, program, func, old_name, new_name, program_info=program_info)
                 if isinstance(response, list):
                     return response
                 results.append(response)
-            self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"))
+            self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"), program_info=program_info)
             return create_success_response(
                 {
                     "action": "rename_variable",
@@ -787,10 +799,10 @@ class GetFunctionToolProvider(ToolProvider):
         new_name = self._get_str(args, "newname", "name", default="").strip()
         if not variable_name or not new_name:
             raise ValueError("variableName (or oldName) and newName are required for rename_variable")
-        result = await self._apply_single_variable_rename(args, program, func, variable_name, new_name)
+        result = await self._apply_single_variable_rename(args, program, func, variable_name, new_name, program_info=program_info)
         if isinstance(result, list):
             return result
-        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"))
+        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"), program_info=program_info)
         return create_success_response(
             {
                 "action": "rename_variable",
@@ -807,8 +819,9 @@ class GetFunctionToolProvider(ToolProvider):
         func: GhidraFunction,
         variable_name: str,
         new_name: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> dict[str, Any] | list[types.TextContent]:
-        hfunc = self._decompile_high_function(program, func)
+        hfunc = self._decompile_high_function(program, func, program_info=program_info)
         high_symbol = self._find_high_symbol(hfunc, variable_name)
         current_name = str(high_symbol.getName() or variable_name)
 
@@ -817,7 +830,7 @@ class GetFunctionToolProvider(ToolProvider):
                 f"Rename variable would overwrite existing custom name in {func.getName()}:\n\n"
                 f"```diff\n- {current_name}\n+ {new_name}\n```"
             )
-            return self._store_variable_conflict(args, summary)
+            return self._store_variable_conflict(args, summary, program_info=program_info)
 
         from ghidra.program.model.pcode import HighFunctionDBUtil  # pyright: ignore[reportMissingModuleSource]
         from ghidra.program.model.symbol import SourceType  # pyright: ignore[reportMissingModuleSource]
@@ -835,6 +848,7 @@ class GetFunctionToolProvider(ToolProvider):
         program: GhidraProgram,
         func: GhidraFunction,
         func_id: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_set_variable_type")
         mappings = parse_colon_mappings(self._get_str(args, "datatypemappings", default=""), label="datatypeMappings")
@@ -844,11 +858,11 @@ class GetFunctionToolProvider(ToolProvider):
                 item_args = dict(args)
                 item_args["variableName"] = var_name
                 item_args["newType"] = type_str
-                response = await self._apply_single_variable_type(item_args, program, func, var_name, type_str)
+                response = await self._apply_single_variable_type(item_args, program, func, var_name, type_str, program_info=program_info)
                 if isinstance(response, list):
                     return response
                 results.append(response)
-            self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"))
+            self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"), program_info=program_info)
             return create_success_response(
                 {
                     "action": "set_variable_type",
@@ -863,10 +877,10 @@ class GetFunctionToolProvider(ToolProvider):
         new_type = self._get_str(args, "newtype", "type", default="").strip()
         if not variable_name or not new_type:
             raise ValueError("variableName and newType are required for set_variable_type")
-        result = await self._apply_single_variable_type(args, program, func, variable_name, new_type)
+        result = await self._apply_single_variable_type(args, program, func, variable_name, new_type, program_info=program_info)
         if isinstance(result, list):
             return result
-        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"))
+        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"), program_info=program_info)
         return create_success_response(
             {
                 "action": "set_variable_type",
@@ -883,10 +897,11 @@ class GetFunctionToolProvider(ToolProvider):
         func: GhidraFunction,
         variable_name: str,
         new_type: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> dict[str, Any] | list[types.TextContent]:
         from ghidra.util.data import DataTypeParser  # pyright: ignore[reportMissingModuleSource]
 
-        hfunc = self._decompile_high_function(program, func)
+        hfunc = self._decompile_high_function(program, func, program_info=program_info)
         high_symbol = self._find_high_symbol(hfunc, variable_name)
         current_type = ""
         try:
@@ -899,7 +914,7 @@ class GetFunctionToolProvider(ToolProvider):
                 f"Set variable type would overwrite existing type for {variable_name} in {func.getName()}:\n\n"
                 f"```diff\n- {current_type}\n+ {new_type}\n```"
             )
-            return self._store_variable_conflict(args, summary)
+            return self._store_variable_conflict(args, summary, program_info=program_info)
 
         dtm = program.getDataTypeManager()
         parser = DataTypeParser(dtm, dtm, cast("Any", None), DataTypeParser.AllowedDataTypes.ALL)
@@ -921,6 +936,7 @@ class GetFunctionToolProvider(ToolProvider):
         program: GhidraProgram,
         func: GhidraFunction,
         func_id: str,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_change_datatypes")
         datatype_mappings = parse_colon_mappings(self._get_str(args, "datatypemappings", default=""), label="datatypeMappings")
@@ -933,7 +949,7 @@ class GetFunctionToolProvider(ToolProvider):
             item_args = dict(args)
             item_args["variableName"] = var_name
             item_args["newType"] = type_str
-            response = await self._apply_single_variable_type(item_args, program, func, var_name, type_str)
+            response = await self._apply_single_variable_type(item_args, program, func, var_name, type_str, program_info=program_info)
             if isinstance(response, list):
                 return response
             results.append({"kind": "type", **response})
@@ -941,12 +957,12 @@ class GetFunctionToolProvider(ToolProvider):
             item_args = dict(args)
             item_args["variableName"] = old_name
             item_args["newName"] = new_name
-            response = await self._apply_single_variable_rename(item_args, program, func, old_name, new_name)
+            response = await self._apply_single_variable_rename(item_args, program, func, old_name, new_name, program_info=program_info)
             if isinstance(response, list):
                 return response
             results.append({"kind": "rename", **response})
 
-        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"))
+        self._notify_versioned_checkout_after_program_edit(program, self._get_str(args, "programpath", "path"), program_info=program_info)
         return create_success_response(
             {
                 "action": "change_datatypes",
@@ -957,9 +973,9 @@ class GetFunctionToolProvider(ToolProvider):
             },
         )
 
-    async def _handle_delete(self, args: dict[str, Any], program: GhidraProgram, func: GhidraFunction, func_id: str) -> list[types.TextContent]:
+    async def _handle_delete(self, args: dict[str, Any], program: GhidraProgram, func: GhidraFunction, func_id: str, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         def _delete_function() -> None:
-            self._get_function_manager(program).removeFunction(func.getEntryPoint())
+            self._get_function_manager(program, program_info=program_info).removeFunction(func.getEntryPoint())
 
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_delete")
         self._run_program_transaction(program, "delete-function", _delete_function)
@@ -971,20 +987,20 @@ class GetFunctionToolProvider(ToolProvider):
             },
         )
 
-    async def _handle_tags(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_tags(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_tags")
-        self._require_program()
+        self._require_program(program_info=program_info)
         action = self._get_str(args, "mode", "action", "operation", default="list")
         func_id = self._get_address_or_symbol(args)
         tag_name = self._get_str(args, "tag", "tagname", "tags", "name")
-        assert self.program_info is not None, "program_info should not be None after _require_program()"
-        program = self.program_info.program
+        assert program_info is not None, "program_info should not be None after _require_program()"
+        program = program_info.program
 
         action_n = n(action)
 
         if action_n == "search":
             # Search for functions with a specific tag
-            fm = self._get_function_manager(program)
+            fm = self._get_function_manager(program, program_info=program_info)
             results = []
             for func in iter_items(fm.getFunctions(True)):
                 tags = list(func.getTags())
@@ -995,13 +1011,13 @@ class GetFunctionToolProvider(ToolProvider):
 
         if not func_id:
             # List all known tags
-            fm = self._get_function_manager(program)
+            fm = self._get_function_manager(program, program_info=program_info)
             all_tags = set()
             for func in iter_items(fm.getFunctions(True)):
                 all_tags.update(t.getName() for t in func.getTags())
             return create_success_response({"action": "list", "tags": sorted(all_tags), "count": len(all_tags)})
 
-        func = self._resolve_function(func_id, program=program)
+        func = self._resolve_function(func_id, program=program, program_info=program_info)
         if func is None:
             raise ValueError(f"Function not found: {func_id}")
 
@@ -1219,10 +1235,11 @@ class GetFunctionToolProvider(ToolProvider):
         program: GhidraProgram,
         include_externals: bool = True,
         limit: int | None = None,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[str]:
         """List function identifiers (name or address) from source program for bulk match."""
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._list_source_function_identifiers")
-        fm = self._get_function_manager(program)
+        fm = self._get_function_manager(program, program_info=program_info)
         identifiers: list[str] = []
         for func in iter_items(fm.getFunctions(include_externals)):
             name = func.getName() or ""
@@ -1249,6 +1266,7 @@ class GetFunctionToolProvider(ToolProvider):
         propagate_prototype: bool = False,
         propagate_bookmarks: bool = False,
         detail_result_count: int | None = None,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         """Match source function to equivalent functions in target programs; optionally propagate name, tags, comments, prototype, bookmarks."""
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_match_cross_program")
@@ -1298,7 +1316,7 @@ class GetFunctionToolProvider(ToolProvider):
                     results_per_target.append({"targetProgramPath": target_path, "matched": None, "error": f"Checkout failed: {e}"})
                     continue
 
-            target_fm = self._get_function_manager(target_program)
+            target_fm = self._get_function_manager(target_program, program_info=program_info)
             target_index, _ = self._get_match_index(target_program, target_fm)
 
             candidates = target_index.by_signature.get(sig_key, [])
@@ -1478,6 +1496,7 @@ class GetFunctionToolProvider(ToolProvider):
                         gf_resp: list[types.TextContent] | None = await manager.call_tool(
                             "get-function",
                             gf_payload,
+                            program_info=target_info,
                         )
                         if gf_resp and isinstance(gf_resp[0], types.TextContent) and gf_resp[0].text:
                             parsed = json.loads(gf_resp[0].text)
@@ -1512,17 +1531,17 @@ class GetFunctionToolProvider(ToolProvider):
             },
         )
 
-    async def _handle_migrate_metadata(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_migrate_metadata(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Bulk metadata migration: delegate to match-function with no functionIdentifier so it iterates all functions."""
         # Omit any function identifier so _handle_match always takes the bulk path
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_migrate_metadata")
         bulk_args: dict[str, Any] = {k: v for k, v in args.items() if n(k) not in ("functionidentifier", "function", "addressorsymbol", "address")}
-        return await self._handle_match(bulk_args)
+        return await self._handle_match(bulk_args, program_info=program_info)
 
-    async def _handle_match(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_match(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Entry for match-function: cross-program (targetProgramPaths set) or single-program (similar/callers/callees/signature)."""
         logger.debug("diag.enter %s", "mcp_server/providers/getfunction.py:GetFunctionToolProvider._handle_match")
-        self._require_program()
+        self._require_program(program_info=program_info)
         raw_targets: list[str] | str | None = args.get(n("targetprogrampaths"))
         target_paths: list[str] = []
         if raw_targets is not None:
@@ -1531,9 +1550,9 @@ class GetFunctionToolProvider(ToolProvider):
             elif str(raw_targets).strip():
                 target_paths = [str(raw_targets).strip()]
         # Cross-program: single function or all functions (when no functionIdentifier given)
-        assert self.program_info is not None
-        program: GhidraProgram = self.program_info.program
-        source_path: str = self._get_str(args, "programpath", default="") or getattr(self.program_info, "file_path", None) or getattr(self.program_info, "path", None) or ""
+        assert program_info is not None
+        program: GhidraProgram = program_info.program
+        source_path: str = self._get_str(args, "programpath", default="") or getattr(program_info, "file_path", None) or getattr(program_info, "path", None) or ""
         source_path = str(source_path).strip() if source_path else ""
         # Resolve targets: from args or discover from session (so bulk works without targetProgramPaths)
         resolved_targets: list[str] = target_paths if target_paths else self._discover_target_paths(source_path or "unknown")
@@ -1542,7 +1561,7 @@ class GetFunctionToolProvider(ToolProvider):
             func_id: str = self._get_address_or_symbol(args)
             if func_id:
                 # Single function: existing behavior
-                func: GhidraFunction | None = self._resolve_function(func_id)
+                func: GhidraFunction | None = self._resolve_function(func_id, program_info=program_info)
                 if func is None:
                     raise ValueError(f"Function not found: {func_id}")
                 min_sim = self._normalize_min_similarity(args)
@@ -1570,6 +1589,7 @@ class GetFunctionToolProvider(ToolProvider):
                     propagate_prototype,
                     propagate_bookmarks,
                     detail_result_count=None,
+                    program_info=program_info,
                 )
 
             # No functionIdentifier: iterate all functions (bulk migration)
@@ -1579,7 +1599,7 @@ class GetFunctionToolProvider(ToolProvider):
             # Treat limit<=0 as no limit (process all functions)
             if limit is not None and limit <= 0:
                 limit = None
-            identifiers: list[str] = self._list_source_function_identifiers(program, include_externals, limit)
+            identifiers: list[str] = self._list_source_function_identifiers(program, include_externals, limit, program_info=program_info)
             logger.info(
                 "match-function bulk: source_path=%s target_count=%d identifier_count=%d limit=%s",
                 source_path,
@@ -1611,7 +1631,7 @@ class GetFunctionToolProvider(ToolProvider):
             for idx, ident in enumerate(identifiers):
                 if progress_interval and (idx + 1) % progress_interval == 0:
                     logger.info("match-function bulk progress: %d/%d", idx + 1, len(identifiers))
-                func: GhidraFunction | None = self._resolve_function(ident)
+                func: GhidraFunction | None = self._resolve_function(ident, program_info=program_info)
                 if func is None:
                     continue
                 try:
@@ -1626,6 +1646,7 @@ class GetFunctionToolProvider(ToolProvider):
                         propagate_prototype,
                         propagate_bookmarks,
                         detail_result_count=len(identifiers) * len(targets),
+                        program_info=program_info,
                     )
                 except Exception as e:
                     errors_count += 1
@@ -1682,13 +1703,13 @@ class GetFunctionToolProvider(ToolProvider):
         mode = self._get_str(args, "mode", default="similar")
         max_results = self._get_int(args, "maxresults", "limit", "maxfunctions", "maxcount", default=50)
 
-        func = self._resolve_function(func_id)
+        func = self._resolve_function(func_id, program_info=program_info)
         if func is None:
             raise ValueError(f"Function not found: {func_id}")
 
-        assert self.program_info is not None, "program_info should not be None after _require_program()"
-        program = self.program_info.program
-        fm = self._get_function_manager(program)
+        assert program_info is not None, "program_info should not be None after _require_program()"
+        program = program_info.program
+        fm = self._get_function_manager(program, program_info=program_info)
 
         mode_n = n(mode)
         match_index: _FunctionMatchIndex | None = None

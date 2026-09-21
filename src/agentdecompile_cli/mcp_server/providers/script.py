@@ -28,8 +28,6 @@ from agentdecompile_cli.mcp_server.tool_providers import (
 from agentdecompile_cli.registry import Tool
 
 if TYPE_CHECKING:
-    from agentdecompile_cli.context import ProgramInfo
-
     from ghidra.app.decompiler import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]  # noqa: F401
         DecompInterface as GhidraDecompInterface,
     )
@@ -47,6 +45,8 @@ if TYPE_CHECKING:
         SymbolType as GhidraSymbolType,
     )
     from ghidra.util.task import TaskMonitor as GhidraTaskMonitor  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]  # noqa: F401
+
+    from agentdecompile_cli.context import ProgramInfo
 
 logger = logging.getLogger(__name__)
 

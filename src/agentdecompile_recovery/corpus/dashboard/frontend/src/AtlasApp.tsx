@@ -14,6 +14,7 @@ import {
   type ActionRequest,
 } from "./contracts";
 import { ActionRunner, DialogFrame } from "./Actions";
+import { ExchangeContribution } from "./ExchangeContribution";
 import { ProjectDialog } from "./ProjectDialog";
 import { RecordView, ResizeBar, useData, usePref } from "./ui";
 import "./atlas.css";
@@ -739,6 +740,7 @@ export function AtlasApp() {
           <button type="button" aria-controls="atlas-explorer" aria-expanded={explorerOpen} onClick={()=>setExplorerOpen(open=>!open)}>{explorerOpen?"Hide navigator":"Show navigator"}</button>
           <a className="atlas-workbench-link" href={workbenchUrl(selection, "pipeline")}>Workbench ↗</a>
           <button onClick={()=>setToolsOpen(true)} aria-label="Project tools">Tools</button>
+          <ExchangeContribution />
         </header>
         {!loaded ? (
           <main className="atlas-landing atlas-workspace-empty">

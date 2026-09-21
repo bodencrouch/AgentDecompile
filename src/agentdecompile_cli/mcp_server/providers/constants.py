@@ -25,6 +25,9 @@ from agentdecompile_cli.registry import Tool
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from types import SimpleNamespace
+
+    from agentdecompile_cli.launcher import ProgramInfo
 
 logger = logging.getLogger(__name__)
 
@@ -69,9 +72,9 @@ class ConstantSearchToolProvider(ToolProvider):
             ),
         ]
 
-    async def _handle(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/constants.py:ConstantSearchToolProvider._handle")
-        self._require_program()
+        self._require_program(program_info=program_info)
         mode = self._get_str(args, "mode", default="common")
 
         return await self._dispatch_handler(
@@ -82,9 +85,10 @@ class ConstantSearchToolProvider(ToolProvider):
                 "range": "_handle_range",
                 "common": "_handle_common",
             },
+            program_info=program_info,
         )
 
-    def _collect_constants(self, args: dict[str, Any], value_filter: Callable[[int], bool]) -> tuple[list[dict], int]:
+    def _collect_constants(self, args: dict[str, Any], value_filter: Callable[[int], bool], *, program_info: ProgramInfo | SimpleNamespace | None) -> tuple[list[dict], int]:
         """Collect constants from instructions using the provided filter.
 
         Scans program instructions to find scalar values that pass the filter.
@@ -98,8 +102,8 @@ class ConstantSearchToolProvider(ToolProvider):
         max_instr = self._get_int(args, "maxinstructions", default=DEFAULT_MAX_INSTRUCTIONS)
         samples_per = self._get_int(args, "samplesperconstant", default=DEFAULT_SAMPLES_PER_CONSTANT)
 
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
 
         all_results, instr_count = collect_constants(
             program,
@@ -110,26 +114,26 @@ class ConstantSearchToolProvider(ToolProvider):
 
         return all_results, instr_count
 
-    async def _handle_specific(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_specific(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/constants.py:ConstantSearchToolProvider._handle_specific")
         target = self._get_int(args, "value", default=0)
-        all_results, instr_count = self._collect_constants(args, lambda v: v == target)
+        all_results, instr_count = self._collect_constants(args, lambda v: v == target, program_info=program_info)
         offset, max_results = self._get_pagination_params(args, default_limit=DEFAULT_LARGE_PAGE_LIMIT)
         paginated, has_more = self._paginate_results(all_results, offset, max_results)
         return self._create_paginated_response(paginated, offset, max_results, total=len(all_results), mode="specific", instructionsScanned=instr_count)
 
-    async def _handle_range(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_range(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/constants.py:ConstantSearchToolProvider._handle_range")
         min_v = self._get_int(args, "minvalue", default=0)
         max_v = self._get_int(args, "maxvalue", default=0xFFFFFFFF)
-        all_results, instr_count = self._collect_constants(args, lambda v: min_v <= v <= max_v)
+        all_results, instr_count = self._collect_constants(args, lambda v: min_v <= v <= max_v, program_info=program_info)
         offset, max_results = self._get_pagination_params(args, default_limit=DEFAULT_LARGE_PAGE_LIMIT)
         paginated, has_more = self._paginate_results(all_results, offset, max_results)
         return self._create_paginated_response(paginated, offset, max_results, total=len(all_results), mode="range", instructionsScanned=instr_count)
 
-    async def _handle_common(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_common(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/constants.py:ConstantSearchToolProvider._handle_common")
-        all_results, instr_count = self._collect_constants(args, lambda v: True)
+        all_results, instr_count = self._collect_constants(args, lambda v: True, program_info=program_info)
         offset, max_results = self._get_pagination_params(args, default_limit=DEFAULT_LARGE_PAGE_LIMIT)
         paginated, has_more = self._paginate_results(all_results, offset, max_results)
         return self._create_paginated_response(paginated, offset, max_results, total=len(all_results), mode="common", instructionsScanned=instr_count)

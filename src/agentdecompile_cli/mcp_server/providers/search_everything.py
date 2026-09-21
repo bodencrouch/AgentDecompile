@@ -16,6 +16,7 @@ import re
 
 from contextlib import nullcontext
 from time import perf_counter
+from types import SimpleNamespace
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from mcp import types
@@ -217,7 +218,7 @@ class SearchEverythingToolProvider(ToolProvider):
             ),
         ]
 
-    async def _handle(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/search_everything.py:SearchEverythingToolProvider._handle")
         constant_request = self._collect_legacy_constant_request(args)
         queries = self._collect_queries(args)
@@ -258,7 +259,7 @@ class SearchEverythingToolProvider(ToolProvider):
             try:
                 compiled: dict[str, re.Pattern[str]] = self._compile_regexes(queries, mode_n, case_sensitive)
 
-                target_programs, target_warnings, resolution_meta = await self._resolve_target_programs(args)
+                target_programs, target_warnings, resolution_meta = await self._resolve_target_programs(args, program_info=program_info)
                 if not target_programs:
                     raise ValueError("No target programs found. Open a program, pass programPath/programName/binaryName, or ensure project programs are available.")
 
@@ -480,7 +481,7 @@ class SearchEverythingToolProvider(ToolProvider):
             raise ValueError("minValue and maxValue are required when mode is range")
         return request
 
-    async def _resolve_target_programs(self, args: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str], dict[str, Any]]:
+    async def _resolve_target_programs(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> tuple[list[dict[str, Any]], list[str], dict[str, Any]]:
         logger.debug("diag.enter %s", "mcp_server/providers/search_everything.py:SearchEverythingToolProvider._resolve_target_programs")
         warnings: list[str] = []
         requested_program_keys: list[str] = self._collect_requested_program_keys(args)
@@ -553,7 +554,7 @@ class SearchEverythingToolProvider(ToolProvider):
             }
 
         # Fallback to active session program.
-        active_info: ProgramInfo | None = SESSION_CONTEXTS.get_active_program_info(session_id) or self.program_info
+        active_info: ProgramInfo | None = program_info
         if active_info is not None and active_info.program is not None:
             active_name: str = self._get_str(args, "programpath", "programname", "binaryname", default="<active>") or "<active>"
             targets.append({"programKey": active_name, "program": active_info.program, "programInfo": active_info})
@@ -871,7 +872,7 @@ class SearchEverythingToolProvider(ToolProvider):
         if scope == "decompilation":
             return self._search_decompilation(program, program_info, queries, mode, case_sensitive, threshold, compiled_regexes, per_scope_limit, max_functions_scan, decompile_timeout)
         if scope == "disassembly":
-            return self._search_disassembly(program, queries, mode, case_sensitive, threshold, compiled_regexes, per_scope_limit, max_functions_scan, max_instructions_scan)
+            return self._search_disassembly(program, queries, mode, case_sensitive, threshold, compiled_regexes, per_scope_limit, max_functions_scan, max_instructions_scan, program_info=program_info)
         if scope == "symbols":
             return self._search_symbols(program, queries, mode, case_sensitive, threshold, compiled_regexes, per_scope_limit), None
         if scope == "imports":
@@ -881,9 +882,9 @@ class SearchEverythingToolProvider(ToolProvider):
         if scope == "namespaces":
             return self._search_namespaces(program, queries, mode, case_sensitive, threshold, compiled_regexes, per_scope_limit), None
         if scope == "classes":
-            return self._search_classes(program, queries, mode, case_sensitive, threshold, compiled_regexes, per_scope_limit), None
+            return self._search_classes(program, queries, mode, case_sensitive, threshold, compiled_regexes, per_scope_limit, program_info=program_info), None
         if scope == "strings":
-            return self._search_strings(program, queries, mode, case_sensitive, threshold, compiled_regexes, per_scope_limit), None
+            return self._search_strings(program, queries, mode, case_sensitive, threshold, compiled_regexes, per_scope_limit, program_info=program_info), None
         if scope == "vtables":
             return self._search_vtables(program, queries, mode, case_sensitive, threshold, compiled_regexes, per_scope_limit), None
         if scope == "data_types":
@@ -891,7 +892,7 @@ class SearchEverythingToolProvider(ToolProvider):
         if scope == "data_type_archives":
             return self._search_data_type_archives(program, queries, mode, case_sensitive, threshold, compiled_regexes, per_scope_limit), None
         if scope == "structures":
-            return self._search_structures(program, queries, mode, case_sensitive, threshold, compiled_regexes, per_scope_limit), None
+            return self._search_structures(program, queries, mode, case_sensitive, threshold, compiled_regexes, per_scope_limit, program_info=program_info), None
         if scope == "structure_fields":
             return self._search_structure_fields(program, queries, mode, case_sensitive, threshold, compiled_regexes, per_scope_limit), None
         if scope == "processors":
@@ -947,9 +948,9 @@ class SearchEverythingToolProvider(ToolProvider):
                 continue
         return None
 
-    def _collect_reference_summary(self, program: GhidraProgram, address_value: str, *, max_refs: int = 3) -> dict[str, Any]:
+    def _collect_reference_summary(self, program: GhidraProgram, address_value: str, *, max_refs: int = 3, program_info: ProgramInfo | SimpleNamespace | None) -> dict[str, Any]:
         logger.debug("diag.enter %s", "mcp_server/providers/search_everything.py:SearchEverythingToolProvider._collect_reference_summary")
-        address = self._resolve_address(program, address_value)
+        address = self._resolve_address(program, address_value, program_info=program_info)
         if address is None:
             return {}
 
@@ -958,7 +959,7 @@ class SearchEverythingToolProvider(ToolProvider):
         except Exception:
             return {}
 
-        fm = self._get_function_manager(program)
+        fm = self._get_function_manager(program, program_info=program_info)
         references: list[dict[str, str]] = []
         total_count = 0
         try:
@@ -1035,7 +1036,7 @@ class SearchEverythingToolProvider(ToolProvider):
         enriched.setdefault("addressNote", "Data type definition only; no concrete memory address for the type itself")
         return enriched
 
-    def _enrich_class_match(self, program: GhidraProgram, sym: dict[str, Any], related_structures: dict[str, dict[str, Any]], row: dict[str, Any]) -> dict[str, Any]:
+    def _enrich_class_match(self, program: GhidraProgram, sym: dict[str, Any], related_structures: dict[str, dict[str, Any]], row: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> dict[str, Any]:
         logger.debug("diag.enter %s", "mcp_server/providers/search_everything.py:SearchEverythingToolProvider._enrich_class_match")
         enriched = dict(row)
         enriched["source"] = str(sym.get("source", ""))
@@ -1058,7 +1059,7 @@ class SearchEverythingToolProvider(ToolProvider):
 
         address = str(sym.get("address", "") or "")
         if self._has_concrete_address(address):
-            enriched.update(self._collect_reference_summary(program, address))
+            enriched.update(self._collect_reference_summary(program, address, program_info=program_info))
         else:
             enriched["addressNote"] = "Class namespace symbol has no concrete memory address"
         return enriched
@@ -1143,8 +1144,7 @@ class SearchEverythingToolProvider(ToolProvider):
         best = 0.0
         for candidate in candidates:
             similarity = float(difflib.SequenceMatcher(None, query, candidate).ratio())
-            if similarity > best:
-                best = similarity
+            best = max(best, similarity)
             if best >= 1.0:
                 break
         return best
@@ -1483,7 +1483,7 @@ class SearchEverythingToolProvider(ToolProvider):
 
             from agentdecompile_cli.mcp_utils.decompiler_util import acquire_decompiler_for_program, get_decompiled_function_from_results
 
-            fm: GhidraFunctionManager | None = self._get_function_manager(program)
+            fm: GhidraFunctionManager | None = self._get_function_manager(program, program_info=program_info)
             if fm is None:
                 return results, diagnostic
             monitor = GhidraConsoleTaskMonitor()
@@ -1497,8 +1497,6 @@ class SearchEverythingToolProvider(ToolProvider):
                         session_decompiler = getattr(program_info, "decompiler", None)
                 else:
                     session_decompiler = getattr(program_info, "decompiler", None)
-            if session_decompiler is None:
-                session_decompiler = getattr(self.program_info, "decompiler", None)
             with acquire_decompiler_for_program(session_decompiler, program) as lease:
                 diagnostic["reusedSessionDecompiler"] = bool(lease.reused_session)
                 func: GhidraFunction
@@ -1564,10 +1562,12 @@ class SearchEverythingToolProvider(ToolProvider):
         per_scope_limit: int,
         max_functions_scan: int,
         max_instructions_scan: int,
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None,
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         logger.debug("diag.enter %s", "mcp_server/providers/search_everything.py:SearchEverythingToolProvider._search_disassembly")
-        fm: GhidraFunctionManager | None = self._get_function_manager(program)
-        listing: GhidraListing | None = self._get_listing(program)
+        fm: GhidraFunctionManager | None = self._get_function_manager(program, program_info=program_info)
+        listing: GhidraListing | None = self._get_listing(program, program_info=program_info)
         if fm is None or listing is None:
             return [], {"scope": "disassembly", "scannedFunctions": 0, "instructionsScanned": 0, "matches": 0}
         results: list[dict[str, Any]] = []
@@ -1742,6 +1742,8 @@ class SearchEverythingToolProvider(ToolProvider):
         threshold: float,
         compiled_regexes: dict[str, re.Pattern[str]],
         per_scope_limit: int,
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[dict[str, Any]]:
         logger.debug("diag.enter %s", "mcp_server/providers/search_everything.py:SearchEverythingToolProvider._search_classes")
         try:
@@ -1773,7 +1775,7 @@ class SearchEverythingToolProvider(ToolProvider):
                 "namespace": str(sym.get("namespace", "")),
                 **match,
             }
-            results.append(self._enrich_class_match(program, sym, related_structures, row))
+            results.append(self._enrich_class_match(program, sym, related_structures, row, program_info=program_info))
         return results
 
     def _search_strings(
@@ -1785,10 +1787,14 @@ class SearchEverythingToolProvider(ToolProvider):
         threshold: float,
         compiled_regexes: dict[str, re.Pattern[str]],
         per_scope_limit: int,
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[dict[str, Any]]:
         logger.debug("diag.enter %s", "mcp_server/providers/search_everything.py:SearchEverythingToolProvider._search_strings")
         results: list[dict[str, Any]] = []
-        for data in collect_strings(program, min_len=1, limit=per_scope_limit, ghidra_tools=self.ghidra_tools):
+        from agentdecompile_cli.mcp_server.providers._program_context import ghidra_tools_for_program
+
+        for data in collect_strings(program, min_len=1, limit=per_scope_limit, ghidra_tools=ghidra_tools_for_program(program_info)):
             if len(results) >= per_scope_limit:
                 break
             value: str = str(data.get("value", ""))
@@ -1932,6 +1938,8 @@ class SearchEverythingToolProvider(ToolProvider):
         threshold: float,
         compiled_regexes: dict[str, re.Pattern[str]],
         per_scope_limit: int,
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[dict[str, Any]]:
         logger.debug("diag.enter %s", "mcp_server/providers/search_everything.py:SearchEverythingToolProvider._search_structures")
         try:
@@ -1991,7 +1999,7 @@ class SearchEverythingToolProvider(ToolProvider):
                 related_address = str(first_class.get("address", "") or "")
                 if self._has_concrete_address(related_address):
                     enriched["relatedClassAddress"] = related_address
-                    enriched.update(self._collect_reference_summary(program, related_address))
+                    enriched.update(self._collect_reference_summary(program, related_address, program_info=program_info))
             results.append(enriched)
         return results
 

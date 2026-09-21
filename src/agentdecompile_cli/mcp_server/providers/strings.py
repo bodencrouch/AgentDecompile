@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 from mcp import types
 
 from agentdecompile_cli.mcp_server.providers._collectors import collect_strings
+from agentdecompile_cli.mcp_server.providers._program_context import ghidra_tools_for_program
 from agentdecompile_cli.mcp_server.tool_providers import (
     ToolProvider,
     create_success_response,
@@ -27,9 +28,13 @@ from agentdecompile_cli.mcp_server.tool_providers import (
 from agentdecompile_cli.registry import Tool
 
 if TYPE_CHECKING:
+    from types import SimpleNamespace
+
     from ghidra.program.model.address import Address as GhidraAddress  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
     from ghidra.program.model.listing import Program as GhidraProgram  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
     from ghidra.program.model.symbol import ReferenceManager as GhidraReferenceManager  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
+
+    from agentdecompile_cli.launcher import ProgramInfo
 
 logger = logging.getLogger(__name__)
 
@@ -146,33 +151,34 @@ class StringToolProvider(ToolProvider):
             ),
         ]
 
-    async def _handle_list_strings(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_list_strings(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle_list_strings")
         updated = dict(args)
         updated["mode"] = "list"
-        return await self._handle(updated)
+        return await self._handle(updated, program_info=program_info)
 
-    async def _handle_search_strings(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_search_strings(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle_search_strings")
         updated = dict(args)
         if not self._get_str(updated, "mode"):
             updated["mode"] = "search"
-        return await self._handle(updated)
+        return await self._handle(updated, program_info=program_info)
 
-    async def _handle_search_code(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_search_code(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle_search_code")
-        self._require_program()
+        ghidra_tools = ghidra_tools_for_program(program_info)
+        self._require_program(program_info=program_info)
         query: str = self._require_str(args, "query", "pattern", "text", name="query")
         offset, limit = self._get_pagination_params(args, default_limit=10)
         mode: str = self._get_str(args, "searchmode", "mode", default="semantic")
 
-        if self.ghidra_tools is not None:
+        if ghidra_tools is not None:
             try:
                 from agentdecompile_cli.models import SearchMode
 
                 mode_norm: str = mode.strip().lower()
                 search_mode = SearchMode.LITERAL if mode_norm == "literal" else SearchMode.SEMANTIC
-                results = self.ghidra_tools.search_code(
+                results = ghidra_tools.search_code(
                     query=query,
                     limit=limit,
                     offset=offset,
@@ -184,9 +190,9 @@ class StringToolProvider(ToolProvider):
             except Exception as e:
                 logger.warning("search-code semantic/literal backend unavailable, using fallback search: %s", e)
 
-        assert self.program_info is not None, "Program info is required for search-code"
-        program = self.program_info.program
-        fm = self._get_function_manager(program)
+        assert program_info is not None, "Program info is required for search-code"
+        program = program_info.program
+        fm = self._get_function_manager(program, program_info=program_info)
 
         matches: list[dict[str, Any]] = []
         skipped = 0
@@ -219,9 +225,9 @@ class StringToolProvider(ToolProvider):
             },
         )
 
-    async def _handle(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle")
-        self._require_program()
+        self._require_program(program_info=program_info)
         mode = self._get_str(args, "mode", default="list")
         if n(mode) in _STRING_MUTATING_MODES:
             return await self._dispatch_handler(
@@ -232,6 +238,7 @@ class StringToolProvider(ToolProvider):
                     "update": "_handle_update",
                     "delete": "_handle_delete",
                 },
+                program_info=program_info,
             )
 
         pattern = self._get_str(args, "pattern", "query", "search", "text", "regex", "searchstring", "filter")
@@ -240,7 +247,7 @@ class StringToolProvider(ToolProvider):
         include_refs = self._get_bool(args, "includereferencingfunctions", "includerefs", default=False)
 
         # Collect strings using GhidraTools or direct API
-        strings = self._collect_strings(min_len)
+        strings = self._collect_strings(min_len, program_info=program_info)
 
         return await self._dispatch_handler(
             args,
@@ -258,21 +265,23 @@ class StringToolProvider(ToolProvider):
             offset=offset,
             max_results=max_results,
             include_refs=include_refs,
+            program_info=program_info,
         )
 
-    def _collect_strings(self, min_len: int) -> list[dict[str, Any]]:
+    def _collect_strings(self, min_len: int, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[dict[str, Any]]:
         """Collect all strings from the program using GhidraTools or direct API.
 
         Returns empty list if string enumeration is unavailable in the current context
         (e.g., shared-server checkout without iterator support). Diagnostics are logged.
         """
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._collect_strings")
-        assert self.program_info is not None, "Program info is required to collect strings"
-        program = self.program_info.program
+        ghidra_tools = ghidra_tools_for_program(program_info)
+        assert program_info is not None, "Program info is required to collect strings"
+        program = program_info.program
         strings = collect_strings(
             program,
             min_len=min_len,
-            ghidra_tools=self.ghidra_tools,
+            ghidra_tools=ghidra_tools,
         )
 
         # Add diagnostic if no strings were found - could indicate collection failure
@@ -283,18 +292,18 @@ class StringToolProvider(ToolProvider):
 
         return strings
 
-    def _attach_references_to_string_results(self, strings: list[dict[str, Any]], ref_limit: int = 25) -> None:
+    def _attach_references_to_string_results(self, strings: list[dict[str, Any]], ref_limit: int = 25, *, program_info: ProgramInfo | SimpleNamespace | None) -> None:
         """Attach referencesTo (get-references style) to each string result."""
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._attach_references_to_string_results")
-        if not strings or not self.program_info:
+        if not strings or not program_info:
             return
         try:
-            program: GhidraProgram = self.program_info.program
+            program: GhidraProgram = program_info.program
             ref_mgr: GhidraReferenceManager = program.getReferenceManager()
-            fm = self._get_function_manager(program)
+            fm = self._get_function_manager(program, program_info=program_info)
             for s in strings:
                 try:
-                    addr: GhidraAddress = self._resolve_address(s.get("address"), program=program)
+                    addr: GhidraAddress = self._resolve_address(s.get("address"), program=program, program_info=program_info)
                     if addr is None:
                         continue
                     refs_to: list[dict[str, Any]] = []
@@ -326,9 +335,10 @@ class StringToolProvider(ToolProvider):
         offset: int,
         max_results: int,
         include_refs: bool,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle_list")
-        return self._filter_strings(strings, "list", "", min_len, max_results, offset, include_refs)
+        return self._filter_strings(strings, "list", "", min_len, max_results, offset, include_refs, program_info=program_info)
 
     async def _handle_regex(
         self,
@@ -339,9 +349,10 @@ class StringToolProvider(ToolProvider):
         offset: int,
         max_results: int,
         include_refs: bool,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle_regex")
-        return self._filter_strings(strings, "regex", pattern, min_len, max_results, offset, include_refs)
+        return self._filter_strings(strings, "regex", pattern, min_len, max_results, offset, include_refs, program_info=program_info)
 
     async def _handle_search(
         self,
@@ -352,9 +363,10 @@ class StringToolProvider(ToolProvider):
         offset: int,
         max_results: int,
         include_refs: bool,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle_search")
-        return self._filter_strings(strings, "search", pattern, min_len, max_results, offset, include_refs)
+        return self._filter_strings(strings, "search", pattern, min_len, max_results, offset, include_refs, program_info=program_info)
 
     async def _handle_count(
         self,
@@ -365,9 +377,10 @@ class StringToolProvider(ToolProvider):
         offset: int,
         max_results: int,
         include_refs: bool,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle_count")
-        return self._filter_strings(strings, "count", pattern, min_len, max_results, offset, include_refs)
+        return self._filter_strings(strings, "count", pattern, min_len, max_results, offset, include_refs, program_info=program_info)
 
     def _filter_strings(
         self,
@@ -378,6 +391,7 @@ class StringToolProvider(ToolProvider):
         max_results: int,
         offset: int,
         include_refs: bool,
+        *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         """Filter and format strings based on search mode and pattern.
 
@@ -434,7 +448,7 @@ class StringToolProvider(ToolProvider):
                     strings = [s for s in strings if pat.search(s.get("value", ""))]
                     total = len(strings)
                     strings, has_more = self._paginate_results(strings, offset, max_results)
-                    self._attach_references_to_string_results(strings)
+                    self._attach_references_to_string_results(strings, program_info=program_info)
                     return self._create_paginated_response(strings, offset, max_results, total=total, mode=mode, query=pattern)
                 except re.error:
                     pass
@@ -455,7 +469,7 @@ class StringToolProvider(ToolProvider):
             total = len(scored)
             strings = [s for _, s in scored]
             strings, has_more = self._paginate_results(strings, offset, max_results)
-            self._attach_references_to_string_results(strings)
+            self._attach_references_to_string_results(strings, program_info=program_info)
             return self._create_paginated_response(strings, offset, max_results, total=total, mode=mode, query=pattern)
 
         if mode_n == "regex" and pattern:
@@ -473,14 +487,14 @@ class StringToolProvider(ToolProvider):
 
         strings, has_more = self._paginate_results(strings, offset, max_results)
 
-        if include_refs and self.program_info:
+        if include_refs and program_info:
             try:
-                program: Any = self.program_info.program
+                program: Any = program_info.program
                 ref_mgr: Any = program.getReferenceManager()
-                fm = self._get_function_manager(program)
+                fm = self._get_function_manager(program, program_info=program_info)
                 for s in strings:
                     try:
-                        addr: Any = self._resolve_address(s["address"], program=program)
+                        addr: Any = self._resolve_address(s["address"], program=program, program_info=program_info)
                         funcs = set()
                         ref_count = 0
                         for ref in ref_mgr.getReferencesTo(addr):
@@ -496,26 +510,26 @@ class StringToolProvider(ToolProvider):
             except Exception:
                 pass
 
-        self._attach_references_to_string_results(strings)
+        self._attach_references_to_string_results(strings, program_info=program_info)
         extra: dict[str, Any] = {}
         if pattern:
             extra["query"] = pattern
         return self._create_paginated_response(strings, offset, max_results, total=total, mode=mode, **extra)
 
-    async def _handle_create(self, args: dict[str, Any]) -> list[types.TextContent]:
-        return await self._handle_write_string(args, action="create", allow_existing=False)
+    async def _handle_create(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        return await self._handle_write_string(args, action="create", allow_existing=False, program_info=program_info)
 
-    async def _handle_update(self, args: dict[str, Any]) -> list[types.TextContent]:
-        return await self._handle_write_string(args, action="update", allow_existing=True)
+    async def _handle_update(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        return await self._handle_write_string(args, action="update", allow_existing=True, program_info=program_info)
 
-    async def _handle_delete(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_delete(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle_delete")
-        self._require_program()
+        self._require_program(program_info=program_info)
         addr_str = self._require_address_or_symbol(args)
-        assert self.program_info is not None
-        program = self.program_info.program
-        addr = self._resolve_address(addr_str, program=program)
-        listing = self._get_listing(program)
+        assert program_info is not None
+        program = program_info.program
+        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
+        listing = self._get_listing(program, program_info=program_info)
         cleared = False
 
         def _delete_string() -> None:
@@ -537,16 +551,16 @@ class StringToolProvider(ToolProvider):
             },
         )
 
-    async def _handle_write_string(self, args: dict[str, Any], *, action: str, allow_existing: bool) -> list[types.TextContent]:
+    async def _handle_write_string(self, args: dict[str, Any], *, action: str, allow_existing: bool, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle_write_string")
-        self._require_program()
+        self._require_program(program_info=program_info)
         addr_str = self._require_address_or_symbol(args)
         value = self._require_str(args, "value", "text", "string", name="value")
         encoding = normalize_string_encoding(self._get_str(args, "encoding", default="ascii"))
-        assert self.program_info is not None
-        program = self.program_info.program
-        addr = self._resolve_address(addr_str, program=program)
-        listing = self._get_listing(program)
+        assert program_info is not None
+        program = program_info.program
+        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
+        listing = self._get_listing(program, program_info=program_info)
         existing = listing.getDataAt(addr)
         if (
             existing is not None
@@ -562,7 +576,7 @@ class StringToolProvider(ToolProvider):
         dtm = program.getDataTypeManager()
         parser = DataTypeParser(dtm, dtm, None, DataTypeParser.AllowedDataTypes.ALL)
         dt = parser.parse(dt_name)
-        memory = self._get_memory(program)
+        memory = self._get_memory(program, program_info=program_info)
 
         def _write_string() -> None:
             end = addr.add(len(raw) - 1)

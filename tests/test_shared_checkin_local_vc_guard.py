@@ -42,7 +42,7 @@ def test_ensure_shared_domain_file_refuses_local_add_to_version_control(monkeypa
 
     provider = ProjectToolProvider.__new__(ProjectToolProvider)
     provider._manager = None
-    provider._ensure_shared_domain_file_registered_for_version_control(domain_file, "/fixture.exe")
+    provider._ensure_shared_domain_file_registered_for_version_control(domain_file, "/fixture.exe", program_info=getattr(provider, "program_info", None))
 
     domain_file.addToVersionControl.assert_not_called()
     domain_file.save.assert_not_called()
@@ -67,7 +67,7 @@ def test_ensure_private_domain_file_still_adds_to_version_control(monkeypatch: p
     domain_file.save = MagicMock()
 
     provider = ProjectToolProvider.__new__(ProjectToolProvider)
-    provider._ensure_shared_domain_file_registered_for_version_control(domain_file, "/local.exe")
+    provider._ensure_shared_domain_file_registered_for_version_control(domain_file, "/local.exe", program_info=getattr(provider, "program_info", None))
 
     domain_file.addToVersionControl.assert_called_once()
 
@@ -119,7 +119,7 @@ def test_ensure_shared_calls_promote_when_project_bound(monkeypatch: pytest.Monk
     provider._manager = SimpleNamespace(ghidra_project=object())
     provider._promote_private_to_shared_versioned_checkout = MagicMock(return_value=promoted)  # type: ignore[method-assign]
 
-    provider._ensure_shared_domain_file_registered_for_version_control(domain_file, "/fixture.exe")
+    provider._ensure_shared_domain_file_registered_for_version_control(domain_file, "/fixture.exe", program_info=getattr(provider, "program_info", None))
 
     provider._promote_private_to_shared_versioned_checkout.assert_called_once()
     domain_file.addToVersionControl.assert_not_called()
@@ -184,7 +184,7 @@ def test_promote_refreshes_project_data_after_stub_delete(monkeypatch: pytest.Mo
         program_path="/fixture.exe",
         exclusive=False,
         domain_file_hint=private,
-    )
+     program_info=getattr(provider, "program_info", None))
 
     private.delete.assert_called_once()
     project_data.refresh.assert_called_with(True)

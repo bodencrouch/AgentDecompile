@@ -14,17 +14,20 @@ import hashlib
 import json
 import os
 import re
-import signal
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 from agentdecompile_recovery.languages import SourceLanguage, compiler_lane_for, parse_source_language
 
+from .objdiff_verification import is_objdiff_match
 from .package_verify import build_shim, compile_with_msvc, resolve_msvc_root
 from .decode_x86 import (
     X86_64_ARG_ACCUM_IMM32_BINARY_OPS,
@@ -18443,6 +18446,7 @@ def attempt_candidate(
 
     base_record = {
         "schema": "agentdecompile.source-parity-synthesis-attempt.v1",
+        "candidateCompileInvoked": False,
         "name": row.get("name"),
         "entry": row.get("entry"),
         "section": row.get("section"),
@@ -18576,6 +18580,7 @@ def attempt_candidate(
         record = {
             **base_record,
             "attemptDir": str(attempt_dir),
+            "candidateCompileInvoked": compile_result.get("compilerInvoked") is True,
             "compilerProfileName": profile_name,
             "compilerProfileArgs": merged_flags,
             "compilerProfiles": [name for name, _ in resolved_profiles],
@@ -18602,6 +18607,9 @@ def attempt_candidate(
                 "differences": differences,
                 "message": message,
                 "verifyReport": str(verify_json),
+                "objdiffExit": report.get("objdiffExit"),
+                "fallback": report.get("fallback"),
+                "diagnosticFallback": report.get("diagnosticFallback"),
             }
         )
         if status == "matched" and differences == 0:
@@ -18661,6 +18669,7 @@ def attempt_candidate_with_clang_slice_objdiff(
             **base_record,
             "attemptDir": str(attempt_dir),
             "compiler": "clang",
+            "candidateCompileInvoked": candidate_compile.get("compilerInvoked") is True,
             "compilerProfileName": profile_name,
             "compilerProfileArgs": merged_flags,
             "compilerProfiles": [name for name, _ in resolved_profiles],
@@ -18693,7 +18702,7 @@ def attempt_candidate_with_clang_slice_objdiff(
             )
             continue
         report = run_objdiff(target_obj, candidate_obj, attempt_dir, timeout=timeout)
-        status = "code-slice-matched" if report.get("status") == "matched" and int(report.get("differences", -1)) == 0 else str(report.get("status"))
+        status = "code-slice-matched" if is_objdiff_match(report) else str(report.get("status"))
         attempts.append(
             {
                 **record,
@@ -18701,6 +18710,9 @@ def attempt_candidate_with_clang_slice_objdiff(
                 "differences": int(report.get("differences", -1)),
                 "message": report.get("message"),
                 "verifyReport": str(attempt_dir / "verify.json"),
+                "objdiffExit": report.get("objdiffExit"),
+                "fallback": report.get("fallback"),
+                "diagnosticFallback": report.get("diagnosticFallback"),
                 "targetCompile": target_compile,
                 "candidateCompile": candidate_compile,
             }
@@ -18819,6 +18831,7 @@ def attempt_candidate_with_msvc_synthetic_slice(
             **base_record,
             "attemptDir": str(attempt_dir),
             "compiler": "msvc",
+            "candidateCompileInvoked": candidate_compile.get("compilerInvoked") is True,
             "compilerProfileName": profile_name,
             "compilerProfileArgs": merged_flags,
             "compilerProfiles": [name for name, _ in resolved_profiles],
@@ -18854,7 +18867,7 @@ def attempt_candidate_with_msvc_synthetic_slice(
                 break
             continue
         report = run_objdiff(target_obj, candidate_obj, attempt_dir, timeout=timeout)
-        status = "code-slice-matched" if report.get("status") == "matched" and int(report.get("differences", -1)) == 0 else str(report.get("status"))
+        status = "code-slice-matched" if is_objdiff_match(report) else str(report.get("status"))
         attempts.append(
             {
                 **record,
@@ -18862,6 +18875,9 @@ def attempt_candidate_with_msvc_synthetic_slice(
                 "differences": int(report.get("differences", -1)),
                 "message": report.get("message"),
                 "verifyReport": str(attempt_dir / "verify.json"),
+                "objdiffExit": report.get("objdiffExit"),
+                "fallback": report.get("fallback"),
+                "diagnosticFallback": report.get("diagnosticFallback"),
                 "targetCompile": target_compile,
                 "candidateCompile": candidate_compile,
             }
@@ -18896,6 +18912,7 @@ def attempt_candidate_with_msvc_synthetic_slice(
             candidate,
             case_dir,
             data=strip_alignment_padding(data),
+            target_obj=target_obj,
             compiler_profiles=resolved_profiles,
             vc_root=vc_root,
             wine=wine,
@@ -18967,6 +18984,7 @@ def attempt_candidate_with_clangcl_slice_objdiff(
             **base_record,
             "attemptDir": str(attempt_dir),
             "compiler": "clang-cl",
+            "candidateCompileInvoked": candidate_compile.get("compilerInvoked") is True,
             "compilerProfileName": profile_name,
             "compilerProfileArgs": profile_args,
             "compilerProfiles": [name for name, _ in resolved_profiles],
@@ -18999,7 +19017,7 @@ def attempt_candidate_with_clangcl_slice_objdiff(
             )
             continue
         report = run_objdiff(target_obj, candidate_obj, attempt_dir, timeout=timeout)
-        status = "code-slice-matched" if report.get("status") == "matched" and int(report.get("differences", -1)) == 0 else str(report.get("status"))
+        status = "code-slice-matched" if is_objdiff_match(report) else str(report.get("status"))
         attempts.append(
             {
                 **record,
@@ -19007,6 +19025,9 @@ def attempt_candidate_with_clangcl_slice_objdiff(
                 "differences": int(report.get("differences", -1)),
                 "message": report.get("message"),
                 "verifyReport": str(attempt_dir / "verify.json"),
+                "objdiffExit": report.get("objdiffExit"),
+                "fallback": report.get("fallback"),
+                "diagnosticFallback": report.get("diagnosticFallback"),
                 "targetCompile": target_compile,
                 "candidateCompile": candidate_compile,
             }
@@ -19019,6 +19040,7 @@ def attempt_candidate_with_clangcl_slice_objdiff(
             candidate,
             case_dir,
             data=strip_alignment_padding(data),
+            target_obj=target_obj,
             clang_cl=clang_cl,
             timeout=timeout,
         )
@@ -19076,6 +19098,9 @@ def compile_with_clang(*, clang: str, source: Path, object_path: Path, args: lis
     stdout_path.write_text(proc.stdout, encoding="utf-8")
     stderr_path.write_text(proc.stderr, encoding="utf-8")
     return {
+        "compilerInvoked": object_path.is_file() or bool(re.search(
+            r"(?m)^.*:\d+:\d+:\s*(?:fatal\s+)?error:", proc.stdout + "\n" + proc.stderr,
+        )),
         "status": "ok" if proc.returncode == 0 and object_path.exists() else "failed",
         "returnCode": proc.returncode,
         "command": command,
@@ -19134,6 +19159,9 @@ def compile_with_clangcl(*, clang_cl: str, source: Path, object_path: Path, args
     stdout_path.write_text(proc.stdout, encoding="utf-8")
     stderr_path.write_text(proc.stderr, encoding="utf-8")
     return {
+        "compilerInvoked": object_path.is_file() or bool(re.search(
+            r"(?m)^.*(?:\(\d+,\d+\)|:\d+:\d+):\s*(?:fatal\s+)?error:", proc.stdout + "\n" + proc.stderr,
+        )),
         "status": "ok" if proc.returncode == 0 and object_path.exists() else "failed",
         "returnCode": proc.returncode,
         "command": command,
@@ -19150,6 +19178,7 @@ def run_source_shape_search(
     case_dir: Path,
     *,
     data: bytes,
+    target_obj: Path,
     clang_cl: str,
     timeout: int,
 ) -> dict[str, Any] | None:
@@ -19175,6 +19204,7 @@ def run_source_shape_search(
         )
         candidate_bytes = object_text_bytes(object_path, timeout=timeout) if compile_result.get("status") == "ok" else b""
         matched = candidate_bytes == data
+        verification = run_objdiff(target_obj, object_path, variant_dir, timeout=timeout) if matched else {}
         attempts.append(
             {
                 "name": variant["name"],
@@ -19186,15 +19216,17 @@ def run_source_shape_search(
                 "candidateBytesHexPrefix": candidate_bytes[:48].hex(),
                 "targetBytesHexPrefix": data[:48].hex(),
                 "byteIdentical": matched,
+                "objdiff": verification,
+                "verifyReport": str(variant_dir / "verify.json") if verification else None,
                 "commonPrefixBytes": common_prefix_len(data, candidate_bytes),
                 "candidateSize": len(candidate_bytes),
                 "targetSize": len(data),
             }
         )
-    best = max(attempts, key=lambda item: (bool(item.get("byteIdentical")), int(item.get("commonPrefixBytes") or 0)), default=None)
+    best = max(attempts, key=lambda item: (is_objdiff_match(item.get("objdiff") or {}), bool(item.get("byteIdentical")), int(item.get("commonPrefixBytes") or 0)), default=None)
     report = {
         "schema": "agentdecompile.source-shape-search.v1",
-        "status": "matched" if best and best.get("byteIdentical") else "no-match",
+        "status": "matched" if best and is_objdiff_match(best.get("objdiff") or {}) else "no-match",
         "rule": candidate.rule,
         "variant": candidate.variant,
         "name": row.get("name"),
@@ -19232,6 +19264,7 @@ def run_msvc_source_shape_search(
     case_dir: Path,
     *,
     data: bytes,
+    target_obj: Path,
     compiler_profiles: list[tuple[str, list[str]]],
     vc_root: Path | None,
     wine: str,
@@ -19254,7 +19287,7 @@ def run_msvc_source_shape_search(
     attempts: list[dict[str, Any]] = []
     for variant_index, variant in enumerate(variants[:8]):
         for profile_index, (profile_name, profile_args) in enumerate(profiles[:4]):
-            variant_key = hashlib.sha1(f"{variant.get('name')}|{profile_name}".encode("utf-8")).hexdigest()[:8]
+            variant_key = hashlib.sha1(f"{variant.get('name')}|{profile_name}".encode()).hexdigest()[:8]
             variant_dir = search_dir / f"v{variant_index:02d}_p{profile_index:02d}_{variant_key}"
             variant_dir.mkdir(parents=True, exist_ok=True)
             source_path = variant_dir / "candidate.c"
@@ -19279,6 +19312,7 @@ def run_msvc_source_shape_search(
             )
             candidate_bytes = object_text_bytes(object_path, timeout=attempt_timeout) if compile_result.get("status") == "ok" else b""
             matched = candidate_bytes == compare_data
+            verification = run_objdiff(target_obj, object_path, variant_dir, timeout=attempt_timeout) if matched else {}
             attempts.append(
                 {
                     "name": variant["name"],
@@ -19293,19 +19327,21 @@ def run_msvc_source_shape_search(
                     "targetBytesHexPrefix": compare_data[:48].hex(),
                     "targetBytesNormalizedForRelocations": compare_data != data,
                     "byteIdentical": matched,
+                    "objdiff": verification,
+                    "verifyReport": str(variant_dir / "verify.json") if verification else None,
                     "commonPrefixBytes": common_prefix_len(compare_data, candidate_bytes),
                     "candidateSize": len(candidate_bytes),
                     "targetSize": len(compare_data),
                 }
             )
-            if matched:
+            if is_objdiff_match(verification):
                 break
-        if attempts and attempts[-1].get("byteIdentical"):
+        if attempts and is_objdiff_match(attempts[-1].get("objdiff") or {}):
             break
-    best = max(attempts, key=lambda item: (bool(item.get("byteIdentical")), int(item.get("commonPrefixBytes") or 0)), default=None)
+    best = max(attempts, key=lambda item: (is_objdiff_match(item.get("objdiff") or {}), bool(item.get("byteIdentical")), int(item.get("commonPrefixBytes") or 0)), default=None)
     report = {
         "schema": "agentdecompile.source-shape-search.v1",
-        "status": "matched" if best and best.get("byteIdentical") else "no-match",
+        "status": "matched" if best and is_objdiff_match(best.get("objdiff") or {}) else "no-match",
         "rule": candidate.rule,
         "variant": candidate.variant,
         "name": row.get("name"),
@@ -19432,30 +19468,105 @@ def byte_field_guard_return_self_variants(row: dict[str, Any], candidate: Genera
 # gate while destroying the readable-C output the pipeline exists to produce.
 # An unconstrained rewrite lane converges on them immediately -- the only
 # completed mechanism-3 result before this clause existed was
-# `__asm { inc dword ptr [DAT_00830540] }`. Word boundaries keep ordinary
-# identifiers that merely contain these letters (plasmaCount) from matching.
+# `__asm { inc dword ptr [DAT_00830540] }`. The source is normalized before
+# checking so comments and strings cannot make a harmless C string look like a
+# compiler escape (or hide a directive by splitting it over physical lines).
 _REWRITE_CONTENT_DISALLOWED_RE = re.compile(
-    r"^\s*#\s*(pragma|include|import|define|undef|ifdef|ifndef|if|elif|else|endif|error|line)\b|_Pragma\s*\("
-    r"|\b__asm\b|\b_asm\b|\basm\s*\(|__declspec\s*\(\s*naked|\b__emit\b|\.incbin\b",
+    r"^[^\S\r\n]*(?:#|%:|\?\?=)"
+    r"|(?<![A-Za-z0-9_])(?:_Pragma|__pragma)\s*\("
+    r"|(?<![A-Za-z0-9_])(?:__asm__|__asm|_asm|asm)(?![A-Za-z0-9_])"
+    r"|(?<![A-Za-z0-9_])(?:__emit|_emit)(?![A-Za-z0-9_])"
+    # Compiler attribute grammars permit arbitrary nesting. Do not attempt to
+    # parse them at this untrusted boundary: reject compiler-specific forms
+    # wholesale rather than letting a nested naked/assembler attribute evade a
+    # shallow regular expression.
+    r"|(?<![A-Za-z0-9_])__declspec(?![A-Za-z0-9_])\s*\("
+    # Clang accepts both GNU spellings: __attribute((...)) and
+    # __attribute__((...)). Keep token boundaries so an ordinary identifier
+    # such as __attribute_helper is not treated as an attribute.
+    r"|(?<![A-Za-z0-9_])__attribute(?:__)?(?![A-Za-z0-9_])\s*\("
+    r"|\[\s*\["
+    r"|\.incbin\b",
     re.MULTILINE,
 )
-_REWRITE_LINE_CONTINUATION_RE = re.compile(r"\\\r?\n")
-_REWRITE_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
-_REWRITE_LINE_COMMENT_RE = re.compile(r"//[^\n]*")
+# Clang accepts whitespace between a continuation backslash and newline as an
+# extension. Treat that extension as a splice too: a contributor must not hide
+# a forbidden token behind a diagnostic we do not promote.
+_REWRITE_LINE_CONTINUATION_RE = re.compile(r"\\[ \t\f\v]*\r?\n")
 
 
 def _normalize_rewrite_source_for_content_check(source: str) -> str:
-    """Undo the cheap ways a preprocessor directive could be split or hidden
-    before a plain denylist regex ever sees it: backslash-newline
-    continuations and comments. Not a real preprocessor -- just enough to
-    keep the directive check from being trivially defeated by
-    ``#/**/pragma`` or a line-continuation split across ``#\\\\npragma``.
+    """Expose compiler escapes without treating comments or literals as code.
+
+    This deliberately is not a C parser.  It implements only the translation
+    phases relevant to a bounded denylist: trigraph ``??=`` for ``#``, line
+    splicing, and masking comments/string and character literals while
+    preserving newlines.  That catches directive digraphs (``%:include``) and
+    extension spellings without rejecting ordinary strings such as ``"asm"``.
     """
 
-    normalized = _REWRITE_LINE_CONTINUATION_RE.sub("", source)
-    normalized = _REWRITE_BLOCK_COMMENT_RE.sub(" ", normalized)
-    normalized = _REWRITE_LINE_COMMENT_RE.sub("", normalized)
-    return normalized
+    # A UTF-8 BOM is accepted by common compilers before a directive. Normalize
+    # it away, and normalize old-Mac CR line endings so MULTILINE directive
+    # anchors retain their meaning.
+    source = source.removeprefix("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
+    # Trigraph replacement precedes splicing in C/C++ translation.  In
+    # particular, `??=` can become a directive introducer before a preceding
+    # line continuation is removed.
+    source = source.replace("??=", "#")
+    source = _REWRITE_LINE_CONTINUATION_RE.sub("", source)
+    # Digraphs are recognized after line splicing.  Do this second so source
+    # such as `<\\\n:<\\\n:gnu::naked:>:>` cannot assemble into
+    # `[[gnu::naked]]` only after the prior replacement pass has finished.
+    source = source.replace("<:", "[").replace(":>", "]")
+    normalized: list[str] = []
+    index = 0
+    while index < len(source):
+        char = source[index]
+        following = source[index + 1] if index + 1 < len(source) else ""
+        if char == "/" and following == "*":
+            normalized.extend((" ", " "))
+            index += 2
+            while index < len(source):
+                if source[index] == "*" and index + 1 < len(source) and source[index + 1] == "/":
+                    normalized.extend((" ", " "))
+                    index += 2
+                    break
+                normalized.append("\n" if source[index] == "\n" else " ")
+                index += 1
+            continue
+        if char == "/" and following == "/":
+            normalized.extend((" ", " "))
+            index += 2
+            while index < len(source) and source[index] not in "\r\n":
+                normalized.append(" ")
+                index += 1
+            continue
+        if char in {'"', "'"}:
+            quote = char
+            normalized.append(" ")
+            index += 1
+            while index < len(source):
+                literal_char = source[index]
+                if literal_char == "\n":
+                    raise ValueError("unescaped newline in rewrite literal")
+                normalized.append(" ")
+                index += 1
+                if literal_char == "\\" and index < len(source):
+                    # All legal line continuations were removed above. A
+                    # remaining physical newline after an escape is malformed
+                    # too, and must not hide a following preprocessor line.
+                    if source[index] == "\n":
+                        raise ValueError("unescaped newline in rewrite literal")
+                    normalized.append(" ")
+                    index += 1
+                elif literal_char == quote:
+                    break
+            else:
+                raise ValueError("unterminated rewrite literal")
+            continue
+        normalized.append(char)
+        index += 1
+    return "".join(normalized)
 
 
 def pending_rewrite_variant(
@@ -19487,7 +19598,11 @@ def pending_rewrite_variant(
     source = queue_result.get("source")
     if not isinstance(source, str) or not source.strip():
         return None
-    if _REWRITE_CONTENT_DISALLOWED_RE.search(_normalize_rewrite_source_for_content_check(source)):
+    try:
+        normalized = _normalize_rewrite_source_for_content_check(source)
+    except ValueError:
+        return None
+    if _REWRITE_CONTENT_DISALLOWED_RE.search(normalized):
         return None
     return {"name": "rewrite-request", "source": source, "semanticEquivalent": True}
 
@@ -20918,10 +21033,10 @@ def run_objdiff(target_obj: Path, candidate_obj: Path, case_dir: Path, *, timeou
     # Parse stdout only — empty stdout must fail closed (never substitute stderr).
     report = parse_objdiff_report(proc.returncode, proc.stdout)
     if report["status"] == "error":
-        # Diagnostic fallback only: carries fallback=… so is_proven_zero rejects it.
+        # Preserve verifier failure as the outcome; byte fallback is diagnostic.
         fallback = compare_objdump_code_bytes(target_obj, candidate_obj, case_dir, timeout=timeout)
         if fallback is not None:
-            report = fallback
+            report["diagnosticFallback"] = fallback
     write_json(report_path, report)
     return report
 
@@ -21257,13 +21372,16 @@ def matched_source_shape_record(record: dict[str, Any], search_path: str) -> dic
     attempts = report.get("attempts")
     if not isinstance(attempts, list):
         return None
-    matched = next((attempt for attempt in attempts if isinstance(attempt, dict) and attempt.get("byteIdentical") is True), None)
+    matched = next((attempt for attempt in attempts if isinstance(attempt, dict) and is_objdiff_match(attempt.get("objdiff") or {})), None)
     if matched is None:
         return None
     compile_info = matched.get("compile") if isinstance(matched.get("compile"), dict) else {}
     return record_with_source_text({
         "schema": "agentdecompile.source-shape-code-slice-match.v1",
         "status": "source-shape-code-slice-matched",
+        "differences": 0,
+        "objdiffExit": 0,
+        "verifyReport": matched.get("verifyReport"),
         "name": record.get("name"),
         "entry": record.get("entry"),
         "rule": report.get("rule") or record.get("rule"),
@@ -21624,11 +21742,7 @@ def main(argv: list[str] | None = None) -> int:
     strategy_by_name = load_strategy(args.remaining_features)
     retrieval_by_name = load_retrieval(args.retrieval)
     matched = load_matched(args.matched_summary)
-    from .compile_cache import cache_dir as compile_cache_dir
-    from .compile_cache import cache_key as compile_cache_key
-    from .compile_cache import lookup as compile_cache_lookup
-    from .compile_cache import store as compile_cache_store
-    from .compile_cache import target_slice_sha256
+    from .compile_cache import cache_dir as compile_cache_dir, cache_key as compile_cache_key, lookup as compile_cache_lookup, store as compile_cache_store, target_slice_sha256
     from .match_cache import MatchCache, source_sha256
     from .verify_pool import get_worker_index, map_parallel, resolve_workers
 

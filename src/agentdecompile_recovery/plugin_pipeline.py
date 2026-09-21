@@ -10,15 +10,16 @@ single monolithic recovery loop.
 from __future__ import annotations
 
 import time
+
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
+from . import rewrite_queue
 from .autonomous_policy import choose_next_action
 from .background_task_coordinator import BackgroundSpawnContext, BackgroundTaskCoordinator
 from .dual_agent_advisory import evaluate_checker_gate
-from . import rewrite_queue
-
 
 PluginStatus = str
 PipelineEventHandler = Callable[[dict[str, Any]], None]
@@ -161,23 +162,23 @@ class PluginPipeline:
         self.plugins: list[Plugin] = []
         self.post_match_plugins: list[Plugin] = []
 
-    def register(self, *plugins: Plugin) -> "PluginPipeline":
+    def register(self, *plugins: Plugin) -> PluginPipeline:
         self.plugins.extend(plugins)
         self._emit_registered(plugins)
         return self
 
-    def register_setup_phase(self, *plugins: Plugin) -> "PluginPipeline":
+    def register_setup_phase(self, *plugins: Plugin) -> PluginPipeline:
         self.setup_phase_plugins.extend(plugins)
         self._emit_registered(plugins)
         return self
 
-    def register_programmatic_phase(self, *stages: list[Plugin]) -> "PluginPipeline":
+    def register_programmatic_phase(self, *stages: list[Plugin]) -> PluginPipeline:
         self.programmatic_phase_stages.extend(stages)
         for stage in stages:
             self._emit_registered(stage)
         return self
 
-    def register_post_match_phase(self, *plugins: Plugin) -> "PluginPipeline":
+    def register_post_match_phase(self, *plugins: Plugin) -> PluginPipeline:
         self.post_match_plugins.extend(plugins)
         self._emit_registered(plugins)
         return self
@@ -513,6 +514,24 @@ class PluginPipeline:
 
         request_id = rewrite_queue.write_rewrite_request(
             work_dir,
+            function_name=function_name,
+            entry=str(row.get("entry") or ""),
+            candidate_source=candidate_source,
+            mismatch_class=decision.get("mismatchClass"),
+            mismatch_histogram=decision.get("mismatchHistogram"),
+            aligned_diff=aligned_diff,
+            compiler_profile=compiler_profile,
+        )
+
+        # Also publish the request to the work exchange so donated compute can
+        # fulfill it. Best-effort and a no-op unless the exchange is enabled:
+        # the local fulfillment paths below remain the authority, and whatever
+        # a contributor returns is a proposal the compile-verify gate rules on.
+        from .exchange.producers import offer_rewrite_unit
+
+        offer_rewrite_unit(
+            work_dir=work_dir,
+            request_id=request_id,
             function_name=function_name,
             entry=str(row.get("entry") or ""),
             candidate_source=candidate_source,

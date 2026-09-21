@@ -2,21 +2,21 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import os
 import re
 import shutil
 import signal
 import subprocess
 import tempfile
+
 from pathlib import Path
 from typing import Any
 
 from agentdecompile_recovery.languages import language_from_metadata, verify_language_id
 
 from .state import atomic_write_json
-
 
 TYPE_SHIM = """
 typedef unsigned char byte;
@@ -530,7 +530,7 @@ def compile_with_msvc(
         message = f"cl.exe not found at {cl_exe}; pass --msvc-root or set VC_ROOT"
         stdout_path.write_text("", encoding="utf-8")
         stderr_path.write_text(message, encoding="utf-8")
-        return {"status": "failed", "returnCode": 3, "reason": message, "stdout": str(stdout_path), "stderr": str(stderr_path), "stderrTail": message}
+        return {"status": "failed", "compilerInvoked": False, "returnCode": 3, "reason": message, "stdout": str(stdout_path), "stderr": str(stderr_path), "stderrTail": message}
 
     source_suffix = source.suffix.lower()
     is_assembler = source_suffix == ".asm"
@@ -538,7 +538,7 @@ def compile_with_msvc(
         message = f"ml.exe not found at {ml_exe}; pass --msvc-root or set VC_ROOT"
         stdout_path.write_text("", encoding="utf-8")
         stderr_path.write_text(message, encoding="utf-8")
-        return {"status": "failed", "returnCode": 3, "reason": message, "stdout": str(stdout_path), "stderr": str(stderr_path), "stderrTail": message}
+        return {"status": "failed", "compilerInvoked": False, "returnCode": 3, "reason": message, "stdout": str(stdout_path), "stderr": str(stderr_path), "stderrTail": message}
 
     source_text = source.read_text(encoding="utf-8", errors="replace")
     source_name = "in.asm" if is_assembler else "in.c"
@@ -560,6 +560,12 @@ def compile_with_msvc(
         local_source.write_text(source_text, encoding="utf-8")
         proc = run_command(command, cwd=work_dir, env=env, timeout=timeout)
         produced = work_dir / out_name
+        # Wine can start and fail before loading the compiler. Only compiler
+        # output or a source diagnostic proves that the candidate was attempted.
+        compiler_invoked = produced.is_file() or bool(re.search(
+            r"(?m)^.*\(\d+(?:,\d+)?\)\s*:\s*(?:fatal\s+)?error\s+[CA]\d{4}\s*:",
+            proc.stdout + "\n" + proc.stderr,
+        ))
         if produced.exists():
             shutil.copy2(produced, artifact_work_dir / out_name)
         if proc.returncode == 0 and produced.exists():
@@ -575,6 +581,7 @@ def compile_with_msvc(
         "stderr": str(stderr_path),
         "stderrTail": proc.stderr[-2000:],
         "compilerRoot": str(root),
+        "compilerInvoked": compiler_invoked,
         "wineprefix": env.get("WINEPREFIX"),
         "artifactWorkDir": str(artifact_work_dir),
     }

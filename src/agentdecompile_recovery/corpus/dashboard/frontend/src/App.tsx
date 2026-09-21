@@ -42,6 +42,7 @@ import { SourceDownload } from "./SourceDownload";
 import { WorkbenchIntegration } from "./integration/WorkbenchIntegration";
 import { CorpusDbPicker } from "./CorpusDbPicker";
 import { LocalArtifactPanel } from "./runtime/LocalArtifactPanel";
+import { ExchangeContribution } from "./ExchangeContribution";
 import "./actions.css";
 const sectionNames: Record<string,string> = {
   overview: "Project overview", preparation: "Preparation status", listing: "Source and assembly",
@@ -855,6 +856,7 @@ export function App() {
         <button onClick={() => setPalette(true)}>
           Commands <kbd>Ctrl K</kbd>
         </button>
+        <ExchangeContribution />
         <span className="muted connection">{connection}</span>
       </header>
       <div

@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from mcp import types
 
@@ -23,6 +23,12 @@ from agentdecompile_cli.mcp_server.tool_providers import (
     n,
 )
 from agentdecompile_cli.registry import Tool
+
+if TYPE_CHECKING:
+    from types import SimpleNamespace
+
+    from agentdecompile_cli.launcher import ProgramInfo
+
 
 logger = logging.getLogger(__name__)
 
@@ -91,18 +97,18 @@ class DataToolProvider(ToolProvider):
             ),
         ]
 
-    async def _handle_get(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_get(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Read raw bytes at address; include hex/ascii/both per format. Cap length at 10000."""
         logger.debug("diag.enter %s", "mcp_server/providers/data.py:DataToolProvider._handle_get")
-        self._require_program()
+        self._require_program(program_info=program_info)
         addr_str = self._require_address_or_symbol(args)
         length = self._get_int(args, "length", "size", "len", default=16)
         fmt = self._get_str(args, "format", default="both")
 
-        program = self.program_info.program
-        addr = self._resolve_address(addr_str, program=program)
+        program = program_info.program
+        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
 
-        memory = self._get_memory(program)
+        memory = self._get_memory(program, program_info=program_info)
         buf = bytearray(min(length, 10000))
         actual = memory.getBytes(addr, buf)
 
@@ -113,7 +119,7 @@ class DataToolProvider(ToolProvider):
             result["ascii"] = "".join(chr(b) if 32 <= b < 127 else "." for b in buf[:actual])
 
         # If Ghidra has already defined data at this address, include type and value in the response
-        listing = self._get_listing(program)
+        listing = self._get_listing(program, program_info=program_info)
         data = listing.getDataAt(addr)
         if data is not None:
             result["definedType"] = str(data.getDataType())
@@ -123,16 +129,16 @@ class DataToolProvider(ToolProvider):
                 pass
         return create_success_response(result)
 
-    async def _handle_apply(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_apply(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Apply a data type at the given address: clear existing code units there, then createData with the parsed type."""
         logger.debug("diag.enter %s", "mcp_server/providers/data.py:DataToolProvider._handle_apply")
-        self._require_program()
+        self._require_program(program_info=program_info)
         addr_str = self._require_address_or_symbol(args)
         dt_name = self._require_str(args, "datatype", "datatypestring", "type", "typename", name="dataType")
 
-        program = self.program_info.program
-        addr = self._resolve_address(addr_str, program=program)
-        listing = self._get_listing(program)
+        program = program_info.program
+        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
+        listing = self._get_listing(program, program_info=program_info)
 
         from ghidra.util.data import DataTypeParser
 
@@ -151,7 +157,7 @@ class DataToolProvider(ToolProvider):
                     conflict_id = str(uuid.uuid4())
                     conflict_summary = f"Apply data type would overwrite existing data at address:\n\n```diff\n- {existing_type}\n+ {dt_name}\n```"
                     next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                    program_path = args.get(n("programPath")) or getattr(self.program_info, "path", None) or getattr(self.program_info, "file_path", None)
+                    program_path = args.get(n("programPath")) or getattr(program_info, "path", None) or getattr(program_info, "file_path", None)
                     conflict_store_store(
                         get_current_mcp_session_id(),
                         conflict_id,

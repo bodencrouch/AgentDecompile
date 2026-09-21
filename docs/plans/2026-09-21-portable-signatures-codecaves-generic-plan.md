@@ -4,10 +4,15 @@ type: feat
 date: 2026-09-21
 extends: the 2026-09-08 portable-signatures export plan (docs/plans/2026-09-08-0225-*; rename that file to drop its product token under U21)
 authority: STRATEGY.md (recovery ordering) · VISION.md (engine-agnostic) · RUNTIME_REUSE.md (integration contract)
-status: implementation-ready plan; read-only audit basis; no code changed
+status: implementation-ready plan, audit 2 applied; Step 0, Phase 0 (D1–D7), U5c, U7/U7b, U22, U1–U3/U1b landed on feat/portable-signatures-codecaves-generic (b271ba6)
 ---
 
 # Portable Signatures, Codecaves, and ABI Export — engine-generic
+
+## Revision log
+
+- 2026-09-21 — audit 2 (five grill sessions + cross-grill): A1–A31 applied; see
+  docs/plans/2026-09-21-plan-audit-2.md
 
 Goal (user, 2026-09-21): make the recovery pipeline (1) generate a **portable
 signature for every cross-build entity** — functions first, but equally globals,
@@ -94,7 +99,16 @@ Both trees carry `agentdecompile_recovery/` (batch corpus recovery + exporters) 
 initial audits read only `agentdecompile_recovery/` on nvme; the ABI audit then found the
 CLI tree and **reversed one headline conclusion** (per-parameter storage *is* captured and
 editable there). Unless a bullet says otherwise, every `file:line` anchor below is from
-`nvme/src/agentdecompile_recovery/`; anchors from the CLI tree are marked `[CLI]`.
+`src/agentdecompile_recovery/` on the implementation branch where audit 2 re-derived it, and
+from the pre-Step-0 runtime copy elsewhere (unverified until order step 2b); anchors from
+the CLI tree are marked `[CLI]`.
+
+> **Status (audit 2):** Step 0 is done in `0256ca0` — 119 differing files (not 81); the
+> `containers/{detect,models,nds,registry}.py` split was **not** imported (canonical's
+> monolith is newer); `source_parity_synthesize.py` was imported at 0 bytes — treat it as
+> truncated and re-import before U42. Item 5 (re-anchor) is open: audit 2 re-derived the
+> anchors it cites against the implementation branch; the rest stay unverified until order
+> step 2b.
 
 **Step 0 (before any code change): branch from canonical, fold in the narrow nvme-only
 work by per-file decision, then re-anchor.** The user's standing rule is to resume from
@@ -132,7 +146,7 @@ not build-from-scratch. Grounded in a six-part read-only code audit:
   holds the **C prototype string** (`corpus/logical.py:256`), the "signature family" in
   `export_hookpack.py` is a majority-vote over prototypes, `hash_raw` is unmasked exact
   bytes, `unique_window` is per-raw-file (not cross-build, not region-scoped, prologue-
-  anchored, no masking, `export_hookpack.py:35`), there is no cross-build `find_unique`
+  anchored, no masking, `export_hookpack.py:56`), there is no cross-build `find_unique`
   or coverage record, and BSim is eval-only (`corpus/bsim_eval.py`; `_fuse_bsim` reads an
   optional external table, never writes identity).
 - **Hook-pack (`agentdecompile.hookpack/v1`):** emits `binaries[]` (slug/game/platform/
@@ -170,8 +184,8 @@ not build-from-scratch. Grounded in a six-part read-only code audit:
   detection (`targets.py`), container registry, source-language registry, and the
   `compiler_for` profile seam are already genuine adapters. Breakage clusters in three
   places: **no signature masking** (breaks x64/PIE/ARM — the #1 blocker), **MSVC-x86 ABI
-  duplicated in 4 files**, **PE32-only VA→offset** (PE32+ silently corrupts via a 4-byte
-  ImageBase read). Plus a few hardcoded product-specific *paths* to move to data-packs.
+  duplicated in 4 files**, **PE32-only VA→offset** — closed in `f935db7`: `_file_offset`
+  (`export_hookpack.py:82-90`) now goes through `mapper_for(image, load_base)`. Plus a few hardcoded product-specific *paths* to move to data-packs.
 
 ## Design spine
 
@@ -182,7 +196,12 @@ not build-from-scratch. Grounded in a six-part read-only code audit:
 - **Runtime resolution (locator, in the exported pack):** finds an *already-bound* site in
   a live image without a VA. A relocation-masked byte window is a legitimate **primary**
   member here, because identity was already settled upstream. A runtime byte-match is
-  **never** fed back as an identity edge or source proof.
+  **never** an identity edge. Runtime resolutions go to
+  `runtime_claim(build_sha256, entity_key, addr, member, evidence, observed_status)`, a claim
+  beside `match`, never a row in `identity`. Only `bind_identities` promotes a claim, and only
+  when a non-byte channel confirms it; rejection writes a receipt and deletes it. Nothing
+  exports, diffs or counts `runtime_claim` as identity; the harness lists it under
+  `FIXTURE_TABLES`, never `OUTPUT_TABLES`.
 
 ### 2. Signature is a *family*, split by where it runs
 - **Identity-time evidence** (produces `logical_id`): symbols → exact/reloc-normalized →
@@ -218,7 +237,10 @@ group by `logical_id` and record per-build resolvability/capacity coverage.
   base/hash, overlays, semantic aliases, hook-intent/site-kind policy.
 A new engine plugs in by adding an L3 adapter and *selecting* an existing L2; L1 never
 changes. **L3 adapters and build profiles are external data packs, never code or docs in
-the core.**
+the core.** Data packs are declared inputs: root path from config, `pack.json
+{schema_version, engine_class, arch_class, entries}`, sorted discovery, content hash in the
+basis, one loader (U19a: a fixture pack loads; removing it yields `missing_adapter`, never a
+default).
 
 ### 5. Divergence is a first-class L1 signal, not a display afterthought
 It is the same epistemic requirement the identity model already mandates (region-match, not
@@ -330,9 +352,9 @@ resolves through another. Cheap-first and deterministic, mirroring the identity 
 5. **Pointer chain from another resolved root** — a deref path `root → +off → * → +off`,
    each hop verified; lets one well-anchored singleton reach a whole object graph.
 6. **VTable / RTTI-derived** — identify an object's type from its vptr, then its fields.
-7. **Module-relative RVA / section+offset** — the *last* resort, explicitly marked
-   per-build and non-portable, present only so a build with nothing else still has a
-   recorded answer instead of a silent failure.
+7. **Module-relative RVA / section+offset** — the floor. An entity resolved only here is
+   `pinned(member)`, `portable:false`, never `resolved`; present only so a build with
+   nothing else still has a recorded answer instead of a silent failure.
 
 **The resolver contract** (the runtime-host side, driven by the pack; every rule is what
 the reference script lacked):
@@ -376,8 +398,33 @@ run. Most RE tools can't; we can, because the core signals are pure functions of
 and the nondeterminism lives in *how we serialize, order, and tie-break* — which we control.
 
 **"Deterministic" is only meaningful relative to a declared basis.** Every pack records a
-**determinism basis**: decoder/Ghidra revision, algorithm version, masking-rule version,
-the threshold parameter set, and a **corpus manifest hash** (sorted build-image hashes).
+**determinism basis**. This object is normative (U54 lands it; U5c emits it):
+
+```
+basis = {
+  basis_version;
+  decoder{name, version}                        -- from binary.decoder_revision
+  analyzer{version, processor_spec_hash, compiler_spec_ids, options_hash,
+           timeout_policy, loader_revision}     -- from binary
+  algorithm_version                             -- incl. the tie-break key version
+  masking_rule_version                          -- ≠ "none" once U4 lands
+  threshold_params                              -- live serialization of PAIR_POLICY,
+      CONTENT_FLOOR(S), channel_confidence.BASE and penalties, cfg slack,
+      BSim {trusted_significance, margin, tiny_n_instr, tiny_sim},
+      window {min_n, max_n}, divergence {d, u, s}; empty is a gate failure
+  filler_set;
+  external_channels{bsim_generator_revision};
+  data_packs[{id, schema_version, sha256}]      -- sorted
+  seeds; toolchain_identity_hash; corpus_manifest_hash
+}
+```
+
+Enforcement: every field derives from store-recorded values or pinned package constants,
+never from the process environment at export; each `binary` row carries
+`basis_hash = sha256(basis minus corpus_manifest_hash)` written at ingest (migration 2);
+export, the harness and `export-bundle` refuse when any field is absent, "unknown" or
+empty, or when the store holds more than one distinct `binary.basis_hash`, naming the field
+and both bases. `schema_migration.basis_hash` uses the same object. Any field change → U25.
 Acceptance = re-run under an identical basis, byte-diff the pack, expect zero.
 
 ### What the code does today (determinism audit, nvme tree)
@@ -403,16 +450,25 @@ Acceptance = re-run under an identical basis, byte-diff the pack, expect zero.
    operands are position-relative and absent from `.reloc`. Leave non-address immediates
    literal (struct sizes/constants carry the discriminative signal). Mask scope is
    determined by decode semantics — it is **not** a tunable knob.
+   **1b. Candidate-address class.** When the format carries no relocation table
+   (`reloc_table_present=false`), an immediate whose value falls inside any mapped section's
+   VA range is classed candidate-address and masked; this class is part of
+   `masking_rule_version`. The window selector adds criterion (iii): zero candidate-address
+   bytes, preferring such windows before applying the total order. A window that cannot
+   avoid them is recorded with coverage `degraded(candidate_address)` for that build.
 2. **Window selection uses a provably total order**: among windows meeting (i) a minimum
    literal-byte floor and (ii) uniqueness-with-margin against the *declared* corpus, choose
    by **(literal-content length asc, section-relative offset asc, full masked-pattern
    lexicographic)**. Mask-density is dropped as a criterion (preferring more-masked selects
    *less* discriminative content). Scan order pinned to (section index, offset asc); margin
-   definition is part of the algorithm version.
+   definition is part of the algorithm version. Uniqueness is per build over its executable
+   region; `margin` = min over covered builds; consensus = intersection; both stored.
 3. **Coverage is keyed by build slug, stored as sorted lists, and the corpus manifest hash
    is in the pack** — uniqueness is evaluated against the current build set, so adding a
    build legitimately changes the canonical window; determinism is "pure function of (sorted
-   build-image hashes + decoder revision + algorithm version)."
+   build-image hashes + decoder revision + algorithm version)." D1/D2/D3 tie-breaks and every
+   "best" pick use `binary.content_sha256`, never rowid or slug; NULL refuses; changing the
+   key is a versioned change.
 4. **Cave anchor = the nearest-*preceding* function with a unique tail** (the *maximum*
    function-start offset below the cave in the same section), walking backward only if the
    nearest lacks a unique tail. Not the lowest-offset one — distance maximizes drift. The
@@ -431,8 +487,10 @@ Acceptance = re-run under an identical basis, byte-diff the pack, expect zero.
    `too_different` flag would collapse the split/inlined case STRATEGY and F07 require.
 
 ### Phase 0 — the minimal ordering fix set (makes the hookpack byte-reproducible today)
+**D1–D7 landed** (`16f0823`, `a0db224`, `5225722`, `559dc46`); D8 and D9 below remain.
 These are prerequisites for everything above, and for **divergence determinism, which
-inherits the `logical_id` cascade's determinism** (currently *not* deterministic):
+inherits the `logical_id` cascade's determinism**. Gate wording everywhere: "canonical
+sorted row-set equality including `match.id`", never "byte-for-byte":
 - **D1 `logical.py:39-64`** — the driving SELECT has no `ORDER BY` — and there are **two**
   SELECT branches (the `canon.DRM_EXCLUDED`-gated one and the ungated one); both need it.
   (`DRM_EXCLUDED` is an empty `set()` — a DRM mechanism with no data, which is also why the
@@ -462,11 +520,9 @@ inherits the `logical_id` cascade's determinism** (currently *not* deterministic
   `logical_id_binary_conflict` demotions. Dst-major makes "which source claims this
   destination" the decided question — the thing the race actually resolves — rather than a
   side effect of scan order. This ordering is part of the **algorithm version** in the
-  determinism basis; changing it is a versioned change, not a refactor. **Verdict today:** the cascade is deterministic for a fixed DB file, SQLite
-  version and query plan, but **not reproducible across re-ingest, `VACUUM`, `ANALYZE`,
-  index changes, or insert order** — a `logical_id`-keyed divergence value would inherit
-  that. (Int-keyed sets/dicts are *not* the issue — CPython doesn't randomize int hashing;
-  the instability is SQL plan order + stable-sort ties.)
+  determinism basis; changing it is a versioned change, not a refactor. **Verdict (landed):** D1–D7 are in; the remaining risk is rowid-keyed tie-breaks (D8)
+  and the rowid backfill (D9). (Int-keyed sets/dicts were never the issue — CPython doesn't
+  randomize int hashing; the instability was SQL plan order + stable-sort ties.)
 - **D4 `match_store.py:60-68,666,703`** — func SELECT unordered feeds the greedy cascade;
   `for b in cands` iterates a set; `scored.sort` ties on `(score, margin)` keep row order.
   Fix: `ORDER BY addr`; `sorted(cands)`; sort key `(-score, -margin, a, b)`; round persisted
@@ -492,6 +548,14 @@ inherits the `logical_id` cascade's determinism** (currently *not* deterministic
   assignment order, written by whichever connection wins the lock, with failures swallowed. Same rule everywhere: any SELECT feeding a persisted or
   first-wins decision gets a total `ORDER BY`; any set/dict that reaches a hash or artifact
   is sorted first; any "best/preferred" pick has a total key ending in the actual bytes.
+- **D8. Rowid tie-breaks.** `logical.py:48,60`, `propagate.py:168,209` and
+  `export_hookpack.py:138,150,165` order and tie-break on `binary_id`/`id` (rowids); the
+  harness pins `binary.id`, so build-ingest order is never perturbed. Fix per design
+  decision 3: key on `binary.content_sha256`, never rowid or slug; NULL refuses.
+- **D9. `store.py:293` backfills `recovery_family='unclassified:' || id`** — a value
+  derived from rowid assignment order (the `:288-290` comment calls it safe; false once
+  build order moves). Derive it from `content_sha256`; add `recovery_family` to the harness
+  dump.
 
 ## Grounding in known-working practice
 
@@ -527,21 +591,51 @@ encodes the doc's version.
 
 ## Target artifact: `agentdecompile.hookpack/v2`
 
-v1 cannot carry this; v2 adds (all consumed or consumable by `registry.cpp`):
-- **binaries[]** += `image_base`, `sha256`, `arch`, `bits`.
-- **sites[].signature** → a **family**: `{ proto, locators:[ {kind: masked_window|anchor_rel|region_hash, value, mask, region, uniqueness, margin, builds:[…coverage…]} ], coverage }`.
-- **sites[].abi**: `{ convention, this_kind, args:[{type,width,storage}], ret:{type,width,storage,by_ref}, stack_cleanup, varargs, confidence, provenance }`.
-- **`sites[]` generalizes to `entities[]`**, each with a `kind` from the entity catalog
+v1 cannot carry this. `agentdecompile.hookpack/v2` root: `format`, `basis` (the normative
+object in the Determinism section), `pack_sha256` (U24), `corpus_manifest_hash`.
+- **binaries[]**: `slug, content_sha256, image_base, arch, bits, format, endian, pointer_size,
+  wchar_width, compiler_spec, this_kind, reloc_table_present, unpack_state, cfg_instrumented,
+  basis_hash, toolchain`.
+- **`entities[]` replaces `sites[]`** (kept only under `--format v1`), each with a `kind` from
+  the entity catalog
   (`function | patch_point | immediate | call_site | global | singleton | struct | class_ctor
   | vtable | rtti | string | table | enum | jump_table | import | export | dispatch_table |
   vm_opcode_table | tls | unwind | section | resource | initializer | entry_loop | site_frame
-  | site_regs | allocator | library_fn | inlined_region | integrity_check`) + `required`, a
-  per-kind **shape** block (e.g. struct → per-build field map + field correspondence;
-  vtable → per-build slot map; table → element layout/count/stride; patch_point → operand
-  layout + register/stack contract), the same **locator family + coverage** as functions,
-  and a per-kind **divergence** block. Function-only consumers ignore unknown kinds.
-- **sites[].instances[]** always carry their own `expected_bytes` (try-in-turn), not only when all builds agree.
-- **caves[]** (new): `{ id, anchor_sig, offset, capacity, arch, original_byte, relocation_rules, restoration, coverage:[{build, resolvable, capacity}] }`.
+  | site_regs | allocator | library_fn | inlined_region | integrity_check`) + `required`:
+  ```
+  { key: stable_key, previous_keys[], kind, required,
+    shape{per kind},
+    abi{convention, this_kind, args[{type,width,storage}],
+        ret{type,width,storage,sret{allocator,ptr_storage,returned_in}},
+        stack_cleanup, varargs, confidence, provenance},
+    locators[] ordered, each {
+      kind ∈ symbol | masked_window | anchor_rel | xref_from_function | data_xref |
+             caller_callsite | callee_order | vtable_slot | pointer_chain |
+             neighbour_position | structural | region | module_rva | section_offset,
+      portable (false only for module_rva/section_offset), value, mask, region,
+      uniqueness{scope: per_build_exec_region, hits, margin_min_over_builds},
+      verify{expected_bytes | region_hash | shape},
+      coverage[{build, status, reason}] },
+    structural{mnemonic_seq_hash, cfg_mdindex, spp, margin},
+    callers[{key, callsite_index}], callees[key…], neighbours{prev, next},
+    instances[{build, addr, expected_bytes, resolved_by, status, detourable, reason}],
+    status{build → rollup}, divergence{per kind} }
+  ```
+  Every ladder member names the locator kind it consumes (see the kind tags on Ladders A
+  and C). The per-kind **shape** block is as before (struct → per-build field map + field
+  correspondence; vtable → per-build slot map; table → element layout/count/stride;
+  patch_point → operand layout + register/stack contract). Function-only consumers ignore
+  unknown kinds.
+- **Closed status set**, per member and per entity × build:
+  `resolved(member) | pinned(member) | degraded(member, reason) | ambiguous | unresolved |
+  contested`, rolled up by U30's rule; `observed_status` is separate.
+- **caves[]**: `{ id, claim{pack_sha, cave_id, build_sha256}, anchor: locator, offset,
+  capacity, arch, original_bytes, relocation_rules, restoration, candidates[] (U100),
+  coverage[{build, status, capacity}] }` — U12 is the only producer.
+- **Format bump:** `FORMAT` (`export_hookpack.py:32`) becomes v2 in the first unit emitting
+  a v2-only key; until U23's refuse-on-unknown lands, v2 is emitted only behind
+  `--format v2` (default v1; `RH/src/hooks/registry.cpp:336` matches v1 exactly, else the
+  legacy parser). Consumers ignore unknown kinds and refuse unknown formats.
 
 ## Implementation units (phased, ranked)
 
@@ -567,17 +661,24 @@ v1 cannot carry this; v2 adds (all consumed or consumable by `registry.cpp`):
   image** by a **named, versioned decoder** — not from Ghidra's analysis references. There
   is no decoder revision to record today (`pyproject.toml` pins `pyghidra>=3.0.2` floating;
   no capstone/iced dependency; canonical's `decode_x86.py` is pattern matchers, not a
-  length-disassembler). Decide and record one: either Ghidra's disassembler on a
-  **no-analysis import** of the raw file (record Ghidra version + processor-spec hash) or a
-  pure decoder library pinned by version. Mask = decode-identified address operands ∪
-  format relocation entries (design decision 1). The `features.py:176` operand loop is the
+  length-disassembler). Decoder = one pure length-and-operand decoder library with Python and C++ bindings,
+  pinned by version; U91 embeds the same library and revision. The analyzer's disassembler
+  is evidence, never a mask input. Mask = decode-identified address operands ∪
+  format relocation entries (design decision 1). The `features.py:185-192` operand loop is the
   integration point, but its *inputs* change to the decoder; store `func.mask_pattern`.
 - **U5. `logical_signature` table** keyed by `logical_id`: consensus masked pattern +
   structural hash + **cross-build `find_unique` + coverage**; build beside `logical.py`
   (a new `corpus/signatures.py`), consume in `export_hookpack._preferred_signature`.
+  Uniqueness per design decision 2; uncovered builds recompute hits==1 in the executable
+  region live; packed margin advisory; coverage `uncovered`.
 - **U6. Region-scoped, interior-anchored windows** (executable section only; prefer
-  distinctive interior bytes over the prologue frame-size immediate). `export_hookpack.py:35`.
+  distinctive interior bytes over the prologue frame-size immediate). `export_hookpack.py:56`.
+  Add a section-scoped, tail-anchored window primitive beside `unique_window` (`:56` is
+  whole-file, entry-anchored).
 - **U7. Rewire VA→offset to the correct mapper that already exists (one-import fix).**
+  **Landed (`f935db7`):** `_file_offset` (`export_hookpack.py:82-90`) calls
+  `mapper_for(image, load_base)`; the PE32-only duplicates are retired; remaining:
+  `exact_corpus.py:121` still calls `pe_mapper` directly. Original finding, for the record:
   Three VA→offset implementations exist: the correct `exact_universal.mapper_for`
   (`:116-117`, dispatching `pe_mapper`/`elf_mapper`/`macho_mapper`; `pe_mapper:41-44` reads
   the optional-header magic and uses `<Q` ImageBase when `0x20B` — **PE32+ handled
@@ -592,10 +693,10 @@ v1 cannot carry this; v2 adds (all consumed or consumable by `registry.cpp`):
   ELF, Mach-O, or any rebased import the swap alone still yields wrong offsets. The mapper
   must accept the load base and compute `off = va2off(addr - binary.image_base +
   format_base)`; add PIE ELF to the target matrix.
-  **Coverage caveat:** `mapper_for` handles PE/ELF/Mach-O only — it does **not** handle
-  **XBE**, so XBE-format builds (contemplated at `bsim_ops.py:501`) still drops
-  `expected_bytes` after the swap. XBE is covered by **U7b**, below.
-- **U7b. XBE mapper + container detection (any `.xbe` build).** Add `xbe_mapper`
+  **Coverage caveat (closed):** XBE landed with U7b (`exact_universal.py:174`; `mapper_for`
+  `:200`).
+- **U7b. XBE mapper + container detection (any `.xbe` build).** **Landed (`f935db7`)** —
+  `xbe_mapper` at `exact_universal.py:174`; container detection remains open. Add `xbe_mapper`
   to `exact_universal.mapper_for` and XBE detection to `agentdecompile_recovery/containers/detect.py` /
   `registry.py` (the registry already hosts NDS, so the plug-in shape exists). XBE layout
   (all little-endian, header at file offset 0): magic `"XBEH"` @`0x000`; **base address**
@@ -627,11 +728,20 @@ v1 cannot carry this; v2 adds (all consumed or consumable by `registry.cpp`):
   (a) **Export byte-diff** (`corpus.verify-determinism`): re-run the export on a temp copy
   of the store and byte-diff the packs. Cheap — but it only detects D2, since D1/D3–D6 run
   *upstream* of the store contents.
-  (b) **Cascade determinism harness**: snapshot one extraction's `func`/`calledge` rows into
-  a fixture; run match → bind **twice** from that fixture with shuffled insert order and a
-  `VACUUM`/`ANALYZE` between; diff `identity`, `match`, `logical_function`
-  byte-for-byte. Needs no Ghidra re-run, so it does not collide with STRATEGY's
-  never-re-analyze rule. A non-empty diff fails and names the first differing row.
+  (b) **Cascade determinism harness** (landed, `e47d387`; this wording is the gate): snapshot
+  one extraction's fixture tables and run the cascade from the snapshot under three
+  layouts: (i) canonical insert; (ii) fresh DB, rows inserted in a seeded shuffled order
+  with fresh rowids, **and `binary` rows inserted in shuffled order so `binary.id`
+  differs**; (iii) layout (ii) followed by `VACUUM; ANALYZE`. Compare `identity`, `match`
+  (including `id`), `logical_function` and `recovery_family` as sorted canonical JSON
+  row-sets against (i). Both (ii) and (iii) are required: with `ANALYZE` statistics the
+  planner tends to serve unordered SELECTs from `ix_func_bin_addr`, which hides
+  insertion-order defects; (ii) exposes them. Removing either layout is a versioned change
+  to the gate. `FIXTURE_TABLES` gains the BSim vector table (U5d) and `runtime_claim`
+  (U99); a missing-table skip fails the harness; `generate_fixture` emits a synthetic
+  `content_sha256` per `binary` row (the fixture has no raw images, so `backfill.py:35-43`
+  cannot). Needs no Ghidra re-run, so it does not collide with STRATEGY's never-re-analyze
+  rule. A non-empty diff fails and names the first differing row.
 - **U5d. Persist BSim vectors as a first-class identity channel (gap 6).** `bsim_eval.py`
   is eval-only and `_fuse_bsim` reads an optional external `bsim_hit` table; the CLI tree's
   `batch_bsim.py` only collects XML paths on disk. Persist the LSH vectors produced by
@@ -651,16 +761,16 @@ v1 cannot carry this; v2 adds (all consumed or consumable by `registry.cpp`):
   Keep Ghidra's model as *evidence* for identity; keep it out of the hash inputs.
 
 ### Phase 3 — ABI/param export for Lua (the "params/codecaves in Lua" ask) — L1 + L3
-- **U8. Bridge the CLI tree's storage collection into the batch path — not a new capture.**
-  Per-parameter register/stack storage is **already collected and editable** in the CLI
-  tree: `[CLI] _collectors.py:236` (`hv.getRepresentative()`), `:486-506` (structured
-  `parameters[{name,type,ordinal}]`, `callingConvention`, `hasVarArgs`), and
-  `[CLI] getfunction.py:185-227` (`set_storage` with a `parameterStorage[{ordinal,dataType,
-  storage[]}]` schema). The batch recovery tree drops it at extraction (`features.py:131`
+- **U8. Bridge the CLI tree's structured storage collector into the batch path.** The
+  per-parameter storage collector is `[CLI] guide_function.py:7-18` (`storage_pieces` →
+  `{size, register | stackOffset}`) and `:31-38` (`function_properties`: `customStorage`,
+  `returnStorage`, per-parameter storage). `[CLI] _collectors.py:486-506` carries
+  `{name,type,ordinal}` only and `:236` stringifies a local-symbol representative; neither
+  is an ABI source (`[CLI] getfunction.py:185-227` is only the `set_storage` JSON schema). The batch recovery tree drops it at extraction (`features.py:131`
   records type names only) and the exporter drops it again (`export_hookpack.py:120`).
-  Fix: persist storage in the batch tree (a `func_param` child table populated by the same
-  `getVariableStorage()` read the CLI collector already performs) and reuse the
-  `_collectors`-shaped output as the exporter's ABI source. **Architecture-agnostic — carries
+  Fix: persist the `storage_pieces` output in `func_param(binary_id, addr, ordinal, name,
+  type, pieces_json)` plus `func.return_storage`, and reuse the `function_properties`-shaped
+  output as the exporter's ABI source. **Architecture-agnostic — carries
   x64 register storage for free**, bypassing the 32-bit `ret imm` / `@N` heuristics.
 - **U9. Persist `varargs`/`no_return`** (recovered at `features.py:135`, add columns).
 - **U10. Stop collapsing thiscall/fastcall** (`propagate_conventions.py:13`); keep raw
@@ -677,13 +787,17 @@ v1 cannot carry this; v2 adds (all consumed or consumable by `registry.cpp`):
   existing `_sizecheck_` assertion as the determinism guard on layout.
 
 ### Phase 4 — Codecave discovery + Lua patch path (greenfield top gap) — L1 core + L2/L3 + the runtime host
-- **U12. `corpus/export_caves.py` + `corpus.export-caves` verb** (mirror `export-hookpack`
-  at `cli.py:186`, advertise via `corpus/dashboard/actions/introspect.py` — not the stale root `introspect.py`). Enumerate ≥N-byte uniform-filler runs
-  in executable sections from the raw image. **Cave candidacy is validated, not assumed**
-  (a run of filler bytes is not proof of unused space — the same reason the runtime host
-  refuses ARM): a candidate must be (i) not covered by any decoded instruction range,
-  (ii) not the target of any relocation or data reference, and (iii) bounded by two decoded
-  function ends. **One anchor rule, decode-derived, never a Ghidra naming predicate**
+- **U12. Cave discovery writes into `hookpack/v2` `caves[]` — no separate artifact, no
+  second verb** (the one exporter verb is `export-hookpack`, `cli.py:195`; advertise via
+  `corpus/dashboard/actions/introspect.py` — not the stale root `introspect.py`). Enumerate
+  ≥N-byte uniform-filler runs in executable sections from the raw image. **Cave candidacy is
+  validated, not assumed** (a run of filler bytes is not proof of unused space): a candidate
+  must be (i) not covered by any instruction range from the **U4 decoder** — never the
+  analyzer's function-body model (the prior pass recorded corpus function ends "a few bytes
+  short", which reports a false cave inside the previous function's tail); (ii) not a
+  relocation target, data-reference target, or PC-relative load target (the literal-pool
+  case; ARM stays refused until a per-arch guard (iv) exists); (iii) bounded by two
+  U4-decoded function ends. **One anchor rule, decode-derived, never a Ghidra naming predicate**
   (`non-FUN_` is analysis-derived and empty on a stripped image): anchor = the function with
   the greatest decoded entry offset below the cave in the same section whose tail passes the
   U6 uniqueness-with-margin test, walking backward only if the nearest fails; stripped
@@ -692,7 +806,10 @@ v1 cannot carry this; v2 adds (all consumed or consumable by `registry.cpp`):
 - **U13. A cave helper in the runtime host's Lua API** — capacity-checked writes + restoration bookkeeping,
   reusing the detour engine's length-disassembler/relocation/restore (`trampoline.hpp:71,147`).
   the runtime host is a separate repo (the sibling runtime-host repo);
-  land it there as its own change.
+  land it there as its own change. Depends on U23's mask-aware `find_unique(value, mask)`:
+  the cave anchor is a masked tail window (design decision 4) and
+  `RH/src/api/memory.cpp:697-706` is all-`0xFF` today, so it cannot evaluate it — U23/U46
+  land before this unit (see the order).
 - **U13b. Arch-gate the the runtime host runtime so it can consume 64-bit / non-x86 packs.**
   `thiscall.hpp:75` `#error x86-32 only` and `trampoline.hpp:46` `static_assert(sizeof(void*)
   == 4)` hard-block any 64-bit target (any 64-bit target). Replace with the L2
@@ -700,15 +817,33 @@ v1 cannot carry this; v2 adds (all consumed or consumable by `registry.cpp`):
   by the pack's `arch`/`bits`, with the x86-32 five-byte detour as the first adapter and an
   x86-64 adapter (14-byte absolute jump or RIP-relative + trampoline within ±2 GiB) as the
   second. Refuse packs whose `arch` has no adapter, loudly. ARM stays refused until a cave
-  policy handles literal pools in `.text` (`codecaves.md:45`).
+  policy handles literal pools in `.text` (`codecaves.md:45`). x86-64 L2 rule: in the
+  displaced window, `disp32` RIP-relative memory operands are recomputed iff the trampoline
+  is within ±2 GiB of the original (U101 near-alloc); `jmp/call [rip+disp32]` are rewritten
+  to an absolute island; any other RIP-relative form, or a trampoline out of reach, is
+  `Unrelocatable`.
 
 ### Phase 5 — Cross-build divergence (the "too different, display it" ask) — L1
-- **U14. `corpus/divergence.py`** — a pure, deterministic metric: CFG delta over
-  build-invariant node keys (deterministic RPO position + masked-content hash, reusing
-  `cfg_signature`'s sorted RPO) + call-graph neighborhood symmetric difference over sorted
-  `logical_id`s (missing/extra callers-callees, generalizing the callee-jaccard at
-  `match_engine.py:211`). Emits **integer components** (`nodes_only_in_A/B`, `edge_symdiff`,
-  `neighborhood_symdiff`, `size_A/B`) — no float, no division.
+- **U14. `corpus/divergence.py`** — a pure, deterministic metric. **Hard dependency:
+  U4 + U6b** (node keys are masked block hashes over U6b's decode-driven partition). Node
+  key `k(n) = masked_block_hash(n)`; `(in_deg, out_deg)` is only a pairing tie-break among
+  equal hashes; RPO position (successor tie-break by decode order) orders equal keys within
+  one build only and never enters cross-build equality. Let `K_A, K_B` be the sorted
+  **multisets** of keys and `E_X = {(k(u), k(v))}` the edge multisets; `size_A=|K_A|`,
+  `size_B=|K_B|`, `nodes_only_in_A=|K_A∖K_B|`, `nodes_only_in_B=|K_B∖K_A|`,
+  `edge_symdiff=|E_A△E_B|` (multiset differences). Neighbourhood `N(f)` = depth-1
+  `{(key(g), caller)} ∪ {(key(g), callee)}` over `stable_key`, excluding U48 library
+  entities; unbound neighbours are counted in `nbr_unbound_A/B` and stay out of the
+  symdiff; `neighborhood_symdiff=|N_A△N_B|`, `nbr_A=|N_A|`, `nbr_B=|N_B|`. Emits **integer
+  components** only (generalizing the callee-jaccard at `match_engine.py:211`) — no float,
+  no division. Classification with versioned rationals `d=(d_num,d_den)`, `u`, `s`: `1↔1`
+  iff `(nodes_only_in_A+nodes_only_in_B)·d_den ≤ d_num·(size_A+size_B)` and
+  `neighborhood_symdiff·u_den ≤ u_num·(nbr_A+nbr_B)`; `split-or-inlined` iff not `1↔1`
+  and (`block_inline` yields a containment hit for the pair or
+  `min(nodes_only_in_A,nodes_only_in_B)·s_den ≤ s_num·min(size_A,size_B)`), direction
+  recorded as a field; `diverged` otherwise. Swapping A/B swaps the `_A/_B` components and
+  the direction field; the class is unchanged. Thresholds are per pair class, like
+  `PAIR_POLICY`.
 - **U15. Classify + store + gate:** evaluate thresholds by cross-multiplication against
   **recorded, versioned parameters** into a 3-way classification — `1↔1 structural match` /
   `1↔N split-or-inlined candidate` / `diverged, no confident counterpart` — and persist the
@@ -720,13 +855,22 @@ v1 cannot carry this; v2 adds (all consumed or consumable by `registry.cpp`):
   producer. `bind_identities` already admits only `relation='one_to_one'`
   (`propagate.py:163`), so the gate is mostly "populate `relation` truthfully". In `match_store.py:707` a pass that
   classifies as split/inlined or diverged emits `status="review"` with the class as the
-  reason (never a silent `auto`); `propagate.persist_status` bars those classes from `auto`.
+  reason (never a silent `auto`); `propagate.persist_status` bars those classes from `auto`. Admit `region` to
+  `OPERATIONAL_RELATION_KINDS` (`correspondence.py:17`; `enrich_evidence` raises on it today)
+  with a producer note; add `split, fold, unroll, clone` to `PINNED_KINDS` (`propagate.py:11`);
+  identity binding stays gated on `relation == 'one_to_one'` (`:118`).
   Depends on the **Phase 0 cascade-determinism fixes (D1, D3, D4)** — neighborhood symdiff
   over `logical_id` inherits `bind_identities`' determinism.
 - **U16. Per-`logical_id` rollup** at `bind_identities` (`propagate.py:215`) — "structural
   spread across N builds."
-- **U17. Display:** add `relation,divergence` to `review_queue_json` (`pages.py:768`) and a
-  **Divergence** column/badge to the review lane (`Surfaces.tsx:1286`) + static compare.
+- **U17. Display.** `review_queue_json` (`pages.py:771-772` today: no `relation`, names
+  hard-coded `""`, `ORDER BY score DESC LIMIT ?` with no tie-break) returns per row:
+  `match_id, run, src_binary_slug, src_addr, src_name, dst_binary_slug, dst_addr, dst_name,
+  score, status, relation, divergence_class, components{nodes_only_in_A, nodes_only_in_B,
+  edge_symdiff, neighborhood_symdiff, size_A, size_B, nbr_A, nbr_B}, thresholds_version,
+  producing_channel, channel_weight, reason`; total order `status, relation, score DESC,
+  src_binary_slug, src_addr, dst_binary_slug, dst_addr`. A **Divergence** column/badge in
+  the review lane (`Surfaces.tsx:1286`); the static compare page renders the same object.
 - **(U0 withdrawn.)** `func.block_hashes` is already computed and persisted; what is wrong
   is its *basis* (Ghidra `BasicBlockModel` blocks). U6b re-derives block hashes from the
   decode-driven flow walk; U22's backfill repopulates the column under the new basis, which
@@ -741,7 +885,9 @@ v1 cannot carry this; v2 adds (all consumed or consumable by `registry.cpp`):
   failure in the tree that *writes*. Symmetrize it (missing/extra, not recall), route it
   through U14/U15's classification, and refuse to propagate `split-or-inlined`/`diverged`
   candidates without review. `_call_graph_overlap` is the starting point to reuse, not a
-  second implementation.
+  second implementation — but reuse only its caller/callee collection (it divides at
+  `:1230` and is first-wins on strict `>` at `:1333`); compute U14's integer components
+  over names as keys — no ratio, no float; candidate order `(score desc, class rank, name)`.
 
 ### Phase 6 — Genericity hardening (the "any game" ask) — L2/L3 adapters
 - **U18. One ABI adapter** consolidating the 4 MSVC-x86 copies (`ghidra_bulk.fix_thiscall`,
@@ -750,6 +896,11 @@ v1 cannot carry this; v2 adds (all consumed or consumable by `registry.cpp`):
 - **U19. Compiler/toolchain profile** as a target-selected object (promote `TOOLCHAIN_SCRIPTS`
   + `COMPILER_PROFILES`; add GCC/clang/x64/ARM; drop the Wine/MSVC-only default in
   `ghidra_bulk._find_compiler`).
+- **U19a. Data-pack registry.** One loader for L3 packs: root path from config, `pack.json`
+  (`schema_version, engine_class, arch_class, entries`), sorted discovery, content hash
+  recorded in the basis (`data_packs[]`). An unknown engine plugs in by dropping a pack;
+  core never enumerates engines. Acceptance: a fixture pack loads; removing it yields
+  `missing_adapter`, never a default.
 - **U20. Remove `arch='x86' AND bits=32` SQL gates** (`recover_named_ghidra.py:99`,
   `permuter_harness.py:786`) → profile-driven filters. Relax `elf_target.is_elf_i386` to
   accept x86_64 ELF (a one-check win for any 64-bit ELF sibling build).
@@ -764,22 +915,31 @@ v1 cannot carry this; v2 adds (all consumed or consumable by `registry.cpp`):
   Everything product-specific moves to an external L3 data pack keyed by build profile.
   **Docs are in scope too:** the canonical `STRATEGY.md`, `FRONTEND_INTENT.md`,
   `RUNTIME_REUSE.md`, `CONCEPTS.md` and the 2026-09-20 dashboard-design docs name specific
-  products, binaries, and the runtime repo — rewrite them by class. **Enforcement:** add a
-  repo lint (CI + pre-commit) that fails on any product/binary/project-name token in
-  `src/` and `docs/`, with the denylist itself living *outside* the repo (or in the data
-  pack), so the rule cannot be satisfied by hiding the names in the linter.
+  products, binaries, and the runtime repo — rewrite them by class. **Enforcement:** extend
+  `scripts/check-anonymization.sh` (already the CI step at `test-unit.yml:39-40`; fails
+  today on 34 files): pattern moved to an env-pointed file outside the repo, `docs/` added
+  to the scan set, the `docs/plans/**` exclusion dropped, token class widened to
+  product/binary/project names — so the rule cannot be satisfied by hiding the names in the
+  linter. Split into three units, in this order:
+- **U21c. Gate.** The extended script ratchets against a recorded baseline, then zero.
+- **U21a. Scrub `src/`.** 57 files; 8 file renames with import shims; the `db.py` default
+  path; the exporter docstring.
+- **U21b. Rewrite docs by class.** 49 files. Acceptance for the three: the gate returns 0
+  over `src/` and `docs/`.
 
 ### Phase 7 — Lifecycle, safety, and verification (gap pass)
 Units that earlier phases implied but never named. Without these the plan is not honestly
 implementation-ready.
 - **U22. Schema migration, versioning, and backfill.** New tables/columns (`func_param`,
   `logical_signature`, `func_bsim`, `vtable`, `match.divergence` + components,
-  `func.mask_pattern`, re-based `func.block_hashes`). Today `store.py:208-266` only does
-  additive `ALTER TABLE … ADD COLUMN` on every connect with **no schema version, no
-  migration ledger**, and `ensure_binary_columns` backfills `recovery_family` best-effort
-  under a swallowed `OperationalError`. Add `PRAGMA user_version` (or a `schema_meta`
-  table) + a migration ledger; every migration idempotent and forward-only; no silent
-  swallow. **Backfill is a raw-image re-extraction pass, and it must be scheduled and
+  `func.mask_pattern`, re-based `func.block_hashes`). **Landed at `f5f6a88`:** `PRAGMA user_version` + a `schema_migration` ledger, strict
+  migrations (any error raises), lock-tolerant data backfill (`store.py:291-298` keeps the
+  lock/readonly tolerance for the concurrent-watcher case), and the `corpus.backfill` frame.
+  **Remaining:** the ledger owns every DDL site (`store.py`, `db.py` until U82,
+  `export_types.py`, `propagate_types.py`, `stabs_link.py`, `decompile.py`); a per-table
+  per-binary delete registry so `remove_binary` (`store.py:209`) removes every per-binary
+  row; migration 2 adds `binary.basis_hash`, `decoder_revision`, `analyzer_version` and
+  makes `content_sha256` a cascade precondition. **Backfill is a raw-image re-extraction pass, and it must be scheduled and
   costed:** masked patterns, decode-based block hashes, and storage are computable from
   *existing* Ghidra state + the raw image in a read-only pass (no re-analysis — STRATEGY
   holds), but over the full corpus it is a real job: a cataloged, resumable, receipted verb
@@ -821,7 +981,10 @@ implementation-ready.
   disagrees with the identity-bound `logical_id` for that build/address, or two logical
   functions' locators resolve to the same site, **never auto-rebind** (bytes are not
   identity — STRATEGY). Emit `identity_locator_conflict` with both claims and their
-  evidence into the review queue; the pack marks the site `contested` for that build.
+  evidence into the review queue; the pack marks the site `contested` for that build. Intra-entity rule: two members of one
+  entity resolving to different addresses on one build → `contested` with both members'
+  evidence; no member outranks another by ladder position. Members after the first hit run
+  in verify mode and may confirm or contest, never replace.
 - **U27. Stripped and symbol-poor builds.** Name/symbol-keyed pieces (canon keys, the CLI
   `match-function` overlap, anchor-by-symbol) degrade to empty on stripped images. The
   locator family must still resolve from masked bytes and import/string anchors; coverage
@@ -836,8 +999,11 @@ implementation-ready.
   yield identical masked patterns; differing in a literal immediate yield different ones.
   (d) **Divergence metric tests:** symmetric, integer-only, order-independent under node
   relabeling; the 3-way classification is stable under `PYTHONHASHSEED` sweeps. (e)
-  **Cascade determinism:** re-ingest the same fixture twice (fresh DB files) and compare
-  `identity` and `logical_function` tables byte-for-byte — the D3/D4 acceptance.
+  **Cascade determinism:** the U5c(b) harness under all three layouts, including the
+  build-order shuffle (o), comparing `identity`, `match` (incl. `id`), `logical_function`
+  and `recovery_family` as sorted canonical row-sets — the D1/D3/D4/D8 acceptance.
+  (f) **Cave discovery:** on a fixture image, discovered caves are identical across runs
+  and every anchor's uniqueness claim holds against the whole executable region.
   (g) **ABI (Phase 3):** ABI-block schema validation + U64 recompile-and-diff on a fixture.
   (h) **Entities (Phase 8):** entity pack round-trip and `logical_entity` migration
   idempotence. (i) **Data locators (Phase 9):** a synthetic image with known roots; each
@@ -847,8 +1013,13 @@ implementation-ready.
   U88's generated module passes U47's lint and resolves every fixture entity; U90's JSON
   validates against `readiness/v1`. (m) **Ladders (Phase 13):** on a fixture pair, disable
   the masked window and confirm each ladder member resolves in order.
-  (f) **Cave discovery:** on a fixture image, discovered caves are identical across runs
-  and every anchor's uniqueness claim holds against the whole executable region.
+  (n) **Divergence fixtures:** an injected inlined pair, split pair and diverged pair each
+  classify to their class, land as `status='review'`, and `match-function` refuses to
+  propagate them. (o) **Build-order shuffle** in (e): `binary` rows inserted in shuffled
+  order with fresh ids. (p) **Key-stability run:** fixture + one added build, then
+  remove/re-add; every `stable_key` unchanged. (q) **Name gate:**
+  `scripts/check-anonymization.sh` returns 0 over `src/` and `docs/`. **U28 holds
+  cross-cutting gates only; every other unit names its acceptance test in its own bullet.**
 - **U29. Concurrency × determinism.** The companion recommendations doc widens
   parallelism (per-environment compile pools, laned worker cap, parallel pairwise
   compare). Every such change must keep persisted outputs independent of thread timing:
@@ -875,7 +1046,25 @@ second identity system.
   tables, never parallel tables**. Generalize `logical_function`
   → a `logical_entity(kind, …)` table (functions remain a kind) with per-kind shape and
   per-build instances; the exporter emits `entities[]`; `kind` is the dispatch key for the
-  consumer. Deterministic ids per Phase 0 rules.
+  consumer. Deterministic ids per Phase 0 rules. `identity` PK → `(binary_id, kind, addr)`;
+  `ux_identity_bin_addr` → `ux_identity_bin_kind_addr` (`store.py:117,120`; a `patch_point`
+  at instruction 0 shares its function's address). `logical.build()` (`logical.py:32-33`
+  wipes all of `identity` today) and every deleter scope to `WHERE kind='function'`; each
+  kind has its own builder. `logical_entity.stable_key TEXT UNIQUE NOT NULL` is a pure
+  function of the entity's own members: function → authentic `canon_key`, else sha256 of the
+  sorted multiset of members' U4 masked-body hashes; struct → donor name else
+  this-fingerprint hash; vtable → owning struct key; global/string → content hash else
+  `(function key, instr_index, operand_slot)`; slot → `(vtable key, method key)`. Ordinal
+  ids never leave the store; pack keys are `stable_key`, never `__{lid}`; a key changed by a
+  joining build is kept in `previous_keys[]`. **U30 owns the closed status set and its
+  rollup** — one function every emitter and report calls. Per entity × build: (i) two
+  verified members disagree, or locator vs identity → `contested`; (ii) else nothing
+  resolved-and-verified → `ambiguous` if any member returned an indistinguishable candidate
+  set, else `unresolved`; (iii) else the first member in family order that resolved and
+  verified → `resolved(member)`, `degraded(member, reason)` under a weaker precondition,
+  `pinned(member)` for `module_rva`/`section_offset` (`portable:false`). Display order only,
+  never a rollup: contested, unresolved, ambiguous, pinned, degraded, resolved. Runtime
+  observations (U68/U99) go to a separate `observed_status` and never overwrite pack status.
 - **U31. Data-entity identity via the xref-from-identified-code cascade** (globals,
   singletons, strings, constants, tables). Cheap-first: symbols/debug info → **xref from
   an identified function** (function logical id + decode-stable instruction index + operand
@@ -932,7 +1121,11 @@ second identity system.
   state)` with states `same / shifted / resized / retyped / added / removed / reordered /
   ambiguous`. Build beside `logical.py:31 build()`; seed identity from (a) exact/canon
   name (`canon.strip_templates`, `canon.py:35`), (b) `propagate_types.plan_adoptions`
-  donors (`:54-63`) reinterpreted as *instances*, not copies, (c) STABS/RTTI names.
+  donors (`:54-63`) reinterpreted as *instances*, not copies, (c) STABS/RTTI names, (d)
+  **name-free seed:** cluster identity-bound functions by this/param-0 access multiset
+  (U32c); a cluster present on ≥2 builds seeds a `logical_struct` with `canon_name=null`.
+  `field_corr.field_key` = donor field name when any build has one, else `f@0x<offset>` on
+  the recorded reference build (`logical_struct.ref_binary_id`).
   Replace `apply_adoptions`' fill-empty with a **per-field precedence merge** (the
   bidirectional fusion STRATEGY specifies but code never implemented). Reading a field
   "by name" on any build resolves through this map. Extends U11b.
@@ -942,9 +1135,12 @@ second identity system.
   size + constructor identity; report through `correspondence.enrich_evidence`
   (`correspondence.py:34`) status bands, never a bare float. Same-size same-type field
   swaps stay `ambiguous` — recorded, not guessed.
-- **U33. VTable slot correspondence + inheritance.** Persist the `[CLI] vtable.py:144-177`
-  slot walk and `rtti_recover.align_vtable_methods` (`:198-233`) into
-  `vtable(binary_id, class, addr, slot, func_addr)`; add base-class/offset parsing
+- **U33. VTable slot correspondence + inheritance.** Persist only address-resolved slot
+  targets from the `[CLI] vtable.py:144-177` slot walk into `vtable(binary_id, class, addr,
+  slot, func_addr)`; retire `rtti_recover.align_vtable_methods` (`:198-233` zips corpus
+  methods positionally — the index fallacy this unit forbids); `vtable` gains
+  `logical_method_id` via `identity.logical_id` and slots match across builds on that
+  column; add base-class/offset parsing
   (Itanium `__class_type_info` arrays / MSVC `RTTIBaseClassArray`) — today only names
   (`rtti_recover.py:81-119`). Build a per-build `slot → logical method` map; match slots
   across builds by **method identity, not index**; surface `reordered / inserted /
@@ -1020,7 +1216,7 @@ hits; `high_emit._pcode_from_high:439` filters to exactly the ops that *don't* c
 stride/mask semantics. The function side already has what data needs: an ordered anchor
 cascade (`match_store.anchor_sets:449-455` I → H → X(string) → X(const), quarantine on
 conflict), an ordered fallback resolver with provenance, score and **tie refusal**
-(`module_resolver.ModuleResolver.resolve:36-49,66-68`), byte-verified placement with
+(`agentdecompile_recovery/module_resolver.py:35-48` — package root, not `corpus/`), byte-verified placement with
 `conflict|unplaced` statuses (`context_pack.py:396-420,479-493`), a hash-keyed cache shape
 (`match_cache.cache_key:26`), and a refuse-on-mismatch precedent
 (`acquisition_bundle.validate_bundle_target:231-250` raises). **Clone those for data.**
@@ -1028,7 +1224,12 @@ The runtime host already has the *consumer* schema the accessors need
 (`structs.hpp:123-162` `Field{offset,size,elem_size,count,kind,elem,confidence}`,
 `Layout{how_to_obtain}`).
 
-- **U40. Capture data-reference targets (the one-line gate everything depends on).**
+- **U40. Capture data-reference targets (one new column, many readers).** Touch set:
+  `features.py`, `extract.py`, `store.py`+`db.py` (until U82), `match_store.py`,
+  `prompt_evidence.py`, `genproject.py`; `determinism_harness.generate_fixture` emits
+  `data_ref_targets` (today `snapshot()` picks columns from `PRAGMA table_info`, so a new
+  column rides along as NULL and the harness is blind to it). `instr_index` = U34's
+  decode-order-from-entry definition in every producer, recorded in `algorithm_version`.
   `features.py:204-213`: replace the count with a list of `{to, instr_index, operand_slot,
   ref_type, is_write, string_at_to?}` persisted as `func.data_ref_targets` (keep the count
   for compatibility); emit string **addresses** beside content at `:206-211`. Split
@@ -1052,18 +1253,21 @@ The runtime host already has the *consumer* schema the accessors need
   hardcoded shapes in `source_parity_synthesize.py:618-630`) → `anchor_relative {anchor:
   export|import_iat|string_addr, delta}` → `masked_scan {section, pattern, mask,
   hit_offset}` (**a new scanner** — generalize `unique_window` to a mask; region-scoped) →
-  `pointer_chain` (U43) → `vtable_rtti` → `module_rva {rva}` last. Contract modeled on
+  `pointer_chain` (U43) → `vtable_rtti` → `module_rva {rva}` last — an entity resolved only
+  by `module_rva` is `pinned(member)`, `portable:false`, and that flag propagates to U44
+  instances, U47 port, U88 `describe` and U90 rows. Contract modeled on
   `ModuleResolver.resolve` + `context_pack` semantics: try in order; **verify** (byte
   compare at the data offset + declared size/type/alignment/section-permission + shape
   check); memoize by `(content_sha256, logical_data.id)`; return `{addr, member,
-  channel_index, verified_by}`; **the closed status set every unit and report uses is
-  `resolved(member) / degraded / ambiguous / unresolved / contested`**; on total failure
-  `status: unresolved` with per-member
-  reasons — never `0`/`None`.
+  channel_index, verified_by}`; statuses come from U30's closed set and rollup; on total failure `status: unresolved`
+  with per-member reasons — never `0`/`None`.
 - **U43. Pointer-chain / deref-path descriptors** (greenfield). `{base: <root id>,
   steps: [{deref, offset, size}], expect: {kind, align}}`; single-step primitive from the
-  `vtable.py` walk; chains discovered from `collect_function_data_flow`
-  (`[CLI] _collectors.py:188-336`) p-code once U45 widens the op set.
+  `vtable.py` walk; chains are discovered **offline from stored p-code** (U32c(a)) once U45 widens the op
+  set — never from a timed live decompile (`collect_function_data_flow`,
+  `[CLI] _collectors.py:188-336`, runs under `timeout_s=30`); canonical chain per root =
+  min by `(hops, base member rank, offsets)`; offline validation verifies hops only through
+  initialized image data, else `unverified_offline`, verified at runtime.
 - **U44. Per-root recipes + coverage in the pack.** Extend `export_hookpack.export:158`
   with `entities[kind=global|singleton|table|string|…]`: the ordered family, per-build
   `instances[]` with `resolved_by`, `expected_bytes` at the data offset (`unique_window`
@@ -1072,7 +1276,7 @@ The runtime host already has the *consumer* schema the accessors need
   `_preferred_signature:114` `most_common` tie while there.
 - **U45. Accessor recovery (all blockers named).** (a) **Lossless type export** — same
   fix as U32a: `render_field_type` returns `""` for `Structure|Union|Array`
-  (`export_types.py:229-247`) so element type, stride and count die before reaching the
+  (`export_types.py:87-89`) so element type, stride and count die before reaching the
   DB; keep `Array(elem,count)/Pointer(target)/Enum(members)` as structured JSON.
   (b) **Stride/count pass** — widen `high_emit._pcode_from_high:439` to keep
   `INT_MULT/INT_LEFT/PTRADD/PTRSUB/LOAD/STORE`; stride = constant input to
@@ -1150,13 +1354,13 @@ mode a primary source documents.
 - **U53. Producing-channel weight on divergence classes.** Record which cascade channel
   produced a match and its weight (BinDiff's similarity × algorithm-confidence), so a
   `1↔1 structural match` from a weak channel is not treated like one from symbols.
-- **U54. Extend the determinism basis (U5c) with everything that shapes output**: the
-  **full analyzer option set** (name → value — Ghidra #5531 is exactly this drift),
-  compiler-spec id, processor-spec/loader revision (#2792), analyzer timeout policy
-  (U65), **toolchain identity per build** (compiler id + exact version + flags, decomp.me/
-  dtk style — the identity objdiff/permuter receipts must cite), the allowed filler-byte
-  set (U58), and the seed of every stochastic helper. U25's re-baseline triggers on any
-  change to any of these.
+- **U54. Land the full determinism basis** — absorbed into the normative basis object in
+  the Determinism section: the full analyzer option set (Ghidra #5531 is exactly this
+  drift), compiler-spec id, processor-spec/loader revision (#2792), timeout policy (U65),
+  toolchain identity per build (decomp.me/dtk style — what objdiff/permuter receipts cite),
+  filler set (U58), data-pack hashes (U19a), seeds. Every field store-derived or a pinned
+  constant; per-binary `basis_hash`; refuse on unknown/empty/mixed. U25's re-baseline
+  triggers on any change.
 - **U55. Thread quiescence is mandatory in the C++ helper (U13/U23).** Suspend all other
   threads, fix any IP inside the patched or trampoline ranges (`SetThreadContext`), resume
   — Detours/MinHook/safetyhook all do this. The Lua host cannot; **refuse any patch from
@@ -1166,8 +1370,9 @@ mode a primary source documents.
   load-config `GuardFlags`; use default-valid `VirtualProtect` semantics (never
   `PAGE_TARGETS_NO_UPDATE`) or `SetProcessValidCallTargets`; direct `jmp rel32` detours are
   not gated. Record per build whether the image is CFG-instrumented.
-- **U57. Cave ownership / claim tokens.** Every cave descriptor carries a claim id; the
-  consumer refuses a cave already claimed (MinHook's `ALREADY_CREATED` semantics extended
+- **U57. Cave ownership / claim tokens.** Claim identity = `(pack_sha, cave_id,
+  build_sha256)`; the ownership table maps claim → resolved range; the consumer refuses a
+  cave already claimed (MinHook's `ALREADY_CREATED` semantics extended
   to byte ranges); collisions across packs or with third-party patches are recorded, never
   silently overwritten.
 - **U58. Filler and padding provenance in U12.** The allowed filler set is a toolchain
@@ -1183,12 +1388,16 @@ mode a primary source documents.
   checks at export: ≥ jump-width bytes before any `ret`, no branch *into* the patch window
   from elsewhere, no loop-family or unfixable RIP-relative instruction in the moved
   prologue. Emit `detourable: false` + reason per site per build, so a site fails at
-  export, not at install.
+  export, not at install. Uses the U4 decoder; the export-time verdict is advisory: the host
+  re-runs its own decoder at install (`RH/src/hooks/trampoline.hpp:71`) and refuses
+  independently; U62 records both decoder revisions.
 - **U61. `this` / custom-storage normalization in U8.** Persist `hasCustomVariableStorage`
   and `getAutoParameterCount` per function (auto-param count is always 0 under custom
   storage, so `this` becomes indistinguishable from an explicit first parameter); emit
   `this` in **one canonical form** regardless of mode, or `args[]` is inconsistent between
-  CLI-edited and untouched functions.
+  CLI-edited and untouched functions. **New capture, not persistence:**
+  `getAutoParameterCount()` and `isAutoParameter()` are read nowhere in the tree today; add
+  them to the U8 collector before emitting the canonical form.
 - **U62. The C/D seam contract (one paragraph, binding).** `binaries[].sha256` **is** the
   stage-8 whole-file identity (the `build.sha1`-style gate) — one hash for the runtime
   target check (U24) and the rebuild check; the basis's toolchain identity (U54) is the one
@@ -1197,7 +1406,9 @@ mode a primary source documents.
 - **U63. sret triple + x64 rules.** Replace `ret.by_ref` with `ret.sret = {allocator,
   ptr_storage, returned_in}`; encode the x64 argument-right-shift when sret is present, the
   ≤64-bit aggregate-by-value rule, and the x64 varargs int+float register duplication in
-  the L2 adapter (U13b/U18) — never inferred per site.
+  the L2 adapter (U13b/U18) — never inferred per site. **New capture:**
+  `getReturn().isForcedIndirect()` is read nowhere today; `ret.sret` has no producer until
+  the U8 collector reads it.
 - **U64. Recompile-and-diff ABI verification** (added to U28). From the exported ABI
   block, compile a synthetic caller and compare its call-site codegen against the original
   call sites (objdiff/reccmp style); a wrong convention shows as stack-adjust/register-move
@@ -1221,8 +1432,20 @@ plan before this phase.** Anchors: `AD/` = corpus tree, `RH/` = runtime host.
   both"); `RH/src/api/enginestruct.cpp:29-37` binds every accessor as an unconditional
   thiscall; the per-build sites file carries **126 `convention =` entries that nothing
   parses**. Fix: the U11 ABI block carries `this_kind ∈ {ecx, stack, rdi, r0, …}`; the
-  loader parses it; every call goes through the one existing `CallShape` switch
-  (`RH/src/harness/fields.hpp:60-70`). Delete the dead column or make it load-bearing.
+  loader parses it; every call goes through the descriptor-driven layer (U13c), which replaces the one
+  existing `CallShape` switch (`RH/src/harness/fields.hpp:60-70`). Delete the dead column or
+  make it load-bearing.
+- **U13c. Descriptor-driven native call layer in the host.** Every native call is a
+  compile-time template today (`RH/src/harness/fields.hpp:60-71` two-value `CallShape`;
+  `RH/src/api/enginestruct.cpp:29-37`); Lua reaches natives only through the fixed
+  VM-dispatch bridge. Add a runtime thunk layer — per-ABI generated thunks in `alloc_exec`
+  memory (default) or an embedded FFI — driven by the U11 ABI block (`this_kind`, per-arg
+  `{register|stack, width}`, `ret.sret`, `stack_cleanup`, `varargs`); expose
+  `call(entity, …)` to Lua. U88 emits a call stub only for ABIs this layer expresses, else
+  `call_stub: refused, reason`. U67's one `CallShape` switch becomes this layer. U101 `near`
+  is new platform work (both `alloc_exec` take `nullptr` today). Acceptance: a fixture
+  entity with sret + this + varargs is called through its descriptor on x86-32 and x86-64
+  fixtures; an inexpressible ABI yields the refusal, never a wrong call.
 - **U68. Unknown-build admission (signature-only mode) — the plan asserts it in §7; this
   unit owns it.** `RH/src/image/load.cpp:381-385` returns `UnrecognisedBuild`;
   `runtime.cpp:331-337` treats any non-Ok as failure; `resolve()` bails on an empty build
@@ -1274,7 +1497,8 @@ plan before this phase.** Anchors: `AD/` = corpus tree, `RH/` = runtime host.
   `HookSet::install` refuses only its *own* re-install (`registry.cpp:558-561`); nothing
   stops a script writing into an installed trampoline or another script's cave; the host
   API doc claims such writes "are refused" and self-flags it as **"Spec only"**. Ownership
-  table keyed by resolved range; `store()` refuses writes into ranges owned by another
+  table keyed by claim `(pack_sha, cave_id, build_sha256)` → resolved range (one identity
+  with U57); `store()` refuses writes into ranges owned by another
   script, a detour, or a trampoline; `cave.claim(id, size)` in the Lua API.
 - **U75. Multi-module entity axis.** A build is a *set of modules* (exe + DLLs/.so/dylib,
   container overlays). Today `repo_path UNIQUE` = one file per build (`store.py:21`);
@@ -1312,7 +1536,9 @@ plan before this phase.** Anchors: `AD/` = corpus tree, `RH/` = runtime host.
 - **U80. Pack hot-reload + rollback-on-reload.** Script reload exists (`RH/src/lua/
   host.cpp:384-420`, mtime-driven) but the address table and hook set are set once
   (`runtime.cpp:818-823`) and reload does not undo the departing script's writes. Revert
-  journaled writes (U73) on reload; allow table replacement.
+  journaled **data** writes (U73) in reverse journal order on reload; code patches (detours,
+  cave payloads) are reverted only through the U55 quiescing helper, otherwise reload
+  refuses to unload a script that owns a code claim; allow table replacement.
 - **U81. Workflow verbs** (merges with U47): `corpus.diff-builds A B` (per-entity
   divergence from U14/U39), `corpus.coverage-by-entity` ("entity X: resolved on {…},
   member used; unresolved on {…}" — today every report is a per-binary aggregate, the
@@ -1320,9 +1546,10 @@ plan before this phase.** Anchors: `AD/` = corpus tree, `RH/` = runtime host.
   entity a script references; per-site status). Nothing today operates on a Lua script or
   a hook set.
 - **U82. Schema unification** (prerequisite for every new `binary` column). Two `binary`
-  DDLs exist (`AD/corpus/store.py:19-36` vs `AD/corpus/db.py:19-34`, the latter with a
-  hardcoded `DB_PATH` and six importers) and three `role` vocabularies. Retire `db.py`;
-  one DDL; one vocabulary.
+  DDLs exist (`AD/corpus/store.py:19-36` vs `AD/corpus/db.py:19-34`); `db.py` has a
+  product-named default path and one importer (`name_precedence.py:45`). `db.py` is deleted
+  and the importer repointed to `store.connect`; existing stores need no DDL change; the
+  `role` column keeps one documented vocabulary in `store.py`.
 - **U83. Corpus-side unwind / TLS / SEH parsers** so U37's `unwind`/`tls` entities have
   producers: `.pdata/.xdata` (today only section allowlists), SEH scope tables, the TLS
   directory/index, Mach-O compact unwind; `.eh_frame` is parsed for ELF only. Pairs with
@@ -1350,16 +1577,18 @@ a human to finish it before a workflow can use it. Every artifact is a pure func
 | **`hookpack/v2`** | the runtime host, any consumer | every entity kind with locator family, per-build instances + coverage, ABI blocks, struct field maps + correspondence, accessors, caves with plan templates and claims, integrity ranges, adapter-key map, determinism basis, pack hash | U1–U3, U5–U5d, U11, U30, U44, U45, U24, U54 |
 | **Generated Lua bindings** | mod authors | a `require`-able module per corpus: named roots (`roots.player_table`), per-struct typed accessor tables (`Player.name(ptr)` / `Player.set_health(ptr, v)`), table/handle/bitfield/string helpers bound to descriptors, typed call stubs per function from the ABI block, hook helpers per site kind, a `describe()` that reports resolution status — all through `resolve/field/entry/handle`, **no literal address anywhere** | **U88** |
 | **Per-build C/C++ headers + build manifest** | native mods, recompilation, the matching-decomp loop | structs with exact per-build layouts (bitfields, unions, real pointee types), prototypes with conventions/storage, vtable slot enums, constants/enums, a manifest naming the build hash, toolchain identity, and basis | U11b, U32a, U33, **U89** |
-| **Readiness report** | everyone | per entity × per build: `resolved(member) / degraded / ambiguous / unresolved / contested`; per build: unpack state, CFG, integrity checks, missing adapters; what a mod can and cannot do on that build, in plain language | U81, **U90** |
+| **Readiness report** | everyone | per entity × per build: U30's closed set `resolved(member) / pinned(member) / degraded(member, reason) / ambiguous / unresolved / contested` (plus `observed_status`); per build: unpack state, CFG, integrity checks, missing adapters; what a mod can and cannot do on that build, in plain language | U81, **U90** |
 | **Divergence report** | reviewers, mod authors porting | per-entity cross-build classification (`1↔1 / split-or-inlined / diverged`), field-map deltas, slot deltas, table deltas | U14–U17b, U39 |
-| **Recovered source variants + manifests** | byte-accurate rebuild | byte-accurate C + assembly-floor, and max-C, each with build instructions, toolchain identity, exact verification status | STRATEGY stages 3–8 (program scope) |
+| **Recovered source variants + manifests** (optional) | byte-accurate rebuild | byte-accurate C + assembly-floor, and max-C, each with build instructions, toolchain identity, exact verification status; absent with a `not_in_scope` receipt within this plan | STRATEGY stages 3–8 (program scope) |
 | **Receipts** | determinism, audit | content-addressed receipts for every artifact keyed by `hash(inputs + basis)` | U5c, U66 |
 
 ### Phase 12 — The export bundle as a first-class deliverable
 - **U87. `corpus.export-bundle` — one deterministic verb, one output tree.** Runs every
   exporter in a fixed order into a content-addressed directory, writes a top-level
   `bundle.json` (basis, corpus manifest hash, artifact list with hashes), and refuses to
-  emit if any artifact fails its own verify gate. Re-running under an identical basis
+  emit if any artifact fails its own verify gate — the gate applies only to rows this plan's
+  units produce; the recovered-source row is optional and absent with a `not_in_scope`
+  receipt. Re-running under an identical basis
   yields a byte-identical tree (this is the acceptance test, per U5c/U28). Cataloged on
   the same action surface as `export-hookpack` (`cli.py`, `actions/catalog.py`).
 - **U88. Generated Lua binding module from the pack** (new `corpus/export_lua_bindings.py`,
@@ -1372,7 +1601,11 @@ a human to finish it before a workflow can use it. Every artifact is a pure func
   block (refusing to generate for low-confidence ABIs); hook helpers per site kind;
   `describe(entity)` returning the resolution status from the readiness data. The
   generated module contains **no literal address** and passes U47's lint by
-  construction. Determinism: sorted emission, no timestamps.
+  construction. Determinism: sorted emission, no timestamps. Every generated
+  getter/setter/entry/handle raises `error({status, entity, members_tried})` on any
+  non-`resolved` status; only `describe()` returns without raising; call stubs depend on
+  U13c; a generated module that can return `nil` for a resolved-looking read fails the U28
+  lint.
 - **U89. Per-build C/C++ headers + build manifest.** From U32a's field rows and U11's
   ABI blocks: per-build headers with exact layouts (`_sizecheck_` asserts retained),
   prototypes with conventions and storage attributes, vtable slot enums, constants and
@@ -1400,31 +1633,32 @@ available, so runtime resolution is just reading a precomputed instance; (2) for
 strategies run live, and the results are fed back to make it a known build (U99).
 
 ### Ladder A — a function whose masked window does not match on build B
-1. **Anchor-relative** to an import/export/string-table entry (U5b) — survives any change
-   inside the body.
-2. **Via a resolved caller** — resolve any caller G (by *its* ladder), decode G's call
+Each member names the v2 locator kind it consumes (in brackets).
+1. **Anchor-relative** [`anchor_rel`] to an import/export/string-table entry (U5b) —
+   survives any change inside the body.
+2. **Via a resolved caller** [`caller_callsite`] — resolve any caller G (by *its* ladder), decode G's call
    instruction at the recorded call-site index, follow `rel32`/RIP-relative/indirect target
    → F's address. Exact, deterministic; a `call rel32` decode is trivial even without a full
    decoder. (U92)
-3. **Via a resolved callee** — scan F's expected callers' neighbourhood: the function that
+3. **Via a resolved callee** [`callee_order`] — scan F's expected callers' neighbourhood: the function that
    calls resolved callees {C1, C2, C3} in F's recorded order is F. (U92)
-4. **Via data it references** — resolve any global/string F is known to touch (Ladder C),
+4. **Via data it references** [`data_xref`] — resolve any global/string F is known to touch (Ladder C),
    then find the instruction(s) that reference that address (relocation-aware scan) and take
    the enclosing function. (U93)
-5. **Via its vtable slot** — resolve the class's vtable (Ladder D), read slot k. (U94)
-6. **Via a resolved neighbour by position** — in the same section, functions keep relative
+5. **Via its vtable slot** [`vtable_slot`] — resolve the class's vtable (Ladder D), read slot k. (U94)
+6. **Via a resolved neighbour by position** [`neighbour_position`] — in the same section, functions keep relative
    order far more often than bytes: the function between resolved F−1 and F+1 whose
    structural fingerprint (Ladder A-7) matches is F. (U95)
-7. **Structural match with the embedded decoder** — decode candidate regions, compute the
+7. **Structural match with the embedded decoder** [`structural`] — decode candidate regions, compute the
    mnemonic-class sequence / CFG MD-index / SPP (the same fingerprints the corpus uses,
    `fingerprint_hashes.py`, `cfg_signature.py`, `mnemonic_spp.py`), and match against F's
    recorded structural signature with the recorded margin. Runs offline always; at runtime
    on unknown builds via U91. (U96)
-8. **Region match for inlined/split code** — search the bodies of F's likely hosts (its
+8. **Region match for inlined/split code** [`region`] — search the bodies of F's likely hosts (its
    callers, or the functions that took over its callees) for F's masked-window fragments;
    emit a `region` site (host function + range) so a hook can target the logic where it now
    lives. (U97)
-9. **Symbol / debug info at runtime** — export table, PDB/map file if present beside the
+9. **Symbol / debug info at runtime** [`symbol`] — export table, PDB/map file if present beside the
    image (many builds ship them). (U68/U5b)
 10. **Offline only, for the residue:** emulation-based behavioural fingerprint (the corpus
     already has an emulation path, `unpack_emulate.py`) and BSim over the full corpus. Never
@@ -1455,18 +1689,20 @@ forbids executable allocation *and* the image has no slack, which the readiness 
 (U90) names per build.
 
 ### Ladder C — a data root that does not resolve on build B
-1. Symbol / debug info. 2. **Xref from any identified function** (the strongest; U42).
-3. **Inverse xref scan** — the masked *access instruction* (`mov eax,[abs]`, `lea`,
+1. Symbol / debug info [`symbol`]. 2. **Xref from any identified function**
+[`xref_from_function`] (the strongest; U42).
+3. **Inverse xref scan** [`data_xref`] — the masked *access instruction* (`mov eax,[abs]`, `lea`,
    RIP-relative) is itself a signature: scan the section for it (relocation-aware) and take
    its operand → the root, even when the referencing function's own ladder failed. (U93)
-4. Anchor-relative to import/export/string-table content. 5. Data-section masked
-   adjacency. 6. **Pointer chain from any resolved root** (U43). 7. **Via the
+4. Anchor-relative to import/export/string-table content [`anchor_rel`]. 5. Data-section
+   masked adjacency [`masked_window`]. 6. **Pointer chain from any resolved root**
+   [`pointer_chain`] (U43). 7. **Via the
    constructor / initializer** — static initializers and constructors write roots with
    constants in a fixed order; decode the resolved initializer to recover the store
-   targets. (U102) 8. VTable/RTTI-derived. 9. **Value-shape probe** — for roots with a
+   targets. (U102) 8. VTable/RTTI-derived [`vtable_slot`]. 9. **Value-shape probe** — for roots with a
    declared shape (a UTF-16 run, a pointer into a known table, a magic constant), scan the
    data sections for the shape and confirm with a second member. (U102) 10. Module-relative
-   RVA, last. Then `unresolved`.
+   RVA [`module_rva`, `pinned`], last. Then `unresolved`.
 
 ### Ladder D — a struct field that moved, or a struct on a stripped build
 1. Name / debug-info donor (STABS/PDB, U32b). 2. **Accessor decode** — resolve any
@@ -1492,17 +1728,20 @@ forbids executable allocation *and* the image has no slack, which the readiness 
 1. Admit in signature-only mode (U68). 2. Run every ladder above live, with U91's decoder
    for the structural members. 3. **Record everything the build taught** — every resolved
    instance with its member, every residue — and **ingest the build into the corpus** (its
-   image hash, its resolved instances as new `identity` rows with `method=runtime_ladder`,
-   pending the offline cascade's confirmation). Next time it is a known build with full
+   image hash, its resolved instances as `runtime_claim` rows per §1 — never `identity` — pending
+   `bind_identities`' confirmation). Next time it is a known build with full
    offline coverage; the residue is re-attacked offline with the members that need the
    whole corpus (BSim, emulation). (U99) This is how residue shrinks with every build seen.
 
 ### Phase 13 — Exhaustive-ladder units
-- **U91. Embedded decoder in the runtime host** — a pinned, versioned decoder (the detour
-  engine already embeds a length-disassembler; extend it, or embed Zydis/Capstone as
-  safetyhook does) exposing decode-to-mnemonic-class, operand extraction (`rel32`,
-  RIP-relative, `[base+off]`), and a flow walk sufficient for CFG MD-index / SPP. Its
-  revision is part of the determinism basis. This single unit converts the runtime from
+- **U91. Embedded decoder in the runtime host** — the **same** pure decoder library and revision U4 pins (a
+  mismatch → the host refuses structural members with `decoder_mismatch`), exposing
+  decode-to-mnemonic-class, operand extraction (`rel32`, RIP-relative, `[base+off]`), and a
+  flow walk sufficient for CFG MD-index / SPP. Scope: operand decode + live structural
+  members on unknown builds only; masks are produced offline by U4 and the runtime never
+  re-masks; masked compare needs no decoder (U23). The trampoline length-disassembler stays
+  for install-time safety (U60 advisory; U62 records both revisions). Results land in
+  `runtime_claim`. This single unit converts the runtime from
   "byte scanner" to "structural matcher" and unlocks Ladders A-2..A-8, B-2, C-3, D-2..D-3.
 - **U92. Via-caller / via-callee resolution** — pack carries, per function, its call-site
   indices in each caller and its ordered callee list; resolver implements A-2/A-3.
@@ -1519,8 +1758,8 @@ forbids executable allocation *and* the image has no slack, which the readiness 
 - **U98. Offline residue attack** — a cataloged verb that re-runs BSim + emulation-based
   fingerprinting over the current residue after each corpus change (A-10).
 - **U99. Learn-the-build loop** — runtime resolution results (per member, per entity) are
-  exported as a build report the corpus ingests as provisional identity rows; the offline
-  cascade confirms or rejects; the build becomes known (Ladder F). Deterministic: the
+  exported as a build report the corpus ingests as `runtime_claim` rows (§1) — never
+  `identity`; `bind_identities` confirms (promotes) or rejects (receipt + delete); the build becomes known (Ladder F). Deterministic: the
   report is a pure function of the image + pack + basis.
 - **U100. Cave candidates, live discovery, section slack, header space** (B-1..B-4) —
   N candidates per anchor in the pack; live discovery with the U12 validation rules via
@@ -1566,7 +1805,7 @@ pretend otherwise.
 |---|---|---|
 | **Sibling builds of the current engine family; 32-bit PE; MSVC** | near-free | Reuses the existing path end-to-end. |
 | **Same family; 64-bit ELF x86_64** | one-check | `is_elf_i386` → `is_elf_binary` (U20); the `roundtrip` triple already exists. |
-| **Same family; XBE (x86-32)** | moderate, format-only | XBE mapper + container detection + XOR-decoded entry/thunk (U7b); kernel-import naming lives in the L3 data pack. Same x86-32 code, so signatures/ABI/L2 reuse. Today it silently drops `expected_bytes` (no mapper). |
+| **Same family; XBE (x86-32)** | moderate, format-only | XBE mapper + container detection + XOR-decoded entry/thunk (U7b); kernel-import naming lives in the L3 data pack. Same x86-32 code, so signatures/ABI/L2 reuse. XBE mapper landed (`exact_universal.py:174`); container detection remains. |
 | **Different engine; 32-bit PE; possibly non-MSVC / non-thiscall** | moderate | ABI adapter (U18) + masked signatures (U4) + an L3 data pack for its script/VM API map. |
 | **Different engine; PE32+ / x86-64** | real adapter work | Exercises every hardwired assumption at once: mapper rewire (U7), x64 ABI (U8+U18), x64 masked signatures (U4/L2), x64 compiler profile (U19), cave policy (U12), and the runtime host's arch gating (U13b). |
 | **Same family; Mach-O (x86/arm64)** | moderate | `macho_mapper` + `machostabs` already exist; needs the load-base fix (U7) and an L2 for arm64 detours. |
@@ -1575,7 +1814,7 @@ pretend otherwise.
 | **Any family; section overlays / multi-image containers** | moderate | The container registry already models overlays for one handheld format (`containers/nds.py`, ARM9/ARM7 + overlays); generalize overlay-aware VA→offset and per-overlay coverage. |
 | **Any family; fat / multi-arch binaries** | moderate | Per-slice entities keyed by (arch, slice); one pack, per-slice coverage. |
 | **Managed / IL (.NET, JVM, bytecode)** | separate track | VISION names managed/IL lifters in scope; signatures here are IL-level, not native — an L1 variant, not the native masking pipeline. Out of scope for this plan; do not fake coverage. |
-| **ARM / other native ISA** | refused until | The handheld container already decodes ARM9/ARM7 images, so "refused" applies to *signing and caving*, not loading: needs an L2 adapter plus the U12 unreferenced-data validation (literal pools in `.text`); refuse loudly, never silently drop. |
+| **ARM / other native ISA** | refused until | The handheld container already decodes ARM9/ARM7 images, so "refused" applies to *signing and caving*, not loading: needs an L2 adapter plus the U12 unreferenced-data validation (literal pools in `.text`); refuse loudly, never silently drop. Today a 32-bit ARM ELF is mislabeled x86 (`targets.py:131` maps `EI_CLASS`); U20 reads `e_machine`, then refuses. |
 
 `roundtrip.py` (whole-image byte substrate) already works for any arch Ghidra handles.
 
@@ -1590,49 +1829,41 @@ pretend otherwise.
   parity or count original bytes as recovered C.
 
 ## Recommended order of first units
-0. **Step 0 — execute the five-step procedure in "Source trees and scope"**: branch from
-   canonical `master`; per-file three-way decision; import **only**
-   `agentdecompile_recovery/containers/{detect,models,nds,registry}.py` reconciled with
-   canonical's `containers/__init__.py`, `corpus/dashboard/live_recovery.py`,
-   `corpus/source_parity_synthesize.py`, and the three nvme-newer files after inspection;
-   **drop** nvme's stale root `catalog.py`/`introspect.py`; **never copy** nvme's
-   `cli.py` or `match_store.py` (both older than canonical); `rtti_recover.py` is already
-   identical. Then re-anchor. Nothing else starts until this branch exists.
-1. **Phase 0 determinism fix set (D1–D7) + U5c (both gates)** — small, mechanical `ORDER BY` / sorted / total
-   tie-break edits that make the *existing* hookpack byte-reproducible and make the
-   `logical_id` cascade deterministic. Every later unit's determinism claim rests on this.
-   Verify with **both** U5c gates: the export byte-diff (catches D2) and the cascade
-   harness — snapshot `func`/`calledge` to a fixture, run match→bind twice with shuffled
-   insert order and `VACUUM`/`ANALYZE` between, diff `identity`/`match`/`logical_function`
-   (catches D1/D3–D6). U5c therefore ships here, in step 1.
-2. **U7 mapper rewire** — swap `export_hookpack._file_offset`'s import from the broken
-   PE32-only `pe_va_mapper` to the existing, correct `exact_universal.mapper_for`; stops
-   silently corrupting 64-bit output. (XBE needs its own mapper, U7b — not covered yet.)
-3. **U1–U3 (Phase 1)** — exporter side of the asymmetry; the consumer already parses these
-   *field names* in v1, but note the v1 loader matches the format string exactly and any v2
-   pack falls through to a legacy parser (U23) — so Phase 1 emits v1-shaped packs until U23
-   lands.
-4. **U22 schema migration + backfill scaffold (Phase 7)** — the versioned, idempotent
-   migration and the read-only backfill verb, *before* any unit adds a table or column.
-5. **U8 bridge + U11 ABI block (Phase 3), with U61 `this`-normalization and U63 sret triple
-   landing in the same step** (they amend U8/U11's outputs) — reuse the CLI tree's structured storage
-   collection; architecture-agnostic, unblocks x64 ABI.
-6. **U28 tests wired into CI** (U5c already shipped in step 1; at step 1 the basis records
-   `decoder: ghidra-analysis/<ghidra version>+<processor-spec hash>` as a versioned
-   placeholder until U4 picks the raw-image decoder — U25's re-baseline then applies).
-7. **U82 schema unification + U69 platform/ABI descriptor + U54 basis extension** — before
-   any further `binary` column lands, and before any cross-build donor runs (U70 gates on
-   U69).
-8. Then, in dependency order: Phase 2 (masked signature core, U6b canonicalization, U48
-   library exclusion, U50 packed gate, U52 reloc flag) → **U30 `logical_entity` schema**
-   (prerequisite for every `entities[]` emitter) → Phase 9 data roots + accessors (U40–U45)
-   → Phase 5 divergence (U14–U17b, U39, U53) → Phase 8 entities (U30–U38 incl.
-   U32a–d, U33 after U79) → Phase 4 caves with U23/U46 consumer, U24 integrity, U55–U60
-   → Phase 11 machine unification (U67–U86) → Phase 6 genericity → U25/U26/U27, U61–U66
-   → **Phase 12 export bundle (U87–U90)** — the terminal deliverable; `export-bundle`
-   byte-identical across two runs under one basis is the whole plan's acceptance.
+0. **Step 0 ✔** (`0256ca0`; 119 differing files). Open: the
+   `containers/{detect,models,nds,registry}.py` split was not imported (canonical's monolith
+   is newer — decide whether to re-import); `source_parity_synthesize.py` is 0 bytes — treat
+   as truncated and re-import before U42.
+1. **Phase 0 (D1–D7) + U5c (both gates) ✔** (`16f0823`, `a0db224`, `ce5e8d4`, `e47d387`,
+   `5225722`, `559dc46`, `0c50f69`). Gate wording: canonical sorted row-set equality
+   including `match.id`.
+2. **U7 + U7b ✔** (`f935db7`). Remaining: `exact_corpus.py:121` still calls `pe_mapper`
+   directly.
+   - **2b. Re-anchor the plan** (Step 0 item 5) against the implementation branch.
+   - **2c. U21c → U21a → U21b** — the name gate is clean before any further doc or code
+     lands.
+3. **U22 ✔** (`f5f6a88`). Remaining per U22's bullet (DDL ownership, delete registry,
+   migration 2).
+   - **3b. Basis hardening** — D8, D9, the normative basis object (Determinism section),
+     migration 2 (`basis_hash`, `decoder_revision`, `analyzer_version`), harness (o)/(p).
+4. **U1–U3 + U1b ✔** (`b58a2e1`, `b271ba6`) — v1-shaped; `--format v2` stays off until U23
+   (the v1 loader matches the format string exactly and any other pack falls through to
+   the legacy parser).
+   - **4b. U19a data-pack registry** + pack hashes in the basis.
+5. **U82 + U69 + U20 (`e_machine`) + U70** — before any further `binary` column lands and
+   before any cross-build donor runs (U70 gates on U69).
+6. **U18 + U8/U11 + U61/U63** — donors now platform-gated; the CLI tree's structured
+   storage collector, architecture-agnostic, unblocks x64 ABI.
+7. **U28 (a)–(f) only**, wired into CI; every later unit lands the acceptance test named in
+   its own bullet.
+8. Then, in dependency order: Phase 2 (U4 decoder pin first, then U6b, U48, U50, U52) →
+   **U30** (`logical_entity`; status-set owner) → Phase 9 (U40–U45) → Phase 5 (U14–U17b,
+   U39, U53) → **U79** → Phase 8 (U30–U38 incl. U32a–d; U33 now valid after U79) →
+   **U23/U46** (mask-aware `find_unique`, refuse-on-unknown format) → Phase 4 (U12 into
+   `caves[]`, U13, U13b) + U24 + U55–U60 → Phase 11 rest (U67–U86, incl. **U13c** beside
+   U67) → Phase 6 rest (U19) → U25–U27, U62–U66 → **Phase 13** (U91–U103) → **Phase 12**
+   (U87–U90; U88 after U13c) — the terminal deliverable; `export-bundle` byte-identical
+   across two runs under one basis is the whole plan's acceptance.
 All of 1–7 are additive and testable on a temp copy of the store; nothing touches the
 working store until its determinism and migration receipts are green. Every unit is
 built by subagent-driven development against this plan, one bounded file scope at a
-time, with U28's tests as its acceptance.
-</content>
+time, with the acceptance test named in its own bullet (U28 for the cross-cutting gates).

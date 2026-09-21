@@ -1397,14 +1397,17 @@ def list_sessions() -> dict[str, Any]:
 
 
 def write_sessions(payload: dict[str, Any]) -> dict[str, Any]:
-    from agentdecompile_recovery.corpus.ghidra_project import load_sessions, save_sessions_merged
+    from agentdecompile_recovery.corpus.ghidra_project import fresh_draft_session, load_sessions, save_sessions_merged
 
     sessions = list((payload or {}).get("sessions") or [])
     if not sessions:
+        # An empty list never wipes stored tabs; a client that lost its state
+        # must not erase the server's. With nothing stored, keep one draft tab
+        # so the workbench always has somewhere to land.
         stored = load_sessions(live_root())
         if stored.get("sessions"):
             return {"ok": True, **stored, "ignored": True}
-        return {"ok": True, **stored}
+        return fresh_draft_session(live_root())
     return save_sessions_merged(live_root(), payload)
 
 

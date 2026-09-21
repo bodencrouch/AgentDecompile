@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+
 from pathlib import Path
 
 import pytest
@@ -38,7 +40,7 @@ def test_workbench_has_dropzone_and_manage_controls() -> None:
         atlas = TestClient(app).get("/dashboard?mode=atlas")
         assert atlas.status_code == 200
         assert 'id="root"' in atlas.text
-        assert "/dashboard/static/react/assets/" in atlas.text
+        assert "/react/assets/" in atlas.text
     else:
         assert 'id="wb-drop"' in page.text
         assert 'id="wb-sessions"' in page.text
@@ -90,8 +92,37 @@ def test_add_binary_from_path_registers_store_row(
     assert body["ok"] is True
     assert body["binary"]["slug"] == "demo.exe"
     listed = client.get("/dashboard/api/workbench/binaries")
-    slugs = [row["slug"] for row in listed.json()["binaries"]]
+    rows = listed.json()["binaries"]
+    slugs = [row["slug"] for row in rows]
     assert "demo.exe" in slugs
+    coverage = next(row["coverage"] for row in rows if row["slug"] == "demo.exe")
+    assert coverage["exactHashRegistration"]["status"] == "confirmed"
+    assert coverage["parser"]["status"] == "supported"
+    assert coverage["proof"]["phase"] == "comparison-pending"
+
+
+def test_legacy_binary_row_uses_authoritative_content_hash_without_identity_table(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = _client(monkeypatch, tmp_path)
+    binary = tmp_path / "legacy.exe"
+    binary.write_bytes(b"MZ" + b"\0" * 62)
+    digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+    db = tmp_path / "corpus.sqlite"
+    con = connect(db)
+    con.execute(
+        "INSERT INTO binary(repo_path,slug,format,content_sha256) VALUES(?,?,?,?)",
+        (str(binary), "legacy.exe", "Portable Executable (PE)", digest),
+    )
+    con.commit()
+    con.close()
+
+    response = client.get("/dashboard/api/workbench/binaries")
+
+    assert response.status_code == 200
+    coverage = response.json()["binaries"][0]["coverage"]
+    assert coverage["exactHashRegistration"]["status"] == "confirmed"
+    assert coverage["parser"]["provider"] == "agentdecompile.binary-inventory.v1"
 
 
 def test_remove_binary_requires_confirm_then_deletes(
@@ -216,50 +247,49 @@ def _write_gpr(root: Path, stem: str = "Demo") -> Path:
     return gpr
 
 
-def test_register_gpr_project_lists_programs(
+def test_gpr_project_is_inspected_not_registered_as_binary(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client = _client(monkeypatch, tmp_path)
     gpr = _write_gpr(tmp_path)
+    # Project locators are opened as projects; the binary library keeps only executables.
     added = client.post(
         "/dashboard/api/workbench/binaries",
         json={"path": str(gpr), "slug": "Demo"},
     )
-    assert added.status_code == 200
-    body = added.json()
-    assert body["ok"] is True
-    assert body["binary"]["kind"] == "ghidra-project"
-    assert "Game.exe" in body["binary"]["programs"]
+    assert added.status_code == 400
+    assert "project locator" in added.json()["error"]
+    inspected = client.get("/dashboard/api/workbench/inspect", params={"locator": str(gpr)})
+    assert inspected.status_code == 200
+    body = inspected.json()
+    assert body["kind"] == "ghidra-project"
+    assert "Game.exe" in body["programs"]
 
 
-def test_register_project_folder_and_shared_urls(
+def test_project_folder_and_shared_urls_are_rejected_as_binaries(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client = _client(monkeypatch, tmp_path)
     folder = tmp_path / "proj"
     folder.mkdir()
     _write_gpr(folder, "SharedSrc")
-    from_folder = client.post(
-        "/dashboard/api/workbench/binaries",
-        json={"path": str(folder)},
+    for payload in (
+        {"path": str(folder)},
+        {"url": "ghidra://127.0.0.1:13300/Odyssey/k1.exe", "slug": "odyssey-k1"},
+        {"url": "http://127.0.0.1:13100/Repo", "slug": "http-repo"},
+    ):
+        rejected = client.post("/dashboard/api/workbench/binaries", json=payload)
+        assert rejected.status_code == 400, payload
+        assert "project locator" in rejected.json()["error"], payload
+    listed = client.get("/dashboard/api/workbench/binaries")
+    assert not any(row["slug"] in {"proj", "odyssey-k1", "http-repo"} for row in listed.json()["binaries"])
+    remote = client.get(
+        "/dashboard/api/workbench/inspect",
+        params={"locator": "ghidra://127.0.0.1:13300/Odyssey/k1.exe"},
     )
-    assert from_folder.status_code == 200
-    assert from_folder.json()["binary"]["kind"] == "ghidra-project"
-    ghidra = client.post(
-        "/dashboard/api/workbench/binaries",
-        json={"url": "ghidra://127.0.0.1:13300/Odyssey/k1.exe", "slug": "odyssey-k1"},
-    )
-    assert ghidra.status_code == 200
-    assert ghidra.json()["binary"]["kind"] == "shared-project"
-    assert ghidra.json()["binary"]["repo"].startswith("ghidra://")
-    http = client.post(
-        "/dashboard/api/workbench/binaries",
-        json={"url": "http://127.0.0.1:13100/Repo", "slug": "http-repo"},
-    )
-    assert http.status_code == 200
-    assert http.json()["binary"]["kind"] == "shared-project"
-    assert http.json()["binary"]["repo"].startswith("http://")
-    assert "k1.exe" in ghidra.json()["binary"]["programs"]
+    assert remote.status_code == 200
+    assert remote.json()["kind"] == "shared-project"
+    assert "k1.exe" in remote.json()["programs"]
 
 
 def test_browse_lists_pe_binaries(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

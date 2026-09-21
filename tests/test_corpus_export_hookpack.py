@@ -184,6 +184,7 @@ def _hash_vs_id_store(path: Path, *, hashes: tuple[str | None, str | None]):
     con.execute("INSERT INTO identity(logical_id, binary_id, addr, confidence, method) VALUES (1, 1, 100, 0.9, 'a'), (1, 2, 200, 0.9, 'a')")
     con.execute("INSERT INTO func(binary_id, addr, name, signature) VALUES (1, 100, 'Run', 'void Run()'), (2, 200, 'Run', 'void Run()')")
     con.commit()
+    _stamp(con)
     return con
 
 

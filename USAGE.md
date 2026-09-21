@@ -1,6 +1,6 @@
 # AgentDecompile Usage Guide
 
-Install and first start live in [README.md](README.md). This page is the day-to-day operator manual. New CLI command recipes land here first.
+Install and first start live in [README.md](README.md). This page is the day-to-day operator manual. Current recovery uses the existing 8080 action catalog under [AGENTS.md](AGENTS.md); CLI snippets below document implementation and general usage, not a recovery bypass. Do not start duplicate servers or use automatic local fallback for the current recovery mission.
 
 ```mermaid
 flowchart TD
@@ -30,7 +30,7 @@ uvx --from /path/to/agentdecompile/ --with-editable ./agentdecompile agentdecomp
 
 Prefer `--mcp-server-url http://127.0.0.1:8080/mcp` in examples. The CLI also accepts the base URL and normalizes it. Explicit `--server-url`, `--host`, or `--port` stay authoritative and fail instead of being ignored.
 
-When you do not pass an explicit backend, the CLI treats unreachable default or env URLs as recoverable: reuse a cached local server, auto-start one, or fall back to in-process local execution.
+Implementation behavior outside the current recovery mission: when you do not pass an explicit backend, the CLI treats unreachable default or env URLs as recoverable: reuse a cached local server, auto-start one, or fall back to in-process local execution.
 
 ## Sessions
 
@@ -48,11 +48,9 @@ Add `--verbose` on the CLI, server, or proxy when you need transport diagnostics
 
 The operator UI is `/dashboard` on the same HTTP server as `/mcp`. Default: `http://127.0.0.1:8080/dashboard`.
 
-```bash
-uv run agentdecompile-server -t streamable-http
-```
+Reuse the existing listener. Read `GET /api/v1/actions`, select a listed action and its parameters, and inspect the resulting job and evidence. Do not infer missing analysis from an empty page; first check selected project/program and corpus binding.
 
-Open an already-analyzed Ghidra project and use the functions already there. Do not call `analyze-program` unless that program has no analysis yet. `force=true` is the retry.
+Open an already-analyzed Ghidra project and use the functions already there. Do not call `analyze-program` unless that program has no analysis yet. Force only an explicitly requested retry or work shown to be invalid.
 
 `AGENT_DECOMPILE_WEBUI_*` still starts an optional sidecar if you set it. Corpus recovery does not use that port.
 
@@ -121,7 +119,7 @@ Extra notes, dumps, and archives merge by address. They stay advisory until objd
 | Tool content has `## Error` but process exit is 0 | Payload text, not transport | Treat payload as authoritative |
 | Convenience flag missing | `agentdecompile-cli <command> -h` | Use raw `tool` for exact MCP keys |
 | Local VC probe looks like success | Content may still say checkout failed | Trust payload semantics |
-| Empty SARIF | `analyzeAfterImport` | Re-import or analyze first |
+| Empty SARIF | Selected program, binding and existing analysis | Reuse valid analysis; analyze only proven missing/invalid work |
 
 Typical unresolved-program payload:
 
@@ -216,6 +214,14 @@ Modifying tools may return a `conflictId`. Complete the change with `resolve-mod
 - [docs/CONTEXT_FUSION.md](docs/CONTEXT_FUSION.md) — merge notes and address-keyed conflicts
 - [TOOLS_LIST.md](TOOLS_LIST.md) — tool parameters
 
-### React workbench and optional Vite frontend
+### Workbench implementation and runtime reuse
 
-The MCP HTTP server serves the production React application at `/dashboard`, without a Node runtime. See [frontend development and verification](src/agentdecompile_recovery/corpus/dashboard/frontend/README.md). The optional Vite process uses port **5174** and `AGENTDECOMPILE_BACKEND` to select its MCP backend; both serving modes use the same application and state.
+Use the existing 8080 workbench. Static workbench source and the React frontend
+coexist; see the [interface guide](src/agentdecompile_recovery/corpus/dashboard/frontend/README.md)
+for source and packaged route distinctions. Do not start 5174 or infer completed
+migration from generated assets.
+
+`corpus.export-hookpack` is implemented and advertised through parser
+introspection. [Runtime reuse](docs/RUNTIME_REUSE.md) describes the existing
+KotorPhasor consumer, target bindings and unverified readiness/behavior gates.
+An exported pack is not proof of a safe call or recovered source.

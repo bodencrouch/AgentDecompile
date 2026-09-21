@@ -242,12 +242,28 @@ def ensure_binary_columns(con: sqlite3.Connection) -> None:
         con.execute("ALTER TABLE binary ADD COLUMN content_sha256 TEXT")
     if "recovery_family" not in cols:
         con.execute("ALTER TABLE binary ADD COLUMN recovery_family TEXT")
-    # Keep each uncatalogued build isolated. Format, architecture, and game
-    # names are intentionally not recovery-family classifiers.
-    con.execute(
-        "UPDATE binary SET recovery_family='unclassified:' || id "
-        "WHERE recovery_family IS NULL OR trim(recovery_family)=''"
-    )
+    # Existing inventories predate explicit recovery-family catalog entries.
+    # Keep each such build isolated until an operator supplies a catalog map;
+    # format, architecture, and game names are intentionally not classifiers.
+    # Read-check first: this runs on every connect(), and an unconditional
+    # write here made every concurrent connection contend for the write lock
+    # (orchestrator: 5 processes connecting at once -> "database is locked").
+    needs = con.execute(
+        "SELECT 1 FROM binary WHERE recovery_family IS NULL "
+        "OR trim(recovery_family)='' LIMIT 1"
+    ).fetchone()
+    if needs:
+        # Best-effort backfill. This is data, not schema -- reads work without
+        # it -- so a read-only consumer that cannot get the write lock (many
+        # concurrent orchestrator watchers hold WAL read locks) must proceed
+        # rather than crash. Whichever connection wins the lock backfills it.
+        try:
+            con.execute(
+                "UPDATE binary SET recovery_family='unclassified:' || id "
+                "WHERE recovery_family IS NULL OR trim(recovery_family)=''"
+            )
+        except sqlite3.OperationalError:
+            pass
 
 
 def ensure_priority_index(con: sqlite3.Connection) -> None:

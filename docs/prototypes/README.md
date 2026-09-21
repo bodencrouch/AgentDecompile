@@ -2,6 +2,11 @@
 
 Operator start: [README.md](../../README.md). Workbench feel north star is long on purpose. These files are **design records**, not how-to.
 
+The prototype also includes corpus-wide recovery and original-engine runtime reuse.
+[Unfinished outcomes](../PROTOTYPE_OUTCOMES.md) records requested results, current
+evidence and next actions, including the KotorXID design obligations. Pipeline
+policy remains [STRATEGY.md](../../STRATEGY.md); operations follow [AGENTS.md](../../AGENTS.md).
+
 ```mermaid
 flowchart TD
   feel[dashboard-operator-feel] --> workbench[/dashboard]

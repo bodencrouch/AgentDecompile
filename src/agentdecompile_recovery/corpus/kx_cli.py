@@ -17,6 +17,7 @@ KX_COMMANDS = frozenset({
     "harvest-shards",
     "verify-legacy-recovered",
     "permuter-harness",
+    "text-permuter",
     "recover-named-ghidra",
     "program-inventory",
     "work-queue",
@@ -95,6 +96,16 @@ def register(sub: argparse._SubParsersAction) -> None:
     perm.add_argument("--work-dir", type=Path)
     perm.add_argument("--from-ghidra-bulk")
     perm.add_argument("--limit", type=int)
+
+    txtperm = sub.add_parser(
+        "text-permuter",
+        help="Text-mutation byte-accuracy search for k1_win_gog_swkotor.exe near-misses "
+             "(relocation-masked diff scoring, no ELF-only decomp-permuter dependency)")
+    txtperm.add_argument("--seconds-per-fn", type=float, default=15.0)
+    txtperm.add_argument("--min-size", type=int, default=16)
+    txtperm.add_argument("--limit", type=int)
+    txtperm.add_argument("--watch", action="store_true")
+    txtperm.add_argument("--interval", type=float, default=30.0)
 
     rn = sub.add_parser("recover-named-ghidra", help="Recover named Ghidra C for unrecovered logicals")
     rn.add_argument("--limit", type=int, default=40)
@@ -287,6 +298,11 @@ def dispatch(args: argparse.Namespace) -> int | None:
 
     if cmd == "permuter-harness":
         from . import permuter_harness as mod
+
+        return mod.main(_argv_from_ns(args)) or 0
+
+    if cmd == "text-permuter":
+        from . import text_permuter_watch as mod
 
         return mod.main(_argv_from_ns(args)) or 0
 

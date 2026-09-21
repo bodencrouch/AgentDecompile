@@ -134,6 +134,42 @@ def create_dashboard_router() -> APIRouter:
             response.headers[key] = value
         return response
 
+    @router.get("/dashboard/settings/notifications", response_class=HTMLResponse)
+    async def dashboard_settings_notifications() -> HTMLResponse:
+        from agentdecompile_recovery.corpus.dashboard.settings_page import render_notifications_page
+        response = HTMLResponse(render_notifications_page())
+        for key, value in SECURITY_HEADERS.items():
+            response.headers[key] = value
+        return response
+
+    @router.get("/dashboard/api/settings/notifications")
+    async def get_notification_settings() -> JSONResponse:
+        from agentdecompile_recovery.corpus import discord_notify
+        s = discord_notify.load_settings()
+        hook = s.get("discord_webhook") or ""
+        # never return the full secret; show only whether one is set + a mask
+        masked = (hook[:36] + "…" + hook[-6:]) if len(hook) > 46 else ("set" if hook else "")
+        return JSONResponse({"configured": bool(hook), "masked": masked,
+                             "lastAnnouncedByteExact": s.get("last_announced_byte_exact")})
+
+    @router.post("/dashboard/api/settings/notifications")
+    async def set_notification_settings(request: Request) -> JSONResponse:
+        from agentdecompile_recovery.corpus import discord_notify
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        hook = str((body or {}).get("discord_webhook") or "").strip()
+        action = str((body or {}).get("action") or "save")
+        if action == "test":
+            res = discord_notify.post("✅ AgentDecompile webhook connected — "
+                                      "you'll get plain-language progress + ETAs here.")
+            return JSONResponse({"ok": bool(res.get("ok")), "detail": res})
+        if hook and not hook.startswith("https://"):
+            return JSONResponse({"ok": False, "error": "webhook must be an https URL"}, status_code=400)
+        discord_notify.save_settings({"discord_webhook": hook})
+        return JSONResponse({"ok": True, "configured": bool(hook)})
+
     @router.get("/dashboard/overview")
     async def dashboard_overview(request: Request) -> RedirectResponse:
         """Keep session tabs on the static workbench; overview is a window there."""

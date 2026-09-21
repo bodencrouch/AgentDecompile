@@ -95,8 +95,12 @@ class DummyRequestedProgramProvider(ToolProvider):
             )
         ]
 
-    async def _handle(self, args: dict[str, object]) -> list[types.TextContent]:
-        program_info = self.program_info
+    async def _handle(
+        self,
+        args: dict[str, object],
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None,
+    ) -> list[types.TextContent]:
         return create_success_response(
             {
                 "success": True,

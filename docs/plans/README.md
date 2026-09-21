@@ -22,6 +22,15 @@ Update these when the work they name changes:
 
 The 2026-08-30 corpus living plan is historical. Do not rewrite its deltas.
 
+## Reconciliation — 2026-09-20
+
+[STRATEGY.md](../../STRATEGY.md) is the single pipeline/priority authority.
+[RUNTIME_REUSE.md](../RUNTIME_REUSE.md) records existing export/catalog/loader
+seams and missing runtime-readiness proof. The two September 8 plans retain
+their original decisions below dated reconciliation notes; old matcher ordering,
+test/restart recipes and completion criteria do not override current strategy
+or [AGENTS.md](../../AGENTS.md). Whole-image acceptance remains unfinished.
+
 ## Current docs work
 
 | Plan | Role |

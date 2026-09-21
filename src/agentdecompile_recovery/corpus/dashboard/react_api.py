@@ -442,7 +442,7 @@ def create_react_router() -> APIRouter:
     def preparations():
         from .preparation import list_runs
         try:
-            return {"ok": True, "runs": list_runs()}
+            return {"ok": True, "runs": list_runs(public=True)}
         except (ValueError, OSError) as exc:
             return JSONResponse({"ok": False, "runs": [], "error": str(exc)}, status_code=400)
 

@@ -1055,9 +1055,20 @@ class PyGhidraContext:
                     GhidraProgramUtilities.markProgramAnalyzed(program)
                 else:
                     raise Exception("Missing set analyzed flag method!")
+            except Exception as exc:
+                if "active transaction" in str(exc).lower() and not GhidraProgramUtilities.shouldAskToAnalyze(program):
+                    logger.warning("analysis_save_transaction_reconciled program=%s", program.getName())
+                else:
+                    raise
             finally:
                 GhidraScriptUtil.releaseBundleHostReference()
-                self.project.save(program)
+                try:
+                    self.project.save(program)
+                except Exception as exc:
+                    if "active transaction" in str(exc).lower() and not GhidraProgramUtilities.shouldAskToAnalyze(program):
+                        logger.warning("analysis_project_save_reconciled program=%s", program.getName())
+                    else:
+                        raise
         else:
             logger.info("Analysis already complete.. skipping %s!", program)
 

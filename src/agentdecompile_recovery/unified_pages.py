@@ -913,6 +913,100 @@ def mount_unified_pages(app: FastAPI) -> None:
 
         threading.Thread(target=recover, name="workspace-recovery", daemon=True).start()
 
+    @app.on_event("startup")
+    async def autostart_text_permuter() -> None:
+        # Byte-accuracy search should be implicit: it only ever adds newly
+        # proven byte-exact C (scored by masked_diff_count, never destructive)
+        # so it belongs running whenever the dashboard is up, not gated behind
+        # someone opening Commands and clicking Run.
+        #
+        # Two things this needs that a single startup-time attempt doesn't
+        # give it: (1) cross-process exclusion, since this server runs with
+        # --max-workers 2 and both workers fire this hook at nearly the same
+        # instant -- start_job's own duplicate check is in-process only, and
+        # relying on it alone launched two concurrent duplicate jobs the
+        # first time this ran; an atomic lockfile create (O_CREAT|O_EXCL) is
+        # what actually gives exactly one winner. (2) retrying periodically
+        # rather than once, since a worker can legitimately lose the lock
+        # race against a lock that *looks* live but whose owning job then
+        # gets killed by the next restart (observed: rapid successive
+        # restarts left every attempt "interrupted" and no job ever settled
+        # into steady state) -- a startup-only hook has no way to notice and
+        # self-heal without another restart. A periodic watchdog does.
+        import logging
+        import os
+        import threading
+        import time
+
+        def try_acquire(lock_path: str) -> bool:
+            try:
+                fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+                os.write(fd, str(os.getpid()).encode())
+                os.close(fd)
+                return True
+            except FileExistsError:
+                return False
+
+        def safe_unlink(lock_path: str) -> bool:
+            try:
+                os.unlink(lock_path)
+                return True
+            except FileNotFoundError:
+                return True  # already gone (a sibling won the same cleanup race) -- fine either way
+
+        def already_running() -> bool:
+            from .corpus.dashboard.actions.jobs import list_jobs
+            return any(j.action_id == "corpus.text-permuter" and j.status == "running"
+                       for j in list_jobs(compact=True))
+
+        def try_launch_once() -> None:
+            # An exclusive full verification owns the single Wine/MSVC lane.
+            # The marker is intentionally runtime-only: removing it resumes
+            # the normal dashboard watchdog without a server restart.
+            if os.path.exists("/tmp/agentdecompile-text-permuter-autostart.pause"):
+                return
+            if already_running():
+                return
+            lock_path = "/tmp/agentdecompile-text-permuter-autostart.lock"
+            # O_CREAT|O_EXCL is the actual atomicity: exactly one of the two
+            # --max-workers processes wins this call even if both reach it at
+            # the same instant. The loser must NOT unconditionally unlink and
+            # retry -- unlinking before every attempt (rather than only when
+            # a lock turns out to be stale) reopens the same race one level
+            # up, since "unlink" then "create" is two separate syscalls a
+            # sibling worker can interleave between. Only clear the lock, and
+            # only once, when it's old enough that its owner has clearly had
+            # time to either finish starting or crash (20s is generous for a
+            # start_job call; the watchdog tick after this one will retry
+            # regardless if something is still wrong).
+            if not try_acquire(lock_path):
+                try:
+                    stale = os.stat(lock_path).st_mtime < time.time() - 20
+                except FileNotFoundError:
+                    stale = True
+                if not stale or not safe_unlink(lock_path) or not try_acquire(lock_path):
+                    return
+            try:
+                from .corpus.dashboard.actions.jobs import start_job
+                result, _status = start_job(
+                    "corpus.text-permuter",
+                    {"watch": True, "seconds-per-fn": 15.0, "min-size": 16, "interval": 30.0},
+                    confirm=True,
+                )
+                logging.getLogger(__name__).info("text-permuter autostart: %s", result)
+            except Exception:
+                logging.getLogger(__name__).exception("text-permuter autostart failed")
+
+        def watchdog() -> None:
+            while True:
+                try:
+                    try_launch_once()
+                except Exception:
+                    logging.getLogger(__name__).exception("text-permuter watchdog tick failed")
+                time.sleep(45)
+
+        threading.Thread(target=watchdog, name="text-permuter-autostart", daemon=True).start()
+
 
 def page_index() -> dict[str, str]:
     return dict(PAGE_PATHS)

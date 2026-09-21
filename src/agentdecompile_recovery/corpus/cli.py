@@ -293,6 +293,7 @@ def build_parser() -> argparse.ArgumentParser:
     bulk.add_argument("--mode", choices=("compile-only", "semantic"), default="compile-only")
     bulk.add_argument("--compiler", type=Path)
     bulk.add_argument("--sample", type=int)
+    bulk.add_argument("--resume-failures-sha256", help="Continue identical inputs using the exact current failure receipt")
     bulk.add_argument("--workers", type=int, default=2)
     bulk.add_argument("--write", action="store_true", default=True)
     bulk.add_argument("--no-write", dest="write", action="store_false")
@@ -326,6 +327,10 @@ def build_parser() -> argparse.ArgumentParser:
     clink.add_argument("--sample", type=int)
     clink.add_argument("--obj-dir", type=Path)
     clink.add_argument("--workers", type=int, default=2)
+    clink.add_argument("--vcroot", type=Path,
+                       help="VC7 toolchain root for a direct MSVC/Wine link")
+    clink.add_argument("--wineprefix", type=Path,
+                       help="Wine prefix for a direct MSVC/Wine link")
     clink.add_argument("--no-entrypoint", dest="entrypoint", action="store_false")
 
     xplace = sub.add_parser("cross-place", help="Copy compiling C onto bound sibling binaries")
@@ -335,6 +340,184 @@ def build_parser() -> argparse.ArgumentParser:
     xplace.add_argument("--repo", required=True)
     xplace.add_argument("--watch", action="store_true")
     xplace.add_argument("--interval", type=float, default=8.0)
+    xplace.add_argument("--no-compile-gate", action="store_true")
+    xplace.add_argument("--byteexact-receipt", type=Path,
+                        help="completed verify-byteexact receipt; copy only individually exact C")
+
+    vbx = sub.add_parser(
+        "verify-byteexact",
+        help="Relocation-aware objdiff-0 check: which recovered C compiles to "
+             "the shipped bytes (asm-floor shims excluded from the count)",
+    )
+    vbx.add_argument("--verified-dir", type=Path, required=True)
+    vbx.add_argument("--raw", type=Path, required=True)
+    vbx.add_argument("--db", type=Path, required=True)
+    vbx.add_argument("--binary-id", type=int, required=True)
+    vbx.add_argument("--out", type=Path, required=True)
+    vbx.add_argument("--maxc-bin-dir", type=Path, help="emit slot-fitting compiled "
+                     "bytes for ANY compiling function (byte-exact or not) for the max-C image")
+    vbx.add_argument("--bin-dir", type=Path, help="emit <addr>.bin substitution "
+                     "inputs for reloc-free byte-exact real-C functions")
+    vbx.add_argument("--compiler", type=Path)
+    vbx.add_argument("--workers", type=int, default=3)
+    vbx.add_argument("--limit", type=int, default=None)
+    vbx.add_argument("--no-incremental", action="store_true",
+                     help="ignore the mtime/size cache and recompile every file "
+                          "(use after a transient-failure spike to purge bad cached results)")
+
+    vpd = sub.add_parser(
+        "verify-periodic",
+        help="Self-healing verify-byteexact wrapper: runs incremental most of the "
+             "time, but every Nth invocation forces a --no-incremental full pass "
+             "to purge any cache contamination from a transient compile failure "
+             "-- no human needs to notice a plateau and intervene.",
+    )
+    vpd.add_argument("--verified-dir", type=Path, required=True)
+    vpd.add_argument("--raw", type=Path, required=True)
+    vpd.add_argument("--db", type=Path, required=True)
+    vpd.add_argument("--binary-id", type=int, required=True)
+    vpd.add_argument("--out", type=Path, required=True)
+    vpd.add_argument("--maxc-bin-dir", type=Path)
+    vpd.add_argument("--bin-dir", type=Path)
+    vpd.add_argument("--compiler", type=Path)
+    vpd.add_argument("--workers", type=int, default=3)
+    vpd.add_argument("--limit", type=int, default=None)
+    vpd.add_argument("--full-every", type=int, default=6)
+
+    vfi = sub.add_parser(
+        "verify-full-image-receipt",
+        help="Run one full build and require fresh objdiff evidence plus whole-file equality",
+    )
+    vfi.add_argument("--target", type=Path, required=True)
+    vfi.add_argument("--candidate", type=Path, required=True)
+    vfi.add_argument("--objdiff-receipt", type=Path, required=True)
+    vfi.add_argument("--out", type=Path, required=True)
+    vfi.add_argument("--cwd", type=Path, default=Path.cwd())
+    vfi.add_argument("--timeout", type=int, default=7200)
+    vfi.add_argument("--build-command", nargs=argparse.REMAINDER, required=True)
+
+    vdfi = sub.add_parser(
+        "verify-direct-full-image",
+        help="Fresh direct VC7 compile/link, function objdiff receipt, and whole-file comparison",
+    )
+    vdfi.add_argument("--target", type=Path, required=True)
+    vdfi.add_argument("--src-dir", type=Path, required=True)
+    vdfi.add_argument("--raw", type=Path, required=True)
+    vdfi.add_argument("--db", type=Path, required=True)
+    vdfi.add_argument("--binary-id", type=int, required=True)
+    vdfi.add_argument("--compiler", type=Path, required=True)
+    vdfi.add_argument("--vcroot", type=Path, required=True)
+    vdfi.add_argument("--wineprefix", type=Path, required=True)
+    vdfi.add_argument("--work-dir", type=Path, required=True)
+    vdfi.add_argument("--workers", type=int, default=1)
+
+    wir = sub.add_parser(
+        "whole-image-relink",
+        help="Emit an exact-placement diagnostic using asm-floor original bytes "
+             "where no verified C exists and verified-C bytes where it does; "
+             "not a compiler-produced whole-image gate.",
+    )
+    wir.add_argument("--target", type=Path, required=True)
+    wir.add_argument("--db", type=Path, required=True)
+    wir.add_argument("--binary-id", type=int, required=True)
+    wir.add_argument("--out", type=Path, required=True)
+    wir.add_argument("--func-bytes", type=Path, help="dir of <addr>.bin verified-C "
+                     "bytes to substitute; absent -> pure asm floor")
+
+    mst = sub.add_parser(
+        "matching-status",
+        help="Honest matching-decomp ledger: recovered (real-C byte-exact) vs "
+             "asm floor vs not-yet, plus an exact-placement diagnostic image",
+    )
+    mst.add_argument("--target", type=Path, required=True)
+    mst.add_argument("--db", type=Path, required=True)
+    mst.add_argument("--binary-id", type=int, required=True)
+    mst.add_argument("--src-dir", type=Path, required=True)
+    mst.add_argument("--receipts", type=Path, help="verify-byteexact --out JSON")
+    mst.add_argument("--out-exe", type=Path)
+    mst.add_argument("--out-manifest", type=Path)
+    mst.add_argument("--out-report", type=Path)
+    mst.add_argument("--byte-exact-floor", type=Path)
+
+    mwatch = sub.add_parser(
+        "matching-watch",
+        help="Autonomous loop: emit the exact-placement diagnostic + refresh the "
+             "honest ledger from the current verified-C set (asm floor elsewhere)",
+    )
+    mwatch.add_argument("--target", type=Path, required=True)
+    mwatch.add_argument("--db", type=Path, required=True)
+    mwatch.add_argument("--binary-id", type=int, required=True)
+    mwatch.add_argument("--src-dir", type=Path, required=True)
+    mwatch.add_argument("--receipts", type=Path)
+    mwatch.add_argument("--func-bytes", type=Path)
+    mwatch.add_argument("--out-exe", type=Path)
+    mwatch.add_argument("--out-manifest", type=Path)
+    mwatch.add_argument("--out-report", type=Path)
+    mwatch.add_argument("--byte-exact-floor", type=Path)
+    mwatch.add_argument("--watch", action="store_true")
+    mwatch.add_argument("--interval", type=float, default=60.0)
+
+    cnm = sub.add_parser("close-near-misses",
+        help="LLM-edit small-diff mismatches to byte-exact (grows the byte-accurate build)")
+    cnm.add_argument("--verified-dir", type=Path, required=True)
+    cnm.add_argument("--raw", type=Path, required=True)
+    cnm.add_argument("--receipts", type=Path, required=True)
+    cnm.add_argument("--compiler", type=Path)
+    cnm.add_argument("--db", type=Path)
+    cnm.add_argument("--binary-id", type=int)
+    cnm.add_argument("--bin-dir", type=Path)
+    cnm.add_argument("--max-diff", type=int, default=8)
+    cnm.add_argument("--limit", type=int, default=200)
+    cnm.add_argument("--workers", type=int, default=2)
+    cnm.add_argument("--model")
+    cnm.add_argument("--state", type=Path)
+
+    unp = sub.add_parser(
+        "unpack",
+        help="Detect packing/DRM (entropy + signatures) and unpack when possible "
+             "(UPX / emulation); gate ciphertext so recovery never emits garbage",
+    )
+    unp.add_argument("--binary", type=Path, required=True)
+    unp.add_argument("--out", type=Path)
+    unp.add_argument("--detect-only", action="store_true")
+    unp.add_argument("--allow-run", action="store_true")
+    unp.add_argument("--wineprefix")
+    unp.add_argument("--run-timeout", type=int, default=120)
+
+    cons = sub.add_parser(
+        "consolidate-corpus",
+        help="Pick best-C-per-function across all corpora (MizuchiRE semantic, "
+             "verified_c, historical, live) and upgrade the live tree in place",
+    )
+    cons.add_argument("--program", required=True)
+    cons.add_argument("--live-dir", type=Path, required=True)
+    cons.add_argument("--source", action="append", default=[],
+                      help="repeatable 'rank:semantic:PATH'; lower rank wins")
+    cons.add_argument("--dry-run", action="store_true")
+
+    orch = sub.add_parser(
+        "recovery-orchestrator",
+        help="Autonomous supervisor: keep cascade + permuter + verify + "
+             "matching-watch + cross-place all running, relaunch any that exit",
+    )
+    orch.add_argument("--program", required=True)
+    orch.add_argument("--repo", required=True)
+    orch.add_argument("--db", required=True)
+    orch.add_argument("--out-dir", required=True)
+    orch.add_argument("--kb", required=True)
+    orch.add_argument("--raw", required=True)
+    orch.add_argument("--binary-id", type=int, required=True)
+    orch.add_argument("--compiler")
+    orch.add_argument("--extract-raw")
+    orch.add_argument("--cascade-workers", type=int, default=2)
+    orch.add_argument("--verify-workers", type=int, default=2)
+    orch.add_argument("--no-cascade", dest="cascade", action="store_false", default=True)
+    orch.add_argument("--no-verify", dest="verify", action="store_false", default=True)
+    orch.add_argument("--no-nearmiss", dest="nearmiss", action="store_false", default=True)
+    orch.add_argument("--no-permuter", dest="permuter", action="store_false", default=True)
+    orch.add_argument("--no-cross-place", dest="cross_place", action="store_false", default=True)
+    orch.add_argument("--poll", type=float, default=20.0)
+    orch.add_argument("--log-dir", default="/tmp")
 
     from . import kx_cli
 
@@ -659,6 +842,8 @@ def main(argv: list[str] | None = None) -> int:
             bulk_argv += ["--compiler", str(args.compiler)]
         if args.sample is not None:
             bulk_argv += ["--sample", str(args.sample)]
+        if args.resume_failures_sha256:
+            bulk_argv += ["--resume-failures-sha256", args.resume_failures_sha256]
         if not args.write:
             bulk_argv.append("--no-write")
         if not args.skip_existing:
@@ -702,6 +887,8 @@ def main(argv: list[str] | None = None) -> int:
             obj_dir=args.obj_dir,
             workers=args.workers,
             entrypoint=getattr(args, "entrypoint", True),
+            vcroot=args.vcroot,
+            wineprefix=str(args.wineprefix) if args.wineprefix else None,
         )
         print(json.dumps(result, indent=2))
         return 0 if result.get("ok") else 1
@@ -717,7 +904,159 @@ def main(argv: list[str] | None = None) -> int:
         if args.watch:
             argv.append("--watch")
             argv += ["--interval", str(args.interval)]
+        if getattr(args, 'no_compile_gate', False):
+            argv.append("--no-compile-gate")
+        if args.byteexact_receipt:
+            argv += ["--byteexact-receipt", str(args.byteexact_receipt)]
         return cross_main(argv)
+    if args.cmd == "verify-byteexact":
+        from .verify_recovered_byteexact import main as vbx_main
+        argv = ["--verified-dir", str(args.verified_dir), "--raw", str(args.raw),
+                "--db", str(args.db), "--binary-id", str(args.binary_id),
+                "--out", str(args.out), "--workers", str(args.workers)]
+        if args.compiler:
+            argv += ["--compiler", str(args.compiler)]
+        else:
+            from .ghidra_bulk import _find_compiler
+            argv += ["--compiler", str(_find_compiler(args.out.parent, args.db))]
+        if args.bin_dir:
+            argv += ["--bin-dir", str(args.bin_dir)]
+        if getattr(args, "maxc_bin_dir", None):
+            argv += ["--maxc-bin-dir", str(args.maxc_bin_dir)]
+        if args.limit is not None:
+            argv += ["--limit", str(args.limit)]
+        if getattr(args, "no_incremental", False):
+            argv += ["--no-incremental"]
+        return vbx_main(argv)
+    if args.cmd == "verify-periodic":
+        from .verify_periodic import main as vpd_main
+        argv = ["--verified-dir", str(args.verified_dir), "--raw", str(args.raw),
+                "--db", str(args.db), "--binary-id", str(args.binary_id),
+                "--out", str(args.out), "--workers", str(args.workers),
+                "--full-every", str(args.full_every)]
+        if args.compiler:
+            argv += ["--compiler", str(args.compiler)]
+        else:
+            from .ghidra_bulk import _find_compiler
+            argv += ["--compiler", str(_find_compiler(args.out.parent, args.db))]
+        if args.bin_dir:
+            argv += ["--bin-dir", str(args.bin_dir)]
+        if getattr(args, "maxc_bin_dir", None):
+            argv += ["--maxc-bin-dir", str(args.maxc_bin_dir)]
+        if args.limit is not None:
+            argv += ["--limit", str(args.limit)]
+        return vpd_main(argv)
+    if args.cmd == "verify-full-image-receipt":
+        from .verify_full_image_receipt import main as vfi_main
+        argv = ["--target", str(args.target), "--candidate", str(args.candidate),
+                "--objdiff-receipt", str(args.objdiff_receipt), "--out", str(args.out),
+                "--cwd", str(args.cwd), "--timeout", str(args.timeout),
+                "--build-command", *args.build_command]
+        return vfi_main(argv)
+    if args.cmd == "verify-direct-full-image":
+        from .verify_direct_full_image import main as vdfi_main
+
+        return vdfi_main([
+            "--target", str(args.target), "--src-dir", str(args.src_dir),
+            "--raw", str(args.raw), "--db", str(args.db), "--binary-id", str(args.binary_id),
+            "--compiler", str(args.compiler), "--vcroot", str(args.vcroot),
+            "--wineprefix", str(args.wineprefix), "--work-dir", str(args.work_dir),
+            "--workers", str(args.workers),
+        ])
+    if args.cmd == "whole-image-relink":
+        from .whole_image_relink import main as wir_main
+        argv = ["--target", str(args.target), "--db", str(args.db),
+                "--binary-id", str(args.binary_id), "--out", str(args.out)]
+        if args.func_bytes:
+            argv += ["--func-bytes", str(args.func_bytes)]
+        return wir_main(argv)
+    if args.cmd == "matching-status":
+        from .matching_status import main as mst_main
+        argv = ["--target", str(args.target), "--db", str(args.db),
+                "--binary-id", str(args.binary_id), "--src-dir", str(args.src_dir)]
+        if args.receipts:
+            argv += ["--receipts", str(args.receipts)]
+        if args.out_exe:
+            argv += ["--out-exe", str(args.out_exe)]
+        if args.out_manifest:
+            argv += ["--out-manifest", str(args.out_manifest)]
+        if args.out_report:
+            argv += ["--out-report", str(args.out_report)]
+        if args.byte_exact_floor:
+            argv += ["--byte-exact-floor", str(args.byte_exact_floor)]
+        return mst_main(argv)
+    if args.cmd == "matching-watch":
+        from .matching_watch import main as mw_main
+        argv = ["--target", str(args.target), "--db", str(args.db),
+                "--binary-id", str(args.binary_id), "--src-dir", str(args.src_dir)]
+        for opt, val in (("--receipts", args.receipts), ("--func-bytes", args.func_bytes),
+                         ("--out-exe", args.out_exe), ("--out-manifest", args.out_manifest),
+                         ("--out-report", args.out_report), ("--byte-exact-floor", args.byte_exact_floor)):
+            if val:
+                argv += [opt, str(val)]
+        if args.watch:
+            argv += ["--watch", "--interval", str(args.interval)]
+        return mw_main(argv)
+    if args.cmd == "close-near-misses":
+        from .close_near_misses import main as cnm_main
+        argv=["--verified-dir",str(args.verified_dir),"--raw",str(args.raw),
+              "--receipts",str(args.receipts),"--max-diff",str(args.max_diff),
+              "--limit",str(args.limit),"--workers",str(args.workers)]
+        if args.compiler: argv+=["--compiler",str(args.compiler)]
+        else:
+            from .ghidra_bulk import _find_compiler
+            argv+=["--compiler",str(_find_compiler(args.raw.parent,args.db) if args.db else _find_compiler(args.raw.parent))]
+        if args.db: argv+=["--db",str(args.db)]
+        if args.binary_id is not None: argv+=["--binary-id",str(args.binary_id)]
+        if args.bin_dir: argv+=["--bin-dir",str(args.bin_dir)]
+        if args.model: argv+=["--model",str(args.model)]
+        if args.state: argv+=["--state",str(args.state)]
+        return cnm_main(argv)
+    if args.cmd == "unpack":
+        from .unpack import main as unpack_main
+        argv = ["--binary", str(args.binary)]
+        if args.out:
+            argv += ["--out", str(args.out)]
+        if args.detect_only:
+            argv.append("--detect-only")
+        if getattr(args, "allow_run", False):
+            argv.append("--allow-run")
+        if getattr(args, "wineprefix", None):
+            argv += ["--wineprefix", str(args.wineprefix)]
+        if getattr(args, "run_timeout", None):
+            argv += ["--run-timeout", str(args.run_timeout)]
+        return unpack_main(argv)
+    if args.cmd == "consolidate-corpus":
+        from .consolidate_corpus import main as cons_main
+        argv = ["--program", args.program, "--live-dir", str(args.live_dir)]
+        for s in args.source:
+            argv += ["--source", s]
+        if args.dry_run:
+            argv.append("--dry-run")
+        return cons_main(argv)
+    if args.cmd == "recovery-orchestrator":
+        from .recovery_orchestrator import main as orch_main
+        argv = ["--program", args.program, "--repo", args.repo, "--db", str(args.db),
+                "--out-dir", str(args.out_dir), "--kb", str(args.kb),
+                "--raw", str(args.raw), "--binary-id", str(args.binary_id),
+                "--cascade-workers", str(args.cascade_workers),
+                "--verify-workers", str(args.verify_workers),
+                "--poll", str(args.poll), "--log-dir", str(args.log_dir)]
+        if args.compiler:
+            argv += ["--compiler", str(args.compiler)]
+        if args.extract_raw:
+            argv += ["--extract-raw", str(args.extract_raw)]
+        if not args.permuter:
+            argv.append("--no-permuter")
+        if not args.cross_place:
+            argv.append("--no-cross-place")
+        if not args.cascade:
+            argv.append("--no-cascade")
+        if not args.verify:
+            argv.append("--no-verify")
+        if not args.nearmiss:
+            argv.append("--no-nearmiss")
+        return orch_main(argv)
     from . import kx_cli
 
     code = kx_cli.dispatch(args)

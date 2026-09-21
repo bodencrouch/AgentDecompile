@@ -10,7 +10,11 @@ from __future__ import annotations
 import json
 from typing import Any, Mapping
 
-RELATION_KINDS = frozenset({"one_to_one", "clone", "inline", "thunk", "split", "fold", "region"})
+RELATION_KINDS = frozenset({"one_to_one", "clone", "inline", "thunk", "split", "fold", "region", "unroll"})
+# Only these relations have concrete producers in the current corpus facts.
+# The wider vocabulary remains a storage contract for future extractors; it
+# must not silently turn an unsupported relation into an identity edge.
+OPERATIONAL_RELATION_KINDS = frozenset({"one_to_one", "inline", "clone", "split", "fold", "unroll"})
 STATUS_BANDS = frozenset({"verified", "strongly_supported", "tentative", "ambiguous", "unresolved", "quarantined"})
 
 KIND_TO_RELATION = {
@@ -18,6 +22,10 @@ KIND_TO_RELATION = {
     "callgraph": "one_to_one",
     "structural": "one_to_one",
     "inline": "inline",
+    "clone": "clone",
+    "split": "split",
+    "fold": "fold",
+    "unroll": "unroll",
     "region": "region",
     "hash": "one_to_one",
 }
@@ -32,13 +40,17 @@ def enrich_evidence(
     alternatives: list | None = None,
     code_equality: str | None = None,
     identity_claim: bool | None = None,
-    behavior_checked: bool = False,
+    behavior_checked: bool | None = None,
     quarantine: bool = False,
+    src_end: int | None = None,
+    dst_end: int | None = None,
+    stage: str | None = None,
+    dependencies: list | None = None,
 ) -> dict[str, Any]:
     ev = dict(evidence or {})
     rel = relation or KIND_TO_RELATION.get(kind or "", "one_to_one")
-    if rel not in RELATION_KINDS:
-        rel = "one_to_one"
+    if rel not in OPERATIONAL_RELATION_KINDS:
+        raise ValueError(f"unsupported correspondence relation without extracted facts: {rel}")
     ev["relation"] = rel
     if quarantine:
         band = "quarantined"
@@ -64,9 +76,15 @@ def enrich_evidence(
     if identity_claim is None:
         identity_claim = status in {"auto", "verify"} and rel == "one_to_one"
     ev["identity_claim"] = bool(identity_claim)
-    ev["behavior_checked"] = bool(behavior_checked)
+    ev["behavior_checked"] = bool(ev.get("behavior_checked")) if behavior_checked is None else bool(behavior_checked)
     if quarantine:
         ev["quarantine"] = True
+    if src_end is not None or dst_end is not None:
+        ev["range"] = {"src_end": src_end, "dst_end": dst_end}
+    if stage:
+        ev["stage"] = stage
+    if dependencies is not None:
+        ev["dependencies"] = list(dependencies)
     return ev
 
 
@@ -81,15 +99,37 @@ def ambiguity_group(candidates: list[dict[str, Any]]) -> dict[str, Any]:
     )
 
 
+def allows_identity_binding(
+    evidence: Mapping[str, Any] | None,
+    relation: str,
+    quarantined_sources: set[Any],
+) -> bool:
+    """One identity gate shared by direct and dashboard bind paths."""
+    ev = evidence or {}
+    dependencies = set(ev.get("dependencies") or ())
+    # Generation-aware propagation stores direct parents. Walk stored ancestry
+    # too, so quarantining an intermediate invalidates every descendant.
+    ancestry = ev.get("dependency_ancestry") or ()
+    dependencies.update(ancestry)
+    return (
+        relation == "one_to_one"
+        and not ev.get("quarantine")
+        and ev.get("identity_claim") is not False
+        and not quarantined_sources.intersection(dependencies)
+    )
+
+
 def dumps_evidence(evidence: Mapping[str, Any] | None) -> str:
     return json.dumps(dict(evidence or {}), separators=(",", ":"))
 
 
 __all__ = [
     "KIND_TO_RELATION",
+    "OPERATIONAL_RELATION_KINDS",
     "RELATION_KINDS",
     "STATUS_BANDS",
     "ambiguity_group",
+    "allows_identity_binding",
     "dumps_evidence",
     "enrich_evidence",
 ]

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from typing import Any
 
 from fastapi import APIRouter, Request
@@ -65,38 +67,36 @@ def create_actions_api_router() -> APIRouter:
     async def api_list_actions() -> JSONResponse:
         from agentdecompile_recovery.corpus.dashboard.actions.context import workbench_context
 
-        return JSONResponse(
-            {
-                "ok": True,
-                "actions": [item.to_dict() for item in list_actions()],
-                "context": workbench_context(),
-            }
+        actions, context = await asyncio.gather(
+            asyncio.to_thread(list_actions),
+            asyncio.to_thread(workbench_context),
         )
+        return JSONResponse({"ok": True, "actions": [item.to_dict() for item in actions], "context": context})
 
     @router.get("/api/v1/actions/{action_id}", summary="Describe one action")
     async def api_one_action(action_id: str) -> JSONResponse:
         from agentdecompile_recovery.corpus.dashboard.actions.catalog import action_by_id
 
-        action = action_by_id(action_id)
+        action = await asyncio.to_thread(action_by_id, action_id)
         if action is None:
             return JSONResponse({"ok": False, "error": f"unknown action {action_id}"}, status_code=404)
         return JSONResponse({"ok": True, "action": action.to_dict()})
 
     @router.get("/api/v1/jobs", summary="List running and recent jobs")
     async def api_list_jobs() -> JSONResponse:
-        rows = list_jobs()
-        return JSONResponse({"ok": True, "jobs": [job.to_dict(include_log=False) for job in rows], "total": len(rows)})
+        rows = await asyncio.to_thread(list_jobs)
+        return JSONResponse({"ok": True, "jobs": [job.to_dict(include_log=False, include_details=False) for job in rows], "total": len(rows)})
 
     @router.get("/api/v1/jobs/{job_id}", summary="Job status and log")
     async def api_one_job(job_id: str) -> JSONResponse:
-        job = get_job(job_id)
+        job = await asyncio.to_thread(get_job, job_id)
         if job is None:
             return JSONResponse({"ok": False, "error": f"unknown job {job_id}"}, status_code=404)
         return JSONResponse({"ok": True, "job": job.to_dict()})
 
     @router.post("/api/v1/jobs/{job_id}/cancel", summary="Cancel a queued or running job")
     async def api_cancel_job(job_id: str) -> JSONResponse:
-        job = cancel_job(job_id)
+        job = await asyncio.to_thread(cancel_job, job_id)
         if job is None:
             return JSONResponse({"ok": False, "error": f"unknown job {job_id}"}, status_code=404)
         return JSONResponse({"ok": True, "job": job.to_dict()})
@@ -130,7 +130,8 @@ def _mount_action(router: APIRouter, action: ActionSpec) -> None:
             params_only.update(nested)
         confirm = bool(raw.get("confirm"))
         dry = bool(raw.get("dryRun") or raw.get("dry_run"))
-        payload, status = start_job(
+        payload, status = await asyncio.to_thread(
+            start_job,
             action.id,
             params_only,
             context=context,

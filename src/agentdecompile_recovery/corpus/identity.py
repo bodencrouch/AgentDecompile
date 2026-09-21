@@ -76,6 +76,14 @@ def bind_identities(
                     ln, rn = _norm_name(left.get("name")), _norm_name(right.get("name"))
                     if not ln or ln != rn:
                         continue
+                    # Name/size is the final failover only.  Never turn a
+                    # repeated name into an implicit one-to-one identity;
+                    # ambiguous names must remain unresolved for a stronger
+                    # channel (hash/xref/CFG/semantic) to adjudicate.
+                    if sum(_norm_name(row.get("name")) == ln for row in left_rows) != 1:
+                        continue
+                    if sum(_norm_name(row.get("name")) == rn for row in right_rows) != 1:
+                        continue
                     try:
                         ls, rs = float(left.get("size") or 0), float(right.get("size") or 0)
                     except (TypeError, ValueError):

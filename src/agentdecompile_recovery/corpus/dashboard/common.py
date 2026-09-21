@@ -109,6 +109,23 @@ def live_root() -> Path | None:
 _RUNTIME_DB_PATH: Path | None = None
 
 
+def _runtime_db_selection_path() -> Path | None:
+    root = live_root()
+    return root / "workbench-corpus-db.json" if root is not None else None
+
+
+def _saved_runtime_db_path() -> Path | None:
+    path = _runtime_db_selection_path()
+    if path is None or not path.is_file():
+        return None
+    try:
+        value = json.loads(path.read_text(encoding="utf-8")).get("path")
+        candidate = Path(str(value)).expanduser()
+        return candidate if candidate.is_file() else None
+    except (OSError, TypeError, ValueError):
+        return None
+
+
 def set_runtime_db_path(path: Path | str | None) -> None:
     """Select a corpus db for this running server, overriding env/default.
 
@@ -117,6 +134,20 @@ def set_runtime_db_path(path: Path | str | None) -> None:
     """
     global _RUNTIME_DB_PATH
     _RUNTIME_DB_PATH = Path(path).expanduser() if path else None
+    selection = _runtime_db_selection_path()
+    if selection is None:
+        return
+    try:
+        if _RUNTIME_DB_PATH is None:
+            selection.unlink(missing_ok=True)
+        else:
+            temporary = selection.with_suffix(".tmp")
+            temporary.write_text(json.dumps({"path": str(_RUNTIME_DB_PATH)}), encoding="utf-8")
+            temporary.replace(selection)
+    except OSError:
+        # The active in-memory selection remains valid even if its workspace
+        # cannot retain a preference across a server restart.
+        pass
 
 
 def find_candidate_dbs() -> list[Path]:
@@ -139,7 +170,28 @@ def find_candidate_dbs() -> list[Path]:
 def live_db() -> Path | None:
     if _RUNTIME_DB_PATH is not None:
         return _RUNTIME_DB_PATH
+    saved = _saved_runtime_db_path()
+    if saved is not None:
+        return saved
     return _env_path_optional("AGENT_DECOMPILE_CORPUS_DB") or DB_PATH
+
+
+def runtime_project_root() -> Path | None:
+    """Return the project owning the selected runtime database when known."""
+    database = live_db()
+    if database is not None and database.parent.name == "db":
+        candidate = database.parent.parent
+        if (candidate / "corpus_work").is_dir():
+            return candidate
+    return live_root()
+
+
+def runtime_work_dir() -> Path | None:
+    """Return the recovery workspace paired with the selected runtime db."""
+    project = runtime_project_root()
+    if project is not None and (project / "corpus_work").is_dir():
+        return project / "corpus_work"
+    return project
 
 
 def as_root() -> Path:

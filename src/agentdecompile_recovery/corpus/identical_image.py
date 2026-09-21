@@ -6,6 +6,7 @@ Content digests only — never filename, timestamp, version strings, or MD5 alon
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -32,10 +33,17 @@ def images_identical(meta_a: Mapping[str, Any], meta_b: Mapping[str, Any]) -> bo
     MD5 (including Ghidra ExecutableMD5) is advisory elsewhere — never enough
     alone to short-circuit the cascade.
     """
+    # When both artifact paths are still available, bind the decision to their
+    # current bytes.  A digest stored during an older ingest is not proof that
+    # the file has not since been replaced.
+    current_a = content_digest(meta_a.get("repo_path"))
+    current_b = content_digest(meta_b.get("repo_path"))
+    if current_a is not None or current_b is not None:
+        return bool(current_a and current_b and current_a == current_b)
     for key in ("content_sha256", "sha256"):
         a = (meta_a.get(key) or "").strip().lower()
         b = (meta_b.get(key) or "").strip().lower()
-        if a and b and a == b and len(a) >= 16:
+        if a == b and re.fullmatch(r"[0-9a-f]{64}", a or ""):
             return True
     return False
 

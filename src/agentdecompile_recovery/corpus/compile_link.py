@@ -15,6 +15,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+from .recovered_c_preamble import PREAMBLE
+
 
 def find_c_compiler() -> str | None:
     for name in ("cc", "gcc", "clang"):
@@ -161,7 +163,8 @@ def write_entrypoint(dest: Path) -> Path:
 
 
 def compile_unit_script(
-    script: str, source: Path, obj: Path, *, name: str = "", timeout: int = 90
+    script: str, source: Path, obj: Path, *, name: str = "", timeout: int = 90,
+    preamble: str = "",
 ) -> dict[str, Any]:
     """Operator compiler wrapper: ``script <source> <obj> [name]``."""
     obj.parent.mkdir(parents=True, exist_ok=True)
@@ -176,7 +179,7 @@ def compile_unit_script(
     # Win32 before cl.exe can open the source. Keep the operator-facing paths
     # and object layout stable, but give the compiler filesystem-safe aliases.
     win32_illegal = '<>:"/\\|?*'
-    if any(char in source.name for char in win32_illegal):
+    if preamble or any(char in source.name for char in win32_illegal):
         handle, temp_name = tempfile.mkstemp(
             dir=source.parent,
             prefix=".agentdecompile-",
@@ -184,7 +187,10 @@ def compile_unit_script(
         )
         os.close(handle)
         staged_source = Path(temp_name)
-        shutil.copy2(source, staged_source)
+        if preamble:
+            staged_source.write_text(preamble + source.read_text(errors="replace"), encoding="utf-8")
+        else:
+            shutil.copy2(source, staged_source)
         compile_source = staged_source
     if staged_source is not None or any(char in obj.name for char in win32_illegal):
         handle, temp_name = tempfile.mkstemp(
@@ -349,7 +355,8 @@ def compile_and_link_tree(
         if size > 80_000:
             timeout = 300
         if script:
-            result = compile_unit_script(str(cc), src, obj, name=src.stem, timeout=timeout)
+            result = compile_unit_script(str(cc), src, obj, name=src.stem, timeout=timeout,
+                                         preamble=PREAMBLE)
         else:
             result = compile_unit(str(cc), src, obj, timeout=timeout)
         return obj, result

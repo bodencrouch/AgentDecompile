@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -23,6 +24,9 @@ class _GateProbeProvider(ToolProvider):
     """Minimal provider for list-functions, list-project-files, and open."""
 
     HANDLERS = {
+        "checkoutprogram": "_handle_probe",
+        "listfunctions": "_handle_probe",
+        "listprojectfiles": "_handle_probe",
         "open": "_handle_open",
     }
 
@@ -53,15 +57,14 @@ class _GateProbeProvider(ToolProvider):
     async def _handle_open(self, _args: dict):
         raise ProgramAnalysisTimeout("Ghidra auto-analysis did not complete during open")
 
-    async def call_tool(self, name: str, arguments: dict):
-        norm = name.replace("-", "").replace("_", "").lower()
-        if norm == "open":
-            return await super().call_tool(name, arguments)
-        if norm == "listprojectfiles":
-            return create_success_response({"programs": []})
-        if norm == "checkoutprogram":
-            return create_success_response({"checkedOut": True})
-        return create_success_response({"ok": True})
+    async def _handle_probe(self, _args: dict, *, program_info: SimpleNamespace | None):
+        return create_success_response(
+            {
+                "ok": True,
+                "programPath": str(getattr(program_info, "file_path", "")),
+                "programName": str(getattr(program_info, "name", "")),
+            }
+        )
 
 
 @pytest.fixture
@@ -77,7 +80,135 @@ def program_info() -> SimpleNamespace:
     df = MagicMock()
     df.getPathname.return_value = "/repo/other.exe"
     program.getDomainFile.return_value = df
-    return SimpleNamespace(program=program, ghidra_analysis_complete=False)
+    return SimpleNamespace(
+        program=program,
+        ghidra_analysis_complete=False,
+        file_path="/repo/other.exe",
+        name="other.exe",
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_program_context_is_call_scoped_across_analysis_gate_interleaving(
+    gate_manager: ToolProviderManager,
+) -> None:
+    def _program_info(path: str) -> SimpleNamespace:
+        program = MagicMock()
+        program.getDomainFile.return_value.getPathname.return_value = path
+        return SimpleNamespace(
+            program=program,
+            ghidra_analysis_complete=False,
+            file_path=path,
+            name=path.rsplit("/", 1)[-1],
+        )
+
+    lifecycle_info = _program_info("/repo/lifecycle.exe")
+    program_a = _program_info("/repo/a.exe")
+    program_b = _program_info("/repo/b.exe")
+    gate_manager.set_program_info(lifecycle_info)
+    provider = gate_manager._tool_map["listfunctions"]
+
+    a_waiting = asyncio.Event()
+    release_a = asyncio.Event()
+
+    async def _interleave_at_gate(_wait_fn, _program, info, **_kwargs):
+        if info is program_a:
+            a_waiting.set()
+            await release_a.wait()
+
+    def _lookup(_session_id: str, path: str | None = None):
+        return {"/repo/a.exe": program_a, "/repo/b.exe": program_b}.get(path)
+
+    with (
+        patch(
+            "agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.get_program_info",
+            side_effect=_lookup,
+        ),
+        patch(
+            "agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.get_active_program_info",
+            return_value=None,
+        ),
+        patch("agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.add_tool_history"),
+        patch(
+            "agentdecompile_cli.mcp_server.tool_providers.asyncio.to_thread",
+            side_effect=_interleave_at_gate,
+        ),
+    ):
+        call_a = asyncio.create_task(
+            gate_manager.call_tool(
+                "list-functions",
+                {"programPath": "/repo/a.exe", "responseFormat": "json"},
+            )
+        )
+        await a_waiting.wait()
+        result_b = await gate_manager.call_tool(
+            "list-functions",
+            {"programPath": "/repo/b.exe", "responseFormat": "json"},
+        )
+        release_a.set()
+        result_a = await call_a
+
+    assert json.loads(result_a[0].text)["programPath"] == "/repo/a.exe"
+    assert json.loads(result_b[0].text)["programPath"] == "/repo/b.exe"
+    assert provider.program_info is lifecycle_info
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_direct_provider_call_uses_lifecycle_program_fallback(
+    program_info: SimpleNamespace,
+) -> None:
+    provider = _GateProbeProvider(program_info)
+
+    result = await provider.call_tool(
+        "list-functions",
+        {"programPath": "/repo/other.exe", "responseFormat": "json"},
+    )
+
+    assert json.loads(result[0].text)["programPath"] == "/repo/other.exe"
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_explicit_none_does_not_use_provider_lifecycle_program(
+    program_info: SimpleNamespace,
+) -> None:
+    provider = _GateProbeProvider(program_info)
+
+    result = await provider.call_tool(
+        "list-functions",
+        {"programPath": "/repo/other.exe", "responseFormat": "json"},
+        program_info=None,
+    )
+
+    assert json.loads(result[0].text)["programPath"] == ""
+    assert provider.program_info is program_info
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_manager_explicit_none_does_not_use_session_or_lifecycle_program(
+    gate_manager: ToolProviderManager,
+    program_info: SimpleNamespace,
+) -> None:
+    gate_manager.set_program_info(program_info)
+    with (
+        patch(
+            "agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.get_active_program_info",
+            return_value=program_info,
+        ),
+        patch("agentdecompile_cli.mcp_server.tool_providers.SESSION_CONTEXTS.add_tool_history"),
+    ):
+        result = await gate_manager.call_tool(
+            "list-functions",
+            {"responseFormat": "json"},
+            program_info=None,
+        )
+
+    assert json.loads(result[0].text)["programPath"] == ""
+    assert gate_manager.program_info is program_info
+    assert gate_manager._tool_map["listfunctions"].program_info is program_info
 
 
 @pytest.mark.unit

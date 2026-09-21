@@ -1,7 +1,6 @@
-import { createRoot } from "react-dom/client";
-import { App } from "./App";
-import { installWorkspaceFlush } from "./workspaceState";
-import "./style.css";
+import { createRoot } from 'react-dom/client';
+import { WorkstationApp } from './workstation/WorkstationApp';
+import { installWorkspaceFlush } from './workspaceState';
 
 installWorkspaceFlush();
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById('root')!).render(<WorkstationApp />);

@@ -17,7 +17,15 @@ from .canon import DRM_EXCLUDED
 from .exact_universal import mapper_for
 from .extract import slugify
 
-TARGET = {32: "i386-linux-gnu", 64: "x86_64-linux-gnu"}
+# The image is emitted as pure `.byte` directives (see build_source below), so
+# assembling it is architecture-agnostic -- clang never has to decode a real
+# instruction. Any arch/bits combo Ghidra can hand us just needs a valid
+# triple; ARM (NDS ARM9/ARM7, KotOR Android/iOS, NWN:EE linux-arm64) reuses
+# the same byte-substrate path x86 does.
+TARGET = {
+    ("x86", 32): "i386-linux-gnu", ("x86", 64): "x86_64-linux-gnu",
+    ("ARM", 32): "armv5-linux-gnueabi", ("ARM", 64): "aarch64-linux-gnu",
+}
 SCHEMA = "agentdecompile.assembly-floor.v1"
 REPRESENTATION = "byte-authoritative-assembly-substrate"
 CLAIM_BOUNDARY = (
@@ -95,8 +103,8 @@ def roundtrip(
         "SELECT id, slug, bits, arch FROM binary WHERE repo_path=?",
         (repo_path,),
     ).fetchone()
-    if row is None or row["arch"] != "x86":
-        return {**base, "error": "not an x86 binary"}
+    if row is None or (row["arch"], row["bits"]) not in TARGET:
+        return {**base, "error": f"unsupported arch/bits: {row['arch'] if row else '?'}/{row['bits'] if row else '?'}"}
     rawp = pathlib.Path(raw_path)
     if not rawp.exists():
         return {**base, "error": "raw image not exported"}
@@ -130,7 +138,7 @@ def roundtrip(
 
     rebuilt = b""
     if assemble:
-        triple = TARGET.get(row["bits"], "i386-linux-gnu")
+        triple = TARGET[(row["arch"], row["bits"])]
         with tempfile.TemporaryDirectory() as td:
             obj = pathlib.Path(td) / "img.o"
             binf = pathlib.Path(td) / "img.bin"

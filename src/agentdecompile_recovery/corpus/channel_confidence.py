@@ -29,6 +29,8 @@ BASE = {
     "emulate": 64,
     "inline": 50,
     "region": 50,
+    "fuzzy_hash": 58,
+    "F": 58,
 }
 
 HASH_KEYS = frozenset({"hash_reloc", "hash_instr", "hash_mnemonic", "hash_raw", "H_reloc", "H_instr", "H_mnemonic", "H_raw"})
@@ -57,6 +59,8 @@ def _channel_letter(token: str) -> str:
         return "M"
     if t in {"d", "emulate", "unicorn", "qemu"}:
         return "D"
+    if t in {"f", "fuzzy", "fuzzy_hash", "ssdeep", "tlsh"}:
+        return "F"
     if len(t) == 1 and t.upper() in BASE:
         return t.upper()
     return t[:1].upper() if t else "?"
@@ -77,7 +81,7 @@ def independent_channels(evidence: Mapping[str, Any] | None) -> set[str]:
         if key in {"channel", "primary_channel", "kind", "propagation_kind"} and isinstance(val, str):
             letters.add(_channel_letter(val))
             continue
-        if key in BASE or key in {"strings", "consts", "ext", "neighbors", "compunit", "decomp", "bsim", "abi"}:
+        if key in BASE or key in {"strings", "consts", "ext", "neighbors", "compunit", "decomp", "fuzzy_hash", "bsim", "abi"}:
             letters.add(_channel_letter(key))
     kind = evidence.get("kind") or evidence.get("propagation_kind")
     if isinstance(kind, str):

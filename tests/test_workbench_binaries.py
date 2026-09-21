@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -90,8 +91,37 @@ def test_add_binary_from_path_registers_store_row(
     assert body["ok"] is True
     assert body["binary"]["slug"] == "demo.exe"
     listed = client.get("/dashboard/api/workbench/binaries")
-    slugs = [row["slug"] for row in listed.json()["binaries"]]
+    rows = listed.json()["binaries"]
+    slugs = [row["slug"] for row in rows]
     assert "demo.exe" in slugs
+    coverage = next(row["coverage"] for row in rows if row["slug"] == "demo.exe")
+    assert coverage["exactHashRegistration"]["status"] == "confirmed"
+    assert coverage["parser"]["status"] == "supported"
+    assert coverage["proof"]["phase"] == "unmeasured"
+
+
+def test_legacy_binary_row_uses_authoritative_content_hash_without_identity_table(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = _client(monkeypatch, tmp_path)
+    binary = tmp_path / "legacy.exe"
+    binary.write_bytes(b"MZ" + b"\0" * 62)
+    digest = hashlib.sha256(binary.read_bytes()).hexdigest()
+    db = tmp_path / "corpus.sqlite"
+    con = connect(db)
+    con.execute(
+        "INSERT INTO binary(repo_path,slug,format,content_sha256) VALUES(?,?,?,?)",
+        (str(binary), "legacy.exe", "Portable Executable (PE)", digest),
+    )
+    con.commit()
+    con.close()
+
+    response = client.get("/dashboard/api/workbench/binaries")
+
+    assert response.status_code == 200
+    coverage = response.json()["binaries"][0]["coverage"]
+    assert coverage["exactHashRegistration"]["status"] == "confirmed"
+    assert coverage["parser"]["provider"] == "agentdecompile.binary-inventory.v1"
 
 
 def test_remove_binary_requires_confirm_then_deletes(

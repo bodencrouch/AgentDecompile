@@ -267,9 +267,18 @@ def ghidra_program_path(info: dict[str, object] | None, program: str) -> str:
     name = (program or "").strip()
     if not name:
         return ""
+    payload = info or {}
+    # Dashboard requests can carry ``<local-project>.gpr/<program>`` after
+    # an earlier selection was persisted.  That is a transport locator, not
+    # a Ghidra DomainFile path.  Strip it before consulting the inspected
+    # project inventory; leave genuine Ghidra paths (``/folder/program``)
+    # intact.
+    locator = str(payload.get("canonical") or payload.get("locator") or "").replace("\\", "/").rstrip("/")
+    normalized = name.replace("\\", "/")
+    if locator and normalized.casefold().startswith((locator + "/").casefold()):
+        name = normalized[len(locator) + 1 :].lstrip("/")
     if name.startswith("/"):
         return name
-    payload = info or {}
     mapped = payload.get("program_paths")
     if isinstance(mapped, dict) and mapped.get(name):
         return str(mapped[name])

@@ -10,6 +10,7 @@ import json
 import os
 import re
 import sqlite3
+import sys
 import threading
 import time
 import uuid
@@ -26,6 +27,10 @@ from .common import live_db, live_root
 
 _SOURCE_SUFFIXES = {'.c', '.cc', '.cpp', '.cxx', '.h', '.hh', '.hpp', '.hxx', '.s', '.asm', '.inc', '.cmake', '.vcxproj', '.sln', '.def'}
 _BUILD_NAMES = {'CMakeLists.txt', 'Makefile', 'makefile', 'meson.build', 'meson_options.txt'}
+_MAX_FILES = 50_000
+_MAX_FILE_BYTES = 16 * 1024 * 1024
+_MAX_INPUT_BYTES = 512 * 1024 * 1024
+_MAX_OUTPUT_BYTES = 1024 * 1024 * 1024
 
 
 def _checked(cancel: threading.Event) -> None:
@@ -59,6 +64,18 @@ def _safe_file(path: Path, roots: list[Path]) -> Path | None:
         return None
 
 
+def _read_limited(path: Path, cancel: threading.Event) -> bytes:
+    size = path.stat().st_size
+    if size > _MAX_FILE_BYTES:
+        raise ValueError(f'{path} exceeds the {_MAX_FILE_BYTES // (1024 * 1024)} MiB per-file safety limit.')
+    chunks: list[bytes] = []
+    with path.open('rb') as stream:
+        while chunk := stream.read(1024 * 1024):
+            _checked(cancel)
+            chunks.append(chunk)
+    return b''.join(chunks)
+
+
 def _body_kind(text: str, assembly: bool = False) -> str:
     if assembly:
         return 'assembly-listing'
@@ -68,6 +85,37 @@ def _body_kind(text: str, assembly: bool = False) -> str:
     # but cannot count as a function source body.
     code = re.sub(r'/\*.*?\*/|//[^\n]*', '', text, flags=re.S).strip()
     return 'advisory-c' if '{' in code and '}' in code else 'context-only'
+
+
+def resolve_export_context(params: dict[str, Any], cancel: threading.Event) -> dict[str, Any]:
+    """Resolve one exact inventory/program binding without touching Ghidra state."""
+    root, db = live_root(), live_db()
+    if root is None or db is None or not db.is_file():
+        raise ValueError('A workspace with a recorded binary inventory is required.')
+    slug = str(params.get('slug') or '').strip()
+    locator = str(params.get('locator') or '').strip()
+    program = str(params.get('program') or params.get('programPath') or '').strip()
+    con = sqlite3.connect(db.resolve().as_uri() + '?mode=ro', uri=True, timeout=10)
+    con.row_factory = sqlite3.Row
+    try:
+        tables = {row[0] for row in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        binary = con.execute('SELECT * FROM binary WHERE slug=?', (slug,)).fetchone() if slug else None
+        if binary is None and locator and program and 'program_binding' in tables:
+            candidates = con.execute("SELECT b.* FROM binary b JOIN program_binding p ON p.source_path=b.repo_path WHERE p.locator=? AND ltrim(p.program,'/')=?", (locator, program.lstrip('/'))).fetchall()
+            if len(candidates) == 1:
+                binary = candidates[0]
+        if binary is None:
+            raise ValueError('Select one registered binary. A project name does not identify a source export target.')
+        source = Path(binary['repo_path']).expanduser().resolve()
+        sha256, fingerprint = _hashes(source, cancel)
+        bindings = [] if 'program_binding' not in tables else [dict(row) for row in con.execute('SELECT locator,program FROM program_binding WHERE source_path=?', (binary['repo_path'],))]
+        exact = [row for row in bindings if (not locator or row['locator'] == locator) and (not program or str(row['program']).lstrip('/') == program.lstrip('/'))]
+        context = {'slug': binary['slug'], 'binaryId': binary['id'], 'repo': str(source), 'sourceSha256': sha256, 'programFingerprint': fingerprint}
+        if len(exact) == 1:
+            context.update(exact[0])
+        return context
+    finally:
+        con.close()
 
 
 def build_archive(params: dict[str, Any], cancel: threading.Event, on_output: Callable[[str], None] | None = None,
@@ -140,8 +188,16 @@ def build_archive(params: dict[str, Any], cancel: threading.Event, on_output: Ca
     directory.mkdir(parents=True, exist_ok=False)
     generated = directory / 'generated'
     generated.mkdir()
-    generation: dict[str, Any] = {'ok': False, 'requested': True, 'reason': 'No unique project/program binding is available for whole-program source generation.'}
-    if export_program and context.get('locator') and context.get('program'):
+    generation: dict[str, Any] = dict(params.get('_prefetchedGeneration') or {'ok': False, 'requested': True, 'reason': 'No unique project/program binding is available for whole-program source generation.'})
+    prefetched = Path(str(params.get('_prefetchedGenerationDir') or '')) if params.get('_prefetchedGenerationDir') else None
+    if prefetched is not None:
+        safe_prefetched = _safe_file(prefetched / 'program.c', [prefetched])
+        if safe_prefetched is not None:
+            (generated / 'program.c').write_bytes(_read_limited(safe_prefetched, cancel))
+        header = _safe_file(prefetched / 'program.h', [prefetched])
+        if header is not None:
+            (generated / 'program.h').write_bytes(_read_limited(header, cancel))
+    elif export_program and context.get('locator') and context.get('program'):
         _checked(cancel)
         progress('Exporting whole-program C and a header from the selected Ghidra program.')
         try:
@@ -180,11 +236,22 @@ def build_archive(params: dict[str, Any], cancel: threading.Event, on_output: Ca
     configured = os.environ.get('AGENT_DECOMPILE_RECOVERED_DIR', '').strip()
     if configured:
         allowed_roots.append(Path(configured).expanduser().resolve())
+    input_bytes = 0
     try:
         with zipfile.ZipFile(temporary, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6, allowZip64=True) as archive:
             def put(name: str, content: bytes, claim: str, provenance: dict) -> None:
+                nonlocal input_bytes
                 _checked(cancel)
+                if len(manifest['files']) >= _MAX_FILES:
+                    raise ValueError(f'Source archive exceeds the {_MAX_FILES:,}-file safety limit.')
+                if len(content) > _MAX_FILE_BYTES:
+                    raise ValueError(f'{name} exceeds the {_MAX_FILE_BYTES // (1024 * 1024)} MiB per-file safety limit.')
+                input_bytes += len(content)
+                if input_bytes > _MAX_INPUT_BYTES:
+                    raise ValueError(f'Source archive exceeds the {_MAX_INPUT_BYTES // (1024 * 1024)} MiB input safety limit.')
                 archive.writestr(name, content)
+                if temporary.stat().st_size > _MAX_OUTPUT_BYTES:
+                    raise ValueError(f'Source archive exceeds the {_MAX_OUTPUT_BYTES // (1024 * 1024)} MiB output safety limit.')
                 manifest['files'].append({'path': name, 'bytes': len(content), 'sha256': hashlib.sha256(content).hexdigest(), 'claim': claim, 'provenance': provenance})
 
             def witness(address: int, text: str, provenance: dict, assembly: bool = False) -> None:
@@ -208,12 +275,12 @@ def build_archive(params: dict[str, Any], cancel: threading.Event, on_output: Ca
 
             generated_count = 0
             generated_c = False
-            for path in sorted(generated.rglob('*')):
+            for path in generated.rglob('*'):
                 _checked(cancel)
                 safe = _safe_file(path, [generated])
                 if safe is None or safe.suffix.lower() not in _SOURCE_SUFFIXES:
                     continue
-                content = safe.read_bytes()
+                content = _read_limited(safe, cancel)
                 if not content:
                     continue
                 shim = is_machine_code_shim(content.decode('utf-8', errors='replace'))
@@ -257,23 +324,26 @@ def build_archive(params: dict[str, Any], cancel: threading.Event, on_output: Ca
                 if safe is None:
                     manifest['warnings'].append({'source': str(path), 'reason': 'Recorded source is missing or outside its allowed source root.'})
                     continue
-                witness(int(row['addr']), safe.read_text(encoding='utf-8', errors='replace'), {'kind': 'binary-bound recovered_function row', 'path': str(safe), 'freshness': 'Not independently reverified'})
+                content = _read_limited(safe, cancel)
+                _checked(cancel)
+                witness(int(row['addr']), content.decode('utf-8', errors='replace'), {'kind': 'binary-bound recovered_function row', 'path': str(safe), 'freshness': 'Not independently reverified'})
             # Include project headers/layout only from the same fingerprint-bound
             # workflow directory used to produce a selected source witness.
             for source_db in knowledge:
                 if source_db.get('kind') != 'fingerprint-bound workflow knowledge':
                     continue
                 work = Path(source_db['path']).parent
-                candidates = [work / 'ghidra_types.h']
+                candidates = iter((work / 'ghidra_types.h',))
                 source_tree = work / 'source'
                 if source_tree.is_dir() and source_tree.resolve() == source_tree:
-                    candidates.extend(source_tree.rglob('*'))
-                for path in sorted(candidates):
+                    from itertools import chain
+                    candidates = chain(candidates, source_tree.rglob('*'))
+                for path in candidates:
                     _checked(cancel)
                     safe = _safe_file(path, [work])
                     if safe is None or (safe.suffix.lower() not in _SOURCE_SUFFIXES and safe.name not in _BUILD_NAMES):
                         continue
-                    content = safe.read_bytes()
+                    content = _read_limited(safe, cancel)
                     kind = _body_kind(content.decode('utf-8', errors='replace'), safe.suffix.lower() in {'.s', '.asm'})
                     prefix = 'assembly/projects' if kind in {'assembly-substrate', 'assembly-listing'} else 'source/projects'
                     put(prefix+'/'+source_db['runId']+'/'+safe.relative_to(work).as_posix(), content, kind, source_db)
@@ -323,6 +393,8 @@ Compilation and byte verification have not been performed by this export. Read `
 '''
             archive.writestr('README.md', readme)
             archive.writestr('manifest.json', json.dumps(manifest, indent=2, ensure_ascii=False))
+            if temporary.stat().st_size > _MAX_OUTPUT_BYTES:
+                raise ValueError(f'Source archive exceeds the {_MAX_OUTPUT_BYTES // (1024 * 1024)} MiB output safety limit.')
         _checked(cancel)
         temporary.replace(destination)
     except BaseException:
@@ -336,6 +408,35 @@ Compilation and byte verification have not been performed by this export. Read `
         'warnings': manifest['warnings'][:20], 'warningCount': len(manifest['warnings']),
         'bytes': destination.stat().st_size, 'sourceSha256': sha256,
         'claim': manifest['claim']}
+
+
+def _worker_main(request_path: str) -> int:
+    """Process-only entrypoint. Input is JSON/path data; no MCP or JVM state crosses."""
+    cancel = threading.Event()
+    try:
+        params = json.loads(Path(request_path).read_text(encoding='utf-8'))
+        def emit(message: str) -> None:
+            print(json.dumps({'event': 'progress', 'message': message}), flush=True)
+        result = build_archive(params, cancel, emit)
+        result.update({'workerPid': os.getpid(), 'parentPid': os.getppid(),
+                       'resolveWorkerPid': params.get('_resolveWorkerPid'),
+                       'processIsolated': True, 'ownershipResolved': True})
+        print(json.dumps({'event': 'result', 'result': result}, default=str), flush=True)
+        return 0 if result.get('ok') else 1
+    except BaseException as exc:
+        print(json.dumps({'event': 'error', 'error': str(exc)}), flush=True)
+        return 1
+
+
+def _resolve_main(request_path: str) -> int:
+    try:
+        params = json.loads(Path(request_path).read_text(encoding='utf-8'))
+        context = resolve_export_context(params, threading.Event())
+        print(json.dumps({'event': 'context', 'context': context, 'workerPid': os.getpid()}), flush=True)
+        return 0
+    except BaseException as exc:
+        print(json.dumps({'event': 'error', 'error': str(exc), 'workerPid': os.getpid()}), flush=True)
+        return 1
 
 
 def create_source_archive_router() -> APIRouter:
@@ -353,3 +454,11 @@ def create_source_archive_router() -> APIRouter:
         return FileResponse(path, filename='source-'+export_id+'.zip', media_type='application/zip', headers={'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store'})
 
     return router
+
+
+if __name__ == '__main__':
+    if len(sys.argv) == 3 and sys.argv[1] == '--worker':
+        raise SystemExit(_worker_main(sys.argv[2]))
+    if len(sys.argv) == 3 and sys.argv[1] == '--resolve':
+        raise SystemExit(_resolve_main(sys.argv[2]))
+    raise SystemExit(2)

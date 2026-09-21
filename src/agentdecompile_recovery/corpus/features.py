@@ -170,10 +170,18 @@ def tier2(program, monitor, addrs=None) -> dict[int, dict]:
         data_refs = 0
         ext_calls: list[str] = []
         indirect_calls = 0
+        instruction_bytes = bytearray()
+        instruction_bytes_complete = True
 
         for instr in listing.getInstructions(body, True):
             n_instr += 1
             mn[mnemonic_class(str(instr.getMnemonicString()))] += 1
+            if instruction_bytes_complete:
+                try:
+                    instruction_bytes.extend(int(value) & 0xFF for value in instr.getBytes())
+                except Exception:
+                    instruction_bytes.clear()
+                    instruction_bytes_complete = False
             for i in range(instr.getNumOperands()):
                 for obj in instr.getOpObjects(i):
                     try:
@@ -208,18 +216,29 @@ def tier2(program, monitor, addrs=None) -> dict[int, dict]:
         nedges = 0
         back_edges = 0
         block_hashes: list[str] = []
+        cfg_nodes: list[int] = []
+        cfg_edges: list[tuple[int, int]] = []
         try:
             it = bbm.getCodeBlocksContaining(body, monitor)
+            blocks_by_addr: dict[int, int] = {}
+            blocks: list[tuple[int, object]] = []
             while it.hasNext():
                 blk = it.next()
                 nblocks += 1
                 bs = int(blk.getFirstStartAddress().getOffset())
+                blocks_by_addr[bs] = nblocks - 1
+                blocks.append((bs, blk))
+            cfg_nodes = list(range(len(blocks)))
+            for bs, blk in blocks:
                 dit = blk.getDestinations(monitor)
                 while dit.hasNext():
                     d = dit.next()
                     dst = d.getDestinationAddress()
                     if body.contains(dst):
                         nedges += 1
+                        dst_id = blocks_by_addr.get(int(dst.getOffset()))
+                        if dst_id is not None:
+                            cfg_edges.append((blocks_by_addr[bs], dst_id))
                         if int(dst.getOffset()) <= bs:
                             back_edges += 1
                 block_mnems = [str(instr.getMnemonicString()) for instr in listing.getInstructions(blk, True)]
@@ -230,7 +249,7 @@ def tier2(program, monitor, addrs=None) -> dict[int, dict]:
 
         total = max(n_instr, 1)
         profile = {k: round(v / total, 5) for k, v in mn.items()}
-        from .fingerprint_hashes import attach_hashes
+        from .fingerprint_hashes import attach_hashes, hash_raw_bytes
 
         row = {
             "n_instr": n_instr,
@@ -249,6 +268,9 @@ def tier2(program, monitor, addrs=None) -> dict[int, dict]:
             "consts": sorted(consts),
             "data_refs": data_refs,
             "block_hashes": block_hashes,
+            "cfg_nodes": cfg_nodes,
+            "cfg_edges": cfg_edges,
+            "hash_raw": hash_raw_bytes(instruction_bytes) if instruction_bytes_complete else "",
         }
         out[off] = attach_hashes(row)
     return out

@@ -18,6 +18,7 @@ import shlex
 import socket
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 
@@ -1828,6 +1829,241 @@ class ProjectToolProvider(ToolProvider):
             },
         )
 
+    async def _reconcile_native_checkout_annotations(self, origin: dict[str, Any], snapshot: dict[str, Any] | None = None) -> dict[str, Any] | None:
+        """Carry operator-authored annotations into a refreshed native checkout.
+
+        A native checkout is deliberately rebuilt when its shared filesystem
+        source changes.  Copying the old repository over the fresh copy would
+        also copy stale analysis, so reconcile only annotation fields which are
+        safe to merge without guessing: USER_DEFINED names, blank comments,
+        and absent bookmarks.  Types and structures remain in the preserved
+        project and are recorded for an explicit future merge policy.
+        """
+        previous_raw = str(origin.get("reconciledFrom") or "").strip()
+        active_raw = str(origin.get("localProjectPath") or "").strip()
+        if not previous_raw or not active_raw or self._manager is None:
+            return None
+        previous_gpr = Path(previous_raw)
+        active_gpr = Path(active_raw)
+        if not previous_gpr.is_file() or not active_gpr.is_file():
+            return None
+
+        from agentdecompile_cli.mcp_utils.async_native import native_call
+
+        snapshot = snapshot if snapshot is not None else await self._snapshot_native_checkout_annotations(origin)
+        if snapshot is None:
+            return None
+        receipt = await native_call(self._apply_native_checkout_annotations_native, snapshot, active_gpr)
+        receipt_path = active_gpr.parent / "reconciliation-provenance.json"
+        temp_path = receipt_path.with_name(f".{receipt_path.name}.{os.getpid()}.tmp")
+        temp_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        os.replace(temp_path, receipt_path)
+
+        source_receipt = active_gpr.parent / "source.json"
+        try:
+            data = json.loads(source_receipt.read_text(encoding="utf-8"))
+            data["annotationReconciliation"] = {
+                "at": receipt["createdAt"],
+                "receipt": str(receipt_path),
+                "totals": receipt["totals"],
+            }
+            temp_source = source_receipt.with_name(f".{source_receipt.name}.{os.getpid()}.tmp")
+            temp_source.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            os.replace(temp_source, source_receipt)
+        except Exception:
+            logger.warning("Native checkout annotation reconciliation receipt could not be attached to source.json", exc_info=True)
+        return receipt
+
+    async def _snapshot_native_checkout_annotations(self, origin: dict[str, Any]) -> dict[str, Any] | None:
+        previous_raw = str(origin.get("reconciledFrom") or "").strip()
+        if not previous_raw or self._manager is None:
+            return None
+        previous_gpr = Path(previous_raw)
+        if not previous_gpr.is_file():
+            return None
+        # Do not open the preserved GPR in the server JVM.  Ghidra can close
+        # the fresh project manager as a side effect of that second local open.
+        # The isolated worker emits JSON, which is then applied transactionally
+        # to the already-open replacement.
+        def dump_isolated() -> dict[str, Any]:
+            with tempfile.NamedTemporaryFile(prefix="agentdecompile-reconciliation-", suffix=".json", delete=False) as handle:
+                output = Path(handle.name)
+            try:
+                completed = subprocess.run(
+                    [sys.executable, "-m", "agentdecompile_recovery.ghidra_db.isolated_annotation_dump", str(previous_gpr), str(output)],
+                    cwd=str(Path(__file__).resolve().parents[4]), text=True, capture_output=True, timeout=1800, check=False,
+                )
+                if completed.returncode != 0:
+                    raise RuntimeError(f"isolated annotation dump exited {completed.returncode}: {completed.stderr[-1000:]}")
+                return json.loads(output.read_text(encoding="utf-8"))
+            finally:
+                output.unlink(missing_ok=True)
+        import asyncio
+        return await asyncio.to_thread(dump_isolated)
+
+    def _apply_native_checkout_annotations_native(self, snapshot: dict[str, Any], active_gpr: Path) -> dict[str, Any]:
+        """Apply an isolated preserved-project snapshot to the fresh checkout.
+
+        The preserved project is never opened in this JVM.  Every target program
+        is a separate transaction, and existing user-defined labels, comments,
+        and bookmark tuples always win over the saved witness.
+        """
+        from ghidra.program.model.symbol import SourceType  # pyright: ignore[reportMissingImports, reportMissingModuleSource]
+        from ghidra.util.task import TaskMonitor  # pyright: ignore[reportMissingImports, reportMissingModuleSource]
+
+        active = self._manager.ghidra_project if self._manager else None
+        if active is None or active.getProject() is None:
+            raise RuntimeError("Fresh native checkout is not open")
+
+        def iterator_items(iterator: Any) -> list[Any]:
+            values: list[Any] = []
+            if iterator is None:
+                return values
+            try:
+                while iterator.hasNext():
+                    values.append(iterator.next())
+            except Exception:
+                return values
+            return values
+
+        totals = {
+            "programsVisited": 0, "programsReconciled": 0, "programsUnavailable": 0,
+            "namesApplied": 0, "namesPreserved": 0,
+            "commentsApplied": 0, "commentsPreserved": 0,
+            "bookmarksApplied": 0, "bookmarksPreserved": 0,
+            "unsupportedTypes": 0, "unsupportedStructures": 0, "errors": 0,
+        }
+        programs: list[dict[str, Any]] = []
+        data = active.getProject().getProjectData()
+        for path, saved in snapshot.get("programs", {}).items():
+            row = {
+                "path": path, "namesApplied": 0, "namesPreserved": 0,
+                "commentsApplied": 0, "commentsPreserved": 0,
+                "bookmarksApplied": 0, "bookmarksPreserved": 0,
+                "unsupportedTypes": int(saved.get("unsupportedTypes", 0)),
+                "unsupportedStructures": int(saved.get("unsupportedStructures", 0)),
+                "conflicts": list(saved.get("conflicts", [])),
+            }
+            totals["programsVisited"] += 1
+            program = None
+            try:
+                if saved.get("error"):
+                    raise RuntimeError(f"preserved-snapshot-error: {saved['error']}")
+                domain = data.getFile(path)
+                if domain is None:
+                    totals["programsUnavailable"] += 1
+                    raise RuntimeError("missing-target-program")
+                program = self._get_domain_object_compat(domain, TaskMonitor.DUMMY)
+                symbols = program.getSymbolTable()
+                listing = program.getListing()
+                bookmarks = program.getBookmarkManager()
+                transaction = program.startTransaction("native-checkout-annotation-reconciliation")
+                committed = False
+                try:
+                    for address_text, name in saved.get("names", []):
+                        address = program.getAddressFactory().getAddress(address_text)
+                        if address is None:
+                            row["conflicts"].append({"kind": "name", "address": address_text, "detail": "target-address-unavailable"})
+                            continue
+                        existing = [
+                            symbol for symbol in iterator_items(symbols.getSymbols(address))
+                            if "USER_DEFINED" in str(symbol.getSource())
+                        ]
+                        if existing:
+                            row["namesPreserved"] += 1
+                            continue
+                        try:
+                            symbols.createLabel(address, name, SourceType.USER_DEFINED)
+                            row["namesApplied"] += 1
+                        except Exception as exc:
+                            row["conflicts"].append({"kind": "name", "address": address_text, "detail": str(exc)})
+                    for address_text, kind, text in saved.get("comments", []):
+                        address = program.getAddressFactory().getAddress(address_text)
+                        if address is None:
+                            row["conflicts"].append({"kind": "comment", "address": address_text, "detail": "target-address-unavailable"})
+                            continue
+                        if listing.getComment(kind, address):
+                            row["commentsPreserved"] += 1
+                            continue
+                        listing.setComment(address, kind, text)
+                        row["commentsApplied"] += 1
+                    for address_text, bookmark_type, category, text in saved.get("bookmarks", []):
+                        address = program.getAddressFactory().getAddress(address_text)
+                        if address is None:
+                            row["conflicts"].append({"kind": "bookmark", "address": address_text, "detail": "target-address-unavailable"})
+                            continue
+                        present = {
+                            (str(mark.getTypeString()), str(mark.getCategory()), str(mark.getComment()))
+                            for mark in iterator_items(bookmarks.getBookmarks(address))
+                        }
+                        identity = (bookmark_type, category, text)
+                        if identity in present:
+                            row["bookmarksPreserved"] += 1
+                            continue
+                        bookmarks.setBookmark(address, *identity)
+                        row["bookmarksApplied"] += 1
+                    committed = True
+                finally:
+                    program.endTransaction(transaction, committed)
+                domain.save(TaskMonitor.DUMMY)
+                totals["programsReconciled"] += 1
+            except Exception as exc:
+                totals["errors"] += 1
+                row["error"] = f"{type(exc).__name__}: {exc}"
+            finally:
+                for key in (
+                    "namesApplied", "namesPreserved", "commentsApplied", "commentsPreserved",
+                    "bookmarksApplied", "bookmarksPreserved", "unsupportedTypes", "unsupportedStructures",
+                ):
+                    totals[key] += int(row[key])
+                if program is not None:
+                    try:
+                        program.release(None)
+                    except Exception:
+                        pass
+            programs.append(row)
+        return {
+            "version": 1,
+            "createdAt": int(time.time() * 1000),
+            "previousProject": snapshot.get("previousProject"),
+            "activeProject": str(active_gpr),
+            "policy": {
+                "names": "Reapply only USER_DEFINED labels without replacing an existing USER_DEFINED label.",
+                "comments": "Copy only blank target comments.",
+                "bookmarks": "Copy only absent bookmark tuples.",
+                "typesAndStructures": "Retained in the preserved project; counts are recorded for explicit merge.",
+            },
+            "totals": totals,
+            "programs": programs,
+        }
+
+    async def _close_owned_local_projects_for_switch(self) -> None:
+        """Release retained native Ghidra project locks before replacing a checkout.
+
+        Shared-folder opens replace the local materialization underneath the
+        current project.  Ghidra retains a filesystem lock for every owned
+        project handle, including handles associated with an earlier MCP
+        session, so leaving those handles alive makes the preserved checkout
+        unreadable during reconciliation.
+        """
+        if self._manager is None:
+            return
+        from agentdecompile_cli.mcp_utils.async_native import native_call
+        await native_call(self._close_owned_local_projects_for_switch_native)
+
+    def _close_owned_local_projects_for_switch_native(self) -> None:
+        if self._manager is None:
+            return
+        with self._manager._project_handles_lock:
+            owned = list(self._manager._owned_gpr_projects.values())
+            self._manager._owned_gpr_projects.clear()
+            self._manager._ghidra_project = None
+        for project in owned:
+            try:
+                project.close()
+            except Exception:
+                logger.warning("Could not close owned Ghidra project before native checkout switch", exc_info=True)
+
     async def _handle_open(self, args: dict[str, Any]) -> list[types.TextContent]:
         """Open a program or project from local filesystem or current project."""
         logger.debug("diag.enter %s", "mcp_server/providers/project.py:ProjectToolProvider._handle_open")
@@ -1968,11 +2204,19 @@ class ProjectToolProvider(ToolProvider):
                 from agentdecompile_recovery.ghidra_db.store import native_local_checkout, ProjectLayoutError
                 work_dir = Path(os.environ.get('AGENT_DECOMPILE_CORPUS_WORK_DIR') or os.environ.get('AGENT_DECOMPILE_CORPUS_ROOT') or (Path.home() / '.cache' / 'agentdecompile'))
                 try:
+                    await self._close_owned_local_projects_for_switch()
                     local_gpr, origin = await asyncio.to_thread(native_local_checkout, resolved, work_dir)
                 except (OSError, ValueError, ProjectLayoutError) as exc:
                     raise ActionableError(str(exc), context={'action': 'open', 'path': str(resolved), 'state': 'native-checkout-blocked'}, next_steps=['Resolve the source snapshot conflict without replacing local annotations.']) from exc
+                # The preserved project must be read before opening the fresh one:
+                # Ghidra's project manager makes a second concurrent project handle
+                # close the first native project on some supported builds.
+                snapshot = await self._snapshot_native_checkout_annotations(origin)
                 response = await self._open_gpr_project(local_gpr, {**args, 'analyzeafterimport': False, '_sourceLocator': str(resolved), '_nativeCheckout': origin})
                 payload = json.loads(response[0].text)
+                reconciliation = await self._reconcile_native_checkout_annotations(origin, snapshot)
+                if reconciliation is not None:
+                    origin = {**origin, 'annotationReconciliation': reconciliation}
                 payload.update(sourceLocator=str(resolved), localProjectPath=str(local_gpr), nativeCheckout=origin)
                 return create_success_response(payload)
             # Opening a directory must attach a concrete .gpr under that path. Otherwise the

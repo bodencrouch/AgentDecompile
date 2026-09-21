@@ -273,6 +273,14 @@ def nds_inventory(target: TargetIdentity, *, analysis_target: dict[str, Any] | N
     }
 
 
+BINARY_INVENTORY_FORMATS = frozenset({"pe", "elf", "macho", "nds"})
+
+
+def supports_binary_format(binary_format: str) -> bool:
+    """Whether the installed inventory provider has a parser for this format."""
+    return binary_format in BINARY_INVENTORY_FORMATS
+
+
 def build_binary_inventory(target: TargetIdentity, *, analysis_target: dict[str, Any] | None = None) -> dict[str, Any]:
     view = BinaryView(target.binary_path, target.binary_path.read_bytes())
     if target.format == "pe":

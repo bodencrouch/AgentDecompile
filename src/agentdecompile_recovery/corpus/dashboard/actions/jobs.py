@@ -597,13 +597,16 @@ def _copy_job(job: JobRecord) -> JobRecord:
 
 
 def _from_history(payload: dict, *, compact: bool = False) -> JobRecord:
-    from ..preparation import _owner_alive
     status = str(payload.get('status') or 'unknown')
-    unavailable = status in {'queued', 'running', 'cancelling'} and not _owner_alive(payload)
+    # A durable receipt is not an executor handle. After a server restart we
+    # cannot safely prove that its former owner still represents this action
+    # (PIDs may be reused), nor can the dashboard cancel it. Never present a
+    # receipt-only operation as live work.
+    unavailable = status in {'queued', 'running', 'cancelling'}
     error = str(payload.get('error') or '')
     if unavailable:
         status = 'interrupted'
-        error = error or 'The owning process stopped before recording completion. Retained output is available; reconcile the operation before resubmitting.'
+        error = error or 'This is a retained job receipt, not a live dashboard handle. Reconcile its output before resubmitting.'
     return JobRecord(id=payload['id'], action_id=payload.get('actionId', ''), title=payload.get('title', ''),
                      argv=list(payload.get('argv') or []), status=status, created_at=payload.get('createdAt') or 0,
                      started_at=payload.get('startedAt'), finished_at=payload.get('finishedAt'), returncode=payload.get('returncode'),
@@ -988,6 +991,10 @@ def identity_lock_key(params: dict[str, Any] | None) -> str | None:
     raw = (params or {}).get("db") or live_db()
     if not raw:
         return None
+    try:
+        return str(Path(raw).expanduser().resolve())
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
 
 
 def match_pair_lock_key(params: dict[str, Any] | None) -> str | None:
@@ -997,10 +1004,6 @@ def match_pair_lock_key(params: dict[str, Any] | None) -> str | None:
     if not db:
         return None
     return json.dumps([db, str(row.get("run") or ""), str(row.get("src") or ""), str(row.get("dst") or "")])
-    try:
-        return str(Path(raw).expanduser().resolve())
-    except (OSError, RuntimeError, TypeError, ValueError):
-        return None
 
 
 def ghidra_lock_key(params: dict[str, Any] | None) -> str:
@@ -1034,6 +1037,39 @@ def _active_duplicate(action_id: str, params: dict[str, Any]) -> JobRecord | Non
     return None
 
 
+def _external_pipeline_owner(action_id: str, params: dict[str, Any]) -> dict[str, str] | None:
+    """Find a non-dashboard recovery owner for the same db/workspace.
+
+    Dashboard receipts are not process handles, but the recovery services are.
+    Refuse a second writer rather than treating their state as resumable.
+    """
+    if not any(token in action_id for token in (
+        "verify", "recovery-orchestrator", "cross-place", "consolidate",
+    )):
+        return None
+    db = str(params.get("db") or "").strip()
+    work_dir = str(params.get("workDir") or params.get("work_dir") or params.get("out-dir") or "").strip()
+    if not db or not work_dir:
+        return None
+    try:
+        db = str(Path(db).expanduser().resolve())
+        work_dir = str(Path(work_dir).expanduser().resolve())
+    except (OSError, RuntimeError, ValueError):
+        return None
+    for proc in Path("/proc").iterdir():
+        if not proc.name.isdigit() or proc.name == str(os.getpid()):
+            continue
+        try:
+            argv = proc.joinpath("cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "replace")
+        except OSError:
+            continue
+        if "agentdecompile_recovery.corpus.cli" not in argv:
+            continue
+        if db in argv and work_dir in argv:
+            return {"pid": proc.name, "argv": argv[:1024]}
+    return None
+
+
 def start_job(
     action_id: str,
     params: dict[str, Any] | None = None,
@@ -1053,6 +1089,14 @@ def start_job(
     errors = validate_params(action, filled, confirm=confirm)
     if errors:
         return {"error": "; ".join(errors), "actionId": action.id}, 400
+    owner = _external_pipeline_owner(action.id, filled)
+    if owner is not None and not dry_run:
+        return {
+            "ok": False,
+            "actionId": action.id,
+            "error": "External pipeline already owns this database and workspace; inspect or adopt it before starting another writer.",
+            "externalOwner": owner,
+        }, 409
     if action.id in IDENTITY_WRITERS or action.id == "corpus.match-pair":
         key = identity_lock_key(filled)
         if not key:

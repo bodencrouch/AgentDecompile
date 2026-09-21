@@ -53,7 +53,10 @@ export function stageProgressLabel(progress: StageProgress): string {
   return `${progress.completed} / ${progress.total} ${progress.unit}`;
 }
 
-/** A stage without a numeric counter still has a useful durable state. */
+/**
+ * A stage without a numeric counter still has a useful durable state.  Keep
+ * that state visible instead of presenting missing telemetry as progress.
+ */
 export function stageProgressDetail(stage?: Data): string {
   if (!stage) return "No stage receipt recorded";
   const { primary, secondary } = stageDisplayProgress(stage);

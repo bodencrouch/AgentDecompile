@@ -625,34 +625,40 @@ def dump_fixture_json(snap: dict[str, list[dict]]) -> str:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="agentdecompile_recovery.corpus.determinism_harness", description="Run the identity cascade under three layouts from one fixture store and byte-compare identity/match/logical_function/recovery_family.")
     ap.add_argument("store", type=pathlib.Path, help="fixture store (binary/func/calledge rows)")
-    ap.add_argument("--seed", type=int, default=FIXTURE_SEED, help="shuffle seed for run B")
+    ap.add_argument("--seed", type=int, default=None, help=f"one shuffle seed; default: every seed in SHUFFLE_SEEDS {SHUFFLE_SEEDS}")
     ap.add_argument("--build-fixture", action="store_true", help="first write the synthetic fixture (from --seed) into <store>")
     ap.add_argument("--write-fixture-json", type=pathlib.Path, help="also write the synthetic fixture rows as JSON to this path")
     ap.add_argument("--json", action="store_true", help="print the full result as JSON")
     args = ap.parse_args(argv)
 
     if args.build_fixture or args.write_fixture_json:
-        snap = generate_fixture(args.seed)
+        snap = generate_fixture(FIXTURE_SEED if args.seed is None else args.seed)
         if args.build_fixture:
             build_fixture_store(args.store, snap)
         if args.write_fixture_json:
             args.write_fixture_json.parent.mkdir(parents=True, exist_ok=True)
             args.write_fixture_json.write_text(dump_fixture_json(snap), encoding="utf-8")
-    result = run_harness(args.store, args.seed)
+    # One seed can leave a pair of builds in hash order and hide a rowid
+    # tie-break (seed 7 does, for the source-build tie); the gate is every
+    # seed in SHUFFLE_SEEDS unless one is asked for explicitly.
+    seeds = SHUFFLE_SEEDS if args.seed is None else (args.seed,)
+    results = {seed: run_harness(args.store, seed) for seed in seeds}
+    identical = all(r.identical for r in results.values())
     if args.json:
-        print(json.dumps(result.to_json(), indent=1))
+        print(json.dumps({"identical": identical, "seeds": {str(seed): r.to_json() for seed, r in results.items()}}, indent=1))
     else:
-        for label in PERTURBED_RUNS:
-            per = result.tables[label]
-            for name in OUTPUT_TABLES:
-                t = per[name]
-                print(f"[{label}] {name}: {'identical' if t.identical else 'DIFFERENT'} ({t.rows_a} vs {t.rows_b} rows)" + (f" -- {t.note}" if t.note else ""))
-            t = per["match_no_id"]
-            print(f"[{label}] match (ignoring id): {'identical' if t.identical else 'DIFFERENT'}")
-        if result.first_diff:
-            print(result.first_diff)
-        print("RESULT:", "identical" if result.identical else "NOT identical")
-    return 0 if result.identical else 1
+        for seed, result in results.items():
+            for label in PERTURBED_RUNS:
+                per = result.tables[label]
+                for name in OUTPUT_TABLES:
+                    t = per[name]
+                    print(f"[seed {seed}] [{label}] {name}: {'identical' if t.identical else 'DIFFERENT'} ({t.rows_a} vs {t.rows_b} rows)" + (f" -- {t.note}" if t.note else ""))
+                t = per["match_no_id"]
+                print(f"[seed {seed}] [{label}] match (ignoring id): {'identical' if t.identical else 'DIFFERENT'}")
+            if result.first_diff:
+                print(f"[seed {seed}] {result.first_diff}")
+        print("RESULT:", "identical" if identical else "NOT identical")
+    return 0 if identical else 1
 
 
 if __name__ == "__main__":

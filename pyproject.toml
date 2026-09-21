@@ -266,6 +266,7 @@ python_functions = ["test_*"]
 addopts = "-v --tb=short"
 #addopts = "-ra -q -m \"not slow\""
 markers = [
+    "determinism_cascade: cascade-level determinism gate (U5c-b); red until Phase 0 ordering fixes land",
     "cli: All CLI-specific tests",
     "e2e: End-to-end tests via subprocess",
     "gui: marks tests that require a GUI (deselect with '-m \"not gui\"')",

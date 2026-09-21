@@ -28,6 +28,32 @@ it, or records why it is accepted. Rows are removed only when the mitigation is 
 | R10 | Each grill round costs ~120–290 k tokens; the loop is deliberately expensive. | energy | session usage | Accepted for now; one grill per iteration, targeted by "oldest audit or most code change". | accepted |
 | R11 | Slow-disk contention when many agents read the tree at once (five grills made simple commands take minutes). | bottleneck | session timings | R1 removes most of it; until then cap concurrent agents at four. | orchestrator |
 
+## Anticipated — think-ahead rows (speculative until the risk grill verifies each)
+
+The loop's risk grill re-examines every row here each iteration as a senior reverse-engineering
+and binary-analysis architect would: confirm with evidence, promote to Open with a unit, or
+record why it is accepted. New speculative rows are added whenever one is foreseen.
+
+| # | Anticipated problem | Class | Why it will bite | Proposed mitigation |
+|---|---|---|---|---|
+| S1 | Identical-code folding: optimizing linkers fold identical functions to one address, so two different logical functions of one kind share `(binary, kind, addr)` — the audit-2 primary key collides again. | correctness / ambiguity | common with modern linkers and in release builds | `identity` allows N logical ids per address with relation `fold`; the pack instance carries `folded_with[]`; resolve in the next plan grill (contradicts audit-2 decision 3). |
+| S2 | Packed / DRM-wrapped builds: on-disk bytes are not the executing code; file-derived windows are garbage. | correctness | frequent in the target class | Unpacked-image ingestion path; `unpack_state` recorded; export refuses masked windows for packed images unless computed from the unpacked image. |
+| S3 | Rebased images with **unmasked** windows: every verify fails on a reloc-bearing image loaded at a different base → false `unresolved`. | correctness | today's `expected_bytes` are unmasked | Unmasked windows are never `verify` members for images with relocations until U4 masking lands; the resolver rebase-adjusts absolute operands or skips the member with a reason. |
+| S4 | Functions already hooked by other software (overlays, patchers): entry bytes are a `jmp` → verification fails. | coexistence | very common at runtime | Detect the occupied prologue, report `contested(occupied)` with the observed owner bytes; ownership registry (U57/U74) admits foreign claims. |
+| S5 | Adjustor thunks and multiple inheritance: vtable slots point at thunks with per-build addresses. | correctness | any C++ engine | Slot correspondence resolves through thunks to the target method identity; a `thunk_of` relation. |
+| S6 | Optimization-level and PGO variance (inlining, hot/cold splitting, jump-table shapes) makes masked windows and CFGs unrecognizable across builds. | coverage expectation | release vs debug builds | Coverage floor per build in the readiness report; ladder members caller/callee/data-xref carry the load; telemetry on which member resolves what. |
+| S7 | x64 ABI depth: XMM args, struct-by-value classification, shadow space, varargs register count — descriptors can be correct-looking and wrong. | correctness | U13c thunks depend on it | U64 recompile-and-diff on real toolchains is mandatory before a call stub is emitted; refuse otherwise. |
+| S8 | Analyzer version drift silently changes function boundaries and storage; identities computed under two versions are not comparable. | determinism | every Ghidra upgrade | Store bound to one analyzer version (migration 2 captures it); upgrade = explicit U25 re-baseline. |
+| S9 | Decoder choice limited to x86 forces a U4 rewrite when a non-x86 build arrives. | rework | plan targets other classes | Choose a multi-arch decoder library with Python and C++ bindings in U4. |
+| S10 | Cascade scaling: pairwise matching across many builds × tens of thousands of functions as recompute-all takes days. | performance | corpus growth | Incremental cascade per new build with hash-blocked candidate sets; budgets and receipts; measure on the reference corpus. |
+| S11 | Corpus DB and analysis projects have no backup and sit on a USB drive; WAL under several writers already reports "database is locked". | data loss / SPOF | hours of analysis at stake | Snapshot verb (`VACUUM INTO` to the other disk, content-addressed); single-writer acceptance service for identity/receipt writes. |
+| S12 | Review-lane starvation: thousands of `review` matches nobody triages → nothing promotes → coverage stalls. | throughput / UX | any real corpus | Auto-triage order, batch accept above evidence thresholds with receipts, keyboard-driven review in the 5174 design. |
+| S13 | Synthetic fixtures do not exercise real compiler idioms; green on synthetic, wrong on real. | verification | every unit so far | Reference corpus: an open-source program built at O0/O1/O2/Os with two compilers; legal, generic, deterministic; used by ladders, divergence, struct and ABI tests. |
+| S14 | Packs carry original byte windows and cave `original_bytes`: distributing packs distributes machine-code fragments; a pack plus Lua can inject arbitrary code. | legal / security | public distribution | Prefer hashes where verification allows; short windows; pack signing and a trust policy (U24 extension). |
+| S15 | Anti-cheat in multiplayer titles bans accounts for detours. | user harm | runtime host | Explicit refusal/warning policy keyed by the build profile; never silent. |
+| S16 | String-anchored locators break on localized builds. | correctness | localized releases | Anchor only to ID-stable strings (resource ids, script names); U85 classifies. |
+| S17 | Ambiguity of "byte-accurate" when sibling builds used different compilers: parity receipts cannot be shared across toolchains. | ambiguity | mixed corpora | Parity receipts keyed by toolchain identity; never borrowed across it (extends U62). |
+
 ## Resume point
 
 - Branch `feat/portable-signatures-codecaves-generic`; last docs commit records audit 2 and the

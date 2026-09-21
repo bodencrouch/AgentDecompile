@@ -159,16 +159,33 @@ CREATE TABLE IF NOT EXISTS eval (
 """
 
 
-def connect(path: pathlib.Path | str) -> sqlite3.Connection:
-    """Open (or create) a corpus identity store at *path*. Path is required."""
+def connect(path: pathlib.Path | str, *, read_only: bool = False) -> sqlite3.Connection:
+    """Open (or create) a corpus identity store at *path*. Path is required.
+
+    Schema lives in ``migrations``: the first connection to a new or legacy
+    file brings it to ``migrations.SCHEMA_VERSION``; every later connection
+    only reads ``PRAGMA user_version`` and touches nothing. The one data step
+    that stays per-connect is the ``recovery_family`` backfill, which is
+    read-checked and writes only when a row needs it.
+
+    ``read_only=True`` opens a ``mode=ro`` handle. It never migrates; on a
+    store that has not been migrated yet it raises.
+    """
+    from . import migrations
+
     dest = pathlib.Path(path)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    con = sqlite3.connect(dest, timeout=30)
+    if read_only:
+        con = sqlite3.connect(dest.resolve().as_uri() + "?mode=ro", uri=True, timeout=30)
+    else:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        con = sqlite3.connect(dest, timeout=30)
     con.execute("PRAGMA busy_timeout=30000")
     con.row_factory = sqlite3.Row
-    con.executescript(SCHEMA)
-    ensure_func_columns(con)
-    ensure_match_columns(con)
+    if not read_only:
+        # Cannot run inside a transaction, so it stays out of the migration.
+        con.execute("PRAGMA journal_mode=WAL")
+    migrations.apply_pending(con)
+    backfill_recovery_family(con)
     return con
 
 
@@ -237,11 +254,22 @@ def ensure_match_columns(con: sqlite3.Connection) -> None:
 
 
 def ensure_binary_columns(con: sqlite3.Connection) -> None:
+    """Additive binary columns, then the recovery_family data backfill.
+
+    Idempotent: column adds are guarded by ``PRAGMA table_info`` and the
+    backfill is read-checked. Callers that hold a connection not opened via
+    ``connect()`` may call this directly.
+    """
     cols = {row[1] for row in con.execute("PRAGMA table_info(binary)")}
     if "content_sha256" not in cols:
         con.execute("ALTER TABLE binary ADD COLUMN content_sha256 TEXT")
     if "recovery_family" not in cols:
         con.execute("ALTER TABLE binary ADD COLUMN recovery_family TEXT")
+    backfill_recovery_family(con)
+
+
+def backfill_recovery_family(con: sqlite3.Connection) -> None:
+    """Give every unclassified binary an isolating family. Data, not schema."""
     # Existing inventories predate explicit recovery-family catalog entries.
     # Keep each such build isolated until an operator supplies a catalog map;
     # format, architecture, and game names are intentionally not classifiers.

@@ -205,6 +205,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     verify_det.add_argument("--db", type=Path, required=True)
 
+    backfill = sub.add_parser(
+        "backfill",
+        help="Re-derive binary columns from raw images; one receipt per (pass, binary) makes it resumable",
+    )
+    backfill.add_argument("--db", type=Path, required=True)
+    backfill.add_argument("--pass", dest="passes", action="append", required=True, metavar="NAME")
+    backfill.add_argument("--receipts", type=Path, required=True)
+    backfill.add_argument("--no-resume", dest="resume", action="store_false")
+
     match_pair = sub.add_parser("match-pair", help="Run the store matcher on one directed pair")
     match_pair.identity_scope = "pair"
     match_pair.add_argument("--db", type=Path, required=True)
@@ -720,6 +729,16 @@ def main(argv: list[str] | None = None) -> int:
         result = verify_export(args.db, export_hookpack)
         print(json.dumps(result))
         return 0 if result["identical"] else 1
+    if args.cmd == "backfill":
+        from .backfill import run as run_backfill
+        from .store import connect
+
+        try:
+            result = run_backfill(connect(args.db), args.passes, receipts_dir=args.receipts, resume=args.resume)
+        except ValueError as exc:
+            raise SystemExit(f"error: {exc}") from exc
+        print(json.dumps(result, sort_keys=True))
+        return 0
     if args.cmd == "match-pair":
         from .propagate import run_pair
         from .store import connect

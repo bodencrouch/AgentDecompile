@@ -10,16 +10,30 @@ from agentdecompile_recovery.corpus.dashboard import pages as dashboard
 pytestmark = pytest.mark.unit
 
 
-def test_repository_files_outside_evidence_roots_are_refused() -> None:
-    target, error = dashboard._resolve_artifact("ghidra_server/xid_key")
+def test_repository_files_outside_evidence_roots_are_refused(tmp_path: Path) -> None:
+    # An explicit corpus root publishes only its evidence subdirectories, never
+    # sibling repository material such as server keys.
+    (tmp_path / "ghidra_server").mkdir()
+    (tmp_path / "ghidra_server" / "xid_key").write_text("secret")
+    with patch.object(dashboard, "ROOT", tmp_path), patch.object(dashboard, "_work_dir", lambda: None):
+        target, error = dashboard._resolve_artifact("ghidra_server/xid_key")
     assert target is None
-    assert "outside the public evidence roots" in error or "unset" in error
+    assert "outside the public evidence roots" in error
 
 
-def test_root_browser_is_refused() -> None:
-    target, error = dashboard._resolve_artifact(".")
+def test_root_browser_is_refused(tmp_path: Path) -> None:
+    with patch.object(dashboard, "ROOT", tmp_path), patch.object(dashboard, "_work_dir", lambda: None):
+        target, error = dashboard._resolve_artifact(".")
     assert target is None
-    assert "outside the public evidence roots" in error or "unset" in error
+    assert "outside the public evidence roots" in error
+
+
+def test_unconfigured_roots_are_reported_not_guessed() -> None:
+    with patch.object(dashboard, "ROOT", None), patch.object(dashboard, "_work_dir", lambda: None), \
+            patch.object(dashboard, "live_root", lambda: None):
+        target, error = dashboard._resolve_artifact("output/progress.json")
+    assert target is None
+    assert "unset" in error
 
 
 def test_suffixless_and_sensitive_files_are_refused_inside_evidence(tmp_path: Path) -> None:

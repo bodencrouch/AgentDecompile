@@ -175,7 +175,8 @@ def test_local_gpr_and_http_shared_roundtrip(
     assert http.status_code == 200
     remote = http.json()
     assert remote["kind"] == "shared-project"
-    assert remote["access"] == "http"
+    # ghidra:// names a Ghidra Server, which is RMI over SSL rather than HTTP.
+    assert remote["access"] == "rmi"
 
     checkout = client.post(
         "/dashboard/api/workbench/save-as",

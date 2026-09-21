@@ -169,8 +169,8 @@ def test_atlas_delivery_failure_preserves_query_for_static_fallback(
     response = _dashboard_client().get("/dashboard?mode=atlas&binary=demo.exe&addr=0x401000")
 
     assert response.status_code == 503
-    assert "Atlas delivery unavailable" in response.text
-    assert 'href="/dashboard?binary=demo.exe&amp;addr=0x401000"' in response.text
+    assert "React workstation delivery unavailable" in response.text
+    assert 'href="/dashboard?mode=static&amp;binary=demo.exe&amp;addr=0x401000"' in response.text
     assert "window.location.hash" in response.text
     for key, value in SECURITY_HEADERS.items():
         assert response.headers[key] == value
@@ -196,7 +196,8 @@ def test_missing_atlas_asset_is_visible_and_nosniff() -> None:
     response = _dashboard_client().get("/dashboard/static/react/assets/not-present.js")
 
     assert response.status_code == 404
-    assert "Atlas delivery unavailable" in response.text
-    assert 'href="/dashboard"' in response.text
+    assert "React workstation delivery unavailable" in response.text
+    assert 'href="/dashboard?mode=static"' in response.text
     assert response.headers["X-Content-Type-Options"] == "nosniff"
-    assert response.headers["Cache-Control"] == "no-cache"
+    # The failure page is HTML and never cacheable, unlike a delivered asset.
+    assert response.headers["Cache-Control"] == SECURITY_HEADERS["Cache-Control"]

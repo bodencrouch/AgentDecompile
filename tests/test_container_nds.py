@@ -31,7 +31,8 @@ def test_detect_and_resolve_sonic_nds() -> None:
     assert resolution.primary.role == "arm9"
     assert resolution.primary.load_address == 0x02000000
     assert resolution.primary.entry_point == 0x02000800
-    assert resolution.primary.language_id == "ARM:LE:32:v5t:default"
+    # A Ghidra language id carries no compiler spec; "default" is the cspec half of the pair.
+    assert resolution.primary.language_id == "ARM:LE:32:v5t"
     assert len(resolution.images) == 2
 
 

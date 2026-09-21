@@ -1821,7 +1821,9 @@ def _resolve_artifact(raw: str):
     if "\x00" in raw:
         return None, "path contains a null byte"
     work = _work_dir()
-    live = ROOT or live_root()
+    # An explicit runtime root (environment) outranks the module default;
+    # the default is only a fallback when nothing was configured.
+    live = _configured_root() or ROOT or live_root()
     if live is None and work is None:
         return None, "AGENT_DECOMPILE_CORPUS_ROOT / AGENT_DECOMPILE_CORPUS_WORK_DIR is unset"
     root = (live or work).resolve()
@@ -2263,6 +2265,17 @@ def _binary_artifacts(rec: dict) -> str:
 
 def missing_html(msg: str) -> str:
     return f'<p class="miss">{esc(msg)}</p>'
+
+
+def _configured_root() -> Path | None:
+    """Root named by the environment, or None when only defaults apply."""
+    raw = (os.environ.get("AGENT_DECOMPILE_CORPUS_ROOT") or os.environ.get("AGENT_DECOMPILE_CORPUS_WORK_DIR") or "").strip()
+    if not raw or "\x00" in raw:
+        return None
+    try:
+        return Path(raw).expanduser()
+    except (OSError, RuntimeError, ValueError):
+        return None
 
 
 def _work_dir() -> Path | None:

@@ -85,7 +85,9 @@ def _react_delivery_failure(
             "</body></html>"
         ),
         status_code=status_code,
-        headers={**SECURITY_HEADERS, **_ASSET_HEADERS},
+        # The delivery-failure page is HTML: security headers stay authoritative
+        # (no-store), and the asset set only adds nosniff.
+        headers={**_ASSET_HEADERS, **SECURITY_HEADERS},
     )
     return response
 

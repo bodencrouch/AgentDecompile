@@ -34,10 +34,13 @@ def clean_env(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_defaults_have_no_kotorxid_or_mizuchi_paths(clean_env) -> None:
-    assert clean_env.ROOT is None
-    assert clean_env.DB_PATH is None
+    # Every corpus path is optional and defaults under the shared project root;
+    # nothing points at a product-specific checkout.
+    default_root = Path("agentdecompile_projects")
+    assert clean_env.ROOT == default_root / "corpus_work"
+    assert clean_env.DB_PATH == default_root / "corpus.db"
     assert clean_env.KNOWLEDGE_DB is None
-    assert clean_env.MIZUCHI_R is None
+    assert clean_env.MIZUCHI_R == default_root / "external_recovery"
     assert (clean_env.GHIDRA_SERVER_HOST, clean_env.GHIDRA_SERVER_PORT) == ("127.0.0.1", 0)
     assert clean_env.DRM_EXCLUDED == ()
     assert "kotorxid.sqlite" not in str(clean_env.as_root())
@@ -74,7 +77,8 @@ def test_invalid_paths_host_and_exclusions_fall_back(monkeypatch: pytest.MonkeyP
     monkeypatch.setenv("AGENT_DECOMPILE_EXTERNAL_RECOVERY_ROOT", "   ")
     monkeypatch.setenv("AGENT_DECOMPILE_GHIDRA_SERVER_HOST", "bad\nname")
     importlib.reload(common)
-    assert common.DB_PATH is None
+    # Blank overrides fall back to the self-contained default, never to None.
+    assert common.DB_PATH == Path("agentdecompile_projects") / "corpus.db"
     assert common.GHIDRA_SERVER_HOST == "127.0.0.1"
     for value in ("not-json", "{}", '["ok", 2]', '[""]'):
         monkeypatch.setenv("AGENT_DECOMPILE_EXCLUDED_REPO_PATHS", value)

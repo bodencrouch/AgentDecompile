@@ -269,7 +269,7 @@ def test_identity_writers_serialize_per_db(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr(
         jobs,
         "_mcp_executor",
-        lambda action, params, cancel: (0, "ok"),
+        lambda action, params, cancel, **_facts: (0, "ok"),
     )
     monkeypatch.setenv("AGENT_DECOMPILE_CORPUS_DB", str(db_a))
     first, status = jobs.start_job(
@@ -310,11 +310,15 @@ def test_identity_writers_serialize_per_db(tmp_path: Path, monkeypatch: pytest.M
     assert jobs.get_job(second["job"]["id"]).status in {"cancelled", "cancelling", "ok"}
 
 
-def test_identity_writer_without_db_is_400(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_identity_writer_without_db_targets_the_default_corpus(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Corpus paths are optional: with no --db and no environment override the
+    # writer still takes an identity lock, keyed on the default corpus database.
     monkeypatch.delenv("AGENT_DECOMPILE_CORPUS_DB", raising=False)
+    monkeypatch.setattr(jobs.STORE, "executor", lambda argv, cwd, cancel: (0, "ok"))
+    assert jobs.identity_lock_key({}) == str(Path("agentdecompile_projects/corpus.db").resolve())
     payload, status = jobs.start_job("corpus.logical-build", {}, confirm=True)
-    assert status == 400
-    assert "db" in payload["error"]
+    assert status == 202
+    assert payload["ok"] is True
 
 
 def test_objdiff_job_env_drops_wine() -> None:

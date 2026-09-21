@@ -1,9 +1,17 @@
 # Recovery critical path
 
+Current operations use the existing 8080 workbench and `GET /api/v1/actions`
+under [AGENTS.md](../AGENTS.md). This page retains single-binary implementation
+CLI/checkpoint reference; do not use it to bypass catalog ownership, regenerate
+valid evidence, or run filesystem tests in the current recovery mission.
+[STRATEGY.md](../STRATEGY.md) owns matcher order, resource admission and terminal
+fresh whole-image acceptance for separately measured C+assembly-floor and max-C
+variants. [Runtime reuse](RUNTIME_REUSE.md) is a parallel capability, not source proof.
+
 The **main multi-binary recovery path** is the corpus pipeline
 ([CORPUS_PIPELINE.md](CORPUS_PIPELINE.md)): extract → identify →
 calibrate-global → assembly-floor → recover-source → apply-cross-build →
-leftover-recover → verify. CLI: `agentdecompile-corpus` (also
+leftover-recover → verify → fresh whole-image identity (terminal goal, not a claimed checkpoint verb). CLI: `agentdecompile-corpus` (also
 `agentdecompile-reconstruct corpus`). `--stop-after compile` still means
 stop after donor C compiles (`recover-source`). Open an already-analyzed
 Ghidra project and reuse that analysis. Do not re-run `analyze-program`
@@ -134,7 +142,7 @@ target/source-dump/
 - Never promote inline asm, `_emit`, `.incbin`, or byte-copy sources into `verified/`.
 - Names, types, and module paths are advisory unless objdiff reports `differences==0`.
 
-## Proof-scale smoke
+## Historical proof-scale smoke reference (not current mission instructions)
 
 Bounded live validation for the **1% proof ladder rung**. The public worked path is `tests/fixtures/test_x86_64`. Requires a work dir that has completed through `report` (proof-target queue and proof-ladder receipts present). PE MSVC verification needs `--vc-root` and `--source-synthesis-wineprefix` when using Wine.
 
@@ -158,7 +166,7 @@ uv run agentdecompile-reconstruct "$TARGET" \
   --workers 4
 ```
 
-**Pass criteria (either):**
+**Historical smoke terminal criteria (neither completes corpus recovery):**
 
 1. **Accept** — `state/proof-campaign-loop.json` shows `totalAccepts > 0` and `verified/` gains objdiff-zero receipts; `proof-ladder.json` numerator increases.
 2. **Named terminal** — loop receipt `status` is one of `near-miss`, `readability-blocked`, `bridge-failed`, `empty-queue`, or `budget-stop`, with `claimBoundary` set and per-iteration rows in `state/proof-campaign-history.jsonl`.

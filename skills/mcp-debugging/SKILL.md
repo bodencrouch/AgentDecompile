@@ -9,6 +9,4 @@ metadata:
 
 # mcp-debugging
 
-Canonical skill: [../../../.agents/skills/mcp-debugging/SKILL.md](../../../.agents/skills/mcp-debugging/SKILL.md)
-
-Read that file immediately and follow it. Do not continue from this stub.
+Read the [canonical skill](../../.agents/skills/mcp-debugging/SKILL.md).

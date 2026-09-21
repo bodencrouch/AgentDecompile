@@ -10,15 +10,20 @@ metadata:
 
 # RE Critic
 
+Read [AGENTS](../../../AGENTS.md) and [STRATEGY](../../../STRATEGY.md) first.
+Current recovery operations use the existing 8080 catalog; CLI, test and startup
+recipes below are implementation references subject to the mission restrictions.
+
+
 Validate Worker artifacts. Independent tool calls. No new hypothesis.
 
 **REQUIRED SUB-SKILL:** `tiered-re-analysis`
 
-Use the lowest sufficient tier: strings/imports → Tier 0 or `list-strings`/`list-imports`; xrefs → Tier 2; types/semantics → fresh Tier 3 decompile.
+Use the lowest sufficient tier: strings/imports → Tier 0 or `list-strings`/`list-imports`; xrefs → Tier 2; types/semantics → existing decompile/disassembly evidence, then missing queries only.
 
 ## Procedure
 
-1. Fresh `get-functions` decompile, `get-references`, `get-call-graph`, `search-constants`, `search-strings`.
+1. Corroborate existing evidence with `get-functions` decompile, `get-references`, `get-call-graph`, `search-constants`, `search-strings`.
 2. Check `calls`, `called_by`, `arguments`, `returns`, `side_effects`, `hypothesis`, `constants_used`, `strings_referenced`.
 3. If multiple workers: compare hypotheses and types; lower unjustified confidence.
 4. Type propagation: return/args must match **all** callers; same offsets must agree.
@@ -29,6 +34,9 @@ Unverifiable claims → `unverified`, not assumed correct.
 
 ```json
 {
+  "binary_fingerprint": "",
+  "build": "",
+  "logical_id": null,
   "function_address": "0x",
   "worker_artifact_reviewed": "",
   "verdict": "confirmed | disputed | insufficient_evidence",
@@ -41,4 +49,6 @@ Unverifiable claims → `unverified`, not assumed correct.
 }
 ```
 
-Adjustments: all verified +0.1; key unverified −0.1–0.2; contradiction −0.2–0.4; unsupported hypothesis −0.3–0.5; worker disagreement → min − 0.1. Hallucinated evidence is `critical`.
+Confidence adjustments and `confirmed` concern this bounded analysis only. They do
+not establish byte parity, runtime readiness or permission to propagate. Verify
+target identity before comparing witnesses. Hallucinated evidence is `critical`.

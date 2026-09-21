@@ -40,6 +40,7 @@ The system should let even a small model move — with assistance from tooling, 
 | **Acquisition and dismantling** | Unpack, section, rip, and layout opaque delivery formats into inspectable trees and facts. |
 | **Analysis and lifting** | Decompile, disassemble, type, name, and relate code with citations back to bytes. |
 | **Interactive RE** | Stable sessions so agents and operators share the same program state. |
+| **Runtime context and reuse** | Supported adapters can observe or call original code and return provenance-bearing behavior evidence before complete recovery; runtime success does not establish recovered-source parity. |
 | **Recovery and verification** | Optional, powerful loops that turn candidates into rebuildable claims when the caller wants that bar. |
 | **Context assembly** | Progressive, budgeted, provenance-preserving presentation so models work from evidence instead of inventing it. |
 

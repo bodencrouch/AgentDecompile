@@ -19,12 +19,9 @@ Do **not** run recovery pipelines from the upstream donor checkout:
 - No `swkotor-match-*` rematches
 - No new feature work under that tree
 
-All matching recovery, dumps, and one-shot paths live in **AgentDecompile**:
-
-```bash
-cd ~/Workspaces/agentdecompile   # or /run/media/.../Workspaces/agentdecompile
-uv run agentdecompile-reconstruct ...
-```
+All matching recovery, dumps, and one-shot implementations live in **AgentDecompile**.
+Operate through the existing 8080 workbench and `GET /api/v1/actions`; follow
+[AGENTS.md](../AGENTS.md) for reuse, process ownership and mission constraints.
 
 ## What the upstream donor checkout still is
 
@@ -33,4 +30,7 @@ uv run agentdecompile-reconstruct ...
 
 ## What "done" looks like for swkotor dumps
 
-See [CRITICAL_PATH.md](CRITICAL_PATH.md): `agentdecompile-reconstruct … --dump-source target/swkotor-source-dump` from this repo only.
+A dump is an artifact, not terminal recovery. See [CRITICAL_PATH.md](CRITICAL_PATH.md)
+for implementation reference and [STRATEGY.md](../STRATEGY.md) for fresh whole-image
+acceptance. [Runtime reuse](RUNTIME_REUSE.md) describes the separate original-binary
+consumer; it does not make the archived donor an active recovery checkout.

@@ -13,19 +13,25 @@ flowchart TD
 
 ## Current doc map
 
+[AGENTS.md](../AGENTS.md) owns operations; [STRATEGY.md](../STRATEGY.md) owns pipeline
+policy. Current recovery uses existing 8080. CLI/startup examples elsewhere are
+implementation references, subject to those constraints.
+
 ### Start here
 
-1. [../README.md](../README.md) — install, three start paths, first-run env
+1. [../README.md](../README.md) — operator entry and installation references
 2. [../USAGE.md](../USAGE.md) — CLI, HTTP MCP, sessions, Web UI, failures
 3. [../TOOLS_LIST.md](../TOOLS_LIST.md) — tool parameters and aliases
 
 ### Recovery
 
-1. [../STRATEGY.md](../STRATEGY.md) — current bet
+1. [../STRATEGY.md](../STRATEGY.md) — pipeline and priority authority
 2. [./CORPUS_PIPELINE.md](./CORPUS_PIPELINE.md) — multi-binary default
 3. [./corpus/README.md](./corpus/README.md) — stage table
 4. [./plans/2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md](./plans/2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md) — implementation plan
 5. [./CRITICAL_PATH.md](./CRITICAL_PATH.md) — single-binary reconstruct
+6. [./RUNTIME_REUSE.md](./RUNTIME_REUSE.md) — implemented seam and runtime claim limits
+7. [./PROTOTYPE_OUTCOMES.md](./PROTOTYPE_OUTCOMES.md) — unfinished outcomes and evidence
 
 ### Import, security, sessions
 
@@ -47,10 +53,10 @@ flowchart TD
 
 1. [../CONTRIBUTING.md](../CONTRIBUTING.md)
 2. [./e2e_shared_local_checkout_sync.md](./e2e_shared_local_checkout_sync.md)
-3. [../CLAUDE.md](../CLAUDE.md) — root pointer
+3. [../AGENTS.md](../AGENTS.md) — operational authority
 4. [../src/CLAUDE.md](../src/CLAUDE.md)
 5. [../src/agentdecompile_cli/CLAUDE.md](../src/agentdecompile_cli/CLAUDE.md)
-6. [../GEMINI.md](../GEMINI.md)
+6. [../skills/README.md](../skills/README.md) — client-independent skill routing
 7. [../tests/README.md](../tests/README.md)
 8. [../examples/README.md](../examples/README.md)
 9. [./plans/README.md](./plans/README.md) — living vs frozen plans
@@ -67,7 +73,9 @@ flowchart TD
 
 ## Source of truth
 
-When docs and prose disagree, use the code and tests:
+Use inspected source for implementation claims; historical tests are evidence only
+for what they exercised. AGENTS/STRATEGY still determine authorized operation and
+acceptance, including requirements that source does not yet implement:
 
 - `src/agentdecompile_cli/registry.py` for tool names, aliases, and parameters
 - `src/agentdecompile_cli/cli.py` for convenience commands

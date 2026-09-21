@@ -1,13 +1,14 @@
 # AgentDecompile skills
 
-Follow the **whole** [agentskills.io](https://agentskills.io/llms.txt) site, not only the spec.
+Operations follow [AGENTS](../AGENTS.md); pipeline priorities and acceptance follow
+[STRATEGY](../STRATEGY.md). Skills route work; they do not supply competing policy.
 
-User docs start at [README.md](../README.md), [USAGE.md](../USAGE.md), and [docs/INDEX.md](../docs/INDEX.md). Authoring: `skills/skill-authoring` (same files under `.agents/skills/skill-authoring`).
+User docs start at [README.md](../README.md), [USAGE.md](../USAGE.md), and [docs/INDEX.md](../docs/INDEX.md). Authoring: `.agents/skills/skill-authoring`.
 
 ```mermaid
 flowchart TD
   pages[agentskills.io llms.txt] --> agents[".agents/skills (VS Code / Copilot / cross-client)"]
-  pages --> canon[skills/ same files]
+  agents --> canon[skills/ loaders]
   agents --> cursor[.cursor/skills stubs]
   agents --> claude[.claude/skills stubs]
   canon --> roles[re-* role skills]
@@ -27,7 +28,11 @@ flowchart TD
 
 ## Catalog
 
-Bodies live in `skills/<name>/` and `.agents/skills/<name>/` (same text). `.cursor/skills/` and `.claude/skills/` are stubs that read the canonical file. Point at repo-root paths (`docs/…`, `.github/…`) so both trees stay identical.
+Bodies live in `.agents/skills/<name>/`. `skills/`, `.cursor/skills/` and
+`.claude/skills/` use loaders; vendored web-design guidance retains its sync contract.
+Resolve links relative to each loader, never back to itself. Copilot role wrappers
+load these same bodies. Confidence/convergence is advisory, never proof or an
+automatic propagation threshold.
 
 | Skill | Use when |
 |---|---|
@@ -37,13 +42,16 @@ Bodies live in `skills/<name>/` and `.agents/skills/<name>/` (same text). `.curs
 | `bsim-corpus` | BSim database / ingest / report |
 | `tiered-re-analysis` | Picking Tier 0–3 tools before Ghidra MCP |
 | `mcp-debugging` | MCP session, transport, or tool-routing failures |
-| `lfg` | Continue / merge / next slice from STRATEGY and open plans |
+| `lfg` | Continue authorized work from STRATEGY and existing evidence |
 | `re-planner` / `re-worker` / `re-critic` / `re-aggregator` | Multi-agent RE roles |
-| `agentdecompile-server-env` | Start server, `GHIDRA_INSTALL_DIR`, bind, sessions |
+| `agentdecompile-server-env` | Attach existing 8080, environment, bind, sessions |
 
-Client-only stub (not duplicated under `skills/`): `agentdecompile-rewrite-worker`.
+`agentdecompile-rewrite-worker` and `agentdecompile-server-env` have canonical
+bodies under `.agents/skills/` and Claude loaders. Migrated `source-command-*`
+skills route to the current command guidance. The project plugin connects by native
+HTTP to existing 8080; it starts no process and does not modify global MCP defaults.
 
-Validate:
+General-development validation reference (do not run during the current mission):
 
 ```bash
 python3 scripts/validate-agent-skills.py

@@ -9,6 +9,4 @@ metadata:
 
 # tiered-re-analysis
 
-Canonical skill: [../../../.agents/skills/tiered-re-analysis/SKILL.md](../../../.agents/skills/tiered-re-analysis/SKILL.md)
-
-Read that file immediately and follow it. Do not continue from this stub.
+Read the [canonical skill](../../.agents/skills/tiered-re-analysis/SKILL.md).

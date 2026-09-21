@@ -9,7 +9,7 @@ import sqlite3
 import threading
 import time
 import uuid
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -516,8 +516,16 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         if not probe and prior.get('status') == 'ok' and key not in {'facts', 'calibrate-global', 'verify-byte-accuracy'}:
             return prior['result']
         # Inventory and analysis are idempotent under the owning native lock;
-        # external subprocess mutations need a recovered terminal receipt.
-        safe_replay = name in {'mcp.analyze-program', 'mcp.execute-script'}
+        # most external subprocess mutations need a recovered terminal
+        # receipt before replay. corpus.match-pair is the one exception:
+        # propagate.run_pair() opens with `DELETE FROM match WHERE run=?
+        # AND src_binary=? AND dst_binary=?` before inserting, so replaying
+        # it is a clean overwrite, not a duplicate-write risk. Without this,
+        # a single dead owner process permanently wedges every pair it had
+        # in flight — the retry loop below is never reached, so that pair
+        # can never complete for the life of the run.
+        safe_replay = name in {'mcp.analyze-program', 'mcp.execute-script', 'corpus.match-pair'}
+        prior = _action_prior_for_retry(name, prior)
         prior_job = jobs.get_job(prior.get('jobId', '')) if prior.get('jobId') else None
         unavailable = prior_job is None or getattr(prior_job, 'history_only', False) or getattr(prior_job, 'owner_unavailable', False) or prior_job.status == 'interrupted'
         if prior.get('status') in {'submitting', 'queued', 'running'} and unavailable and not safe_replay:
@@ -850,11 +858,17 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         def input_progress(completed: int, total: int, source: str = '', functions_read: int = 0) -> None:
             if stopped():
                 raise InterruptedError('Workflow stopped while reading comparison inputs.')
-            detail = f' {Path(source).name}: {functions_read:,} functions read.' if source else ''
+            progress = _matching_inventory_progress_kwargs(
+                pair_count=len(pairs),
+                inventory_completed=completed,
+                inventory_total=total,
+                current_program=programs[0] if len(programs) == 1 else '',
+                source=source,
+                functions_read=functions_read,
+            )
+            detail = progress.pop('_reason_detail')
             update('matching', 'running', f'Reading comparison evidence: {completed} of {total} inventories.{detail}',
-                   completed=completed, total=total, progressUnit='binary inventories',
-                   currentProgram=programs[0] if len(programs) == 1 else '',
-                   workProgress={'completed': completed, 'total': total, 'unit': 'binary inventories'})
+                   **progress)
         comparison_inputs.update(_matching_input_digests({path for src, dst, _ in pairs for path in (src, dst)}, input_progress))
         row['comparisonInputs'] = comparison_inputs
         update('matching', 'running', 'Comparison targets and input evidence frozen.', completed=0, total=len(pairs), progressUnit='comparisons', workProgress=None)
@@ -888,7 +902,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 with ThreadPoolExecutor(max_workers=workers, thread_name_prefix=f'match-{run_id[:8]}') as pool:
                     futures = [pool.submit(_run_pair, item) for item in to_run]
                     try:
-                        for future in futures:
+                        for future in as_completed(futures):
                             src, dst, result = future.result()
                             with progress_lock:
                                 if result['ok']:
@@ -1060,6 +1074,43 @@ finally:
     if client is not None:
         client.close()
 """
+
+
+def _action_prior_for_retry(name: str, prior: dict[str, Any]) -> dict[str, Any]:
+    """Allow idempotent corpus.match-pair to retry prior terminal failures.
+
+    propagate.run_pair() deletes existing rows for the run/pair before insert,
+    so a failed attempt from an earlier infra outage does not permanently block
+    the pair when comparison receipts are still absent.
+    """
+    if name == 'corpus.match-pair' and prior.get('status') == 'failed':
+        return {}
+    return prior
+
+
+def _matching_inventory_progress_kwargs(
+    *,
+    pair_count: int,
+    inventory_completed: int,
+    inventory_total: int,
+    current_program: str = '',
+    source: str = '',
+    functions_read: int = 0,
+) -> dict[str, Any]:
+    """Keep matching stage totals on pair count while inventory digest runs."""
+    detail = f' {Path(source).name}: {functions_read:,} functions read.' if source else ''
+    return {
+        'completed': 0,
+        'total': pair_count,
+        'progressUnit': 'comparisons',
+        'currentProgram': current_program,
+        'workProgress': {
+            'completed': inventory_completed,
+            'total': inventory_total,
+            'unit': 'binary inventories',
+        },
+        '_reason_detail': detail,
+    }
 
 
 def _comparison_path(run_id: str, src: str, dst: str) -> Path:

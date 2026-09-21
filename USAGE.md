@@ -175,6 +175,7 @@ Typical unresolved-program payload:
 | `AGENT_DECOMPILE_PROGRAM` | CLI | Legacy program alias |
 | `AGENT_DECOMPILE_BINARY_NAME` | CLI | Default `binaryName` |
 | `AGENT_DECOMPILE_WEBUI_ENABLED`, `AGENT_DECOMPILE_WEBUI` | Runtime | Optional leftover sidecar on/off. Workbench is `/dashboard` on 8080. |
+| `AGENT_DECOMPILE_EXCHANGE_ENABLED` | Runtime | Experimental donated-compute work exchange on the proxy. Off by default; `--enable-exchange` / `--no-enable-exchange` win over the variable. Contributions stay proposals until the local compile and objdiff gate verifies them. See [the exchange plan](docs/plans/2026-09-08-donated-compute-work-exchange.md). |
 | `AGENT_DECOMPILE_WEBUI_HOST` | Runtime | Leftover sidecar bind host |
 | `AGENT_DECOMPILE_WEBUI_PORT` | Runtime | Leftover sidecar bind port |
 | `AGENT_DECOMPILE_WEBUI_BACKEND_URL` | Runtime | Leftover sidecar backend override |

@@ -200,6 +200,7 @@ def parse_node_report(returncode: int, output: str) -> dict[str, Any]:
 class ParityCheck(PlannableKind):
     name = "parity-check"
     version = 1
+    basis_field_set = "parity"        # toolchain + masking rule (§2.8)
     budget = BudgetClass.SMALL
     capabilities = ("parity:<hash> | parity-wasm:<hash>",)   # template; the spec carries verifier_id
     INPUTS: Mapping[str, str] = {"target": "pinned target object (.o from mkobj-target)", "candidate": "candidate COFF object"}

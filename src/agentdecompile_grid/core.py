@@ -85,6 +85,7 @@ BASIS_FIELDS: tuple[str, ...] = (
     "seeds.*",
     "toolchain_identity_hash",
     "data_packs",
+    "data_packs_root_declared",
     "filler_set",
     "decoder",
     "external_channels.*",

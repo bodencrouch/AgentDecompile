@@ -131,6 +131,7 @@ def score_shard(shard: Mapping[str, Any], mapping_obj: Mapping[str, Any]) -> lis
 class MatchScoreShard(PlannableKind):
     name = "match-score-shard"
     version = 1
+    basis_field_set = "cascade"       # algorithm, masking rule, thresholds, seeds (§2.8)
     budget = BudgetClass.MICRO
     capabilities = ("python",)
     INPUTS: Mapping[str, str] = {

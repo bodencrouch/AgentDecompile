@@ -131,6 +131,21 @@ the supersession is stated.
 
 ## 6. Process and safety rules
 
+- **Licensing is out of scope — entirely.** Liability is offloaded to another service; no
+  design, plan, unit, gate or diagram element may reason about licensing, redistribution
+  rights, or role-gating "for licensing". Forget the concept exists. (2026-09-22.)
+- **Embrace speculative generality to the extreme; reject YAGNI.** Proactively infer
+  hypothetical future requirements and implement the abstractions, interchangeable
+  implementations, extension points, configurability and infrastructure for them now. A
+  missing current use case, second implementation or immediate caller is never a reason to
+  omit or remove something. Anticipating future needs is an explicit project goal, not an
+  over-engineering defect. (Under the test moratorium, speculative support is implemented
+  now and tested in the final verification phase.) (2026-09-22.)
+- **Effort is measured in agent-hours, not engineer-days.** Get something working in the
+  present quickly — a walking skeleton with every extension point declared — designed so it
+  can be updated and improved easily; the 170-engineer-day estimate is a human-team figure
+  and is not the plan. (2026-09-22.)
+
 - **Research first, meticulously**, across all past conversations, before designing;
   fan out subagents; collaborate; grill a prototype expert. (2026-09-21.)
 - **Plan first; do not begin implementation early**; "we haven't even finished building
@@ -187,6 +202,8 @@ the supersession is stated.
 | "coverage recorded, universality never asserted" | exhaustive ladders; residue is what remains after every strategy |
 | operational guards protecting live recovery | lifted; rigor retained |
 | a single SQLite store as the corpus's coordination point | working state concurrent and network-capable; SQLite a materialized view (thesis 4) |
+| licensing / redistribution boundaries in the design | out of scope entirely; liability offloaded (2026-09-22) |
+| YAGNI / minimal implementations | speculative generality to the extreme (2026-09-22) |
 | distributed compute as a late optional feature | a reusable package with donated idle compute and free cloud nodes; miniature non-blocking tasks (thesis 2–3) |
 | "one start/pause/resume control" | no Start button: analysis starts by itself on open / add / resume; the one control is pause/resume + scope |
 | review as a gate before propagation or export | review is an override applied afterwards; ambiguous/contested entities export with evidence and refuse at use time (Autonomy rule) |

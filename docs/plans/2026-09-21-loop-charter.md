@@ -118,6 +118,18 @@ runs or writes a test is in breach. Verification during the build is by reading 
 by the grill protocol on the diff, and by the inline-CLI attestation on a copy of the real
 store (the user's explicit instrument), which is not a test suite.
 
+## 6c. Engineering rules for every unit (user directives 2026-09-22)
+
+- **Speculative generality, to the extreme; YAGNI rejected.** Every unit declares its
+  abstractions and extension points (Protocols/ABCs, registries, interchangeable adapters,
+  configuration) with at least one working implementation and named slots for the others; a
+  packet that "keeps it minimal" is in breach.
+- **Licensing does not exist** in this program: no unit, gate, role or object policy reasons
+  about it.
+- **Walking skeleton first.** The default delivery shape is a thin end-to-end path through
+  every layer in hours (agents in parallel worktrees), with the full capability arriving as
+  adapters behind the declared interfaces — never a 170-day serial build.
+
 ## 7. Restart (the loop is session-bound)
 
 If the session ends: read this file, the plan's Delta Update, the register's Resume point;

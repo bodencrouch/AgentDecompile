@@ -486,8 +486,13 @@ class GhidraFileBytesResolver:
         except ImportError:
             return RawImageMiss("ghidra_unavailable")
         try:
-            if not pyghidra.started():
-                pyghidra.start()
+            # One JVM boot path for the whole package: ghidra_env.start owns
+            # the install dir, JAVA_HOME_OVERRIDE and the container-support
+            # options; a bare pyghidra.start() misses all three.
+            from .ghidra_env import start as ghidra_start
+
+            if not pyghidra.started() and not ghidra_start():
+                return RawImageMiss("ghidra_unavailable")
         except Exception:
             return RawImageMiss("ghidra_unavailable")
         reasons: list[str] = []

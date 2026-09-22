@@ -51,7 +51,10 @@ def start(max_heap: str = "4g", *, install_dir: str | None = None, project_path:
     os.environ.setdefault("GHIDRA_INSTALL_DIR", ghidra_install)
     java_home = os.environ.get("JAVA_HOME", "").strip()
     if java_home:
-        os.environ.setdefault("JAVA_HOME", java_home)
+        # pyghidra resolves the JDK by shelling out to LaunchSupport unless
+        # JAVA_HOME_OVERRIDE is set; any JVM warning on that command's stdout
+        # (container cgroup notices, for one) corrupts the path it returns.
+        os.environ.setdefault("JAVA_HOME_OVERRIDE", java_home)
     os.environ["JDK_JAVA_OPTIONS"] = "-XX:-UseContainerSupport"
     os.environ.setdefault("_JAVA_OPTIONS", f"-Xmx{max_heap} -XX:-UseContainerSupport")
 

@@ -246,6 +246,25 @@ def admitted_predicate(con, alias: str = "binary") -> str:
     return f" AND {alias}.admission_status = '{AdmissionStatus.ADMITTED.value}'"
 
 
+def keyed_predicate(con, alias: str = "binary") -> str:
+    """SQL fragment (leading ``AND``) keeping the rows the key still applies to.
+
+    This is the *guard* scope, narrower in what it removes than
+    :func:`admitted_predicate`: only what A4 authorizes leaving out --
+    placeholders and merged duplicates -- is excluded. Analyzed rows that
+    are ``unresolved`` or ``contested`` (and rows admission has not seen)
+    stay in, so a cascade that keys on ``content_sha256`` still refuses on
+    a missing hash instead of rebuilding from the admitted subset and
+    deleting the rest. Empty until admit has run.
+    """
+    if admission_scope(con) != "admitted":
+        return ""
+    return (
+        f" AND ({alias}.admission_status IS NULL OR {alias}.admission_status NOT IN "
+        f"('{AdmissionStatus.PLACEHOLDER.value}', '{AdmissionStatus.DUPLICATE.value}'))"
+    )
+
+
 def identity_for(row: dict) -> str:
     """The name a row goes by in output: its content hash, else ``slug-<sha12>``.
 
@@ -850,4 +869,5 @@ __all__ = [
     "exclusion_reason",
     "has_admission_columns",
     "identity_for",
+    "keyed_predicate",
 ]

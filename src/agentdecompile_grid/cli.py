@@ -11,7 +11,8 @@ group) are imported at start, so every verb sees them.
 
 Verbs::
 
-    adgrid join [<url>] [--with toolchain <hash> | --toolchain-path DIR] [--with analyzer] [--idle-only] [--cores N]
+    adgrid join [<url>] [--with toolchain <hash>] [--toolchain-path DIR [--toolchain-manifest M] [--probe-parallel N]]
+                [--with analyzer] [--idle-only] [--cores N]
                 (no url: $ADGRID_INVITE)
     adgrid leave | status
     adgrid publish <kind> --snapshot PATH|sha256:... [--basis-hash H] [--shard-size N]
@@ -307,10 +308,22 @@ def _canary_plan(args: argparse.Namespace) -> tuple[dict[str, Any] | None, list[
             lanes.append("analyzer")
         else:
             raise UsageError(f"unknown --with lane {entry[0]!r} (toolchain <hash> | analyzer)")
-    if args.toolchain_path or toolchain_hash:
-        pool["toolchain"] = canaries_mod.ToolchainCanary(toolchain_path=args.toolchain_path, identity_hash=toolchain_hash)
-        if "toolchain" not in only:
-            only.append("toolchain")
+    manifest_source = getattr(args, "toolchain_manifest", None)
+    if args.toolchain_path or toolchain_hash or manifest_source:
+        # The canary proves the tree against its declared manifest (identity = manifest hash), compiles the
+        # probe TU to the pinned masked hash, measures the parallel cap and binds the root for the compile
+        # lane through the hook the loaded lane registered; ``toolchain-slots`` advertises the cap next to it.
+        canary = canaries_mod.ToolchainCanary(
+            toolchain_path=args.toolchain_path, identity_hash=toolchain_hash, manifest_source=manifest_source,
+            probe_parallel=getattr(args, "probe_parallel", None),
+        )
+        pool["toolchain"] = canary
+        pool["toolchain-slots"] = canary.slots_canary()
+        for name in ("toolchain", "toolchain-slots"):
+            if name not in only:
+                only.append(name)
+        if "toolchain" not in lanes:
+            lanes.append("toolchain")
     return pool, only, lanes
 
 
@@ -684,7 +697,9 @@ def build_parser() -> argparse.ArgumentParser:
     join = sub.add_parser("join", help="attach to (or bootstrap) the local agent and join a grid")
     join.add_argument("url", nargs="?", help=f"invite url (default: ${INVITE_ENV})")
     join.add_argument("--with", dest="with_", nargs="+", action="append", metavar="LANE", help="toolchain <hash> | analyzer")
-    join.add_argument("--toolchain-path", help="a toolchain tree this node already owns (hashed by canary)")
+    join.add_argument("--toolchain-path", help="root of a toolchain tree: an owned install or a fetched toolchain unpacked to a temp root (proved by canary)")
+    join.add_argument("--toolchain-manifest", metavar="M", help="manifest file, a tree holding toolchain-manifest.json, or sha256:<ref> (default: <path>/toolchain-manifest.json)")
+    join.add_argument("--probe-parallel", type=int, metavar="N", help="parallel probe compiles for the concurrency cap (default: cpu count)")
     join.add_argument("--idle-only", action="store_true")
     join.add_argument("--cores", type=int)
     join.add_argument("--node", help="node state directory name under <root>/nodes (default: worker.node_name)")

@@ -50,9 +50,14 @@ def test_fixture_exercises_order_dependent_paths() -> None:
         # Same authentic name at two addresses in one build -> resolve_ambiguous ties.
         keys = collections.Counter(f["canon_key"] for f in funcs if f.get("canon_key"))
         assert any(n >= 2 for n in keys.values())
-        # Fingerprint collisions inside a build -> no unique hash anchor.
+        # Fingerprint collisions inside a build -> no unique hash anchor. The
+        # unnamed callees collide on every hash so only callgraph propagation
+        # binds them (that stage is the dependency-token producer, A3).
         reloc = collections.Counter(f["hash_reloc"] for f in funcs)
         assert any(n >= 2 for n in reloc.values())
+        callees = [f for f in funcs if not f.get("canon_key") and int(f.get("n_instr") or 0) < 18]
+        full = collections.Counter((f["hash_reloc"], f["hash_instr"], f["hash_mnemonic"], f["hash_raw"]) for f in callees)
+        assert sum(1 for n in full.values() if n >= 2) >= 6, full
         assert all(int(f.get("n_instr") or 0) >= 8 and not f.get("is_thunk") for f in funcs)
     # Contested destinations: distinct authentic names in two builds, unnamed in the third.
     names = {f["canon_key"] for f in rows["func"] if f.get("canon_key")}
@@ -132,10 +137,23 @@ def test_cascade_is_order_and_layout_independent(tmp_path: pathlib.Path, seed: i
             "SELECT COUNT(*) FROM binary WHERE recovery_family IS NOT NULL AND trim(recovery_family)<>''"
         ).fetchone()[0]
         methods = {r[0] for r in con.execute("SELECT method FROM identity")}
+        tokens = {
+            token
+            for (evidence,) in con.execute("SELECT evidence FROM match")
+            for token in (json.loads(evidence or "{}").get("dependencies") or [])
+        }
     finally:
         con.close()
     assert all(counts[t] > 0 for t in harness.OUTPUT_TABLES), counts
     assert any(m.startswith(f"match:{harness.RUN}:") for m in methods), methods
+    # A3 guard: the cascade must reach callgraph propagation and persist at
+    # least one dependency token, and every token keys on a build's content
+    # hash (16 hex chars + addr), never on a binary rowid.
+    hashes = {b["content_sha256"][:16] for b in _fixture_rows()["binary"]}
+    assert tokens, "no match row carries evidence.dependencies; the gate would not see a rowid token"
+    for token in tokens:
+        prefix, _, addr = token.partition(":")
+        assert prefix in hashes and addr.isdigit(), token
 
     identical = result.identical
     assert identical, result.first_diff

@@ -31,7 +31,10 @@ Both perturbations are kept because they reach different code paths: with
 ``ix_func_bin_addr`` (which happens to return canonical order), while a plain
 re-ingest keeps the rowid scan and exposes the insertion order directly.
 Shuffling ``binary`` rows is what exposes a tie-break keyed on ``binary.id``
-(D8) and a ``recovery_family`` derived from it (D9).
+(D8), a ``recovery_family`` derived from it (D9) and a dependency token in
+``match.evidence`` that names the source build by rowid (A3): the fixture's
+unnamed callees reach callgraph propagation, the one stage that persists
+such tokens, so a rowid there is a ``match`` diff.
 
 No Ghidra, no real binaries: the fixture is synthetic and generated from a
 seed by :func:`generate_fixture`.
@@ -457,13 +460,21 @@ def _roster(rng: random.Random) -> list[dict]:
         feat = _feature(rng, f"dup{k}", n_instr=16 + k, strings=[f"dup-text-{k}"], consts=[0x2000 + k], ext_calls=[], source_file=f"widget_{k}.c")
         for copy in range(2):
             roster.append({"kind": "dup", "key": f"dup{k}_{copy}", "cls": "Widget", "method": method, "arity": 1, "feature": dict(feat)})
-    # 12 unnamed callees, one per hub. Callee k and k+6 collide on every
-    # hash so no H anchor forms; only callgraph propagation binds them.
+    # 12 unnamed callees, one per hub. Callee k and k+6 share one feature
+    # body (one draw per base, copied, as ``dup`` does) so they collide on
+    # every hash and no H anchor forms; only callgraph propagation binds
+    # them, and that stage persists a dependency token per parent (A3). A
+    # fresh ``_feature`` call per callee drew a different ``mnem`` and left
+    # only ``hash_instr`` colliding, so the reloc anchor bound them first
+    # and the gate never saw a token.
+    callee_feats = {
+        base: _feature(rng, f"callee{base}", n_instr=12 + base, strings=[], consts=[base + 1], ext_calls=[], source_file=None)
+        for base in range(6)
+    }
     for k in range(12):
-        base = k % 6
         roster.append({
             "kind": "callee", "key": f"callee{k}", "hub": f"hub{k}",
-            "feature": _feature(rng, f"callee{base}", n_instr=12 + base, strings=[], consts=[base + 1], ext_calls=[], source_file=None),
+            "feature": dict(callee_feats[k % 6]),
         })
     # 3 contested destinations (D3): the unique callee of a named hub carries
     # a different authentic name in build-a and build-b and none in build-c.

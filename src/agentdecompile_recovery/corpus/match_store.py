@@ -41,6 +41,51 @@ from .match_engine import (
 )
 
 
+def dependency_token(content_sha256: str | None, addr: int, *, slug: str | None = None) -> str:
+    """The build-invariant token for one function in ``match.evidence``.
+
+    ``<content_sha256[:16]>:<addr>``: the same value however the build rows
+    were ingested. A build with no hash cannot be named, so this refuses
+    (``ContentHashError``, kind ``missing``) instead of falling back to a
+    rowid, which is exactly the value that moved with ingest order (A3).
+    """
+    digest = str(content_sha256 or "").strip()
+    if not digest:
+        from .logical import BACKFILL_HINT, ContentHashError
+
+        name = slug if slug is not None else "(unknown build)"
+        raise ContentHashError(
+            f"binary.content_sha256 is NULL or blank for {name}; the dependency token keys on it "
+            f"and refuses to guess; {BACKFILL_HINT}",
+            kind="missing",
+            slugs=[str(name)],
+        )
+    return f"{digest[:16]}:{int(addr)}"
+
+
+def quarantined_source_tokens(con, run: str) -> set[str]:
+    """Dependency tokens of every quarantined source function in *run*.
+
+    The one consumer-side producer of the token: ``bind_identities`` and the
+    dashboard merge intersect this set with each match's stored
+    ``dependencies`` / ``dependency_ancestry``. Built through
+    :func:`dependency_token`, so producer and consumers cannot drift; a
+    quarantined source on a build with no hash refuses (a silent skip would
+    let a quarantined ancestor bind its descendants).
+    """
+    tokens: set[str] = set()
+    rows = con.execute(
+        "SELECT m.src_addr, m.evidence, b.slug, b.content_sha256"
+        "  FROM match m LEFT JOIN binary b ON b.id=m.src_binary WHERE m.run=?",
+        (run,),
+    )
+    for row in rows:
+        if not json.loads(row["evidence"] or "{}").get("quarantine"):
+            continue
+        tokens.add(dependency_token(row["content_sha256"], int(row["src_addr"]), slug=row["slug"]))
+    return tokens
+
+
 class Binary:
     """In-memory view of one binary's functions and call graph."""
 
@@ -554,10 +599,14 @@ def match_binaries(
         right_lookup=sb.funcs,
         pair_class=pair_class,
     )
-    dependency_ancestry: dict[int, set[int]] = {}
+    dependency_ancestry: dict[int, set[str]] = {}
+    # Persisted tokens key on the source build's content hash, never its
+    # rowid (A3). The refusal is lazy: a hash-less build only fails when a
+    # callgraph match actually needs a token.
+    src_token = lambda addr: dependency_token(sa.meta.get("content_sha256"), addr, slug=sa.slug)  # noqa: E731
     for src, result in results.items():
         if result.get("kind") == "callgraph":
-            direct = [f"{src_id}:{int(parent)}" for parent in (result.get("evidence", {}).get("dependencies") or ())]
+            direct = [src_token(int(parent)) for parent in (result.get("evidence", {}).get("dependencies") or ())]
             ancestry = set(direct)
             for parent in (result.get("evidence", {}).get("dependencies") or ()):
                 ancestry.update(dependency_ancestry.get(int(parent), ()))
@@ -772,7 +821,7 @@ def match_binaries(
             for src, result in results.items():
                 if result.get("kind") == "callgraph" and src not in dependency_ancestry:
                     raw_direct = list(result.get("evidence", {}).get("dependencies") or ())
-                    direct = [f"{src_id}:{int(parent)}" for parent in raw_direct]
+                    direct = [src_token(int(parent)) for parent in raw_direct]
                     ancestry = set(direct)
                     for parent in raw_direct:
                         ancestry.update(dependency_ancestry.get(int(parent), ()))

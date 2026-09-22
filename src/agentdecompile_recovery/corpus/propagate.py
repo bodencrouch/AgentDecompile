@@ -144,26 +144,19 @@ def run_pair(
 
 
 def bind_identities(con, run: str, *, commit: bool = True) -> int:
-    """Attach matched target functions to the source's logical function."""
+    """Attach matched target functions to the source's logical function.
+
+    Every content-hash refusal fires before the first write: a refused run
+    keeps the previous bindings and leaves no transaction open (A1).
+    """
     from .correspondence import allows_identity_binding, enrich_evidence
-
-    con.execute("DELETE FROM identity WHERE method LIKE ?", (f"match:{run}:%",))
-    owned = {
-        (r[0], r[1])
-        for r in con.execute(
-            "SELECT binary_id, addr FROM identity"
-        )
-    }
-    quarantined_sources = {
-        f"{row['src_binary']}:{row['src_addr']}" for row in con.execute("SELECT src_binary,src_addr,evidence FROM match WHERE run=?", (run,))
-        if json.loads(row["evidence"] or "{}").get("quarantine")
-    }
-    scope = "FROM match m WHERE m.run=? AND m.status IN ('auto','verify') AND m.relation='one_to_one'"
-    # Refuse before the candidate SELECT: the first-wins race below keys on
-    # binary.content_sha256 (design decision 3), and a NULL would otherwise
-    # sort first silently.
     from .logical import content_hash_index
+    from .match_store import quarantined_source_tokens
 
+    scope = "FROM match m WHERE m.run=? AND m.status IN ('auto','verify') AND m.relation='one_to_one'"
+    # Refuse before the candidate SELECT and before the DELETE below: the
+    # first-wins race keys on binary.content_sha256 (design decision 3), and
+    # a NULL would otherwise sort first silently.
     content_hash_index(
         con,
         (
@@ -173,6 +166,16 @@ def bind_identities(con, run: str, *, commit: bool = True) -> int:
             )
         ),
     )
+    # Same token the matcher persists in evidence.dependencies (A3); a
+    # quarantined source on a hash-less build refuses here, before any write.
+    quarantined_sources = quarantined_source_tokens(con, run)
+    con.execute("DELETE FROM identity WHERE method LIKE ?", (f"match:{run}:%",))
+    owned = {
+        (r[0], r[1])
+        for r in con.execute(
+            "SELECT binary_id, addr FROM identity"
+        )
+    }
     cur = con.execute(
         """SELECT m.dst_binary, m.dst_addr, m.score, m.status, m.evidence,
                   i.logical_id, m.src_binary, m.src_addr,

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 
 import pytest
 
-from agentdecompile_recovery.corpus import logical
+from agentdecompile_recovery.corpus import logical, propagate
 from agentdecompile_recovery.corpus.store import connect
 
 pytestmark = pytest.mark.unit
@@ -162,3 +164,92 @@ def test_guard_scope_is_the_builds_with_named_functions(tmp_path: Path) -> None:
     con.execute("INSERT INTO func(binary_id, addr, name) VALUES (3, 4096, 'FUN_1000')")
     con.commit()
     assert logical.build(con)["logical"] > 0
+
+
+# --- A1: a content-hash refusal issues no write --------------------------------
+
+
+def _store_fingerprint(con) -> dict[str, object]:
+    """Schema rows plus, per table, (row count, sha256 of the sorted rows)."""
+    schema = [tuple(r) for r in con.execute("SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY type, name")]
+    tables = sorted(r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'"))
+    out: dict[str, object] = {"schema": schema}
+    for table in tables:
+        rows = sorted(json.dumps(list(r), sort_keys=True, default=str) for r in con.execute(f"SELECT * FROM {table}"))
+        out[table] = (len(rows), hashlib.sha256("\n".join(rows).encode("utf-8")).hexdigest())
+    return out
+
+
+def _built_store(path: Path):
+    """A store that has been built once, so identity and logical_function are populated."""
+    con = _store(path, FUNCS)
+    logical.build(con)
+    assert con.execute("SELECT COUNT(*) FROM identity").fetchone()[0] > 0
+    return con
+
+
+def test_build_refuses_before_any_delete_on_a_null_hash(tmp_path: Path) -> None:
+    """One build loses its hash after a successful build: the next build refuses and touches nothing."""
+    con = _built_store(tmp_path / "a1.sqlite")
+    con.execute("UPDATE binary SET content_sha256=NULL WHERE id=2")
+    con.commit()
+    # Opened before the fingerprint: connect() runs the recovery_family
+    # backfill (D9), which is the store's own write and not build()'s.
+    other = connect(tmp_path / "a1.sqlite")
+    before = _store_fingerprint(con)
+    assert _store_fingerprint(other) == before
+    with pytest.raises(logical.ContentHashError) as info:
+        logical.build(con)
+    assert info.value.kind == "missing"
+    assert info.value.slugs == ["beta"]
+    assert not con.in_transaction
+    assert _store_fingerprint(con) == before
+    # The same from the second connection: nothing was written, nothing is pending.
+    assert _store_fingerprint(other) == before
+    other.close()
+
+
+def test_build_refuses_before_any_delete_on_a_duplicate_hash(tmp_path: Path) -> None:
+    con = _built_store(tmp_path / "dup.sqlite")
+    con.execute("UPDATE binary SET content_sha256=? WHERE id=2", (LOW,))
+    con.commit()
+    before = _store_fingerprint(con)
+    with pytest.raises(logical.ContentHashError) as info:
+        logical.build(con)
+    assert info.value.kind == "duplicate"
+    assert info.value.slugs == ["alpha", "beta"]
+    assert not con.in_transaction
+    assert _store_fingerprint(con) == before
+
+
+def test_content_hash_error_is_a_value_error_with_structured_fields(tmp_path: Path) -> None:
+    con = _store(tmp_path / "n.sqlite", FUNCS, hashes=(LOW, None))
+    with pytest.raises(ValueError) as info:
+        logical.content_hash_index(con, [1, 2])
+    assert isinstance(info.value, logical.ContentHashError)
+    assert (info.value.kind, info.value.slugs) == ("missing", ["beta"])
+
+
+def test_bind_identities_refuses_before_deleting_the_run_s_bindings(tmp_path: Path) -> None:
+    """propagate.bind_identities has the same shape: its DELETE must follow the guard."""
+    run = "r1"
+    con = _built_store(tmp_path / "bind.sqlite")
+    # A previous run of this name bound one target; the next run must not wipe it on refusal.
+    con.execute(
+        "INSERT INTO identity(logical_id, binary_id, addr, confidence, method, evidence) VALUES (1, 2, 4096, 0.9, ?, '{}')",
+        (f"match:{run}:auto",),
+    )
+    con.execute("INSERT INTO func(binary_id, addr, name) VALUES (2, 4096, 'FUN_1000')")
+    con.execute(
+        "INSERT INTO match(run, src_binary, src_addr, dst_binary, dst_addr, score, margin, evidence, status)"
+        " VALUES (?, 1, 8192, 2, 4096, 1.0, 1.0, '{}', 'auto')",
+        (run,),
+    )
+    con.execute("UPDATE binary SET content_sha256=NULL WHERE id=2")
+    con.commit()
+    before = _store_fingerprint(con)
+    with pytest.raises(logical.ContentHashError):
+        propagate.bind_identities(con, run)
+    assert not con.in_transaction
+    assert _store_fingerprint(con) == before
+    assert con.execute("SELECT COUNT(*) FROM identity WHERE method=?", (f"match:{run}:auto",)).fetchone()[0] == 1

@@ -12,9 +12,11 @@ from pathlib import Path
 
 import pytest
 
-from agentdecompile_recovery.corpus import block_inline, cross_place, store
+from agentdecompile_recovery.corpus import block_inline, cross_place, propagate, store
 from agentdecompile_recovery.corpus import ghidra_bulk as gb
 from agentdecompile_recovery.corpus.correspondence import enrich_evidence
+from agentdecompile_recovery.corpus.logical import ContentHashError
+from agentdecompile_recovery.corpus.match_store import dependency_token, quarantined_source_tokens
 from agentdecompile_recovery.corpus.symbol_provenance import authentic_named_index
 
 pytestmark = pytest.mark.unit
@@ -283,3 +285,66 @@ def test_ensure_binary_columns_tolerates_readonly_but_not_other_errors(tmp_path:
 
     with pytest.raises(sqlite3.OperationalError, match="no such table"):
         store.ensure_binary_columns(_Con())
+
+
+# --- match_store dependency tokens (A3) ---------------------------------------
+
+
+def test_dependency_token_is_the_hash_prefix_and_addr() -> None:
+    assert dependency_token(HA, 0x1000) == f"{HA[:16]}:4096"
+    assert dependency_token(f"  {HA}  ", 7) == f"{HA[:16]}:7"
+
+
+def test_dependency_token_refuses_a_hashless_build_by_hashed_name() -> None:
+    for blank in (None, "", "   "):
+        with pytest.raises(ContentHashError) as info:
+            dependency_token(blank, 1, slug="s1")
+        assert info.value.kind == "missing"
+        assert info.value.slugs == ["s1"]
+
+
+def _match_store(path: Path, *, src_hash: str | None) -> sqlite3.Connection:
+    con = store.connect(path)
+    con.execute(
+        "INSERT INTO binary(id, repo_path, slug, content_sha256) VALUES (1, '/s', 'src', ?), (2, '/d', 'dst', ?)",
+        (src_hash, HC),
+    )
+    con.execute("INSERT INTO logical_function(id, best_name) VALUES (1, 'parent'), (2, 'child')")
+    con.execute("INSERT INTO identity(logical_id, binary_id, addr, confidence, method) VALUES (1, 1, 16, 0.9, 'seed'), (2, 1, 32, 0.9, 'seed')")
+    con.executemany(
+        "INSERT INTO func(binary_id, addr, name) VALUES (?,?,?)",
+        [(1, 16, "p"), (1, 32, "c"), (2, 256, "P"), (2, 512, "C")],
+    )
+    quarantined = json.dumps(enrich_evidence({}, kind="anchor", status="ambiguous", identity_claim=False, quarantine=True))
+    dependent = json.dumps(enrich_evidence({}, kind="callgraph", status="auto", dependencies=[dependency_token(src_hash or HA, 16)]))
+    con.executemany(
+        "INSERT INTO match(run, src_binary, src_addr, dst_binary, dst_addr, score, margin, evidence, status)"
+        " VALUES ('r', 1, ?, 2, ?, 1.0, 1.0, ?, ?)",
+        [(16, 256, quarantined, "review"), (32, 512, dependent, "auto")],
+    )
+    con.commit()
+    return con
+
+
+def test_quarantined_source_tokens_use_the_producer_token(tmp_path: Path) -> None:
+    con = _match_store(tmp_path / "q.sqlite", src_hash=HA)
+    assert quarantined_source_tokens(con, "r") == {f"{HA[:16]}:16"}
+    assert quarantined_source_tokens(con, "other") == set()
+
+
+def test_quarantined_source_tokens_refuse_a_hashless_source(tmp_path: Path) -> None:
+    con = _match_store(tmp_path / "q.sqlite", src_hash=None)
+    with pytest.raises(ContentHashError) as info:
+        quarantined_source_tokens(con, "r")
+    assert info.value.slugs == ["src"]
+
+
+def test_bind_identities_sees_a_quarantined_parent_through_the_hash_token(tmp_path: Path) -> None:
+    """The consumer intersects the same token the producer persisted; a rowid token on either side would bind the child."""
+    con = _match_store(tmp_path / "b.sqlite", src_hash=HA)
+    assert propagate.bind_identities(con, "r") == 0
+    assert con.execute("SELECT COUNT(*) FROM identity WHERE binary_id=2").fetchone()[0] == 0
+    # Lift the quarantine and the same child binds.
+    con.execute("UPDATE match SET evidence='{}', status='auto' WHERE src_addr=16")
+    con.commit()
+    assert propagate.bind_identities(con, "r") == 2

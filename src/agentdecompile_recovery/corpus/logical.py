@@ -10,6 +10,22 @@ from . import canon, match
 
 BACKFILL_HINT = "run `corpus.backfill --pass content_sha256` on the store first"
 
+
+class ContentHashError(ValueError):
+    """A build the cascade must key on has no usable ``content_sha256``.
+
+    ``kind`` is ``"missing"`` (NULL or blank) or ``"duplicate"`` (one hash on
+    more than one build); ``slugs`` lists the offending builds, sorted. The
+    message text names them too; a CLI must not echo it and should report
+    the count and hashed slugs from ``slugs`` instead.
+    """
+
+    def __init__(self, message: str, *, kind: str, slugs: list[str]):
+        super().__init__(message)
+        self.kind = kind
+        self.slugs = list(slugs)
+
+
 GENERIC = re.compile(
     r"^(map|set|list|vector|string|pair|iterator|allocator|_?init|_?fini|main|"
     r"entry|start|operator[^A-Za-z]|__.*)$"
@@ -36,8 +52,8 @@ def content_hash_index(con, binary_ids) -> dict[int, str]:
     The content hash is the only build key the cascade may order or tie-break
     on (never a rowid, never a slug). A build without one, or two builds
     sharing one, leaves that key undefined, so this refuses instead of
-    falling back: ``ValueError`` names the offending slugs (sorted) and the
-    backfill verb that supplies the hash.
+    falling back: :class:`ContentHashError` (a ``ValueError``) names the
+    offending slugs (sorted) and the backfill verb that supplies the hash.
     """
     ids = sorted({int(i) for i in binary_ids})
     if not ids:
@@ -61,26 +77,33 @@ def content_hash_index(con, binary_ids) -> dict[int, str]:
     # A referenced id with no binary row has no hash either.
     missing.extend(f"binary id {i} (no binary row)" for i in ids if i not in seen)
     if missing:
-        raise ValueError(
+        raise ContentHashError(
             "binary.content_sha256 is NULL or blank for "
             + ", ".join(sorted(missing))
-            + f"; the cascade keys on it and refuses to guess; {BACKFILL_HINT}"
+            + f"; the cascade keys on it and refuses to guess; {BACKFILL_HINT}",
+            kind="missing",
+            slugs=sorted(missing),
         )
     dupes = {h: sorted(slugs) for h, slugs in by_hash.items() if len(slugs) > 1}
     if dupes:
         detail = "; ".join(f"{h[:16]}: {', '.join(slugs)}" for h, slugs in sorted(dupes.items()))
-        raise ValueError(
+        raise ContentHashError(
             "binary.content_sha256 is shared by more than one build, so it is not a "
-            f"total key: {detail}. Register each image once."
+            f"total key: {detail}. Register each image once.",
+            kind="duplicate",
+            slugs=sorted({slug for slugs in dupes.values() for slug in slugs}),
         )
     return index
 
 
 def build(con) -> dict[str, int]:
-    con.execute("DELETE FROM identity")
-    con.execute("DELETE FROM logical_function")
-    con.commit()
+    """Rebuild ``logical_function`` and ``identity`` from name evidence.
 
+    The content-hash guard runs before the first write. A refusal issues no
+    statement that changes the store and leaves no transaction open, so a
+    store with one NULL hash keeps every existing identity row (A1:
+    refuse-after-wipe on the real store cost 291k identity rows).
+    """
     excluded = tuple(sorted(canon.DRM_EXCLUDED))
     if excluded:
         marks = ",".join("?" for _ in excluded)
@@ -89,8 +112,9 @@ def build(con) -> dict[str, int]:
     else:
         scope_where = "WHERE f.canon_key IS NOT NULL"
         params = ()
-    # Refuse before the driving SELECT: an ORDER BY over a NULL hash would
-    # sort silently, which is the fallback design decision 3 forbids.
+    # Refuse before the driving SELECT and before any DELETE: an ORDER BY
+    # over a NULL hash would sort silently, which is the fallback design
+    # decision 3 forbids.
     content_hash_index(
         con,
         (
@@ -101,6 +125,10 @@ def build(con) -> dict[str, int]:
             )
         ),
     )
+    con.execute("DELETE FROM identity")
+    con.execute("DELETE FROM logical_function")
+    con.commit()
+
     rows = con.execute(
         f"""SELECT f.binary_id, f.addr, f.canon_key, f.canon_class, f.canon_method,
                   f.canon_arity, f.name_origin, f.is_thunk, f.n_instr, f.n_blocks,

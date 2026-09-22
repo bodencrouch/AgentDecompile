@@ -198,7 +198,9 @@ def upsert_binary(
     caller hands in (see the module docstring); this function derives none.
     A non-NULL incoming digest that differs from a stored non-NULL digest is a
     different image, hence a different build identity (D8): the call refuses
-    with ``ValueError`` before writing anything unless ``allow_reidentify=True``.
+    with ``ValueError`` before writing anything to the row unless
+    ``allow_reidentify=True`` (the store's own per-connect family backfill in
+    ``ensure_binary_columns`` may already have run; it touches no identity column).
     A stored digest that is wrong for the raw image is repaired by the
     ``content_sha256`` backfill pass, not through here.
 

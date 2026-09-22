@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import os
+import sys
 from pathlib import Path
 
 from . import corpus_env
@@ -188,3 +189,33 @@ def open_local_program(ref: str):
             project.close(program)
     finally:
         project.close()
+
+
+def jvm_started() -> bool:
+    """True when this process booted the analyzer's JVM (by any path)."""
+    if _STARTED:
+        return True
+    mod = sys.modules.get("pyghidra")
+    try:
+        return bool(mod is not None and mod.started())
+    except Exception:
+        return False
+
+
+def exit_after_jvm(rc: int) -> None:
+    """Flush both streams and hard-exit when the JVM is up.
+
+    Non-daemon Java threads keep a Python process alive after ``main``
+    returns, so a verb that booted the analyzer never exits on its own and
+    its buffered summary is lost when the caller's deadline kills it
+    (attestation finding, register H14). ``os._exit`` after an explicit
+    flush is the documented remedy; a process without a JVM returns
+    normally so ``atexit`` handlers still run there.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.flush()
+        except Exception:
+            pass
+    if jvm_started():
+        os._exit(int(rc))

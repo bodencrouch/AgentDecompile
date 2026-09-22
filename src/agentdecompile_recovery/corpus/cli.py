@@ -1345,4 +1345,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    from .ghidra_env import exit_after_jvm
+
+    _rc = main()
+    exit_after_jvm(_rc)
+    sys.exit(_rc)

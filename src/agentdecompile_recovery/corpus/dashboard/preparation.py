@@ -2196,6 +2196,19 @@ def control(params: dict[str, Any]) -> dict[str, Any]:
         temporary.write_text(json.dumps(command))
         temporary.replace(path)
         _ADMISSION_WAKE.set()
+    if operation in {'pause', 'resume'}:
+        # H5: the one admission-scoped control also reaches the job store, so a
+        # running verb is settled by its declaration (drain, signal, flag) and
+        # the scope stops or resumes admitting. The scope is this store; the
+        # summary travels on the row so the surfaces can show what drained.
+        from .actions import jobs as _jobs
+
+        scope = str(live_db())
+        settled = _jobs.pause_scope(scope) if operation == 'pause' else _jobs.resume_scope(scope)
+        with _LOCK:
+            row = _read(run_id)
+            row['admissionControl'] = {'operation': operation, 'scope': scope, **{k: v for k, v in settled.items() if k != 'scope'}}
+            _write(row)
     # Pause takes effect between stages. An accepted native operation is allowed
     # to drain; releasing its project lock early would risk duplicated mutations.
     may_resume = operation == 'resume' or (operation == 'budget' and row['status'] == 'budget-stop' and command.get('operation') not in {'pause', 'stop'})

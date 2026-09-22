@@ -75,8 +75,9 @@ Hindsight is expected, not a failure: the plan is rewritten as often as building
   decision-oriented; the Revision log keeps the audit history.
 - Unit bullets carry status marks in place (✔ landed `<commit>`, ⏳ in flight, ⛔ blocked
   `<reason>`); "what exists today" sentences are rewritten to "landed at …" when they land.
-- **STRATEGY.md** is the program-level authority and is maintained once building has changed
-  the pipeline's policy: the cross-build substrate as a stage-parallel lane, the Autonomy rule,
+- **STRATEGY.md** is the program-level authority. It is **not edited while the plan, design and
+  diagram are still converging** (user directive 2026-09-21); it is rewritten from them once
+  they converge and building has changed the pipeline's policy: the cross-build substrate as a stage-parallel lane, the Autonomy rule,
   the determinism basis, the closed status set, the surfaces rule (no Start; one admission-
   scoped pause/resume). Each such change is one STRATEGY commit citing the plan unit that
   caused it; STRATEGY never contradicts the plan and the plan never restates STRATEGY.

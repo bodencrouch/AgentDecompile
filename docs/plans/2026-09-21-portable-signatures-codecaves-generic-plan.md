@@ -44,6 +44,31 @@ project name appears anywhere in this design; targets are described only by clas
   U28x attest verb, U104 verb admission flags (H5), U21a/U21b scrub, U19a. Receipt keys for backfill passes
   with `needs_raw_image=False` must not read the raw image (perf; from the 3b report).
 
+
+## Program thesis (recorded 2026-09-21 from the user's own words; migrates to STRATEGY.md at convergence)
+
+1. **Deterministic, model-free.** The pipeline gives what conventional RE tools give — and far more
+   usable — through a deterministic workflow that needs no AI to run; a model may accelerate a
+   bounded leftover, never be the mechanism. "Throw a subscription at it" leaves no reusable
+   workflow and does not survive a cost bubble; this must.
+2. **Compute scales in three steps.** A potato laptop can run it; concurrency everywhere comes next;
+   then compute that is not ours — idle-resource donation in the folding-at-home spirit **and** the
+   free cloud infrastructure already waiting to be used, so the operator never depends on
+   volunteers. The distributed layer is a **modular, reusable package** for other CPU/IO-heavy
+   work, not a feature of this pipeline.
+3. **Miniature, non-blocking work.** Nothing runs long and independently until a large amount of
+   work is done; every step is small enough to hand to another node, checkpoints asynchronously,
+   and resumes elsewhere. Large jobs are decomposed, never awaited.
+4. **State is never a single stateful device.** A single SQLite file, a spinning disk, and the
+   load-balancer workarounds built around them are the permanent bottleneck the industry keeps
+   designing around. Storage mediums are archives; working state is concurrently updatable and
+   network-capable (content-addressed, log-structured, or a multi-node store); a local database is
+   at most a materialized view. I/O bottlenecks are a defect class, not a fact of life.
+5. **Small projects, reclaimed.** The program is broken into smaller projects whose results are
+   reclaimed into the whole; each is usable alone and none may opt the whole into a bottleneck.
+
+Every unit, design choice, foundations-audit verdict and diagram card is judged against these five.
+
 ## The governing principle
 
 Conventional RE tools hand a human *analysis data* — a decompiler listing, a call graph,

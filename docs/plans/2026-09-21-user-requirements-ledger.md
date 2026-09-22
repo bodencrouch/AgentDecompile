@@ -23,6 +23,13 @@ the supersession is stated.
   **usable exports ready to go** for every workflow — not a database to query. (This
   session, 2026-09-21; Codex/Discord origin 2026-02 → 2026-06: "one tool … suggests the
   next flow to keep the agent going"; "one-shot decompile … any program.")
+- **Program thesis (2026-09-21, user's Discord conversation, recorded in STRATEGY.md):**
+  deterministic and model-free; compute scales laptop → concurrency → donated idle compute
+  and free cloud nodes (no dependence on volunteers); a reusable distributed-compute package
+  usable for other CPU/IO-heavy work; miniature non-blocking tasks only; state never a single
+  stateful device (a single SQLite file or a spinning disk is a permanent bottleneck; working
+  state is concurrent and network-capable; a local DB is a materialized view); small
+  projects reclaimed into the whole.
 - **Charter (prior, standing):** work with compiled binary data as context an agent
   understands almost as seamlessly as source; no hardcoded gates or privileged funnels;
   everything authoritative to the assembly and the bytes; partial implementations always
@@ -179,6 +186,8 @@ the supersession is stated.
 | functions-only cross-matching | every entity kind |
 | "coverage recorded, universality never asserted" | exhaustive ladders; residue is what remains after every strategy |
 | operational guards protecting live recovery | lifted; rigor retained |
+| a single SQLite store as the corpus's coordination point | working state concurrent and network-capable; SQLite a materialized view (thesis 4) |
+| distributed compute as a late optional feature | a reusable package with donated idle compute and free cloud nodes; miniature non-blocking tasks (thesis 2–3) |
 | "one start/pause/resume control" | no Start button: analysis starts by itself on open / add / resume; the one control is pause/resume + scope |
 | review as a gate before propagation or export | review is an override applied afterwards; ambiguous/contested entities export with evidence and refuse at use time (Autonomy rule) |
 

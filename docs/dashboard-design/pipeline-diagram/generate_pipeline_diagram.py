@@ -130,6 +130,7 @@ lines(2712, 64, ["1. Follow the top row left→right: that is the order things m
                   "2. Everything inside the bracket runs at the same time as that row — the only waits are the five locks.",
                   "3. When a lookup fails, read down its ladder; the bottom band is what you actually get."], 11.5, INK, 16)
 text(40, 108, "The bar: a level above conventional RE tools. They end at analysis a human must work with; this ends at usable exports — "
+text(40, 128, "Runs on a laptop; scales by concurrency, then by donated idle compute and free cloud nodes; every task miniature and non-blocking; working state concurrent and network-capable — a single stateful device is never the coordination point.", 12.5, MUTED, italic=True)
               "packs, generated bindings, headers, readiness reports — ready to go.", 14, FAM["unify"][1], italic=True)
 
 out.append('<!--SEC:Row 0 - intake and the 8-stage ladder-->')

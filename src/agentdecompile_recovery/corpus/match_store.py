@@ -607,11 +607,24 @@ def match_binaries(
         # a callgraph match actually needs a token.
         return dependency_token(sa.meta.get("content_sha256"), addr, slug=sa.slug)
 
-    for src, result in results.items():
-        if result.get("kind") == "callgraph":
-            direct = [src_token(int(parent)) for parent in (result.get("evidence", {}).get("dependencies") or ())]
+    def tokenise_callgraph_results() -> None:
+        """Rewrite fresh callgraph results' raw parent addrs into tokens.
+
+        ``record_pairs`` stores the parents ``propagate_call_graph`` found as
+        plain addresses; every result that reaches ``match.evidence`` must
+        carry tokens instead, or the identity gate's intersection with the
+        quarantine set (also tokens) is empty and a quarantined ancestor
+        binds its descendants. Called once after every propagation site;
+        ``results`` keeps insertion order, so a parent matched by an earlier
+        propagation is tokenised before its child reads the ancestry.
+        """
+        for src, result in results.items():
+            if result.get("kind") != "callgraph" or src in dependency_ancestry:
+                continue
+            raw_direct = list(result.get("evidence", {}).get("dependencies") or ())
+            direct = [src_token(int(parent)) for parent in raw_direct]
             ancestry = set(direct)
-            for parent in (result.get("evidence", {}).get("dependencies") or ()):
+            for parent in raw_direct:
                 ancestry.update(dependency_ancestry.get(int(parent), ()))
             dependency_ancestry[src] = ancestry
             result["evidence"] = enrich_evidence(
@@ -619,6 +632,8 @@ def match_binaries(
                 dependencies=direct, stage="callgraph",
             )
             result["evidence"]["dependency_ancestry"] = sorted(ancestry)
+
+    tokenise_callgraph_results()
     # CFG MD-index plus mnemonic SPP is a cheap, exact leftover stage.  It
     # precedes BSim and weighted/decompiler residue scoring so fuzzy evidence
     # cannot consume a candidate that has a unique structural correspondence.
@@ -678,6 +693,9 @@ def match_binaries(
             ), id_field="addr", left_lookup=sa.funcs, right_lookup=sb.funcs,
             round_label="bsim-callgraph", pair_class=pair_class,
         )
+        # Not left to the residue loop below: it only converts when a round
+        # grows the mapping, and a pair with no residue would persist raw addrs.
+        tokenise_callgraph_results()
         if propagated:
             mapping.update({src: int(item["dst"]) for src, item in results.items()
                             if item.get("kind") == "callgraph"
@@ -821,19 +839,7 @@ def match_binaries(
                 round_label=rnd,
                 pair_class=pair_class,
             )
-            for src, result in results.items():
-                if result.get("kind") == "callgraph" and src not in dependency_ancestry:
-                    raw_direct = list(result.get("evidence", {}).get("dependencies") or ())
-                    direct = [src_token(int(parent)) for parent in raw_direct]
-                    ancestry = set(direct)
-                    for parent in raw_direct:
-                        ancestry.update(dependency_ancestry.get(int(parent), ()))
-                    dependency_ancestry[src] = ancestry
-                    result["evidence"] = enrich_evidence(
-                        result["evidence"], kind="callgraph", status="auto",
-                        dependencies=direct, stage="callgraph",
-                    )
-                    result["evidence"]["dependency_ancestry"] = sorted(ancestry)
+            tokenise_callgraph_results()
             taken = set(mapping.values())
             new += grown
         if new == 0:
@@ -862,6 +868,9 @@ def match_binaries(
             id_field="addr", left_lookup=sa.funcs, right_lookup=sb.funcs,
             round_label="bsim-callgraph", pair_class=pair_class,
         )
+        # The post-BSim site persisted raw parent addrs: no conversion ran
+        # after it, so its rows could never intersect the quarantine set.
+        tokenise_callgraph_results()
         if grown:
             bsim_receipt["propagated"] = grown
             mapping.update({src: int(item["dst"]) for src, item in results.items()

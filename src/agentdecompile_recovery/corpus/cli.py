@@ -13,6 +13,7 @@ from .archive import check_extraction, list_archive, summarize_entries
 from .contract import STAGE_ALIASES, stages_catalog, resolve_stage
 from .pipeline import run_corpus_pipeline, write_calibrate_global_receipt
 from .registry import add_binary, load_corpus, new_corpus, save_corpus
+from .verb_admission import VerbAdmission, declare
 
 
 def _hashed(slug: object) -> str:
@@ -145,12 +146,31 @@ def build_parser() -> argparse.ArgumentParser:
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
+    def _declare(target: argparse.ArgumentParser, admission: VerbAdmission) -> None:
+        """Declare a verb's admission on its parser and in the shared registry.
+
+        The catalogue reads ``admission`` off the parser (aliases share the
+        object); the registry serves ``admission_for``.  The three legacy
+        attributes stay populated from the declaration.
+        """
+        verb = target.prog.rsplit(" ", 1)[-1]
+        aliases = [name for name, other in sub._name_parser_map.items() if other is target and name != verb]
+        target.admission = declare(verb, admission, *aliases)
+        target.mutating = admission.mutating
+        target.long_running = admission.long_running
+        target.identity_scope = admission.identity_scope
+
     init = sub.add_parser("init", help="Create an empty corpus file")
     init.danger = init.mutating = True
     init.add_argument("--id", required=True, dest="corpus_id")
     init.add_argument("--out", type=Path, required=True)
 
     add = sub.add_parser("add-binary", help="Register another binary in the corpus")
+    _declare(add, VerbAdmission(
+        mutating=True, long_running=False, identity_scope="", read_only=False,
+        snapshot="none", output_scope="none", drains_on_pause=True, boots_analyzer=False,
+        lane="corpus", budget_class="micro", cancel="never",
+    ))
     add.add_argument("--corpus", type=Path, required=True)
     add.add_argument("--id", required=True, dest="binary_id")
     add.add_argument("--path", required=True)
@@ -168,8 +188,12 @@ def build_parser() -> argparse.ArgumentParser:
         "remove-binary",
         help="Delete one binary and its per-binary rows from a store",
     )
-    rmbin.danger = rmbin.mutating = True
-    rmbin.identity_scope = "database"
+    rmbin.danger = True
+    _declare(rmbin, VerbAdmission(
+        mutating=True, long_running=False, identity_scope="database", read_only=False,
+        snapshot="none", output_scope="none", drains_on_pause=True, boots_analyzer=False,
+        lane="corpus", budget_class="small", cancel="never",
+    ))
     rmbin.add_argument("--db", type=Path, required=True)
     rmbin.add_argument("--repo", dest="repo_path")
     rmbin.add_argument("--slug")
@@ -222,6 +246,11 @@ def build_parser() -> argparse.ArgumentParser:
     check_extraction.add_argument("--json", action="store_true", dest="output_json")
 
     init_store = sub.add_parser("init-store", help="Create an empty identity SQLite store")
+    _declare(init_store, VerbAdmission(
+        mutating=True, long_running=False, identity_scope="database", read_only=False,
+        snapshot="none", output_scope="none", drains_on_pause=True, boots_analyzer=False,
+        lane="corpus", budget_class="micro", cancel="never",
+    ))
     init_store.add_argument("--db", type=Path, required=True)
 
     write_snap = sub.add_parser("write-snapshot", help="Write {id}.functions.json from a JSON array")
@@ -255,6 +284,12 @@ def build_parser() -> argparse.ArgumentParser:
         aliases=["export-hook-pack"],
         help="Write a Phasor-shaped hook pack from logical identities (VA is a cache)",
     )
+    # Writes only the output tree, never the store: no identity scope.
+    _declare(hookpack, VerbAdmission(
+        mutating=False, long_running=False, identity_scope="", read_only=False,
+        snapshot="none", output_scope="output-tree", drains_on_pause=True, boots_analyzer=False,
+        lane="general", budget_class="small", cancel="sigterm",
+    ))
     hookpack.add_argument("--db", type=Path, required=True)
     hookpack.add_argument("--out", type=Path, required=True)
 
@@ -262,12 +297,22 @@ def build_parser() -> argparse.ArgumentParser:
         "verify-determinism",
         help="Export the hook pack from two temp copies of a store and byte-diff the results",
     )
+    _declare(verify_det, VerbAdmission(
+        mutating=False, long_running=True, identity_scope="", read_only=True,
+        snapshot="temp-copy", output_scope="none", drains_on_pause=False, boots_analyzer=False,
+        lane="general", budget_class="medium", cancel="sigterm",
+    ))
     verify_det.add_argument("--db", type=Path, required=True)
 
     rebaseline = sub.add_parser(
         "rebaseline",
         help="Record a package-basis change as a supersession and re-stamp every binary row",
     )
+    _declare(rebaseline, VerbAdmission(
+        mutating=True, long_running=False, identity_scope="database", read_only=False,
+        snapshot="none", output_scope="receipts-dir", drains_on_pause=True, boots_analyzer=False,
+        lane="corpus", budget_class="small", cancel="never",
+    ))
     rebaseline.add_argument("--db", type=Path, required=True)
     rebaseline.add_argument(
         "--receipts", type=Path, required=True,
@@ -292,6 +337,11 @@ def build_parser() -> argparse.ArgumentParser:
         "backfill",
         help="Re-derive binary columns from raw images; one receipt per (pass, binary) makes it resumable",
     )
+    _declare(backfill, VerbAdmission(
+        mutating=True, long_running=True, identity_scope="database", read_only=False,
+        snapshot="none", output_scope="receipts-dir", drains_on_pause=True, boots_analyzer=False,
+        lane="corpus", budget_class="large", cancel="sigterm",
+    ))
     backfill.add_argument("--db", type=Path, required=True)
     backfill.add_argument("--pass", dest="passes", action="append", required=True, metavar="NAME")
     backfill.add_argument("--receipts", type=Path, required=True)
@@ -301,6 +351,11 @@ def build_parser() -> argparse.ArgumentParser:
         "admit",
         help="Admit analyzed builds to the content-hash key. Placeholders are quarantined. Duplicates are merged.",
     )
+    _declare(admit, VerbAdmission(
+        mutating=True, long_running=True, identity_scope="database", read_only=False,
+        snapshot="none", output_scope="receipts-dir", drains_on_pause=True, boots_analyzer=True,
+        lane="admission", budget_class="large", cancel="sigterm",
+    ))
     admit.add_argument("--db", type=Path, required=True, help="The corpus store.")
     admit.add_argument("--receipts", type=Path, required=True, help="Directory for one receipt per build.")
     admit.add_argument(
@@ -332,7 +387,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     match_pair = sub.add_parser("match-pair", help="Run the store matcher on one directed pair")
-    match_pair.identity_scope = "pair"
+    _declare(match_pair, VerbAdmission(
+        mutating=True, long_running=True, identity_scope="pair", read_only=False,
+        snapshot="none", output_scope="none", drains_on_pause=True, boots_analyzer=False,
+        lane="match", budget_class="medium", cancel="sigterm",
+    ))
     match_pair.add_argument("--db", type=Path, required=True)
     match_pair.add_argument("--src", required=True)
     match_pair.add_argument("--dst", required=True)
@@ -341,7 +400,11 @@ def build_parser() -> argparse.ArgumentParser:
     match_pair.add_argument("--progress-json", action="store_true", help="Emit matcher progress JSONL while scoring")
 
     logical_build = sub.add_parser("logical-build", help="Rebuild name-first logical identities")
-    logical_build.identity_scope = "database"
+    _declare(logical_build, VerbAdmission(
+        mutating=True, long_running=True, identity_scope="database", read_only=False,
+        snapshot="none", output_scope="none", drains_on_pause=True, boots_analyzer=False,
+        lane="corpus", budget_class="large", cancel="sigterm",
+    ))
     logical_build.add_argument("--db", type=Path, required=True)
 
     attest = sub.add_parser(
@@ -353,7 +416,11 @@ def build_parser() -> argparse.ArgumentParser:
             "Exit 0 when nothing changed, 3 when a receipt changed, 4 when a verb hung, failed or refused."
         ),
     )
-    attest.long_running = True
+    _declare(attest, VerbAdmission(
+        mutating=False, long_running=True, identity_scope="", read_only=True,
+        snapshot="private-snapshot", output_scope="receipts-dir", drains_on_pause=False, boots_analyzer=False,
+        lane="attest", budget_class="unbounded", cancel="sigterm",
+    ))
     attest.add_argument("--db", type=Path, required=True, help="Store to attest. It is copied, never opened for writing.")
     attest.add_argument("--receipts", type=Path, required=True, help="Receipts directory outside the repo. One subdirectory per run.")
     attest.add_argument("--workdir", type=Path, default=None, help="Where the copy and verb outputs live. Default: a temp dir, removed afterwards.")
@@ -374,6 +441,11 @@ def build_parser() -> argparse.ArgumentParser:
         "data-packs",
         help="List the L3 data packs under the declared root and their content hashes",
     )
+    _declare(data_packs, VerbAdmission(
+        mutating=False, long_running=False, identity_scope="", read_only=True,
+        snapshot="none", output_scope="none", drains_on_pause=False, boots_analyzer=False,
+        lane="general", budget_class="micro", cancel="sigterm",
+    ))
     data_packs.add_argument(
         "--root", type=Path, default=None,
         help="Pack root directory. Default: AGENT_DECOMPILE_DATA_PACKS_ROOT or the config directory's data_packs.json.",
@@ -395,8 +467,12 @@ def build_parser() -> argparse.ArgumentParser:
     calg.add_argument("--compiler-profile", type=Path)
 
     merge_parts = sub.add_parser("merge-parts", help="Merge per-program part databases into one store")
-    merge_parts.danger = merge_parts.mutating = True
-    merge_parts.identity_scope = "database"
+    merge_parts.danger = True
+    _declare(merge_parts, VerbAdmission(
+        mutating=True, long_running=True, identity_scope="database", read_only=False,
+        snapshot="none", output_scope="none", drains_on_pause=True, boots_analyzer=False,
+        lane="corpus", budget_class="large", cancel="sigterm",
+    ))
     merge_parts.add_argument("--parts-dir", type=Path, required=True)
     merge_parts.add_argument("--db", type=Path, required=True)
 

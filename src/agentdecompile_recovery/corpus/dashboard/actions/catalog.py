@@ -22,6 +22,7 @@ from agentdecompile_recovery.corpus.dashboard.common import (
     runtime_project_root,
     runtime_work_dir,
 )
+from agentdecompile_recovery.corpus.verb_admission import VerbAdmission, from_legacy
 
 PROGRAM_KEYS = frozenset({"programPath", "program", "binary", "path", "repo"})
 ADDR_KEYS = frozenset({
@@ -94,10 +95,29 @@ class ActionSpec:
     long_running: bool = False
     identity_scope: str = ""
     ghidra_exclusive: bool = False
+    # The verb's full admission declaration when it made one.  The three
+    # legacy fields above are populated from it so nothing downstream breaks.
+    admission: VerbAdmission | None = None
+
+    @property
+    def effective_admission(self) -> VerbAdmission:
+        """The declaration, or the conservative default for an undeclared row.
+
+        H5: the loop reads this, never the bare legacy fields, so a row that
+        declared nothing is drained on pause rather than skipped.
+        """
+        if self.admission is not None:
+            return self.admission
+        return from_legacy(
+            mutating=self.mutating,
+            long_running=self.long_running,
+            identity_scope=self.identity_scope,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["fields"] = [field.to_dict() for field in self.fields]
+        payload["admission"] = self.effective_admission.to_dict()
         return payload
 
 

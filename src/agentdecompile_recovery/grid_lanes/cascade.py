@@ -46,9 +46,11 @@ from agentdecompile_grid.view.applier import ensure_tables, view_hook
 
 from ._common import (
     PlannableKind,
+    ResolvedBasis,
     check_kind,
     get_json,
     hashed_slug,
+    lane_spec,
     make_result,
     put_json,
     require_input,
@@ -219,7 +221,7 @@ def _with_decomp(side: Any, addr: int) -> dict[str, Any]:
 def plan_match_shards(
     objects: ObjectStore,
     snapshot: str | Path,
-    basis_hash: str,
+    basis: ResolvedBasis,
     shard_size: int,
     *,
     src: str,
@@ -233,7 +235,9 @@ def plan_match_shards(
 
     Loads both sides with ``match_store.Binary`` (read-only), computes ``candidate_pairs`` per
     eligible source address against *mapping*, and puts one shard object per ``shard_size``
-    sources plus one mapping object shared by every shard of the round.
+    sources plus one mapping object shared by every shard of the round.  *basis* is the
+    ``ResolvedBasis`` the splitter read from the snapshot: every shard spec is built through
+    ``lane_spec`` so it carries the kind's ``cascade`` projection (U158c).
     """
     from ..corpus.match_store import Binary, candidate_pairs
 
@@ -288,11 +292,9 @@ def plan_match_shards(
             "pairs": pairs,
         }
         shard_ref = put_json(objects, shard)
-        specs.append(TaskSpec(
-            kind=MatchScoreShard.name, kind_version=MatchScoreShard.version,
-            inputs={"shard": shard_ref, "mapping": mapping_ref},
-            params={"round": int(round_index), "index": index, "src": src_hash, "dst": dst_hash},
-            basis_hash=basis_hash, capabilities=tuple(MatchScoreShard.capabilities),
+        specs.append(lane_spec(
+            MatchScoreShard, {"shard": shard_ref, "mapping": mapping_ref},
+            {"round": int(round_index), "index": index, "src": src_hash, "dst": dst_hash}, basis,
             budget=BudgetClass.MICRO if len(pairs) <= MICRO_MAX_SOURCES else BudgetClass.SMALL,
         ))
         index += 1

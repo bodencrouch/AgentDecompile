@@ -76,6 +76,7 @@ agentdecompile-recover = "agentdecompile_recovery.cli:main"
 agentdecompile-reconstruct = "agentdecompile_recovery.frontdoor:main"
 agentdecompile-corpus = "agentdecompile_recovery.corpus.cli:main"
 agentdecompile-acquisition-query = "agentdecompile_recovery.acquisition_mcp:main"
+adgrid = "agentdecompile_grid.cli:main"
 # MCP stdio entrypoint.
 agentdecompile-mcp    = "agentdecompile_cli.__main__:main"
 mcp_agentdecompile    = "agentdecompile_cli.__main__:main"
@@ -120,7 +121,7 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["agentdecompile_cli*", "agentdecompile_recovery*"]
+include = ["agentdecompile_cli*", "agentdecompile_recovery*", "agentdecompile_grid*"]
 exclude = ["*.frontend", "*.frontend.*"]
 
 [tool.setuptools.package-data]

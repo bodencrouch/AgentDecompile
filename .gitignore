@@ -342,6 +342,8 @@ vendor/*
 !vendor/ghidra
 volumes/
 agentdecompile*/
+!src/agentdecompile_grid/
+!src/agentdecompile_grid/**
 !src/agentdecompile_cli/
 !src/agentdecompile_cli/**
 !src/agentdecompile_recovery/

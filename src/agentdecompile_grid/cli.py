@@ -322,8 +322,6 @@ def _canary_plan(args: argparse.Namespace) -> tuple[dict[str, Any] | None, list[
         for name in ("toolchain", "toolchain-slots"):
             if name not in only:
                 only.append(name)
-        if "toolchain" not in lanes:
-            lanes.append("toolchain")
     return pool, only, lanes
 
 

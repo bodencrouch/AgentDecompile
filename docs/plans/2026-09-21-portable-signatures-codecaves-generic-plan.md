@@ -36,25 +36,32 @@ project name appears anywhere in this design; targets are described only by clas
 (format × architecture × toolchain × engine-adapter).**
 
 
-### Delta Update (2026-09-22, audit 4 — round 5 on the distributed design; grid skeleton landed)
-- **Landed:** the Phase 15 grid skeleton by parallel builders — U120 `d8447f6`, U121 `b147f99` (`7cc0b63`,
-  `c575411`), U122 `95e8428` (`515fd47`), U123 `eecfcaf`/`85784cc`, U124 `8eb5202`/`a4e4aca`; hotfixes
-  A1/A2/A3/A5 `a501e9d` (`fc638c4`, `be7ff81`, `79c2420`); R3 `40d50ce` (`6d95a40`); D8/D9 + harness (o)
-  `24b3050`/`a4095ba` (observed on the branch; the previous delta had them in flight). Docs: the distributed
-  design amended (round 5 A2/A3/A5/A6; licensing reasoning removed; §7.5/§8 restated for the walking
-  skeleton), Phase 15 in this plan, the register's "Distributed compute" section, Lane E on the diagram.
-  Earlier waves: Step 0 `0256ca0`; Phase 0 D1–D7 + U5c; U7/U7b `f935db7`; U22 `f5f6a88`; U1–U3 + U1b
-  `b271ba6`; U21c `0191303`; 3b `5bf8a11`.
-- **Partial:** U124 landed while the audit-4 brief still listed it in flight — its report is reconciled
-  against the other slices only in U125 (names, entry-point group, tag vocabulary); round-4 survivors
-  F1–F9/D1–D14 are recorded in the loop journal but not yet applied to the plan; the foundations audit is
-  pending resume; the A2.2 slice-convergence spike and O2 are unmeasured until U131 files receipts; the
-  U5c(b) build-order shuffle is still not in the gate; `src/agentdecompile_cli/_version.py` carries an
-  uncommitted local change of unknown origin (leave it to its owner).
-- **Next:** U125 integrator (one "grid of one" cycle: publish → work → verify → materialize), A4
-  real-corpus admission, U28x attest verb, 3d U25 re-baseline verb, R1 (repo off the USB drive), U104
-  admission flags (H5), U21a/U21b scrub, U19a; then the grid adapters in Phase 15 order (U158, U126,
-  U159–U162, U132, U163–U165 first) interleaved with the remaining phases.
+### Delta Update (2026-09-22, iteration after audit 4 — U125 and U25 landed; canon on the fast disk)
+- **Landed:** U125 integrator `86b9d6d`/`fe9d563` (twelve seams reconciled; the grid-of-one cycle
+  publish → work → verify → materialize ran end to end and is recorded in
+  `2026-09-21-grid-of-one-walkthrough.md`); 3d U25 `corpus rebaseline` + A3 `ALGORITHM_VERSION` bump
+  `2dbd467`/`ca7fdb6` (migration 3 `basis_supersession`; `RestampOnly`/`JsonSitesDiffer`/`LedgerResolver`
+  working, `RecomputeDivergence`/`BinaryPackDiffer`/`PackResolver` named slots); audit-4 docs `708683e`;
+  R1 in effect — the canonical checkout is now the fast-disk clone (`~/agentdecompile-nvme/AgentDecompile`,
+  remotes `codeberg`, `gitlab`, `usb`); the USB copy is a synced mirror. Earlier: grid skeleton U120–U124
+  (`d8447f6` … `a4e4aca`), hotfixes A1/A2/A3/A5 `a501e9d`, R3 `40d50ce`, D8/D9 + harness (o)
+  `24b3050`/`a4095ba`, Step 0 `0256ca0`, Phase 0 D1–D7 + U5c, U7/U7b `f935db7`, U22 `f5f6a88`,
+  U1–U3 + U1b `b271ba6`, U21c `0191303`, 3b `5bf8a11`.
+- **Partial:** `corpus rebaseline` on a copy of the real store refuses with "analyzer identity is absent
+  for 60 build(s)" — correct under today's rule, and exactly what A4 admission (in flight,
+  `unit/a4-admission`) removes by scoping `_identity_rows`/`corpus_manifest_hash` to admitted builds;
+  U25's `stored_basis_rows` must take the same scope at integration. An export that refuses *after* a
+  re-stamp committed has no enumerated exit code (U25 chose 0 with the refusal under `run.export`) —
+  a hindsight item for U28's exit-code table. U125 findings for the adapters: two key-id schemes
+  (`log.signing` vs `worker.identity`) need a bridge before offline `Keyring` verification of node-signed
+  records; `results/<task_id>.index` is never written on the live path (no GC root for non-enumerating
+  stores); the toolchain canary still ends `not-configured` (U163). Round-4 survivors F1–F9/D1–D14 and
+  the foundations audit remain pending; the U5c(b) shuffle is not in the gate; `_version.py` local change
+  left to its owner.
+- **Next:** integrate A4 (`corpus admit`), then attest admit → rebaseline → backfill analyzer_identity →
+  verify-determinism → export-hookpack on a copy of the real store; U28x attest verb as a grid task kind
+  (U168); U104 admission flags (H5); U21a/U21b; U19a; then the adapters in Phase 15 order (U158, U126,
+  U159–U162, U132, U163–U165 first).
 
 
 ## Program thesis (recorded 2026-09-21 from the user's own words; migrates to STRATEGY.md at convergence)
@@ -2028,7 +2035,7 @@ ids as the detailed specification; read them through this map:
   `test_three_independent_timeouts_poison`, `test_killed_child_leaves_no_partial_result`,
   `test_never_self_verifies`, `test_byte_emitter_refuted`, `test_two_lineages_asserted`,
   `test_user_data_single_step`, `test_outbox_survives_restart`, `test_idle_only_admission`.
-- **U125. Integrator pass.** Reconcile the names each slice assumed against what landed:
+- **U125. Integrator pass ✔ (`86b9d6d`, `fe9d563`; walkthrough `docs/plans/2026-09-21-grid-of-one-walkthrough.md`).** Reconcile the names each slice assumed against what landed:
   `objects.open_store`; `tasks.registry.execute`/`stamp`; `tasks.results.*` and
   `results/<task_id>.index`; `PythonCanary` registration in `core.CANARIES`;
   `log.frontier.derive` as used by `publish`; the VERIFIED body = `Verification` field names;
@@ -2238,7 +2245,7 @@ pretend otherwise.
    - **3b. Basis hardening** — the normative basis object (Determinism section) and
      migration 2 (`basis_hash`, `decoder_revision`, `analyzer_version`) **✔** (`5bf8a11`);
      D8, D9 and harness (o) ⏳ (`unit/d8d9-harness`); harness (p) waits for U30's `stable_key`.
-   - **3d. U25 re-baseline verb** — load-bearing since 3b: any package-constant change or a
+   - **3d. U25 re-baseline verb ✔ (`2dbd467`, `ca7fdb6`)** — `corpus rebaseline` records the supersession in `basis_supersession` (migration 3) and re-stamps in one transaction; divergence re-evaluation stays the U14 slot `RecomputeDivergence`; `ALGORITHM_VERSION` is now `phase0.3+key:content_sha256+dep:content_sha256_16` (A3). Attested on a copy of the real store: refuses (exit 2, hashed identities) until A4 admission scopes identity rows to admitted builds — the 60 placeholders block it today. Load-bearing since 3b: any package-constant change or a
      `PENDING_FIELDS` removal makes every stamped store refuse with "re-baseline", and the
      backfill fills NULLs only, so the verb that re-stamps under a recorded supersession must
      exist before the first such change (hindsight, charter §4).

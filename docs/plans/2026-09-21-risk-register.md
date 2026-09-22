@@ -16,7 +16,7 @@ it, or records why it is accepted. Rows are removed only when the mitigation is 
 
 | # | Risk | Class | Evidence | Mitigation | Owner / when |
 |---|---|---|---|---|---|
-| R1 | Canonical repo and its object store live on a rotational USB drive at 93 % full; every git op, test and agent read goes through it (worktree creation > 5 min; routine commands hit the 120 s timeout). | bottleneck / SPOF | session timings 2026-09-21 | Full clone on the fast disk as the working canon; the USB copy becomes a synced remote; the existing off-machine remote is the backup. Do it between worker waves so no worktree is orphaned. | orchestrator, after the current three units land |
+| R1 | Canonical repo and its object store live on a rotational USB drive at 93 % full; every git op, test and agent read goes through it (worktree creation > 5 min; routine commands hit the 120 s timeout). | bottleneck / SPOF | session timings 2026-09-21 | Full clone on the fast disk as the working canon; the USB copy becomes a synced remote; the existing off-machine remote is the backup. Do it between worker waves so no worktree is orphaned. | ✔ in effect 2026-09-22: canonical checkout is the fast-disk clone (`~/agentdecompile-nvme/AgentDecompile`; remotes `codeberg`, `gitlab`, `usb`); unit worktrees are created from it; the USB copy is fast-forwarded as a mirror |
 | R2 | Fast disk at 97 % (19 GB free): a full disk kills builds, tests and worktrees mid-write. | SPOF | `df` 2026-09-21 | Measure the large consumers; move caches/venvs/fixtures off or prune; alert threshold in the loop's risk grill. Extended by the grid (design R4): the local object store has a size cap and GC of unreferenced objects with a named refusal at the cap; the USB drive is archive-only. | loop, next iteration; U121 ✔ |
 | R3 | `preparation.py` calls `upsert_binary` with no digest; `ON CONFLICT … SET content_sha256 = excluded.content_sha256` **overwrites a backfilled hash with NULL** on the next prepare. The audited plan makes that hash the tie-break key and a cascade precondition. | data loss | U22 worker report; `extract.py` upsert | Unit: `upsert_binary` never clears a non-NULL `content_sha256` with NULL (COALESCE); the backfill is the only writer of a computed digest; test both. | next dispatch wave |
 | R4 | The loop is bound to one session and one orchestrator context; if the session ends the loop stops. | SPOF | `/loop` semantics | All state is durable (branch, plan with ✔ marks, audit files, this register); each iteration writes a resume line under "Resume point" below; restart is `/loop` with the same prompt. | continuous |
@@ -34,7 +34,7 @@ it, or records why it is accepted. Rows are removed only when the mitigation is 
 |---|---|---|---|---|---|
 | A1 | **Attestation 2026-09-21 (real store copy):** D8's `logical.build()` deletes `identity` (291k rows) and `logical_function` (74k) and *then* refuses on NULL hashes — refuse-after-wipe. | data loss | `/tmp/attest/20260921T232925Z/report.md` §2 | Hotfix: run the hash guard before any DELETE; a refusal leaves the store untouched; test on a store with one NULL hash. | hotfix wave now |
 | A2 | On an already-migrated store, `backfill_recovery_family()` (D9) runs its rewrite inside Python's implicit transaction and never commits: `in_transaction=True` after `connect()`, the write lock is held for the verb's whole run (export: 150 s) and the rewrite rolls back on close. | hang / starvation (H1) | attestation §3 | Hotfix: commit the backfill; read-only verbs must never hold the write lock; assert `not con.in_transaction` after `connect()` in tests. | hotfix wave now |
-| A3 | D8 residue: `match.evidence.dependencies[]`/`dependency_ancestry[]` tokens are `f"{src_id}:{addr}"` with a binary **rowid** (`match_store.py:560`); the harness on two real builds is NOT identical. | determinism | attestation §2 | Hotfix: token = `content_sha256[:16]:addr`; harness fixture generator emits dependency tokens so the gate covers it. | hotfix wave now |
+| A3 | D8 residue: `match.evidence.dependencies[]`/`dependency_ancestry[]` tokens are `f"{src_id}:{addr}"` with a binary **rowid** (`match_store.py:560`); the harness on two real builds is NOT identical. | determinism | attestation §2 | Hotfix: token = `content_sha256[:16]:addr`; harness fixture generator emits dependency tokens so the gate covers it. | ✔ hotfix `a501e9d`; `ALGORITHM_VERSION` bumped `2dbd467`; stores stamped under `phase0.2` refuse until `corpus rebaseline` runs |
 | A4 | The real corpus cannot satisfy the content-hash key: 89/90 rows have no `content_sha256`, only 1 raw image is resolvable under any root, 60 rows are placeholder registrations with no analysis, two analyzed rows share one `md5`. Every keyed verb (`export-hookpack`, `verify-determinism`, `logical-build`) refuses on the real store. | blocks-goal on the real corpus | attestation §1, §4 | Unit "real-corpus admission": materialize raw images from the analysis project's stored file bytes (`FileBytes`) as a backfill pass; scope the key requirement to analyzed builds (placeholders excluded from keys and basis, quarantined); merge/alias duplicate registrations with a receipt. Plan amendment to Decision 3 scope. | next wave after hotfix |
 | A5 | `export-hookpack` runs the full 150 s site loop before `basis()` refuses in 1 ms; `content_hash_index`'s `ValueError` and `sqlite3.OperationalError` (lock) surface as tracebacks, not named refusals (H5). | time / hangs | attestation §2, §3 | Hotfix: basis first; both error classes → exit 2 with a named class; lock waits reported as `locked` after the busy timeout. | hotfix wave now |
 | A6 | Refusal messages, backfill stdout, receipt file names and pack `binaries[].slug/game` carry plaintext slugs (product tokens); 55 % of real pack site keys are `__{lid}` ordinals. | validator 4 / key rule | attestation §4 | U21a scope: hashed slugs + counts in messages and receipt names; U30 `stable_key` is not optional (already decided). | U21a, U30 |
@@ -105,14 +105,13 @@ record why it is accepted. New speculative rows are added whenever one is forese
 
 ## Resume point
 
-- Branch `feat/portable-signatures-codecaves-generic` at `a4e4aca`; audit 4 (round 5 on the
-  distributed design, 2026-09-22) applied to the design (A2/A3/A5/A6; licensing reasoning
-  removed; walking-skeleton §7.5/§8), the plan (Phase 15 U120–U170 in build order; Delta
-  Update; Recommended order step 10; U66 projection sentence), the goal (done (8)), this
-  register (H7–H13, R12, R13, T1, T3, T6, P1) and the diagram (Lane E). Landed: Step 0,
-  Phase 0 D1–D7, U5c, U7/U7b, U22, U1–U3/U1b, U21c, 3b, D8/D9 + harness (o), hotfixes
-  A1/A2/A3/A5 (`a501e9d`), R3 (`40d50ce`), grid skeleton U120–U124 (`d8447f6` … `a4e4aca`).
-  Next: U125 integrator (grid of one), A4 admission, 3c U28x attestation, 3d U25, R1 disk
-  move, U104 (H5), U21a/U21b, U19a, then the grid adapters (U158, U126, U159–U165 first)
-  interleaved with U82/U69/U20/U70 and the rest of the Recommended order. Round-4
-  survivors F1–F9/D1–D14 and the foundations audit are still pending application.
+- Canonical checkout: `/home/brunner56/agentdecompile-nvme/AgentDecompile` (fast disk, R1 done), branch
+  `feat/portable-signatures-codecaves-generic`; the USB path is the `usb` mirror. Landed this iteration:
+  U125 (`86b9d6d`, `fe9d563`), 3d U25 + A3 bump (`2dbd467`, `ca7fdb6`), audit-4 docs (`708683e`).
+  In flight: A4 admission (`unit/a4-admission`, worktree `~/agentdecompile-worktrees/unit-a4-admission`).
+  Attestation copies live under `~/agentdecompile-nvme/attest/<ts>/` (never the live store); the
+  latest iteration's receipts are in the directory named by `/tmp/attest/LATEST_ITER`.
+  Next: integrate A4 (scope U25's `stored_basis_rows` to admitted rows at the merge; renumber the
+  migration if both took v3), attest the admit → rebaseline → backfill → verify-determinism →
+  export-hookpack chain, then U28x/U168, U104 (H5), U21a/U21b, U19a, adapters (U158, U126, U159–U165).
+  Round-4 survivors F1–F9/D1–D14 and the foundations audit are still pending application.

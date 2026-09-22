@@ -8,9 +8,11 @@ Two records describe a store's schema state:
   read-only watchers can open the store at once.
 * ``schema_migration`` -- the ledger. One row per applied migration with the
   version, the name, when it was applied, and a hash of the determinism
-  basis at that moment. ``applied_at`` is the only clock-derived value in the
-  store; nothing else may derive from it. ``basis_hash`` is a hook for a
-  later re-baseline step and is NULL when the basis cannot be computed.
+  basis at that moment. ``applied_at`` and ``basis_supersession.recorded_at``
+  are the only clock-derived values in the store; nothing else may derive
+  from them. ``basis_hash`` is NULL when the basis cannot be computed; a
+  re-baseline (``corpus rebaseline``) records its supersession in
+  ``basis_supersession`` rather than rewriting this ledger.
 
 Rules every migration follows:
 
@@ -120,9 +122,51 @@ def _analyzer_identity(con: sqlite3.Connection) -> None:
             con.execute(f"ALTER TABLE binary ADD COLUMN {col} {decl}")
 
 
+SUPERSESSION_TABLE = "basis_supersession"
+#: One row per re-baseline: the old and new package basis (hash, algorithm
+#: version and object), what drove it, how many rows it re-stamped and the
+#: sha256 of the receipt file. ``old_package_basis_json`` is NULL when the
+#: old object could not be reconstructed. ``UNIQUE(old, new)`` makes a
+#: replayed supersession a constraint error, never a second row.
+SUPERSESSION_SQL = f"""CREATE TABLE IF NOT EXISTS {SUPERSESSION_TABLE} (
+    id                     INTEGER PRIMARY KEY,
+    old_basis_hash         TEXT NOT NULL,
+    new_basis_hash         TEXT NOT NULL,
+    old_algorithm_version  TEXT NOT NULL,
+    new_algorithm_version  TEXT NOT NULL,
+    old_package_basis_json TEXT,
+    new_package_basis_json TEXT NOT NULL,
+    analyzer_version       TEXT NOT NULL,
+    reason                 TEXT,
+    binaries_restamped     INTEGER NOT NULL,
+    receipt_sha256         TEXT NOT NULL,
+    recorded_at            TEXT NOT NULL,
+    UNIQUE(old_basis_hash, new_basis_hash)
+)"""
+SUPERSESSION_INDEX_SQL = (
+    f"CREATE INDEX IF NOT EXISTS ix_{SUPERSESSION_TABLE}_new ON {SUPERSESSION_TABLE}(new_basis_hash)"
+)
+
+
+def _basis_supersession(con: sqlite3.Connection) -> None:
+    """Version 3: the ``basis_supersession`` ledger for ``corpus rebaseline``.
+
+    A package-constant change moves every stamped row's ``basis_hash`` and
+    makes the basis refuse. The re-baseline verb records the old and the new
+    basis here and re-stamps the rows in the same transaction, so a store
+    never silently mixes bases. ``recorded_at`` is ISO-8601 UTC, taken from
+    ``SOURCE_DATE_EPOCH`` when set. The index on ``new_basis_hash`` serves
+    the lookup a later supersession makes to name its old basis. Creates
+    nothing else and touches no row.
+    """
+    con.execute(SUPERSESSION_SQL)
+    con.execute(SUPERSESSION_INDEX_SQL)
+
+
 MIGRATIONS: list[Migration] = [
     Migration(1, "baseline", _baseline),
     Migration(2, "analyzer_identity", _analyzer_identity),
+    Migration(3, "basis_supersession", _basis_supersession),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1].version

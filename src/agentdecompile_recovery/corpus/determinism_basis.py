@@ -42,8 +42,23 @@ from pathlib import Path
 #: corpus_manifest_hash) emitted before 3b basis hardening.
 BASIS_VERSION = 2
 
-#: Names the cascade revision and the tie-break key it orders by.
-ALGORITHM_VERSION = "phase0.2+key:content_sha256"
+#: Names the cascade revision, the tie-break key it orders by, and the key
+#: its persisted dependency tokens carry. The ``dep:`` component records the
+#: dependency-token key: ``match.evidence`` tokens are
+#: ``<content_sha256[:16]>:<addr>``, a hash prefix and never a rowid
+#: (``match_store.dependency_token``, A3). Moving this value moves every
+#: stamped store's ``basis_hash`` and makes :func:`basis` refuse with
+#: "re-baseline" until ``corpus rebaseline`` records the supersession.
+ALGORITHM_VERSION = "phase0.3+key:content_sha256+dep:content_sha256_16"
+
+#: Every value ``ALGORITHM_VERSION`` held before the current one, oldest
+#: first. A supersession names the old value from here after the constant
+#: has moved on; ``rebaseline.LedgerResolver`` rebuilds the old package
+#: basis by substituting each entry and matching the stored hash.
+ALGORITHM_VERSION_HISTORY: tuple[str, ...] = (
+    "phase0.1",
+    "phase0.2+key:content_sha256",
+)
 
 #: Present but "none" until U4 lands a masking rule set.
 MASKING_RULE_VERSION = "none"
@@ -338,3 +353,53 @@ def verify_export(db: Path, export) -> dict:
         return {"identical": True, "diff": ""}
     path = first_diff_path(json.loads(outs[0]), json.loads(outs[1]))
     return {"identical": False, "diff": path or "$ (serialization only)"}
+
+
+# --- re-baseline helpers (U25) ----------------------------------------------
+# Appended for ``corpus rebaseline``. Nothing here calls :func:`basis`: that
+# function refuses on the drift a re-baseline exists to repair.
+
+
+def basis_hash_of(package_basis_obj: dict) -> str:
+    """``sha256`` of a package-basis object under the serialization
+    :func:`basis_hash_for` uses, so ``basis_hash_of(package_basis(v)) ==
+    basis_hash_for(v)`` and a stored ``new_package_basis_json`` re-hashes to
+    its row's ``new_basis_hash``."""
+    payload = json.dumps(package_basis_obj, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def package_basis_with_algorithm(analyzer_version: str | None, algorithm_version: str) -> dict:
+    """The current package basis with ``algorithm_version`` substituted.
+
+    Used to reconstruct the basis a stale hash was computed under: when only
+    ``ALGORITHM_VERSION`` moved, one entry of :data:`ALGORITHM_VERSION_HISTORY`
+    substituted here hashes to the stored value. Raises :class:`BasisError`
+    like :func:`package_basis` when a field is absent.
+    """
+    obj = package_basis(analyzer_version)
+    obj["algorithm_version"] = str(algorithm_version)
+    return obj
+
+
+def algorithm_versions() -> tuple[str, ...]:
+    """Every ``ALGORITHM_VERSION`` value in order, the current one last."""
+    return ALGORITHM_VERSION_HISTORY + (ALGORITHM_VERSION,)
+
+
+def stored_basis_rows(con) -> list[dict]:
+    """Raw per-row basis identity, in the store's canonical row order.
+
+    Reads ``slug``, ``content_sha256``, ``analyzer_version``, ``basis_hash``
+    and ``basis_source`` from every ``binary`` row, ordered by
+    ``content_sha256``, then ``repo_path``, then ``slug`` (never rowid).
+    Unlike :func:`basis` this never refuses: a re-baseline must see the
+    drifted rows to repair them. Callers name a row by its
+    ``content_sha256`` or by ``sha256(slug)``, never by the slug.
+    """
+    cur = con.execute(
+        "SELECT slug, content_sha256, analyzer_version, basis_hash, basis_source FROM binary"
+        " ORDER BY content_sha256, repo_path, slug"
+    )
+    names = [d[0] for d in cur.description]
+    return [dict(zip(names, r)) for r in cur.fetchall()]

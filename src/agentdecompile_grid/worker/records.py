@@ -22,6 +22,15 @@ Readers here use only ``LogStore.read``; nothing enumerates the object store.  `
 assumes a ``TASK`` body equals ``TaskSpec.to_record()`` (the publish side's contract; flagged
 for the objects/tasks slice).
 
+**Who said it is the signer, not the body.**  A RESULT whose ``producer_key`` differs from the
+record's authenticated ``signer_key`` is dropped by every reader here (a forged producer could
+otherwise poison a task with invented keys or make two siblings look independent).  Unsigned
+records (``signer_key == ""``, the NullSigner laptop grid) are accepted only with
+``trust_unsigned=True``.  Lineage is *not* attested by this module: ``producer_lineage`` is the
+claimant's statement and readers take an optional ``lineage_lookup`` (key id → lineage from a
+signed enrolment record) that overrides it — the cross-slice requirement is recorded in the
+report, not solved here.
+
 Acceptance tests named for the final verification phase: ``test_bodies_roundtrip`` (every body
 survives canonical JSON and its reader returns the same fields), ``test_read_results_filters``
 (``read_results`` returns proposals for one task in seq order and ignores other types),
@@ -30,7 +39,7 @@ survives canonical JSON and its reader returns the same fields), ``test_read_res
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Iterable, Mapping, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 from ..core import LogStore, NodeIdentity, ObjectRef, Record, RecordType, ResultStatus, TaskResult, TaskSpec, Verification, VerificationOutcome
 
@@ -133,33 +142,48 @@ class Proposal:
         return self.status == ResultStatus.OK
 
 
-def proposal_from_record(rec: Record) -> Proposal | None:
+LineageLookup = Callable[[str], Sequence[str] | None]
+
+
+def proposal_from_record(rec: Record, *, trust_unsigned: bool = False, lineage_lookup: LineageLookup | None = None) -> Proposal | None:
+    """A RESULT record as a Proposal, or None when it is not one or its producer claim is not
+    the authenticated signer (``signer_key``).  ``lineage_lookup`` replaces the claimed lineage."""
     if rec.type != RecordType.RESULT:
         return None
     b = rec.body
     try:
+        producer_key = str(b["producer_key"])
+        if rec.signer_key:
+            if producer_key != rec.signer_key:
+                return None                                   # forged or mis-attributed: never a proposal
+        elif not trust_unsigned:
+            return None
+        lineage = tuple(b.get("producer_lineage", ()))
+        if lineage_lookup is not None:
+            attested = lineage_lookup(producer_key)
+            lineage = tuple(attested) if attested is not None else lineage
         return Proposal(
             seq=rec.seq, task_id=str(b["task_id"]), kind=str(b.get("kind", "")), status=ResultStatus(b["status"]), result_ref=ObjectRef(b["result_ref"]),
-            producer_key=str(b["producer_key"]), producer_lineage=tuple(b.get("producer_lineage", ())),
+            producer_key=producer_key, producer_lineage=lineage,
             outputs={k: ObjectRef(v) for k, v in dict(b.get("outputs", {})).items()}, elapsed_s=float(b.get("elapsed_s", 0.0)),
-            reason=str(b.get("reason", "")), signer_key=rec.signer_key,
+            reason=str(b.get("reason", "")), signer_key=rec.signer_key or producer_key,
         )
     except (KeyError, ValueError):
         return None
 
 
-def read_results(log: LogStore, partition: str, task_id: str | None = None, *, since_seq: int = 0) -> list[Proposal]:
+def read_results(log: LogStore, partition: str, task_id: str | None = None, *, since_seq: int = 0, trust_unsigned: bool = False, lineage_lookup: LineageLookup | None = None) -> list[Proposal]:
     out: list[Proposal] = []
     for rec in log.read(partition, since_seq):
-        p = proposal_from_record(rec)
+        p = proposal_from_record(rec, trust_unsigned=trust_unsigned, lineage_lookup=lineage_lookup)
         if p is not None and (task_id is None or p.task_id == task_id):
             out.append(p)
     return out
 
 
-def read_timeouts(log: LogStore, partition: str, task_id: str) -> list[tuple[str, tuple[str, ...]]]:
-    """(producer_key, producer_lineage) for every TIMEOUT result of one task."""
-    return [(p.producer_key, p.producer_lineage) for p in read_results(log, partition, task_id) if p.status == ResultStatus.TIMEOUT]
+def read_timeouts(log: LogStore, partition: str, task_id: str, *, trust_unsigned: bool = False, lineage_lookup: LineageLookup | None = None) -> list[tuple[str, tuple[str, ...]]]:
+    """(signer_key, lineage) for every TIMEOUT result of one task — the authenticated key, never the body's claim."""
+    return [(p.signer_key, p.producer_lineage) for p in read_results(log, partition, task_id, trust_unsigned=trust_unsigned, lineage_lookup=lineage_lookup) if p.status == ResultStatus.TIMEOUT]
 
 
 def read_verdicts(log: LogStore, partition: str, task_id: str) -> list[Mapping[str, Any]]:
@@ -217,7 +241,7 @@ class LogTaskIndex:
 
 
 __all__ = [
-    "EXPECTED_POINTER_PREFIX", "LogTaskIndex", "Proposal", "RESULTS_POINTER_PREFIX", "expected_pointer", "has_poison", "intent_body",
+    "EXPECTED_POINTER_PREFIX", "LineageLookup", "LogTaskIndex", "Proposal", "RESULTS_POINTER_PREFIX", "expected_pointer", "has_poison", "intent_body",
     "live_intents", "note_body", "poison_body", "proposal_from_record", "read_results", "read_timeouts", "read_verdicts", "result_body",
     "results_pointer", "task_result_from_record", "task_result_to_bytes", "verification_body", "verification_from_record", "verification_to_record",
 ]

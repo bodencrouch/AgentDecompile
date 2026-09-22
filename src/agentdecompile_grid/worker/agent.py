@@ -148,6 +148,10 @@ class AgentUnreachable(GridError):
     """No agent answers at the endpoint (connection refused, no socket file, timeout)."""
 
 
+class AttachRefused(GridError):
+    """A live agent answered but did not accept the attach (still bootstrapping, leaving, faulted)."""
+
+
 class _UnixConnection(http.client.HTTPConnection):
     def __init__(self, path: str, timeout: float) -> None:
         super().__init__("localhost", timeout=timeout)
@@ -207,7 +211,7 @@ class AgentClient:
 
 @dataclass(frozen=True)
 class ProbeResult:
-    state: str                          # alive | absent | silent
+    state: str                          # alive | absent | silent | faulted
     health: Mapping[str, Any] | None = None
     error: str = ""
 
@@ -226,6 +230,8 @@ def probe(endpoint: Endpoint, *, deadline_s: float = DEFAULT_PROBE_DEADLINE_S) -
         return ProbeResult("silent", error=str(exc))
     if isinstance(health, dict) and health.get("ok") is True:
         return ProbeResult("alive", health=health)
+    if isinstance(health, dict) and health.get("state") == "faulted":
+        return ProbeResult("faulted", health=health, error=str(health.get("last_fault", "")))
     return ProbeResult("silent", error="health answered without ok=true")
 
 
@@ -405,8 +411,12 @@ class LocalAgent:
         self.idle_only = idle_only
         self.leave_deadline_s = leave_deadline_s
         self.version = version
-        self.state = "new"                      # new | bootstrapping | running | leaving | stopped
+        self.state = "new"                      # new | bootstrapping | running | leaving | faulted | stopped
         self.started_at = wall()
+        self.faults = 0
+        self.consecutive_faults = 0
+        self.last_fault = ""
+        self.max_consecutive_faults = 5
         self.work_loop: StepMachine | None = None
         self.verifier_loop: StepMachine | None = None
         self.canary_report: CanaryReport | None = None
@@ -457,7 +467,7 @@ class LocalAgent:
         """Verification before generation: the verifier steps first; the work loop only when it idles."""
         with self._lock:
             if self.state not in ("running", "leaving"):
-                return StepEvent("idle", {"reason": f"state:{self.state}"}, next_due_s=0.25)
+                return StepEvent("idle", {"reason": f"state:{self.state}"}, next_due_s=0.25 if self.state != "faulted" else 5.0)
             for loop in (self.verifier_loop, self.work_loop):
                 if loop is None:
                     continue
@@ -468,13 +478,32 @@ class LocalAgent:
                 self._finish_leave_if_done()
             return StepEvent("idle", {"reason": "loops-idle"}, next_due_s=min((l.next_due(self.clock()) for l in (self.verifier_loop, self.work_loop) if l is not None), default=0.25))
 
+    def _guarded_tick(self) -> StepEvent:
+        """A step that raises is a fault, counted and named in health; after ``max_consecutive_faults``
+        the agent is ``faulted`` (health ok=false, attach refused, leave still works) — a dead driver
+        must never look healthy."""
+        try:
+            event = self.tick()
+        except Exception as exc:
+            self.faults += 1
+            self.consecutive_faults += 1
+            self.last_fault = f"{exc.__class__.__name__}: {str(exc)[:200]}"
+            if self.consecutive_faults >= self.max_consecutive_faults and self.state == "running":
+                self.state = "faulted"
+                for loop in (self.work_loop, self.verifier_loop):
+                    if loop is not None:
+                        loop.release_all("faulted")
+            return StepEvent("fault", {"exception": exc.__class__.__name__, "consecutive": self.consecutive_faults, "state": self.state}, next_due_s=min(5.0, 0.5 * self.consecutive_faults))
+        self.consecutive_faults = 0
+        return event
+
     def run(self, *, sleep: Callable[[float], None] = time.sleep, poll_s: float = 0.25) -> None:
         """Blocking driver; Ctrl-C becomes ``leave`` and the driver finishes the leave."""
         try:
             while self.state != "stopped" and not self._stop.is_set():
-                event = self.tick()
-                if event.name == "idle":
-                    sleep(max(0.0, min(poll_s, event.next_due_s if event.next_due_s is not None else poll_s)))
+                event = self._guarded_tick()
+                if event.name in ("idle", "fault"):
+                    sleep(max(0.0, min(poll_s if event.name == "idle" else 5.0, event.next_due_s if event.next_due_s is not None else poll_s)))
         except KeyboardInterrupt:
             self.leave("sigint")
             while self.state != "stopped":
@@ -508,7 +537,7 @@ class LocalAgent:
 
     # -- operations (also reachable over HTTP)
     def health(self) -> dict[str, Any]:
-        return {"ok": True, "state": self.state, "pid": os.getpid(), "key_id": self.identity.key_id, "role": self.identity.role, "version": self.version, "started_at": self.started_at, "endpoint": str(self.endpoint)}
+        return {"ok": self.state != "faulted", "state": self.state, "pid": os.getpid(), "key_id": self.identity.key_id, "role": self.identity.role, "version": self.version, "started_at": self.started_at, "endpoint": str(self.endpoint), "faults": self.faults, "last_fault": self.last_fault}
 
     def status(self) -> dict[str, Any]:
         with self._lock:
@@ -610,6 +639,7 @@ class JoinPlan:
     rng: random.Random
     store_locator: Mapping[str, Any] = field(default_factory=dict)
     local_objects: ObjectStore | None = None
+    lineage_lookup: Callable[[str], Sequence[str] | None] | None = None     # key id -> attested lineage; the fabric's enrolment records (cross-slice)
 
 
 @dataclass(frozen=True)
@@ -653,12 +683,13 @@ def build_loops(plan: JoinPlan) -> tuple[StepMachine | None, StepMachine | None]
         return plan.derive(log, objects, plan.wall())
 
     work = WorkLoop(identity=plan.identity, sandbox=sandbox, outbox=outbox, objects=local_objects, upstream=upstream, frontier=frontier, store_locator=locator,
-                    config=plan.config, log=log, idle_policy=plan.idle_policy, clock=plan.clock, wall=plan.wall, rng=plan.rng)
+                    config=plan.config, log=log, idle_policy=plan.idle_policy, clock=plan.clock, wall=plan.wall, rng=plan.rng, lineage_lookup=plan.lineage_lookup)
     verifier: StepMachine | None = None
     if plan.run_verifier and plan.identity.role in ROLE_MAY_VERIFY:
         vconfig = plan.verifier_config or VerifierConfig(worker=WorkerConfig(cores=1, lanes=plan.config.lanes, deadlines_s=plan.config.deadlines_s, import_modules=plan.config.import_modules, budgets_allowed=plan.config.budgets_allowed))
         verifier = VerifierLoop(identity=plan.identity, task_lookup=LogTaskIndex(log), log=log, config=vconfig, penalties=PenaltyLedger.load(objects), revocations=RevocationList.load(objects),
-                                sandbox=sandbox, outbox=outbox, objects=local_objects, upstream=upstream, frontier=frontier, store_locator=locator, clock=plan.clock, wall=plan.wall, rng=plan.rng)
+                                sandbox=sandbox, outbox=outbox, objects=local_objects, upstream=upstream, frontier=frontier, store_locator=locator, clock=plan.clock, wall=plan.wall, rng=plan.rng,
+                                lineage_lookup=plan.lineage_lookup)
     return work, verifier
 
 
@@ -667,7 +698,8 @@ def join(invite_url: str | None = None, *, state_dir: str | os.PathLike[str], en
          config: WorkerConfig | None = None, verifier_config: Any = None, run_verifier: bool | None = None, key_algorithm: str = "ed25519", canaries: Mapping[str, Any] | None = None,
          canary_only: Sequence[str] | None = None, env: Mapping[str, str] | None = None, probe_deadline_s: float = DEFAULT_PROBE_DEADLINE_S, rejoin_on_attach: bool = False,
          clock: Callable[[], float] = time.monotonic, wall: Callable[[], float] = time.time, rng: random.Random | None = None,
-         build: Callable[[JoinPlan], tuple[StepMachine | None, StepMachine | None]] = build_loops, local_objects: ObjectStore | None = None) -> JoinResult:
+         build: Callable[[JoinPlan], tuple[StepMachine | None, StepMachine | None]] = build_loops, local_objects: ObjectStore | None = None,
+         lineage_lookup: Callable[[str], Sequence[str] | None] | None = None) -> JoinResult:
     """Attach-first join.  Returns ``attached`` (status of the running agent) or ``bootstrapped``
     (a bound, running ``LocalAgent`` the caller drives with ``run()``/``start()``)."""
     env = os.environ if env is None else env
@@ -685,9 +717,13 @@ def join(invite_url: str | None = None, *, state_dir: str | os.PathLike[str], en
     if probed.state == "alive":
         client = AgentClient(endpoint, timeout_s=max(probe_deadline_s, 5.0))
         status = client.attach(lanes=lanes, cores=cores, idle_only=idle_only or None)
+        if not status.get("attached"):
+            raise AttachRefused(f"agent at {endpoint} is alive but did not accept the attach ({status.get('reason', 'unknown')}); retry, or `leave` it first")
         if rejoin_on_attach:
             status = client.rejoin()
         return JoinResult("attached", status)
+    if probed.state == "faulted":
+        raise AlreadyOwned(f"agent at {endpoint} is faulted ({probed.error}); it still answers `leave`; not restarting")
     if probed.state == "silent":
         raise AlreadyOwned(f"agent endpoint {endpoint} accepted a connection but did not answer health within {probe_deadline_s}s ({probed.error}): the owner is wedged; not restarting")
 
@@ -703,6 +739,8 @@ def join(invite_url: str | None = None, *, state_dir: str | os.PathLike[str], en
     policy: IdlePolicy | None = None
     if idle_only:
         policy = idle_policy_for(idle_policy or "load-average") if isinstance(idle_policy, str) or idle_policy is None else idle_policy
+        if policy is not None:
+            policy.should_run(clock(), running=0)     # a declared policy raises NotConfigured here, by name, before any socket exists
 
     # the lock: held and silent = wedged owner (already refused above); free = ours
     file_lock = None
@@ -744,7 +782,7 @@ def join(invite_url: str | None = None, *, state_dir: str | os.PathLike[str], en
         agent.rejoin_hook = reprove
         plan = JoinPlan(invite=invite, endpoint=endpoint, state_dir=state_path, transport=transport, derive=derive, lanes=tuple(lanes), cores=worker_config.cores, idle_only=idle_only,
                         idle_policy=policy, config=worker_config, verifier_config=verifier_config, key=key, identity=identity, canary_report=report,
-                        run_verifier=(invite.role in ROLE_MAY_VERIFY) if run_verifier is None else run_verifier, clock=clock, wall=wall, rng=rng, local_objects=local_objects)
+                        run_verifier=(invite.role in ROLE_MAY_VERIFY) if run_verifier is None else run_verifier, clock=clock, wall=wall, rng=rng, local_objects=local_objects, lineage_lookup=lineage_lookup)
         work, verifier = build(plan)
         agent.attach_loops(work, verifier, canary_report=report)
     except BaseException:
@@ -756,13 +794,13 @@ def join(invite_url: str | None = None, *, state_dir: str | os.PathLike[str], en
 def leave(endpoint: Endpoint | None = None, *, reason: str = "leave", deadline_s: float = 5.0, env: Mapping[str, str] | None = None) -> LeaveResult:
     endpoint = endpoint or Endpoint.default(env)
     probed = probe(endpoint, deadline_s=deadline_s)
-    if probed.state != "alive":
+    if probed.state not in ("alive", "faulted"):          # a faulted agent still takes `leave`; that is how it is retired
         return LeaveResult("no-agent", {"endpoint": str(endpoint), "probe": probed.state, "error": probed.error})
     return LeaveResult("left", AgentClient(endpoint, timeout_s=deadline_s).leave(reason))
 
 
 __all__ = [
-    "AgentClient", "AgentUnreachable", "BatteryPolicy", "DEFAULT_LEAVE_DEADLINE_S", "DEFAULT_PROBE_DEADLINE_S", "Endpoint", "FileLock", "HTTP_PREFIX", "IDLE_POLICIES",
+    "AgentClient", "AgentUnreachable", "AttachRefused", "BatteryPolicy", "DEFAULT_LEAVE_DEADLINE_S", "DEFAULT_PROBE_DEADLINE_S", "Endpoint", "FileLock", "HTTP_PREFIX", "IDLE_POLICIES",
     "JoinPlan", "JoinResult", "LeaveResult", "LoadAveragePolicy", "LocalAgent", "ProbeResult", "SUN_PATH_LIMIT", "UserActivityPolicy", "build_loops", "idle_policy_for",
     "join", "leave", "probe",
 ]

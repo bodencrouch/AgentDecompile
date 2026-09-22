@@ -14,8 +14,9 @@ never waited for.
 Selection is RNG-shuffled among eligible tasks (every free slot on every node picking the same
 advert is the thundering herd the mesh review named).  Poison = at least ``poison_timeouts``
 *distinct keys* timing out across at least ``poison_min_lineages`` independent lineages (a slow
-node counts once, however often it times out); the node that observes the threshold appends the
-POISON record; duplicates are harmless.  A task the node itself timed out or errored on is put in
+node counts once, however often it times out); keys are the records' authenticated signers, never
+a body's claim (``records``); the node that observes the threshold appends the POISON record;
+duplicates are harmless.  A task the node itself timed out or errored on is put in
 a local cool-off so the same node does not immediately retry it.
 
 ``--idle-only`` is admission control: while the idle policy says busy no new task launches
@@ -45,10 +46,10 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
-from ..core import TASK_KINDS, BudgetClass, Frontier, LogStore, NodeIdentity, ObjectRef, ObjectStore, RecordType, Refused, ResultStatus, TaskResult, TaskSpec
+from ..core import TASK_KINDS, BudgetClass, Frontier, LogStore, NodeIdentity, NotConfigured, ObjectRef, ObjectStore, RecordType, Refused, ResultStatus, TaskResult, TaskSpec
 from ..verify.policy import DEFAULT_INDEPENDENCE_POLICY, KeyRateLimiter, TokenBucket, independent_groups
 from .outbox import Outbox, PendingRecord, RecordWriter
-from .records import has_poison, intent_body, note_body, poison_body, read_timeouts, result_body, results_pointer, task_result_from_record, task_result_to_bytes
+from .records import LineageLookup, has_poison, intent_body, note_body, poison_body, read_timeouts, result_body, results_pointer, task_result_from_record, task_result_to_bytes
 from .sandbox import DEFAULT_GRACE_S, DEFAULT_LIMITS, JobOutcome, RunningJob, Sandbox, SandboxJob, deadline_for
 
 DEFAULT_BUDGETS_ALLOWED: tuple[BudgetClass, ...] = (BudgetClass.MICRO, BudgetClass.SMALL, BudgetClass.MEDIUM)
@@ -85,6 +86,7 @@ class WorkerConfig:
     env_extra: Mapping[str, str] = field(default_factory=dict)
     max_frontier_candidates: int = 4096
     done_memory_s: float = 3600.0                     # remember own results this long so an unflushed RESULT is not re-run here
+    trust_unsigned_records: bool = False              # NullSigner laptop grids only: accept RESULT bodies with no signer
 
 
 @dataclass(frozen=True)
@@ -172,7 +174,8 @@ class StepMachine:
 
     def __init__(self, *, identity: NodeIdentity, sandbox: Sandbox, outbox: Outbox, objects: ObjectStore, upstream: Upstream, frontier: Callable[[], Frontier],
                  store_locator: Mapping[str, Any], config: WorkerConfig | None = None, log: LogStore | None = None, idle_policy: IdlePolicy | None = None,
-                 limiter: KeyRateLimiter | None = None, clock: Callable[[], float] = time.monotonic, wall: Callable[[], float] = time.time, rng: random.Random | None = None) -> None:
+                 limiter: KeyRateLimiter | None = None, clock: Callable[[], float] = time.monotonic, wall: Callable[[], float] = time.time, rng: random.Random | None = None,
+                 lineage_lookup: LineageLookup | None = None) -> None:
         self.identity = identity
         self.sandbox = sandbox
         self.outbox = outbox
@@ -183,6 +186,7 @@ class StepMachine:
         self.config = config or WorkerConfig()
         self.log = log
         self.idle_policy = idle_policy
+        self.lineage_lookup = lineage_lookup           # key id -> attested lineage (signed enrolment record); None = trust the body's claim
         self.limiter = limiter
         self.clock = clock
         self.wall = wall
@@ -200,6 +204,7 @@ class StepMachine:
         self.counters: dict[str, int] = {}
         self.stopping = False
         self._idle_reason_override = ""
+        self._last_policy_error = ""
 
     # -- public
     def step(self) -> StepEvent:
@@ -312,7 +317,21 @@ class StepMachine:
     def _launch(self, now: float) -> StepEvent | None:
         if self.stopping or len(self.slots) >= self.cores or not self._eligible:
             return None
-        if self.idle_policy is not None and not self.idle_policy.should_run(now, running=len(self.slots)):
+        if self.idle_policy is not None:
+            try:
+                may_run = self.idle_policy.should_run(now, running=len(self.slots))
+            except NotConfigured as exc:                  # a declared policy: named idle, never a dead driver
+                self._idle_reason_override = f"policy:not-configured:{getattr(self.idle_policy, 'name', '?')}"
+                self._bump("policy_not_configured")
+                self._last_policy_error = str(exc)
+                return None
+            except Exception as exc:
+                self._idle_reason_override = f"policy:error:{exc.__class__.__name__}"
+                self._bump("policy_errors")
+                return None
+        else:
+            may_run = True
+        if not may_run:
             self._idle_reason_override = "policy:busy"
             if self.config.preempt_on_busy:
                 aborted = [s for s in self.slots if not s.aborted and s.spec.budget in self.config.preempt_budgets]
@@ -381,7 +400,8 @@ class StepMachine:
     def _next_due(self, now: float) -> float:
         dues = [max(0.0, self.config.frontier_ttl_s - (now - (self._frontier_at or now)))]
         for slot in self.slots:
-            dues.append(max(0.0, slot.deadline_at - now))
+            remaining = slot.deadline_at - now
+            dues.append(remaining if remaining > 0 else 0.05)    # a kill in flight is polled, not spun on
             dues.append(max(0.0, slot.renew_at - now))
         if self.outbox.depth():
             dues.append(max(0.0, self.config.flush_interval_s - (now - self.outbox.last_flush_at)))
@@ -535,7 +555,7 @@ class WorkLoop(StepMachine):
         seen: dict[str, tuple[str, ...]] = dict(local)
         if self.log is not None:
             try:
-                for key, lineage in read_timeouts(self.log, spec.partition_key, spec.task_id):
+                for key, lineage in read_timeouts(self.log, spec.partition_key, spec.task_id, trust_unsigned=self.config.trust_unsigned_records, lineage_lookup=self.lineage_lookup):
                     seen.setdefault(key, tuple(lineage))
             except Exception:
                 self._bump("log_read_errors")

@@ -6,9 +6,11 @@ candidate set and what a collected outcome means:
 
 * candidates come from ``frontier.awaiting_verification``; the task's spec is looked up
   (``task_lookup``), its proposals are read from RESULT records in the partition log
-  (``records.read_results``), capped at ``proposal_cap`` in seq order (later ones are ignored as
-  ``over-cap``), reduced to claims (status OK) without a verdict, whose producer is not this key,
-  not revoked, and **independent** under the configured policy (lineage-disjoint by default);
+  (``records.read_results``; a body whose ``producer_key`` is not the record's signer is not a
+  proposal), capped at ``proposal_cap`` in seq order (later ones are ignored as ``over-cap``),
+  reduced to claims (status OK) without a verdict, whose signer is not this key, not revoked, and
+  **independent** under the configured policy (lineage-disjoint by default; the lineage comes
+  from ``lineage_lookup`` when the fabric attests it, else from the body — see ``records``);
   a candidate with several proposals verifies the higher-weight producer first (penalties lower
   weight; they never gate).
 * the check is the kind's own ``verify()`` (op ``verify``) or a ``VERIFIERS`` method chosen by
@@ -90,7 +92,7 @@ class VerifierLoop(StepMachine):
         def partition_view(partition: str) -> tuple[dict[str, list[Proposal]], dict[str, set[str]]]:
             if partition not in partition_cache:            # one pass over the partition per pull, however many tasks await
                 by_task: dict[str, list[Proposal]] = {}
-                for proposal in read_results(self.log, partition):
+                for proposal in read_results(self.log, partition, trust_unsigned=self.config.trust_unsigned_records, lineage_lookup=self.lineage_lookup):
                     by_task.setdefault(proposal.task_id, []).append(proposal)
                 decided_by_task: dict[str, set[str]] = {}
                 for rec in self.log.read(partition, 0):
@@ -142,7 +144,7 @@ class VerifierLoop(StepMachine):
                 elif self.revocations.is_revoked(proposal.producer_key):
                     self._skip("producer-revoked")
                 else:
-                    verdict = check_independence(self.identity.key_id, self.identity.invite_lineage, proposal.producer_key, proposal.producer_lineage, policy=self.vconfig.independence_policy)
+                    verdict = check_independence(self.identity.key_id, self.identity.invite_lineage, proposal.signer_key, proposal.producer_lineage, policy=self.vconfig.independence_policy)
                     if not verdict.ok:
                         self._skip(f"not-independent:{verdict.reason.split(':', 1)[0]}")
                         continue

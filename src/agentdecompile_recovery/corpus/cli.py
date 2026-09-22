@@ -264,6 +264,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     verify_det.add_argument("--db", type=Path, required=True)
 
+    rebaseline = sub.add_parser(
+        "rebaseline",
+        help="Record a package-basis change as a supersession and re-stamp every binary row",
+    )
+    rebaseline.add_argument("--db", type=Path, required=True)
+    rebaseline.add_argument(
+        "--receipts", type=Path, required=True,
+        help="Receipts directory. The receipt lands under rebaseline/ inside it.",
+    )
+    rebaseline.add_argument("--reason", default=None, help="Why the basis changed. Stored with the supersession.")
+    rebaseline.add_argument(
+        "--export-out", type=Path, default=None,
+        help="Write a hook pack under the new basis into this directory.",
+    )
+    rebaseline.add_argument(
+        "--prior-pack", type=Path, default=None,
+        help="Diff the new pack against this pack. The prior pack is not changed.",
+    )
+    rebaseline.add_argument("--dry-run", action="store_true", help="Show the supersession. Write nothing.")
+    rebaseline.add_argument(
+        "--deadline-s", type=float, default=None,
+        help="Stop between phases after this many seconds. Exit 4.",
+    )
+
     backfill = sub.add_parser(
         "backfill",
         help="Re-derive binary columns from raw images; one receipt per (pass, binary) makes it resumable",
@@ -796,6 +820,44 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         print(json.dumps(result))
         return 0 if result["identical"] else 1
+    if args.cmd == "rebaseline":
+        from .determinism_basis import BasisError
+        from .logical import ContentHashError
+        from .rebaseline import rebaseline as run_rebaseline
+        from .store import connect
+
+        def run_it():
+            try:
+                return run_rebaseline(
+                    connect(args.db),
+                    receipts_dir=args.receipts,
+                    reason=args.reason,
+                    export_out=args.export_out,
+                    prior_pack=args.prior_pack,
+                    dry_run=args.dry_run,
+                    deadline_s=args.deadline_s,
+                )
+            except (BasisError, ContentHashError):
+                raise
+            except ValueError as exc:
+                raise SystemExit(f"error: {exc}") from exc
+
+        # Refusals (basis, content hash, lock) are exit 2 with one named
+        # line and nothing written. A deadline is exit 4: the re-stamp is
+        # one transaction, so it either landed whole or not at all; the
+        # summary says which. An export that refused after the re-stamp
+        # landed keeps exit 0: the supersession stands, and the refusal is
+        # recorded under run.export and named once on stderr.
+        result = _run_keyed_verb(run_it)
+        if result is REFUSED:
+            return 2
+        print(json.dumps(result, sort_keys=True, indent=2))
+        if result["status"] == "deadline":
+            return 4
+        export = (result.get("run") or {}).get("export") or {}
+        if export.get("status") == "refused":
+            print(f"error: export refused after re-stamp: {export.get('error')}", file=sys.stderr)
+        return 0
     if args.cmd == "backfill":
         from .backfill import run as run_backfill
         from .logical import ContentHashError

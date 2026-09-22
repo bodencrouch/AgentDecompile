@@ -35,9 +35,20 @@ Names
     referenced it is written as ``sha256(value)[:12]``.
 
 Hashing streams ``hashlib.sha256`` over 1 MiB chunks. No resolver holds an
-image in memory: a resolver that produces bytes (the analysis project's
-stored file bytes) spools them to a temporary file while hashing, and the
-walker moves or copies that file into place.
+image in memory: a resolver that produces bytes (a program's stored file
+bytes, from the shared repository or a local project) spools them to a
+temporary file while hashing, and the walker moves or copies that file
+into place.
+
+Analyzer-backed resolvers
+    ``ghidra_repository`` opens the program ``repo_path`` names in the
+    shared analysis-server repository (the corpus's own address, through
+    ``ghidra_env.open_program``); ``ghidra_file_bytes`` falls back to local
+    projects (``.gpr`` at ``repo_path``, ``local:`` references,
+    ``program_binding`` rows). Both run every analyzer call on a daemon
+    thread under the row deadline (:class:`_AnalyzerWorker`) and share the
+    spool (:func:`_spool_program`). :func:`describe_resolvers` lists every
+    resolver with its miss vocabulary and the environment it reads.
 """
 
 from __future__ import annotations
@@ -227,6 +238,9 @@ class ExtractRawDirResolver:
     """The image is already at :func:`raw_image_target`."""
 
     name = "extract_raw_dir"
+    working = True
+    env = ("AGENT_DECOMPILE_EXTRACT_RAW", "AGENT_DECOMPILE_CORPUS_WORK_DIR")
+    misses = ("not_materialized",)
 
     def resolve(self, row: dict, *, work_dir: Path | None, deadline_s: float) -> RawImage | None:
         target = raw_image_target(str(row.get("repo_path") or ""), work_dir)
@@ -241,6 +255,9 @@ class RepoPathFileResolver:
     analysis project directory."""
 
     name = "repo_path_file"
+    working = True
+    env = ()
+    misses = ("repo_path_empty", "repo_path_in_project", "repo_path_is_dir", "repo_path_missing")
 
     def resolve(self, row: dict, *, work_dir: Path | None, deadline_s: float) -> RawImage | None:
         repo = str(row.get("repo_path") or "")
@@ -265,6 +282,9 @@ class ExplicitMapResolver:
     """
 
     name = "explicit_map"
+    working = True
+    env = (MAP_ENV,)
+    misses = ("map_unset", "map_unreadable", "map_not_object", "map_no_entry", "map_path_missing")
 
     def _load(self) -> dict:
         raw = os.environ.get(MAP_ENV, "").strip()
@@ -301,6 +321,9 @@ class ContentIdentityTableResolver:
     """
 
     name = "content_identity_table"
+    working = True
+    env = ()
+    misses = ("no_identity_rows", "identity_source_missing", "identity_source_changed")
 
     def resolve(self, row: dict, *, work_dir: Path | None, deadline_s: float) -> RawImage | None:
         sources = list(row.get("identity_sources") or [])
@@ -354,33 +377,297 @@ class _DaemonWorker:
         return future
 
 
+class _AnalyzerWorker:
+    """The thread-and-deadline discipline every analyzer-backed resolver shares.
+
+    One lazily started :class:`_DaemonWorker` per resolver (a call that
+    hangs in one resolver's thread must not queue the other resolver's
+    calls behind it). :meth:`run` submits a callable and waits at most
+    ``deadline_s``; the first timeout latches ``unavailable`` to
+    *deadline_reason* so the rest of the process pays one miss per row
+    instead of the deadline again. :meth:`latch` records a process-wide
+    condition (an unreachable server, a missing install) the same way.
+    """
+
+    def __init__(self, name: str) -> None:
+        self._name = name
+        self._worker: _DaemonWorker | None = None
+        self._lock = threading.Lock()
+        self.unavailable: str | None = None
+
+    def submit(self, fn) -> concurrent.futures.Future:
+        with self._lock:
+            if self._worker is None:
+                self._worker = _DaemonWorker(self._name)
+            return self._worker.submit(fn)
+
+    def latch(self, reason: str) -> None:
+        self.unavailable = reason
+
+    def run(self, fn, deadline_s: float, *, deadline_reason: str):
+        """``fn()`` on the worker thread, or :class:`RawImageMiss` on timeout."""
+        if self.unavailable:
+            raise RawImageMiss(self.unavailable)
+        future = self.submit(fn)
+        try:
+            return future.result(timeout=max(0.0, float(deadline_s)))
+        except concurrent.futures.TimeoutError:
+            self.unavailable = deadline_reason
+            raise RawImageMiss(deadline_reason) from None
+
+
+# --- spooling a program's stored file bytes (worker thread only) ----------------
+
+
+@dataclass(frozen=True)
+class _Spooled:
+    """A program's single ``FileBytes`` streamed to a temp file and hashed."""
+
+    path: Path
+    sha256: str
+    size: int
+    filename_sha12: str
+    count: int
+
+
+class _SpoolMiss(Exception):
+    """Why :func:`_spool_program` produced nothing. ``kind`` is one of
+    ``file_bytes_error``, ``no_file_bytes``, ``ambiguous_file_bytes``,
+    ``deadline``, ``file_bytes_short``; each resolver maps it to its own
+    miss token. ``count`` is the number of ``FileBytes`` entries seen."""
+
+    def __init__(self, kind: str, count: int = 0):
+        super().__init__(kind)
+        self.kind = kind
+        self.count = count
+
+
+#: ``ghidra_file_bytes`` miss tokens per spool kind (unchanged from before the
+#: extraction; the attestation baseline counts these strings).
+_FILE_BYTES_SPOOL_REASONS: dict[str, str] = {
+    "file_bytes_error": "ghidra_file_bytes_error",
+    "no_file_bytes": "no_file_bytes",
+    "ambiguous_file_bytes": "ambiguous_file_bytes",
+    "deadline": "ghidra_deadline",
+    "file_bytes_short": "ghidra_file_bytes_short",
+}
+
+#: ``ghidra_repository`` miss tokens per spool kind.
+_REPOSITORY_SPOOL_REASONS: dict[str, str] = {
+    "file_bytes_error": "repository_file_bytes_error",
+    "no_file_bytes": "no_file_bytes",
+    "ambiguous_file_bytes": "ambiguous_file_bytes",
+    "deadline": "repository_deadline",
+    "file_bytes_short": "repository_file_bytes_short",
+}
+
+
+def _spool_program(program, deadline: float) -> _Spooled:
+    """Stream the program's single ``FileBytes`` into a temp file, hashing
+    on the way. Raises :class:`_SpoolMiss` otherwise. Exactly one entry is
+    required: a guessed concatenation of several would produce a permanent
+    wrong hash (R3 never clears a stored value)."""
+    try:
+        entries = list(program.getMemory().getAllFileBytes())
+    except Exception:
+        raise _SpoolMiss("file_bytes_error") from None
+    if len(entries) != 1:
+        raise _SpoolMiss("ambiguous_file_bytes" if entries else "no_file_bytes", len(entries))
+    fb = entries[0]
+    try:
+        import jpype  # type: ignore[import-not-found]
+
+        total = int(fb.getSize())
+        buf = jpype.JArray(jpype.JByte)(CHUNK)
+    except Exception:
+        raise _SpoolMiss("file_bytes_error", 1) from None
+    h = hashlib.sha256()
+    fd, tmp_name = tempfile.mkstemp(prefix="raw-image-", suffix=".spool")
+    tmp = Path(tmp_name)
+    size = 0
+    try:
+        with os.fdopen(fd, "wb") as out:
+            offset = 0
+            while offset < total:
+                if time.monotonic() > deadline:
+                    raise TimeoutError
+                n = int(fb.getOriginalBytes(offset, buf))
+                if n <= 0:
+                    break
+                chunk = _jbytes(buf, n)
+                h.update(chunk)
+                out.write(chunk)
+                size += n
+                offset += n
+            out.flush()
+            os.fsync(out.fileno())
+    except TimeoutError:
+        tmp.unlink(missing_ok=True)
+        raise _SpoolMiss("deadline", 1) from None
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise _SpoolMiss("file_bytes_error", 1) from None
+    if size != total:
+        tmp.unlink(missing_ok=True)
+        raise _SpoolMiss("file_bytes_short", 1)
+    try:
+        fname = str(fb.getFilename())
+    except Exception:
+        fname = ""
+    return _Spooled(tmp, h.hexdigest(), size, sha12(fname), 1)
+
+
+# --- lock policies for local analysis projects ----------------------------------
+
+
+@runtime_checkable
+class LockPolicy(Protocol):
+    """What ``ghidra_file_bytes`` does when a local project's lock is held.
+
+    ``open`` receives *attempt*, a callable that tries the open once and
+    returns ``(project | None, reason | None)`` where a held lock is the
+    reason ``ghidra_project_locked``; *deadline* is a ``time.monotonic``
+    instant the policy must not run past. It returns the same pair.
+    """
+
+    name: str
+
+    def open(self, attempt, deadline: float) -> tuple[object | None, str | None]: ...
+
+
+class RefuseLockPolicy:
+    """Default: one attempt; a held lock is the miss ``ghidra_project_locked``
+    (a held lock usually means a live analysis session)."""
+
+    name = "refuse"
+
+    def open(self, attempt, deadline: float) -> tuple[object | None, str | None]:
+        return attempt()
+
+
+class WaitBoundedLockPolicy:
+    """Retry the open every ``interval_s`` while the lock is held.
+
+    Bounded by *seconds* (``None``: the row deadline) and always by the row
+    deadline less one interval, so the last attempt cannot run the outer
+    ``future.result`` wait past its timeout. Still locked at the bound:
+    ``ghidra_project_locked``.
+    """
+
+    name = "wait"
+
+    def __init__(self, seconds: float | None = None, interval_s: float = 2.0) -> None:
+        self.seconds = None if seconds is None else max(0.0, float(seconds))
+        self.interval_s = max(0.1, float(interval_s))
+
+    def open(self, attempt, deadline: float) -> tuple[object | None, str | None]:
+        stop = float(deadline) - self.interval_s
+        if self.seconds is not None:
+            stop = min(stop, time.monotonic() + self.seconds)
+        project, why = attempt()
+        while project is None and why == "ghidra_project_locked":
+            remaining = stop - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(self.interval_s, remaining))
+            project, why = attempt()
+        return project, why
+
+
+class CopyOnLockPolicy:
+    """Slot (A4c): copy the locked project directory into the work
+    directory and open the copy with ``resetOwner=True``, leaving the live
+    session's lock untouched. A held lock raises ``NotImplementedError``,
+    which the walker records as ``not_implemented:A4c``."""
+
+    name = "copy"
+
+    def open(self, attempt, deadline: float) -> tuple[object | None, str | None]:
+        project, why = attempt()
+        if project is None and why == "ghidra_project_locked":
+            raise NotImplementedError("A4c")
+        return project, why
+
+
+#: Selected by ``AGENT_DECOMPILE_PROJECT_LOCK_POLICY`` (``refuse|wait|copy``).
+LOCK_POLICY_ENV = "AGENT_DECOMPILE_PROJECT_LOCK_POLICY"
+#: Optional bound in seconds for the ``wait`` policy (default: the row deadline).
+LOCK_WAIT_ENV = "AGENT_DECOMPILE_PROJECT_LOCK_WAIT_S"
+
+LOCK_POLICIES: dict[str, type] = {
+    RefuseLockPolicy.name: RefuseLockPolicy,
+    WaitBoundedLockPolicy.name: WaitBoundedLockPolicy,
+    CopyOnLockPolicy.name: CopyOnLockPolicy,
+}
+
+
+def lock_policy(name: str | None = None) -> LockPolicy:
+    """The configured :class:`LockPolicy`. An unknown name or a bad wait
+    bound is a named miss (``project_lock_policy_unknown`` /
+    ``project_lock_wait_invalid``), never an exception."""
+    chosen = (name if name is not None else os.environ.get(LOCK_POLICY_ENV, "")).strip() or RefuseLockPolicy.name
+    factory = LOCK_POLICIES.get(chosen)
+    if factory is None:
+        raise RawImageMiss("project_lock_policy_unknown")
+    if factory is WaitBoundedLockPolicy:
+        raw = os.environ.get(LOCK_WAIT_ENV, "").strip()
+        if not raw:
+            return WaitBoundedLockPolicy()
+        try:
+            return WaitBoundedLockPolicy(float(raw))
+        except ValueError:
+            raise RawImageMiss("project_lock_wait_invalid") from None
+    return factory()
+
+
 class GhidraFileBytesResolver:
-    """Re-materialize the image from the analysis project's stored file bytes.
+    """Re-materialize the image from a local analysis project's stored file bytes.
 
-    Candidates: the row's ``repo_path`` when it is a project file, then each
-    ``program_bindings`` entry (locator + program path). The project is
-    opened with ``resetOwner=False`` so a live session keeps its lock (a
-    held lock is the miss ``ghidra_project_locked``); the program is opened
-    read-only; nothing is saved. Exactly one ``FileBytes`` entry is required
-    -- several is ``ambiguous_file_bytes``, because a guessed concatenation
-    would produce a permanent wrong hash (R3 never clears a stored value).
+    Candidates: the row's ``repo_path`` when it is a project file or a
+    ``local:<dir>:<name>:/<path>`` reference, then each ``program_bindings``
+    entry (locator + program path). The project is opened with
+    ``resetOwner=False`` so a live session keeps its lock; what happens
+    when the lock is held is the configured :class:`LockPolicy` (default
+    :class:`RefuseLockPolicy`: the miss ``ghidra_project_locked``). The
+    program is opened read-only; nothing is saved. Exactly one
+    ``FileBytes`` entry is required -- several is ``ambiguous_file_bytes``.
 
-    All analyzer work runs on one long-lived daemon thread and is waited on
-    with ``future.result(timeout=deadline_s)``. Opened projects are kept
-    until :meth:`close` so one project serves every row bound to it. After
-    the first timeout the resolver reports ``ghidra_deadline`` for the rest
-    of the process instead of paying the deadline again per row. When the
-    analyzer bridge is not importable the miss is ``ghidra_unavailable``;
-    when no candidate project exists it is ``ghidra_project_missing``.
+    All analyzer work runs on one daemon thread (:class:`_AnalyzerWorker`)
+    and is waited on with the row deadline. Opened projects are kept until
+    :meth:`close` so one project serves every row bound to it. After the
+    first timeout the resolver reports ``ghidra_deadline`` for the rest of
+    the process. When the analyzer bridge is not importable the miss is
+    ``ghidra_unavailable``; when no candidate project exists it is
+    ``ghidra_project_missing``.
     """
 
     name = "ghidra_file_bytes"
+    working = True
+    env = (RESET_OWNER_ENV, LOCK_POLICY_ENV, LOCK_WAIT_ENV, "GHIDRA_INSTALL_DIR", "JAVA_HOME")
+    misses = (
+        "ghidra_no_binding",
+        "ghidra_locator_remote",
+        "ghidra_locator_no_project",
+        "ghidra_locator_ambiguous",
+        "ghidra_locator_missing",
+        "ghidra_locator_invalid",
+        "ghidra_unavailable",
+        "ghidra_deadline",
+        "ghidra_project_missing",
+        "ghidra_project_locked",
+        "ghidra_project_open_error",
+        "ghidra_program_missing",
+        "ghidra_file_bytes_error",
+        "ghidra_file_bytes_short",
+        "no_file_bytes",
+        "ambiguous_file_bytes",
+        "project_lock_policy_unknown",
+        "project_lock_wait_invalid",
+    )
 
     def __init__(self) -> None:
-        self._worker: _DaemonWorker | None = None
+        self._worker = _AnalyzerWorker("raw-image-ghidra")
         self._projects: dict[tuple[str, str], object] = {}
-        self._unavailable: str | None = None
-        self._lock = threading.Lock()
 
     # -- candidates ---------------------------------------------------------
 
@@ -390,7 +677,14 @@ class GhidraFileBytesResolver:
         out: list[tuple[Path, str, str | None]] = []
         skipped: set[str] = set()
         repo = str(row.get("repo_path") or "")
-        if repo.lower().endswith(".gpr"):
+        if repo.startswith("local:"):
+            # The same ``local:<dir>:<name>:/<path>`` form ghidra_env.open_program takes.
+            parts = repo.split(":", 3)
+            if len(parts) == 4 and parts[1] and parts[2]:
+                out.append((Path(parts[1]), parts[2], "/" + parts[3].replace("\\", "/").lstrip("/")))
+            else:
+                skipped.add("ghidra_locator_invalid")
+        elif repo.lower().endswith(".gpr"):
             p = Path(repo)
             out.append((p.parent, p.stem, None))
         for locator, program in sorted((str(a), str(b)) for a, b in (row.get("program_bindings") or [])):
@@ -419,27 +713,22 @@ class GhidraFileBytesResolver:
     # -- thread -------------------------------------------------------------
 
     def _submit(self, fn) -> concurrent.futures.Future:
-        with self._lock:
-            if self._worker is None:
-                self._worker = _DaemonWorker("raw-image-ghidra")
-            return self._worker.submit(fn)
+        return self._worker.submit(fn)
 
     def resolve(self, row: dict, *, work_dir: Path | None, deadline_s: float) -> RawImage | None:
-        if self._unavailable:
-            raise RawImageMiss(self._unavailable)
+        if self._worker.unavailable:
+            raise RawImageMiss(self._worker.unavailable)
+        policy = lock_policy()  # a bad policy name is a named miss, raised here
         candidates, skipped = self._candidates(row)
         if not candidates:
             raise RawImageMiss(sorted(skipped)[0] if skipped else "ghidra_no_binding")
         repo = str(row.get("repo_path") or "")
-        future = self._submit(lambda: self._read(candidates, repo, deadline_s))
-        try:
-            result = future.result(timeout=max(0.0, float(deadline_s)))
-        except concurrent.futures.TimeoutError:
-            self._unavailable = "ghidra_deadline"
-            raise RawImageMiss("ghidra_deadline") from None
+        result = self._worker.run(
+            lambda: self._read(candidates, repo, deadline_s, policy), deadline_s, deadline_reason="ghidra_deadline"
+        )
         if isinstance(result, RawImageMiss):
             if result.reason == "ghidra_unavailable":
-                self._unavailable = result.reason
+                self._worker.latch(result.reason)
             raise result
         image, provenance = result
         for name in sorted(skipped):
@@ -448,7 +737,9 @@ class GhidraFileBytesResolver:
 
     # -- analyzer side (worker thread only) ---------------------------------
 
-    def _open_project(self, project_dir: Path, project_name: str) -> tuple[object | None, str | None]:
+    def _open_project(
+        self, project_dir: Path, project_name: str, policy: LockPolicy, deadline: float
+    ) -> tuple[object | None, str | None]:
         key = (str(project_dir), project_name)
         project = self._projects.get(key)
         if project is not None:
@@ -461,25 +752,30 @@ class GhidraFileBytesResolver:
                 return None, "ghidra_project_missing"
         except Exception:
             return None, "ghidra_project_missing"
-        try:
-            if os.environ.get(RESET_OWNER_ENV, "").strip() == "1":
-                from ghidra.pyghidra import PyGhidraProjectManager  # type: ignore[import-not-found]
 
-                project = PyGhidraProjectManager().openProject(
-                    ProjectLocator(str(project_dir), project_name), False, True
-                )
-                project = _GhidraProjectShim(project)
-            else:
-                project = GhidraProject.openProject(str(project_dir), project_name, False)
-        except Exception as exc:  # LockException / NotOwnerException / IOException
-            text = type(exc).__name__ + ":" + str(exc)
-            if "Lock" in text or "Owner" in text or "lock" in str(exc).lower():
-                return None, "ghidra_project_locked"
-            return None, "ghidra_project_open_error"
+        def attempt() -> tuple[object | None, str | None]:
+            try:
+                if os.environ.get(RESET_OWNER_ENV, "").strip() == "1":
+                    from ghidra.pyghidra import PyGhidraProjectManager  # type: ignore[import-not-found]
+
+                    opened = PyGhidraProjectManager().openProject(
+                        ProjectLocator(str(project_dir), project_name), False, True
+                    )
+                    return _GhidraProjectShim(opened), None
+                return GhidraProject.openProject(str(project_dir), project_name, False), None
+            except Exception as exc:  # LockException / NotOwnerException / IOException
+                text = type(exc).__name__ + ":" + str(exc)
+                if "Lock" in text or "Owner" in text or "lock" in str(exc).lower():
+                    return None, "ghidra_project_locked"
+                return None, "ghidra_project_open_error"
+
+        project, why = policy.open(attempt, deadline)
+        if project is None:
+            return None, why or "ghidra_project_open_error"
         self._projects[key] = project
         return project, None
 
-    def _read(self, candidates, repo: str, deadline_s: float):
+    def _read(self, candidates, repo: str, deadline_s: float, policy: LockPolicy):
         deadline = time.monotonic() + float(deadline_s)
         try:
             import pyghidra  # type: ignore[import-not-found]
@@ -500,7 +796,7 @@ class GhidraFileBytesResolver:
         for project_dir, project_name, program_path in candidates:
             if time.monotonic() > deadline:
                 return RawImageMiss("ghidra_deadline")
-            project, why = self._open_project(project_dir, project_name)
+            project, why = self._open_project(project_dir, project_name, policy, deadline)
             if project is None:
                 reasons.append(why or "ghidra_project_missing")
                 continue
@@ -517,24 +813,23 @@ class GhidraFileBytesResolver:
                     reasons.append("ghidra_program_missing")
                     continue
                 try:
-                    outcome = self._spool(program, deadline)
+                    spooled = _spool_program(program, deadline)
+                except _SpoolMiss as miss:
+                    reasons.append(_FILE_BYTES_SPOOL_REASONS[miss.kind])
+                    continue
                 finally:
                     try:
                         project.close(program)
                     except Exception:
                         pass
-                if isinstance(outcome, str):
-                    reasons.append(outcome)
-                    continue
-                spool, digest, size, filename_sha12 = outcome
                 provenance = {
                     "locator_kind": "ghidra_project",
                     "project_sha12": sha12(str(project_dir / project_name)),
                     "program_sha12": sha12(ppath),
-                    "file_bytes_name_sha12": filename_sha12,
+                    "file_bytes_name_sha12": spooled.filename_sha12,
                     "spooled": True,
                 }
-                return (spool, digest, size), provenance
+                return (spooled.path, spooled.sha256, spooled.size), provenance
         return RawImageMiss(sorted(set(reasons))[0] if reasons else "ghidra_project_missing")
 
     @staticmethod
@@ -552,59 +847,6 @@ class GhidraFileBytesResolver:
             return sorted(found)
         except Exception:
             return []
-
-    @staticmethod
-    def _spool(program, deadline: float):
-        """Stream the program's single FileBytes into a temp file; return
-        ``(path, sha256, size, filename_sha12)`` or a miss reason."""
-        try:
-            entries = list(program.getMemory().getAllFileBytes())
-        except Exception:
-            return "ghidra_file_bytes_error"
-        if len(entries) != 1:
-            return "ambiguous_file_bytes" if entries else "no_file_bytes"
-        fb = entries[0]
-        try:
-            import jpype  # type: ignore[import-not-found]
-
-            total = int(fb.getSize())
-            buf = jpype.JArray(jpype.JByte)(CHUNK)
-        except Exception:
-            return "ghidra_file_bytes_error"
-        h = hashlib.sha256()
-        fd, tmp_name = tempfile.mkstemp(prefix="raw-image-", suffix=".spool")
-        tmp = Path(tmp_name)
-        size = 0
-        try:
-            with os.fdopen(fd, "wb") as out:
-                offset = 0
-                while offset < total:
-                    if time.monotonic() > deadline:
-                        raise TimeoutError
-                    n = int(fb.getOriginalBytes(offset, buf))
-                    if n <= 0:
-                        break
-                    chunk = _jbytes(buf, n)
-                    h.update(chunk)
-                    out.write(chunk)
-                    size += n
-                    offset += n
-                out.flush()
-                os.fsync(out.fileno())
-        except TimeoutError:
-            tmp.unlink(missing_ok=True)
-            return "ghidra_deadline"
-        except Exception:
-            tmp.unlink(missing_ok=True)
-            return "ghidra_file_bytes_error"
-        if size != total:
-            tmp.unlink(missing_ok=True)
-            return "ghidra_file_bytes_short"
-        try:
-            fname = str(fb.getFilename())
-        except Exception:
-            fname = ""
-        return tmp, h.hexdigest(), size, sha12(fname)
 
     def close(self) -> dict:
         """Close every project this resolver opened. Returns counts."""
@@ -627,6 +869,294 @@ class GhidraFileBytesResolver:
             except concurrent.futures.TimeoutError:
                 errors += len(self._projects)
         return {"closed": closed, "errors": errors}
+
+
+# --- the shared repository -------------------------------------------------------
+
+
+@runtime_checkable
+class RepositoryAccess(Protocol):
+    """One way to reach the program a ``repo_path`` names.
+
+    ``unconfigured`` runs on the caller's thread before any analyzer work
+    and returns a miss reason when this access cannot be used at all (so
+    an unconfigured install never boots the JVM), else ``None``. ``open``
+    returns a context manager yielding the program read-only, or ``None``
+    when the path is missing; it runs on the worker thread.
+    """
+
+    name: str
+
+    def unconfigured(self) -> str | None: ...
+
+    def open(self, repo_path: str): ...
+
+
+class ServerRepositoryAccess:
+    """The shared analysis server's repository, through ``ghidra_env.open_program``
+    (host, port, repository, username and key from
+    ``corpus_config.load_ghidra_server``: environment first, then
+    ``ghidra_server.json`` under ``AGENT_DECOMPILE_CORPUS_CONFIG_DIR``)."""
+
+    name = "server"
+
+    def unconfigured(self) -> str | None:
+        from .ghidra_env import server_configured
+
+        return None if server_configured() else "repository_unconfigured"
+
+    def open(self, repo_path: str):
+        from .ghidra_env import open_program
+
+        return open_program(repo_path)
+
+
+class LocalProjectAccess:
+    """A ``local:<dir>:<name>:/<path>`` reference, through
+    ``ghidra_env.open_local_program``. Chosen automatically for such paths."""
+
+    name = "local"
+
+    def unconfigured(self) -> str | None:
+        return None
+
+    def open(self, repo_path: str):
+        from .ghidra_env import open_local_program
+
+        return open_local_program(repo_path)
+
+
+class SnapshotRepositoryAccess:
+    """Slot (A4c): a checked-out copy of the repository directory, for the
+    locked and offline cases. Contract: open the program from the snapshot's
+    own project data without contacting the server."""
+
+    name = "snapshot"
+
+    def unconfigured(self) -> str | None:
+        raise NotImplementedError("A4c")
+
+    def open(self, repo_path: str):
+        raise NotImplementedError("A4c")
+
+
+#: Selects the access for non-``local:`` paths (``server|snapshot``).
+REPOSITORY_ACCESS_ENV = "AGENT_DECOMPILE_REPOSITORY_ACCESS"
+
+REPOSITORY_ACCESS: dict[str, RepositoryAccess] = {
+    a.name: a for a in (ServerRepositoryAccess(), LocalProjectAccess(), SnapshotRepositoryAccess())
+}
+
+
+def repository_access(repo_path: str) -> RepositoryAccess:
+    """The access for *repo_path*: ``local`` for ``local:`` references, else
+    the one ``AGENT_DECOMPILE_REPOSITORY_ACCESS`` names (default ``server``).
+    An unknown name is the miss ``repository_access_unknown``."""
+    if repo_path.startswith("local:"):
+        return REPOSITORY_ACCESS[LocalProjectAccess.name]
+    chosen = os.environ.get(REPOSITORY_ACCESS_ENV, "").strip() or ServerRepositoryAccess.name
+    access = REPOSITORY_ACCESS.get(chosen)
+    if access is None or chosen == LocalProjectAccess.name:
+        raise RawImageMiss("repository_access_unknown")
+    return access
+
+
+_AUTH_NAMES = frozenset(
+    {
+        "UserAccessException",
+        "LoginException",
+        "FailedLoginException",
+        "AuthenticationException",
+        "KeyStoreException",
+        "UnrecoverableKeyException",
+        "GeneralSecurityException",
+        "SignatureException",
+    }
+)
+_UNREACHABLE_NAMES = frozenset(
+    {
+        "ConnectException",
+        "ConnectIOException",
+        "SocketTimeoutException",
+        "SocketException",
+        "UnknownHostException",
+        "NoRouteToHostException",
+        "NotConnectedException",
+        "RemoteException",
+        "ServerException",
+        "UnmarshalException",
+        "ServerNotActiveException",
+    }
+)
+_VERSION_NAMES = frozenset({"VersionException", "VersionMismatchException", "UnsupportedClassVersionError"})
+_AUTH_WORDS = ("keystore", "authenticat", "password", "unauthorized", "not authorized", "access denied", "permission denied", "credential", "login")
+_VERSION_WORDS = ("version",)
+_UNREACHABLE_WORDS = ("connection refused", "connect", "timed out", "timeout", "unreachable", "no route", "unknown host", "unavailable", "socket")
+_NOT_FOUND_WORDS = ("not found", "does not exist", "no such repository")
+
+
+def _classify_repository_error(exc: BaseException) -> str:
+    """The miss token for an exception raised while reaching the repository.
+
+    Java exceptions reach Python under their simple class name (the whole
+    MRO is inspected). The message is inspected for a few keywords and is
+    never part of the token: ``ghidra_env.domain_file`` raises a Python
+    ``FileNotFoundError`` whose message *is* the program path, and a
+    keystore failure names the key file.
+    """
+    if isinstance(exc, FileNotFoundError):
+        return "repository_program_missing"
+    names = {c.__name__ for c in type(exc).__mro__}
+    try:
+        text = str(exc).lower()
+    except Exception:
+        text = ""
+    if names & _AUTH_NAMES:
+        return "repository_auth_failed"
+    if "FileNotFoundException" in names:
+        # The only file the server client opens on this path is the keystore.
+        return "repository_auth_failed"
+    if names & _UNREACHABLE_NAMES:
+        return "repository_unreachable"
+    if names & _VERSION_NAMES:
+        return "repository_version_conflict"
+    if any(w in text for w in _AUTH_WORDS):
+        return "repository_auth_failed"
+    if any(w in text for w in _VERSION_WORDS):
+        return "repository_version_conflict"
+    if any(w in text for w in _NOT_FOUND_WORDS):
+        return "repository_not_found"
+    if any(w in text for w in _UNREACHABLE_WORDS):
+        return "repository_unreachable"
+    if "lock" in text:
+        return "repository_locked"
+    return "repository_error:" + type(exc).__name__
+
+
+#: Process-wide conditions: once seen, every later row gets the same miss
+#: without another connection attempt.
+_REPOSITORY_LATCHED = frozenset(
+    {"repository_unreachable", "repository_auth_failed", "repository_not_found", "repository_analyzer_unavailable"}
+)
+
+
+class GhidraRepositoryResolver:
+    """Re-materialize the image from the program the corpus's own address names.
+
+    ``binary.repo_path`` is a path inside the shared analysis-server
+    repository -- the address every other verb opens through
+    ``ghidra_env.open_program``. This resolver opens exactly that program
+    read-only (an immutable domain object; nothing is checked out or
+    saved) through a :class:`RepositoryAccess` and streams its single
+    ``FileBytes`` to a spool.
+
+    Before any analyzer work the access is asked whether it is configured
+    at all: with no repository declared the miss is
+    ``repository_unconfigured`` and the JVM is never booted. Every failure
+    on the worker side is classified into a named miss
+    (:func:`_classify_repository_error`); the process-wide ones
+    (unreachable server, failed authentication, missing repository,
+    missing install) are latched for the rest of the process. The one
+    non-miss exit is a selected slot (``snapshot`` access), which raises
+    ``NotImplementedError("A4c")`` for the walker to record.
+    """
+
+    name = "ghidra_repository"
+    working = True
+    env = (
+        REPOSITORY_ACCESS_ENV,
+        "AGENT_DECOMPILE_CORPUS_CONFIG_DIR",
+        "GHIDRA_SERVER_HOST",
+        "GHIDRA_SERVER_PORT",
+        "GHIDRA_SERVER_REPOSITORY",
+        "GHIDRA_SERVER_USERNAME",
+        "GHIDRA_SERVER_SSH_KEY",
+        "GHIDRA_INSTALL_DIR",
+        "JAVA_HOME",
+    )
+    misses = (
+        "repo_path_empty",
+        "repository_path_is_project",
+        "repository_access_unknown",
+        "repository_unconfigured",
+        "repository_analyzer_unavailable",
+        "repository_program_missing",
+        "repository_auth_failed",
+        "repository_unreachable",
+        "repository_not_found",
+        "repository_version_conflict",
+        "repository_locked",
+        "repository_deadline",
+        "repository_error:<ExceptionClass>",
+        "repository_file_bytes_error",
+        "repository_file_bytes_short",
+        "no_file_bytes",
+        "ambiguous_file_bytes",
+    )
+
+    def __init__(self) -> None:
+        self._worker = _AnalyzerWorker("raw-image-repository")
+
+    def resolve(self, row: dict, *, work_dir: Path | None, deadline_s: float) -> RawImage | None:
+        if self._worker.unavailable:
+            raise RawImageMiss(self._worker.unavailable)
+        repo = str(row.get("repo_path") or "")
+        if not repo:
+            raise RawImageMiss("repo_path_empty")
+        if not repo.startswith("local:") and _inside_analysis_project(Path(repo)):
+            # A local project file is ghidra_file_bytes' business; no server round trip.
+            raise RawImageMiss("repository_path_is_project")
+        access = repository_access(repo)
+        reason = access.unconfigured()  # runs here, before the worker: no JVM yet
+        if reason:
+            raise RawImageMiss(reason)
+        outcome = self._worker.run(
+            lambda: self._fetch(access, repo, deadline_s), deadline_s, deadline_reason="repository_deadline"
+        )
+        if isinstance(outcome, RawImageMiss):
+            if outcome.reason in _REPOSITORY_LATCHED:
+                self._worker.latch(outcome.reason)
+            raise outcome
+        spooled: _Spooled = outcome
+        provenance = {
+            "resolver": self.name,
+            "access": access.name,
+            "locator_kind": "repository_path",
+            "program_ref": sha12(repo),
+            "file_bytes_count": int(spooled.count),
+            "file_bytes_name_sha12": spooled.filename_sha12,
+            "spooled": True,
+        }
+        return RawImage(None, spooled.path, spooled.sha256, spooled.size, self.name, provenance)
+
+    # -- analyzer side (worker thread only) ---------------------------------
+
+    @staticmethod
+    def _fetch(access: RepositoryAccess, repo: str, deadline_s: float):
+        """Open the program through *access*, spool it; a :class:`RawImageMiss`
+        value (never raised) for every failure except a selected slot."""
+        deadline = time.monotonic() + float(deadline_s)
+        try:
+            from .ghidra_env import start as ghidra_start
+
+            if not ghidra_start():
+                return RawImageMiss("repository_analyzer_unavailable")
+        except Exception as exc:
+            # The boot installs the server authenticator; a missing or
+            # unreadable key surfaces here and is an auth failure.
+            token = _classify_repository_error(exc)
+            return RawImageMiss(token if token == "repository_auth_failed" else "repository_analyzer_unavailable")
+        try:
+            with access.open(repo) as program:
+                if program is None:
+                    return RawImageMiss("repository_program_missing")
+                return _spool_program(program, deadline)
+        except _SpoolMiss as miss:
+            return RawImageMiss(_REPOSITORY_SPOOL_REASONS[miss.kind])
+        except NotImplementedError:
+            raise
+        except Exception as exc:
+            return RawImageMiss(_classify_repository_error(exc))
 
 
 class _GhidraProjectShim:
@@ -687,6 +1217,9 @@ class ObjectStoreResolver:
     """
 
     name = "object_store"
+    working = False
+    env = ()
+    misses = ("no_stored_hash", "object_missing")
 
     def resolve(self, row: dict, *, work_dir: Path | None, deadline_s: float) -> RawImage | None:
         raise NotImplementedError("A4.object_store")
@@ -701,6 +1234,9 @@ class PeerFetchResolver:
     """
 
     name = "peer_fetch"
+    working = False
+    env = ()
+    misses = ("no_stored_hash", "peer_unreachable", "peer_hash_mismatch")
 
     def resolve(self, row: dict, *, work_dir: Path | None, deadline_s: float) -> RawImage | None:
         raise NotImplementedError("A4.peer_fetch")
@@ -715,6 +1251,9 @@ class ArchiveMemberResolver:
     """
 
     name = "archive_member"
+    working = False
+    env = ()
+    misses = ("archive_unset", "member_missing")
 
     def resolve(self, row: dict, *, work_dir: Path | None, deadline_s: float) -> RawImage | None:
         raise NotImplementedError("A4.archive_member")
@@ -729,6 +1268,7 @@ RAW_IMAGE_RESOLVERS: dict[str, RawImageResolver] = {
         RepoPathFileResolver(),
         ExplicitMapResolver(),
         ContentIdentityTableResolver(),
+        GhidraRepositoryResolver(),
         GhidraFileBytesResolver(),
         ObjectStoreResolver(),
         PeerFetchResolver(),
@@ -737,11 +1277,14 @@ RAW_IMAGE_RESOLVERS: dict[str, RawImageResolver] = {
 }
 
 #: Working resolvers, cheapest first. Slots are registered but not walked.
+#: The shared repository is the corpus's own program address, so it comes
+#: before the local-project fallback.
 DEFAULT_RESOLVER_ORDER: tuple[str, ...] = (
     "extract_raw_dir",
     "repo_path_file",
     "explicit_map",
     "content_identity_table",
+    "ghidra_repository",
     "ghidra_file_bytes",
 )
 
@@ -913,6 +1456,41 @@ def last_misses() -> dict[str, str]:
     return dict(_LAST_MISSES.get(threading.get_ident(), {}))
 
 
+#: Miss tokens the walker itself records, outside any resolver's vocabulary.
+WALKER_MISSES: tuple[str, ...] = ("miss", "deadline", "error:<ExceptionClass>", "not_implemented:<slot>")
+
+
+def describe_resolvers() -> dict:
+    """Every registered resolver: working or slot, its position in the
+    default order, its miss vocabulary and the environment variables it
+    reads; plus the lock policies, the repository accesses and the
+    walker-level knobs. Sorted, JSON-safe, no paths or values inside."""
+    resolvers: dict[str, dict] = {}
+    for name, resolver in sorted(RAW_IMAGE_RESOLVERS.items()):
+        resolvers[name] = {
+            "env": sorted(getattr(resolver, "env", ())),
+            "misses": sorted(getattr(resolver, "misses", ())),
+            "position": DEFAULT_RESOLVER_ORDER.index(name) if name in DEFAULT_RESOLVER_ORDER else None,
+            "working": bool(getattr(resolver, "working", True)),
+        }
+    lock_policies = {
+        name: {"working": factory is not CopyOnLockPolicy, "env": sorted({LOCK_POLICY_ENV} | ({LOCK_WAIT_ENV} if factory is WaitBoundedLockPolicy else set()))}
+        for name, factory in sorted(LOCK_POLICIES.items())
+    }
+    accesses = {
+        name: {"working": not isinstance(access, SnapshotRepositoryAccess), "env": [REPOSITORY_ACCESS_ENV]}
+        for name, access in sorted(REPOSITORY_ACCESS.items())
+    }
+    return {
+        "default_order": list(DEFAULT_RESOLVER_ORDER),
+        "env": sorted({ORDER_ENV, MAP_ENV, RESET_OWNER_ENV, LOCK_POLICY_ENV, LOCK_WAIT_ENV, REPOSITORY_ACCESS_ENV}),
+        "lock_policies": lock_policies,
+        "repository_access": accesses,
+        "resolvers": resolvers,
+        "walker_misses": list(WALKER_MISSES),
+    }
+
+
 def close_resolvers() -> dict:
     """Release anything a resolver holds open (analysis projects). Idempotent."""
     out: dict = {}
@@ -945,8 +1523,22 @@ __all__ = [
     "RawImageError",
     "RawImageMiss",
     "RawImageResolver",
+    "RepositoryAccess",
+    "ServerRepositoryAccess",
+    "LocalProjectAccess",
+    "SnapshotRepositoryAccess",
+    "REPOSITORY_ACCESS",
+    "repository_access",
+    "LockPolicy",
+    "RefuseLockPolicy",
+    "WaitBoundedLockPolicy",
+    "CopyOnLockPolicy",
+    "LOCK_POLICIES",
+    "lock_policy",
     "RAW_IMAGE_RESOLVERS",
     "DEFAULT_RESOLVER_ORDER",
+    "WALKER_MISSES",
+    "describe_resolvers",
     "resolver_order",
     "resolve_raw_image",
     "row_context",

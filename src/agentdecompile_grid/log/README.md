@@ -21,7 +21,7 @@
 - `HeadStore.get` of an absent head is `(0, "")`; `cas` succeeds only on an exact match.
 - `LocalFileLog` orders by its file tail: a non-chaining batch is refused with `ChainConflict` under an exclusive lock; `publish_head` then moves the head store forward, monotonic only; `HeadDiverged` names a fork.
 - S3/HTTP adapters (declared) order by the head CAS: records are written by digest, the CAS makes them canonical, the seq index is written after. `rebuild_heads` recomputes heads by chain scan.
-- Retries: full-jitter backoff (100 ms base, 5 s cap, seeded); rotate to another partition after 8 consecutive conflicts (`HotHead`).
+- Retries: full-jitter backoff (100 ms base, 5 s cap, seeded, 128 attempts then `AppendGaveUp` by name; `max_attempts: null` opts into forever); the outbox rotates to another partition after 8 consecutive conflicts (`HotHead`).
 
 ## Frontier rules — `derive(log, objects, now, *, proposal_cap, kinds, partitions, checkpoints, policy)`
 - Pure (no clock reads); every list sorted by `(kind, task_id)`; identical on two nodes given the same records, objects and `now`.
@@ -35,9 +35,10 @@
 - Live iff `ttl_s > 0` and `issued_at + ttl_s > now`. `renew_intent` / `drop_intent` raise `IntentFenced` by name when a newer holder exists.
 
 ## Checkpoint rules
-- `CheckpointSummary` = folded `PartitionState` through `through_seq` + `through_digest`; no timestamp, no writer identity, so two nodes write the same object.
+- `CheckpointSummary` = folded `PartitionState` through `through_seq` + `through_digest`, compacted: open tasks whole, done/poisoned tasks as one row (id, kind, verified refs, poison); no timestamp, no writer identity, so two nodes write the same object and its size is bounded by open work, not record count.
 - Readers start at `latest_checkpoint`, check the tail's first `prev` equals `through_digest`, fold the tail. A pruned partition without a checkpoint raises `PrefixPruned`.
 - `compact` never deletes. `prune(log, objects, partition, RetentionPolicy)` is the separate verb and refuses to drop anything no checkpoint covers.
+- `LocalFileLog.read(since_seq)` rescans the stored file from its first line, so a checkpoint saves fold work, not read I/O; `prune` is what bounds the file.
 
 ## Acceptance tests (named in module docstrings; written in the verification phase)
 U122 (a)–(e), U123, records-validators, records-identity, records-schema, local-atomic-batch, local-torn-tail, local-prune, heads-cas, heads-fork, backoff-deterministic, backoff-rotation, outbox-rotation, outbox-batch, outbox-seeded, frontier-cap, frontier-order, frontier-intent, intents-fence, intents-renew, intents-drop, intents-body, compaction-idempotent, compaction-tail-chains, compaction-prune-guard, signing-roundtrip, signing-null-policy, signing-hmac-labels, signing-ed25519-declared, s3-declared, http-declared.

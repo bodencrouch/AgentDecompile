@@ -46,6 +46,7 @@ from agentdecompile_grid.core import Frontier, GridError, LogStore, ObjectRef, O
 from agentdecompile_grid.log.heads import partition_family
 
 DEFAULT_PROPOSAL_CAP = 4
+MAX_CHECKPOINT_SEQS = 8   # how many recent CHECKPOINT positions a state remembers; bounded on purpose
 
 
 class FoldOrder(GridError):
@@ -169,6 +170,15 @@ class TaskState:
     def holder(self, now: float) -> IntentState | None:
         return self.intent if self.intent is not None and self.intent.live(now) else None
 
+    def compacted(self) -> TaskState:
+        """What a checkpoint keeps.  A done or poisoned task is a terminal fact: ``classify`` never
+        reads its spec, proposals, counts or intent again, so a summary keeps only the id, kind,
+        verified refs and poison; open tasks are kept whole.  This is what bounds a checkpoint."""
+        if not (self.done or self.poisoned):
+            return self
+        return TaskState(task_id=self.task_id, kind=self.kind, published_seq=self.published_seq,
+                         verified=list(self.verified), poison=self.poison, poison_evidence=self.poison_evidence)
+
     # -- serialisation (deterministic: sorted where order is not semantic)
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -189,7 +199,8 @@ class TaskState:
             proposals={str(ref): str(key) for ref, key in data.get("proposals", [])},
             verified=list(data.get("verified", [])), refuted=list(data.get("refuted", [])),
             counts={str(k): int(v) for k, v in data.get("counts", {}).items()},
-            poison=data.get("poison"), poison_evidence=(dict(data["poison_evidence"]) if data.get("poison_evidence") else None),
+            poison=data.get("poison"),
+            poison_evidence=(dict(data["poison_evidence"]) if data.get("poison_evidence") is not None else None),
             intent=(IntentState.from_dict(data["intent"]) if data.get("intent") else None),
         )
 
@@ -216,7 +227,7 @@ class PartitionState:
         if record.seq <= self.through_seq:
             raise FoldOrder(f"record {record.partition!r}#{record.seq} folded after through_seq {self.through_seq}")
         if record.type is RecordType.CHECKPOINT:
-            self.checkpoint_seqs.append(record.seq)
+            self.checkpoint_seqs = (self.checkpoint_seqs + [record.seq])[-MAX_CHECKPOINT_SEQS:]
         elif record.type is not RecordType.NOTE:
             self.task(str(record.body["task_id"])).fold(record)
         self.through_seq = record.seq
@@ -229,6 +240,12 @@ class PartitionState:
 
     def copy(self) -> PartitionState:
         return PartitionState.from_dict(self.to_dict())
+
+    def compacted(self) -> PartitionState:
+        """The state a checkpoint summary stores: terminal tasks shrunk to their terminal facts."""
+        return PartitionState(partition=self.partition, through_seq=self.through_seq, through_digest=self.through_digest,
+                              tasks={tid: t.compacted() for tid, t in self.tasks.items()},
+                              checkpoint_seqs=list(self.checkpoint_seqs))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -430,19 +447,7 @@ def derive(
     effective = policy or DEFAULT_POLICY
     if proposal_cap is not None:
         effective = replace(effective, proposal_cap=int(proposal_cap))
-    names = expand_partitions(log, partitions)
-    states: dict[str, PartitionState] = {}
-    start = getattr(log, "start", None)
-    for partition in names:
-        base = (checkpoints or {}).get(partition)
-        state = base.copy() if base is not None else PartitionState(partition)
-        if callable(start):
-            stored_from = start(partition)[0]
-            if stored_from > state.through_seq:
-                raise PrefixPruned(f"{partition!r}: stored records start after seq {stored_from} but the reader is at "
-                                   f"{state.through_seq}; start from a checkpoint (compaction.latest_checkpoint)")
-        state.fold_all(log.read(partition, since_seq=state.through_seq))
-        states[partition] = state
+    states = states_of(log, partitions, checkpoints)
     return classify(states, objects, now, policy=effective, kinds=kinds)
 
 
@@ -458,17 +463,24 @@ def expand_partitions(log: LogStore, partitions: Iterable[str] | None) -> list[s
     return sorted(names)
 
 
+def fold_partition(log: LogStore, partition: str, base: PartitionState | None = None) -> PartitionState:
+    """Fold one partition from ``base`` (copied) or from nothing; ``PrefixPruned`` when the stored
+    records start after the base position, so no reader ever folds a hole silently."""
+    state = base.copy() if base is not None else PartitionState(partition)
+    start = getattr(log, "start", None)
+    if callable(start):
+        stored_from = start(partition)[0]
+        if stored_from > state.through_seq:
+            raise PrefixPruned(f"{partition!r}: stored records start after seq {stored_from} but the reader is at "
+                               f"{state.through_seq}; start from a checkpoint (compaction.latest_checkpoint)")
+    return state.fold_all(log.read(partition, since_seq=state.through_seq))
+
+
 def states_of(log: LogStore, partitions: Iterable[str] | None = None,
               checkpoints: Mapping[str, PartitionState] | None = None) -> dict[str, PartitionState]:
-    """Fold without classifying; what ``compaction`` and ``intents`` use."""
-    names = expand_partitions(log, partitions)
-    states: dict[str, PartitionState] = {}
-    for partition in names:
-        base = (checkpoints or {}).get(partition)
-        state = base.copy() if base is not None else PartitionState(partition)
-        state.fold_all(log.read(partition, since_seq=state.through_seq))
-        states[partition] = state
-    return states
+    """Fold without classifying; what ``derive``, ``compaction`` and ``intents`` use."""
+    return {partition: fold_partition(log, partition, (checkpoints or {}).get(partition))
+            for partition in expand_partitions(log, partitions)}
 
 
 def iter_tasks(states: Mapping[str, PartitionState]) -> Iterator[tuple[str, TaskState]]:
@@ -479,5 +491,6 @@ def iter_tasks(states: Mapping[str, PartitionState]) -> Iterator[tuple[str, Task
 
 __all__ = [
     "DEFAULT_POLICY", "DEFAULT_PROPOSAL_CAP", "FoldOrder", "FrontierPolicy", "FrontierReport", "IntentState", "PartitionState",
-    "PrefixPruned", "TaskState", "classify", "derive", "expand_partitions", "fold", "iter_tasks", "states_of",
+    "MAX_CHECKPOINT_SEQS", "PrefixPruned", "TaskState", "classify", "derive", "expand_partitions", "fold",
+    "fold_partition", "iter_tasks", "states_of",
 ]

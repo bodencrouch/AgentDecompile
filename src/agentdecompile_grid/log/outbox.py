@@ -36,7 +36,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 
 from agentdecompile_grid.core import GridError, HeadStore, LogStore, Record, Signer
 from agentdecompile_grid.log.backoff import DEFAULT_BACKOFF, BackoffPolicy, PartitionRotation, Sleeper, full_jitter
-from agentdecompile_grid.log.heads import HeadPublishFailed, publish_head
+from agentdecompile_grid.log.heads import HeadDiverged, HeadPublishFailed, force_head, publish_head
 from agentdecompile_grid.log.local import ChainConflict
 from agentdecompile_grid.log.records import Draft, Head, head_of, seal, validate_partition
 
@@ -89,6 +89,7 @@ class Appender:
         self.seed = seed
         self.sleep = sleep
         self.stale_heads = 0
+        self.repaired_heads = 0
         self._rounds = 0
 
     @property
@@ -116,8 +117,13 @@ class Appender:
                 return None
             try:
                 publish_head(self.heads, partition, new_head)
+            except HeadDiverged:
+                # the log is the authority in this branch, so a head store holding another digest at
+                # this seq is a stale cache (e.g. after repair + re-append), not a fork: overwrite it
+                force_head(self.heads, partition, new_head)
+                self.repaired_heads += 1
             except HeadPublishFailed:
-                self.stale_heads += 1  # the records landed; the head store is a cache here and rebuild_heads repairs it
+                self.stale_heads += 1  # the records landed; rebuild_heads repairs the cache later
             return records
         self.log.append(records)
         if not self.heads.cas(partition, head, new_head):
@@ -128,7 +134,8 @@ class Appender:
         return records
 
     def try_append(self, partition: str, drafts: Sequence[Draft], *, attempts: int | None = None) -> list[Record]:
-        """Append with at most ``attempts`` (default ``rotate_after``) tries; ``HotHead`` after that."""
+        """Append with at most ``attempts`` (default ``rotate_after``; ``0`` = no rotation limit) tries;
+        ``HotHead`` after that, ``AppendGaveUp`` when the backoff schedule itself runs out."""
         validate_partition(partition)
         if not drafts:
             return []
@@ -146,8 +153,10 @@ class Appender:
         raise AppendGaveUp(f"append to {partition!r} gave up after {failures} attempts")
 
     def append(self, partition: str, drafts: Sequence[Draft]) -> list[Record]:
-        """Append, retrying until it lands or ``backoff.max_attempts`` is exhausted."""
-        return self.try_append(partition, drafts, attempts=self.backoff.max_attempts or 0)
+        """Append, retrying until it lands or ``backoff.max_attempts`` (default 128) is exhausted:
+        ``AppendGaveUp`` by name, never ``HotHead`` (rotation is the outbox's concern, not this
+        caller's).  ``max_attempts=None`` retries forever, as an explicit choice."""
+        return self.try_append(partition, drafts, attempts=0)
 
     def append_one(self, partition: str, draft: Draft) -> Record:
         return self.append(partition, [draft])[0]

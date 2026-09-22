@@ -255,6 +255,16 @@ def publish_head(heads: HeadStore, partition: str, new: Head, *, attempts: int =
     raise HeadPublishFailed(f"could not publish head {new!r} for {partition!r} in {attempts} attempts")
 
 
+def force_head(heads: HeadStore, partition: str, new: Head, *, attempts: int = 64) -> None:
+    """Set a head regardless of what is stored.  Only for a head store that is a *cache* of a log
+    that orders itself (``ordering_authority == "log"``); never call it where the CAS is the order."""
+    for _ in range(attempts):
+        current = heads.get(partition)
+        if current == new or heads.cas(partition, current, new):
+            return
+    raise HeadPublishFailed(f"could not force head {new!r} for {partition!r} in {attempts} attempts")
+
+
 def rebuild_heads(log: LogStore, heads: HeadStore, partitions: Sequence[str] | None = None, *,
                   verifier: SignatureVerifier | None = None) -> dict[str, Head]:
     """Recompute every head from a chain scan of the log and publish it; returns what was published."""
@@ -289,5 +299,5 @@ def heads_match_log(log: LogStore, heads: HeadStore, partitions: Sequence[str] |
 
 __all__ = [
     "HEAD_SUFFIX", "HeadDiverged", "HeadPublishFailed", "HttpHeads", "LocalFileHeads", "S3ConditionalHeads",
-    "heads_match_log", "partition_family", "prefix_width", "publish_head", "rebuild_heads", "sub_partition",
+    "force_head", "heads_match_log", "partition_family", "prefix_width", "publish_head", "rebuild_heads", "sub_partition",
 ]

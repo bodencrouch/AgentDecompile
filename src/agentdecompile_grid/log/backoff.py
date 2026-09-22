@@ -48,13 +48,14 @@ JITTERS.register("none", _none)
 
 @dataclass(frozen=True)
 class BackoffPolicy:
-    """Configuration is data.  Defaults are the design's: 100 ms base, 5 s cap, rotate after 8."""
+    """Configuration is data.  Defaults are the design's: 100 ms base, 5 s cap, rotate after 8; plus a
+    bound of 128 attempts so a wedged head becomes a named ``AppendGaveUp``, never a silent hang."""
 
     base_s: float = 0.1
     cap_s: float = 5.0
     multiplier: float = 2.0
     rotate_after: int = 8
-    max_attempts: int | None = None
+    max_attempts: int | None = 128     # ~10 min of capped sleeps; None = retry forever (explicit opt-in)
     jitter: str = "full"
 
     @classmethod
@@ -62,7 +63,7 @@ class BackoffPolicy:
         return cls(
             base_s=float(config.get("base_s", 0.1)), cap_s=float(config.get("cap_s", 5.0)),
             multiplier=float(config.get("multiplier", 2.0)), rotate_after=int(config.get("rotate_after", 8)),
-            max_attempts=(int(config["max_attempts"]) if config.get("max_attempts") is not None else None),
+            max_attempts=(int(config["max_attempts"]) if config.get("max_attempts", 128) is not None else None),
             jitter=str(config.get("jitter", "full")),
         )
 
@@ -71,7 +72,7 @@ class BackoffPolicy:
         return {"type": "object", "properties": {
             "base_s": {"type": "number", "default": 0.1}, "cap_s": {"type": "number", "default": 5.0},
             "multiplier": {"type": "number", "default": 2.0}, "rotate_after": {"type": "integer", "default": 8},
-            "max_attempts": {"type": ["integer", "null"], "default": None},
+            "max_attempts": {"type": ["integer", "null"], "default": 128, "description": "null = retry forever"},
             "jitter": {"enum": JITTERS.names(), "default": "full"}}}
 
 

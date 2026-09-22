@@ -1,8 +1,10 @@
 """Checkpoints: a deterministic summary of a partition through ``seq``, so readers can skip the prefix.
 
-A ``CheckpointSummary`` is the folded ``PartitionState`` (open task specs, done/poisoned ids with
-their kinds, per-task highest-fence intent even when lapsed, unverified and refuted result refs,
-non-ok result counts) plus ``through_seq`` and ``through_digest``.  It carries no timestamp and no
+A ``CheckpointSummary`` is the folded ``PartitionState``, compacted: open tasks whole (spec,
+highest-fence intent even when lapsed, unverified and refuted result refs, non-ok result counts);
+done and poisoned tasks as one small row each (id, kind, verified refs, poison); plus
+``through_seq`` and ``through_digest``.  Its size is bounded by the open work plus one row per
+retired task, never by the record count.  It carries no timestamp and no
 writer identity, so two nodes compacting the same prefix write the *same* object and
 ``summary_ref`` is identical (design §2.2: idempotent checkpoint-index).  The summary lives in the
 object store; the CHECKPOINT record ``{through_seq, through_digest, summary_ref}`` points at it.
@@ -70,7 +72,11 @@ class CheckpointSummary:
 
     @classmethod
     def from_state(cls, state: PartitionState) -> CheckpointSummary:
-        return cls(partition=state.partition, through_seq=state.through_seq, through_digest=state.through_digest, state=state.to_dict())
+        """Stores ``state.compacted()``: done and poisoned tasks shrink to their terminal facts, so a
+        summary is bounded by the *open* work plus one small row per retired task."""
+        compact_state = state.compacted()
+        return cls(partition=state.partition, through_seq=state.through_seq, through_digest=state.through_digest,
+                   state=compact_state.to_dict())
 
     def to_state(self) -> PartitionState:
         state = PartitionState.from_dict(self.state)

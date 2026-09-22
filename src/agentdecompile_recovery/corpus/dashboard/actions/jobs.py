@@ -16,7 +16,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from agentdecompile_recovery.languages import SourceLanguage, default_source_language, language_spec
 
@@ -28,6 +28,7 @@ from agentdecompile_recovery.corpus.dashboard.actions.catalog import (
     validate_params,
 )
 from agentdecompile_recovery.corpus.dashboard.common import live_db, live_root
+from agentdecompile_recovery.corpus.verb_admission import VerbAdmission, from_legacy
 
 from agentdecompile_recovery.corpus.dashboard.mcp_bridge import CONTEXT_LOCK
 
@@ -35,6 +36,20 @@ MAX_JOBS = 50
 MAX_CONCURRENT = 4
 MAX_LOG_BYTES = 2 * 1024 * 1024
 POLL_S = 0.25
+# H6: per-lane quotas at the acceptance point.  A lane absent from the table
+# gets the default; no quota can raise concurrency above MAX_CONCURRENT,
+# which stays the outer gate.
+LANE_QUOTA_DEFAULT = MAX_CONCURRENT
+LANE_QUOTAS: dict[str, int] = {
+    "corpus": 1,
+    "admission": 1,
+    "attest": 1,
+    "compile": 2,
+    "match": 2,
+}
+# H6: a job that has waited this long is admitted next regardless of lane.
+STARVATION_S = float(os.environ.get("AGENT_DECOMPILE_ADMISSION_STARVATION_S", "300"))
+COORDINATOR_ACTIONS = frozenset({"workbench.prepare", "workbench.workflow-control", "workbench.activity-snapshot"})
 # One MCP session owns one mutable current-project/current-program context.
 # Serialize complete dashboard sequences without holding the bridge's loopback
 # lock across the HTTP request (which can deadlock the in-process handler).
@@ -93,6 +108,126 @@ def _json_safe(value: Any) -> Any:
     return str(value)
 
 
+@dataclass(frozen=True)
+class WaitingJob:
+    """One queued job as the admission policy sees it."""
+
+    id: str
+    lane: str
+    created_at: float
+    budget_class: str
+
+
+def lane_quota(lane: str) -> int:
+    return max(1, int(LANE_QUOTAS.get(lane, LANE_QUOTA_DEFAULT)))
+
+
+class AdmissionPolicy(Protocol):
+    """Decide whether *candidate* is the next job to admit.
+
+    ``waiting`` holds every queued job whose locks are free and whose scope
+    is not paused, the candidate included.  The policy is stateless: each
+    queued job's thread asks on every poll, so a verdict must follow from
+    the snapshot alone or a stale cursor would stall admission.
+    """
+
+    name: str
+
+    def admit(
+        self,
+        candidate: WaitingJob,
+        waiting: Sequence[WaitingJob],
+        running_by_lane: Mapping[str, int],
+        now: float,
+    ) -> str:
+        """Return the admission reason, or "" when the candidate must wait."""
+
+
+class FairLaneFifo:
+    """H6: FIFO inside a lane, least-loaded lane first across lanes.
+
+    Round-robin in effect: each lane exposes one head (its oldest eligible
+    waiter), a head runs only under its lane quota, and among heads the lane
+    with the fewest running jobs goes first, ties by age.  A waiter older
+    than STARVATION_S goes next regardless of lane or quota; the identity,
+    pair, Ghidra and output-tree locks and MAX_CONCURRENT still apply.
+    """
+
+    name = "fair-lane-fifo"
+
+    def admit(
+        self,
+        candidate: WaitingJob,
+        waiting: Sequence[WaitingJob],
+        running_by_lane: Mapping[str, int],
+        now: float,
+    ) -> str:
+        starving = [job for job in waiting if now - job.created_at >= STARVATION_S]
+        if starving:
+            oldest = min(starving, key=lambda job: (job.created_at, job.id))
+            return "starvation" if oldest.id == candidate.id else ""
+        heads: dict[str, WaitingJob] = {}
+        for job in waiting:
+            head = heads.get(job.lane)
+            if head is None or (job.created_at, job.id) < (head.created_at, head.id):
+                heads[job.lane] = job
+        eligible = [
+            head for head in heads.values()
+            if running_by_lane.get(head.lane, 0) < lane_quota(head.lane)
+        ]
+        if not eligible:
+            return ""
+        best = min(eligible, key=lambda head: (running_by_lane.get(head.lane, 0), head.created_at, head.id))
+        return "fair-lane" if best.id == candidate.id else ""
+
+
+class PriorityByBudgetClass:
+    """Slot: order waiters by budget class (micro first) inside the lane gate."""
+
+    name = "priority-by-budget-class"
+
+    def admit(self, candidate: WaitingJob, waiting: Sequence[WaitingJob], running_by_lane: Mapping[str, int], now: float) -> str:
+        raise NotImplementedError("slot: orders by budget_class; not implemented")
+
+
+class DeadlineFirst:
+    """Slot: order waiters by declared deadline inside the lane gate."""
+
+    name = "deadline-first"
+
+    def admit(self, candidate: WaitingJob, waiting: Sequence[WaitingJob], running_by_lane: Mapping[str, int], now: float) -> str:
+        raise NotImplementedError("slot: orders by deadline; not implemented")
+
+
+ADMISSION_POLICIES: dict[str, type] = {
+    FairLaneFifo.name: FairLaneFifo,
+    PriorityByBudgetClass.name: PriorityByBudgetClass,
+    DeadlineFirst.name: DeadlineFirst,
+}
+
+
+def select_admission_policy(name: str | None = None) -> AdmissionPolicy:
+    """The named policy, or FairLaneFifo when the name is unknown or a slot."""
+    chosen = (name or os.environ.get("AGENT_DECOMPILE_ADMISSION_POLICY", "") or FairLaneFifo.name).strip()
+    cls = ADMISSION_POLICIES.get(chosen, FairLaneFifo)
+    if cls in (PriorityByBudgetClass, DeadlineFirst):
+        cls = FairLaneFifo
+    return cls()
+
+
+@dataclass(frozen=True)
+class _AdmissionMeta:
+    """Everything the acceptance point needs about one job, fixed at submit."""
+
+    admission: VerbAdmission
+    coordinator: bool
+    lane: str
+    identity_key: str
+    pair_entry: tuple[str, str] | None
+    ghidra_key: str
+    output_key: str
+
+
 @dataclass
 class JobRecord:
     id: str
@@ -116,6 +251,13 @@ class JobRecord:
     work_progress: dict[str, Any] | None = None
     trusted_preparation_facts_inventory: bool = False
     trusted_preparation_probe: bool = False
+    lane: str = ""
+    admitted_by: str = ""
+    # H5: a paused scope drains a running verb; the two stamps distinguish a
+    # drain from an ignore.
+    drain_started_at: float | None = None
+    drained_at: float | None = None
+    pause_requested_at: float | None = None
 
     def to_dict(self, *, include_log: bool = True, include_details: bool = True) -> dict[str, Any]:
         payload = {
@@ -139,6 +281,14 @@ class JobRecord:
             "logState": self.log_state if self.log or self.history_only else ('pending' if self.status in {'queued', 'running', 'cancelling'} else 'empty'),
             "logReason": self.log_reason,
             "logTruncated": self.log_truncated or len(self.log) >= MAX_LOG_BYTES,
+            "lane": self.lane,
+            "admittedBy": self.admitted_by,
+            "drainStartedAt": self.drain_started_at,
+            "drainedAt": self.drained_at,
+            "pauseRequestedAt": self.pause_requested_at,
+            "waitingS": (time.time() - self.created_at) if self.status == "queued" else (
+                (self.started_at - self.created_at) if self.started_at else None
+            ),
         }
         if self.work_progress is not None:
             payload["workProgress"] = _json_safe(dict(self.work_progress))
@@ -217,6 +367,14 @@ class JobStore:
         self._identity_held: dict[str, str] = {}
         self._pair_held: dict[tuple[str, str], str] = {}
         self._ghidra_held: dict[str, str] = {}
+        # 3b: one writer per output tree, keyed by the resolved out path.
+        self._output_held: dict[str, str] = {}
+        # H5: paused scopes ("*", "lane:<name>" or a resolved store path) -> since.
+        self._paused: dict[str, float] = {}
+        self._admission_meta: dict[str, _AdmissionMeta] = {}
+        self._running_lane: dict[str, str] = {}
+        self._starved_count: dict[str, int] = {}
+        self._policy: AdmissionPolicy = select_admission_policy()
         self.executor: Executor | None = None
         self._persisted_at: dict[str, float] = {}
         self._persist_pending: dict[str, dict[str, Any]] = {}
@@ -300,10 +458,13 @@ class JobStore:
             trusted_preparation_probe=trusted_preparation_probe,
         )
         cancel = threading.Event()
+        meta = _admission_meta_for(action, job)
+        job.lane = meta.lane
         with self._lock:
             self._jobs[job.id] = job
             self._order.append(job.id)
             self._cancels[job.id] = cancel
+            self._admission_meta[job.id] = meta
             self._persist_locked(job, force=True)
             self._trim_locked()
         threading.Thread(target=self._watch_cancel, args=(job.id, cancel), daemon=True).start()
@@ -338,12 +499,169 @@ class JobStore:
             self._persist_locked(job, force=True)
             return _copy_job(job)
 
+    def pause(self, scope: str = "*") -> dict[str, Any]:
+        """H5: stop admitting in *scope*; settle each running job by its declaration.
+
+        ``drains_on_pause`` jobs keep running until they finish (drain);
+        ``cancel="sigterm"`` jobs get the cancel event, which the executor
+        turns into SIGTERM on the process group; ``cooperative`` jobs get the
+        pause flag on their record; ``never`` jobs are left to finish.
+        """
+        key = _pause_scope_key(scope)
+        now = time.time()
+        summary: dict[str, Any] = {"scope": key, "since": now, "drained": [], "signalled": [], "flagged": [], "left": []}
+        with self._lock:
+            self._paused.setdefault(key, now)
+            for job_id, job in self._jobs.items():
+                meta = self._admission_meta.get(job_id)
+                if meta is None or meta.coordinator or job.status != "running":
+                    continue
+                if not _scope_matches(key, meta):
+                    continue
+                adm = meta.admission
+                if adm.drains_on_pause:
+                    # H5 — drain, do not signal: the verb finishes on its own.
+                    if job.drain_started_at is None:
+                        job.drain_started_at = now
+                    summary["drained"].append(job_id)
+                elif adm.cancel == "sigterm":
+                    # H5 — signal: the executor's killpg path delivers SIGTERM.
+                    job.status = "cancelling"
+                    event = self._cancels.get(job_id)
+                    if event is not None:
+                        event.set()
+                    summary["signalled"].append(job_id)
+                elif adm.cancel == "cooperative":
+                    # H5 — flag: an in-process verb polls pause_requested().
+                    if job.pause_requested_at is None:
+                        job.pause_requested_at = now
+                    summary["flagged"].append(job_id)
+                else:
+                    # H5 — cancel="never": treated as a drain.
+                    if job.drain_started_at is None:
+                        job.drain_started_at = now
+                    summary["left"].append(job_id)
+                self._persist_locked(job, force=True)
+        return summary
+
+    def resume(self, scope: str = "*") -> dict[str, Any]:
+        """Lift a pause; queued jobs in the scope compete for admission again."""
+        key = _pause_scope_key(scope)
+        with self._lock:
+            since = self._paused.pop(key, None)
+            for job_id, job in self._jobs.items():
+                meta = self._admission_meta.get(job_id)
+                if meta is None or job.status != "running" or not _scope_matches(key, meta):
+                    continue
+                if self._paused_for_locked(meta):
+                    continue
+                # H5: a lifted pause is not a drain; clear both marks so the
+                # finished receipt does not read as a completed drain.
+                if job.pause_requested_at is not None or (job.drain_started_at is not None and job.drained_at is None):
+                    job.pause_requested_at = None
+                    job.drain_started_at = None
+                    self._persist_locked(job, force=True)
+        return {"scope": key, "resumed": since is not None, "since": since}
+
+    def paused_scopes(self) -> dict[str, float]:
+        with self._lock:
+            return dict(self._paused)
+
+    def pause_requested(self, job_id: str) -> bool:
+        with self._lock:
+            job = self._jobs.get(job_id)
+            return bool(job and job.pause_requested_at is not None)
+
+    def admission_status(self) -> dict[str, Any]:
+        """Per-lane queue state: quota, running, waiting, waiting_max_s, starved_count."""
+        now = time.time()
+        with self._lock:
+            running_by_lane = self._running_by_lane_locked()
+            lanes: dict[str, dict[str, Any]] = {}
+            for lane in set(LANE_QUOTAS) | set(running_by_lane) | set(self._starved_count):
+                lanes[lane] = {"quota": lane_quota(lane), "running": running_by_lane.get(lane, 0),
+                               "waiting": 0, "waiting_max_s": 0.0, "starved_count": self._starved_count.get(lane, 0)}
+            for job_id, job in self._jobs.items():
+                meta = self._admission_meta.get(job_id)
+                if meta is None or meta.coordinator or job.status != "queued":
+                    continue
+                row = lanes.setdefault(meta.lane, {"quota": lane_quota(meta.lane), "running": 0, "waiting": 0,
+                                                   "waiting_max_s": 0.0, "starved_count": self._starved_count.get(meta.lane, 0)})
+                row["waiting"] += 1
+                row["waiting_max_s"] = max(row["waiting_max_s"], round(now - job.created_at, 3))
+            return {
+                "policy": self._policy.name,
+                "maxConcurrent": MAX_CONCURRENT,
+                "starvationS": STARVATION_S,
+                "running": self._running,
+                "lanes": dict(sorted(lanes.items())),
+                "paused": dict(self._paused),
+                "identityHeld": len(self._identity_held),
+                "pairHeld": len(self._pair_held),
+                "ghidraHeld": len(self._ghidra_held),
+                "outputTreesHeld": len(self._output_held),
+            }
+
+    def _paused_for_locked(self, meta: _AdmissionMeta) -> bool:
+        return any(_scope_matches(key, meta) for key in self._paused)
+
+    def _running_by_lane_locked(self) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        for lane in self._running_lane.values():
+            counts[lane] = counts.get(lane, 0) + 1
+        return counts
+
+    def _locks_free_locked(self, job_id: str, meta: _AdmissionMeta) -> bool:
+        adm = meta.admission
+        if adm.skips_identity_lock:
+            # H5 (3a): a snapshot reader never takes or waits on the identity lock.
+            pass
+        elif adm.identity_scope == "database" and meta.identity_key:
+            holder = self._identity_held.get(meta.identity_key)
+            if (holder and holder != job_id) or any(
+                db == meta.identity_key and owner != job_id for (db, _pair), owner in self._pair_held.items()
+            ):
+                return False
+        elif adm.identity_scope == "pair":
+            holder = self._identity_held.get(meta.identity_key)
+            pair_holder = self._pair_held.get(meta.pair_entry) if meta.pair_entry else None
+            if (holder and holder != job_id) or (pair_holder and pair_holder != job_id):
+                return False
+        if meta.ghidra_key:
+            holder = self._ghidra_held.get(meta.ghidra_key)
+            if holder and holder != job_id:
+                return False
+        if meta.output_key:
+            # 3b: two exporters never interleave writes in one output tree.
+            holder = self._output_held.get(meta.output_key)
+            if holder and holder != job_id:
+                return False
+        return True
+
+    def _waiting_locked(self) -> list[WaitingJob]:
+        """Queued, non-coordinator jobs whose locks are free and scope not paused."""
+        out: list[WaitingJob] = []
+        for job_id, job in self._jobs.items():
+            meta = self._admission_meta.get(job_id)
+            if meta is None or meta.coordinator or job.status != "queued":
+                continue
+            if self._paused_for_locked(meta) or not self._locks_free_locked(job_id, meta):
+                continue
+            out.append(WaitingJob(id=job_id, lane=meta.lane, created_at=job.created_at, budget_class=meta.admission.budget_class))
+        return out
+
     def _run(self, job_id: str, cancel: threading.Event) -> None:
-        identity_key = ""
-        pair_entry: tuple[str, str] | None = None
-        ghidra_key = ""
         worker_acquired = False
         action = action_by_id(self._jobs[job_id].action_id)
+        with self._lock:
+            meta = self._admission_meta.get(job_id) or _admission_meta_for(action, self._jobs[job_id])
+            self._admission_meta[job_id] = meta
+        identity_key = meta.identity_key
+        pair_entry = meta.pair_entry
+        ghidra_key = meta.ghidra_key
+        output_key = meta.output_key
+        scope = meta.admission.identity_scope
+        coordinator = meta.coordinator
         while True:
             with self._lock:
                 if cancel.is_set():
@@ -353,7 +671,6 @@ class JobStore:
                     self._persist_locked(job, force=True)
                     return
                 job = self._jobs[job_id]
-                coordinator = job.action_id in {"workbench.prepare", "workbench.workflow-control", "workbench.activity-snapshot"}
                 # Coordinators do not consume a worker slot below, so requiring a
                 # free one here only starved them: with MAX_CONCURRENT real jobs
                 # running, a Pause (workbench.workflow-control) could never reach
@@ -361,29 +678,17 @@ class JobStore:
                 # taking effect.  Full worker capacity must not block Pause.  The
                 # identity/pair/Ghidra locks below still apply unchanged.
                 can_run = coordinator or self._running < MAX_CONCURRENT
-                scope = action.identity_scope if action is not None else ""
-                if can_run and scope:
-                    identity_key = identity_lock_key(job.params) or ""
-                    if scope == "database":
-                        holder = self._identity_held.get(identity_key)
-                        if identity_key and (
-                            (holder and holder != job_id)
-                            or any(db == identity_key and owner != job_id for (db, _pair), owner in self._pair_held.items())
-                        ):
-                            can_run = False
-                    elif scope == "pair":
-                        pair_key = match_pair_lock_key(job.params) or ""
-                        pair_entry = (identity_key, pair_key) if identity_key and pair_key else None
-                        holder = self._identity_held.get(identity_key)
-                        pair_holder = self._pair_held.get(pair_entry) if pair_entry else None
-                        if (holder and holder != job_id) or (pair_holder and pair_holder != job_id):
-                            can_run = False
-                mutates_ghidra = bool(action and action.ghidra_exclusive) or (action is not None and action.backend == "mcp-cli" and action.mutating)
-                if can_run and mutates_ghidra:
-                    ghidra_key = ghidra_lock_key(job.params)
-                    holder = self._ghidra_held.get(ghidra_key)
-                    if ghidra_key and holder and holder != job_id:
-                        can_run = False
+                admitted_by = "coordinator" if coordinator else ""
+                if can_run and not coordinator and self._paused_for_locked(meta):
+                    # H5: a paused scope stops admitting; running jobs drain.
+                    can_run = False
+                if can_run and not coordinator and not self._locks_free_locked(job_id, meta):
+                    can_run = False
+                if can_run and not coordinator:
+                    # H6: fair acceptance across lanes replaces the first-poller-wins scan.
+                    candidate = WaitingJob(id=job_id, lane=meta.lane, created_at=job.created_at, budget_class=meta.admission.budget_class)
+                    admitted_by = self._policy.admit(candidate, self._waiting_locked(), self._running_by_lane_locked(), time.time())
+                    can_run = bool(admitted_by)
                 if can_run:
                     # Coordinators wait on and schedule child jobs; they do
                     # not themselves consume a worker slot. Counting them
@@ -393,21 +698,28 @@ class JobStore:
                     if not coordinator:
                         self._running += 1
                         worker_acquired = True
-                    if identity_key and scope == "database":
+                        self._running_lane[job_id] = meta.lane
+                    if admitted_by == "starvation":
+                        # H6: the starvation metric counts admissions the age rule forced.
+                        self._starved_count[meta.lane] = self._starved_count.get(meta.lane, 0) + 1
+                    if identity_key and scope == "database" and not meta.admission.skips_identity_lock:
                         self._identity_held[identity_key] = job_id
                     if pair_entry and scope == "pair":
                         self._pair_held[pair_entry] = job_id
                     if ghidra_key:
                         self._ghidra_held[ghidra_key] = job_id
+                    if output_key:
+                        self._output_held[output_key] = job_id
                     job.status = "running"
                     job.started_at = time.time()
+                    job.admitted_by = admitted_by
                     try:
                         self._persist_locked(job, force=True)
                     except Exception as exc:  # noqa: BLE001 — admission must never leak
                         job.error = str(exc)
                         job.status = "failed"
                         job.finished_at = time.time()
-                        self._release_admission_locked(job_id, identity_key, pair_entry, ghidra_key, worker_acquired)
+                        self._release_admission_locked(job_id, identity_key, pair_entry, ghidra_key, worker_acquired, output_key)
                         return
                     argv = list(job.argv)
                     break
@@ -568,8 +880,12 @@ class JobStore:
                 job.finished_at = time.time()
         finally:
             with self._lock:
-                self._release_admission_locked(job_id, identity_key, pair_entry, ghidra_key, worker_acquired)
-                self._persist_locked(self._jobs[job_id], force=True)
+                finished = self._jobs[job_id]
+                if finished.drain_started_at is not None and finished.drained_at is None:
+                    # H5: the drain completed; the pair of stamps is the receipt.
+                    finished.drained_at = time.time()
+                self._release_admission_locked(job_id, identity_key, pair_entry, ghidra_key, worker_acquired, output_key)
+                self._persist_locked(finished, force=True)
 
     def _release_admission_locked(
         self,
@@ -578,15 +894,19 @@ class JobStore:
         pair_entry: tuple[str, str] | None,
         ghidra_key: str,
         worker_acquired: bool,
+        output_key: str = "",
     ) -> None:
         if worker_acquired:
             self._running = max(0, self._running - 1)
+        self._running_lane.pop(job_id, None)
         if identity_key and self._identity_held.get(identity_key) == job_id:
             self._identity_held.pop(identity_key, None)
         if pair_entry and self._pair_held.get(pair_entry) == job_id:
             self._pair_held.pop(pair_entry, None)
         if ghidra_key and self._ghidra_held.get(ghidra_key) == job_id:
             self._ghidra_held.pop(ghidra_key, None)
+        if output_key and self._output_held.get(output_key) == job_id:
+            self._output_held.pop(output_key, None)
 
     def _trim_locked(self) -> None:
         while len(self._order) > MAX_JOBS:
@@ -597,6 +917,7 @@ class JobStore:
                 break
             self._jobs.pop(old, None)
             self._cancels.pop(old, None)
+            self._admission_meta.pop(old, None)
 
 
 def _copy_job(job: JobRecord) -> JobRecord:
@@ -619,6 +940,9 @@ def _copy_job(job: JobRecord) -> JobRecord:
         work_progress=dict(job.work_progress) if job.work_progress is not None else None,
         trusted_preparation_facts_inventory=job.trusted_preparation_facts_inventory,
         trusted_preparation_probe=job.trusted_preparation_probe,
+        lane=job.lane, admitted_by=job.admitted_by,
+        drain_started_at=job.drain_started_at, drained_at=job.drained_at,
+        pause_requested_at=job.pause_requested_at,
     )
 
 
@@ -640,7 +964,10 @@ def _from_history(payload: dict, *, compact: bool = False) -> JobRecord:
                      history_only=True, owner_unavailable=unavailable, history_source=payload.get('historySource') or 'durable-job-receipt',
                      log_state=payload.get('logState') or ('available' if payload.get('log') else 'unavailable'),
                      log_reason=payload.get('logReason') or '', log_truncated=bool(payload.get('logTruncated')),
-                     work_progress=payload.get('workProgress') if isinstance(payload.get('workProgress'), dict) else (None if compact else _latest_work_progress(payload.get('log') or '')))
+                     work_progress=payload.get('workProgress') if isinstance(payload.get('workProgress'), dict) else (None if compact else _latest_work_progress(payload.get('log') or '')),
+                     lane=str(payload.get('lane') or ''), admitted_by=str(payload.get('admittedBy') or ''),
+                     drain_started_at=payload.get('drainStartedAt'), drained_at=payload.get('drainedAt'),
+                     pause_requested_at=payload.get('pauseRequestedAt'))
 
 
 def _ghidra_export_format_for(language: SourceLanguage) -> str:
@@ -1037,6 +1364,55 @@ def ghidra_lock_key(params: dict[str, Any] | None) -> str:
     return str(row.get("locator") or row.get("programPath") or row.get("program") or "")
 
 
+def output_tree_lock_key(params: dict[str, Any] | None) -> str:
+    """3b: the resolved output tree an exporter writes, or "" when it has none."""
+    row = params or {}
+    raw = row.get("out") or row.get("export-out") or row.get("export_out") or row.get("out-dir") or row.get("out_dir")
+    if not raw:
+        return ""
+    try:
+        return str(Path(str(raw)).expanduser().resolve())
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return str(raw)
+
+
+def _pause_scope_key(scope: str) -> str:
+    """Normalise a pause scope: "*", "lane:<name>", or a resolved store path."""
+    text = str(scope or "*").strip() or "*"
+    if text == "*" or text.startswith("lane:"):
+        return text
+    return identity_lock_key({"db": text}) or text
+
+
+def _scope_matches(key: str, meta: _AdmissionMeta) -> bool:
+    if key == "*":
+        return True
+    if key.startswith("lane:"):
+        return meta.lane == key[len("lane:"):]
+    return bool(meta.identity_key) and meta.identity_key == key
+
+
+def _admission_meta_for(action: ActionSpec | None, job: JobRecord) -> _AdmissionMeta:
+    """Fix the declaration and every lock key for *job* once, at submit."""
+    coordinator = job.action_id in COORDINATOR_ACTIONS
+    admission = action.effective_admission if action is not None else from_legacy(mutating=False, long_running=False, identity_scope="")
+    identity_key = ""
+    pair_entry: tuple[str, str] | None = None
+    if admission.identity_scope and not admission.skips_identity_lock:
+        identity_key = identity_lock_key(job.params) or ""
+        if admission.identity_scope == "pair":
+            pair_key = match_pair_lock_key(job.params) or ""
+            pair_entry = (identity_key, pair_key) if identity_key and pair_key else None
+    mutates_ghidra = bool(action and action.ghidra_exclusive) or (action is not None and action.backend == "mcp-cli" and action.mutating)
+    ghidra_key = ghidra_lock_key(job.params) if mutates_ghidra else ""
+    output_key = output_tree_lock_key(job.params) if admission.output_scope == "output-tree" else ""
+    lane = "coordinator" if coordinator else admission.lane
+    return _AdmissionMeta(
+        admission=admission, coordinator=coordinator, lane=lane,
+        identity_key=identity_key, pair_entry=pair_entry, ghidra_key=ghidra_key, output_key=output_key,
+    )
+
+
 def _active_duplicate(action_id: str, params: dict[str, Any]) -> JobRecord | None:
     """Return an existing active job targeting the same work directory.
 
@@ -1191,3 +1567,22 @@ def get_job(job_id: str, *, compact: bool = False) -> JobRecord | None:
 
 def cancel_job(job_id: str) -> JobRecord | None:
     return STORE.cancel(job_id)
+
+
+def pause_scope(scope: str = "*") -> dict[str, Any]:
+    """H5: pause admission for a scope and settle its running jobs by declaration."""
+    return STORE.pause(scope)
+
+
+def resume_scope(scope: str = "*") -> dict[str, Any]:
+    return STORE.resume(scope)
+
+
+def pause_requested(job_id: str) -> bool:
+    """The cooperative pause flag for an in-process verb to poll."""
+    return STORE.pause_requested(job_id)
+
+
+def admission_status() -> dict[str, Any]:
+    """H6: per-lane waiting_max_s / starved_count plus held locks and paused scopes."""
+    return STORE.admission_status()

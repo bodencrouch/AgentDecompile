@@ -103,7 +103,12 @@ def build(con) -> dict[str, int]:
     statement that changes the store and leaves no transaction open, so a
     store with one NULL hash keeps every existing identity row (A1:
     refuse-after-wipe on the real store cost 291k identity rows).
+
+    The guard considers admitted rows only once ``corpus admit`` has run
+    (A4); placeholders and duplicate aliases are outside the key by design.
     """
+    from .admission import admitted_predicate
+
     excluded = tuple(sorted(canon.DRM_EXCLUDED))
     if excluded:
         marks = ",".join("?" for _ in excluded)
@@ -112,6 +117,13 @@ def build(con) -> dict[str, int]:
     else:
         scope_where = "WHERE f.canon_key IS NOT NULL"
         params = ()
+    # Admission scope (A4): once `corpus admit` has run, the guard and the
+    # driving SELECT below see admitted builds only. Placeholders are
+    # outside the key by design; a duplicate alias still carries the
+    # keeper's hash and its own func rows, so leaving it in the driving
+    # SELECT would make ORDER BY content_sha256 non-total while the guard
+    # passed. The same predicate scopes both, so they cannot disagree.
+    scope_where += admitted_predicate(con, "b")
     # Refuse before the driving SELECT and before any DELETE: an ORDER BY
     # over a NULL hash would sort silently, which is the fallback design
     # decision 3 forbids.

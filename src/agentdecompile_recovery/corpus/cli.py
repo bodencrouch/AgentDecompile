@@ -273,6 +273,40 @@ def build_parser() -> argparse.ArgumentParser:
     backfill.add_argument("--receipts", type=Path, required=True)
     backfill.add_argument("--no-resume", dest="resume", action="store_false")
 
+    admit = sub.add_parser(
+        "admit",
+        help="Admit analyzed builds to the content-hash key. Placeholders are quarantined. Duplicates are merged.",
+    )
+    admit.add_argument("--db", type=Path, required=True, help="The corpus store.")
+    admit.add_argument("--receipts", type=Path, required=True, help="Directory for one receipt per build.")
+    admit.add_argument(
+        "--work-dir",
+        type=Path,
+        default=None,
+        help="Corpus work directory. Raw images land under extract/raw. Defaults to AGENT_DECOMPILE_CORPUS_WORK_DIR.",
+    )
+    admit.add_argument(
+        "--resolvers",
+        default=None,
+        metavar="A,B,C",
+        help="Raw image resolvers to try, in order. Defaults to the built-in order.",
+    )
+    admit.add_argument(
+        "--placeholders",
+        choices=["quarantine", "exclude", "drop"],
+        default="quarantine",
+        help="What to do with rows that have no analysis. Drop deletes them.",
+    )
+    admit.add_argument("--dry-run", action="store_true", help="Compute the summary. Write nothing.")
+    admit.add_argument("--no-resume", dest="resume", action="store_false", help="Ignore existing receipts.")
+    admit.add_argument("--row-deadline-s", type=float, default=120.0, help="Seconds allowed per build.")
+    admit.add_argument(
+        "--deadline-s",
+        type=float,
+        default=None,
+        help="Seconds allowed for the whole run. Defaults to AGENT_DECOMPILE_ADMIT_DEADLINE_S or 1800.",
+    )
+
     match_pair = sub.add_parser("match-pair", help="Run the store matcher on one directed pair")
     match_pair.identity_scope = "pair"
     match_pair.add_argument("--db", type=Path, required=True)
@@ -814,6 +848,53 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         print(json.dumps(result, sort_keys=True))
         return 0
+    if args.cmd == "admit":
+        import os
+
+        from .admission import AdmissionError, PlaceholderHandling, admit as run_admit
+        from .raw_images import RawImageError
+        from .store import connect
+
+        work_dir = args.work_dir
+        if work_dir is None:
+            env_work = os.environ.get("AGENT_DECOMPILE_CORPUS_WORK_DIR", "").strip()
+            work_dir = Path(env_work) if env_work else None
+        if work_dir is None:
+            # Without a work directory raw images would land under the
+            # current directory, which no later verb would find.
+            print("error: work_dir: pass --work-dir or set AGENT_DECOMPILE_CORPUS_WORK_DIR", file=sys.stderr)
+            return 2
+        # Every other verb finds raw images through this variable; keep the
+        # two in step for the rest of this process.
+        os.environ.setdefault("AGENT_DECOMPILE_CORPUS_WORK_DIR", str(work_dir))
+        order = tuple(n.strip() for n in args.resolvers.split(",") if n.strip()) if args.resolvers else None
+
+        def run_admit_it():
+            return run_admit(
+                connect(args.db),
+                receipts_dir=args.receipts,
+                work_dir=work_dir,
+                resolver_order=order,
+                placeholders=PlaceholderHandling(args.placeholders),
+                dry_run=args.dry_run,
+                resume=args.resume,
+                row_deadline_s=args.row_deadline_s,
+                deadline_s=args.deadline_s,
+            )
+
+        # Refusals are exit 2 with one named line: a held lock (through
+        # _run_keyed_verb), an unknown resolver, a store without the
+        # admission columns. 0: every analyzed build is admitted or a
+        # duplicate. 3: some stay unresolved or contested. 4: deadline.
+        try:
+            summary = _run_keyed_verb(run_admit_it)
+        except (RawImageError, AdmissionError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if summary is REFUSED:
+            return 2
+        print(json.dumps(summary, sort_keys=True))
+        return int(summary["exit_code"])
     if args.cmd == "match-pair":
         from .propagate import run_pair
         from .store import connect

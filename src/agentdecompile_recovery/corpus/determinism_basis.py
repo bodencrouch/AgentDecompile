@@ -204,9 +204,17 @@ def corpus_manifest_hash(con) -> str:
     content_sha256 is the identity; md5 stands in when it is missing; the slug
     is the last resort so an image with no recorded hash still counts.
     Blank strings are treated as missing.
+
+    Scope (A4): once ``corpus admit`` has run, only admitted rows are in the
+    manifest -- placeholders, duplicates, contested and unresolved rows are
+    outside the key by design. Before admission (pre-migration store, or
+    migrated but never admitted) every row counts, as before.
     """
+    from .admission import admitted_predicate
+
     rows = con.execute(
         "SELECT COALESCE(NULLIF(TRIM(content_sha256), ''), NULLIF(TRIM(md5), ''), slug) FROM binary"
+        " WHERE 1=1" + admitted_predicate(con, "binary")
     ).fetchall()
     manifest = sorted(str(r[0]) for r in rows)
     return hashlib.sha256("\n".join(manifest).encode("utf-8")).hexdigest()
@@ -224,11 +232,27 @@ def _fmt_groups(groups: dict) -> str:
 
 
 def _identity_rows(con) -> list[dict]:
+    """Analyzer-identity columns of the rows the basis covers, by slug.
+
+    Scope (A4): admitted rows only once ``corpus admit`` has run; every row
+    before that. Placeholders are outside the basis by design. When
+    admission has run and no row is admitted the basis cannot be declared,
+    and that is said in the refusal rather than reported as an empty store.
+    """
+    from .admission import admission_scope, admitted_predicate
+
     cur = con.execute(
-        "SELECT slug, analyzer_version, processor_spec_hash, basis_hash FROM binary ORDER BY slug"
+        "SELECT slug, analyzer_version, processor_spec_hash, basis_hash FROM binary"
+        " WHERE 1=1" + admitted_predicate(con, "binary") + " ORDER BY slug"
     )
     names = [d[0] for d in cur.description]
-    return [dict(zip(names, r)) for r in cur.fetchall()]
+    rows = [dict(zip(names, r)) for r in cur.fetchall()]
+    if not rows and admission_scope(con) == "admitted":
+        raise BasisError(
+            "basis: no admitted builds (corpus admit ran and every analyzed row is unresolved, "
+            "duplicate or contested); resolve the raw images and re-run corpus admit"
+        )
+    return rows
 
 
 def basis(con) -> dict:

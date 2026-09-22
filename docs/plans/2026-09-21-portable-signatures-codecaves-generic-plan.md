@@ -36,33 +36,27 @@ project name appears anywhere in this design; targets are described only by clas
 (format × architecture × toolchain × engine-adapter).**
 
 
-### Delta Update (2026-09-22, third iteration — admission, attestation verb, data packs, basis projection landed; first full chain on the real corpus)
-- **Landed:** A4 `corpus admit` `ec10ac1`/`81cec23`/`952664e` (resolver registry, migration 4 admission columns +
-  `admitted_binary` view, placeholders quarantined, duplicates merged with receipts, keyed verbs scoped);
-  `d0a56fb` U25 rows take the admission scope; hotfixes from attestation `dca5137` (analyzer boots through
-  `ghidra_env`; `JAVA_HOME_OVERRIDE`), `972c833` (flush + hard-exit after `main` when the JVM is up — H14),
-  `790846b` (image-free backfill passes never resolve an image; rebaseline re-stamps every row with the old
-  hash), `bf47b7c` (relative server key path against the config dir); 3c U28x `corpus attest` `f5b4dce` +
-  U168 lane `44e6553`; 4b U19a `871c517`; U158 `ae7ee5c`; U126 `a61caef`/`05ac4a1`. Earlier this day: U125
-  `86b9d6d`/`fe9d563`, U25 + A3 `2dbd467`/`ca7fdb6`, docs `708683e`/`ebd568e`; R1 done (canon on the fast disk).
-- **Attestation (copy of the real store, `corpus attest --profile full`, run 20260922T08…):** rebaseline 0,
-  backfill analyzer_identity 0, backfill content_sha256 0, export-hookpack 0 (72 s) — first time every keyed
-  verb but one runs on the real corpus; `admit` exit 3 (8 of 30 analyzed builds admitted, 22 unresolved:
-  the originals are gone from disk and the analyzer projects are addressed by the shared-server repository
-  path, which A4's local-project resolver does not speak — A4b in flight adds `ghidra_repository` through
-  `ghidra_env.open_program`; 8 local projects are locked by the running server; 13 rows have no local
-  binding); `logical-build` refuses on the 21 unhashed builds (correct: the guard must not let the cascade
-  wipe identities — A4 hindsight (a)); `verify-determinism` overran a 120 s deadline (two exports of 72 s
-  each — a budget error, not a hang; the catalogue default is 1200 s). Two real hangs were found and fixed
-  this iteration (H14: JVM keeps the process alive after `main`; backfill booting the analyzer per row).
-- **Partial:** the repository resolver needs the pipeline's config dir (`AGENT_DECOMPILE_CORPUS_CONFIG_DIR`)
-  in the attestation environment — the loop sets it from now on; the 11 lane kinds are unpublishable until
-  U158b declares their basis field sets; U28x's exit-code table has three hindsight items (missing verb = 4;
-  `verify-determinism` exit 1 = failed; hang receipts carry the kill signal); backfill's summary still prints
-  slugs (A4b item 3); round-4 survivors and the foundations audit remain pending.
-- **Next:** integrate A4b, U158b, U104 (H5/H6 fair acceptance); re-run the full chain with the config dir set
-  and per-verb deadlines from the catalogue; then U21a/U21b (alone), U129/U166/U137–U141/U143/U150, the
-  foundations audit resume, grill round 4 (feasibility, risk-hangs).
+### Delta Update (2026-09-22, fourth iteration — repository resolver, admission flags, lane projection, attest follow-ups)
+- **Landed:** A4b `ghidra_repository` resolver + lock policies + backfill summary hygiene `a435ea7`/`2f88740`/`16f36fd`;
+  U158b `bba5348`, U158c `40fb92c` (lanes publish again: projection from the store basis); U104 `53fcad6`/`19467b9`
+  + H5 wiring `5a8d442`; U28x follow-ups `df9088f`/`a81cec1` (H15 measured deadline floor, `EXIT_TABLE`, hang receipts
+  carry `exit: "hang"` + `kill_signal` outside the comparison key, no slug reaches a backfill receipt, one-way legacy
+  receipt migration) + seams `37c62e2`. Earlier today: U125, U25+A3, A4, U28x/U168, U19a, U158, U126, docs.
+- **Attestation (copy of the real store, run 20260922T0842, config dir + lock policy `wait`):** rebaseline,
+  backfill ×2, verify-determinism (167 s, exit 0 — the H15 floor now refuses a cap below 1.25 × measured),
+  export-hookpack (72 s) all exit 0; **zero hangs**. `admit` still 8/30: every unresolved row reports
+  `repository_auth_failed` — the shared server's key path in the pipeline's `ghidra_server.json` is relative and is
+  not under the config dir, so the resolver reaches the server and is refused; that is operator configuration
+  (`GHIDRA_SERVER_SSH_KEY` or the dashboard's working directory), not code — the loop stops short of looking for
+  key material. 7 local projects stay locked by the running server (lock policy `wait` cannot help while the
+  server owns them); `logical-build` refuses on the 21 unhashed builds by design.
+- **Partial:** U158c hindsight — `TaskSpec.from_basis` hashes the full basis while the store hash omits
+  `BASIS_HASH_EXCLUDED`, so lanes build specs through `build_spec` with the store's declared hash (a doc/API
+  wart for the grid, not a defect); `registry.execute` refuses SMALL `match-score-shard` and template
+  capabilities (pre-existing, U137-class follow-up); `toolchain_identity_hash` in the store basis is still the
+  pinned constant (U132 in flight makes it real). Round-4 survivors pending; foundations audit running.
+- **Next:** integrate U132/U163; user decision on the server key path unblocks the last 22 admissions; then
+  U21a/U21b (alone), U129, U166, U137/U139/U141, U143/U150, U164/U165, grill round 4 (feasibility, risk-hangs).
 
 
 ## Program thesis (recorded 2026-09-21 from the user's own words; migrates to STRATEGY.md at convergence)
@@ -1903,7 +1897,7 @@ one surface. Hangs and starvation are the top risk class (register H1–H6), so 
 first and U111 before any drawing unit. The Autonomy rule (governing principle) applies:
 every surface draws outputs that already exist; no surface is a gate, and the review lane
 is an override, so its starvation (H3) delays overrides and never coverage.
-- **U104. Verb admission flags** (`corpus/cli.py`, `dashboard/actions/introspect.py`,
+- **U104. Verb admission flags ✔ (`53fcad6`, `19467b9`, `5a8d442`: `VerbAdmission` declarations on thirteen verbs, the catalogue carries them, snapshot readers skip the identity lock, output-tree lock, pause drains by declaration, `FairLaneFifo` at acceptance with a starvation metric; the workflow control reaches `jobs.pause_scope` — H5 closed)** (`corpus/cli.py`, `dashboard/actions/introspect.py`,
   `dashboard/actions/jobs.py`). `backfill` → `mutating`, `long_running`,
   `identity_scope="database"`; `export-bundle` / `export-hookpack` → output-tree scope;
   `verify-determinism` → read-only on temp copies; `attest` (U28x) → read-only temp
@@ -2054,7 +2048,7 @@ ids as the detailed specification; read them through this map:
 
 **15.1 Adapters — each unit turns a declared adapter into a working one (listed in the order
 of the interfaces they unblock; interleaved with Phases 2–14 per the Recommended order)**
-- **U158. Basis projection per kind ✔ (`ae7ee5c`; every published task id changed once; lane kinds declare their field set in U158b, in flight)** (`tasks/registry.py`, `core.py`): `basis_fields(kind)`
+- **U158. Basis projection per kind ✔ (`ae7ee5c`; U158b `bba5348` every lane kind declares one basis field set; U158c `40fb92c` planners project from the snapshot's store basis — `basis-required` refusals at plan time for store-only fields)** (`tasks/registry.py`, `core.py`): `basis_fields(kind)`
   declared per kind as basis field paths (the basis object above is the vocabulary),
   `basis_projection(kind)` inside the task id, the full `basis_hash` on every record;
   publish, verify and consume refuse on a projection mismatch by name (design §2.8 table;
@@ -2081,14 +2075,14 @@ of the interfaces they unblock; interleaved with Phases 2–14 per the Recommend
   size-capped, scoped to the expected output hash; the head CAS is the only live RPC; no
   inbound port on any node). Acceptance: `test_https_presigned_put_is_write_once`,
   `test_https_no_inbound_port_required`, `test_cas_contention_backoff`.
-- **U132. Toolchain manifest identity** (`grid_lanes/toolchain.py`,
+- **U132. Toolchain manifest identity ⏳ (`unit/u132-u163-toolchain`)** (`grid_lanes/toolchain.py`,
   `source_parity_synthesize.py:21705-21722`, `source_plugin_runner.py:369-394`):
   `toolchain_identity_hash` = sha256 of the sorted (relative path, content hash) pairs of a
   declared manifest — no host state, no install path, no file times; the canary fingerprint
   stays outside the identity. Acceptance: `test_toolchain_identity_path_and_mtime_free`,
   `test_toolchain_identity_ignores_files_outside_manifest`,
   `test_toolchain_identity_changes_on_one_manifest_byte`.
-- **U163. Toolchain canary** (`worker/canaries.py`, `grid_lanes/compile.py`): declared
+- **U163. Toolchain canary ⏳ (`unit/u132-u163-toolchain`)** (`worker/canaries.py`, `grid_lanes/compile.py`): declared
   manifest hash + probe TU compiled and masked-COFF-hashed against the pinned value;
   persistent wineserver probe; per-node concurrency cap measured; a fetched toolchain
   object passes the same canary as an owned install. Acceptance:

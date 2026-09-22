@@ -14,22 +14,56 @@ Vocabulary of one verb's ``status``:
 * ``changed``      -- exit code in ``expected_exit`` but the receipt differs from the
                       previous run's (or there is no previous run);
 * ``refused``      -- exit 2 with one named refusal line (basis, content hash, lock);
-* ``hang``         -- the verb overran its deadline; killed, never waited on;
-* ``failed``       -- any other exit code;
-* ``missing_verb`` -- the CLI at this head has no such verb; nothing was spawned.
+* ``hang``         -- the verb overran its deadline; killed, never waited on.  The
+                      receipt's ``exit`` is the string ``"hang"``; the signal that
+                      ended the child (``-15`` SIGTERM, ``-9`` SIGKILL) is in
+                      ``kill_signal``, which two nodes may disagree on, so it is
+                      outside the comparison key;
+* ``failed``       -- any other exit code (``verify-determinism`` exit 1, packs
+                      differ, is a value for the grid lane but a failure here);
+* ``missing_verb`` -- the CLI at this head has no such verb; nothing was spawned;
+* ``not_run``      -- the overall deadline stopped the run before this verb started;
+                      no receipt, but the index names it.
 
-Exit codes of the attestation: 0 when every verb is ``ok``; 3 when any receipt
-changed, is new or is gone; 4 when any verb hung, failed, refused or was missing,
-or when the overall deadline stopped the run before every verb started.
-``--allow-refusals`` turns a refusal into a 3 for a store known to be
-pre-admission.  Refusals of the attestation itself (a side file as ``--db``, the
-store living inside the receipts tree) are exit 2 with one named line.
+Exit code of the attestation -- the largest contribution over ``EXIT_TABLE``
+(per verb status), the comparison verdicts and the run itself:
+
+=====================  ====  =====================================================
+status / verdict       exit  meaning
+=====================  ====  =====================================================
+``ok`` / ``same``         0  every verb ran, produced what it produced last time
+``changed``, ``new``,     3  a receipt differs from the previous run's, is new,
+``gone``                     or a verb the previous run had was not selected
+``hang``                  4  killed at its deadline (see ``DeadlinePolicy``)
+``failed``                4  exit code outside ``expected_exit``
+``refused``               4  exit 2 from the verb; 3 under ``--allow-refusals``
+``missing_verb``          4  the CLI at this head cannot parse the verb; counted
+                             as a failure because the attestation cannot say
+                             the verb still runs
+``not_run``               4  the overall deadline ran out first
+attest refusal            2  the attestation itself refused, one named line,
+                             nothing run: unknown verb or profile, a deadline
+                             override below the measured floor, a side file as
+                             ``--db``, the store inside the receipts tree
+=====================  ====  =====================================================
+
+Deadline floor (H15): a ``--verb-deadline`` below what the verb cost last time
+does not test the verb, it manufactures a ``hang``.  ``DeadlinePolicy`` decides
+the floor per verb from the receipts of earlier runs (``--history N`` runs, most
+recent first, default ``DEFAULT_HISTORY_DEPTH``).  ``MeasuredFloor`` (default,
+``--deadline-floor measured``) refuses an override below 1.25 x the largest
+measured ``elapsed_s`` of a completed run (hangs and missing verbs are not
+measurements) and names the verb, the requested value, the last measured cost
+and a suggested deadline (1.5 x measured, rounded up to a multiple of 30 s).
+``off`` records no floor; ``fixed`` and ``percentile`` are slots.  Catalogue
+defaults are never floored.  The index records ``deadline_policy`` and the
+per-verb ``deadline_floor_s``.
 
 Persisted JSON is ``json.dumps(obj, sort_keys=True, indent=2) + "\\n"``.  No
 wall-clock value is inside any hashed content: ``run_id`` is a timestamp but is
-a directory name, ``elapsed_s`` and ``head`` are excluded from the comparison
-key (``RECEIPT_COMPARE_EXCLUDE``).  Build names never appear: a row is its
-``content_sha256``, its ``md5`` or ``sha256(slug)[:12]``.
+a directory name, ``elapsed_s``, ``head`` and ``kill_signal`` are excluded from
+the comparison key (``RECEIPT_COMPARE_EXCLUDE``).  Build names never appear: a
+row is its ``content_sha256``, its ``md5`` or ``sha256(slug)[:12]``.
 
 Import direction: this module imports nothing from ``agentdecompile_grid``; the
 grid lane (``grid_lanes.verbs.CorpusAttest``) imports this module.
@@ -40,6 +74,7 @@ import dataclasses
 import enum
 import hashlib
 import json
+import math
 import os
 import re
 import shutil
@@ -51,6 +86,7 @@ import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Mapping, Protocol, Sequence
 
 SCHEMA = "agentdecompile.attest.v1"
@@ -61,6 +97,8 @@ VERB_RECEIPTS_DIRNAME = "verb-receipts"
 LATEST_FILENAME = "LATEST"
 INDEX_FILENAME = "index.json"
 RUN_ID_FORMAT = "%Y%m%dT%H%M%SZ"
+RUN_ID_PATTERN = re.compile(r"\d{8}T\d{6}Z")
+DEFAULT_HISTORY_DEPTH = 3
 STDOUT_HEAD_BYTES = 400
 KILL_AFTER_S = 20.0
 OVERALL_DEADLINE_SLACK_S = 60.0
@@ -68,12 +106,15 @@ OVERALL_DEADLINE_SLACK_S = 60.0
 #: Receipt fields that carry per-run noise; never part of the comparison key.
 #: ``status`` and ``comparison`` are derived *from* the comparison, so they are
 #: excluded too or the first run's ``changed`` would differ from the second's ``ok`` forever.
-RECEIPT_COMPARE_EXCLUDE: frozenset[str] = frozenset({"elapsed_s", "head", "status", "comparison"})
+#: ``kill_signal`` is which signal ended a hang (SIGTERM or, when it ignored that,
+#: SIGKILL), a fact about the node's scheduling, not about the verb.
+RECEIPT_COMPARE_EXCLUDE: frozenset[str] = frozenset({"elapsed_s", "head", "status", "comparison", "kill_signal"})
 
 EXIT_SAME = 0
 EXIT_REFUSED = 2
 EXIT_CHANGED = 3
 EXIT_FAILURE = 4
+HANG_EXIT = "hang"
 
 
 class AttestRefused(ValueError):
@@ -97,9 +138,30 @@ class Status(str, enum.Enum):
     HANG = "hang"
     FAILED = "failed"
     MISSING_VERB = "missing_verb"
+    NOT_RUN = "not_run"
 
 
-FAILURE_STATUSES: frozenset[str] = frozenset({Status.HANG.value, Status.FAILED.value, Status.MISSING_VERB.value})
+#: Per-verb status -> the exit code it contributes; the attestation exits with the
+#: largest contribution (see the module docstring).  ``refused`` contributes
+#: ``EXIT_CHANGED`` instead under ``--allow-refusals``; that is the one override.
+EXIT_TABLE: Mapping[str, int] = MappingProxyType({
+    Status.OK.value: EXIT_SAME,
+    Status.CHANGED.value: EXIT_CHANGED,
+    Status.REFUSED.value: EXIT_FAILURE,
+    Status.HANG.value: EXIT_FAILURE,
+    Status.FAILED.value: EXIT_FAILURE,
+    Status.MISSING_VERB.value: EXIT_FAILURE,
+    Status.NOT_RUN.value: EXIT_FAILURE,
+})
+
+#: Comparison verdict -> exit contribution.  ``gone`` is a verb the reference run
+#: had and this run did not select.
+COMPARISON_EXIT_TABLE: Mapping[str, int] = MappingProxyType({
+    "same": EXIT_SAME, "changed": EXIT_CHANGED, "new": EXIT_CHANGED, "gone": EXIT_CHANGED,
+})
+
+#: The statuses no flag can soften (``refused`` is the one ``--allow-refusals`` can).
+FAILURE_STATUSES: frozenset[str] = frozenset(s for s, code in EXIT_TABLE.items() if code == EXIT_FAILURE) - {Status.REFUSED.value}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -619,6 +681,173 @@ class BaselineComparator:
 COMPARATORS: dict[str, type] = {"previous-run": PreviousRunComparator, "none": NoComparator, "baseline": BaselineComparator}
 
 
+# --------------------------------------------------------------------------- deadline floors
+@dataclasses.dataclass(frozen=True)
+class FloorRefusal:
+    """A deadline override below the floor: the named refusal ``run_cli`` turns into exit 2."""
+
+    verb: str
+    requested_s: float
+    measured_s: float       # the largest measured cost the floor is derived from
+    floor_s: float
+    suggested_s: float
+    runs: int               # how many measured receipts backed it
+
+    def line(self) -> str:
+        return (
+            f"attest: --verb-deadline {self.verb}={self.requested_s:g} is below the floor {self.floor_s:g}s "
+            f"(last measured {self.measured_s:g}s over {self.runs} run{'s' if self.runs != 1 else ''}); "
+            f"a deadline that short reads as a hang; use --verb-deadline {self.verb}={self.suggested_s:g} or --deadline-floor off"
+        )
+
+
+class DeadlinePolicy(Protocol):
+    """Decide one verb's deadline floor from the receipts of earlier runs.
+
+    *history* is that verb's earlier receipts, most recent first.  The result is the
+    floor in seconds when *requested_s* clears it, else a ``FloorRefusal``.
+    """
+
+    name: str
+
+    def floor(self, verb: str, requested_s: float, history: Sequence[Mapping[str, Any]]) -> float | FloorRefusal: ...
+
+
+def measured_elapsed(receipt: Mapping[str, Any]) -> float | None:
+    """A receipt's ``elapsed_s`` when it measures the verb's cost; ``None`` for a hang
+    (its elapsed is the deadline, not the cost), a missing verb, or a receipt without one."""
+    if receipt.get("outcome", receipt.get("status")) in (Status.HANG.value, Status.MISSING_VERB.value):
+        return None
+    if receipt.get("timed_out"):
+        return None
+    try:
+        value = float(receipt["elapsed_s"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return value if value >= 0 else None
+
+
+class NoFloor:
+    """``--deadline-floor off``: every override stands; the floor is recorded as 0."""
+
+    name = "off"
+
+    def floor(self, verb: str, requested_s: float, history: Sequence[Mapping[str, Any]]) -> float | FloorRefusal:
+        return 0.0
+
+
+class MeasuredFloor:
+    """The working policy: floor = ``factor`` x the largest measured ``elapsed_s`` in *history*.
+
+    ``suggested`` is ``suggest_factor`` x that measurement rounded up to a multiple of
+    ``round_to_s``, so the refusal line names a deadline that would have cleared.
+    """
+
+    name = "measured"
+
+    def __init__(self, factor: float = 1.25, suggest_factor: float = 1.5, round_to_s: float = 30.0) -> None:
+        self.factor = float(factor)
+        self.suggest_factor = float(suggest_factor)
+        self.round_to_s = float(round_to_s)
+
+    def floor(self, verb: str, requested_s: float, history: Sequence[Mapping[str, Any]]) -> float | FloorRefusal:
+        measured = [m for m in (measured_elapsed(r) for r in history) if m is not None]
+        if not measured:
+            return 0.0
+        peak = max(measured)
+        floor = round(self.factor * peak, 3)
+        if requested_s >= floor:
+            return floor
+        suggested = max(self.round_to_s, math.ceil(self.suggest_factor * peak / self.round_to_s) * self.round_to_s)
+        return FloorRefusal(verb=verb, requested_s=requested_s, measured_s=peak, floor_s=floor,
+                            suggested_s=suggested, runs=len(measured))
+
+
+class FixedFloor:
+    """Slot: a per-verb floor table declared beside the catalogue, independent of history."""
+
+    name = "fixed"
+
+    def __init__(self, floors: Mapping[str, float] | None = None) -> None:
+        raise NotImplementedError("U28x: fixed per-verb deadline floor table")
+
+    def floor(self, verb: str, requested_s: float, history: Sequence[Mapping[str, Any]]) -> float | FloorRefusal:  # pragma: no cover - slot
+        raise NotImplementedError("U28x: fixed per-verb deadline floor table")
+
+
+class PercentileFloor:
+    """Slot: floor at a percentile of the measured costs over a longer history."""
+
+    name = "percentile"
+
+    def __init__(self, percentile: float = 95.0) -> None:
+        raise NotImplementedError("U28x: percentile deadline floor")
+
+    def floor(self, verb: str, requested_s: float, history: Sequence[Mapping[str, Any]]) -> float | FloorRefusal:  # pragma: no cover - slot
+        raise NotImplementedError("U28x: percentile deadline floor")
+
+
+DEADLINE_POLICIES: dict[str, type] = {
+    "off": NoFloor, "measured": MeasuredFloor, "fixed": FixedFloor, "percentile": PercentileFloor,
+}
+
+
+def load_history(receipts_root: Path, depth: int = DEFAULT_HISTORY_DEPTH) -> list[tuple[str, dict[str, dict[str, Any]]]]:
+    """``[(run_id, {verb: receipt})]`` for the ``LATEST`` run and the runs before it, newest first, *depth* at most.
+
+    Run directories are named by ``RUN_ID_FORMAT``, so lexical order is time order;
+    a directory without a receipt of this module's schema is skipped.
+    """
+    if depth <= 0 or not receipts_root.is_dir():
+        return []
+    order: list[str] = []
+    latest = receipts_root / LATEST_FILENAME
+    if latest.is_file():
+        run_id = latest.read_text(encoding="utf-8").strip()
+        if run_id and (receipts_root / run_id).is_dir():
+            order.append(run_id)
+    for path in sorted(receipts_root.iterdir(), reverse=True):
+        if path.is_dir() and RUN_ID_PATTERN.fullmatch(path.name) and path.name not in order:
+            order.append(path.name)
+    history: list[tuple[str, dict[str, dict[str, Any]]]] = []
+    for run_id in order:
+        receipts: dict[str, dict[str, Any]] = {}
+        for path in sorted((receipts_root / run_id).glob("*.json")):
+            if path.name == INDEX_FILENAME:
+                continue
+            try:
+                body = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if isinstance(body, dict) and body.get("schema") == SCHEMA:
+                receipts[str(body.get("verb", path.stem))] = body
+        if receipts:
+            history.append((run_id, receipts))
+        if len(history) >= depth:
+            break
+    return history
+
+
+def apply_deadline_floors(
+    policy: DeadlinePolicy, verbs: Sequence[VerbSpec], verb_deadlines: Mapping[str, float],
+    history: Sequence[tuple[str, Mapping[str, Mapping[str, Any]]]],
+) -> dict[str, float]:
+    """``{verb: floor_s}`` for every selected verb; raises ``AttestRefused`` for an override below its floor.
+
+    Only ``--verb-deadline`` overrides are floored.  A catalogue default is asked with an
+    unbounded request, so its floor is recorded but never refused.
+    """
+    floors: dict[str, float] = {}
+    for spec in verbs:
+        verb_history = [run[spec.name] for _, run in history if spec.name in run]
+        requested = verb_deadlines.get(spec.name)
+        result = policy.floor(spec.name, float(requested) if requested is not None else math.inf, verb_history)
+        if isinstance(result, FloorRefusal):
+            raise AttestRefused(result.line())
+        floors[spec.name] = float(result)
+    return floors
+
+
 # --------------------------------------------------------------------------- the run
 def new_run_id(now: datetime | None = None) -> str:
     return (now or datetime.now(timezone.utc)).strftime(RUN_ID_FORMAT)
@@ -654,7 +883,14 @@ def receipt_for(
     spec: VerbSpec, argv: Sequence[str], *, deadline_s: float, outcome: RunOutcome | None,
     outputs: Mapping[str, str], store_before: str, store_after: str, head: str, missing: bool = False,
 ) -> dict[str, Any]:
-    """One verb's receipt (``status`` is the run outcome; the comparison overlays ``changed`` later)."""
+    """One verb's receipt (``status`` is the run outcome; the comparison overlays ``changed`` later).
+
+    A hang's ``exit`` is the string ``HANG_EXIT``: the child's return code after a kill is
+    the signal number (-15 or -9 depending on how fast it died), which two nodes may
+    disagree on, so it lives in ``kill_signal`` outside the comparison key.
+    """
+    exit_code: int | str
+    kill_signal: int | None = None
     if missing:
         status = Status.MISSING_VERB.value
         exit_code, elapsed, timed_out, refusal = -1, 0.0, False, "missing-verb:" + spec.cli_verb
@@ -670,11 +906,13 @@ def receipt_for(
         else:
             status = Status.FAILED.value
         exit_code, elapsed, timed_out, refusal = outcome.exit, outcome.elapsed_s, outcome.timed_out, outcome.refusal_class
+        if timed_out:
+            exit_code, kill_signal = HANG_EXIT, outcome.exit
         stdout_sha, stderr_sha, head_text = outcome.stdout_sha256, outcome.stderr_sha256, outcome.stdout_head
     return {
         "schema": SCHEMA, "verb": spec.name, "cli_verb": spec.cli_verb, "argv": list(argv),
-        "budget_class": spec.budget_class.value, "deadline_s": deadline_s, "elapsed_s": round(elapsed, 1),
-        "exit": exit_code, "timed_out": timed_out, "status": status, "outcome": status,
+        "budget_class": spec.budget_class.value, "deadline_s": deadline_s, "elapsed_s": round(elapsed, 3),
+        "exit": exit_code, "kill_signal": kill_signal, "timed_out": timed_out, "status": status, "outcome": status,
         "refusal_class": refusal, "outputs": dict(sorted(outputs.items())),
         "stdout_sha256": stdout_sha, "stderr_sha256": stderr_sha, "stdout_head": head_text,
         "store_before": store_before, "store_after": store_after, "head": head,
@@ -710,6 +948,11 @@ class AttestationRun:
     run_id: str = dataclasses.field(default_factory=new_run_id)
     available: frozenset[str] | None = None
     interpreter: str = sys.executable
+    #: Recorded in the index; ``run_cli`` computes them (``apply_deadline_floors``) before the run.
+    #: A caller constructing the run directly (the grid lane) records ``off`` and no floors.
+    deadline_policy: str = NoFloor.name
+    deadline_floors: Mapping[str, float] = dataclasses.field(default_factory=dict)
+    deadline_history: Sequence[str] = ()
 
     def deadline_for(self, spec: VerbSpec) -> float:
         return float(self.verb_deadlines.get(spec.name, spec.deadline_s))
@@ -780,6 +1023,8 @@ class AttestationRun:
 
     def index(self, receipts, verdict, *, head, overall, elapsed, not_run, deadline_exceeded, snapshots, reference, comparator):
         statuses = {verb: r["status"] for verb, r in sorted(receipts.items())}
+        statuses.update({verb: Status.NOT_RUN.value for verb in not_run if verb not in statuses})
+        statuses = dict(sorted(statuses.items()))
         totals = {s.value: 0 for s in Status}
         for status in statuses.values():
             totals[status] = totals.get(status, 0) + 1
@@ -794,18 +1039,28 @@ class AttestationRun:
             "snapshot": {"strategy": getattr(self.snapshot, "used", getattr(self.snapshot, "name", "?")), "count": snapshots},
             "runner": getattr(self.runner, "name", "?"), "fresh_per_verb": self.fresh_per_verb,
             "allow_refusals": self.allow_refusals,
+            "deadline_policy": self.deadline_policy,
+            "deadline_floor_s": {s.name: float(self.deadline_floors.get(s.name, 0.0)) for s in self.verbs},
+            "deadline_history": list(self.deadline_history),
             "exit_code": exit_code_for(statuses, verdict, deadline_exceeded=deadline_exceeded, allow_refusals=self.allow_refusals),
         }
 
 
 def exit_code_for(statuses: Mapping[str, str], verdict: Mapping[str, str], *, deadline_exceeded: bool, allow_refusals: bool) -> int:
-    if deadline_exceeded or any(s in FAILURE_STATUSES for s in statuses.values()):
-        return EXIT_FAILURE
-    if any(s == Status.REFUSED.value for s in statuses.values()):
-        return EXIT_CHANGED if allow_refusals else EXIT_FAILURE
-    if any(v in ("changed", "new", "gone") for v in verdict.values()):
-        return EXIT_CHANGED
-    return EXIT_SAME
+    """The largest contribution over ``EXIT_TABLE`` and ``COMPARISON_EXIT_TABLE`` (module docstring).
+
+    ``--allow-refusals`` is the one override: a ``refused`` verb then contributes
+    ``EXIT_CHANGED``.  A status outside the table contributes ``EXIT_FAILURE``.
+    """
+    code = EXIT_FAILURE if deadline_exceeded else EXIT_SAME
+    for status in statuses.values():
+        contribution = EXIT_TABLE.get(status, EXIT_FAILURE)
+        if status == Status.REFUSED.value and allow_refusals:
+            contribution = EXIT_CHANGED
+        code = max(code, contribution)
+    for tag in verdict.values():
+        code = max(code, COMPARISON_EXIT_TABLE.get(tag, EXIT_SAME))
+    return code
 
 
 # --------------------------------------------------------------------------- CLI glue
@@ -837,8 +1092,49 @@ def describe_catalogue() -> dict[str, Any]:
         "verbs": {name: spec.describe() for name, spec in VERBS.items()},
         "profiles": {name: list(names) for name, names in PROFILES.items()},
         "snapshots": sorted(SNAPSHOTS), "runners": sorted(RUNNERS), "comparators": sorted(COMPARATORS),
+        "deadline_policies": sorted(DEADLINE_POLICIES),
         "compare_exclude": sorted(RECEIPT_COMPARE_EXCLUDE),
+        "exit_table": {
+            "verb_status": dict(EXIT_TABLE), "comparison": dict(COMPARISON_EXIT_TABLE),
+            "allow_refusals": {Status.REFUSED.value: EXIT_CHANGED},
+            "attest_refusal": EXIT_REFUSED,
+            "hang_exit": HANG_EXIT,
+            "notes": {
+                Status.MISSING_VERB.value: "a catalogue verb the CLI at this head cannot parse is a failure: the attestation cannot say it still runs",
+                Status.FAILED.value: "verify-determinism exit 1 (packs differ) is a failure here, a value for the grid lane",
+                Status.HANG.value: "exit is the string 'hang'; kill_signal (-15|-9) is outside the comparison key",
+                "attest_refusal": "unknown verb or profile, an override below the deadline floor, a side file as --db, the store inside the receipts tree",
+            },
+        },
     }
+
+
+def add_arguments(parser: Any) -> None:
+    """Declare the deadline-floor arguments on the ``attest`` subparser (``cli.build_parser`` calls this).
+
+    ``run_cli`` reads them with defaults, so a parser built without this call still runs
+    under the default policy.
+    """
+    parser.add_argument(
+        "--deadline-floor", choices=tuple(DEADLINE_POLICIES), default=MeasuredFloor.name,
+        help="How a --verb-deadline override is checked against earlier runs. "
+             "measured (default): refuse an override below 1.25 x the verb's largest measured cost. off: no check.",
+    )
+    parser.add_argument(
+        "--history", type=int, default=DEFAULT_HISTORY_DEPTH, metavar="N",
+        help=f"How many earlier runs back the deadline floor. Default: {DEFAULT_HISTORY_DEPTH}.",
+    )
+
+
+def deadline_policy_from(name: str) -> DeadlinePolicy:
+    """The policy for ``--deadline-floor NAME``; a slot is a named refusal, not a traceback."""
+    cls = DEADLINE_POLICIES.get(name)
+    if cls is None:
+        raise AttestRefused(f"attest: --deadline-floor must be one of {', '.join(DEADLINE_POLICIES)}, got {name!r}")
+    try:
+        return cls()
+    except NotImplementedError as exc:
+        raise AttestRefused(f"attest: --deadline-floor {name} is a slot: {exc}") from exc
 
 
 def run_cli(args: Any) -> int:
@@ -847,16 +1143,24 @@ def run_cli(args: Any) -> int:
     verb_deadlines = parse_verb_deadlines(args.verb_deadline)
     if args.snapshot not in ("backup", "reflink"):
         raise AttestRefused(f"attest: --snapshot must be backup or reflink, got {args.snapshot!r}")
+    policy = deadline_policy_from(str(getattr(args, "deadline_floor", None) or MeasuredFloor.name))
+    depth = int(getattr(args, "history", DEFAULT_HISTORY_DEPTH) or 0)
+    if depth < 0:
+        raise AttestRefused("attest: --history must be 0 or more")
     receipts = Path(args.receipts)
     explicit_workdir = Path(args.workdir) if args.workdir else None
     db = check_store_path(Path(args.db), receipts, explicit_workdir)
     receipts.mkdir(parents=True, exist_ok=True)
+    # The floor is decided before anything is copied or spawned: a refusal runs nothing.
+    history = load_history(receipts, depth)
+    floors = apply_deadline_floors(policy, verbs, verb_deadlines, history)
     workdir = explicit_workdir or Path(tempfile.mkdtemp(prefix="corpus-attest-"))
     try:
         run = AttestationRun(
             db=db, receipts=receipts, workdir=workdir, verbs=verbs, snapshot=SNAPSHOTS[args.snapshot](),
             deadline_s=args.deadline_s, verb_deadlines=verb_deadlines, fresh_per_verb=bool(args.fresh_per_verb),
             allow_refusals=bool(args.allow_refusals), pythonpath=args.pythonpath, profile=profile,
+            deadline_policy=policy.name, deadline_floors=floors, deadline_history=[run_id for run_id, _ in history],
         )
         index, _ = run.execute()
     finally:
@@ -867,11 +1171,15 @@ def run_cli(args: Any) -> int:
 
 
 __all__ = [
-    "COMPARATORS", "PROFILES", "RECEIPT_COMPARE_EXCLUDE", "RUNNERS", "SCHEMA", "SNAPSHOTS", "VERBS",
+    "COMPARATORS", "COMPARISON_EXIT_TABLE", "DEADLINE_POLICIES", "DEFAULT_HISTORY_DEPTH", "EXIT_TABLE", "HANG_EXIT",
+    "PROFILES", "RECEIPT_COMPARE_EXCLUDE", "RUNNERS", "SCHEMA", "SNAPSHOTS", "VERBS",
     "AttestRefused", "AttestationRun", "BackupApiSnapshot", "BaselineComparator", "BudgetClass", "Comparator",
-    "GridRunner", "MaterializedSnapshot", "NoComparator", "OverlaySnapshot", "PreviousRunComparator",
+    "DeadlinePolicy", "FixedFloor", "FloorRefusal", "GridRunner", "MaterializedSnapshot", "MeasuredFloor",
+    "NoComparator", "NoFloor", "OverlaySnapshot", "PercentileFloor", "PreviousRunComparator",
     "ProfileRegistry", "ReflinkSnapshot", "RunOutcome", "Runner", "SnapshotStrategy", "Status",
-    "SubprocessRunner", "VerbCatalogue", "VerbSpec", "available_cli_verbs", "check_store_path", "child_env",
-    "classify_refusal", "compare_key", "describe_catalogue", "exit_code_for", "hashed_slug", "receipt_for",
-    "resolve_argv", "run_cli", "scrub_paths", "source_head", "stdout_head", "store_rowset_hash",
+    "SubprocessRunner", "VerbCatalogue", "VerbSpec", "add_arguments", "apply_deadline_floors",
+    "available_cli_verbs", "check_store_path", "child_env", "classify_refusal", "compare_key",
+    "deadline_policy_from", "describe_catalogue", "exit_code_for", "hashed_slug", "load_history",
+    "measured_elapsed", "receipt_for", "resolve_argv", "run_cli", "scrub_paths", "source_head", "stdout_head",
+    "store_rowset_hash",
 ]

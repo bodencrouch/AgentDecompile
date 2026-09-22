@@ -107,6 +107,17 @@ most four concurrent agents until the repo leaves the USB drive (register R1/R11
 runs against a `.backup` copy of the real store, never the live file; slugs hashed; every verb
 has a deadline; exceeding it is a finding.
 
+## 6b. Test moratorium (user directive 2026-09-21)
+
+Until the plan, design and diagrams are fully completed **and** built to completion, **no tests
+are created and no tests are run** in this session — no pytest, no RED/GREEN, no regression
+slices, no fixture-driven gates. Units implement source only; each unit still *names* its
+acceptance test in its bullet, and every named test is written and run in one final
+verification phase after the build completes. Worker packets carry this rule; a worker that
+runs or writes a test is in breach. Verification during the build is by reading the diff,
+by the grill protocol on the diff, and by the inline-CLI attestation on a copy of the real
+store (the user's explicit instrument), which is not a test suite.
+
 ## 7. Restart (the loop is session-bound)
 
 If the session ends: read this file, the plan's Delta Update, the register's Resume point;

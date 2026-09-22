@@ -69,6 +69,15 @@ def start(max_heap: str = "4g", *, install_dir: str | None = None, project_path:
     user = str(cfg.get("username") or "")
     key = str(cfg.get("ssh_key") or "")
     if user and key:
+        # A relative key path is relative to the config directory that
+        # declared it, not to whatever cwd this verb happens to run from
+        # (the resolver registry runs verbs from attestation workdirs).
+        from .corpus_config import config_dir
+
+        key_path = Path(key)
+        cfg_root = config_dir()
+        if not key_path.is_absolute() and cfg_root is not None and (cfg_root / key_path).is_file():
+            key = str(cfg_root / key_path)
         HeadlessClientAuthenticator.installHeadlessClientAuthenticator(user, key, False)
     _STARTED = True
     return True

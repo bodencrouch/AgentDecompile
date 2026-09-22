@@ -26,6 +26,7 @@ from .hookpack_policy import (
     load_adapter_map,
     load_site_policy,
     lookup_site,
+    resolve_policy_path,
 )
 
 
@@ -122,13 +123,18 @@ def _binary_entry(b: dict, image_for) -> dict:
     return entry
 
 
-def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> dict:
+def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None, data_pack=None) -> dict:
     """Write the pack for *con* to *out*.
 
     *site_policy* and *adapter_map* are optional file paths; see
     :mod:`hookpack_policy` for their shapes. With neither given the pack
-    carries default site kinds and no adapter keys.
+    carries default site kinds and no adapter keys. *data_pack* is a selected
+    :class:`~data_packs.PackManifest` whose ``site_policy`` / ``adapter_map``
+    entries stand in for a path that was not given; explicit paths win, and
+    a pack-supplied file is hashed into ``policy_hashes`` like an explicit one.
     """
+    site_policy = resolve_policy_path(site_policy, data_pack, "site_policy")
+    adapter_map = resolve_policy_path(adapter_map, data_pack, "adapter_map")
     policy = load_site_policy(site_policy)
     amap = load_adapter_map(adapter_map)
     # Basis first: it refuses in about a millisecond, and the site loop

@@ -212,6 +212,7 @@ def diagnostic_codes(text: str) -> list[str]:
 class CompileAttempt(PlannableKind):
     name = "compile-attempt"
     version = 1
+    basis_field_set = "toolchain"     # a toolchain change re-keys compile ids; a pin-policy change does not (§2.8)
     budget = BudgetClass.SMALL
     capabilities = (CAPABILITY_PREFIX + "<toolchain_identity_hash>",)   # template; the spec carries the value
     INPUTS: Mapping[str, str] = {"tu": "translation unit text (header + body), 2-30 KB"}

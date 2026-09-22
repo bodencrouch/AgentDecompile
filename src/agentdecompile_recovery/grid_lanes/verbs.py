@@ -118,6 +118,7 @@ class CorpusVerbKind(PlannableKind):
     """Base for one corpus verb as a grid task.  Subclasses set ``name``, ``verb``, ``budget``."""
 
     name = ""
+    basis_field_set = "corpus_verb"   # analyzer + cascade + data packs + basis_version (U158b)
     verb = ""
     version = 1
     budget = BudgetClass.SMALL

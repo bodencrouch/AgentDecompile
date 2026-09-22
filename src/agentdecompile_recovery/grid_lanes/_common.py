@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 from agentdecompile_grid.core import (
+    BASIS_FIELDS,
     DEFAULT_DEADLINES_S,
     BudgetClass,
     GridError,
@@ -35,9 +36,49 @@ from agentdecompile_grid.core import (
     TaskSpec,
     Verification,
     VerificationOutcome,
+    basis_field_known,
     canonical_json,
     digest,
 )
+
+# --------------------------------------------------------------------------- basis field sets
+_ANALYZER_FIELDS = (
+    "analyzer.version", "analyzer.options_hash", "analyzer.loader_revision", "analyzer.timeout_policy",
+    "analyzer.processor_spec_hash",
+)
+_TOOLCHAIN_FIELDS = ("toolchain_identity_hash",)
+_CASCADE_FIELDS = ("algorithm_version", "masking_rule_version", "threshold_params.*", "seeds.*")
+
+BASIS_FIELD_SETS: dict[str, tuple[str, ...]] = {
+    "content_only": (),
+    "analyzer": _ANALYZER_FIELDS,
+    "toolchain": _TOOLCHAIN_FIELDS,
+    "cascade": _CASCADE_FIELDS,
+    "corpus_verb": _ANALYZER_FIELDS + _CASCADE_FIELDS + ("data_packs", "data_packs_root_declared", "basis_version"),
+    "parity": _TOOLCHAIN_FIELDS + ("masking_rule_version",),
+}
+"""The named slices of the determinism basis a lane kind may key its tasks on (design §2.8).
+
+A lane declares one set by name (``PlannableKind.basis_field_set``) instead of retyping paths;
+``basis_fields`` is derived from it.  Paths are spelled as ``agentdecompile_grid.core.BASIS_FIELDS``
+spells them: ``threshold_params.*`` / ``seeds.*`` name the whole sub-mapping.  ``content_only`` is
+``()``: the kind's output depends on its inputs alone.  A toolchain change re-keys ``toolchain`` and
+``parity`` kinds only; an analyzer change re-keys ``analyzer`` and ``corpus_verb`` kinds only.
+"""
+
+
+def basis_fields_for(set_name: str) -> tuple[str, ...]:
+    """The paths of the named set; ``Refused("basis-field-set-unknown:<name>")`` for a name not in
+    ``BASIS_FIELD_SETS``.  Every path is checked against ``core.BASIS_FIELDS`` so a set never names a
+    field the grid's vocabulary lacks."""
+    if set_name not in BASIS_FIELD_SETS:
+        raise Refused(f"basis-field-set-unknown:{set_name}:known {sorted(BASIS_FIELD_SETS)}")
+    fields = BASIS_FIELD_SETS[set_name]
+    unknown = [p for p in fields if not basis_field_known(p, BASIS_FIELDS)]
+    if unknown:
+        raise Refused(f"basis-field-set-outside-vocabulary:{set_name}:{unknown}")
+    return tuple(fields)
+
 
 # --------------------------------------------------------------------------- named refusals
 class BasisRefused(Refused):
@@ -336,9 +377,35 @@ class PlannableKind:
     ``adgrid publish <kind>`` duck-types ``TASK_KINDS.get(kind).plan`` (the grid never imports
     ``agentdecompile_recovery``); the call goes through ``splitter.plan_tasks``, the one
     chokepoint for the never-awaited rule.  Returns the specs; every spec carries its basis.
+
+    A lane declares one basis field set by name (``basis_field_set``, a ``BASIS_FIELD_SETS`` key);
+    ``basis_fields`` -- what the grid's registry, publish, execute and verify read (U158) -- is
+    derived from it at class creation, plus ``basis_fields_extra`` for a kind that keys on one path
+    beyond its set.  A subclass that names no set stays undeclared: the grid refuses it by name
+    rather than keying it on nothing.
     """
 
     name = ""
+    basis_field_set: str = ""
+    basis_fields_extra: tuple[str, ...] = ()
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        if cls.basis_field_set:
+            declared = basis_fields_for(cls.basis_field_set)
+            extra = tuple(p for p in cls.basis_fields_extra if p not in declared)
+            unknown = [p for p in extra if not basis_field_known(p, BASIS_FIELDS)]
+            if unknown:
+                raise Refused(f"basis-fields-extra-outside-vocabulary:{cls.name or cls.__name__}:{unknown}")
+            cls.basis_fields = declared + extra
+
+    @classmethod
+    def describe_basis(cls) -> dict[str, Any]:
+        """``{set, fields}``: the set name and the derived paths (``describe_lanes`` reports it)."""
+        return {
+            "set": cls.basis_field_set or None,
+            "fields": list(getattr(cls, "basis_fields", ())) if cls.basis_field_set else None,
+        }
 
     @classmethod
     def plan(
@@ -354,8 +421,8 @@ class PlannableKind:
 
 
 __all__ = [
-    "BasisRefused", "ContentHashRefused", "Infra", "Locked", "PlannableKind", "RunOutcome", "assert_portable",
-    "check_kind", "corpus_cli_argv", "deadline_for", "get_json", "hashed_slug", "make_result",
+    "BASIS_FIELD_SETS", "BasisRefused", "ContentHashRefused", "Infra", "Locked", "PlannableKind", "RunOutcome",
+    "assert_portable", "basis_fields_for", "check_kind", "corpus_cli_argv", "deadline_for", "get_json", "hashed_slug", "make_result",
     "materialize_object", "not_present", "put_file", "put_json", "require_input", "require_param", "run_argv",
     "scrub_paths", "subprocess_verb_params", "translate_refusal", "verify_by_recompute",
 ]

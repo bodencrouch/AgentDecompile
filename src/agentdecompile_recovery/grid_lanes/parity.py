@@ -212,6 +212,7 @@ class ParityCheck(PlannableKind):
         "receipt": "verify-objdiff.v1 report (fail-closed), sides named, grade = status",
         "raw": "raw checker stdout (never parsed from stderr)",
     }
+    OUTPUT_ROLES: Mapping[str, str] = {"receipt": "public", "raw": "public"}   # §6.3 object role tags
 
     @staticmethod
     def required_capabilities(spec: TaskSpec) -> tuple[str, ...]:
@@ -263,7 +264,7 @@ class ParityCheck(PlannableKind):
     def describe(cls) -> dict[str, Any]:
         return {
             "kind": cls.name, "version": cls.version, "budget": cls.budget.value, "capabilities": list(cls.capabilities),
-            "inputs": dict(cls.INPUTS), "params": dict(cls.PARAMS_SCHEMA), "outputs": dict(cls.OUTPUTS),
+            "inputs": dict(cls.INPUTS), "params": dict(cls.PARAMS_SCHEMA), "outputs": dict(cls.OUTPUTS), "output_roles": dict(cls.OUTPUT_ROLES),
             "verify": "recompute the receipt (1:1): a hint from any key, load-bearing from independent verifier keys",
             "checkers_registered": PARITY_CHECKERS.names(), "status": "working",
             "sides": {"native": "-1 <target> -2 <candidate>", "node": "<candidate as base> <target> [symbol]"},

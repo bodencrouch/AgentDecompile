@@ -142,6 +142,7 @@ class MatchScoreShard(PlannableKind):
         "src": "source build content hash", "dst": "destination build content hash",
     }
     OUTPUTS: Mapping[str, str] = {"scored": "match-scored.v1: cascade-ordered scored tuples"}
+    OUTPUT_ROLES: Mapping[str, str] = {"scored": "public"}   # §6.3 object role tags
 
     def run(self, spec: TaskSpec, objects: ObjectStore, scratch: str) -> TaskResult:
         check_kind(spec, self.name, self.version)
@@ -173,7 +174,7 @@ class MatchScoreShard(PlannableKind):
         return {
             "kind": cls.name, "version": cls.version, "budget": f"{cls.budget.value} (<= {MICRO_MAX_SOURCES} sources) | small",
             "capabilities": list(cls.capabilities), "inputs": dict(cls.INPUTS), "params": dict(cls.PARAMS_SCHEMA),
-            "outputs": dict(cls.OUTPUTS), "verify": "recompute; equal scored ref", "status": "working",
+            "outputs": dict(cls.OUTPUTS), "output_roles": dict(cls.OUTPUT_ROLES), "verify": "recompute; equal scored ref", "status": "working",
             "consumer": "match-assign (U142) -- the greedy accept needs every shard of the round",
         }
 

@@ -227,6 +227,7 @@ class CompileAttempt(PlannableKind):
         "obj": "the COFF object bytes (outcome obj)",
         "diagnostics": "scrubbed compiler diagnostics text (outcome diag)",
     }
+    OUTPUT_ROLES: Mapping[str, str] = {"obj": "public", "diagnostics": "public", "receipt": "public"}   # §6.3 object role tags
 
     @staticmethod
     def required_capabilities(spec: TaskSpec) -> tuple[str, ...]:
@@ -328,7 +329,7 @@ class CompileAttempt(PlannableKind):
         return {
             "kind": cls.name, "version": cls.version, "budget": cls.budget.value,
             "capabilities": list(cls.capabilities), "inputs": dict(cls.INPUTS), "params": dict(cls.PARAMS_SCHEMA),
-            "outputs": dict(cls.OUTPUTS), "verify": "recompute; masked-COFF hash equality (TimeDateStamp zeroed)",
+            "outputs": dict(cls.OUTPUTS), "output_roles": dict(cls.OUTPUT_ROLES), "verify": "recompute; masked-COFF hash equality (TimeDateStamp zeroed)",
             "toolchains_registered": TOOLCHAINS.names(), "status": "working",
             "wrapper": "scripts/cl-compile.sh <in.c> <out.obj> [flags] (VC_ROOT, WINEPREFIX, CL_OPT)",
         }

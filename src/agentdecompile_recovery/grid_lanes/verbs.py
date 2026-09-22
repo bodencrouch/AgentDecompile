@@ -127,6 +127,8 @@ class CorpusVerbKind(PlannableKind):
     INPUTS: Mapping[str, str] = {"store": "store snapshot object (VACUUM INTO copy; restricted)"}
     OUTPUTS: Mapping[str, str] = {"receipt": "sorted JSON receipt: verb, argv, exit code, stdout digest, summary"}
     INPUT_ROLE = "restricted"
+    #: output name -> object role tag (§6.3); anything not listed is ``public`` (scrubbed values only)
+    OUTPUT_ROLES: Mapping[str, str] = {}
 
     # ----------------------------------------------------------------- per-verb hooks
     def argv(self, spec: TaskSpec) -> list[str]:
@@ -190,7 +192,8 @@ class CorpusVerbKind(PlannableKind):
             "kind": cls.name, "version": cls.version, "verb": cls.verb, "budget": cls.budget.value,
             "capabilities": list(cls.capabilities), "roles": ["fleet", "operator"],
             "inputs": dict(cls.INPUTS), "input_role": cls.INPUT_ROLE, "params": dict(cls.PARAMS_SCHEMA),
-            "outputs": dict(cls.OUTPUTS), "verify": "recompute (1:1; fleet/operator lane)",
+            "outputs": dict(cls.OUTPUTS), "output_roles": {k: cls.OUTPUT_ROLES.get(k, "public") for k in cls.OUTPUTS},
+            "verify": "recompute (1:1; fleet/operator lane)",
             "status": "working" if cls.verb else "declared",
         }
 
@@ -238,6 +241,7 @@ class CorpusExportHookpack(CorpusVerbKind):
     verb = "export-hookpack"
     budget = BudgetClass.MEDIUM
     OUTPUTS = {**CorpusVerbKind.OUTPUTS, "pack": "the hook pack bytes (restricted until U151's scrub receipt)"}
+    OUTPUT_ROLES = {"pack": "restricted"}   # the pack names builds by slug today (U151 scrubs it)
 
     def argv(self, spec: TaskSpec) -> list[str]:
         return corpus_cli_argv(self.verb, "--db", STORE_FILENAME, "--out", f"{OUT_DIRNAME}/pack.json")

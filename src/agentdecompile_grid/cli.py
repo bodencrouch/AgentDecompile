@@ -95,7 +95,12 @@ ASSUMED: Mapping[str, str] = {
     "agentdecompile_grid.fleet.cloudinit.render(join_url, *, role, lanes)": "user-data text",
     "agentdecompile_grid.tasks.builtin.SubprocessVerb": "builtin runner for SubprocessVerb-style params",
     "agentdecompile_grid.config.GridConfig.load(path=None)": "attributes root, lanes, join_url, admitted_bases",
-    "ObjectStore.get_named('results/<task_id>')": "non-None when a result index entry exists (cache hit)",
+    "VERIFIED record body": "Verification fields by name at the top level (task_id, result_ref, verifier_key, method, evidence) or nested under 'verification'; a body without task_id/result_ref is a named 'malformed-verified' event",
+    "result object at result_ref": "bare canonical_json(TaskResult.to_record()) -- no signed envelope, no wrapper (view.applier.decode_result)",
+    "verify() result_ref": "lanes derive it as ObjectRef.of_value(result.to_record()); the verifier loop must store results unwrapped and pass the same TaskResult",
+    "worker stamps producer_key / verifier_key": "lanes return TaskResult(producer_key='') and Verification(verifier_key=''); the loops dataclasses.replace them with the node key",
+    "Refused raised from TaskKind.run": "the worker maps it to ResultStatus.REFUSED with exc.reason and exc.candidates; Infra/Deadline map to ERROR/TIMEOUT",
+    "ObjectStore.get_named('results/<task_id>')": "non-None when a result index entry exists (cache hit; branch unexercised: the TASK-record check short-circuits first until compaction drops TASK records)",
     "ObjectStore.gc(*, keep=iterable_of_refs)": "optional; NotConfigured otherwise",
     "ObjectStore.put_path(path) -> ref / get_path(ref, path)": "optional streaming fast paths the lanes use for GB-sized snapshots",
     "TaskKind.plan(objects, snapshot, *, basis_hash, shard_size, max_budget, **options) -> list[TaskSpec]": "lane planners (duck-typed)",
@@ -444,7 +449,9 @@ def cmd_view(args: argparse.Namespace) -> int:
         return 0
     report = view_pkg.materialize(root, args.db, partitions=args.partition or None, resume=bool(args.resume))
     emit(report, as_json=args.json)
-    return 1 if report.get("stale") else 0
+    # a stale partition or a skipped VERIFIED record (contract mismatch with the log slice) is
+    # a non-zero exit, never a quietly empty view
+    return 1 if report.get("stale") or report.get("events") else 0
 
 
 def cmd_fleet(args: argparse.Namespace) -> int:

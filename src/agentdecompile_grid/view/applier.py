@@ -610,12 +610,13 @@ def materialize(
 
     Default is a full rebuild: each partition's grid rows are reset, then replayed from seq 1.
     ``resume=True`` continues from the stored position instead.  Named states are collected per
-    partition rather than aborting the whole run, so one stale partition never hides the rest.
+    partition rather than aborting the whole run, so one stale partition never hides the rest;
+    ``report["events"]`` lists every record the applier had to skip by name.
     """
     objects = objects if objects is not None else _local_objects(root)
     log = log if log is not None else _local_log(root)
     names = list(partitions) if partitions else sorted(log.partitions())
-    report: dict[str, Any] = {"db": str(db_path), "root": str(root), "partitions": {}, "stale": []}
+    report: dict[str, Any] = {"db": str(db_path), "root": str(root), "partitions": {}, "stale": [], "events": {}}
     for partition in names:
         applier = applier_factory(
             db_path, partition, batch_rows=batch_rows, batch_seconds=batch_seconds,
@@ -635,6 +636,11 @@ def materialize(
                 }
                 report["stale"].append(partition)
             report["partitions"][partition] = entry
+            if applier.stats.events:
+                # a VERIFIED record the applier could not use (malformed body, unknown kind,
+                # result/task mismatch) is a contract mismatch with the log slice: surfaced,
+                # never silently absorbed into an empty view
+                report["events"][partition] = [list(e) for e in applier.stats.events]
         finally:
             applier.close()
     return report

@@ -51,6 +51,7 @@ class DeclaredAnalyzerKind(PlannableKind):
     INPUTS: Mapping[str, str] = {}
     PARAMS_SCHEMA: Mapping[str, str] = {}
     OUTPUTS: Mapping[str, str] = {}
+    OUTPUT_ROLES: Mapping[str, str] = {"packed_program": "restricted", "fragment": "restricted"}   # image-bearing (§6.3)
     UNIT = ""
     INPUT_ROLE = "restricted"
 
@@ -76,7 +77,8 @@ class DeclaredAnalyzerKind(PlannableKind):
         return {
             "kind": cls.name, "version": cls.version, "budget": cls.budget.value, "capabilities": list(cls.capabilities),
             "inputs": dict(cls.INPUTS), "input_role": cls.INPUT_ROLE, "params": dict(cls.PARAMS_SCHEMA),
-            "outputs": dict(cls.OUTPUTS), "status": "declared", "unit": cls.UNIT, "roles": ["fleet", "operator"],
+            "outputs": dict(cls.OUTPUTS), "output_roles": {k: cls.OUTPUT_ROLES.get(k, "public") for k in cls.OUTPUTS},
+            "status": "declared", "unit": cls.UNIT, "roles": ["fleet", "operator"],
         }
 
 

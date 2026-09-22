@@ -2,6 +2,11 @@
 
 Ghidra-backed extract needs a live program. JSON snapshots do not: they accept
 already-extracted rows (strings, consts, mnem, edges) and write ``{id}.functions.json``.
+
+Single-writer rule for ``binary.content_sha256``: only a caller that hashed
+the raw image (the ``content_sha256`` backfill pass, or an extractor handing
+``meta["content_sha256"]`` in) supplies the digest. ``upsert_binary`` never
+derives one from ``repo_path`` and never replaces a stored digest with NULL.
 """
 
 from __future__ import annotations
@@ -16,7 +21,6 @@ from .determinism_basis import BasisError, basis_hash_for, install_analyzer_vers
 from .features import merge_tiers, tier1, tier2
 from .io import write_json
 from .fingerprint_hashes import attach_hashes
-from .identical_image import content_digest
 from .store import ensure_binary_columns, ensure_func_columns, j
 
 
@@ -70,8 +74,15 @@ def functions_from_program(program, monitor=None) -> list[dict[str, Any]]:
     return [enrich_canon(row) for row in merge_tiers(t1, t2)]
 
 
-def recovery_family(repo_path: str, slug: str, meta: dict[str, Any]) -> str:
-    """Use only an explicit catalog assignment; unknown builds stay isolated."""
+def recovery_family(repo_path: str, slug: str, meta: dict[str, Any]) -> str | None:
+    """Use only an explicit catalog or operator assignment.
+
+    Returns ``None`` when nothing classifies the build. The store derives the
+    isolating placeholder (``'unclassified:' || substr(content_sha256, 1, 16)``,
+    ``store.backfill_recovery_family``) once the digest exists; an
+    ``unclassified:*`` value handed back in *meta* is that placeholder or an
+    older one, never a classification, so it is not returned either.
+    """
     maps = load_maps()
     families = maps.get("recovery_families") or maps.get("recoveryFamilies") or {}
     if isinstance(families, dict):
@@ -86,7 +97,7 @@ def recovery_family(repo_path: str, slug: str, meta: dict[str, Any]) -> str:
     configured = str(meta.get("recovery_family") or meta.get("recoveryFamily") or "").strip()
     if configured and not configured.startswith("unclassified:"):
         return configured
-    return f"unclassified:{slug}"
+    return None
 
 
 def live_analyzer_version() -> str | None:
@@ -157,15 +168,51 @@ def stamp_analyzer_identity(
     return out
 
 
-def upsert_binary(con, *, repo_path: str, slug: str, program=None, meta: dict[str, Any] | None = None) -> int:
+def _text_or_none(value: Any) -> str | None:
+    """Stripped text, or ``None`` when blank, so an empty string cannot clear a stored value."""
+    text = str(value or "").strip()
+    return text or None
+
+
+def _digest_or_none(value: Any) -> str | None:
+    """``content_sha256`` is a key: stripped and lower-case, ``None`` when blank."""
+    text = _text_or_none(value)
+    return text.lower() if text else None
+
+
+def upsert_binary(
+    con,
+    *,
+    repo_path: str,
+    slug: str,
+    program=None,
+    meta: dict[str, Any] | None = None,
+    allow_reidentify: bool = False,
+) -> int:
     """Insert or update a binary row. *meta* supplies game/platform/arch when known.
+
+    Facts already stored are never erased by a caller that knows fewer of
+    them: ``content_sha256``, ``md5``, ``language_id``, ``arch``, ``bits``,
+    ``format``, ``image_base`` and ``recovery_family`` keep their stored value
+    when the incoming one is NULL. ``content_sha256`` is only ever the digest a
+    caller hands in (see the module docstring); this function derives none.
+    A non-NULL incoming digest that differs from a stored non-NULL digest is a
+    different image, hence a different build identity (D8): the call refuses
+    with ``ValueError`` before writing anything unless ``allow_reidentify=True``.
+    A stored digest that is wrong for the raw image is repaired by the
+    ``content_sha256`` backfill pass, not through here.
+
+    New builds insert ``recovery_family`` NULL unless a catalog or operator
+    value exists; ``store.backfill_recovery_family`` (every ``connect()``)
+    derives the hash form once a digest is present.
 
     Also captures the analyzer identity: the version of the analyzer this
     process runs inside (or ``meta["analyzer_version"]``, or the configured
     install's version as a last resort), the processor-spec hash of the
     program's language, and the package ``basis_hash`` under that analyzer.
     When no analyzer version can be read the identity columns stay NULL and
-    the basis refuses at export, naming the row.
+    the basis refuses at export, naming the row. The stamp is written only
+    after the upsert succeeded, so a refusal leaves the stamp untouched.
     """
     ensure_binary_columns(con)
     info = dict(meta or {})
@@ -179,19 +226,36 @@ def upsert_binary(con, *, repo_path: str, slug: str, program=None, meta: dict[st
         info.setdefault("image_base", int(program.getImageBase().getOffset()))
         info.setdefault("analyzer_version", live_analyzer_version())
     analyzer_version = info.get("analyzer_version") or install_analyzer_version()
-    digest = info.get("content_sha256") or content_digest(repo_path)
-    if digest:
-        info["content_sha256"] = digest
-    info["recovery_family"] = recovery_family(repo_path, slug, info)
+    digest = _digest_or_none(info.get("content_sha256"))
+    md5 = _text_or_none(info.get("md5"))
+    family = recovery_family(repo_path, slug, info)
+
+    # Validate before any write of our own: a refusal must not leave a
+    # half-updated or half-stamped row behind.
+    stored = con.execute("SELECT content_sha256 FROM binary WHERE repo_path=?", (repo_path,)).fetchone()
+    stored_digest = _digest_or_none(stored[0]) if stored is not None else None
+    if digest and stored_digest and digest != stored_digest and not allow_reidentify:
+        raise ValueError(
+            f"binary {slug!r} already has content_sha256 {stored_digest[:12]}..., "
+            f"incoming {digest[:12]}... is a different image and so a different build; "
+            "register it separately or pass allow_reidentify=True to re-identify this row"
+        )
+
     con.execute(
         """INSERT INTO binary(repo_path, slug, game, platform, variant, language_id,
                               arch, bits, format, md5, content_sha256, recovery_family, image_base, role)
            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)
            ON CONFLICT(repo_path) DO UPDATE SET
              slug=excluded.slug, game=excluded.game, platform=excluded.platform,
-             language_id=excluded.language_id, arch=excluded.arch, bits=excluded.bits,
-             format=excluded.format, md5=excluded.md5, content_sha256=excluded.content_sha256,
-             recovery_family=excluded.recovery_family, image_base=excluded.image_base, role=excluded.role""",
+             language_id=COALESCE(excluded.language_id, binary.language_id),
+             arch=COALESCE(excluded.arch, binary.arch),
+             bits=COALESCE(excluded.bits, binary.bits),
+             format=COALESCE(excluded.format, binary.format),
+             md5=COALESCE(excluded.md5, binary.md5),
+             content_sha256=COALESCE(excluded.content_sha256, binary.content_sha256),
+             recovery_family=COALESCE(excluded.recovery_family, binary.recovery_family),
+             image_base=COALESCE(excluded.image_base, binary.image_base),
+             role=excluded.role""",
         (
             repo_path,
             slug,
@@ -202,9 +266,9 @@ def upsert_binary(con, *, repo_path: str, slug: str, program=None, meta: dict[st
             info.get("arch"),
             info.get("bits"),
             info.get("format"),
-            info.get("md5"),
-            info.get("content_sha256"),
-            info.get("recovery_family"),
+            md5,
+            digest,
+            family,
             info.get("image_base"),
             info.get("role"),
         ),

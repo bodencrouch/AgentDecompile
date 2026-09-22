@@ -35,16 +35,18 @@ Acceptance tests (named here, landed in the verification phase):
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import json
 import os
+import secrets
 import shutil
 import time
 from typing import Any, ContextManager, Iterable, Iterator, Mapping, Sequence
 
-from ..core import AlreadyOwned, ObjectRef, canonical_json
+from ..core import HASH_ALGORITHM, AlreadyOwned, NotConfigured, ObjectRef, canonical_json
 from . import gc as gc_module
 from .base import (
-    CORRUPT_DIR, GC_LOCK_FILE, LAYOUT_FILE, NAMED_DIR, OBJECTS_DIR, PINS_DIR,
+    CORRUPT_DIR, GC_LOCK_FILE, LAYOUT_FILE, NAMED_DIR, OBJECTS_DIR, PINS_DIR, TEMP_PREFIX,
     BaseObjectStore, ExclusiveFileLock, FsyncPolicy, IntegrityError, InvalidName, Layout, ObjectMissing, ObjectStat,
     StoreFull, atomic_replace, atomic_write_once, is_temp_name, ref_prefix_hex, schema_from_dataclass, validate_name,
     validate_owner, validate_ref,
@@ -91,6 +93,26 @@ class LocalDirStore(BaseObjectStore):
                    touch_on_read=o.touch_on_read, size_cap_bytes=o.size_cap_bytes, gc_policy=o.gc_policy,
                    gc_low_water=o.gc_low_water, gc_grace_s=o.gc_grace_s, gc_max_scan_bytes=o.gc_max_scan_bytes,
                    gc_walk_depth=o.gc_walk_depth, create=create)
+
+    @classmethod
+    def from_locator(cls, locator: Mapping[str, Any]) -> "LocalDirStore":
+        """Build from a serialisable locator ``{"adapter": "local", "root": <store root>, **constructor options}``.
+
+        This is what a sandbox child (``worker.sandbox.resolve_store``) and ``transport.local``
+        resolve; ``root`` is the *store* root (``paths.objects``), never the grid root.
+        """
+        if str(locator.get("adapter", cls.name)) != cls.name:
+            raise NotConfigured(f"locator adapter {locator.get('adapter')!r} is not {cls.name!r}")
+        if not locator.get("root"):
+            raise NotConfigured("local object store locator needs 'root'")
+        options = {k: v for k, v in locator.items() if k not in ("adapter", "root")}
+        return cls(str(locator["root"]), **options)
+
+    def locator(self) -> dict[str, Any]:
+        """The serialisable locator ``from_locator`` accepts (constructor options that affect layout)."""
+        return {"adapter": self.name, "root": self.root, "shard_width": self.layout.shard_width,
+                "shard_depth": self.layout.shard_depth, "fsync": self.fsync.value,
+                "write_once_strategy": self.write_once_strategy}
 
     # ---- layout ------------------------------------------------------------------------------
     def _open_layout(self, wanted: Layout, *, create: bool) -> Layout:
@@ -395,6 +417,88 @@ class LocalDirStore(BaseObjectStore):
         shutil.copyfile(src, dest)
         return dest
 
+    # ---- streaming (GB-sized snapshots never pass through memory) ----------------------------
+    @staticmethod
+    def hash_path(path: str | os.PathLike[str], *, chunk_size: int = 4 * 1024 * 1024) -> tuple[ObjectRef, int]:
+        """``(ref, size)`` of a file, hashed in chunks."""
+        h = hashlib.new(HASH_ALGORITHM)
+        size = 0
+        with open(path, "rb") as fh:
+            while True:
+                chunk = fh.read(chunk_size)
+                if not chunk:
+                    break
+                h.update(chunk)
+                size += len(chunk)
+        return ObjectRef(f"{HASH_ALGORITHM}:{h.hexdigest()}"), size
+
+    def put_path(self, path: str | os.PathLike[str], *, expect: ObjectRef | None = None, link: bool = True) -> ObjectRef:
+        """Store a file without reading it into memory: hash in chunks, then hard-link it into place
+        (a link shares the inode, so the caller must not modify the file afterwards) or, when
+        ``link=False`` / linking is impossible, copy it through a temp file.  Write-once like ``put``."""
+        ref, size = self.hash_path(path)
+        if expect is not None and validate_ref(expect) != ref:
+            raise IntegrityError(f"put_path(expect={expect}) but the file hashes to {ref}; refusing to store under the wrong ref")
+        final = self.path_for(ref)
+        if os.path.exists(final):
+            return ref
+        if self.size_cap_bytes > 0:
+            self._make_room(size)
+        os.makedirs(os.path.dirname(final), exist_ok=True)
+        written = False
+        if link and self.write_once_strategy == "link":
+            try:
+                os.link(os.fspath(path), final)
+                written = True
+            except FileExistsError:
+                return ref
+            except OSError:
+                written = False
+        if not written:
+            directory = os.path.dirname(final)
+            tmp = os.path.join(directory, f"{TEMP_PREFIX}{ref.hex[:12]}-{os.getpid()}-{secrets.token_hex(4)}")
+            try:
+                with open(tmp, "wb") as out, open(path, "rb") as src:
+                    shutil.copyfileobj(src, out, 4 * 1024 * 1024)
+                    out.flush()
+                    if self.fsync is not FsyncPolicy.NONE:
+                        os.fsync(out.fileno())
+                try:
+                    os.link(tmp, final) if self.write_once_strategy == "link" else os.replace(tmp, final)
+                    written = True
+                except FileExistsError:
+                    written = False
+                except OSError:
+                    if not os.path.exists(final):
+                        os.replace(tmp, final)
+                        written = True
+            finally:
+                with contextlib.suppress(OSError):
+                    os.unlink(tmp)
+        if written and self.fsync is FsyncPolicy.FULL:
+            with contextlib.suppress(OSError):
+                fd = os.open(os.path.dirname(final), os.O_RDONLY)
+                try:
+                    os.fsync(fd)
+                finally:
+                    os.close(fd)
+        if written and self._usage is not None:
+            self._usage = (self._usage[0] + size, self._usage[1] + 1)
+        return ref
+
+    def get_path(self, ref: ObjectRef, dest: str | os.PathLike[str], *, link: bool = True) -> str:
+        """Place an object at ``dest`` without reading it into memory (hard link, else copy).
+        An existing ``dest`` that already is this object is left alone; another file there is replaced."""
+        dest = os.fspath(dest)
+        if os.path.exists(dest):
+            try:
+                if os.path.samefile(dest, self.path_for(ref)) or self.hash_path(dest)[0] == validate_ref(ref):
+                    return dest
+            except OSError:
+                pass
+            os.unlink(dest)
+        return self.materialize(ref, dest, link=link)
+
     def _quarantine(self, ref: ObjectRef, path: str) -> None:
         qdir = os.path.join(self.root, CORRUPT_DIR)
         os.makedirs(qdir, exist_ok=True)
@@ -422,7 +526,7 @@ class LocalDirStore(BaseObjectStore):
             "quarantine_corrupt": self.quarantine_corrupt, "size_cap_bytes": self.size_cap_bytes,
             "gc": {"policy": self.gc_policy, "low_water": self.gc_low_water, "grace_s": self.gc_grace_s,
                    "walk_depth": self.gc_walk_depth, "max_scan_bytes": self.gc_max_scan_bytes},
-            "supports": ["named-index", "enumerable", "pins", "materialize"],
+            "supports": ["named-index", "enumerable", "pins", "materialize", "put-path", "get-path", "locator"],
         })
         return info
 

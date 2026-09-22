@@ -49,7 +49,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
 
-from ..core import OBJECT_STORES, TASK_KINDS, VERIFIERS, BudgetClass, DEFAULT_DEADLINES_S, NotConfigured, ObjectStore, Refused, Registry, ResultStatus, TaskResult, TaskSpec, Verification, canonical_json, digest
+from ..core import OBJECT_STORES, TASK_KINDS, VERIFIERS, BudgetClass, NotConfigured, ObjectStore, Refused, Registry, ResultStatus, TaskResult, TaskSpec, Verification, canonical_json, digest
 
 DEFAULT_ENV_ALLOWLIST: tuple[str, ...] = (
     "PATH", "LANG", "LC_ALL", "LC_CTYPE", "TZ", "PYTHONPATH", "PYTHONHASHSEED", "PYTHONDONTWRITEBYTECODE", "PYTHONUNBUFFERED",
@@ -307,26 +307,34 @@ SANDBOXES.register("subprocess", SubprocessSandbox)
 SANDBOXES.register("container", ContainerSandbox)
 
 
-def deadline_for(spec: TaskSpec, overrides: Mapping[str, Any] | None = None) -> float:
-    """Kill deadline from the budget class (core ``DEFAULT_DEADLINES_S``), overridable per budget
-    value or per kind name (the basis ``timeout_policy`` field).  ``UNBOUNDED`` → ``Refused``."""
-    overrides = overrides or {}
-    if spec.kind in overrides:
-        value = float(overrides[spec.kind])
-    elif spec.budget.value in overrides:
-        value = float(overrides[spec.budget.value])
-    else:
-        value = float(DEFAULT_DEADLINES_S[spec.budget])
-    if spec.budget == BudgetClass.UNBOUNDED or value <= 0:
+def deadline_for(spec: TaskSpec, overrides: Mapping[str, Any] | None = None, *, config: Any = None) -> float:
+    """Kill deadline in seconds for one spec.  ``tasks.budget.deadline_for_spec`` is the one
+    computation (``core.DEFAULT_DEADLINES_S`` are the class defaults of ``config.budgets``; per-kind
+    overrides beat the class): ``config`` is a ``GridConfig``; without one, ``overrides`` (by budget
+    value or kind name, the basis ``timeout_policy`` shape) are applied to the defaults.
+    ``UNBOUNDED`` or a non-positive deadline → ``Refused`` by name."""
+    from ..config import budgets_with_overrides
+    from ..tasks.budget import deadline_for_spec
+
+    cfg = budgets_with_overrides(overrides, config)
+    if spec.budget == BudgetClass.UNBOUNDED:
+        raise Refused(f"budget-unbounded:{spec.kind}")
+    value = float(deadline_for_spec(spec, cfg).seconds)
+    if value <= 0:
         raise Refused(f"budget-unbounded:{spec.kind}")
     return value
 
 
 # --------------------------------------------------------------------------- child side
 def resolve_store(locator: Mapping[str, Any]) -> ObjectStore:
+    """The object store a locator names.  ``agentdecompile_grid.objects`` is imported here so the
+    child has the adapters registered whatever ``import_modules`` said; ``from_locator`` is the
+    adapter's contract (``objects.from_locator``), ``cls(**locator)`` the fallback for foreign adapters."""
     adapter = str(locator.get("adapter", ""))
     if not adapter:
         raise NotConfigured("store locator has no 'adapter' (expected e.g. {'adapter': 'local', 'root': <dir>})")
+    if adapter not in OBJECT_STORES:
+        importlib.import_module("agentdecompile_grid.objects")
     try:
         cls = OBJECT_STORES.get(adapter)
     except KeyError as exc:

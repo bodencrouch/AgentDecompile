@@ -12,6 +12,13 @@ kind                 budget   capabilities    what
 Every kind is pure: same inputs + basis -> same outputs, or a deterministic ``Refused``.  Kinds
 return results with an empty ``producer_key``; ``tasks.registry.execute`` stamps it.
 
+``hash-object`` and ``python-canary`` also carry a planner (``Kind.plan(objects, snapshot, *,
+basis_hash, shard_size, max_budget, scratch, **options)``), the duck-typed contract ``adgrid
+publish <kind>`` reaches without importing any lane: the snapshot is a file path (put into the
+store, streamed) or a ``sha256:`` ref, and the plan is one task.  ``builtin_basis(kind)`` is the
+basis a builtin kind gets when the caller names none: the kind and its version, nothing else
+(these kinds depend on the interpreter only, which the ``python`` canary pins).
+
 ``subprocess-verb`` is the generic adapter the recovery pipeline's verbs (compile, parity check,
 mkobj, link ...) will wrap.  Its parameter schema (``SubprocessVerbKind.params_schema``)::
 
@@ -60,7 +67,7 @@ from typing import Any, Mapping, Sequence
 
 from ..core import (
     BudgetClass, ObjectRef, ObjectStore, Refused, ResultStatus, TaskResult, TaskSpec, Verification, VerificationOutcome,
-    canonical_json, digest, task_kind,
+    canonical_json, digest, digest_value, task_kind,
 )
 from ..objects.base import ObjectMissing, validate_name
 from .spec import (
@@ -90,6 +97,36 @@ def _result_ref(result: TaskResult) -> ObjectRef:
     return ObjectRef.of_bytes(canonical_json(result_to_record(result)))
 
 
+def builtin_basis(kind: type) -> str:
+    """The default basis of a builtin kind: its name and version (design 2.8: a basis names what
+    the result depends on; these kinds depend on the pinned interpreter only)."""
+    return digest_value({"basis": "builtin", "kind": kind.name, "kind_version": int(kind.version)})
+
+
+def snapshot_ref(objects: ObjectStore, snapshot: Any) -> ObjectRef:
+    """A planner's snapshot argument as an object: a ``sha256:`` ref that must exist, or a file path
+    that is put (streamed when the store can)."""
+    text = os.fspath(snapshot) if isinstance(snapshot, os.PathLike) else str(snapshot)
+    if text.startswith("sha256:"):
+        ref = ObjectRef(text)
+        if not objects.exists(ref):
+            raise Refused(f"snapshot-missing:{ref.hex[:12]}")
+        return ref
+    if not os.path.isfile(text):
+        raise Refused("snapshot-not-a-file")
+    put_path = getattr(objects, "put_path", None)
+    if callable(put_path):
+        return ObjectRef(put_path(text))
+    with open(text, "rb") as fh:
+        return objects.put(fh.read())
+
+
+def _check_budget(kind: type, max_budget: BudgetClass | str) -> None:
+    order = [BudgetClass.MICRO, BudgetClass.SMALL, BudgetClass.MEDIUM, BudgetClass.LARGE, BudgetClass.UNBOUNDED]
+    if order.index(BudgetClass(kind.budget)) > order.index(BudgetClass(max_budget)):
+        raise Refused(f"budget-exceeds-allowed:{kind.budget.value}>{BudgetClass(max_budget).value}")
+
+
 # --------------------------------------------------------------------------- hash-object
 @task_kind
 class HashObjectKind:
@@ -117,6 +154,18 @@ class HashObjectKind:
     def spec(cls, data: ObjectRef, basis_hash: str, *, algorithm: str = "sha256", config: Any = None,
              partition: str = "") -> TaskSpec:
         return spec_for_kind(cls, {"data": data}, {"algorithm": algorithm}, basis_hash, config=config, partition=partition)
+
+    @classmethod
+    def plan(cls, objects: ObjectStore, snapshot: Any, *, basis_hash: str | None = None, shard_size: int = 512,
+             max_budget: BudgetClass | str = BudgetClass.SMALL, scratch: str | None = None, algorithm: str = "sha256",
+             subject: str = "", config: Any = None, **options: Any) -> list[TaskSpec]:
+        """One task: digest the snapshot object.  ``subject`` names the partition (default: the kind)."""
+        extra = sorted(set(options))
+        if extra:
+            raise Refused(f"unknown-options:{','.join(extra)}")
+        _check_budget(cls, max_budget)
+        ref = snapshot_ref(objects, snapshot)
+        return [cls.spec(ref, basis_hash or builtin_basis(cls), algorithm=algorithm, config=config, partition=subject)]
 
     def _compute(self, spec: TaskSpec, objects: ObjectStore) -> bytes:
         algorithm = param_str(spec.params, "algorithm", "sha256")
@@ -208,6 +257,17 @@ class PythonCanaryKind:
     @classmethod
     def spec(cls, basis_hash: str, *, fixture: str = "v1", config: Any = None, partition: str = "") -> TaskSpec:
         return spec_for_kind(cls, {}, {"fixture": fixture}, basis_hash, config=config, partition=partition)
+
+    @classmethod
+    def plan(cls, objects: ObjectStore, snapshot: Any = None, *, basis_hash: str | None = None, shard_size: int = 512,
+             max_budget: BudgetClass | str = BudgetClass.SMALL, scratch: str | None = None, fixture: str = "v1",
+             subject: str = "", config: Any = None, **options: Any) -> list[TaskSpec]:
+        """One task per call; the snapshot is ignored (the fixture is the input)."""
+        extra = sorted(set(options))
+        if extra:
+            raise Refused(f"unknown-options:{','.join(extra)}")
+        _check_budget(cls, max_budget)
+        return [cls.spec(basis_hash or builtin_basis(cls), fixture=fixture, config=config, partition=subject)]
 
     @staticmethod
     def pinned_ref(fixture: str = "v1") -> ObjectRef:
@@ -568,4 +628,4 @@ class SubprocessVerbKind:
 BUILTIN_KINDS: tuple[type, ...] = (HashObjectKind, PythonCanaryKind, SubprocessVerbKind)
 
 __all__ = ["HashObjectKind", "PythonCanaryKind", "PythonCanary", "SubprocessVerbKind", "BUILTIN_KINDS",
-           "CANARY_FIXTURES", "canary_fixture", "BASE_ENV", "safe_relpath", "PYTHON_CAPABILITY"]
+           "CANARY_FIXTURES", "canary_fixture", "BASE_ENV", "safe_relpath", "PYTHON_CAPABILITY", "builtin_basis", "snapshot_ref"]

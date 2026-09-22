@@ -32,6 +32,7 @@ Acceptance tests (named here, landed in the verification phase):
 """
 from __future__ import annotations
 
+import os
 import threading
 from typing import Any, Iterator, Sequence
 
@@ -49,6 +50,26 @@ class PartialWrite(GridError):
         super().__init__(message)
         self.ref = ref
         self.failures = tuple(failures)
+
+
+def _put_path(store: ObjectStore, path: str | os.PathLike[str], *, expect: ObjectRef | None, link: bool) -> ObjectRef:
+    """A layer's streaming put when it has one (foreign stores fall back to ``put`` of the bytes)."""
+    put_path = getattr(store, "put_path", None)
+    if callable(put_path):
+        return put_path(path, expect=expect, link=link)
+    with open(path, "rb") as fh:
+        return store.put(fh.read())
+
+
+def _get_path(store: ObjectStore, ref: ObjectRef, dest: str | os.PathLike[str], *, link: bool) -> str:
+    get_path = getattr(store, "get_path", None)
+    if callable(get_path):
+        return get_path(ref, dest, link=link)
+    dest = os.fspath(dest)
+    os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
+    with open(dest, "wb") as fh:
+        fh.write(store.get(ref))
+    return dest
 
 
 class LayeredStore(BaseObjectStore):
@@ -184,6 +205,51 @@ class LayeredStore(BaseObjectStore):
             self._record_failure(ref, failures)
         return ref
 
+    def put_path(self, path: str | os.PathLike[str], *, expect: ObjectRef | None = None, link: bool = True) -> ObjectRef:
+        """Streaming ``put``: the primary layer's ``put_path`` (a link when it has one), then every
+        other writable layer through its own ``put_path``; failures are recorded like ``put``."""
+        primary = self.primary
+        ref = _put_path(primary, path, expect=expect, link=link)
+        if self.write_policy == "first":
+            return ref
+        failures: list[tuple[str, str]] = []
+        for layer in self.layers[1:]:
+            try:
+                _put_path(layer, path, expect=ref, link=False)
+            except ReadOnly as exc:
+                if self.write_policy == "all-strict":
+                    failures.append((self._layer_name(layer), str(exc)))
+            except (NotConfigured, OSError, GridError) as exc:
+                failures.append((self._layer_name(layer), str(exc)))
+        if failures:
+            self._record_failure(ref, failures)
+        return ref
+
+    def get_path(self, ref: ObjectRef, dest: str | os.PathLike[str], *, link: bool = True) -> str:
+        """Streaming ``get``: the first layer holding the object writes ``dest``; a hit in a later
+        layer is promoted into the earlier writable layers from ``dest`` (never through memory)."""
+        validate_ref(ref)
+        errors: list[str] = []
+        for idx, layer in enumerate(self.layers):
+            try:
+                if not layer.exists(ref):
+                    continue
+                out = _get_path(layer, ref, dest, link=link)
+            except (ObjectMissing, KeyError):
+                continue
+            except (IntegrityError, NotConfigured, OSError) as exc:
+                errors.append(f"{self._layer_name(layer)}: {exc}")
+                continue
+            if idx > 0 and self.promote_on_read:
+                for earlier in self.layers[:idx]:
+                    try:
+                        _put_path(earlier, out, expect=ref, link=False)
+                    except (ReadOnly, NotConfigured, OSError, GridError):
+                        continue
+            return out
+        detail = f" ({'; '.join(errors)})" if errors else ""
+        raise ObjectMissing(f"layered: no layer holds {ref}{detail}")
+
     def _record_failure(self, ref: ObjectRef | None, failures: Sequence[tuple[str, str]], *, named: tuple[str, bytes] | None = None) -> None:
         if self.on_layer_failure == "raise":
             what = f"named pointer {named[0]!r}" if named else f"object {ref}"
@@ -310,7 +376,7 @@ class LayeredStore(BaseObjectStore):
             "layers": [describe_store(layer) for layer in self.layers],
             "pending": {k: len(v) for k, v in self.pending.items()},
             "pending_named": {k: len(v) for k, v in self.pending_named.items()},
-            "supports": ["read-through", "promote", "named-index" if self.can_list_named() else "named-read"],
+            "supports": ["read-through", "promote", "put-path", "get-path", "named-index" if self.can_list_named() else "named-read"],
         })
         return info
 

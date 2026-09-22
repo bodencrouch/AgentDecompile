@@ -22,6 +22,14 @@ Precedence (lowest to highest)::
 Every field carries ``metadata={"doc": ...}``; ``describe()`` is generated from those docs so
 the documentation cannot drift from the schema.
 
+Sections and who reads them: ``paths``/``adapters``/``objects``/``budgets``/``tasks`` (objects and
+tasks), ``log``/``heads``/``signing``/``keyring``/``frontier``/``outbox``/``backoff``/``intents``/
+``partitions``/``compaction`` (the log layer; ``log.CONFIG_FIELDS`` names the same keys),
+``worker``/``verifier`` (the node runtime), ``fleet`` (the operator's fleet), and the top-level
+``lanes``/``admitted_bases``/``join_url`` the CLI reads.  ``GridConfig.load()`` / ``GridConfig.default()``
+are the one entry the CLI uses; the ``*_locator()`` methods render the mapping each adapter's
+``from_config``/``from_locator`` takes.
+
 Acceptance tests (named here, landed in the verification phase):
 
 * ``test_config_defaults_validate`` — ``GridConfig()`` validates and ``describe()`` lists every
@@ -36,6 +44,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
 import os
 from dataclasses import dataclass, field, fields, is_dataclass
 from pathlib import Path
@@ -56,6 +65,7 @@ LAYER_FAILURE_POLICIES = ("record", "raise")
 FLOAT_POLICIES = ("repr", "refuse")
 PORTABILITY_POLICIES = ("strict", "off")
 CAPTURE_POLICIES = ("digest", "object", "none")
+ROLES = ("operator", "fleet", "donor")
 
 
 class ConfigError(GridError):
@@ -238,9 +248,35 @@ class TasksConfig:
 
 
 @dataclass(frozen=True)
-class LogConfig:
-    """Append batching, CAS backoff and checkpoint cadence (design 2.2)."""
+class S3LogConfig:
+    bucket: str = field(default="", metadata=_doc("Bucket name. Required to use the s3 log/heads adapters."))
+    prefix: str = field(default="", metadata=_doc("Key prefix inside the bucket (no leading slash)."))
+    endpoint_url: str = field(default="", metadata=_doc("Custom endpoint for S3-compatible services. Empty = AWS."))
+    region: str = field(default="", metadata=_doc("Region name. Empty = the SDK default chain."))
+    profile: str = field(default="", metadata=_doc("Named credential profile; never inline keys in config."))
+    index_width: int = field(default=12, metadata=_doc("Zero-padded seq width in index keys."))
 
+
+@dataclass(frozen=True)
+class HttpLogConfig:
+    base_url: str = field(default="", metadata=_doc("Gateway root serving GET/PUT of records or heads."))
+    token_env: str = field(default="ADGRID_LOG_TOKEN", metadata=_doc("Environment variable holding the bearer token. Never the token itself."))
+    read_only: bool = field(default=False, metadata=_doc("A static mirror: GET only."))
+    timeout_s: float = field(default=30.0, metadata=_doc("Per-request timeout in seconds."))
+
+
+@dataclass(frozen=True)
+class LogConfig:
+    """The local log adapter, plus append batching, CAS backoff and checkpoint cadence (design 2.2)."""
+
+    root: str = field(default="", metadata=_doc(
+        "Store root for the local log adapter; partitions live under paths.log. Empty = paths.root."))
+    torn_tail: str = field(default="raise", metadata=_doc(
+        "What an append does with a torn last line: raise (LogCorrupt, run repair) | truncate."))
+    fsync: bool = field(default=True, metadata=_doc("fsync the records file after every batch."))
+    verify: str = field(default="chain", metadata=_doc("What read() checks per scanned line: chain | seq | none."))
+    s3: S3LogConfig = field(default_factory=S3LogConfig, metadata=_doc("s3 log adapter"))
+    http: HttpLogConfig = field(default_factory=HttpLogConfig, metadata=_doc("http log adapter"))
     flush_interval_s: float = field(default=5.0, metadata=_doc("Outbox flush interval in seconds."))
     batch_max: int = field(default=64, metadata=_doc("Records per batch append."))
     backoff_base_ms: int = field(default=100, metadata=_doc("Full-jitter exponential backoff base on CAS failure."))
@@ -255,8 +291,111 @@ class LogConfig:
 
 
 @dataclass(frozen=True)
+class HeadsConfig:
+    """The head store (compare-and-swap pointer per partition)."""
+
+    root: str = field(default="", metadata=_doc("Store root for the local heads adapter; heads live under paths.heads. Empty = paths.root."))
+    fsync: bool = field(default=True, metadata=_doc("fsync every head write."))
+    s3: S3LogConfig = field(default_factory=S3LogConfig, metadata=_doc("s3 heads adapter"))
+    http: HttpLogConfig = field(default_factory=HttpLogConfig, metadata=_doc("http heads adapter"))
+
+
+@dataclass(frozen=True)
+class SigningConfig:
+    """The record signer the CLI's operator verbs (publish, compact) use; nodes sign with their node key."""
+
+    label: str = field(default="", metadata=_doc("Label for null/hmac signers: key_id = null:<label> / hmac:<label>:<id>."))
+    key_dir: str = field(default="", metadata=_doc("ed25519 key directory (ed25519.key/.pub/key_id). Empty = paths.keys/signing."))
+    secret_env: str = field(default="ADGRID_HMAC_SECRET", metadata=_doc("Environment variable holding the hmac secret (utf-8 or hex:). Never the secret."))
+    secret_file: str = field(default="", metadata=_doc("File holding the raw hmac secret bytes; wins over secret_env when set."))
+    generate: bool = field(default=True, metadata=_doc("ed25519: create the pair when key_dir is empty."))
+
+
+@dataclass(frozen=True)
+class KeyringConfig:
+    """Whose records a reader trusts."""
+
+    allow_null: bool = field(default=True, metadata=_doc(
+        "Accept null-signed records (key_id null or null:<label>): hash chain only, no authorship. "
+        "Also the worker's trust_unsigned_records: null-signed RESULT bodies count as proposals."))
+    key_dir: str = field(default="", metadata=_doc("Directory of *.pub ed25519 public keys to trust. Empty = paths.keys/trusted."))
+
+
+@dataclass(frozen=True)
+class FrontierConfig:
+    """``log.frontier.FrontierPolicy`` as data (design 2.6)."""
+
+    proposal_cap: int = field(default=4, metadata=_doc("Unverified proposals per task before it leaves ready (also tasks.proposal_cap)."))
+    offer_while_pending: bool = field(default=True, metadata=_doc("Offer a task for generation while it has unverified proposals (False = design 2.6 strict)."))
+    reoffer_refused: bool = field(default=False, metadata=_doc("Offer a task again after a deterministic refusal."))
+    require_inputs: bool = field(default=True, metadata=_doc("A task is ready only when every input object exists here."))
+    require_result_object: bool = field(default=True, metadata=_doc("A proposal counts only when its result object exists here."))
+
+
+@dataclass(frozen=True)
+class BackoffConfig:
+    """``log.backoff.BackoffPolicy`` as data (design 2.2)."""
+
+    base_s: float = field(default=0.1, metadata=_doc("Full-jitter base delay in seconds."))
+    cap_s: float = field(default=5.0, metadata=_doc("Delay cap in seconds."))
+    multiplier: float = field(default=2.0, metadata=_doc("Exponential growth factor."))
+    rotate_after: int = field(default=8, metadata=_doc("Consecutive conflicts on one head before rotating to another partition."))
+    max_attempts: int = field(default=128, metadata=_doc("Attempts before AppendGaveUp; 0 = retry forever (explicit opt-in)."))
+    jitter: str = field(default="full", metadata=_doc("Jitter strategy (log.backoff.JITTERS): full | equal | none."))
+
+
+@dataclass(frozen=True)
+class OutboxConfig:
+    """``log.outbox.OutboxPolicy`` and the node outbox's flush pacing."""
+
+    max_batch: int = field(default=64, metadata=_doc("Records per batch append."))
+    flush_interval_s: float = field(default=5.0, metadata=_doc("Flush interval in seconds (64 records or 5 s, whichever first)."))
+    flush_deadline_s: float = field(default=30.0, metadata=_doc("Wall-clock bound of one node outbox flush."))
+    max_entries: int = field(default=100_000, metadata=_doc("Node outbox cap; beyond it enqueue raises OutboxError by name."))
+
+
+@dataclass(frozen=True)
+class IntentsConfig:
+    ttl_s: int = field(default=300, metadata=_doc("Advisory lease lifetime for log.intents.issue_intent callers; the work loop derives its own from the deadline."))
+
+
+@dataclass(frozen=True)
+class PartitionsConfig:
+    prefix_width: Mapping[str, int] = field(default_factory=lambda: {"default": 0}, metadata=_doc(
+        "Task-id prefix width (hex chars) per lane for head sub-partitioning: {default: 0, <lane>: n}."))
+
+
+@dataclass(frozen=True)
+class RetentionConfig:
+    policy: str = field(default="keep-since-latest-checkpoint", metadata=_doc(
+        "Retention policy (log.compaction.RETENTION_POLICIES): keep-everything | keep-since-latest-checkpoint | keep-tail."))
+    keep_checkpoints: int = field(default=1, metadata=_doc("Checkpoints to keep before the prunable prefix."))
+    records: int = field(default=1000, metadata=_doc("keep-tail: records to keep."))
+
+
+@dataclass(frozen=True)
+class CompactionConfig:
+    max_lag_records: int = field(default=64, metadata=_doc("Records past the latest checkpoint before compact() writes a new one."))
+    retention: RetentionConfig = field(default_factory=RetentionConfig, metadata=_doc("retention"))
+
+
+@dataclass(frozen=True)
 class WorkerConfig:
-    """Donor knobs and the poison rule (design 2.7)."""
+    """Donor knobs and the poison rule (design 2.7).  ``worker.loop.WorkerConfig.from_grid_config`` reads this."""
+
+    node_name: str = field(default="node", metadata=_doc(
+        "Name of this node's state directory under paths.root/nodes (keys, identity, outbox, work)."))
+    role: str = field(default="donor", metadata=_doc("Role of a self-rooted node (no invite): donor | fleet | operator."))
+    key_algorithm: str = field(default="ed25519", metadata=_doc("Node key algorithm (worker.identity.KEY_ALGORITHMS): ed25519 | hash-token."))
+    lanes: tuple[str, ...] = field(default=(), metadata=_doc("Kind names or lane names this node serves; empty = every registered kind."))
+    poison_min_lineages: int = field(default=2, metadata=_doc("Independent lineages among the timing-out keys before a task is poisoned."))
+    independence_policy: str = field(default="disjoint-lineage", metadata=_doc("verify.policy.INDEPENDENCE_POLICIES entry: disjoint-lineage | ancestry."))
+    cooloff_s: float = field(default=300.0, metadata=_doc("Local cool-off after this node times out or errors on a task."))
+    frontier_ttl_s: float = field(default=5.0, metadata=_doc("Seconds a pulled frontier stays fresh."))
+    launch_rate_per_minute: float = field(default=120.0, metadata=_doc("Task launches per minute this node allows itself."))
+    preempt_on_busy: bool = field(default=False, metadata=_doc("With idle_only, abort MEDIUM+ tasks when the machine gets busy."))
+    intent_margin_s: float = field(default=15.0, metadata=_doc("Intent ttl = deadline + kill grace + this margin."))
+    done_memory_s: float = field(default=3600.0, metadata=_doc("Remember own results this long so an unflushed RESULT is not re-run here."))
 
     cores: int = field(default=0, metadata=_doc("Concurrent tasks; 0 = auto (os.cpu_count())."))
     idle_only: bool = field(default=False, metadata=_doc("Only take work when the machine is idle."))
@@ -270,6 +409,30 @@ class WorkerConfig:
 
 
 @dataclass(frozen=True)
+class VerifierConfig:
+    """The verifier loop (design 2.5/2.6).  ``verify.loop.VerifierConfig.from_grid_config`` reads this."""
+
+    node_name: str = field(default="verifier", metadata=_doc("State directory name of the verifier identity under paths.root/nodes."))
+    role: str = field(default="operator", metadata=_doc("Role of a self-rooted verifier identity: operator | fleet (donors never verify)."))
+    proposal_cap: int = field(default=4, metadata=_doc("Proposals per task the verifier considers, in seq order; later ones are over-cap."))
+    default_method: str = field(default="", metadata=_doc("VERIFIERS method for kinds that declare none; empty = the kind's own verify()."))
+    methods_by_kind: Mapping[str, str] = field(default_factory=dict, metadata=_doc("kind -> VERIFIERS method override."))
+    max_tasks_per_pull: int = field(default=256, metadata=_doc("Awaiting tasks examined per frontier pull."))
+    run_on_join: bool = field(default=True, metadata=_doc("Run the verifier loop on join when the role may verify."))
+
+
+@dataclass(frozen=True)
+class FleetConfig:
+    """The operator's fleet bootstrap (design 1.4)."""
+
+    provider_config: Mapping[str, Any] = field(default_factory=dict, metadata=_doc("Keyword arguments for the provider adapter (adapters.provider)."))
+    role: str = field(default="fleet", metadata=_doc("Role the rendered join command asks for."))
+    lanes: tuple[str, ...] = field(default=(), metadata=_doc("Lanes a fleet node asks for (placement is by canary, never by assumption)."))
+    user_data_format: str = field(default="", metadata=_doc("cloud-config | bash; empty = by provider (ssh -> bash)."))
+    fabric_id: str = field(default="", metadata=_doc("Fabric id recorded in the manifest."))
+
+
+@dataclass(frozen=True)
 class GridConfig:
     """The whole configuration.  Immutable; derive variants with ``dataclasses.replace``."""
 
@@ -280,9 +443,105 @@ class GridConfig:
     budgets: BudgetsConfig = field(default_factory=BudgetsConfig, metadata=_doc("budgets"))
     tasks: TasksConfig = field(default_factory=TasksConfig, metadata=_doc("tasks"))
     log: LogConfig = field(default_factory=LogConfig, metadata=_doc("log"))
+    heads: HeadsConfig = field(default_factory=HeadsConfig, metadata=_doc("heads"))
+    signing: SigningConfig = field(default_factory=SigningConfig, metadata=_doc("signing"))
+    keyring: KeyringConfig = field(default_factory=KeyringConfig, metadata=_doc("keyring"))
+    frontier: FrontierConfig = field(default_factory=FrontierConfig, metadata=_doc("frontier"))
+    outbox: OutboxConfig = field(default_factory=OutboxConfig, metadata=_doc("outbox"))
+    backoff: BackoffConfig = field(default_factory=BackoffConfig, metadata=_doc("backoff"))
+    intents: IntentsConfig = field(default_factory=IntentsConfig, metadata=_doc("intents"))
+    partitions: PartitionsConfig = field(default_factory=PartitionsConfig, metadata=_doc("partitions"))
+    compaction: CompactionConfig = field(default_factory=CompactionConfig, metadata=_doc("compaction"))
     worker: WorkerConfig = field(default_factory=WorkerConfig, metadata=_doc("worker"))
+    verifier: VerifierConfig = field(default_factory=VerifierConfig, metadata=_doc("verifier"))
+    fleet: FleetConfig = field(default_factory=FleetConfig, metadata=_doc("fleet"))
+    lanes: tuple[str, ...] = field(default=(), metadata=_doc(
+        "Lane modules to import (each registers its task kinds and view hooks); ADGRID_LANES and the "
+        "agentdecompile_grid.lanes entry-point group add to it."))
+    admitted_bases: tuple[str, ...] = field(default=(), metadata=_doc(
+        "Basis hashes this grid admits; empty = any. publish refuses a foreign basis, the loops skip it."))
+    join_url: str = field(default="", metadata=_doc("Invite url for fleet up / join when none is given (ADGRID_INVITE wins)."))
     sources: Mapping[str, str] = field(default_factory=dict, compare=False, repr=False,
                                        metadata={"doc": "provenance per field path", "internal": True})
+
+    # ---- entry points ---------------------------------------------------------------------
+    @classmethod
+    def load(cls, path: str | os.PathLike[str] | None = None, env: Mapping[str, str] | None = None) -> "GridConfig":
+        """Defaults, then the TOML file, then ``ADGRID_*`` environment overrides; validated (the CLI's one entry)."""
+        return load(path, env)
+
+    @classmethod
+    def default(cls) -> "GridConfig":
+        return default()
+
+    @property
+    def root(self) -> str:
+        """The resolved grid home (``paths.root``)."""
+        return self.resolved_paths().root
+
+    def with_root(self, root: str | os.PathLike[str]) -> "GridConfig":
+        """A copy rooted at ``root`` (``--root`` / ``ADGRID_ROOT``); every empty sub-path follows."""
+        return dataclasses.replace(self, paths=dataclasses.replace(self.paths, root=os.fspath(root)))
+
+    # ---- locators: the mapping each adapter's from_config / from_locator takes -----------
+    def objects_locator(self) -> dict[str, Any]:
+        paths = self.resolved_paths()
+        return {"adapter": self.adapters.objects, "root": self.objects.local.root or paths.objects}
+
+    def log_locator(self) -> dict[str, Any]:
+        paths = self.resolved_paths()
+        adapter = self.adapters.log
+        out: dict[str, Any] = {"adapter": adapter, "root": self.log.root or paths.root, "log_dir": paths.log,
+                               "torn_tail": self.log.torn_tail, "fsync": self.log.fsync, "verify": self.log.verify}
+        if adapter in ("s3", "http"):
+            out.update(to_dict(getattr(self.log, adapter)))
+        return out
+
+    def heads_locator(self) -> dict[str, Any]:
+        paths = self.resolved_paths()
+        adapter = self.adapters.heads
+        out: dict[str, Any] = {"adapter": adapter, "root": self.heads.root or paths.root, "heads_dir": paths.heads,
+                               "fsync": self.heads.fsync}
+        if adapter in ("s3", "http"):
+            out.update(to_dict(getattr(self.heads, adapter)))
+        return out
+
+    def signing_locator(self) -> dict[str, Any]:
+        paths = self.resolved_paths()
+        sg = self.signing
+        return {"adapter": self.adapters.signer, "label": sg.label, "key_dir": sg.key_dir or os.path.join(paths.keys, "signing"),
+                "secret_env": sg.secret_env, "secret_file": sg.secret_file, "generate": sg.generate}
+
+    def keyring_locator(self) -> dict[str, Any]:
+        paths = self.resolved_paths()
+        return {"allow_null": self.keyring.allow_null, "key_dir": self.keyring.key_dir or os.path.join(paths.keys, "trusted")}
+
+    def to_mapping(self, section: str) -> dict[str, Any]:
+        """One section as the plain mapping the log layer's ``*.from_config`` take (``backoff.max_attempts``
+        0 becomes ``None`` = retry forever, the policy's own spelling)."""
+        out = to_dict(getattr(self, section))
+        if section == "backoff" and not out.get("max_attempts"):
+            out["max_attempts"] = None
+        return out
+
+    def node_state_dir(self, name: str | None = None) -> str:
+        """Where a node keeps its key, identity, outbox and work directories."""
+        return os.path.join(self.resolved_paths().root, "nodes", name or self.worker.node_name)
+
+    def deadlines_s(self) -> dict[str, int]:
+        """The kill-deadline table by budget value plus per-kind overrides (``worker.sandbox.deadline_for`` overrides)."""
+        table = {b.value: self.deadline_s(b) for b in BudgetClass if b is not BudgetClass.UNBOUNDED}
+        table.update({k: int(v) for k, v in self.budgets.per_kind_s.items()})
+        return table
+
+    def budgets_allowed(self) -> tuple[BudgetClass, ...]:
+        """Budget classes this node offers, from ``budgets.allow_large`` / ``allow_unbounded``."""
+        out = [BudgetClass.MICRO, BudgetClass.SMALL, BudgetClass.MEDIUM]
+        if self.budgets.allow_large:
+            out.append(BudgetClass.LARGE)
+        if self.budgets.allow_unbounded:
+            out.append(BudgetClass.UNBOUNDED)
+        return tuple(out)
 
     # ---- derived views -------------------------------------------------------------------
     def deadline_s(self, budget: BudgetClass, kind: str = "") -> int:
@@ -341,6 +600,19 @@ class GridConfig:
         _require(0 <= lg.partition_prefix_bits <= 16, "log.partition_prefix_bits", "must be 0..16")
         _require(w.cores >= 0, "worker.cores", "must be >= 0 (0 = auto)")
         _require(w.poison_threshold >= 1, "worker.poison_threshold", "must be >= 1")
+        _require(w.poison_min_lineages >= 1, "worker.poison_min_lineages", "must be >= 1")
+        _require(w.role in ROLES, "worker.role", f"must be one of {ROLES}")
+        _require(lg.torn_tail in ("raise", "truncate"), "log.torn_tail", "must be raise | truncate")
+        _require(lg.verify in ("chain", "seq", "none"), "log.verify", "must be chain | seq | none")
+        _require(self.frontier.proposal_cap >= 1, "frontier.proposal_cap", "must be >= 1")
+        _require(self.backoff.base_s > 0 and self.backoff.cap_s >= self.backoff.base_s, "backoff.cap_s", "must be >= base_s > 0")
+        _require(self.backoff.max_attempts >= 0, "backoff.max_attempts", "must be >= 0 (0 = forever)")
+        _require(self.outbox.max_batch >= 1, "outbox.max_batch", "must be >= 1")
+        _require(self.intents.ttl_s >= 0, "intents.ttl_s", "must be >= 0")
+        for lane, width in self.partitions.prefix_width.items():
+            _require(isinstance(width, int) and not isinstance(width, bool) and 0 <= width <= 8, f"partitions.prefix_width.{lane}", "must be an int 0..8")
+        _require(self.verifier.proposal_cap >= 1, "verifier.proposal_cap", "must be >= 1")
+        _require(self.verifier.role in ("operator", "fleet"), "verifier.role", "must be operator | fleet (donors never verify)")
         return self
 
 
@@ -558,6 +830,26 @@ def default() -> GridConfig:
     return GridConfig(sources={p: "default" for p in _leaf_paths(GridConfig)}).validate()
 
 
+def budgets_with_overrides(overrides: Mapping[str, Any] | None, base: GridConfig | None = None) -> GridConfig:
+    """``base`` (default: ``default()``) with a deadline table applied: keys that are budget values
+    (``micro`` ...) set the class deadline, any other key is a per-kind override.  This is how the
+    worker's ``deadlines_s`` mapping becomes the one ``tasks.budget`` computation path."""
+    cfg = base if base is not None else default()
+    if not overrides:
+        return cfg
+    classes = {b.value: f"{b.value}_s" for b in BudgetClass if b is not BudgetClass.UNBOUNDED}
+    changes: dict[str, Any] = {}
+    per_kind = dict(cfg.budgets.per_kind_s)
+    for key, value in overrides.items():
+        seconds = int(math.ceil(float(value)))
+        if key in classes:
+            changes[classes[key]] = seconds
+        else:
+            per_kind[str(key)] = seconds
+    changes["per_kind_s"] = per_kind
+    return dataclasses.replace(cfg, budgets=dataclasses.replace(cfg.budgets, **changes))
+
+
 # --------------------------------------------------------------------------- describe / emit
 def describe(cfg: GridConfig, env: Mapping[str, str] | None = None) -> dict[str, Any]:
     """The dict the CLI prints: every field with value, type, doc and provenance, plus resolved paths."""
@@ -628,6 +920,8 @@ __all__ = [
     "FLOAT_POLICIES", "PORTABILITY_POLICIES", "CAPTURE_POLICIES",
     "ConfigError", "PathsConfig", "AdaptersConfig", "LocalStoreConfig", "S3StoreConfig",
     "MirrorStoreConfig", "PeerStoreConfig", "LayeredStoreConfig", "ObjectsConfig", "BudgetsConfig",
-    "TasksConfig", "LogConfig", "WorkerConfig", "GridConfig",
-    "to_dict", "from_dict", "load", "default", "describe", "to_toml", "config_file_path",
+    "TasksConfig", "S3LogConfig", "HttpLogConfig", "LogConfig", "HeadsConfig", "SigningConfig", "KeyringConfig",
+    "FrontierConfig", "BackoffConfig", "OutboxConfig", "IntentsConfig", "PartitionsConfig", "RetentionConfig",
+    "CompactionConfig", "WorkerConfig", "VerifierConfig", "FleetConfig", "GridConfig", "ROLES",
+    "to_dict", "from_dict", "load", "default", "describe", "to_toml", "config_file_path", "budgets_with_overrides",
 ]

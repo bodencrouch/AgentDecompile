@@ -5,7 +5,9 @@ Layout in the object store (design 1.1, 2.6):
 * the result record is an immutable object (canonical JSON of ``TaskResult.to_record()`` plus
   ``schema``/``record`` tags);
 * ``results/<task_id>/<producer_key>`` is a named pointer to it — one per producer, so no two
-  nodes ever read-modify-write the same pointer;
+  nodes ever read-modify-write the same pointer (``key_segment`` spells a key id as one name
+  segment: node key ids are hex already; signer ids such as ``null:<label>`` or
+  ``ed25519:<hex>`` have their ``:`` replaced by ``.``);
 * ``results/<task_id>.index`` is a *derived* index (a grid document: ``{"producers": {key: ref},
   "refs": [...]}``) rebuilt from the per-producer pointers on every write; it is a cache for
   stores that cannot enumerate names and a GC root (its ``refs`` pin the records, whose
@@ -76,8 +78,17 @@ def _task_id(task_id: str) -> str:
     return task_id
 
 
+def key_segment(key_id: str) -> str:
+    """A key id as one named-pointer segment (``validate_owner`` shape).  Node key ids pass as they
+    are; log-signer ids (``null:<label>``, ``hmac:<label>:<id>``, ``ed25519:<hex>``) map ``:`` to ``.``."""
+    if not isinstance(key_id, str) or not key_id:
+        raise ResultError("key id must be a non-empty string")
+    candidate = key_id.replace(":", ".")
+    return validate_owner(candidate)
+
+
 def result_name(task_id: str, producer_key: str) -> str:
-    return validate_name(f"{RESULTS_PREFIX}/{_task_id(task_id)}/{validate_owner(producer_key)}")
+    return validate_name(f"{RESULTS_PREFIX}/{_task_id(task_id)}/{key_segment(producer_key)}")
 
 
 def result_index_name(task_id: str) -> str:
@@ -85,7 +96,7 @@ def result_index_name(task_id: str) -> str:
 
 
 def verification_name(task_id: str, verifier_key: str) -> str:
-    return validate_name(f"{VERIFICATIONS_PREFIX}/{_task_id(task_id)}/{validate_owner(verifier_key)}")
+    return validate_name(f"{VERIFICATIONS_PREFIX}/{_task_id(task_id)}/{key_segment(verifier_key)}")
 
 
 def verification_index_name(task_id: str) -> str:
@@ -213,12 +224,13 @@ def write_result(store: ObjectStore, result: TaskResult, *, cap: int | None = No
                             f"write results through a LocalDirStore or a LayeredStore with a local layer")
     limit = int(cap if cap is not None else (config.tasks.proposal_cap if config is not None else PROPOSAL_CAP))
     existing = result_refs(store, task_id)
-    if result.producer_key not in existing and len(existing) >= limit:
+    segment = key_segment(result.producer_key)
+    if segment not in existing and len(existing) >= limit:
         raise ProposalCapExceeded(task_id, limit, sorted(existing))
     ref = store.put(canonical_json(result_to_record(result)))
     store.put_named(name, str(ref).encode("ascii"))
     if update_index:
-        existing[result.producer_key] = ref
+        existing[segment] = ref
         store.put_named(result_index_name(task_id), _index_doc(task_id, existing, "results"))
     return ref
 
@@ -266,7 +278,7 @@ def write_verification(store: ObjectStore, v: Verification, *, update_index: boo
     store.put_named(verification_name(task_id, v.verifier_key), str(ref).encode("ascii"))
     if update_index and _can_enumerate(store):
         producers = verification_refs(store, task_id)
-        producers[v.verifier_key] = ref
+        producers[key_segment(v.verifier_key)] = ref
         store.put_named(verification_index_name(task_id), _index_doc(task_id, producers, "verifications"))
     return ref
 
@@ -323,7 +335,7 @@ def describe_task(store: ObjectStore, task_id: str) -> dict[str, Any]:
 
 __all__ = [
     "PROPOSAL_CAP", "RESULTS_PREFIX", "VERIFICATIONS_PREFIX", "INDEX_SUFFIX", "ResultError", "ProposalCapExceeded",
-    "result_name", "result_index_name", "verification_name", "verification_index_name",
+    "key_segment", "result_name", "result_index_name", "verification_name", "verification_index_name",
     "result_to_record", "result_from_record", "verification_to_record", "verification_from_record",
     "write_result", "read_result", "results_for", "result_refs", "result_ref_for", "proposal_count",
     "rebuild_result_index", "delete_result",

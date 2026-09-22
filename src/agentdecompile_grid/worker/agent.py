@@ -656,11 +656,48 @@ class LeaveResult:
     status: Mapping[str, Any]
 
 
+def record_writer(log: LogStore, heads: Any, signer: NodeSigner, *, clock: Callable[[], float] = time.monotonic, rng: random.Random | None = None,
+                  backoff: Any = None, fallback: bool = False) -> Any:
+    """The one chain writer a node flushes through: ``log.outbox.Appender`` (validate, chain, sign,
+    append, publish the head).  ``fallback=True`` selects ``transport.local.ChainAppender`` (CAS
+    first, no body validation) for a process that must not use the log package's appender."""
+    if fallback:
+        from ..transport.local import ChainAppender
+
+        return ChainAppender(log, heads, signer, clock=clock, rng=rng)
+    from ..log.outbox import Appender
+
+    seed = (rng or random.Random()).randrange(1 << 30)
+    return Appender(log, heads, signer, seed=seed, **({"backoff": backoff} if backoff is not None else {}))
+
+
+def open_node_identity(state_dir: str | os.PathLike[str], *, role: str, objects: ObjectStore, scratch: str | os.PathLike[str] | None = None,
+                       claimed: Sequence[str] = (), key_algorithm: str = "ed25519", now: float | None = None, canaries: Mapping[str, Any] | None = None,
+                       canary_only: Sequence[str] | None = None, reprove: bool = False) -> tuple[NodeKey, NodeIdentity, CanaryReport | None]:
+    """A node's key and identity without a join: the identity ``join`` saved under ``state_dir`` when
+    there is one, else a *self-rooted* identity (empty lineage: this key is its own root, which is
+    what a laptop grid of one has) whose capabilities are what the canaries prove plus ``claimed``.
+    Two self-rooted keys have disjoint lineage sets and are therefore independent verifiers of each
+    other's proposals (design §2.5) — the honest statement for one host with two keys."""
+    now = time.time() if now is None else now
+    keystore = NodeKeyStore(state_dir)
+    key = keystore.load_or_create(algorithm=key_algorithm, now=now)
+    saved = keystore.load_identity()
+    if saved is not None and not reprove and saved[0].key_id == key.key_id:
+        return key, saved[0], None
+    scratch_dir = Path(scratch) if scratch is not None else Path(state_dir) / "canaries"
+    report = run_canaries(objects, str(scratch_dir), canaries=canaries, only=canary_only)
+    identity = NodeIdentity(key_id=key.key_id, capabilities=tuple(sorted(set(report.proven) | set(claimed))), invite_lineage=(), role=role)
+    if key.expired(now):
+        key = keystore.renew(key, now=now, canaries_passed=True)
+    keystore.save_identity(identity, {"self_rooted": True, "bound_at": now, "key_expires_at": key.expires_at, "canaries": report.to_record(), "claimed": list(claimed)})
+    return key, identity, report
+
+
 def build_loops(plan: JoinPlan) -> tuple[StepMachine | None, StepMachine | None]:
     """Default wiring: local objects (the transport's when local, a local cache otherwise),
-    ``ChainAppender`` as the record writer, one outbox, one subprocess sandbox, and the verifier
-    when the role may verify."""
-    from ..transport.local import ChainAppender
+    ``log.outbox.Appender`` as the record writer (``record_writer``), one outbox, one subprocess
+    sandbox, and the verifier when the role may verify."""
     from ..verify.loop import VerifierConfig, VerifierLoop
     from ..verify.policy import PenaltyLedger, RevocationList
     from .records import LogTaskIndex
@@ -671,7 +708,7 @@ def build_loops(plan: JoinPlan) -> tuple[StepMachine | None, StepMachine | None]
     heads = transport.heads()
     local_objects = plan.local_objects or objects
     signer = NodeSigner(plan.key)
-    upstream = Upstream(objects, ChainAppender(log, heads, signer, clock=plan.clock, rng=plan.rng))
+    upstream = Upstream(objects, record_writer(log, heads, signer, clock=plan.clock, rng=plan.rng))
     outbox = Outbox(plan.state_dir / "outbox", clock=plan.clock, rng=plan.rng)
     sandbox = SubprocessSandbox(plan.state_dir / "work", clock=plan.clock)
     locator = dict(plan.store_locator) or (dict(transport.locator()) if hasattr(transport, "locator") else {})
@@ -791,6 +828,15 @@ def join(invite_url: str | None = None, *, state_dir: str | os.PathLike[str], en
     return JoinResult("bootstrapped", agent.status(), agent=agent, plan=plan)
 
 
+def status(endpoint: Endpoint | None = None, *, deadline_s: float = DEFAULT_PROBE_DEADLINE_S, env: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """The running agent's status, or the probe result when none answers (never an exception for absence)."""
+    endpoint = endpoint or Endpoint.default(env)
+    probed = probe(endpoint, deadline_s=deadline_s)
+    if probed.state not in ("alive", "faulted"):
+        return {"mode": "no-agent", "endpoint": str(endpoint), "probe": probed.state, "error": probed.error}
+    return {"mode": "agent", **AgentClient(endpoint, timeout_s=max(deadline_s, 5.0)).status()}
+
+
 def leave(endpoint: Endpoint | None = None, *, reason: str = "leave", deadline_s: float = 5.0, env: Mapping[str, str] | None = None) -> LeaveResult:
     endpoint = endpoint or Endpoint.default(env)
     probed = probe(endpoint, deadline_s=deadline_s)
@@ -802,5 +848,5 @@ def leave(endpoint: Endpoint | None = None, *, reason: str = "leave", deadline_s
 __all__ = [
     "AgentClient", "AgentUnreachable", "AttachRefused", "BatteryPolicy", "DEFAULT_LEAVE_DEADLINE_S", "DEFAULT_PROBE_DEADLINE_S", "Endpoint", "FileLock", "HTTP_PREFIX", "IDLE_POLICIES",
     "JoinPlan", "JoinResult", "LeaveResult", "LoadAveragePolicy", "LocalAgent", "ProbeResult", "SUN_PATH_LIMIT", "UserActivityPolicy", "build_loops", "idle_policy_for",
-    "join", "leave", "probe",
+    "join", "leave", "open_node_identity", "probe", "record_writer", "status",
 ]

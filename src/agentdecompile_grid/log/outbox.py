@@ -20,6 +20,15 @@ partition and come back; ``append`` keeps going until ``max_attempts`` (``Append
 partition per pass, visiting partitions in ``PartitionRotation`` order and deferring hot ones to
 the end of the pass.  Drafts that did not land stay pending for the next flush; nothing is lost.
 
+The node-side durable queue (``worker.outbox.Outbox``: objects -> named pointers -> records,
+restart-safe) flushes its records *through* this appender: ``Appender.write_batch(partition,
+entries)`` is the ``worker.outbox.RecordWriter`` protocol (duck-typed on ``.type``/``.body``/
+``.basis_hash`` so this package never imports the worker).  ``draft_for`` turns one such pending
+record into a ``Draft``; an INTENT body without a fence becomes a fresh issue whose
+``issued_seq`` is its own seq at seal time (advisory semantics: a re-issue by the holder renews,
+``ttl_s == 0`` releases), which is what a queue that cannot know the seq of an earlier record
+needs.  ``transport.local.ChainAppender`` is the documented fallback writer, not the default.
+
 Acceptance tests (named here, written in the verification phase):
   U122 (a) two outboxes on one partition under 50 % induced conflicts: 1,000 records each, no
   writer starved beyond 30 s of injected sleep;
@@ -29,12 +38,13 @@ Acceptance tests (named here, written in the verification phase):
 """
 from __future__ import annotations
 
+import math
 import time
 from dataclasses import dataclass
 from typing import Any
 from collections.abc import Callable, Iterable, Mapping, Sequence
 
-from agentdecompile_grid.core import GridError, HeadStore, LogStore, Record, Signer
+from agentdecompile_grid.core import GridError, HeadStore, LogStore, Record, RecordType, Signer
 from agentdecompile_grid.log.backoff import DEFAULT_BACKOFF, BackoffPolicy, PartitionRotation, Sleeper, full_jitter
 from agentdecompile_grid.log.heads import HeadDiverged, HeadPublishFailed, force_head, publish_head
 from agentdecompile_grid.log.local import ChainConflict
@@ -161,6 +171,37 @@ class Appender:
     def append_one(self, partition: str, draft: Draft) -> Record:
         return self.append(partition, [draft])[0]
 
+    def write_batch(self, partition: str, entries: Sequence[Any]) -> Sequence[Record]:
+        """``worker.outbox.RecordWriter``: chain, validate, sign and land one batch of pending records.
+
+        ``try_append`` (not ``append``): a hot head raises ``HotHead`` after ``rotate_after`` tries so
+        the node outbox defers the batch with its own backoff and rotates partitions instead of
+        sleeping through the whole ``max_attempts`` schedule inside a deadlined flush.
+        """
+        drafts = [draft_for(entry) for entry in entries]
+        return self.try_append(partition, drafts)
+
+
+def draft_for(entry: Any) -> Draft:
+    """A ``Draft`` for a pending record (anything with ``.type``, ``.body`` and ``.basis_hash``).
+
+    INTENT bodies carry the fence rule: without a positive ``issued_seq`` the body is sealed as an
+    issue with ``issued_seq`` = its own seq (see ``intents``); ``ttl_s`` is coerced to the int the
+    validator requires.  Every other type is sealed as-is.
+    """
+    record_type = entry.type if isinstance(entry.type, RecordType) else RecordType(str(entry.type))
+    body = dict(entry.body)
+    basis_hash = str(getattr(entry, "basis_hash", "") or "")
+    if record_type is RecordType.INTENT:
+        if "ttl_s" in body and not isinstance(body["ttl_s"], bool):
+            body["ttl_s"] = int(math.ceil(float(body["ttl_s"])))
+        fence = body.get("issued_seq")
+        if isinstance(fence, bool) or not isinstance(fence, int) or fence <= 0:
+            def factory(seq: int, body: dict[str, Any] = body) -> Mapping[str, Any]:
+                return {**body, "issued_seq": seq}
+            return Draft(record_type, factory, basis_hash)
+    return Draft(record_type, body, basis_hash)
+
 
 class Outbox:
     """Per-partition draft queues flushed as batches with rotation away from hot heads."""
@@ -246,4 +287,4 @@ class Outbox:
         raise AppendGaveUp(f"outbox still has {self.pending()} pending after {max_passes} passes")
 
 
-__all__ = ["DEFAULT_OUTBOX", "AppendGaveUp", "Appender", "HotHead", "Outbox", "OutboxPolicy"]
+__all__ = ["DEFAULT_OUTBOX", "AppendGaveUp", "Appender", "HotHead", "Outbox", "OutboxPolicy", "draft_for"]

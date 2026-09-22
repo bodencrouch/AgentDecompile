@@ -5,16 +5,21 @@ writer's key and lineage so independence and poison can be computed from the log
 ``nonce`` so a body re-flushed after a crash is recognisably the same statement (all five are
 idempotent by content: a duplicate INTENT, RESULT, POISON, VERIFIED or REFUTED changes nothing).
 
-Bodies (all fields canonical-JSON scalars/lists/maps):
+Bodies (all fields canonical-JSON scalars/lists/maps).  The authority for the required keys is
+``log.records.BODY_VALIDATORS`` (every record is validated at append time); the shapes here are
+those validators' shapes plus the attribution fields this side needs:
 
-* ``INTENT``   ``{task_id, kind, key_id, lineage, action: hold|renew|release, ttl_s, issued_at, expires_at, nonce}``
-               advisory; ``expires_at`` is wall-clock; ``release`` has ``ttl_s = 0``.
-* ``RESULT``   ``{task_id, kind, status, result_ref, outputs, producer_key, producer_lineage, elapsed_s, deadline_s, reason, nonce}``
+* ``INTENT``   ``{task_id, key_id, ttl_s (int), issued_seq, issued_at, kind, lineage, action: hold|renew|release, expires_at, scope, nonce}``
+               advisory; ``expires_at`` is wall-clock; ``release`` has ``ttl_s = 0``.  ``issued_seq``
+               is the fence and is filled at seal time (``log.outbox.draft_for``: every intent this
+               side writes is a fresh issue whose fence is its own seq, so a renewal by the holder
+               extends and a release with ``ttl_s == 0`` releases without knowing an earlier seq).
+* ``RESULT``   ``{task_id, result_ref, producer_key, status, kind, outputs, producer_lineage, elapsed_s, deadline_s, reason, nonce}``
                ``result_ref`` addresses the canonical ``TaskResult.to_record()`` bytes; the same
-               bytes sit behind the named pointer ``results/<task_id>/<producer_key>``.
-* ``POISON``   ``{task_id, kind, timeouts: [key_id...], lineages, threshold, by, nonce}``
+               bytes sit behind the named pointer ``tasks.results.result_name(task_id, producer_key)``.
+* ``POISON``   ``{task_id, reason, evidence: {timeouts: [key_id...], lineages, threshold, by}, kind, timeouts, lineages, threshold, by, nonce}``
 * ``VERIFIED`` / ``REFUTED``
-               ``{task_id, result_ref, producer_key, verifier_key, verifier_lineage, method, outcome, evidence | evidence_ref, nonce}``
+               ``{task_id, result_ref, outcome, verifier_key, method, producer_key, verifier_lineage, evidence | evidence_ref, nonce}``
 * ``NOTE``     ``{task_id, kind, key_id, note, detail, nonce}`` — never load-bearing (unverifiable,
                verify-timeout, launch-failed ...).
 
@@ -25,8 +30,10 @@ for the objects/tasks slice).
 **Who said it is the signer, not the body.**  A RESULT whose ``producer_key`` differs from the
 record's authenticated ``signer_key`` is dropped by every reader here (a forged producer could
 otherwise poison a task with invented keys or make two siblings look independent).  Unsigned
-records (``signer_key == ""``, the NullSigner laptop grid) are accepted only with
-``trust_unsigned=True``.  Lineage is *not* attested by this module: ``producer_lineage`` is the
+records are those whose signer is the null signer (``signer_key`` ``null`` or ``null:<label>``,
+``log.signing.NullSigner``: hash chain only, no authorship) or empty; they are accepted only with
+``trust_unsigned=True`` (``GridConfig.keyring.allow_null``), and even then the body's key must
+equal the signer key.  Lineage is *not* attested by this module: ``producer_lineage`` is the
 claimant's statement and readers take an optional ``lineage_lookup`` (key id → lineage from a
 signed enrolment record) that overrides it — the cross-slice requirement is recorded in the
 report, not solved here.
@@ -38,6 +45,7 @@ survives canonical JSON and its reader returns the same fields), ``test_read_res
 """
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Any, Callable, Iterable, Mapping, Sequence
 
@@ -48,7 +56,15 @@ EXPECTED_POINTER_PREFIX = "expected/"   # expected/<task_id> -> canonical JSON {
 
 
 def results_pointer(task_id: str, producer_key: str) -> str:
-    return f"{RESULTS_POINTER_PREFIX}{task_id}/{producer_key}"
+    """The per-producer result pointer; ``tasks.results.result_name`` owns the spelling."""
+    from ..tasks.results import result_name
+
+    return result_name(task_id, producer_key)
+
+
+def is_unsigned(signer_key: str) -> bool:
+    """A record nobody vouches for: no signer, or the null signer (``null`` / ``null:<label>``)."""
+    return not signer_key or signer_key == "null" or signer_key.startswith("null:")
 
 
 def expected_pointer(task_id: str) -> str:
@@ -56,13 +72,15 @@ def expected_pointer(task_id: str) -> str:
 
 
 # --------------------------------------------------------------------------- builders
-def intent_body(spec: TaskSpec, identity: NodeIdentity, *, action: str, ttl_s: float, now_wall: float, nonce: str) -> dict[str, Any]:
+def intent_body(spec: TaskSpec, identity: NodeIdentity, *, action: str, ttl_s: float, now_wall: float, nonce: str, issued_seq: int = 0) -> dict[str, Any]:
+    """``issued_seq`` 0 = "fill the fence at seal time" (``log.outbox.draft_for``); a caller holding a
+    ``log.intents.Lease`` passes the lease's fence instead."""
     if action not in ("hold", "renew", "release"):
         raise ValueError(f"intent action must be hold|renew|release, not {action!r}")
-    ttl = 0.0 if action == "release" else float(ttl_s)
+    ttl = 0 if action == "release" else int(math.ceil(float(ttl_s)))
     return {
         "task_id": spec.task_id, "kind": spec.kind, "key_id": identity.key_id, "lineage": list(identity.invite_lineage),
-        "action": action, "ttl_s": ttl, "issued_at": float(now_wall), "expires_at": float(now_wall) + ttl, "nonce": nonce,
+        "action": action, "ttl_s": ttl, "issued_seq": int(issued_seq), "issued_at": float(now_wall), "expires_at": float(now_wall) + ttl, "nonce": nonce,
     }
 
 
@@ -75,8 +93,11 @@ def result_body(spec: TaskSpec, result: TaskResult, result_ref: ObjectRef, ident
     }
 
 
-def poison_body(spec: TaskSpec, identity: NodeIdentity, *, timeouts: Sequence[str], lineages: int, threshold: int, nonce: str) -> dict[str, Any]:
-    return {"task_id": spec.task_id, "kind": spec.kind, "timeouts": sorted(set(timeouts)), "lineages": int(lineages), "threshold": int(threshold), "by": identity.key_id, "nonce": nonce}
+def poison_body(spec: TaskSpec, identity: NodeIdentity, *, timeouts: Sequence[str], lineages: int, threshold: int, nonce: str, reason: str = "") -> dict[str, Any]:
+    keys = sorted(set(timeouts))
+    evidence = {"timeouts": keys, "lineages": int(lineages), "threshold": int(threshold), "by": identity.key_id}
+    return {"task_id": spec.task_id, "reason": reason or f"timeouts:{len(keys)}:lineages:{int(lineages)}", "evidence": evidence,
+            "kind": spec.kind, "timeouts": keys, "lineages": int(lineages), "threshold": int(threshold), "by": identity.key_id, "nonce": nonce}
 
 
 def verification_body(verification: Verification, producer_key: str, identity: NodeIdentity, *, nonce: str, evidence_ref: ObjectRef | None = None) -> dict[str, Any]:
@@ -153,11 +174,10 @@ def proposal_from_record(rec: Record, *, trust_unsigned: bool = False, lineage_l
     b = rec.body
     try:
         producer_key = str(b["producer_key"])
-        if rec.signer_key:
-            if producer_key != rec.signer_key:
-                return None                                   # forged or mis-attributed: never a proposal
-        elif not trust_unsigned:
-            return None
+        if rec.signer_key and producer_key != rec.signer_key:
+            return None                                       # forged or mis-attributed: never a proposal
+        if is_unsigned(rec.signer_key) and not trust_unsigned:
+            return None                                       # nobody vouches for it and this reader does not trust that
         lineage = tuple(b.get("producer_lineage", ()))
         if lineage_lookup is not None:
             attested = lineage_lookup(producer_key)
@@ -241,7 +261,7 @@ class LogTaskIndex:
 
 
 __all__ = [
-    "EXPECTED_POINTER_PREFIX", "LineageLookup", "LogTaskIndex", "Proposal", "RESULTS_POINTER_PREFIX", "expected_pointer", "has_poison", "intent_body",
+    "EXPECTED_POINTER_PREFIX", "LineageLookup", "LogTaskIndex", "Proposal", "RESULTS_POINTER_PREFIX", "expected_pointer", "has_poison", "intent_body", "is_unsigned",
     "live_intents", "note_body", "poison_body", "proposal_from_record", "read_results", "read_timeouts", "read_verdicts", "result_body",
     "results_pointer", "task_result_from_record", "task_result_to_bytes", "verification_body", "verification_from_record", "verification_to_record",
 ]

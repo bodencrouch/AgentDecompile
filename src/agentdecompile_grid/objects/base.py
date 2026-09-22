@@ -502,6 +502,29 @@ class BaseObjectStore(ABC):
             raise IntegrityError(f"put(expect={expect}) but the bytes hash to {actual}; refusing to store under the wrong ref")
         return actual
 
+    # ---- streaming defaults (adapters with a real fast path override these) ----------------
+    def put_path(self, path: str | os.PathLike[str], *, expect: ObjectRef | None = None, link: bool = True) -> ObjectRef:
+        """Store a file.  The default reads it into memory; ``LocalDirStore`` streams and links."""
+        with open(path, "rb") as fh:
+            return self.put(fh.read(), expect=expect)
+
+    def get_path(self, ref: ObjectRef, dest: str | os.PathLike[str], *, link: bool = True) -> str:
+        """Write an object to ``dest``.  The default goes through ``get``; ``LocalDirStore`` links."""
+        dest = os.fspath(dest)
+        os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
+        data = self.get(ref)
+        with open(dest, "wb") as fh:
+            fh.write(data)
+        return dest
+
+    # ---- locators ------------------------------------------------------------------------
+    @classmethod
+    def from_locator(cls, locator: Mapping[str, Any]) -> "BaseObjectStore":
+        """Build from a serialisable ``{"adapter": <name>, ...}`` mapping (what a sandbox child gets).
+        Adapters that can be located override this; the default names the gap."""
+        raise NotConfigured(f"object store adapter {cls.name!r} cannot be built from a locator; "
+                            f"construct it with from_config(GridConfig) or directly")
+
     def describe(self) -> dict[str, Any]:
         """What the CLI prints for this adapter.  Subclasses extend with their own settings."""
         return {"name": self.name, "kind": self.kind, "status": self.status, "class": type(self).__name__,

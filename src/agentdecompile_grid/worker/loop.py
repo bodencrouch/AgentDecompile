@@ -40,6 +40,7 @@ Acceptance tests named for the final verification phase (U124):
 """
 from __future__ import annotations
 
+import os
 import random
 import secrets
 import time
@@ -87,6 +88,34 @@ class WorkerConfig:
     max_frontier_candidates: int = 4096
     done_memory_s: float = 3600.0                     # remember own results this long so an unflushed RESULT is not re-run here
     trust_unsigned_records: bool = False              # NullSigner laptop grids only: accept RESULT bodies with no signer
+
+    @classmethod
+    def from_grid_config(cls, cfg: Any, *, lanes: Sequence[str] | None = None, import_modules: Sequence[str] = (),
+                         cores: int | None = None, admitted_bases: Sequence[str] | None = None) -> "WorkerConfig":
+        """The loop's config from a ``GridConfig`` (``worker.*``, ``budgets.*``, ``outbox.*``, ``keyring.*``, ``tasks.*``)."""
+        w, b = cfg.worker, cfg.budgets
+        return cls(
+            cores=int(cores if cores is not None else (w.cores or max(1, (os.cpu_count() or 2) // 2))),
+            lanes=tuple(lanes if lanes is not None else w.lanes),
+            budgets_allowed=tuple(cfg.budgets_allowed()),
+            deadlines_s=dict(cfg.deadlines_s()),
+            kill_grace_s=float(b.kill_grace_s),
+            intent_margin_s=float(w.intent_margin_s),
+            frontier_ttl_s=float(w.frontier_ttl_s),
+            flush_interval_s=float(cfg.outbox.flush_interval_s),
+            flush_batch=int(cfg.outbox.max_batch),
+            flush_deadline_s=float(cfg.outbox.flush_deadline_s),
+            cooloff_s=float(w.cooloff_s),
+            poison_timeouts=int(w.poison_threshold),
+            poison_min_lineages=int(w.poison_min_lineages),
+            independence_policy=str(w.independence_policy),
+            admitted_bases=tuple(admitted_bases if admitted_bases is not None else cfg.admitted_bases),
+            import_modules=tuple(import_modules),
+            launch_rate_per_minute=float(w.launch_rate_per_minute),
+            preempt_on_busy=bool(w.preempt_on_busy),
+            done_memory_s=float(w.done_memory_s),
+            trust_unsigned_records=bool(cfg.keyring.allow_null),
+        )
 
 
 @dataclass(frozen=True)
@@ -176,6 +205,10 @@ class StepMachine:
                  store_locator: Mapping[str, Any], config: WorkerConfig | None = None, log: LogStore | None = None, idle_policy: IdlePolicy | None = None,
                  limiter: KeyRateLimiter | None = None, clock: Callable[[], float] = time.monotonic, wall: Callable[[], float] = time.time, rng: random.Random | None = None,
                  lineage_lookup: LineageLookup | None = None) -> None:
+        signer_key = getattr(getattr(upstream.writer, "signer", None), "key_id", None)
+        if signer_key is not None and signer_key != identity.key_id:
+            # the producer/verifier identity *is* the record signer (log.records binds body key == signer_key)
+            raise Refused(f"identity-not-signer:{identity.key_id[:12]}!={str(signer_key)[:12]}")
         self.identity = identity
         self.sandbox = sandbox
         self.outbox = outbox
@@ -228,6 +261,41 @@ class StepMachine:
             if event.name == "idle":
                 sleep(max(0.0, min(poll_s, event.next_due_s if event.next_due_s is not None else poll_s)))
         return steps
+
+    TERMINAL_EVENTS = frozenset({"collected", "timeout", "poison", "verified", "refuted", "unverifiable", "verify-timeout", "verify-error", "aborted", "launch-failed", "frontier-error"})
+
+    def run_once(self, *, sleep: Callable[[float], None] = time.sleep, poll_s: float = 0.05, max_wall_s: float | None = None) -> dict[str, Any]:
+        """``adgrid work --once`` / ``verify --once``: pull the frontier, launch at most one task, wait for
+        it under its own kill deadline, collect it, flush the outbox; or stop as soon as nothing is
+        eligible.  Bounded by the task's deadline (every job has one) and ``max_wall_s``."""
+        started = self.clock()
+        events: list[dict[str, Any]] = []
+        launched = False
+        stopped_by = ""
+        was_stopping = self.stopping
+        try:
+            while True:
+                event = self.step()
+                events.append(event.to_record())
+                if event.name == "launched":
+                    launched = True
+                    self.stopping = True            # one task per run_once: no second launch
+                if event.name in self.TERMINAL_EVENTS and not self.slots and (launched or event.name == "frontier-error"):
+                    stopped_by = event.name
+                    break
+                if event.name == "idle":
+                    if self.slots:
+                        sleep(max(0.0, min(poll_s, event.next_due_s if event.next_due_s is not None else poll_s)))
+                    elif launched or (self.counters.get("pulls", 0) and not self._eligible):
+                        stopped_by = f"idle:{event.detail.get('reason', '')}"
+                        break
+                if max_wall_s is not None and self.clock() - started >= max_wall_s:
+                    stopped_by = "max-wall"
+                    break
+        finally:
+            self.stopping = was_stopping
+        flush = self.force_flush()
+        return {"stopped_by": stopped_by, "launched": launched, "events": events, "flush": flush.to_record(), "status": self.status()}
 
     def release_all(self, reason: str = "leave") -> int:
         """Abort every running job (two-phase kill) and mark them so no RESULT is recorded."""

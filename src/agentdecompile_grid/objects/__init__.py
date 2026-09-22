@@ -13,7 +13,8 @@ registry name   class                 status    notes
 ==============  ====================  ========  ==================================================
 
 ``open_store(cfg)`` builds the adapter named by ``cfg.adapters.objects`` (``layered`` composes
-the adapters named in ``cfg.objects.layered.layers``).  ``describe_adapters()`` is what the CLI
+the adapters named in ``cfg.objects.layered.layers``); ``from_locator({"adapter", "root", ...})``
+builds one from the serialisable locator a sandbox child or a transport carries.  ``describe_adapters()`` is what the CLI
 prints for ``adgrid objects adapters``.
 """
 from __future__ import annotations
@@ -63,6 +64,22 @@ def open_store(cfg: Any, *, adapter: str | None = None, env: Mapping[str, str] |
     raise NotConfigured(f"object store adapter {name!r} has no from_config(); construct it directly")
 
 
+def from_locator(locator: Mapping[str, Any]) -> ObjectStore:
+    """Build the adapter a serialisable locator names (``{"adapter": "local", "root": ...}``).
+
+    The locator is what crosses a process boundary (sandbox manifests, transports); ``open_store``
+    is the ``GridConfig`` path.  Third-party adapters take part by offering ``from_locator``.
+    """
+    name = str(locator.get("adapter", ""))
+    if not name:
+        raise NotConfigured("object store locator has no 'adapter' (expected e.g. {'adapter': 'local', 'root': <dir>})")
+    cls = OBJECT_STORES.get(name)
+    factory = getattr(cls, "from_locator", None)
+    if not callable(factory):
+        raise NotConfigured(f"object store adapter {name!r} has no from_locator(); construct it directly")
+    return factory(dict(locator))
+
+
 def describe_adapters() -> dict[str, Any]:
     """Name, status and config schema of every registered adapter (no I/O)."""
     out: dict[str, Any] = {}
@@ -73,7 +90,7 @@ def describe_adapters() -> dict[str, Any]:
 
 
 __all__ = [
-    "ADAPTERS", "open_store", "describe_adapters", "describe_store", "gc",
+    "ADAPTERS", "open_store", "from_locator", "describe_adapters", "describe_store", "gc",
     "BaseObjectStore", "LocalDirStore", "S3CompatibleStore", "StaticMirrorStore", "PeerHTTPStore", "LayeredStore",
     "PartialWrite", "write_mirror_index",
     "EnumerableStore", "NamedIndexStore", "PinRegistry", "ObjectStat", "Layout", "FsyncPolicy",

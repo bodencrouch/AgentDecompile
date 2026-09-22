@@ -24,7 +24,8 @@ from .sandbox import SANDBOXES, ContainerSandbox, SandboxJob, SubprocessSandbox,
 
 _LAZY: dict[str, str] = {
     "AgentClient": "agent", "Endpoint": "agent", "IDLE_POLICIES": "agent", "JoinPlan": "agent", "JoinResult": "agent", "LeaveResult": "agent",
-    "LoadAveragePolicy": "agent", "LocalAgent": "agent", "build_loops": "agent", "idle_policy_for": "agent", "join": "agent", "leave": "agent", "probe": "agent",
+    "LoadAveragePolicy": "agent", "LocalAgent": "agent", "build_loops": "agent", "idle_policy_for": "agent", "join": "agent", "leave": "agent", "open_node_identity": "agent",
+    "probe": "agent", "record_writer": "agent", "status": "agent",
     "Candidate": "loop", "PoisonDetector": "loop", "StepEvent": "loop", "StepMachine": "loop", "Upstream": "loop", "WorkLoop": "loop", "WorkerConfig": "loop",
     "FlushReport": "outbox", "Outbox": "outbox", "PendingRecord": "outbox", "RecordWriter": "outbox",
 }

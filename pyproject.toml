@@ -86,6 +86,13 @@ agentdecompile-server = "agentdecompile_cli.server:main"
 # Proxy entry point: forward MCP to a remote backend (no local PyGhidra).
 agentdecompile-proxy = "agentdecompile_cli.server:proxy_main"
 
+# Grid extension points (design 1.1: the grid never imports the pipeline; lanes register by name).
+[project.entry-points."agentdecompile_grid.lanes"]
+recovery = "agentdecompile_recovery.grid_lanes"
+
+[project.entry-points."agentdecompile_grid.task_kinds"]
+builtin = "agentdecompile_grid.tasks.builtin:BUILTIN_KINDS"
+
 [project.optional-dependencies]
 semantic = [
   "chromadb",

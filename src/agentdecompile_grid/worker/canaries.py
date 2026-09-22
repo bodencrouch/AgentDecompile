@@ -5,7 +5,10 @@
 a pinned fixture); the others are declared with their config schema and raise ``NotConfigured``
 naming the probe object or binary they need:
 
-* ``python``               working — pinned fixture digest (canonical JSON + a byte pattern).
+* ``python``               working — delegates to ``tasks.builtin.PythonCanary``: the ``python-canary``
+                           task kind's ``v1`` fixture, whose output ref is pinned once in
+                           ``tasks.builtin.CANARY_FIXTURES`` (one pin, one owner; this module keeps its
+                           older fixture only as ``python_fixture_digest`` for callers that still use it).
 * ``toolchain``            compile a fixed translation unit under ``toolchain_path``; the masked
                            object hash must equal the pin.  Capability ``toolchain:<identity_hash>``.
 * ``analyzer``             open a fixture packed program headless; hash its function inventory.
@@ -62,22 +65,31 @@ def python_fixture_digest() -> str:
 
 # --------------------------------------------------------------------------- working: python
 class PythonCanary:
+    """``core.Canary`` for ``python``: runs the ``python-canary`` task kind's pinned fixture
+    (``tasks.builtin``) and adds the interpreter facts to the evidence.  The pin lives there."""
+
     capability = "python"
     name = "python"
 
-    def __init__(self, expected: str = PYTHON_CANARY_DIGEST) -> None:
-        self.expected = expected
+    def __init__(self, fixture: str = "v1", basis_hash: str = "canary") -> None:
+        self.fixture = fixture
+        self.basis_hash = basis_hash
+
+    @property
+    def expected(self) -> str:
+        from ..tasks.builtin import PythonCanaryKind
+
+        return str(PythonCanaryKind.pinned_ref(self.fixture))
 
     def prove(self, objects: ObjectStore, scratch: str) -> tuple[bool, Mapping[str, Any]]:
-        got = python_fixture_digest()
-        evidence = {
-            "digest": got, "expected": self.expected,
-            "python": platform.python_version(), "implementation": platform.python_implementation(), "machine": platform.machine(),
-        }
-        return got == self.expected, evidence
+        from ..tasks.builtin import PythonCanary as FixtureCanary
+
+        ok, evidence = FixtureCanary(self.basis_hash, self.fixture).prove(objects, scratch)
+        return ok, {**dict(evidence), "python": platform.python_version(), "implementation": platform.python_implementation(), "machine": platform.machine()}
 
     def describe(self) -> Mapping[str, Any]:
-        return {"name": self.name, "capability": self.capability, "status": "working", "needs": [], "pin": self.expected}
+        return {"name": self.name, "capability": self.capability, "status": "working", "needs": [], "pin": self.expected,
+                "fixture": self.fixture, "pin_owner": "agentdecompile_grid.tasks.builtin.CANARY_FIXTURES"}
 
 
 # --------------------------------------------------------------------------- declared: toolchain

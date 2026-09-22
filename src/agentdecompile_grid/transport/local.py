@@ -1,16 +1,21 @@
 """LocalTransport: objects, log and heads from one root directory — the working transport.
 
 Dependency injection first: ``LocalTransport(objects, log, heads)`` takes the three stores.
-``LocalTransport.from_root(root)`` builds them through the registries (``OBJECT_STORES["local"]``
-→ ``LocalDirStore(root/objects)``, ``LOG_STORES["local"]`` → ``LocalFileLog(root/log)``,
-``HEAD_STORES["local"]`` → ``LocalFileHeads(root/heads)``) and raises ``NotConfigured`` naming
-the adapter that is not registered in this process.  Nothing here imports ``objects/`` or ``log/``.
+``LocalTransport.from_root(root)`` builds them through the registries from one grid root, in the
+layout ``config.PathsConfig`` declares: ``OBJECT_STORES["local"]`` → ``LocalDirStore(<root>/objects)``
+(the object store's own root; it keeps ``objects/``, ``named/``, ``pins/`` under it),
+``LOG_STORES["local"]`` → ``LocalFileLog(<root>, log_dir=<root>/log)``, ``HEAD_STORES["local"]`` →
+``LocalFileHeads(<root>, heads_dir=<root>/heads)``; each adapter is located through its
+``from_locator``.  ``from_config(cfg)`` does the same from a ``GridConfig`` (any adapter, not only
+local).  ``NotConfigured`` names an adapter that is not registered.  Nothing here imports
+``objects/`` or ``log/`` at module level.
 
-``ChainAppender`` is the fallback ``RecordWriter`` so a single-host grid works end to end today:
-head CAS first (reserve ``seq``), then chain, sign and append.  A crash between the two leaves a
-head pointing at records that do not exist — detectable (the head digest matches no record) and
-repaired by the log layer's chain-scan rebuild (design §2.1).  The log layer's own append path
-replaces this writer when it lands.
+The record writer a node flushes through is ``log.outbox.Appender`` (``write_batch``): validate,
+chain, sign, append, publish the head.  ``ChainAppender`` below is the **documented fallback**
+for a process that must not import the log package's appender: head CAS first (reserve ``seq``),
+then chain, sign and append, with no body validation.  A crash between the two leaves a head
+pointing at records that do not exist — detectable (the head digest matches no record) and
+repaired by the log layer's chain-scan rebuild (design §2.1).
 
 Acceptance tests named for the final verification phase (U122 (b), (c)):
   * ``test_chain_appender_links``: records appended in two batches form one chain (``prev`` of
@@ -28,7 +33,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
-from ..core import HEAD_STORES, LOG_STORES, OBJECT_STORES, TRANSPORTS, GridError, HeadStore, LogStore, NotConfigured, ObjectStore, Record, Signer
+from ..core import HEAD_STORES, LOG_STORES, OBJECT_STORES, TRANSPORTS, GridError, HeadStore, LogStore, NotConfigured, ObjectStore, Record, Signer, canonical_json
 from ..verify.policy import full_jitter_backoff
 from ..worker.outbox import PendingRecord
 
@@ -41,14 +46,14 @@ class HeadContention(GridError):
     """The head CAS kept failing past ``max_attempts``; the outbox defers and rotates partitions."""
 
 
-def _construct(registry: Any, name: str, path: Path, expected: str) -> Any:
+def _construct(registry: Any, name: str, locator: Mapping[str, Any], expected: str) -> Any:
     try:
         cls = registry.get(name)
     except KeyError as exc:
         raise NotConfigured(f"{registry.what} {name!r} is not registered in this process; expected {expected} from agentdecompile_grid.{'objects' if 'object' in registry.what else 'log'}") from exc
     if hasattr(cls, "from_locator"):
-        return cls.from_locator({"adapter": name, "root": str(path)})
-    return cls(str(path))
+        return cls.from_locator({"adapter": name, **locator})
+    return cls(str(locator["root"]))
 
 
 class LocalTransport:
@@ -62,11 +67,20 @@ class LocalTransport:
 
     @classmethod
     def from_root(cls, root: str | os.PathLike[str], *, objects: ObjectStore | None = None, log: LogStore | None = None, heads: HeadStore | None = None) -> "LocalTransport":
-        root_path = Path(root)
-        objects = objects if objects is not None else _construct(OBJECT_STORES, "local", root_path / OBJECTS_SUBDIR, "LocalDirStore(root)")
-        log = log if log is not None else _construct(LOG_STORES, "local", root_path / LOG_SUBDIR, "LocalFileLog(root)")
-        heads = heads if heads is not None else _construct(HEAD_STORES, "local", root_path / HEADS_SUBDIR, "LocalFileHeads(root)")
+        root_path = Path(os.path.abspath(os.fspath(root)))
+        objects = objects if objects is not None else _construct(OBJECT_STORES, "local", {"root": str(root_path / OBJECTS_SUBDIR)}, "LocalDirStore(root)")
+        log = log if log is not None else _construct(LOG_STORES, "local", {"root": str(root_path), "log_dir": str(root_path / LOG_SUBDIR)}, "LocalFileLog(root)")
+        heads = heads if heads is not None else _construct(HEAD_STORES, "local", {"root": str(root_path), "heads_dir": str(root_path / HEADS_SUBDIR)}, "LocalFileHeads(root)")
         return cls(objects, log, heads, root=root_path)
+
+    @classmethod
+    def from_config(cls, cfg: Any) -> "LocalTransport":
+        """The stores a ``GridConfig`` names (``adapters.*`` through each package's ``from_config``)."""
+        from ..log import heads_from_config, log_from_config
+        from ..objects import open_store
+
+        root = Path(cfg.root)
+        return cls(open_store(cfg), log_from_config(cfg.log_locator()), heads_from_config(cfg.heads_locator()), root=root)
 
     @classmethod
     def from_locator(cls, locator: Mapping[str, Any]) -> "LocalTransport":
@@ -82,7 +96,11 @@ class LocalTransport:
         return self._heads
 
     def locator(self) -> dict[str, Any]:
-        """The serialisable store locator a sandbox child resolves (``sandbox.resolve_store``)."""
+        """The serialisable *object store* locator a sandbox child resolves (``sandbox.resolve_store``):
+        the store's own ``locator()`` when it has one, else the layout ``from_root`` uses."""
+        own = getattr(self._objects, "locator", None)
+        if callable(own):
+            return dict(own())
         if self.root is None:
             raise NotConfigured("LocalTransport built from injected stores has no root; pass root= to make it locatable by a sandbox child")
         return {"adapter": "local", "root": str(self.root / OBJECTS_SUBDIR)}
@@ -92,7 +110,9 @@ class LocalTransport:
 
 
 class ChainAppender:
-    """Fallback ``RecordWriter``: CAS the head to reserve, then chain + sign + append."""
+    """Fallback ``RecordWriter`` (the default is ``log.outbox.Appender.write_batch``): CAS the head to
+    reserve, then chain + sign + append.  Signs the same bytes the log layer signs (the canonical
+    unsigned record), so records are verifiable either way; bodies are not validated here."""
 
     def __init__(self, log: LogStore, heads: HeadStore, signer: Signer, *, clock: Callable[[], float] = time.monotonic, sleep: Callable[[float], None] = time.sleep,
                  rng: random.Random | None = None, max_attempts: int = 8, backoff_base_s: float = 0.1, backoff_cap_s: float = 5.0) -> None:
@@ -137,7 +157,7 @@ class ChainAppender:
         for pending in entries:
             seq += 1
             unsigned = Record(partition, seq, pending.type, dict(pending.body), prev, self.signer.key_id, "", pending.basis_hash)
-            signature = self.signer.sign(unsigned.digest().encode("ascii"))
+            signature = self.signer.sign(canonical_json(unsigned.to_record(include_signature=False)))   # == log.records.unsigned_bytes
             record = Record(partition, seq, pending.type, dict(pending.body), prev, self.signer.key_id, signature, pending.basis_hash)
             prev = record.digest()
             out.append(record)

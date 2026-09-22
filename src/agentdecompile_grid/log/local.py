@@ -85,7 +85,8 @@ class LocalFileLog:
     name = "local"
     ordering_authority = "log"
 
-    def __init__(self, root: str | os.PathLike[str], *, torn_tail: str = "raise", fsync: bool = True, verify: str = "chain") -> None:
+    def __init__(self, root: str | os.PathLike[str], *, torn_tail: str = "raise", fsync: bool = True, verify: str = "chain",
+                 log_dir: str | os.PathLike[str] | None = None) -> None:
         if torn_tail not in ("raise", "truncate"):
             raise ValueError("torn_tail must be 'raise' or 'truncate'")
         if verify not in ("chain", "seq", "none"):
@@ -94,11 +95,13 @@ class LocalFileLog:
         self.torn_tail = torn_tail
         self.fsync = fsync
         self.verify = verify
+        self._log_dir = Path(log_dir) if log_dir else None
 
     # ------------------------------------------------------------------ paths
     @property
     def log_root(self) -> Path:
-        return self.root / "log"
+        """The partitions directory: ``log_dir`` when given (``GridConfig.paths.log``), else ``<root>/log``."""
+        return self._log_dir if self._log_dir is not None else self.root / "log"
 
     def _dir(self, partition: str) -> Path:
         return partition_dir(self.log_root, partition)
@@ -291,6 +294,7 @@ class LocalFileLog:
         return {"type": "object", "required": ["root"], "properties": {
             "adapter": {"const": "local"},
             "root": {"type": "string", "description": "store root; records live under <root>/log/<partition>/records.jsonl"},
+            "log_dir": {"type": "string", "description": "explicit partitions directory (GridConfig.paths.log); overrides <root>/log"},
             "torn_tail": {"enum": ["raise", "truncate"], "default": "raise"},
             "fsync": {"type": "boolean", "default": True},
             "verify": {"enum": ["chain", "seq", "none"], "default": "chain", "description": "what read() checks per scanned line"},
@@ -305,7 +309,15 @@ class LocalFileLog:
     @classmethod
     def from_config(cls, config: Any) -> LocalFileLog:
         return cls(str(config["root"]), torn_tail=str(config.get("torn_tail", "raise")),
-                   fsync=bool(config.get("fsync", True)), verify=str(config.get("verify", "chain")))
+                   fsync=bool(config.get("fsync", True)), verify=str(config.get("verify", "chain")),
+                   log_dir=(str(config["log_dir"]) if config.get("log_dir") else None))
+
+    from_locator = from_config
+    """A locator is the same mapping shape (``{"adapter": "local", "root": ..., "log_dir": ...}``)."""
+
+    def locator(self) -> dict[str, Any]:
+        return {"adapter": self.name, "root": str(self.root), "log_dir": str(self.log_root), "torn_tail": self.torn_tail,
+                "fsync": self.fsync, "verify": self.verify}
 
     # ------------------------------------------------------------------ helpers
     def _decode(self, path: Path, line_no: int, line: bytes) -> Record:

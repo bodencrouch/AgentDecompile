@@ -79,13 +79,15 @@ class LocalFileHeads:
 
     name = "local"
 
-    def __init__(self, root: str | os.PathLike[str], *, fsync: bool = True) -> None:
+    def __init__(self, root: str | os.PathLike[str], *, fsync: bool = True, heads_dir: str | os.PathLike[str] | None = None) -> None:
         self.root = Path(root)
         self.fsync = fsync
+        self._heads_dir = Path(heads_dir) if heads_dir else None
 
     @property
     def heads_root(self) -> Path:
-        return self.root / "heads"
+        """The head files directory: ``heads_dir`` when given (``GridConfig.paths.heads``), else ``<root>/heads``."""
+        return self._heads_dir if self._heads_dir is not None else self.root / "heads"
 
     def _paths(self, key: str) -> tuple[Path, Path]:
         base = partition_dir(self.heads_root, key)
@@ -133,6 +135,7 @@ class LocalFileHeads:
         return {"type": "object", "required": ["root"], "properties": {
             "adapter": {"const": "local"},
             "root": {"type": "string", "description": "store root; heads live under <root>/heads/<partition>.head"},
+            "heads_dir": {"type": "string", "description": "explicit heads directory (GridConfig.paths.heads); overrides <root>/heads"},
             "fsync": {"type": "boolean", "default": True},
         }}
 
@@ -144,7 +147,14 @@ class LocalFileHeads:
 
     @classmethod
     def from_config(cls, config: Mapping[str, Any]) -> LocalFileHeads:
-        return cls(str(config["root"]), fsync=bool(config.get("fsync", True)))
+        return cls(str(config["root"]), fsync=bool(config.get("fsync", True)),
+                   heads_dir=(str(config["heads_dir"]) if config.get("heads_dir") else None))
+
+    from_locator = from_config
+    """A locator is the same mapping shape (``{"adapter": "local", "root": ..., "heads_dir": ...}``)."""
+
+    def locator(self) -> dict[str, Any]:
+        return {"adapter": self.name, "root": str(self.root), "heads_dir": str(self.heads_root), "fsync": self.fsync}
 
 
 # --------------------------------------------------------------------------- declared adapters

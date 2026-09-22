@@ -578,19 +578,26 @@ APPLIERS.register(SQLiteViewApplier.name, SQLiteViewApplier)
 
 # --------------------------------------------------------------------------- materialize
 def _local_objects(root: str | Path) -> ObjectStore:
+    """The local object store of a grid root, in the ``config.PathsConfig`` layout (``<root>/objects``)."""
+    from ..config import PathsConfig
+
     try:
         mod = importlib.import_module("agentdecompile_grid.objects.local")
     except ImportError as exc:
         raise NotConfigured("agentdecompile_grid.objects.local not present in this checkout yet") from exc
-    return mod.LocalDirStore(Path(root))
+    return mod.LocalDirStore(PathsConfig(root=str(root)).resolved().objects)
 
 
 def _local_log(root: str | Path):
+    """The local log of a grid root (partitions under ``<root>/log``)."""
+    from ..config import PathsConfig
+
     try:
         mod = importlib.import_module("agentdecompile_grid.log.local")
     except ImportError as exc:
         raise NotConfigured("agentdecompile_grid.log.local not present in this checkout yet") from exc
-    return mod.LocalFileLog(Path(root))
+    paths = PathsConfig(root=str(root)).resolved()
+    return mod.LocalFileLog(paths.root, log_dir=paths.log)
 
 
 def materialize(

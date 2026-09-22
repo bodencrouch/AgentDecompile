@@ -1022,22 +1022,22 @@ def _classify_repository_error(exc: BaseException) -> str:
         return "repository_version_conflict"
     if any(w in text for w in _AUTH_WORDS):
         return "repository_auth_failed"
-    if any(w in text for w in _VERSION_WORDS):
-        return "repository_version_conflict"
     if any(w in text for w in _NOT_FOUND_WORDS):
         return "repository_not_found"
     if any(w in text for w in _UNREACHABLE_WORDS):
         return "repository_unreachable"
     if "lock" in text:
         return "repository_locked"
+    # The widest net last: "version" appears in many unrelated messages.
+    if any(w in text for w in _VERSION_WORDS):
+        return "repository_version_conflict"
     return "repository_error:" + type(exc).__name__
 
 
-#: Process-wide conditions: once seen, every later row gets the same miss
-#: without another connection attempt.
-_REPOSITORY_LATCHED = frozenset(
-    {"repository_unreachable", "repository_auth_failed", "repository_not_found", "repository_analyzer_unavailable"}
-)
+#: Conditions that hold for every row of one access: once seen, every later
+#: row through the same access gets the same miss without another attempt.
+#: A local-project failure never latches the server path, and the reverse.
+_REPOSITORY_LATCHED = frozenset({"repository_unreachable", "repository_auth_failed", "repository_not_found"})
 
 
 class GhidraRepositoryResolver:
@@ -1054,10 +1054,11 @@ class GhidraRepositoryResolver:
     at all: with no repository declared the miss is
     ``repository_unconfigured`` and the JVM is never booted. Every failure
     on the worker side is classified into a named miss
-    (:func:`_classify_repository_error`); the process-wide ones
-    (unreachable server, failed authentication, missing repository,
-    missing install) are latched for the rest of the process. The one
-    non-miss exit is a selected slot (``snapshot`` access), which raises
+    (:func:`_classify_repository_error`). A missing install and a deadline
+    latch for the whole resolver; an unreachable server, failed
+    authentication or a missing repository latch per access, so a local
+    reference's failure never speaks for the server. The one non-miss exit
+    is a selected slot (``snapshot`` access), which raises
     ``NotImplementedError("A4c")`` for the walker to record.
     """
 
@@ -1096,6 +1097,7 @@ class GhidraRepositoryResolver:
 
     def __init__(self) -> None:
         self._worker = _AnalyzerWorker("raw-image-repository")
+        self._latched: dict[str, str] = {}  # access name -> miss reason
 
     def resolve(self, row: dict, *, work_dir: Path | None, deadline_s: float) -> RawImage | None:
         if self._worker.unavailable:
@@ -1110,12 +1112,16 @@ class GhidraRepositoryResolver:
         reason = access.unconfigured()  # runs here, before the worker: no JVM yet
         if reason:
             raise RawImageMiss(reason)
+        if access.name in self._latched:
+            raise RawImageMiss(self._latched[access.name])
         outcome = self._worker.run(
             lambda: self._fetch(access, repo, deadline_s), deadline_s, deadline_reason="repository_deadline"
         )
         if isinstance(outcome, RawImageMiss):
-            if outcome.reason in _REPOSITORY_LATCHED:
+            if outcome.reason == "repository_analyzer_unavailable":
                 self._worker.latch(outcome.reason)
+            elif outcome.reason in _REPOSITORY_LATCHED:
+                self._latched[access.name] = outcome.reason
             raise outcome
         spooled: _Spooled = outcome
         provenance = {

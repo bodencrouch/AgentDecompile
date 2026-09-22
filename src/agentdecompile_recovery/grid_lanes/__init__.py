@@ -9,10 +9,11 @@ literal import (U120's boundary test).
 Importing this package registers, in ``agentdecompile_grid.core.TASK_KINDS``:
 
 * working kinds -- ``corpus-export-hookpack``, ``corpus-backfill-pass``,
-  ``corpus-verify-determinism``, ``corpus-logical-build`` (``verbs``), ``compile-attempt``
-  (``compile``), ``parity-check`` (``parity``), ``match-score-shard`` (``cascade``);
-* declared kinds -- ``corpus-attest`` (``verbs``; U28x), ``analysis-slice``,
-  ``decompile-chunk``, ``bsim-sigs`` (``analysis``; U137/U139/U141);
+  ``corpus-verify-determinism``, ``corpus-logical-build``, ``corpus-attest`` (``verbs``; U168 over
+  U28x's ``corpus attest``), ``compile-attempt`` (``compile``), ``parity-check`` (``parity``),
+  ``match-score-shard`` (``cascade``);
+* declared kinds -- ``analysis-slice``, ``decompile-chunk``, ``bsim-sigs`` (``analysis``;
+  U137/U139/U141);
 
 plus one planner per kind in ``splitter.PLANNERS`` (reached by ``Kind.plan``) and one view hook
 per working kind in ``agentdecompile_grid.view.applier.VIEW_HOOKS`` (receipt tables only; the

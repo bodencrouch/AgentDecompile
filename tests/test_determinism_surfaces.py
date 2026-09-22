@@ -267,6 +267,10 @@ def test_ensure_binary_columns_tolerates_readonly_but_not_other_errors(tmp_path:
     ro.close()
 
     class _Con:
+        # The backfill owns its write and asks whether a transaction is open;
+        # none is, so it will BEGIN itself and hit the synthetic error there.
+        in_transaction = False
+
         def execute(self, sql, *args):
             if sql.startswith("PRAGMA"):
                 return iter([(0, "content_sha256"), (1, "recovery_family")])

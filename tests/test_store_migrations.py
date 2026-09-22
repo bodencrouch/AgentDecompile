@@ -11,6 +11,7 @@ import multiprocessing
 import re
 import sqlite3
 import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -473,3 +474,87 @@ def test_ledger_basis_hash_is_null_without_identity_and_real_with_it(tmp_path: P
     assert recorded == determinism_basis.basis_hash(con)
     assert recorded == con.execute("SELECT basis_hash FROM binary").fetchone()[0]
     con.close()
+
+
+# --- A2: the recovery_family backfill owns its write ------------------------
+
+# Synthetic image hash; the stale rowid form below is what the backfill rewrites.
+_HASH = "ab" * 32
+
+
+def _migrated_store_with(tmp_path: Path, recovery_family: str | None, content_sha256: str | None) -> Path:
+    db = tmp_path / "a2.sqlite"
+    con = store.connect(db)
+    con.execute(
+        "INSERT INTO binary(id, repo_path, slug, content_sha256, recovery_family) VALUES (1, '/r/one', 'one', ?, ?)",
+        (content_sha256, recovery_family),
+    )
+    con.commit()
+    con.close()
+    return db
+
+
+def test_connect_holds_no_transaction_and_commits_the_backfill(tmp_path: Path) -> None:
+    """A stale rowid-form row: connect() rewrites it, commits, and returns lock-free."""
+    db = _migrated_store_with(tmp_path, "unclassified:1", _HASH)
+    con = store.connect(db)
+    assert not con.in_transaction
+    # Durable before the verb starts: a second raw connection sees the rewrite.
+    raw = sqlite3.connect(db)
+    assert raw.execute("SELECT recovery_family FROM binary WHERE id=1").fetchone() == (f"unclassified:{_HASH[:16]}",)
+    raw.close()
+    # And the write lock is free: a second writer gets BEGIN IMMEDIATE at once.
+    writer = sqlite3.connect(db, timeout=1)
+    writer.execute("BEGIN IMMEDIATE")
+    writer.rollback()
+    writer.close()
+    con.close()
+
+
+def test_connect_with_nothing_to_backfill_never_waits_for_the_write_lock(tmp_path: Path) -> None:
+    """Read-check first: a store needing no backfill never asks for the lock, even when held."""
+    db = _migrated_store_with(tmp_path, f"unclassified:{_HASH[:16]}", _HASH)
+    holder = sqlite3.connect(db)
+    holder.execute("BEGIN IMMEDIATE")
+    started = time.monotonic()
+    con = store.connect(db)
+    elapsed = time.monotonic() - started
+    assert not con.in_transaction
+    assert elapsed < 5.0, f"connect() waited {elapsed:.1f}s on a held write lock; busy_timeout is 30s"
+    con.close()
+    holder.rollback()
+    holder.close()
+
+
+def test_backfill_participates_in_an_open_transaction(tmp_path: Path) -> None:
+    """Inside a caller's BEGIN IMMEDIATE (migration 1) the backfill neither commits nor rolls back."""
+    db = _migrated_store_with(tmp_path, "unclassified:1", _HASH)
+    con = sqlite3.connect(db)
+    con.execute("BEGIN IMMEDIATE")
+    store.backfill_recovery_family(con)
+    assert con.in_transaction
+    raw = sqlite3.connect(db)
+    assert raw.execute("SELECT recovery_family FROM binary").fetchone() == ("unclassified:1",), "not visible before the caller commits"
+    con.rollback()
+    assert raw.execute("SELECT recovery_family FROM binary").fetchone() == ("unclassified:1",)
+    raw.close()
+    con.close()
+
+
+def test_backfill_tolerates_a_busy_lock_and_leaves_no_transaction(tmp_path: Path) -> None:
+    db = _migrated_store_with(tmp_path, "unclassified:1", _HASH)
+    holder = sqlite3.connect(db)
+    holder.execute("BEGIN IMMEDIATE")
+    waiter = sqlite3.connect(db, timeout=0.2)
+    waiter.execute("PRAGMA busy_timeout=200")
+    assert store.backfill_recovery_family(waiter) == 0
+    assert not waiter.in_transaction
+    holder.rollback()
+    holder.close()
+    # Once the lock is free the same handle writes and commits.
+    assert store.backfill_recovery_family(waiter) == 0
+    assert not waiter.in_transaction
+    raw = sqlite3.connect(db)
+    assert raw.execute("SELECT recovery_family FROM binary").fetchone() == (f"unclassified:{_HASH[:16]}",)
+    raw.close()
+    waiter.close()

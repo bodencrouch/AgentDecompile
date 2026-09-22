@@ -166,7 +166,8 @@ def connect(path: pathlib.Path | str, *, read_only: bool = False) -> sqlite3.Con
     file brings it to ``migrations.SCHEMA_VERSION``; every later connection
     only reads ``PRAGMA user_version`` and touches nothing. The one data step
     that stays per-connect is the ``recovery_family`` backfill, which is
-    read-checked and writes only when a row needs it.
+    read-checked, writes only when a row needs it, and commits that write
+    itself: the connection returned here holds no transaction.
 
     ``read_only=True`` opens a ``mode=ro`` handle. It never migrates; on a
     store that has not been migrated yet it raises.
@@ -279,6 +280,14 @@ def backfill_recovery_family(con: sqlite3.Connection) -> int:
     cannot be classified: it is left as it is and counted.
 
     Returns the number of rows that could not be classified.
+
+    The write owns its transaction. Inside a caller's transaction (migration
+    1 runs this under ``BEGIN IMMEDIATE``) it participates and the caller
+    commits; otherwise it runs ``BEGIN IMMEDIATE`` / ``UPDATE`` / ``COMMIT``
+    itself, so a ``connect()`` never returns holding the write lock and the
+    rewrite is durable before the verb starts. Python's implicit transaction
+    used to hold that lock for the verb's whole run and roll the rewrite
+    back on close (attestation A2).
     """
     # Existing inventories predate explicit recovery-family catalog entries.
     # Keep each such build isolated until an operator supplies a catalog map;
@@ -305,14 +314,25 @@ def backfill_recovery_family(con: sqlite3.Connection) -> int:
         # the value is a function of each row's own content hash, so the
         # winner and the visit order cannot change what gets written. Only
         # the lock/read-only cases are tolerated; any other failure surfaces.
+        owns = not con.in_transaction
         try:
+            if owns:
+                con.execute("BEGIN IMMEDIATE")
             con.execute(
                 "UPDATE binary SET recovery_family='unclassified:' || substr(trim(content_sha256), 1, 16) "
                 f"WHERE {stale} AND {has_hash}"
             )
+            if owns:
+                con.execute("COMMIT")
         except sqlite3.OperationalError as exc:
+            if owns and con.in_transaction:
+                con.execute("ROLLBACK")
             if not _is_lock_or_readonly(exc):
                 raise
+        except BaseException:
+            if owns and con.in_transaction:
+                con.execute("ROLLBACK")
+            raise
     return int(unclassifiable[0]) if unclassifiable else 0
 
 

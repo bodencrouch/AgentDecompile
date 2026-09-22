@@ -36,32 +36,33 @@ project name appears anywhere in this design; targets are described only by clas
 (format × architecture × toolchain × engine-adapter).**
 
 
-### Delta Update (2026-09-22, iteration after audit 4 — U125 and U25 landed; canon on the fast disk)
-- **Landed:** U125 integrator `86b9d6d`/`fe9d563` (twelve seams reconciled; the grid-of-one cycle
-  publish → work → verify → materialize ran end to end and is recorded in
-  `2026-09-21-grid-of-one-walkthrough.md`); 3d U25 `corpus rebaseline` + A3 `ALGORITHM_VERSION` bump
-  `2dbd467`/`ca7fdb6` (migration 3 `basis_supersession`; `RestampOnly`/`JsonSitesDiffer`/`LedgerResolver`
-  working, `RecomputeDivergence`/`BinaryPackDiffer`/`PackResolver` named slots); audit-4 docs `708683e`;
-  R1 in effect — the canonical checkout is now the fast-disk clone (`~/agentdecompile-nvme/AgentDecompile`,
-  remotes `codeberg`, `gitlab`, `usb`); the USB copy is a synced mirror. Earlier: grid skeleton U120–U124
-  (`d8447f6` … `a4e4aca`), hotfixes A1/A2/A3/A5 `a501e9d`, R3 `40d50ce`, D8/D9 + harness (o)
-  `24b3050`/`a4095ba`, Step 0 `0256ca0`, Phase 0 D1–D7 + U5c, U7/U7b `f935db7`, U22 `f5f6a88`,
-  U1–U3 + U1b `b271ba6`, U21c `0191303`, 3b `5bf8a11`.
-- **Partial:** `corpus rebaseline` on a copy of the real store refuses with "analyzer identity is absent
-  for 60 build(s)" — correct under today's rule, and exactly what A4 admission (in flight,
-  `unit/a4-admission`) removes by scoping `_identity_rows`/`corpus_manifest_hash` to admitted builds;
-  U25's `stored_basis_rows` must take the same scope at integration. An export that refuses *after* a
-  re-stamp committed has no enumerated exit code (U25 chose 0 with the refusal under `run.export`) —
-  a hindsight item for U28's exit-code table. U125 findings for the adapters: two key-id schemes
-  (`log.signing` vs `worker.identity`) need a bridge before offline `Keyring` verification of node-signed
-  records; `results/<task_id>.index` is never written on the live path (no GC root for non-enumerating
-  stores); the toolchain canary still ends `not-configured` (U163). Round-4 survivors F1–F9/D1–D14 and
-  the foundations audit remain pending; the U5c(b) shuffle is not in the gate; `_version.py` local change
-  left to its owner.
-- **Next:** integrate A4 (`corpus admit`), then attest admit → rebaseline → backfill analyzer_identity →
-  verify-determinism → export-hookpack on a copy of the real store; U28x attest verb as a grid task kind
-  (U168); U104 admission flags (H5); U21a/U21b; U19a; then the adapters in Phase 15 order (U158, U126,
-  U159–U162, U132, U163–U165 first).
+### Delta Update (2026-09-22, third iteration — admission, attestation verb, data packs, basis projection landed; first full chain on the real corpus)
+- **Landed:** A4 `corpus admit` `ec10ac1`/`81cec23`/`952664e` (resolver registry, migration 4 admission columns +
+  `admitted_binary` view, placeholders quarantined, duplicates merged with receipts, keyed verbs scoped);
+  `d0a56fb` U25 rows take the admission scope; hotfixes from attestation `dca5137` (analyzer boots through
+  `ghidra_env`; `JAVA_HOME_OVERRIDE`), `972c833` (flush + hard-exit after `main` when the JVM is up — H14),
+  `790846b` (image-free backfill passes never resolve an image; rebaseline re-stamps every row with the old
+  hash), `bf47b7c` (relative server key path against the config dir); 3c U28x `corpus attest` `f5b4dce` +
+  U168 lane `44e6553`; 4b U19a `871c517`; U158 `ae7ee5c`; U126 `a61caef`/`05ac4a1`. Earlier this day: U125
+  `86b9d6d`/`fe9d563`, U25 + A3 `2dbd467`/`ca7fdb6`, docs `708683e`/`ebd568e`; R1 done (canon on the fast disk).
+- **Attestation (copy of the real store, `corpus attest --profile full`, run 20260922T08…):** rebaseline 0,
+  backfill analyzer_identity 0, backfill content_sha256 0, export-hookpack 0 (72 s) — first time every keyed
+  verb but one runs on the real corpus; `admit` exit 3 (8 of 30 analyzed builds admitted, 22 unresolved:
+  the originals are gone from disk and the analyzer projects are addressed by the shared-server repository
+  path, which A4's local-project resolver does not speak — A4b in flight adds `ghidra_repository` through
+  `ghidra_env.open_program`; 8 local projects are locked by the running server; 13 rows have no local
+  binding); `logical-build` refuses on the 21 unhashed builds (correct: the guard must not let the cascade
+  wipe identities — A4 hindsight (a)); `verify-determinism` overran a 120 s deadline (two exports of 72 s
+  each — a budget error, not a hang; the catalogue default is 1200 s). Two real hangs were found and fixed
+  this iteration (H14: JVM keeps the process alive after `main`; backfill booting the analyzer per row).
+- **Partial:** the repository resolver needs the pipeline's config dir (`AGENT_DECOMPILE_CORPUS_CONFIG_DIR`)
+  in the attestation environment — the loop sets it from now on; the 11 lane kinds are unpublishable until
+  U158b declares their basis field sets; U28x's exit-code table has three hindsight items (missing verb = 4;
+  `verify-determinism` exit 1 = failed; hang receipts carry the kill signal); backfill's summary still prints
+  slugs (A4b item 3); round-4 survivors and the foundations audit remain pending.
+- **Next:** integrate A4b, U158b, U104 (H5/H6 fair acceptance); re-run the full chain with the config dir set
+  and per-verb deadlines from the catalogue; then U21a/U21b (alone), U129/U166/U137–U141/U143/U150, the
+  foundations audit resume, grill round 4 (feasibility, risk-hangs).
 
 
 ## Program thesis (recorded 2026-09-21 from the user's own words; migrates to STRATEGY.md at convergence)
@@ -992,7 +993,7 @@ pause/resume plus its scope, never start. Phase 14 holds the units.
 - **U19. Compiler/toolchain profile** as a target-selected object (promote `TOOLCHAIN_SCRIPTS`
   + `COMPILER_PROFILES`; add GCC/clang/x64/ARM; drop the Wine/MSVC-only default in
   `ghidra_bulk._find_compiler`).
-- **U19a. Data-pack registry.** One loader for L3 packs: root path from config, `pack.json`
+- **U19a. Data-pack registry ✔ (`871c517`).** `data_packs[]` + `data_packs_root_declared` are basis fields; the basis now makes one configuration read (`corpus_config.data_packs_root`, env `AGENT_DECOMPILE_DATA_PACKS_ROOT`) — a process that does not inherit it computes a different hash and refuses with re-baseline (hindsight: the 'never from the process environment' sentence is superseded for this field). One loader for L3 packs: root path from config, `pack.json`
   (`schema_version, engine_class, arch_class, entries`), sorted discovery, content hash
   recorded in the basis (`data_packs[]`). An unknown engine plugs in by dropping a pack;
   core never enumerates engines. Acceptance: a fixture pack loads; removing it yields
@@ -2053,14 +2054,14 @@ ids as the detailed specification; read them through this map:
 
 **15.1 Adapters — each unit turns a declared adapter into a working one (listed in the order
 of the interfaces they unblock; interleaved with Phases 2–14 per the Recommended order)**
-- **U158. Basis projection per kind** (`tasks/registry.py`, `core.py`): `basis_fields(kind)`
+- **U158. Basis projection per kind ✔ (`ae7ee5c`; every published task id changed once; lane kinds declare their field set in U158b, in flight)** (`tasks/registry.py`, `core.py`): `basis_fields(kind)`
   declared per kind as basis field paths (the basis object above is the vocabulary),
   `basis_projection(kind)` inside the task id, the full `basis_hash` on every record;
   publish, verify and consume refuse on a projection mismatch by name (design §2.8 table;
   never redo completed work). Acceptance: `test_basis_projection_declared_for_every_kind`,
   `test_pin_policy_change_leaves_compile_ids`,
   `test_toolchain_change_rekeys_only_compile_kinds`.
-- **U126. Ed25519 as the default signer; invites, revocation, rate limits**
+- **U126. Ed25519 as the default signer; invites, revocation, rate limits ✔ (`a61caef`, `05ac4a1`; one key-id scheme `ed25519:<sha256 pub>`, `keyring.allow_null=False` default, node key dirs re-minted)**
   (`log/signing.py` ed25519 working; `worker/identity.py`): invites signed by operator or
   fleet keys, a revocation-list object any fleet key may extend, per-key rate limits, 7-day
   key lifetime renewed after a canary re-run, the two-lineage invariant asserted.
@@ -2154,7 +2155,7 @@ of the interfaces they unblock; interleaved with Phases 2–14 per the Recommend
   `test_backfill_replays_identically_on_both_surfaces`,
   `test_object_store_has_no_slug_or_repo_path`, `test_image_join_reproduces_legacy_rebuild`,
   `test_terminal_receipt_from_cache_hits_accepted`.
-- **U168. `corpus-attest` lane** (after U28x): the attest verb as a `subprocess-verb` kind
+- **U168. `corpus-attest` lane ✔ (`44e6553`)** (after U28x): the attest verb as a `subprocess-verb` kind
   over a copy-on-write snapshot, receipts as objects, a hang = a named timeout record.
   Acceptance: `test_attest_declared`, `test_attest_lane_hang_is_timeout_record`.
 - **U169. Similarity applier** (`view/similarity.py` working: verified `bsim-merge` objects
@@ -2249,13 +2250,13 @@ pretend otherwise.
      `PENDING_FIELDS` removal makes every stamped store refuse with "re-baseline", and the
      backfill fills NULLs only, so the verb that re-stamps under a recorded supersession must
      exist before the first such change (hindsight, charter §4).
-   - **3c. U28x inline-CLI attestation** — `corpus attest` against a copy-on-write temp
+   - **3c. U28x inline-CLI attestation ✔ (`f5b4dce`)** — `corpus attest --profile full` is the loop's instrument from this iteration on (exit 0 same / 3 changed / 4 hang, failure, refusal or missing verb; the comparison key excludes elapsed, head, status; stdout/stderr digests are over path-scrubbed text). `corpus attest` against a copy-on-write temp
      copy of the real store, wired into the loop; every later wave compares its receipts
      (U28 (r)) and a hang is a named failure, never a wait.
 4. **U1–U3 + U1b ✔** (`b58a2e1`, `b271ba6`) — v1-shaped; `--format v2` stays off until U23
    (the v1 loader matches the format string exactly and any other pack falls through to
    the legacy parser).
-   - **4b. U19a data-pack registry** + pack hashes in the basis.
+   - **4b. U19a data-pack registry ✔ (`871c517`)** + pack hashes in the basis.
 5. **U82 + U69 + U20 (`e_machine`) + U70** — before any further `binary` column lands and
    before any cross-build donor runs (U70 gates on U69).
 6. **U18 + U8/U11 + U61/U63** — donors now platform-gated; the CLI tree's structured

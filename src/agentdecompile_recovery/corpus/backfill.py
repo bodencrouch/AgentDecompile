@@ -207,8 +207,16 @@ def _run_pass(
     for row in _binary_rows(con):
         binary_id = int(row["id"])
         slug = str(row.get("slug") or binary_id)
-        raw_path, raw = _raw_image(str(row.get("repo_path") or ""), con, slug)
-        identity = hashlib.sha256(raw).hexdigest() if raw is not None else slug
+        if step.needs_raw_image:
+            raw_path, raw = _raw_image(str(row.get("repo_path") or ""), con, slug)
+            identity = hashlib.sha256(raw).hexdigest() if raw is not None else slug
+        else:
+            # A pass that does not read the image must not pay for resolving
+            # it (a resolver may boot the analyzer): its receipt is keyed by
+            # the stored content hash, else the slug (3b report; H14).
+            raw_path, raw = Path(""), None
+            stored = str(row.get("content_sha256") or "").strip()
+            identity = stored if stored else slug
         key = {"pass": step.name, "identity": identity}
         receipt = _receipt_path(receipts_dir, step.name, identity)
 

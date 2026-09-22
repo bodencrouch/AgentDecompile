@@ -517,6 +517,21 @@ def _export_refusal(exc: BaseException) -> dict:
     }
 
 
+def _rows_with_hash(con: sqlite3.Connection, basis_hash_value: str) -> list[dict]:
+    """Every ``binary`` row carrying *basis_hash_value*, in canonical row order.
+
+    Unscoped on purpose (see the caller): the UPDATE the policy issues is
+    unscoped too, and the receipt must list exactly the rows it touches.
+    """
+    cur = con.execute(
+        "SELECT slug, content_sha256, analyzer_version, basis_hash, basis_source FROM binary"
+        " WHERE basis_hash = ? ORDER BY content_sha256, repo_path, slug",
+        (basis_hash_value,),
+    )
+    names = [d[0] for d in cur.description]
+    return [dict(zip(names, r)) for r in cur.fetchall()]
+
+
 def rebaseline(
     con: sqlite3.Connection,
     *,
@@ -572,7 +587,11 @@ def rebaseline(
             "mixed bases are never silently merged"
         )
     (old,) = stale
-    stale_rows = [r for r in rows if str(r["basis_hash"]) == old]
+    # Drift is judged on the rows the basis covers (A4 admission scope); the
+    # re-stamp reaches every row of the store that carries the old hash,
+    # admitted or not, so an unadmitted analyzed row never keeps a stale
+    # basis that would refuse the moment it is admitted.
+    stale_rows = _rows_with_hash(con, old)
 
     # Phase: resolve the old basis and build the receipt (no clock in it).
     try:

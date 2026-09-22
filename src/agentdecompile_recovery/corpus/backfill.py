@@ -108,6 +108,15 @@ def _receipt_path(receipts_dir: Path, pass_name: str, identity: str) -> Path:
     return receipts_dir / pass_name / f"{stem}.json"
 
 
+def _entry_identity(identity: str, slug: str) -> str:
+    """The summary's name for one binary: the content sha256 when that is
+    the identity, else ``slug-<sha256(slug)[:12]>``. The summary goes to a
+    verb's stdout, so it never carries a slug or a row id."""
+    if re.fullmatch(r"[0-9a-f]{64}", identity):
+        return identity
+    return "slug-" + hashlib.sha256(slug.encode("utf-8")).hexdigest()[:12]
+
+
 def _raw_image(
     repo_path: str,
     con: sqlite3.Connection | None = None,
@@ -227,7 +236,7 @@ def _run_pass(
                 existing = None
             if isinstance(existing, dict) and existing.get("key") == key:
                 counts["resumed"] += 1
-                entries.append({"id": binary_id, "slug": slug, "status": "resumed"})
+                entries.append({"identity": _entry_identity(identity, slug), "status": "resumed"})
                 continue
 
         if raw is None and step.needs_raw_image:
@@ -248,7 +257,7 @@ def _run_pass(
         receipt.parent.mkdir(parents=True, exist_ok=True)
         receipt.write_bytes(_dump(body))
         counts[status] = counts.get(status, 0) + 1
-        entry = {"id": binary_id, "slug": slug, "status": status}
+        entry = {"identity": _entry_identity(identity, slug), "status": status}
         if "reason" in result:
             entry["reason"] = result["reason"]
         entries.append(entry)

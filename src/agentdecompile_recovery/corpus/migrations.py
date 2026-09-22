@@ -162,11 +162,52 @@ def _basis_supersession(con: sqlite3.Connection) -> None:
     con.execute(SUPERSESSION_SQL)
     con.execute(SUPERSESSION_INDEX_SQL)
 
+#: Columns migration 4 adds to ``binary`` (register A4, ``corpus admit``).
+#: ``admission_status`` is NULL until the admit verb has seen the row; its
+#: values are ``admitted``, ``placeholder``, ``duplicate``, ``contested`` and
+#: ``unresolved``. ``duplicate_of`` names the keeper (its content hash, or
+#: ``slug:<sha256(slug)[:12]>`` when it has none). ``admission_receipt`` is
+#: the sha256 of the row's receipt file. ``admission_handling`` records how
+#: a placeholder was treated (``quarantine`` or ``exclude``): the hook pack
+#: lists excluded placeholders under ``excluded_builds`` and stays silent
+#: about quarantined ones, and the store is the only channel that reaches
+#: the exporter.
+ADMISSION_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("admission_status", "TEXT"),
+    ("duplicate_of", "TEXT"),
+    ("admission_receipt", "TEXT"),
+    ("admission_handling", "TEXT"),
+)
+
+#: The admitted-rows view. Placeholders, duplicates, contested and
+#: unresolved rows are outside every key, basis, manifest and pack by design
+#: (A4); readers that must survive later column adds filter ``binary``
+#: directly with the same predicate.
+ADMITTED_VIEW = "admitted_binary"
+
+
+def _admission(con: sqlite3.Connection) -> None:
+    """Version 4: admission columns on ``binary`` and the ``admitted_binary`` view.
+
+    Additive only; every existing row keeps ``admission_status`` NULL, which
+    every scoped reader treats as "admission has not run" and falls back to
+    the unscoped legacy behaviour until the first ``corpus admit``.
+    """
+    cols = {row[1] for row in con.execute("PRAGMA table_info(binary)")}
+    for col, decl in ADMISSION_COLUMNS:
+        if col not in cols:
+            con.execute(f"ALTER TABLE binary ADD COLUMN {col} {decl}")
+    con.execute(
+        f"CREATE VIEW IF NOT EXISTS {ADMITTED_VIEW} AS "
+        "SELECT * FROM binary WHERE admission_status = 'admitted'"
+    )
+
 
 MIGRATIONS: list[Migration] = [
     Migration(1, "baseline", _baseline),
     Migration(2, "analyzer_identity", _analyzer_identity),
     Migration(3, "basis_supersession", _basis_supersession),
+    Migration(4, "admission", _admission),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1].version

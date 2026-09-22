@@ -81,7 +81,20 @@ def _pass_analyzer_identity(con: sqlite3.Connection, binary_row: dict, raw: byte
     }
 
 
+def _pass_raw_image(con: sqlite3.Connection, binary_row: dict, raw: bytes | None) -> dict:
+    """Materialize the raw image and report its hash and size; writes no column.
+
+    The frame resolves the image through the resolver registry before any
+    pass runs, so by the time this pass is called the image is on disk at
+    ``raw_image_path(repo_path)``. A missing image is ``skipped`` with
+    ``no_raw_image`` by the frame, never here.
+    """
+    assert raw is not None  # needs_raw_image=True; the frame skips otherwise
+    return {"status": "present", "sha256": hashlib.sha256(raw).hexdigest(), "size": len(raw)}
+
+
 PASSES: dict[str, BackfillPass] = {
+    "raw_image": BackfillPass("raw_image", True, _pass_raw_image),
     "content_sha256": BackfillPass("content_sha256", True, _pass_content_sha256),
     "analyzer_identity": BackfillPass("analyzer_identity", False, _pass_analyzer_identity),
 }
@@ -95,14 +108,41 @@ def _receipt_path(receipts_dir: Path, pass_name: str, identity: str) -> Path:
     return receipts_dir / pass_name / f"{stem}.json"
 
 
-def _raw_image(repo_path: str) -> tuple[Path, bytes | None]:
+def _raw_image(
+    repo_path: str,
+    con: sqlite3.Connection | None = None,
+    slug: str | None = None,
+    *,
+    deadline_s: float = 120.0,
+) -> tuple[Path, bytes | None]:
+    """``(raw_image_path, bytes | None)`` for *repo_path*.
+
+    Resolution goes through the resolver registry (:mod:`raw_images`): the
+    raw directory first, then the registered file, an explicit map, the
+    content-identity tables and the analysis project's stored file bytes.
+    A hit is materialized at ``raw_image_path(repo_path)`` so every later
+    verb finds it there. *con* supplies the row context (program bindings,
+    identity rows) when given; without it only file-based resolvers apply.
+    The return shape is unchanged; a miss is ``(path, None)``.
+    """
     from .ghidra_bulk import raw_image_path
+    from .raw_images import resolve_raw_image, row_context
 
     path = raw_image_path(repo_path)
-    if not path.is_file():
+    row: dict = {"repo_path": repo_path, "slug": slug or ""}
+    if con is not None:
+        try:
+            row = row_context(con, row)
+        except sqlite3.Error:
+            pass
+    # A bad resolver configuration (RawImageError, a ValueError) propagates:
+    # it is a refusal, not a missing image.
+    image = resolve_raw_image(row, deadline_s=deadline_s)
+    target = image.path if image is not None and image.path is not None else path
+    if not target.is_file():
         return path, None
     try:
-        return path, path.read_bytes()
+        return path, target.read_bytes()
     except OSError:
         return path, None
 
@@ -139,51 +179,69 @@ def run(
     wanted = [PASSES[name] for name in sorted(set(passes))]
     receipts_dir = Path(receipts_dir)
 
+    from .raw_images import close_resolvers
+
     summary: dict = {"passes": {}, "receipts_dir": str(receipts_dir)}
-    for step in wanted:
-        counts = {"updated": 0, "unchanged": 0, "skipped": 0, "resumed": 0}
-        entries: list[dict] = []
-        # Re-read per pass: an earlier pass may have written columns this
-        # one reads.
-        for row in _binary_rows(con):
-            binary_id = int(row["id"])
-            slug = str(row.get("slug") or binary_id)
-            raw_path, raw = _raw_image(str(row.get("repo_path") or ""))
-            identity = hashlib.sha256(raw).hexdigest() if raw is not None else slug
-            key = {"pass": step.name, "identity": identity}
-            receipt = _receipt_path(receipts_dir, step.name, identity)
-
-            if resume and receipt.is_file():
-                try:
-                    existing = json.loads(receipt.read_text(encoding="utf-8"))
-                except (OSError, ValueError):
-                    existing = None
-                if isinstance(existing, dict) and existing.get("key") == key:
-                    counts["resumed"] += 1
-                    entries.append({"id": binary_id, "slug": slug, "status": "resumed"})
-                    continue
-
-            if raw is None and step.needs_raw_image:
-                result = {"status": "skipped", "reason": "no_raw_image"}
-            else:
-                result = step.fn(con, row, raw)
-                con.commit()
-            status = str(result.get("status", "unchanged"))
-
-            # The receipt records what was derived, not whether this run had
-            # to write it: the same inputs always produce the same bytes.
-            body = {
-                "key": key,
-                "binary": {"id": binary_id, "slug": slug, "repo_path": row.get("repo_path")},
-                "raw_image": str(raw_path) if raw is not None else None,
-                "result": {k: v for k, v in result.items() if k != "status"},
-            }
-            receipt.parent.mkdir(parents=True, exist_ok=True)
-            receipt.write_bytes(_dump(body))
-            counts[status] = counts.get(status, 0) + 1
-            entry = {"id": binary_id, "slug": slug, "status": status}
-            if "reason" in result:
-                entry["reason"] = result["reason"]
-            entries.append(entry)
-        summary["passes"][step.name] = {"counts": counts, "binaries": entries}
+    try:
+        for step in wanted:
+            _run_pass(con, step, receipts_dir=receipts_dir, resume=resume, summary=summary)
+    finally:
+        # Resolvers may hold analysis projects open across rows; release them.
+        summary["resolvers_closed"] = close_resolvers()
     return summary
+
+
+def _run_pass(
+    con: sqlite3.Connection,
+    step: BackfillPass,
+    *,
+    receipts_dir: Path,
+    resume: bool,
+    summary: dict,
+) -> None:
+    """One pass over every binary; fills ``summary["passes"][step.name]``."""
+    counts = {"updated": 0, "unchanged": 0, "skipped": 0, "resumed": 0}
+    entries: list[dict] = []
+    # Re-read per pass: an earlier pass may have written columns this
+    # one reads.
+    for row in _binary_rows(con):
+        binary_id = int(row["id"])
+        slug = str(row.get("slug") or binary_id)
+        raw_path, raw = _raw_image(str(row.get("repo_path") or ""), con, slug)
+        identity = hashlib.sha256(raw).hexdigest() if raw is not None else slug
+        key = {"pass": step.name, "identity": identity}
+        receipt = _receipt_path(receipts_dir, step.name, identity)
+
+        if resume and receipt.is_file():
+            try:
+                existing = json.loads(receipt.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                existing = None
+            if isinstance(existing, dict) and existing.get("key") == key:
+                counts["resumed"] += 1
+                entries.append({"id": binary_id, "slug": slug, "status": "resumed"})
+                continue
+
+        if raw is None and step.needs_raw_image:
+            result = {"status": "skipped", "reason": "no_raw_image"}
+        else:
+            result = step.fn(con, row, raw)
+            con.commit()
+        status = str(result.get("status", "unchanged"))
+
+        # The receipt records what was derived, not whether this run had
+        # to write it: the same inputs always produce the same bytes.
+        body = {
+            "key": key,
+            "binary": {"id": binary_id, "slug": slug, "repo_path": row.get("repo_path")},
+            "raw_image": str(raw_path) if raw is not None else None,
+            "result": {k: v for k, v in result.items() if k != "status"},
+        }
+        receipt.parent.mkdir(parents=True, exist_ok=True)
+        receipt.write_bytes(_dump(body))
+        counts[status] = counts.get(status, 0) + 1
+        entry = {"id": binary_id, "slug": slug, "status": status}
+        if "reason" in result:
+            entry["reason"] = result["reason"]
+        entries.append(entry)
+    summary["passes"][step.name] = {"counts": counts, "binaries": entries}

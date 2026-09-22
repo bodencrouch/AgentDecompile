@@ -131,6 +131,10 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> di
     """
     policy = load_site_policy(site_policy)
     amap = load_adapter_map(adapter_map)
+    # Basis first: it refuses in about a millisecond, and the site loop
+    # below can take minutes on a real store (A5). A store that cannot
+    # declare its basis has no pack to build.
+    declared_basis = basis(con)
     binaries = {
         int(r["id"]): dict(r)
         for r in con.execute(
@@ -264,7 +268,7 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> di
 
     pack = {
         "format": FORMAT,
-        "basis": basis(con),
+        "basis": declared_basis,
         "note": "VA is a cache. Resolve with signature; bind by logical_id.",
         "binaries": sorted(
             (_binary_entry(b, lambda bid=bid: image_for(bid)) for bid, b in binaries.items()),

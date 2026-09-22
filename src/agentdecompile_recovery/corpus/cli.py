@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -11,6 +13,63 @@ from .archive import check_extraction, list_archive, summarize_entries
 from .contract import STAGE_ALIASES, stages_catalog, resolve_stage
 from .pipeline import run_corpus_pipeline, write_calibrate_global_receipt
 from .registry import add_binary, load_corpus, new_corpus, save_corpus
+
+
+def _hashed(slug: object) -> str:
+    """A build name for a message: ``sha256(slug)[:12]``, never the slug."""
+    return hashlib.sha256(str(slug).encode("utf-8")).hexdigest()[:12]
+
+
+def _refusal_line(exc: BaseException) -> str | None:
+    """One named line for a keyed verb's refusal, or None when *exc* is not one.
+
+    The three refusal classes the keyed verbs (``export-hookpack``,
+    ``verify-determinism``, ``logical-build``, ``backfill``) share:
+
+    * ``BasisError`` -- the store cannot declare one basis.
+    * ``ContentHashError`` -- a build the cascade keys on has no usable
+      ``content_sha256``. Its message names slugs; only the count and the
+      hashed names are printed.
+    * ``sqlite3.OperationalError`` for a lock/busy/read-only condition --
+      the write lock was held past ``busy_timeout``; reported as ``locked``
+      rather than as a traceback. Any other operational error is a real
+      failure and propagates.
+    """
+    from .determinism_basis import BasisError
+    from .logical import BACKFILL_HINT, ContentHashError
+    from .store import _is_lock_or_readonly
+
+    if isinstance(exc, ContentHashError):
+        names = ", ".join(_hashed(slug) for slug in exc.slugs)
+        detail = "shared by" if exc.kind == "duplicate" else "missing for"
+        return (
+            f"error: ContentHashError: content_sha256 {detail} {len(exc.slugs)} build(s) [{names}]; "
+            f"{BACKFILL_HINT}"
+        )
+    if isinstance(exc, BasisError):
+        return f"error: {exc}"
+    if isinstance(exc, sqlite3.OperationalError) and _is_lock_or_readonly(exc):
+        return f"error: locked: {exc} (write lock held past busy_timeout)"
+    return None
+
+
+#: Returned by :func:`_run_keyed_verb` when the verb refused; the caller exits 2.
+REFUSED = object()
+
+
+def _run_keyed_verb(action):
+    """Run *action*; on a refusal print one named line to stderr and return ``REFUSED``."""
+    from .determinism_basis import BasisError
+    from .logical import ContentHashError
+
+    try:
+        return action()
+    except (BasisError, ContentHashError, sqlite3.OperationalError) as exc:
+        line = _refusal_line(exc)
+        if line is None:
+            raise
+        print(line, file=sys.stderr)
+        return REFUSED
 
 
 def run_list_archive_command(args: argparse.Namespace) -> int:
@@ -717,37 +776,42 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(export_sibling_conflicts(connect(args.db), args.out)))
         return 0
     if args.cmd in {"export-hookpack", "export-hook-pack"}:
-        from .determinism_basis import BasisError
         from .export_hookpack import export_hookpack
         from .store import connect
 
-        try:
-            summary = export_hookpack(connect(args.db), args.out)
-        except BasisError as exc:
-            # The store cannot declare one complete basis; nothing was written.
-            print(f"error: {exc}", file=sys.stderr)
+        # A refusal (basis, content hash, lock) is exit 2 with one named
+        # line; the basis check runs before the site loop so it costs
+        # milliseconds, not the loop's minutes. Nothing was written.
+        summary = _run_keyed_verb(lambda: export_hookpack(connect(args.db), args.out))
+        if summary is REFUSED:
             return 2
         print(json.dumps(summary))
         return 0
     if args.cmd == "verify-determinism":
-        from .determinism_basis import BasisError, verify_export
+        from .determinism_basis import verify_export
         from .export_hookpack import export_hookpack
 
-        try:
-            result = verify_export(args.db, export_hookpack)
-        except BasisError as exc:
-            print(f"error: {exc}", file=sys.stderr)
+        result = _run_keyed_verb(lambda: verify_export(args.db, export_hookpack))
+        if result is REFUSED:
             return 2
         print(json.dumps(result))
         return 0 if result["identical"] else 1
     if args.cmd == "backfill":
         from .backfill import run as run_backfill
+        from .logical import ContentHashError
         from .store import connect
 
-        try:
-            result = run_backfill(connect(args.db), args.passes, receipts_dir=args.receipts, resume=args.resume)
-        except ValueError as exc:
-            raise SystemExit(f"error: {exc}") from exc
+        def run_it():
+            try:
+                return run_backfill(connect(args.db), args.passes, receipts_dir=args.receipts, resume=args.resume)
+            except ContentHashError:
+                raise
+            except ValueError as exc:
+                raise SystemExit(f"error: {exc}") from exc
+
+        result = _run_keyed_verb(run_it)
+        if result is REFUSED:
+            return 2
         print(json.dumps(result, sort_keys=True))
         return 0
     if args.cmd == "match-pair":
@@ -766,7 +830,10 @@ def main(argv: list[str] | None = None) -> int:
         from .logical import build
         from .store import connect
 
-        print(json.dumps(build(connect(args.db))))
+        result = _run_keyed_verb(lambda: build(connect(args.db)))
+        if result is REFUSED:
+            return 2
+        print(json.dumps(result))
         return 0
     if args.cmd == "package":
         from .package_project import package_project

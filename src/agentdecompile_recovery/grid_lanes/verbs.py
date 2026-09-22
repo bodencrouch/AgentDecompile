@@ -43,6 +43,8 @@ Acceptance tests (named, landed in the verification phase):
 """
 from __future__ import annotations
 
+import re
+
 import json
 import os
 import sqlite3
@@ -320,7 +322,9 @@ class CorpusBackfillPass(CorpusVerbKind):
             for path in sorted(receipts_dir.rglob("*.json")):
                 rel = path.relative_to(receipts_dir)
                 stem = rel.stem
-                if stem.startswith("slug-"):
+                if stem.startswith("slug-") and not re.fullmatch(r"slug-[0-9a-f]{12}", stem):
+                    # Legacy stems carried the slug; backfill now writes the
+                    # hashed stem itself and must not be hashed twice.
                     stem = "slug-" + hashed_slug(stem[len("slug-"):])
                 name = (rel.parent / f"{stem}{rel.suffix}").as_posix()
                 try:

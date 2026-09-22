@@ -432,6 +432,11 @@ def build_parser() -> argparse.ArgumentParser:
     attest.add_argument("--verb-deadline", action="append", metavar="NAME=SECS", help="Override one verb's deadline. Repeatable.")
     attest.add_argument("--snapshot", choices=("backup", "reflink"), default="backup", help="How the copy is made. Default: backup.")
     attest.add_argument("--pythonpath", default=None, help="Extra PYTHONPATH entry for the verb processes.")
+    # --deadline-floor / --history (H15): declared by the verb module so the
+    # refusal line and the parser never disagree.
+    from .attest import add_arguments as _attest_arguments
+
+    _attest_arguments(attest)
 
     pkg = sub.add_parser("package", help="Copy a workspace tree to an output directory")
     pkg.add_argument("--workspace", type=Path, required=True)

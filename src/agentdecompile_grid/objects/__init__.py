@@ -24,8 +24,8 @@ from ..core import OBJECT_STORES, NotConfigured, ObjectStore
 from . import gc
 from .base import (
     BaseObjectStore, EnumerableStore, FsyncPolicy, IntegrityError, InvalidName, InvalidRef, Layout, LayoutMismatch,
-    NamedIndexStore, ObjectMissing, ObjectStat, PinRegistry, ReadOnly, StoreFull, describe_store, is_ref, validate_name,
-    validate_ref,
+    NamedIndexStore, ObjectMissing, ObjectStat, PinRegistry, ReadOnly, StoreFull, can_list_named, describe_store, is_ref,
+    validate_name, validate_ref,
 )
 from .layered import LayeredStore, PartialWrite
 from .local import LocalDirStore
@@ -78,5 +78,5 @@ __all__ = [
     "PartialWrite", "write_mirror_index",
     "EnumerableStore", "NamedIndexStore", "PinRegistry", "ObjectStat", "Layout", "FsyncPolicy",
     "IntegrityError", "InvalidName", "InvalidRef", "LayoutMismatch", "ObjectMissing", "ReadOnly", "StoreFull",
-    "is_ref", "validate_name", "validate_ref",
+    "is_ref", "validate_name", "validate_ref", "can_list_named",
 ]

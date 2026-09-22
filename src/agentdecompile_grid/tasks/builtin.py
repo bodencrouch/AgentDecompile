@@ -146,12 +146,19 @@ class HashObjectKind:
 # --------------------------------------------------------------------------- python-canary
 CANARY_FIXTURES: Mapping[str, str] = {
     # fixture name -> pinned ref of the output object on a conforming interpreter (filled below)
-    "v1": "sha256:102135457634f61ee2c959a694c8e848b83327a4b0e39cb32b880247d187065a",
+    "v1": "sha256:c9e352713c4926d9c21aec9ee5030ce295521e7d2f33b9227cacdffed902f05c",
 }
 
 
 def canary_fixture(name: str) -> bytes:
-    """Deterministic computation exercising ints, IEEE doubles, hashing, unicode and canonical JSON."""
+    """Deterministic computation exercising ints, IEEE doubles, hashing, unicode and canonical JSON.
+
+    ``v1`` is arithmetic-only by design: every float operation is an IEEE-754 *basic* operation
+    (add, divide, sqrt, ldexp — correctly rounded on every conforming platform) or CPython-native
+    (``fsum``, shortest ``repr``), never a libm transcendental (no ``pow``/``exp``/``log``), so the
+    pin proves the interpreter's arithmetic, not the host's libm.  A platform whose doubles differ
+    (x87 double rounding, non-IEEE floats) fails the canary — which is the point.
+    """
     if name != "v1":
         raise Refused(f"unknown-fixture:{name}")
     modulus = (1 << 61) - 1
@@ -164,8 +171,8 @@ def canary_fixture(name: str) -> bytes:
     harmonic = 0.0
     for i in range(1, 1001):
         harmonic += 1.0 / i
-    floats = [repr(harmonic), repr(math.sqrt(2.0)), repr(0.1 + 0.2), repr(1e16 + 1.0), repr(-0.0), repr(2.0 ** -1074),
-              repr(math.fsum(0.1 for _ in range(10)))]
+    floats = [repr(harmonic), repr(math.sqrt(2.0)), repr(0.1 + 0.2), repr(1e16 + 1.0), repr(-0.0), repr(math.ldexp(1.0, -1074)),
+              repr(math.fsum(0.1 for _ in range(10))), repr(1.0 / 3.0), repr(0.1 * 3.0)]
     text = canonical_json({"ü": "ß", "z": [3, 1, 2], "a": {"b": None, "c": True}, "é": "\U0001F600"})
     words = sorted({"pear", "Apple", "apple", "banana", "Äpfel", "zebra", "10", "9", "" }, key=lambda w: (w.casefold(), w))
     payload = {

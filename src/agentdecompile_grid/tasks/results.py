@@ -38,10 +38,10 @@ from typing import Any, Iterator, Mapping
 
 from ..config import TasksConfig
 from ..core import (
-    GRID_SCHEMA_VERSION, NotConfigured, ObjectRef, ObjectStore, Refused, ResultStatus, TaskResult, Verification,
+    GRID_SCHEMA_VERSION, GridError, NotConfigured, ObjectRef, ObjectStore, Refused, ResultStatus, TaskResult, Verification,
     VerificationOutcome, canonical_json,
 )
-from ..objects.base import NamedIndexStore, ObjectMissing, is_ref, validate_name, validate_owner, validate_ref
+from ..objects.base import ObjectMissing, can_list_named, is_ref, validate_name, validate_owner, validate_ref
 
 PROPOSAL_CAP = TasksConfig().proposal_cap      # the configured default (4); pass config= to use a file's value
 RESULTS_PREFIX = "results"
@@ -50,6 +50,10 @@ INDEX_SUFFIX = ".index"
 RESULT_RECORD = "result"
 VERIFICATION_RECORD = "verification"
 INDEX_RECORD = "result-index"
+
+
+class ResultError(GridError):
+    """A result/verification record or name is malformed; the message names the field."""
 
 
 class ProposalCapExceeded(Refused):
@@ -68,7 +72,7 @@ class ProposalCapExceeded(Refused):
 # --------------------------------------------------------------------------- names
 def _task_id(task_id: str) -> str:
     if not isinstance(task_id, str) or len(task_id) != 64 or any(c not in "0123456789abcdef" for c in task_id):
-        raise ValueError(f"task_id must be 64 lowercase hex characters, got {task_id!r}")
+        raise ResultError(f"task_id must be 64 lowercase hex characters, got {task_id!r}")
     return task_id
 
 
@@ -98,7 +102,14 @@ def result_to_record(result: TaskResult) -> dict[str, Any]:
 
 def result_from_record(rec: Mapping[str, Any]) -> TaskResult:
     if rec.get("record", RESULT_RECORD) != RESULT_RECORD:
-        raise ValueError(f"not a result record: record={rec.get('record')!r}")
+        raise ResultError(f"not a result record: record={rec.get('record')!r}")
+    try:
+        return _result_from_record(rec)
+    except (KeyError, ValueError, TypeError) as exc:
+        raise ResultError(f"malformed result record: {type(exc).__name__}: {exc}") from None
+
+
+def _result_from_record(rec: Mapping[str, Any]) -> TaskResult:
     return TaskResult(
         task_id=_task_id(str(rec["task_id"])), status=ResultStatus(rec["status"]),
         outputs={str(k): validate_ref(str(v)) for k, v in sorted(dict(rec.get("outputs", {})).items())},
@@ -117,7 +128,14 @@ def verification_to_record(v: Verification) -> dict[str, Any]:
 
 def verification_from_record(rec: Mapping[str, Any]) -> Verification:
     if rec.get("record", VERIFICATION_RECORD) != VERIFICATION_RECORD:
-        raise ValueError(f"not a verification record: record={rec.get('record')!r}")
+        raise ResultError(f"not a verification record: record={rec.get('record')!r}")
+    try:
+        return _verification_from_record(rec)
+    except (KeyError, ValueError, TypeError) as exc:
+        raise ResultError(f"malformed verification record: {type(exc).__name__}: {exc}") from None
+
+
+def _verification_from_record(rec: Mapping[str, Any]) -> Verification:
     return Verification(task_id=_task_id(str(rec["task_id"])), result_ref=validate_ref(str(rec["result_ref"])),
                         outcome=VerificationOutcome(rec["outcome"]), verifier_key=str(rec["verifier_key"]),
                         method=str(rec.get("method", "")), evidence=dict(rec.get("evidence", {})))
@@ -125,7 +143,7 @@ def verification_from_record(rec: Mapping[str, Any]) -> Verification:
 
 # --------------------------------------------------------------------------- enumeration
 def _can_enumerate(store: ObjectStore) -> bool:
-    return isinstance(store, NamedIndexStore)
+    return can_list_named(store)
 
 
 def _pointers(store: ObjectStore, prefix: str, index_name: str) -> dict[str, ObjectRef]:
@@ -187,7 +205,7 @@ def write_result(store: ObjectStore, result: TaskResult, *, cap: int | None = No
     store cannot enumerate names (the cap cannot be checked there).
     """
     if not result.producer_key:
-        raise ValueError("result.producer_key is empty; stamp it (tasks.registry.stamp/execute) before writing")
+        raise ResultError("result.producer_key is empty; stamp it (tasks.registry.stamp/execute) before writing")
     task_id = _task_id(result.task_id)
     name = result_name(task_id, result.producer_key)
     if not _can_enumerate(store):
@@ -241,7 +259,7 @@ def delete_result(store: ObjectStore, task_id: str, producer_key: str) -> bool:
 # --------------------------------------------------------------------------- verifications
 def write_verification(store: ObjectStore, v: Verification, *, update_index: bool = True) -> ObjectRef:
     if not v.verifier_key:
-        raise ValueError("verification.verifier_key is empty")
+        raise ResultError("verification.verifier_key is empty")
     task_id = _task_id(v.task_id)
     validate_ref(v.result_ref)
     ref = store.put(canonical_json(verification_to_record(v)))
@@ -304,7 +322,7 @@ def describe_task(store: ObjectStore, task_id: str) -> dict[str, Any]:
 
 
 __all__ = [
-    "PROPOSAL_CAP", "RESULTS_PREFIX", "VERIFICATIONS_PREFIX", "INDEX_SUFFIX", "ProposalCapExceeded",
+    "PROPOSAL_CAP", "RESULTS_PREFIX", "VERIFICATIONS_PREFIX", "INDEX_SUFFIX", "ResultError", "ProposalCapExceeded",
     "result_name", "result_index_name", "verification_name", "verification_index_name",
     "result_to_record", "result_from_record", "verification_to_record", "verification_from_record",
     "write_result", "read_result", "results_for", "result_refs", "result_ref_for", "proposal_count",

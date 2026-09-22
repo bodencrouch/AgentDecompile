@@ -37,8 +37,8 @@ from typing import Any, Iterator, Sequence
 
 from ..core import GridError, NotConfigured, ObjectRef, ObjectStore
 from .base import (
-    BaseObjectStore, IntegrityError, NamedIndexStore, ObjectMissing, ReadOnly, describe_store, schema_from_dataclass,
-    validate_ref,
+    BaseObjectStore, IntegrityError, NamedIndexStore, ObjectMissing, ReadOnly, can_list_named, describe_store,
+    schema_from_dataclass, validate_ref,
 )
 
 
@@ -276,18 +276,20 @@ class LayeredStore(BaseObjectStore):
                 return data
         return None
 
+    def can_list_named(self) -> bool:
+        """Whether any layer can enumerate names (a mirror-only stack cannot)."""
+        return any(can_list_named(layer) for layer in self.layers)
+
     def list_named(self, prefix: str = "") -> Iterator[str]:
+        if not self.can_list_named():
+            raise NotConfigured("no layer of this LayeredStore can enumerate named pointers; add a LocalDirStore layer")
         seen: set[str] = set()
-        any_index = False
         for layer in self.layers:
-            if isinstance(layer, NamedIndexStore):
-                any_index = True
+            if can_list_named(layer):
                 try:
                     seen.update(layer.list_named(prefix))
                 except (NotConfigured, OSError):
                     continue
-        if not any_index:
-            raise NotConfigured("no layer of this LayeredStore can enumerate named pointers; add a LocalDirStore layer")
         yield from sorted(seen)
 
     def delete_named(self, name: str) -> bool:
@@ -308,7 +310,7 @@ class LayeredStore(BaseObjectStore):
             "layers": [describe_store(layer) for layer in self.layers],
             "pending": {k: len(v) for k, v in self.pending.items()},
             "pending_named": {k: len(v) for k, v in self.pending_named.items()},
-            "supports": ["read-through", "promote", "named-index" if any(isinstance(l, NamedIndexStore) for l in self.layers) else "named-read"],
+            "supports": ["read-through", "promote", "named-index" if self.can_list_named() else "named-read"],
         })
         return info
 

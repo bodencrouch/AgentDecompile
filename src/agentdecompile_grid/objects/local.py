@@ -198,8 +198,11 @@ class LocalDirStore(BaseObjectStore):
         try:
             with open(self._named_path(name), "rb") as fh:
                 return fh.read()
-        except (FileNotFoundError, IsADirectoryError):
+        except FileNotFoundError:
             return None
+        except IsADirectoryError:
+            raise InvalidName(f"named pointer {name!r} is a directory of other pointers ({name}/<key>); "
+                              f"a per-task summary lives at {name}.index (tasks.results.result_index_name)") from None
 
     # ---- NamedIndexStore ---------------------------------------------------------------------
     def list_named(self, prefix: str = "") -> Iterator[str]:

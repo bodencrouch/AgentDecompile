@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterable, Iterator, Protocol, Sequence, runtime_checkable
 
 from ..core import ObjectRef, ObjectStore, Registry
-from .base import EnumerableStore, NamedIndexStore, ObjectMissing, ObjectStat, PinRegistry, refs_in_document
+from .base import EnumerableStore, ObjectMissing, ObjectStat, PinRegistry, can_list_named, refs_in_document
 
 GC_POLICIES = Registry("gc eviction policy")
 PIN_SOURCES = Registry("gc pin source")
@@ -104,7 +104,7 @@ class NamedPointerPins:
     name = "named-pointers"
 
     def __init__(self, store: ObjectStore, *, depth: int = 2, max_scan_bytes: int = 1_048_576, prefix: str = "") -> None:
-        if not isinstance(store, NamedIndexStore):
+        if not can_list_named(store):
             raise TypeError(f"{type(store).__name__} cannot enumerate named pointers (needs list_named)")
         self.store = store
         self.depth = depth
@@ -189,7 +189,7 @@ for _src in (NamedPointerPins, InFlightPins, StaticPins, CompositePins):
 def default_pin_sources(store: ObjectStore, *, depth: int = 2, max_scan_bytes: int = 1_048_576) -> list[PinSource]:
     """Named-pointer referents plus in-flight pins, for stores that support each."""
     sources: list[PinSource] = []
-    if isinstance(store, NamedIndexStore):
+    if can_list_named(store):
         sources.append(NamedPointerPins(store, depth=depth, max_scan_bytes=max_scan_bytes))
     if isinstance(store, PinRegistry):
         sources.append(InFlightPins(store))

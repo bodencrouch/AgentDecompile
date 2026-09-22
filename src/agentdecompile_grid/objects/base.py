@@ -338,6 +338,14 @@ class NamedIndexStore(Protocol):
     def delete_named(self, name: str) -> bool: ...
 
 
+def can_list_named(store: Any) -> bool:
+    """True when ``store`` can enumerate named pointers *here* (protocol shape and, for composites, a capable layer)."""
+    if not isinstance(store, NamedIndexStore):
+        return False
+    probe = getattr(store, "can_list_named", None)
+    return bool(probe()) if callable(probe) else True
+
+
 @runtime_checkable
 class EnumerableStore(Protocol):
     """A store GC can measure and evict from."""
@@ -518,6 +526,6 @@ __all__ = [
     "validate_ref", "is_ref", "ref_prefix_hex", "validate_name", "validate_owner",
     "FsyncPolicy", "shard_parts", "object_relpath", "Layout",
     "fsync_path", "atomic_write_once", "atomic_replace", "is_temp_name", "ExclusiveFileLock",
-    "ObjectStat", "NamedIndexStore", "EnumerableStore", "PinRegistry",
+    "ObjectStat", "NamedIndexStore", "EnumerableStore", "PinRegistry", "can_list_named",
     "refs_in_document", "schema_from_dataclass", "BaseObjectStore", "describe_store",
 ]

@@ -7,9 +7,25 @@ iteration order, resumability, and the receipts.
 
 Receipts: one JSON file per (pass, binary) under ``receipts_dir/<pass>/``.
 The file name and the ``key`` inside it come from the raw image's own
-sha256 when the image exists, and from the slug when it does not. Nothing
-in a receipt is clock-derived, so a re-run over unchanged inputs writes
-identical bytes -- and with ``resume=True`` does not write at all.
+sha256 when the image exists (the stored ``content_sha256`` for a pass that
+does not read the image), and from ``slug-<sha256(slug)[:12]>`` when there is
+no hash. Nothing in a receipt is clock-derived, so a re-run over unchanged
+inputs writes identical bytes -- and with ``resume=True`` does not write at
+all.
+
+No slug reaches a receipt after this commit. ``body["binary"]`` carries the
+row's ``identity`` (the same value as the key), ``repo_path_sha12`` and the
+non-name columns (``format``, ``arch``, ``bits``, ``md5``,
+``analyzer_version``, ``basis_hash``); never ``slug``, ``repo_path``, ``game``
+or the row id. The raw image's path (which spells the repo path) is reduced
+to ``raw_image_present``.
+
+Legacy receipts are resumed once and rewritten: a hashless row's old file
+(``slug-<sanitized slug>.json`` keyed by the raw slug, found through
+``_legacy_receipt_path``) is rewritten at the new stem and the old file is
+removed; a hashed row's old-shape body at the unchanged stem is rewritten in
+place. Either way the ``result`` is carried over verbatim and only the fields
+around it are renamed. One-way; nothing reads the old shape after that.
 """
 
 from __future__ import annotations
@@ -101,20 +117,44 @@ PASSES: dict[str, BackfillPass] = {
 
 
 _SAFE = re.compile(r"[^A-Za-z0-9._-]")
+_HEX64 = re.compile(r"[0-9a-f]{64}")
+_RECEIPT_COLUMNS = ("format", "arch", "bits", "md5", "analyzer_version", "basis_hash")
 
 
-def _receipt_path(receipts_dir: Path, pass_name: str, identity: str) -> Path:
-    stem = identity if re.fullmatch(r"[0-9a-f]{64}", identity) else "slug-" + _SAFE.sub("_", identity)
-    return receipts_dir / pass_name / f"{stem}.json"
+def _sha12(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:12]
 
 
-def _entry_identity(identity: str, slug: str) -> str:
-    """The summary's name for one binary: the content sha256 when that is
-    the identity, else ``slug-<sha256(slug)[:12]>``. The summary goes to a
-    verb's stdout, so it never carries a slug or a row id."""
-    if re.fullmatch(r"[0-9a-f]{64}", identity):
+def _receipt_identity(identity: str, slug: str) -> str:
+    """The name a binary goes by in a receipt, its file name and the summary:
+    the content sha256 when that is the identity, else ``slug-<sha256(slug)[:12]>``.
+    The summary goes to a verb's stdout, so it never carries a slug or a row id."""
+    if _HEX64.fullmatch(identity):
         return identity
-    return "slug-" + hashlib.sha256(slug.encode("utf-8")).hexdigest()[:12]
+    return "slug-" + _sha12(slug)
+
+
+_entry_identity = _receipt_identity
+
+
+def _receipt_path(receipts_dir: Path, pass_name: str, receipt_identity: str) -> Path:
+    """``<receipts_dir>/<pass>/<receipt identity>.json``; the stem is a hash either way."""
+    return receipts_dir / pass_name / f"{receipt_identity}.json"
+
+
+def _legacy_receipt_path(receipts_dir: Path, pass_name: str, slug: str) -> Path:
+    """Where a hashless row's receipt lived before the stem was hashed (``slug-<sanitized slug>``).
+    Read for resume only; nothing writes here."""
+    return receipts_dir / pass_name / f"slug-{_SAFE.sub('_', slug)}.json"
+
+
+def _binary_block(row: dict, receipt_identity: str) -> dict:
+    """``body["binary"]``: identity, hashed repo path and the non-name columns. No slug, repo path, game or id."""
+    repo_path = str(row.get("repo_path") or "")
+    block = {"identity": receipt_identity, "repo_path_sha12": _sha12(repo_path) if repo_path else None}
+    for column in _RECEIPT_COLUMNS:
+        block[column] = row.get(column)
+    return block
 
 
 def _raw_image(
@@ -166,6 +206,45 @@ def _dump(obj: dict) -> bytes:
     return (json.dumps(obj, sort_keys=True, indent=2) + "\n").encode("utf-8")
 
 
+def _load_receipt(path: Path) -> dict | None:
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _body(key: dict, row: dict, receipt_identity: str, *, raw_present: bool, result: dict) -> dict:
+    """One receipt's content. Every field is a hash, a column value or the derived result."""
+    return {
+        "key": key,
+        "binary": _binary_block(row, receipt_identity),
+        "raw_image_present": bool(raw_present),
+        "result": dict(result),
+    }
+
+
+def _current_shape(existing: dict) -> bool:
+    """Whether a receipt on disk already has this commit's body (no slug, no repo path, no raw image path)."""
+    binary = existing.get("binary")
+    return (
+        isinstance(binary, dict) and "identity" in binary and "slug" not in binary and "repo_path" not in binary
+        and "raw_image" not in existing
+    )
+
+
+def _migrated(existing: dict, key: dict, row: dict, receipt_identity: str) -> dict:
+    """An old-shape receipt rewritten under this commit's shape: same ``result``, renamed fields.
+    Old bodies carried the raw image's path (or ``None``); only its presence survives."""
+    if "raw_image_present" in existing:
+        raw_present = bool(existing["raw_image_present"])
+    else:
+        raw_present = existing.get("raw_image") is not None
+    return _body(key, row, receipt_identity, raw_present=raw_present, result=existing.get("result") or {})
+
+
 def run(
     con: sqlite3.Connection,
     passes: list[str],
@@ -175,10 +254,11 @@ def run(
 ) -> dict:
     """Run *passes* over every binary in id order. Returns a summary.
 
-    Per (pass, binary): a receipt keyed by the raw image's sha256 (or the
-    slug when there is no image). With ``resume=True`` a pair whose receipt
-    already exists with a matching key is counted as ``resumed`` and not
-    re-run. A missing raw image is ``skipped`` with reason ``no_raw_image``,
+    Per (pass, binary): a receipt keyed by the raw image's sha256 (or
+    ``slug-<sha12>`` when there is no image). With ``resume=True`` a pair whose
+    receipt already exists with a matching key is counted as ``resumed`` and not
+    re-run; a legacy receipt under the old slug stem is migrated to the new
+    stem on resume. A missing raw image is ``skipped`` with reason ``no_raw_image``,
     never an exception. The database write for a pair is committed before
     its receipt is written, so a receipt always implies a committed row.
     """
@@ -217,27 +297,40 @@ def _run_pass(
         binary_id = int(row["id"])
         slug = str(row.get("slug") or binary_id)
         if step.needs_raw_image:
-            raw_path, raw = _raw_image(str(row.get("repo_path") or ""), con, slug)
+            _, raw = _raw_image(str(row.get("repo_path") or ""), con, slug)
             identity = hashlib.sha256(raw).hexdigest() if raw is not None else slug
         else:
             # A pass that does not read the image must not pay for resolving
             # it (a resolver may boot the analyzer): its receipt is keyed by
             # the stored content hash, else the slug (3b report; H14).
-            raw_path, raw = Path(""), None
+            raw = None
             stored = str(row.get("content_sha256") or "").strip()
             identity = stored if stored else slug
-        key = {"pass": step.name, "identity": identity}
-        receipt = _receipt_path(receipts_dir, step.name, identity)
+        receipt_identity = _receipt_identity(identity, slug)
+        key = {"pass": step.name, "identity": receipt_identity}
+        receipt = _receipt_path(receipts_dir, step.name, receipt_identity)
 
-        if resume and receipt.is_file():
-            try:
-                existing = json.loads(receipt.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                existing = None
+        if resume:
+            existing = _load_receipt(receipt)
             if isinstance(existing, dict) and existing.get("key") == key:
+                if not _current_shape(existing):
+                    # Same stem, old body (a hashed row receipted before this commit):
+                    # rewrite in place so the slug leaves the file.
+                    receipt.write_bytes(_dump(_migrated(existing, key, row, receipt_identity)))
                 counts["resumed"] += 1
-                entries.append({"identity": _entry_identity(identity, slug), "status": "resumed"})
+                entries.append({"identity": receipt_identity, "status": "resumed"})
                 continue
+            if receipt_identity != identity:
+                legacy = _legacy_receipt_path(receipts_dir, step.name, slug)
+                existing = _load_receipt(legacy) if legacy != receipt else None
+                if isinstance(existing, dict) and existing.get("key") == {"pass": step.name, "identity": identity}:
+                    # One-way migration: same result, renamed fields, hashed stem; the old file goes.
+                    receipt.parent.mkdir(parents=True, exist_ok=True)
+                    receipt.write_bytes(_dump(_migrated(existing, key, row, receipt_identity)))
+                    legacy.unlink()
+                    counts["resumed"] += 1
+                    entries.append({"identity": receipt_identity, "status": "resumed"})
+                    continue
 
         if raw is None and step.needs_raw_image:
             result = {"status": "skipped", "reason": "no_raw_image"}
@@ -248,16 +341,12 @@ def _run_pass(
 
         # The receipt records what was derived, not whether this run had
         # to write it: the same inputs always produce the same bytes.
-        body = {
-            "key": key,
-            "binary": {"id": binary_id, "slug": slug, "repo_path": row.get("repo_path")},
-            "raw_image": str(raw_path) if raw is not None else None,
-            "result": {k: v for k, v in result.items() if k != "status"},
-        }
+        body = _body(key, row, receipt_identity, raw_present=raw is not None,
+                     result={k: v for k, v in result.items() if k != "status"})
         receipt.parent.mkdir(parents=True, exist_ok=True)
         receipt.write_bytes(_dump(body))
         counts[status] = counts.get(status, 0) + 1
-        entry = {"identity": _entry_identity(identity, slug), "status": status}
+        entry = {"identity": receipt_identity, "status": status}
         if "reason" in result:
             entry["reason"] = result["reason"]
         entries.append(entry)

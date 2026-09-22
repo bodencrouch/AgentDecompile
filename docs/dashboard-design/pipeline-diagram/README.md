@@ -1,7 +1,7 @@
 # Recovery pipeline diagram (local, editable)
 
 One picture of everything the recovery pipeline is designed to do: the eight ordered
-stages, the four lanes that run concurrently beside them, the exhaustive resolution
+stages, the five lanes that run concurrently beside them (identity fusion, cross-build export, runtime reuse, verification, distributed compute), the exhaustive resolution
 ladders, the serialization locks, the export bundle, and the legend.
 
 | File | What it is |

@@ -2,14 +2,14 @@
 """Generate the AgentDecompile recovery-pipeline diagram as a Figma-importable SVG.
 
 Design rules (see chat): left->right = dependency order; vertical stacking = concurrency;
-five colour families; every stage card answers try / how / in->out / gate; locks mark the
+five colour families; five concurrent lanes (A–E); every stage card answers try / how / in->out / gate; locks mark the
 only true serialisation points; dashed = failover; ladders = fallback stacks.
 No product, binary or project names anywhere.
 """
 from __future__ import annotations
 import html
 
-W, H = 4400, 2684
+W, H = 4400, 2990  # Lane E added 2026-09-22: +42 + 248 + 16
 out: list[str] = []
 
 # ---- palette (graphite, restrained) ----
@@ -130,8 +130,8 @@ lines(2712, 64, ["1. Follow the top row left→right: that is the order things m
                   "2. Everything inside the bracket runs at the same time as that row — the only waits are the five locks.",
                   "3. When a lookup fails, read down its ladder; the bottom band is what you actually get."], 11.5, INK, 16)
 text(40, 108, "The bar: a level above conventional RE tools. They end at analysis a human must work with; this ends at usable exports — "
-text(40, 128, "Runs on a laptop; scales by concurrency, then by donated idle compute and free cloud nodes; every task miniature and non-blocking; working state concurrent and network-capable — a single stateful device is never the coordination point.", 12.5, MUTED, italic=True)
               "packs, generated bindings, headers, readiness reports — ready to go.", 14, FAM["unify"][1], italic=True)
+text(40, 128, "Runs on a laptop; scales by concurrency, then by donated idle compute and free cloud nodes; every task miniature and non-blocking; working state concurrent and network-capable — a single stateful device is never the coordination point.", 12.5, MUTED, italic=True)
 
 out.append('<!--SEC:Row 0 - intake and the 8-stage ladder-->')
 # ================================================================== ROW 0: intake + 8 stages
@@ -401,6 +401,33 @@ y = lane(y, "verify", "LANE D · Verification & determinism — same inputs → 
                      "two pass/fail gates in CI: export byte-diff and the cascade harness",
                      "content-addressed receipts → identical-basis re-runs are cache hits",
                      "basis change → deliberate re-baseline with a recorded supersession, never silent drift"], lch=248)
+
+# Lane E — distributed compute (agentdecompile_grid)
+y = lane(y, "xcut", "LANE E · Distributed compute (agentdecompile_grid) — laptop → concurrency → donated idle compute and free cloud nodes",
+         "content-addressed objects · per-partition logs · every result a proposal · capability by canary, never by role · SQLite as a materialized view",
+         connects="wraps every stage and lane · one-command join · fleet of free cloud nodes", cards_=[
+          ("", "Objects & logs", ["Working state that is never one stateful device:", "content-addressed, log-structured, network-capable."],
+           ["sha256 objects, write-once (If-None-Match / atomic rename)", "per-partition append-only logs of signed, chained records", "heads = one CAS pointer per partition; rebuilt by chain scan", "adapters: local · S3-compatible · static mirror · peer HTTP", "compaction: signed checkpoints; peers prune below them"],
+           ["in: inputs, sources, objects, receipts", "out: immutable objects + verifiable partition chains"], "write-once; chain verifies offline", "substrate"),
+          ("", "Tasks & frontier", ["Every job miniature, addressable, resumable anywhere;", "done = the result object exists."],
+           ["task_id = sha256(kind, version, inputs, params, basis projection)", "frontier = pure function of the log (no scheduler, no broker)", "intents are advisory TTL hints; a lost lease wastes compute only", "kill deadline per kind → result-timeout record; 3 → task-poison", "a basis field change re-keys only the kinds that consume it"],
+           ["in: partition chain + checkpoint index", "out: offered tasks · result objects · timeout records"], "basis projection admitted", "never awaited"),
+          ("", "Join (one command)", ["Any machine, one verb: laptop, donated idle box,", "free cloud node, browser tab."],
+           ["attach-first: find the running local agent, never a second start", "canaries prove capability: python · parity · toolchain · analyzer", "capability decides lanes and fetches — a role never does", "roles decide only mirrors + who signs invites / verifies / applies", "outbound HTTPS only; no inbound port; --idle-only, --cores N"],
+           ["in: invite URL + what the node can prove", "out: lanes offered by canary; inputs fetched by task"], "canary hash = pinned value", "capability-only"),
+          ("", "Verify (every result a proposal)", ["Trust the hash, never the key — fleet nodes included."],
+           ["result-proposed → verified only by an independent key", "recompute or hash-lookup; byte-exact = recompile + parity", "no quorum, no credit, no reputation; a liar wastes ≤ 4 verifies", "donated .obj / .bin never evidence (byte-emitter refuted)", "verification ordered before generation (no livelock)"],
+           ["in: proposals from any key", "out: result-verified / result-refuted records"], "independent key, different lineage", "H8"),
+          ("", "Views (SQLite as a materialized view)", ["The corpus store and the similarity index are replays of", "verified records: deletable, rebuildable, never locked by work."],
+           ["one applier per view; bounded transactions; ack after commit", "identity / logical / match / knowledge / receipts from deltas", "view-stale is a named state with an age (H11), never a stall", "no worker ever opens a view for writing (H1 by construction)", "adgrid view materialize rebuilds from record 1"],
+           ["in: result-verified records", "out: grid_* tables · similarity index · receipts"], "materialize twice → identical dump", "H1 / H11"),
+          ("", "Fleet (free cloud nodes)", ["The operator never depends on volunteers: rented", "free-tier nodes join with the same command in cloud-init."],
+           ["adgrid fleet up / down / status / replace; manifest as objects", "providers: manual · ssh · declared cloud adapters", "lane placement by canary, never by tier or role", "fleet keys sign invites, verify, apply — no laptop SPOF (H13)", "preemptible by design: advisory intents; loss stalls, never loses"],
+           ["in: provider credentials via the secret path; an invite", "out: nodes that joined; fleet manifest objects"], "user-data = the join command only", "no operator SPOF"),
+         ], outputs=["one package (CLI adgrid) reusable for any CPU/IO-heavy work; the pipeline's lanes are adapters over it",
+                     "landed as a walking skeleton (U120–U124); integrator U125 next; adapters as units (plan Phase 15)",
+                     "every stage runs as grid tasks: compile / parity / decompile / cascade / export lanes, each a proposal",
+                     "the corpus store and the similarity index become views; hangs are named timeouts; nothing donated writes identity"], lch=248)
 
 _tail = out[_bracket_at:]; del out[_bracket_at:]
 concurrency_bracket(30, Y1, y - 16, "RUNS CONCURRENTLY WITH STAGES 1–8 (where ownership permits)")

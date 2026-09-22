@@ -4,7 +4,7 @@ type: feat
 date: 2026-09-21
 extends: the 2026-09-08 portable-signatures export plan (docs/plans/2026-09-08-0225-*; rename that file to drop its product token under U21)
 authority: STRATEGY.md (recovery ordering) · VISION.md (engine-agnostic) · RUNTIME_REUSE.md (integration contract)
-status: implementation-ready plan, audits 2 and 3 applied; Step 0, Phase 0 (D1–D7), U5c, U7/U7b, U22, U1–U3/U1b landed on feat/portable-signatures-codecaves-generic (b271ba6)
+status: implementation-ready plan, audits 2, 3 and 4 applied; Step 0, Phase 0 (D1–D7), U5c, U7/U7b, U22, U1–U3/U1b, 3b, D8/D9, R3, hotfixes A1/A2/A3/A5 and the Phase 15 grid skeleton U120–U124 landed on feat/portable-signatures-codecaves-generic (a4e4aca)
 ---
 
 # Portable Signatures, Codecaves, and ABI Export — engine-generic
@@ -15,6 +15,11 @@ status: implementation-ready plan, audits 2 and 3 applied; Step 0, Phase 0 (D1�
   docs/plans/2026-09-21-plan-audit-2.md
 - 2026-09-21 — audit 3 (design vs plan, grill 6): surface ownership, Phase 14 surfaces,
   U28x attestation, no-Start supersession; see docs/plans/2026-09-21-plan-audit-3.md
+- 2026-09-22 — audit 4 (round 5, distributed design) + licensing strip + Phase 15
+  walking-skeleton order: round-5 amendments A2/A3/A5/A6 applied to the design, every
+  licensing passage removed (capability-only access), Phase 15 (`agentdecompile_grid`)
+  inserted in the order it was built, register "Distributed compute" section, diagram
+  Lane E; see docs/plans/2026-09-21-plan-audit-4.md
 
 Goal (user, 2026-09-21): make the recovery pipeline (1) generate a **portable
 signature for every cross-build entity** — functions first, but equally globals,
@@ -31,18 +36,25 @@ project name appears anywhere in this design; targets are described only by clas
 (format × architecture × toolchain × engine-adapter).**
 
 
-### Delta Update (2026-09-21, after the 3b/U21c wave)
-- **Landed:** Step 0 `0256ca0`; Phase 0 D1–D7 + U5c (`16f0823`…`8d2c041`, `5225722`, `559dc46`); U7/U7b `f935db7`;
-  U22 `f5f6a88`; U1–U3 + U1b `b58a2e1`/`b271ba6`; U21c `0191303`; 3b basis hardening `5bf8a11`
-  (basis v2 store-derived, `PENDING_FIELDS`, migration 2, `analyzer_identity` backfill, `BasisError`, exit 2).
-- **Partial:** D8/D9 + harness (o) in flight (`unit/d8d9-harness`); the U5c(b) build-order shuffle is not
-  yet in the gate; `export-hookpack` on an empty store now refuses (basis needs one stamped row) — settle by
-  attestation on the real corpus (running). U25 is now load-bearing: any package-constant change or a
-  `PENDING_FIELDS` removal makes every stamped store refuse with "re-baseline", and only a U25 verb can
-  re-stamp — **U25 moves to order step 3d, immediately after 3b** (hindsight, charter §4).
-- **Next:** R3 (`upsert_binary` must never clear a stored `content_sha256`), R1 (repo off the USB drive),
-  U28x attest verb, U104 verb admission flags (H5), U21a/U21b scrub, U19a. Receipt keys for backfill passes
-  with `needs_raw_image=False` must not read the raw image (perf; from the 3b report).
+### Delta Update (2026-09-22, audit 4 — round 5 on the distributed design; grid skeleton landed)
+- **Landed:** the Phase 15 grid skeleton by parallel builders — U120 `d8447f6`, U121 `b147f99` (`7cc0b63`,
+  `c575411`), U122 `95e8428` (`515fd47`), U123 `eecfcaf`/`85784cc`, U124 `8eb5202`/`a4e4aca`; hotfixes
+  A1/A2/A3/A5 `a501e9d` (`fc638c4`, `be7ff81`, `79c2420`); R3 `40d50ce` (`6d95a40`); D8/D9 + harness (o)
+  `24b3050`/`a4095ba` (observed on the branch; the previous delta had them in flight). Docs: the distributed
+  design amended (round 5 A2/A3/A5/A6; licensing reasoning removed; §7.5/§8 restated for the walking
+  skeleton), Phase 15 in this plan, the register's "Distributed compute" section, Lane E on the diagram.
+  Earlier waves: Step 0 `0256ca0`; Phase 0 D1–D7 + U5c; U7/U7b `f935db7`; U22 `f5f6a88`; U1–U3 + U1b
+  `b271ba6`; U21c `0191303`; 3b `5bf8a11`.
+- **Partial:** U124 landed while the audit-4 brief still listed it in flight — its report is reconciled
+  against the other slices only in U125 (names, entry-point group, tag vocabulary); round-4 survivors
+  F1–F9/D1–D14 are recorded in the loop journal but not yet applied to the plan; the foundations audit is
+  pending resume; the A2.2 slice-convergence spike and O2 are unmeasured until U131 files receipts; the
+  U5c(b) build-order shuffle is still not in the gate; `src/agentdecompile_cli/_version.py` carries an
+  uncommitted local change of unknown origin (leave it to its owner).
+- **Next:** U125 integrator (one "grid of one" cycle: publish → work → verify → materialize), A4
+  real-corpus admission, U28x attest verb, 3d U25 re-baseline verb, R1 (repo off the USB drive), U104
+  admission flags (H5), U21a/U21b scrub, U19a; then the grid adapters in Phase 15 order (U158, U126,
+  U159–U162, U132, U163–U165 first) interleaved with the remaining phases.
 
 
 ## Program thesis (recorded 2026-09-21 from the user's own words; migrates to STRATEGY.md at convergence)
@@ -1513,9 +1525,11 @@ mode a primary source documents.
   decompiler timeout, or persist per-function `timed_out` as data under the basis —
   never let a wall-clock cutoff silently shape a persisted prototype.
 - **U66. Content-addressed receipts** (required — grill 6: the draw-the-work replay has
-  nothing to replay without it). Key every receipt by `hash(inputs + basis)` so an
-  identical-basis re-run is a cache hit, not a recompute (Bazel action-cache model); this
-  is also the cheapest possible determinism check. Receipts carry
+  nothing to replay without it). Key every receipt by `hash(inputs + basis)` — `basis`
+  read as the kind's declared basis projection (design §2.8; U158), so an identical-basis
+  re-run is a cache hit, not a recompute (Bazel action-cache model), and a change to a
+  basis field the kind does not consume is a cache hit too; the receipt still carries the
+  full `basis_hash`. This is also the cheapest possible determinism check. Receipts carry
   `{stable_key, build, operation, member, outcome}` so both surfaces can replay them
   (CDP §6.1; U110). Acceptance: a recorded backfill replays identically on both surfaces.
 
@@ -1930,6 +1944,229 @@ is an override, so its starvation (H3) delays overrides and never coverage.
   `AtlasApp.tsx:579` and `workbench-app.js:989`) are renamed under U21a/U21b rules.
   Acceptance: the name gate returns 0 in `--strict` mode over those two trees.
 
+### Phase 15 — Distributed compute (`agentdecompile_grid`; design: docs/plans/2026-09-21-distributed-compute-design.md)
+Walking-skeleton order (charter §6c): a thin end-to-end path through every layer landed
+first — one working implementation per layer, every other adapter declared by name with a
+named refusal — and each unit after U125 turns one declared adapter, canary, provider or
+lane into a working one behind the interface the skeleton fixed. Effort is agent-hours; the
+design's former 170-engineer-day figure is a human-team estimate, not the plan. Access is
+by capability only: a node that proves a capability by canary is offered the lanes that
+capability serves and fetches the input objects those tasks name; a role decides what a
+node mirrors and whether its key may sign invites, run verifiers or run appliers — nothing
+else. Every result from every node is a proposal until an independent key verifies it; the
+corpus SQLite store and the similarity index are materialized views of verified records;
+no worker ever holds their write lock (H1 by construction). Every task has a kill deadline
+(H2) and a task id `sha256(canonical(kind, kind_version, inputs, params, basis projection))`.
+Acceptance tests are named, never written (charter §6b). The design's §8 keeps its own unit
+ids as the detailed specification; read them through this map:
+
+| Design §8 id | This phase | Note |
+|---|---|---|
+| U120 slim distribution + skeleton | U120 | same |
+| U121 object store adapters | U121; U159/U160/U161 for the declared adapters | local working; s3, static mirror, peer, layered declared |
+| U122 logs, heads, frontier, outbox | U122 | same |
+| U123 compaction snapshots | U122; U170 for pruning policies | absorbed |
+| U124 worker runtime | U124; U166 container sandbox; U158 basis projection | absorbed |
+| U125 join, attach-first, canaries | U124; U163/U164/U165 for the canaries | **U125 here is the integrator pass** |
+| U126 roles, keys, invites, revocation, rate limits | U126 | same content |
+| U127 verifier loop, independent keys, caps | U124 | absorbed; its named tests stay with U124/U156 |
+| U128 view materialisation, appliers | U123; U169 similarity applier | absorbed |
+| U129 fleet bootstrap | U129 | same content; `manual`/`ssh` already in U124 |
+| U130–U157 | same ids | U143 and U150 retitled as delta binders |
+| — | U158, U162, U167, U168, U169, U170 | new here (no design id) |
+
+**15.0 Skeleton — landed by parallel builders (2026-09-22)**
+- **U120. Contract ✔** (`d8447f6`). `src/agentdecompile_grid/{core,__init__}.py`, packaging
+  (second distribution `agentdecompile-grid`, `adgrid` entry point, no analyzer bindings, no
+  dashboard): Protocols for every layer (object store, log, heads, signer, transport,
+  provider, canary, task kind, view applier), records, task ids, registries with declared
+  slots, named errors. Acceptance (named): `test_grid_never_imports_recovery`,
+  `test_cli_no_recovery_import`, `test_cli_describe_lists_every_registry`,
+  `test_cli_every_error_is_named_and_coded`.
+- **U121. Objects + tasks + config ✔** (`b147f99`; `7cc0b63`, `c575411`).
+  `objects/{base,local,s3,static,peer,layered,gc}.py` (local working; s3, static-mirror,
+  peer, layered declared or working as their docstrings state), GC with pin-then-verify and
+  a named refusal at the cap (R2), `config.py` (`GridConfig`, TOML then env),
+  `tasks/{spec,registry,results,budget,builtin}.py` (canonical specs, per-producer result
+  pointers `results/<task_id>/<producer>` + `results/<task_id>.index`, kinds `hash-object`,
+  `python-canary`, `subprocess-verb`). Acceptance (named):
+  `test_local_put_get_roundtrip_and_idempotent_put`, `test_store_full_named_error_at_cap`,
+  `test_gc_never_evicts_named_referents_or_their_outputs`,
+  `test_task_id_stable_across_param_key_order_and_input_order`,
+  `test_proposal_cap_refuses_fifth_producer_by_name_and_same_producer_rewrites`,
+  `test_subprocess_verb_timeout_is_status_timeout_and_kills_process_group`,
+  `test_config_rejects_unknown_key_by_name`.
+- **U122. Log + heads + frontier + signing + compaction ✔** (`95e8428`; `515fd47`).
+  `log/{records,local,heads,backoff,intents,frontier,compaction,signing,outbox,s3,http}.py`:
+  hash-chained signed records, `LocalFileLog`, `LocalFileHeads` CAS with sub-partitions,
+  seeded backoff with rotation, advisory fenced intents, pure `frontier.derive`, bounded
+  checkpoints and prune, signers null/hmac/ed25519 (ed25519 declared), `Appender`/`Outbox`.
+  Acceptance (named in `log/README.md`): U122 (a)–(e), heads-cas, heads-fork,
+  backoff-rotation, outbox-batch, frontier-cap, frontier-order, intents-fence,
+  compaction-idempotent, compaction-prune-guard, signing-roundtrip.
+- **U123. View + pipeline lanes + CLI ✔** (`95e8428`; content at `eecfcaf`, `85784cc`).
+  `view/{applier,similarity}.py` (`SQLiteViewApplier` replays verified records only into
+  `grid_*` tables with position tracking and `materialize`; similarity applier declared),
+  `src/agentdecompile_recovery/grid_lanes/{verbs,compile,parity,cascade,analysis,splitter}.py`
+  (corpus verbs via `subprocess-verb`, `compile-attempt`, `parity-check`,
+  `match-score-shard`, declared analysis kinds, `splitter.plan_tasks` with the
+  never-awaited rule), `cli.py` (`adgrid` with named exit codes). Acceptance (named):
+  `test_view_materialize_twice_identical_dump`, `test_view_no_worker_opens_view_for_writing`,
+  `test_view_stale_under_foreign_lock` (H1), `test_match_shard_equals_monolithic_scores`,
+  `test_compile_masked_coff_equal_across_timestamps`, `test_parity_sides_named`,
+  `test_plan_no_slug_in_any_spec`, `test_cli_publish_refuses_foreign_basis`.
+- **U124. Worker + verify + fleet + transport ✔** (`8eb5202`, `a4e4aca`; the audit-4 brief
+  listed it in flight — the branch carries it; the builder's report is reconciled in U125).
+  `worker/{agent,loop,canaries,identity,outbox,records,sandbox}.py` (attach-first join,
+  `EADDRINUSE` = already owned; canaries incl. `python-canary`; work loop with kill
+  deadlines; outbox), `verify/{loop,methods,policy}.py` (independent-key verifier,
+  hash-lookup and recompute methods, proposal caps), `fleet/{cloudinit,manifest,providers}.py`
+  (`manual`, `ssh` working; `oci`, `hetzner`, `aws`, `gcp` declared; cloud-init rendering),
+  `transport/{local,https,peer}.py` (`LocalTransport` working; https and peer declared).
+  Acceptance (named): `test_join_attaches_to_running_agent`,
+  `test_eaddrinuse_is_already_owned`, `test_sleep_forever_is_killed_at_deadline`,
+  `test_three_independent_timeouts_poison`, `test_killed_child_leaves_no_partial_result`,
+  `test_never_self_verifies`, `test_byte_emitter_refuted`, `test_two_lineages_asserted`,
+  `test_user_data_single_step`, `test_outbox_survives_restart`, `test_idle_only_admission`.
+- **U125. Integrator pass.** Reconcile the names each slice assumed against what landed:
+  `objects.open_store`; `tasks.registry.execute`/`stamp`; `tasks.results.*` and
+  `results/<task_id>.index`; `PythonCanary` registration in `core.CANARIES`;
+  `log.frontier.derive` as used by `publish`; the VERIFIED body = `Verification` field names;
+  `put_path`/`get_path` streaming on every store; the lane entry-point group (`grid_lanes`
+  assumed `agentdecompile_grid.lanes`, `tasks.registry` discovers
+  `agentdecompile_grid.task_kinds`); the object tag vocabulary (the lane classes tag outputs
+  `public`/`restricted` — the tag is a mirror class `record`/`image`/`toolchain` and no code
+  path may read it as a permission; rename). Then one end-to-end "grid of one" cycle on a
+  laptop: `adgrid publish` from a store snapshot → `adgrid join` (attach-first) works the
+  frontier → a verifier under a second key verifies → `adgrid view materialize` reproduces
+  the rows; a documented walkthrough under `docs/` (generic names only). Acceptance (named):
+  `test_grid_of_one_cycle_publish_work_verify_materialize`,
+  `test_every_assumed_name_resolves` (one import per reconciled name),
+  `test_cli_join_attaches_never_starts`.
+
+**15.1 Adapters — each unit turns a declared adapter into a working one (listed in the order
+of the interfaces they unblock; interleaved with Phases 2–14 per the Recommended order)**
+- **U158. Basis projection per kind** (`tasks/registry.py`, `core.py`): `basis_fields(kind)`
+  declared per kind as basis field paths (the basis object above is the vocabulary),
+  `basis_projection(kind)` inside the task id, the full `basis_hash` on every record;
+  publish, verify and consume refuse on a projection mismatch by name (design §2.8 table;
+  never redo completed work). Acceptance: `test_basis_projection_declared_for_every_kind`,
+  `test_pin_policy_change_leaves_compile_ids`,
+  `test_toolchain_change_rekeys_only_compile_kinds`.
+- **U126. Ed25519 as the default signer; invites, revocation, rate limits**
+  (`log/signing.py` ed25519 working; `worker/identity.py`): invites signed by operator or
+  fleet keys, a revocation-list object any fleet key may extend, per-key rate limits, 7-day
+  key lifetime renewed after a canary re-run, the two-lineage invariant asserted.
+  Acceptance: `test_ed25519_default_signer_roundtrip`, `test_invite_roles`,
+  `test_revoked_key_ignored`, `test_rate_limit_65th_record`, `test_key_lifetime`.
+- **U159. S3-compatible objects, log and heads with conditional PUT** (`objects/s3.py`,
+  `log/s3.py`; heads by `If-Match`; design Q1, register R13). Acceptance:
+  `test_s3_conditional_put_is_noop_on_existing`, `test_s3_heads_cas_conflict_named`,
+  `test_heads_rebuilt_by_chain_scan_equal_live`.
+- **U160. Static mirror index + rsync** (`objects/static.py`; index publication; refresh).
+  Acceptance: `test_mirror_list_reads_published_index_and_names_missing_index`,
+  `test_mirror_put_is_read_only_by_name`.
+- **U161. Peer HTTP read endpoint** (`objects/peer.py`, `transport/peer.py`; fleet nodes as
+  mirrors, design §6.1). Acceptance: `test_peer_reads_verify_and_list_uses_json_endpoint`,
+  `test_peer_put_refused_unless_allow_put`, `test_peer_token_never_in_describe`.
+- **U162. HTTPS outbound-only transport with presigned write-once PUT** (`transport/https.py`;
+  size-capped, scoped to the expected output hash; the head CAS is the only live RPC; no
+  inbound port on any node). Acceptance: `test_https_presigned_put_is_write_once`,
+  `test_https_no_inbound_port_required`, `test_cas_contention_backoff`.
+- **U132. Toolchain manifest identity** (`grid_lanes/toolchain.py`,
+  `source_parity_synthesize.py:21705-21722`, `source_plugin_runner.py:369-394`):
+  `toolchain_identity_hash` = sha256 of the sorted (relative path, content hash) pairs of a
+  declared manifest — no host state, no install path, no file times; the canary fingerprint
+  stays outside the identity. Acceptance: `test_toolchain_identity_path_and_mtime_free`,
+  `test_toolchain_identity_ignores_files_outside_manifest`,
+  `test_toolchain_identity_changes_on_one_manifest_byte`.
+- **U163. Toolchain canary** (`worker/canaries.py`, `grid_lanes/compile.py`): declared
+  manifest hash + probe TU compiled and masked-COFF-hashed against the pinned value;
+  persistent wineserver probe; per-node concurrency cap measured; a fetched toolchain
+  object passes the same canary as an owned install. Acceptance:
+  `test_toolchain_canary_pins_masked_coff`,
+  `test_toolchain_canary_mismatch_refuses_lane_by_name`.
+- **U164. Analyzer canary**: a fixture packed program opened headless, function-inventory
+  hash equal to the pinned value; owned install or fetched bundle. Acceptance:
+  `test_analyzer_canary_pins_inventory_hash`, `test_capability_only_after_pin`.
+- **U165. Parity canary**: hash-pinned checker binary + fixture pair yielding the pinned
+  receipt; `objdump` a declared capability with a named refusal (`mkobj-target`).
+  Acceptance: `test_parity_canary_pins_receipt`, `test_parity_checker_missing_refuses_by_name`.
+- **U129. Cloud providers with `fleet up/down/status/replace`** (`fleet/providers.py`:
+  `oci`, `hetzner`, `aws`, `gcp` working; credentials via the secret-session path, never a
+  prompt; the fleet manifest as objects; lane placement by canary, never by tier).
+  Acceptance: `test_fleet_up_records`, `test_down_recorded`, `test_fleet_status_reads_pointer`,
+  `test_arm_node_fails_toolchain_canary_offered_no_toolchain_task`.
+- **U166. Container sandbox** (`worker/sandbox.py`: a container as one packaging of the
+  same toolchain object, never a requirement). Acceptance: `test_process_group_killed`,
+  `test_container_sandbox_declared_or_working_by_name`.
+- **U167. Idle policies** (`--idle-only`: battery, user-activity and load adapters; a
+  declared policy idles by name). Acceptance: `test_idle_only_admission`,
+  `test_idle_policy_battery_declared`.
+- **U130. Observer-path fixes** (design U130; prerequisite for the browser lane).
+  Acceptance: `test_200_browser_connections_one_snapshot_201st_refused`.
+- **U154. Browser lane** (design U154: module worker, wasm parity, rewrite proposals under
+  the contributor's own key; never offered a toolchain or analyzer task because its canaries
+  cannot prove those capabilities). Acceptance: `test_browser_parity_receipt_matches_native`,
+  `test_browser_one_click_stop`.
+- **U131. Measurements** (design U131 (a)–(h): R12 headless open and pack size, O2
+  masked-COFF equality over ≥ 500 TUs, `/P` equivalence, link wall, per-scan window cost,
+  one real search, native vs wasm parity, attempts per function). Acceptance:
+  `test_measurement_receipts_exist_for_a_to_h`.
+- **Toolchain lanes — U133 compile-attempt adapter (persistent wineserver, per-node cap),
+  U134 repair chain as a derived graph, U135 content caches + link task, U136 parity lane**
+  (design 15.1). Acceptance: `test_compile_same_tu_same_task_id_two_nodes`,
+  `test_compile_infra_writes_nothing`, `test_repair_chain_replays_identical_tu_hashes`,
+  `test_link_cache_hit_spawns_no_linker`,
+  `test_parity_stub_never_returns_yields_timeout_within_budget`.
+- **Analyzer lanes — U137 import + analysis slices + deterministic two-key pin (the A2.2
+  spike first), U138 JVM-free facts + References reader, U139 decompile chunks with affinity
+  + knowledge view, U140 H2 closure + object tags, U141 similarity signatures and queries**
+  (design 15.2). Acceptance: `test_analysis_slice_checkpoint_is_packed_program`,
+  `test_sliced_vs_monolithic_inventory_hash_recorded`,
+  `test_pin_divergence_lexmin_deterministic`,
+  `test_decompile_chunk_partial_plus_continuation_equals_full`,
+  `test_bsim_sigs_without_template_refused`.
+- **Identity lanes — U142 match cascade decomposed (per-round checkpoint first), U143 delta
+  binders (logical shards + identity merge emit verified delta objects that the view applier
+  binds into `identity`/`logical_function`; never a direct identity write), U144 cross-place
+  as placement objects** (design 15.3). Acceptance: `test_match_shard_equals_monolithic_scores`,
+  `test_match_shard_two_outputs_refute_never_merge`, `test_logical_rows_deterministic`,
+  `test_identity_delta_applied_only_from_verified_records`,
+  `test_placement_body_hash_identical_across_recipients`.
+- **Residue lanes — U145 permuter cases + search shards, U146 rewrite adapter + win
+  verifier, U147 text permuter generate/score split** (design 15.4). Acceptance:
+  `test_search_shard_p99_under_35s`, `test_rewrite_two_bases_two_task_ids`,
+  `test_text_permute_generate_needs_no_toolchain`.
+- **Export and relink lanes — U148 export slices/shards/merge, U149 window index + shards,
+  U150 backfill as records (delta binder: `image-registered`/`basis-stamped` records bound by
+  the view applier, never a direct store write), U151 verify-determinism as a receipt gate +
+  the anonymisation grep, U152 place-check/splice/join, U153 closure-based terminal receipt**
+  (design 15.5). Acceptance: `test_export_merge_byte_identical_to_single_process`,
+  `test_window_results_equal_unique_window`,
+  `test_backfill_replays_identically_on_both_surfaces`,
+  `test_object_store_has_no_slug_or_repo_path`, `test_image_join_reproduces_legacy_rebuild`,
+  `test_terminal_receipt_from_cache_hits_accepted`.
+- **U168. `corpus-attest` lane** (after U28x): the attest verb as a `subprocess-verb` kind
+  over a copy-on-write snapshot, receipts as objects, a hang = a named timeout record.
+  Acceptance: `test_attest_declared`, `test_attest_lane_hang_is_timeout_record`.
+- **U169. Similarity applier** (`view/similarity.py` working: verified `bsim-merge` objects
+  reach the index through the commit verb; the index is a view). Acceptance:
+  `test_similarity_view_rebuild_lists_same_programs`.
+- **U170. Compaction pruning policies** (`log/compaction.py`: retention policies, prior-basis
+  archive snapshots, the 1 GB-node resident-set target). Acceptance:
+  `test_snapshot_plus_tail_frontier_equals_full_replay`,
+  `test_prune_refuses_uncovered_records`.
+- **U155. Bundle manifest stub; U156. Grid determinism and chaos harness** (named only:
+  lease expiry mid-task, duplicate delivery, head loss, disconnected outbox, single-field
+  basis change mid-run, CAS starvation, verifier livelock — the frontier stays consistent
+  and no verified record is ever written by a producing key); **U157. Retire the
+  coordinator** (design 15.6). Acceptance: `test_bundle_tree_byte_identical_under_one_basis`,
+  `test_chaos_frontier_consistent_never_verified_by_producer`,
+  `test_workbench_prepare_draws_receipts_starts_nothing`.
+Prerequisites from earlier phases (design §8): 3b/U54 basis and per-binary `basis_hash`,
+U65, U66 (projection reading), A4 real-corpus admission, R1.
+
 ## Feasibility determination
 
 | Capability | Feasibility | Deciding factor |
@@ -2029,6 +2266,17 @@ pretend otherwise.
 9. **Phase 14 surfaces** — U104 first (H5), then U105, U110, U111, U106–U109, U112. Both
    surfaces draw the bundle's readiness matrix, residue and receipts; "surfaces phase
    landed" is part of the goal's done definition.
+10. **Phase 15 distributed compute** — grid skeleton (U120–U125) then adapters interleaved
+   with the remaining phases. U120–U124 ✔ landed as a walking skeleton (charter §6c;
+   `d8447f6` … `a4e4aca`, hindsight: built out of order because the skeleton costs hours
+   and unblocks every lane); **U125** (integrator, the grid-of-one cycle) follows U104/H5
+   directly. The adapters land as units beside the phase whose interface they serve: U158,
+   U126, U159–U162, U132, U163–U165, U129, U166–U167 with steps 5–7; U131 and the compile
+   lanes U133–U136 with U62–U66; the analyzer lanes U137–U141 with Phase 2/U25; the
+   identity lanes U142–U144 with Phase 8/U30; the residue lanes U145–U147 after U136; the
+   export and relink lanes U148–U153 with Phase 12; U168 `corpus-attest` right after 3c
+   U28x; U130/U154 with Phase 14; U169, U170, U155–U157 last. "The grid skeleton runs a
+   grid-of-one cycle; adapters landed" is part of the goal's done definition.
 All of 1–7 are additive and testable on a temp copy of the store; nothing touches the
 working store until its determinism and migration receipts are green. Every unit is
 built by subagent-driven development against this plan, one bounded file scope at a

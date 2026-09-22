@@ -415,15 +415,19 @@ def stored_basis_rows(con) -> list[dict]:
     """Raw per-row basis identity, in the store's canonical row order.
 
     Reads ``slug``, ``content_sha256``, ``analyzer_version``, ``basis_hash``
-    and ``basis_source`` from every ``binary`` row, ordered by
+    and ``basis_source`` from every row the basis covers (A4 scope: admitted
+    rows once ``corpus admit`` has run, every row before that), ordered by
     ``content_sha256``, then ``repo_path``, then ``slug`` (never rowid).
     Unlike :func:`basis` this never refuses: a re-baseline must see the
     drifted rows to repair them. Callers name a row by its
     ``content_sha256`` or by ``sha256(slug)``, never by the slug.
     """
+    from .admission import admitted_predicate
+
     cur = con.execute(
         "SELECT slug, content_sha256, analyzer_version, basis_hash, basis_source FROM binary"
-        " ORDER BY content_sha256, repo_path, slug"
+        " WHERE 1=1" + admitted_predicate(con, "binary")
+        + " ORDER BY content_sha256, repo_path, slug"
     )
     names = [d[0] for d in cur.description]
     return [dict(zip(names, r)) for r in cur.fetchall()]

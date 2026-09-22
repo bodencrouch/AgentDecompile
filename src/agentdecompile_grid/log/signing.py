@@ -647,11 +647,18 @@ class Keyring:
             else:
                 entry[k] = v
 
+    def forget(self, key_id: str) -> None:
+        """Drop a key and everything noted about it (a source that failed to verify it)."""
+        self._ed25519.pop(key_id, None)
+        self._hash_token.pop(key_id, None)
+        self._meta.pop(key_id, None)
+
     # -- queries
     def meta(self, key_id: str) -> Mapping[str, Any]:
         return dict(self._meta.get(key_id, {}))
 
     def role_of(self, key_id: str) -> str:
+        """The *attested* role (invite / local identity dir); a self-announced ``claimed_role`` never counts."""
         return str(self._meta.get(key_id, {}).get("role", ""))
 
     def lineage_of(self, key_id: str) -> tuple[str, ...] | None:

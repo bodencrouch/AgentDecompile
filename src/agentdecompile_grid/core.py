@@ -130,6 +130,17 @@ def _basis_lookup(basis: Mapping[str, Any], path: str) -> tuple[bool, Any]:
     return True, node
 
 
+def hashed_basis_projection(basis: Mapping[str, Any], fields: Sequence[str], *, kind: str = "") -> dict[str, Any]:
+    """The second projection style: like ``project_basis`` but every ``<name>.*`` sub-mapping is
+    replaced by its digest, so a kind that depends on a large table keeps its ids short and its
+    TASK bodies small (the full basis is still reachable through ``basis_hash``)."""
+    out = project_basis(basis, fields, kind=kind)
+    for path, value in list(out.items()):
+        if path.endswith("." + BASIS_WILDCARD):
+            out[path] = digest_value(value)
+    return out
+
+
 def project_basis(basis: Mapping[str, Any], fields: Sequence[str], *, kind: str = "") -> dict[str, Any]:
     """The default ``TaskKind.basis_projection``: pick ``fields`` (dotted paths, ``x.*`` = the whole
     sub-mapping) out of a full basis mapping into a flat ``{path: value}`` dict, keys sorted.
@@ -144,6 +155,10 @@ def project_basis(basis: Mapping[str, Any], fields: Sequence[str], *, kind: str 
             raise Refused(f"basis projection: {path} absent for kind {kind or '?'}")
         out[path] = value
     return out
+
+
+BASIS_PROJECTIONS: dict[str, Callable[..., dict[str, Any]]] = {"plain": project_basis, "hashed": hashed_basis_projection}
+"""Projection styles a kind may name in ``basis_projection_style`` (both working; ``plain`` is the default)."""
 
 
 # --------------------------------------------------------------------------- tasks
@@ -295,15 +310,19 @@ class TaskKind(Protocol):
     budget: BudgetClass
     capabilities: Sequence[str]
     basis_fields: tuple[str, ...]        # the BASIS_FIELDS paths this kind's output depends on; () = content-only
+    basis_projection_style: str          # optional: a BASIS_PROJECTIONS name (plain | hashed); absent = plain
 
     def run(self, spec: TaskSpec, objects: "ObjectStore", scratch: str) -> TaskResult: ...
 
     def verify(self, spec: TaskSpec, result: TaskResult, objects: "ObjectStore", scratch: str) -> Verification: ...
 
-    def basis_projection(self, basis: Mapping[str, Any]) -> dict[str, Any]:
-        """Default: ``project_basis(basis, self.basis_fields)``.  A kind may override to derive a
-        value (e.g. hash a sub-mapping) as long as the keys stay exactly ``basis_fields``."""
-        return project_basis(basis, tuple(self.basis_fields), kind=str(self.name))
+    @classmethod
+    def basis_projection(cls, basis: Mapping[str, Any]) -> dict[str, Any]:
+        """Default: the ``basis_projection_style`` entry of ``BASIS_PROJECTIONS`` over ``basis_fields``.
+        A kind may override this *classmethod* (kinds are registered as classes) as long as the keys
+        stay exactly ``basis_fields``; ``kind_basis_projection`` checks that."""
+        style = str(getattr(cls, "basis_projection_style", "plain") or "plain")
+        return BASIS_PROJECTIONS[style](basis, tuple(cls.basis_fields), kind=str(cls.name))
 
 
 def kind_basis_fields(kind: Any) -> tuple[str, ...]:
@@ -318,9 +337,22 @@ def kind_basis_fields(kind: Any) -> tuple[str, ...]:
 def kind_basis_projection(kind: Any, basis: Mapping[str, Any]) -> dict[str, Any]:
     """``kind.basis_projection(basis)`` when the kind defines one, else the default projection;
     the result's keys must equal ``kind.basis_fields`` or the projection is ``Refused`` by name."""
+    import inspect
+
     fields = kind_basis_fields(kind)
-    method = getattr(kind, "basis_projection", None)
-    projection = method(basis) if callable(method) else project_basis(basis, fields, kind=str(kind.name))
+    cls = kind if inspect.isclass(kind) else type(kind)
+    static = inspect.getattr_static(cls, "basis_projection", None)
+    if isinstance(static, (classmethod, staticmethod)):
+        projection = cls.basis_projection(basis)            # a class-level override or the Protocol default
+    elif static is not None and not inspect.isclass(kind):
+        projection = kind.basis_projection(basis)           # an instance-level override on an instance
+    elif static is not None:
+        raise Refused(f"basis projection: kind {cls.__name__} overrides basis_projection as an instance method; declare it a classmethod")
+    else:
+        style = str(getattr(cls, "basis_projection_style", "plain") or "plain")
+        if style not in BASIS_PROJECTIONS:
+            raise Refused(f"basis projection: kind {kind.name} names unknown style {style!r}; known {sorted(BASIS_PROJECTIONS)}")
+        projection = BASIS_PROJECTIONS[style](basis, fields, kind=str(kind.name))
     if set(projection) != set(fields):
         raise Refused(f"basis projection: kind {kind.name} declares {sorted(fields)} but projected {sorted(projection)}")
     return dict(sorted(projection.items()))

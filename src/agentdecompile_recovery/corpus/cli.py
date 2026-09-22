@@ -348,6 +348,16 @@ def build_parser() -> argparse.ArgumentParser:
     pkg.add_argument("--workspace", type=Path, required=True)
     pkg.add_argument("--out", type=Path, required=True)
 
+    data_packs = sub.add_parser(
+        "data-packs",
+        help="List the L3 data packs under the declared root and their content hashes",
+    )
+    data_packs.add_argument(
+        "--root", type=Path, default=None,
+        help="Pack root directory. Default: AGENT_DECOMPILE_DATA_PACKS_ROOT or the config directory's data_packs.json.",
+    )
+    data_packs.add_argument("--json", action="store_true", help="Print the report as JSON.")
+
     cal = sub.add_parser("calibrate", help="Sweep score/margin from an evaluation JSON list")
     cal.add_argument("--from-json", type=Path, required=True)
     cal.add_argument("--out", type=Path, required=True)
@@ -982,6 +992,23 @@ def main(argv: list[str] | None = None) -> int:
         from .package_project import package_project
 
         print(json.dumps(package_project(args.workspace, args.out)))
+        return 0
+    if args.cmd == "data-packs":
+        from .data_packs import PackError, describe, format_describe
+        from .determinism_basis import BasisError
+
+        # A malformed pack, a duplicate class pair or a declared root that is
+        # not a directory is a named refusal: one line, exit 2. No root at all
+        # is not a refusal; the report says no_root and exits 0.
+        try:
+            report = describe(args.root)
+        except (PackError, BasisError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if args.json:
+            print(json.dumps(report, sort_keys=True, indent=2))
+        else:
+            print(format_describe(report))
         return 0
     if args.cmd == "calibrate":
         from .calibrate import calibrate_evaluations

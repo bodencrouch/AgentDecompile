@@ -600,10 +600,13 @@ def match_binaries(
         pair_class=pair_class,
     )
     dependency_ancestry: dict[int, set[str]] = {}
-    # Persisted tokens key on the source build's content hash, never its
-    # rowid (A3). The refusal is lazy: a hash-less build only fails when a
-    # callgraph match actually needs a token.
-    src_token = lambda addr: dependency_token(sa.meta.get("content_sha256"), addr, slug=sa.slug)  # noqa: E731
+
+    def src_token(addr: int) -> str:
+        # Persisted tokens key on the source build's content hash, never its
+        # rowid (A3). The refusal is lazy: a hash-less build only fails when
+        # a callgraph match actually needs a token.
+        return dependency_token(sa.meta.get("content_sha256"), addr, slug=sa.slug)
+
     for src, result in results.items():
         if result.get("kind") == "callgraph":
             direct = [src_token(int(parent)) for parent in (result.get("evidence", {}).get("dependencies") or ())]

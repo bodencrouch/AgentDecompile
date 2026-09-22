@@ -291,6 +291,12 @@ class StepMachine:
                         break
                 if max_wall_s is not None and self.clock() - started >= max_wall_s:
                     stopped_by = "max-wall"
+                    if self.slots:                       # never leak the child or its intent: abort, reap, release
+                        self.release_all("max-wall")
+                        deadline = self.clock() + self.config.kill_grace_s * 2 + 1.0
+                        while self.slots and self.clock() < deadline:
+                            events.append(self.step().to_record())
+                            sleep(poll_s)
                     break
         finally:
             self.stopping = was_stopping

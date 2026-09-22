@@ -148,10 +148,6 @@ def load_config(root: str | None = None):
     return cfg.with_root(Path(explicit).expanduser()) if explicit else cfg
 
 
-def resolve_root(explicit: str | None) -> Path:
-    return Path(load_config(explicit).root)
-
-
 @dataclass
 class Grid:
     """What every store-touching verb needs: the rooted config, the transport and the operator signer."""
@@ -363,7 +359,7 @@ def publish_specs(specs: Sequence[TaskSpec], *, grid: Grid, admitted: Sequence[s
     appender = grid.appender()
     for partition, group in sorted(by_partition.items()):
         report = grid.derive(partitions=[partition], now=now)
-        published = set(report.kinds_of)
+        published = set(report.kinds_of) - set(report.orphans)   # a RESULT/INTENT without a TASK record is not a publish
         done = set(report.done)
         drafts = []
         for spec in group:
@@ -570,10 +566,32 @@ def cmd_objects(args: argparse.Namespace) -> int:
         gc = getattr(store, "gc", None)
         if gc is None:
             raise NotConfigured(f"object store {getattr(store, 'name', '?')!r} has no gc(); LocalDirStore does")
-        report = gc(dry_run=bool(args.dry_run))
+        gc_mod = _import("agentdecompile_grid.objects.gc")
+        keep = gc_mod.StaticPins(_referenced_refs(grid.log()))   # inputs are named only by TASK bodies: the log is a pin source
+        report = gc(dry_run=bool(args.dry_run), extra_pins=[keep])
         emit(report.to_dict() if hasattr(report, "to_dict") else {"report": str(report)}, as_json=args.json)
         return 0
     raise UsageError(f"unknown objects verb {args.objects_cmd!r}")
+
+
+def _referenced_refs(log: Any) -> set[ObjectRef]:
+    """Every ref a log record body names (inputs, outputs, result_ref, evidence_ref): what GC must keep."""
+    keep: set[ObjectRef] = set()
+
+    def walk(value: Any) -> None:
+        if isinstance(value, str) and value.startswith("sha256:") and len(value) == 71:
+            keep.add(ObjectRef(value))
+        elif isinstance(value, Mapping):
+            for v in value.values():
+                walk(v)
+        elif isinstance(value, (list, tuple)):
+            for v in value:
+                walk(v)
+
+    for partition in log.partitions():
+        for rec in log.read(partition, since_seq=0):
+            walk(rec.body)
+    return keep
 
 
 def cmd_log(args: argparse.Namespace) -> int:

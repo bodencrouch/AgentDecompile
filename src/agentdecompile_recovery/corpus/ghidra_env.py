@@ -83,6 +83,18 @@ def start(max_heap: str = "4g", *, install_dir: str | None = None, project_path:
     return True
 
 
+def server_configured(config_dir_path=None) -> bool:
+    """True when a shared repository is declared: a host and a repository
+    name from ``load_ghidra_server`` (environment, then ``ghidra_server.json``
+    under the config directory). The loader defaults the host, so the
+    repository name is the signal; neither value is read past this test.
+    Cheap and JVM-free, so a caller can refuse before booting anything."""
+    cfg = load_ghidra_server(config_dir_path)
+    host = str(cfg.get("host") or "").strip()
+    repository = str(cfg.get("repository") or "").strip()
+    return bool(host) and bool(repository)
+
+
 def monitor():
     from ghidra.util.task import TaskMonitor
 

@@ -90,6 +90,7 @@ from .core import (
     RecordType,
     Refused,
     TaskSpec,
+    check_basis_projection,
 )
 
 LANES_ENV = "ADGRID_LANES"
@@ -353,6 +354,8 @@ def publish_specs(specs: Sequence[TaskSpec], *, grid: Grid, admitted: Sequence[s
     for spec in specs:
         if admitted_set and spec.basis_hash not in admitted_set:
             raise Refused(f"basis-not-admitted:{spec.basis_hash[:12]}")
+        if spec.kind in TASK_KINDS:
+            check_basis_projection(TASK_KINDS.get(spec.kind), spec)   # U158: publish refuses a projection mismatch by name
         by_partition.setdefault(spec.partition_key, []).append(spec)
     summary: dict[str, Any] = {"planned": len(specs), "published": 0, "existing": 0, "cached": 0, "partitions": {}}
     objects = grid.objects()
@@ -646,6 +649,7 @@ def cmd_describe(args: argparse.Namespace) -> int:
     report: dict[str, Any] = {"version": __version__, "lanes": lanes, "lane_sources": lane_module_names(), "notes": notes}
     for name, registry in registries.items():
         report[name] = {item_name: _describe_item(item) for item_name, item in registry.items()} if args.verbose else registry.names()
+    report["basis_projections"] = _import("agentdecompile_grid.tasks.registry").projection_table()   # U158: {kind: basis_fields}
     if args.verbose:
         try:
             config_mod = _import("agentdecompile_grid.config")

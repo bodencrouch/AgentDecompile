@@ -91,6 +91,10 @@ class UnknownSigner(RecordError):
     """The keyring has no public material for ``signer_key``."""
 
 
+class RevokedSigner(RecordError):
+    """``signer_key`` is on the keyring's revocation list; its records are ignored by name."""
+
+
 # --------------------------------------------------------------------------- body validators
 BODY_VALIDATORS = Registry("record body validator")
 """``RecordType.value -> Callable[[Mapping], None]``; raise ``InvalidBody`` naming the offending key."""
@@ -263,6 +267,7 @@ _IDENTITY_KEYS: Mapping[RecordType, str] = {
     RecordType.RESULT: "producer_key",
     RecordType.VERIFIED: "verifier_key",
     RecordType.REFUTED: "verifier_key",
+    RecordType.KEY_ANNOUNCE: "key_id",       # possession proof: a key announces itself
 }
 
 
@@ -476,7 +481,7 @@ def record_type_for(verification: Verification) -> RecordType:
 
 __all__ = [
     "BODY_VALIDATORS", "BadSignature", "BodyFactory", "ChainBroken", "Draft", "EMPTY_HEAD", "Head",
-    "InvalidBody", "InvalidPartition", "InvalidRecord", "RecordError", "SchemaMismatch", "SignatureVerifier",
+    "InvalidBody", "InvalidPartition", "InvalidRecord", "RecordError", "RevokedSigner", "SchemaMismatch", "SignatureVerifier",
     "UnknownSigner", "body_validator", "build_record", "decode_line", "encode_line", "head_of", "record_from_dict",
     "record_to_dict", "record_type_for", "seal", "unsigned_bytes", "validate_body", "validate_partition",
     "validate_record", "verification_from_body", "verification_to_body", "verify_chain",

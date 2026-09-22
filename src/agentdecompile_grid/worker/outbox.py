@@ -46,6 +46,16 @@ DEFAULT_FLUSH_INTERVAL_S = 5.0
 DEFAULT_FLUSH_BATCH = 64
 
 
+def _index_result_pointer(upstream: ObjectStore, name: str, value: str) -> None:
+    """After ``results/<task_id>/<key>`` lands, fold it into ``results/<task_id>.index`` (``tasks.results.merge_result_index``)."""
+    from ..tasks.results import RESULTS_PREFIX, merge_result_index
+
+    parts = name.split("/")
+    if len(parts) != 3 or parts[0] != RESULTS_PREFIX or len(parts[1]) != 64:
+        return
+    merge_result_index(upstream, parts[1], parts[2], value.strip())
+
+
 class OutboxError(GridError):
     """The outbox directory is unusable (disk full, not writable): a named failure, never silent loss."""
 
@@ -202,6 +212,7 @@ class Outbox:
                 for name, value in entry.named:
                     upstream.put_named(name, value.encode("utf-8"))
                     report.named += 1
+                    _index_result_pointer(upstream, name, value)      # results/<task>.index: the GC root on every store (U126)
             except Exception as exc:
                 self._defer(entry, report, f"objects:{exc.__class__.__name__}", self.transport_backoff)
                 continue

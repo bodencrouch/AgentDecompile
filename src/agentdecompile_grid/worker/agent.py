@@ -56,7 +56,7 @@ from typing import Any, Callable, Mapping, Sequence
 from .. import __version__
 from ..core import AlreadyOwned, Frontier, GridError, LogStore, NodeIdentity, NotConfigured, ObjectStore, Registry, Transport
 from .canaries import CanaryReport, run_canaries
-from .identity import ROLE_MAY_VERIFY, Invite, NodeKey, NodeKeyStore, NodeSigner, bind_identity, parse_invite_url
+from .identity import DEFAULT_KEY_LIFETIME_S, ROLE_MAY_VERIFY, Invite, NodeKey, NodeKeyStore, NodeSigner, bind_identity, enqueue_announce, parse_invite_url
 from .loop import FLEET_BUDGETS_ALLOWED, IdlePolicy, StepEvent, StepMachine, Upstream, WorkLoop, WorkerConfig
 from .outbox import Outbox
 from .sandbox import SubprocessSandbox
@@ -673,24 +673,27 @@ def record_writer(log: LogStore, heads: Any, signer: NodeSigner, *, clock: Calla
 
 def open_node_identity(state_dir: str | os.PathLike[str], *, role: str, objects: ObjectStore, scratch: str | os.PathLike[str] | None = None,
                        claimed: Sequence[str] = (), key_algorithm: str = "ed25519", now: float | None = None, canaries: Mapping[str, Any] | None = None,
-                       canary_only: Sequence[str] | None = None, reprove: bool = False) -> tuple[NodeKey, NodeIdentity, CanaryReport | None]:
+                       canary_only: Sequence[str] | None = None, reprove: bool = False, key_lifetime_s: float = DEFAULT_KEY_LIFETIME_S,
+                       renew_after_canary: bool = True) -> tuple[NodeKey, NodeIdentity, CanaryReport | None]:
     """A node's key and identity without a join: the identity ``join`` saved under ``state_dir`` when
     there is one, else a *self-rooted* identity (empty lineage: this key is its own root, which is
     what a laptop grid of one has) whose capabilities are what the canaries prove plus ``claimed``.
     Two self-rooted keys have disjoint lineage sets and are therefore independent verifiers of each
     other's proposals (design §2.5) — the honest statement for one host with two keys."""
     now = time.time() if now is None else now
-    keystore = NodeKeyStore(state_dir)
+    keystore = NodeKeyStore(state_dir, key_lifetime_s=key_lifetime_s)
     key = keystore.load_or_create(algorithm=key_algorithm, now=now)
     saved = keystore.load_identity()
-    if saved is not None and not reprove and saved[0].key_id == key.key_id:
+    if saved is not None and not reprove and saved[0].key_id == key.key_id and not key.expired(now):
         return key, saved[0], None
     scratch_dir = Path(scratch) if scratch is not None else Path(state_dir) / "canaries"
     report = run_canaries(objects, str(scratch_dir), canaries=canaries, only=canary_only)
+    # a key past its lifetime is rotated only now, after the canaries re-ran (design §6.2); the new
+    # key remembers the old id and its announce lists it as superseded
+    key = keystore.renew(key, now=now, canaries_passed=True, after_canary=renew_after_canary)
     identity = NodeIdentity(key_id=key.key_id, capabilities=tuple(sorted(set(report.proven) | set(claimed))), invite_lineage=(), role=role)
-    if key.expired(now):
-        key = keystore.renew(key, now=now, canaries_passed=True)
-    keystore.save_identity(identity, {"self_rooted": True, "bound_at": now, "key_expires_at": key.expires_at, "canaries": report.to_record(), "claimed": list(claimed)})
+    keystore.save_identity(identity, {"self_rooted": True, "bound_at": now, "key_expires_at": key.expires_at, "canaries": report.to_record(), "claimed": list(claimed),
+                                      "previous_key_ids": list(key.previous_key_ids)})
     return key, identity, report
 
 
@@ -710,6 +713,7 @@ def build_loops(plan: JoinPlan) -> tuple[StepMachine | None, StepMachine | None]
     signer = NodeSigner(plan.key)
     upstream = Upstream(objects, record_writer(log, heads, signer, clock=plan.clock, rng=plan.rng))
     outbox = Outbox(plan.state_dir / "outbox", clock=plan.clock, rng=plan.rng)
+    enqueue_announce(outbox, NodeKeyStore(plan.state_dir), plan.key, plan.identity)       # KEY_ANNOUNCE once per key id (U126)
     sandbox = SubprocessSandbox(plan.state_dir / "work", clock=plan.clock)
     locator = dict(plan.store_locator) or (dict(transport.locator()) if hasattr(transport, "locator") else {})
     if not locator.get("adapter"):
@@ -811,9 +815,8 @@ def join(invite_url: str | None = None, *, state_dir: str | os.PathLike[str], en
             return run_canaries(transport.objects(), str(scratch), canaries=canary_pool, only=canary_only)
 
         report = reprove()
+        key = keystore.renew(key, now=now, canaries_passed=True)        # rotate a key past its lifetime, after the canaries
         identity = bind_identity(key, invite, report.proven)
-        if key.expired(now):
-            key = keystore.renew(key, now=now, canaries_passed=True)
         keystore.save_identity(identity, {"fabric_url": invite.fabric_url, "fabric_id": invite.fabric_id, "invite_fingerprint": invite.fingerprint(), "bound_at": now, "key_expires_at": key.expires_at, "canaries": report.to_record()})
         agent.identity = identity
         agent.rejoin_hook = reprove

@@ -32,9 +32,12 @@ frontier should *see* it.  A dropped record still advances the chain position (`
 ``through_digest``: it is in the chain) but folds into no task.  ``RevocationFilter`` drops every
 record of a revoked key; ``RateLimitFilter`` drops a key's (N+1)-th record inside a window of M
 seqs (defaults 64 per 1000 — the 65th is refused by name ``rate-limit:records-per-window:64/1000``),
-counting in log seq so it stays clock-free and identical on every node.  ``GeoFilter`` and
-``QuotaFilter`` are declared slots.  Filter verdicts are kept in ``PartitionState.filtered``
-(transient; never part of a checkpoint summary, because filters are a reader's policy).
+counting in log seq so it is clock-free and identical on every node *given the same start
+position*: a reader resuming from a checkpoint starts its window at the checkpoint's seq (the
+filter state is not part of a summary), so it may admit records a full-replay reader dropped.
+``GeoFilter`` and ``QuotaFilter`` are declared slots.  Filter verdicts are kept in
+``PartitionState.filtered`` (transient; never part of a checkpoint summary, because filters are a
+reader's policy).
 
 Acceptance tests (named here, written in the verification phase):
   U122 (e) the frontier over a partition is identical on two nodes given the same objects;

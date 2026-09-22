@@ -14,8 +14,11 @@ attestation *about* a key id that a ``Keyring`` can look up from a record alone.
   (``expires_at_seq``), not wall clock, so two nodes agree on it from the log alone.
 * ``log-announce`` — ``KEY_ANNOUNCE`` records (partition ``keys``): a node announces its own
   public key, role, lineage, expiry and the key ids it supersedes.  The record is signed by the
-  announced key (possession proof; ``signer_key == body.key_id``).  ``supersedes`` is the node's
-  own statement of its previous key ids (``NodeKey.previous_key_ids``), attribution only.
+  announced key (possession proof; ``signer_key == body.key_id``).  Role and lineage from an
+  announce are the node's *claim* (``claimed_role`` / ``claimed_lineage`` in the keyring's notes);
+  the attested ``role`` comes only from an invite or a local identity directory, and that is what
+  ``verify_key_invite`` authorises on.  ``supersedes`` is the node's own statement of its previous
+  key ids (``NodeKey.previous_key_ids``), attribution only.
 * ``remote-directory`` — slot: a fabric's HTTPS key directory; ``NotConfigured`` names the url.
 
 ``RevocationList`` is an append-only list of ``{key_id, reason, by, seq}`` any fleet or operator
@@ -403,12 +406,18 @@ class LogAnnounceSource:
                     pub = bytes.fromhex(str(body["pub"]))
                 except (KeyError, ValueError):
                     continue
-                key_id = keyring.add_ed25519_public(pub, role=body.get("role"), lineage=list(body.get("lineage", ())),
-                                                    expires_at=body.get("expires_at"), supersedes=list(body.get("supersedes", ())),
-                                                    announced_seq=rec.seq, announced_partition=partition)
+                # the announce is self-signed: its role and lineage are the node's *claim*
+                # (``claimed_role`` / ``claimed_lineage``), never the attested ``role`` an invite or
+                # a local identity dir gives — ``verify_key_invite`` authorises on the attested one
+                key_id = key_id_of("ed25519", pub)
+                if not keyring.knows(key_id):
+                    keyring.add_ed25519_public(pub)
                 if not keyring.verify(key_id, _unsigned(rec), rec.signature):
-                    keyring._ed25519.pop(key_id, None)     # the announce does not verify under the key it announces
+                    keyring.forget(key_id)                   # the announce does not verify under the key it announces
                     continue
+                keyring.note(key_id, claimed_role=body.get("role"), claimed_lineage=list(body.get("lineage", ())),
+                             expires_at=body.get("expires_at"), supersedes=list(body.get("supersedes", ())),
+                             announced_seq=rec.seq, announced_partition=partition)
                 loaded.append(key_id)
         return loaded
 

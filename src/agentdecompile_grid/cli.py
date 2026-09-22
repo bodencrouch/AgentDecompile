@@ -182,10 +182,20 @@ class Grid:
     def frontier_policy(self):
         return _import("agentdecompile_grid.log.frontier").FrontierPolicy.from_config(self.cfg.to_mapping("frontier"))
 
+    def record_filters(self):
+        """The frontier's filter chain (U126): revoked keys (``policy/revoked``) and the per-key seq-window rate limit (``limits.*``)."""
+        frontier = _import("agentdecompile_grid.log.frontier")
+        keys = _import("agentdecompile_grid.log.keys")
+        return frontier.filters_from_config(self.cfg.to_mapping("limits"), revoked=keys.RevocationList.load(self.objects()))
+
+    def keyring(self):
+        """A ``log.signing.Keyring`` filled from ``keyring.sources`` (local identities, invite objects, key announces)."""
+        return _import("agentdecompile_grid.log.signing").Keyring.from_config(self.cfg.keyring_locator(), log=self.log(), objects=self.objects())
+
     def derive(self, *, partitions: Sequence[str] | None = None, kinds: Sequence[str] | None = None, now: float | None = None):
         frontier = _import("agentdecompile_grid.log.frontier")
         return frontier.derive(self.log(), self.objects(), time.time() if now is None else now, policy=self.frontier_policy(),
-                               partitions=partitions, kinds=kinds)
+                               partitions=partitions, kinds=kinds, filters=self.record_filters())
 
     def appender(self, signer=None):
         outbox = _import("agentdecompile_grid.log.outbox")
@@ -426,16 +436,19 @@ def _node_loop(grid: Grid, *, kind: str, node: str | None, role: str | None, kin
     role = role or (cfg.verifier.role if verifying else cfg.worker.role)
     state_dir = Path(cfg.node_state_dir(name))
     objects, log, heads = grid.objects(), grid.log(), grid.heads()
-    key, identity, report = agent.open_node_identity(state_dir, role=role, objects=objects, claimed=claimed, key_algorithm=cfg.worker.key_algorithm)
+    key, identity, report = agent.open_node_identity(state_dir, role=role, objects=objects, claimed=claimed, key_algorithm=cfg.worker.key_algorithm,
+                                                     key_lifetime_s=cfg.identity.key_lifetime_s, renew_after_canary=cfg.identity.renew_after_canary)
     signer = identity_mod.NodeSigner(key)
     upstream = loop_mod.Upstream(objects, agent.record_writer(log, heads, signer, backoff=_import("agentdecompile_grid.log.backoff").BackoffPolicy.from_config(cfg.to_mapping("backoff"))))
     outbox = outbox_mod.Outbox(state_dir / "outbox", max_entries=cfg.outbox.max_entries)
+    identity_mod.enqueue_announce(outbox, identity_mod.NodeKeyStore(state_dir), key, identity, partition=cfg.keyring.announce_partition)   # KEY_ANNOUNCE once per key
     sandbox = sandbox_mod.SubprocessSandbox(state_dir / "work")
     policy = grid.frontier_policy()
+    filters = grid.record_filters()
     frontier = _import("agentdecompile_grid.log.frontier")
     wanted = list(kinds) or None
     common = dict(identity=identity, sandbox=sandbox, outbox=outbox, objects=objects, upstream=upstream,
-                  frontier=lambda: frontier.derive(log, objects, time.time(), policy=policy, kinds=wanted),
+                  frontier=lambda: frontier.derive(log, objects, time.time(), policy=policy, kinds=wanted, filters=filters),
                   store_locator=grid.transport.locator(), log=log)
     imports = import_modules_for_children(cfg)
     if verifying:

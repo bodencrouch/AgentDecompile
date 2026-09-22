@@ -25,7 +25,8 @@ the documentation cannot drift from the schema.
 Sections and who reads them: ``paths``/``adapters``/``objects``/``budgets``/``tasks`` (objects and
 tasks), ``log``/``heads``/``signing``/``keyring``/``frontier``/``outbox``/``backoff``/``intents``/
 ``partitions``/``compaction`` (the log layer; ``log.CONFIG_FIELDS`` names the same keys),
-``worker``/``verifier`` (the node runtime), ``fleet`` (the operator's fleet), and the top-level
+``identity``/``limits`` (node key lifetime; per-key frontier rate limits), ``worker``/``verifier``
+(the node runtime), ``fleet`` (the operator's fleet), and the top-level
 ``lanes``/``admitted_bases``/``join_url`` the CLI reads.  ``GridConfig.load()`` / ``GridConfig.default()``
 are the one entry the CLI uses; the ``*_locator()`` methods render the mapping each adapter's
 ``from_config``/``from_locator`` takes.
@@ -118,7 +119,9 @@ class AdaptersConfig:
         "Object store adapter (OBJECT_STORES): local | s3 | static-mirror | peer | layered."))
     log: str = field(default="local", metadata=_doc("Log adapter (LOG_STORES)."))
     heads: str = field(default="local", metadata=_doc("Head store adapter (HEAD_STORES)."))
-    signer: str = field(default="null", metadata=_doc("Signer (SIGNERS); 'null' = hash chain only, no keys."))
+    signer: str = field(default="", metadata=_doc(
+        "Signer (SIGNERS): ed25519 | null | hmac | hsm | ssh-agent. Empty = signing.default (ed25519); "
+        "'null' is the explicit hash-chain-only fallback."))
     transport: str = field(default="local", metadata=_doc("Transport adapter (TRANSPORTS)."))
     provider: str = field(default="manual", metadata=_doc("Fleet provider adapter (PROVIDERS)."))
 
@@ -300,10 +303,20 @@ class HeadsConfig:
     http: HttpLogConfig = field(default_factory=HttpLogConfig, metadata=_doc("http heads adapter"))
 
 
+SIGNER_ADAPTERS = ("ed25519", "null", "hmac", "hash-token", "hsm", "ssh-agent")
+SIGNING_BACKENDS = ("", "cryptography", "pynacl")
+KEY_SOURCE_NAMES = ("local-identity", "invites", "log-announce", "remote-directory")
+
+
 @dataclass(frozen=True)
 class SigningConfig:
     """The record signer the CLI's operator verbs (publish, compact) use; nodes sign with their node key."""
 
+    default: str = field(default="ed25519", metadata=_doc(
+        "Signer used when adapters.signer is empty. ed25519 whenever a backend imports; when none does the "
+        "signer is NotConfigured by name and signing.adapter=null is the explicit fallback."))
+    backend: str = field(default="", metadata=_doc(
+        "ed25519 implementation (SIGNING_BACKENDS): cryptography | pynacl. Empty = first importable."))
     label: str = field(default="", metadata=_doc("Label for null/hmac signers: key_id = null:<label> / hmac:<label>:<id>."))
     key_dir: str = field(default="", metadata=_doc("ed25519 key directory (ed25519.key/.pub/key_id). Empty = paths.keys/signing."))
     secret_env: str = field(default="ADGRID_HMAC_SECRET", metadata=_doc("Environment variable holding the hmac secret (utf-8 or hex:). Never the secret."))
@@ -313,12 +326,34 @@ class SigningConfig:
 
 @dataclass(frozen=True)
 class KeyringConfig:
-    """Whose records a reader trusts."""
+    """Whose records a reader trusts, and where it learns keys (log.keys.KEY_SOURCES)."""
 
-    allow_null: bool = field(default=True, metadata=_doc(
+    allow_null: bool = field(default=False, metadata=_doc(
         "Accept null-signed records (key_id null or null:<label>): hash chain only, no authorship. "
-        "Also the worker's trust_unsigned_records: null-signed RESULT bodies count as proposals."))
+        "Also the worker's trust_unsigned_records: null-signed RESULT bodies count as proposals. "
+        "Off by default; a laptop grid that signs with null sets it explicitly."))
     key_dir: str = field(default="", metadata=_doc("Directory of *.pub ed25519 public keys to trust. Empty = paths.keys/trusted."))
+    sources: tuple[str, ...] = field(default=("local-identity", "invites", "log-announce"), metadata=_doc(
+        "Key sources a keyring loads, in order (KEY_SOURCES): local-identity | invites | log-announce | remote-directory."))
+    announce_partition: str = field(default="keys", metadata=_doc("Log partition where nodes announce their keys (KEY_ANNOUNCE)."))
+
+
+@dataclass(frozen=True)
+class IdentityConfig:
+    """Node key lifetime and renewal."""
+
+    key_lifetime_s: int = field(default=7 * 24 * 3600, metadata=_doc(
+        "Node key lifetime in seconds (7 days). A key past it is rotated only after the canaries re-run; "
+        "the new key's announce lists the old one as superseded."))
+    renew_after_canary: bool = field(default=True, metadata=_doc("Refuse a key renewal unless the canaries were just re-proven."))
+
+
+@dataclass(frozen=True)
+class LimitsConfig:
+    """Per-key record limits the frontier applies (log.frontier.RateLimitFilter), in log seq: clock-free."""
+
+    records_per_window: int = field(default=64, metadata=_doc("Records one key may have inside any window of window_seq seqs; the next is dropped by name. 0 = off."))
+    window_seq: int = field(default=1000, metadata=_doc("Window length in seqs of one partition."))
 
 
 @dataclass(frozen=True)
@@ -402,7 +437,7 @@ class WorkerConfig:
     poison_threshold: int = field(default=3, metadata=_doc(
         "Timeouts/errors from independent keys before a task is poisoned and not re-offered."))
     intent_ttl_s: int = field(default=120, metadata=_doc("Advisory lease lifetime in seconds."))
-    key_ttl_days: int = field(default=7, metadata=_doc("Node key lifetime; renewal needs a canary re-run."))
+    key_ttl_days: int = field(default=7, metadata=_doc("Superseded by identity.key_lifetime_s (kept for old files; not read)."))
     keep_scratch: bool = field(default=False, metadata=_doc("Keep per-task scratch directories after completion."))
     attach_url: str = field(default="http://127.0.0.1:7473/adgrid", metadata=_doc(
         "Well-known local agent URL; join attaches here first and never starts a second owner."))
@@ -446,6 +481,8 @@ class GridConfig:
     heads: HeadsConfig = field(default_factory=HeadsConfig, metadata=_doc("heads"))
     signing: SigningConfig = field(default_factory=SigningConfig, metadata=_doc("signing"))
     keyring: KeyringConfig = field(default_factory=KeyringConfig, metadata=_doc("keyring"))
+    identity: IdentityConfig = field(default_factory=IdentityConfig, metadata=_doc("identity"))
+    limits: LimitsConfig = field(default_factory=LimitsConfig, metadata=_doc("limits"))
     frontier: FrontierConfig = field(default_factory=FrontierConfig, metadata=_doc("frontier"))
     outbox: OutboxConfig = field(default_factory=OutboxConfig, metadata=_doc("outbox"))
     backoff: BackoffConfig = field(default_factory=BackoffConfig, metadata=_doc("backoff"))
@@ -509,12 +546,15 @@ class GridConfig:
     def signing_locator(self) -> dict[str, Any]:
         paths = self.resolved_paths()
         sg = self.signing
-        return {"adapter": self.adapters.signer, "label": sg.label, "key_dir": sg.key_dir or os.path.join(paths.keys, "signing"),
+        return {"adapter": self.adapters.signer or sg.default, "default": sg.default, "backend": sg.backend, "label": sg.label,
+                "key_dir": sg.key_dir or os.path.join(paths.keys, "signing"),
                 "secret_env": sg.secret_env, "secret_file": sg.secret_file, "generate": sg.generate}
 
     def keyring_locator(self) -> dict[str, Any]:
         paths = self.resolved_paths()
-        return {"allow_null": self.keyring.allow_null, "key_dir": self.keyring.key_dir or os.path.join(paths.keys, "trusted")}
+        return {"allow_null": self.keyring.allow_null, "key_dir": self.keyring.key_dir or os.path.join(paths.keys, "trusted"),
+                "sources": list(self.keyring.sources), "nodes_dir": os.path.join(paths.root, "nodes"),
+                "announce_partition": self.keyring.announce_partition}
 
     def to_mapping(self, section: str) -> dict[str, Any]:
         """One section as the plain mapping the log layer's ``*.from_config`` take (``backoff.max_attempts``
@@ -613,6 +653,15 @@ class GridConfig:
             _require(isinstance(width, int) and not isinstance(width, bool) and 0 <= width <= 8, f"partitions.prefix_width.{lane}", "must be an int 0..8")
         _require(self.verifier.proposal_cap >= 1, "verifier.proposal_cap", "must be >= 1")
         _require(self.verifier.role in ("operator", "fleet"), "verifier.role", "must be operator | fleet (donors never verify)")
+        _require(self.signing.default in SIGNER_ADAPTERS, "signing.default", f"must be one of {SIGNER_ADAPTERS}")
+        _require(not self.adapters.signer or self.adapters.signer in SIGNER_ADAPTERS, "adapters.signer", f"must be empty or one of {SIGNER_ADAPTERS}")
+        _require(self.signing.backend in SIGNING_BACKENDS, "signing.backend", f"must be one of {SIGNING_BACKENDS}")
+        for name in self.keyring.sources:
+            _require(name in KEY_SOURCE_NAMES, "keyring.sources", f"{name!r} is not one of {KEY_SOURCE_NAMES}")
+        _require(self.identity.key_lifetime_s > 0, "identity.key_lifetime_s", "must be > 0")
+        _require(self.limits.records_per_window >= 0, "limits.records_per_window", "must be >= 0 (0 = off)")
+        _require(self.limits.window_seq >= 1, "limits.window_seq", "must be >= 1")
+        _require(w.key_algorithm in ("ed25519", "hash-token"), "worker.key_algorithm", "must be ed25519 | hash-token")
         return self
 
 

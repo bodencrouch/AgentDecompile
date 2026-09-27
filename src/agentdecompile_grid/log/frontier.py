@@ -1,7 +1,12 @@
 """The work frontier as a pure function of (records, object existence, ``now``).
 
 Two halves.  ``fold`` turns a partition's records into a ``PartitionState`` (per task: spec,
-proposals, verifications, poison, highest-fence intent).  ``classify`` turns states plus
+proposals, verifications, poison, highest-fence intent).  ``fold`` trusts what it is handed;
+``fold_partition`` / ``states_of`` / ``derive`` first pass every record through
+``signing.authorize_record(record, keyring)`` (signer in the keyring, signature verifies, a TASK
+or CHECKPOINT signed by an operator key).  A refused record is not folded; the state still moves
+past it so one forged record never stalls a partition, and ``FrontierReport.untrusted`` names it.
+``keyring=None`` is an empty keyring, so an unwired reader refuses everything rather than trusting it.  ``classify`` turns states plus
 ``objects.exists`` plus ``now`` into a ``FrontierReport`` (a ``core.Frontier`` with more detail).
 ``derive`` is the composition and the public entry.  No clock is read anywhere; every output list
 is sorted by ``(kind, task_id)``; two nodes with the same records, the same objects and the same
@@ -44,6 +49,10 @@ from collections.abc import Iterable, Iterator, Mapping, Sequence
 
 from agentdecompile_grid.core import Frontier, GridError, LogStore, ObjectRef, ObjectStore, Record, RecordType, ResultStatus, TaskSpec
 from agentdecompile_grid.log.heads import partition_family
+from agentdecompile_grid.log.signing import Keyring, refusal_reason
+
+Untrusted = tuple[str, int, str]
+"""``(partition, seq, reason)`` of a record a reader refused to fold (``signing.refusal_reason``)."""
 
 DEFAULT_PROPOSAL_CAP = 4
 MAX_CHECKPOINT_SEQS = 8   # how many recent CHECKPOINT positions a state remembers; bounded on purpose
@@ -221,11 +230,20 @@ class PartitionState:
             state = self.tasks[task_id] = TaskState(task_id=task_id)
         return state
 
-    def fold(self, record: Record) -> None:
+    def _check_order(self, record: Record) -> None:
         if record.partition != self.partition:
             raise FoldOrder(f"record of partition {record.partition!r} folded into state of {self.partition!r}")
         if record.seq <= self.through_seq:
             raise FoldOrder(f"record {record.partition!r}#{record.seq} folded after through_seq {self.through_seq}")
+
+    def skip(self, record: Record) -> None:
+        """Move past a record without folding it (a reader refused its signer)."""
+        self._check_order(record)
+        self.through_seq = record.seq
+        self.through_digest = record.digest()
+
+    def fold(self, record: Record) -> None:
+        self._check_order(record)
         if record.type is RecordType.CHECKPOINT:
             self.checkpoint_seqs = (self.checkpoint_seqs + [record.seq])[-MAX_CHECKPOINT_SEQS:]
         elif record.type is not RecordType.NOTE:
@@ -325,12 +343,13 @@ class FrontierReport(Frontier):
     offer_order: Sequence[tuple[str, str]] = ()                  # ("verify"|"run", task_id): verify first
     through: Mapping[str, tuple[int, str]] = field(default_factory=dict)  # partition -> (seq, digest) folded
     kinds_of: Mapping[str, str] = field(default_factory=dict)    # task_id -> kind for every listed task
+    untrusted: Sequence[Untrusted] = ()                          # (partition, seq, reason) records refused, not folded
 
     def counts(self) -> dict[str, int]:
         return {"ready": len(self.ready), "awaiting_verification": len(self.awaiting_verification),
                 "poisoned": len(self.poisoned), "done": len(self.done), "refused": len(self.refused),
                 "held": len(self.held), "blocked": len(self.blocked), "capped": len(self.capped),
-                "orphans": len(self.orphans), "dangling": len(self.dangling)}
+                "orphans": len(self.orphans), "dangling": len(self.dangling), "untrusted": len(self.untrusted)}
 
 
 def classify(states: Mapping[str, PartitionState], objects: ObjectStore, now: float, *,
@@ -437,18 +456,24 @@ def derive(
     partitions: Iterable[str] | None = None,
     checkpoints: Mapping[str, PartitionState] | None = None,
     policy: FrontierPolicy | None = None,
+    keyring: Keyring | None = None,
 ) -> FrontierReport:
     """The frontier over ``partitions`` (default: all) at ``now``.  Pure: no clock, sorted outputs.
 
-    ``checkpoints`` maps a partition to a folded state to start from (see ``compaction``); the log
-    is then read with ``since_seq = state.through_seq``.  ``proposal_cap`` overrides the policy's.
-    A partition whose stored prefix was pruned past the start position raises ``PrefixPruned``.
+    ``checkpoints`` maps a partition to a folded state to start from (see ``compaction``, which
+    only accepts operator-signed checkpoints); the log is then read with ``since_seq =
+    state.through_seq``.  ``proposal_cap`` overrides the policy's.  ``keyring`` is the trust root
+    every record is authorised against (``None`` = empty: everything refused, named in
+    ``untrusted``).  A partition whose stored prefix was pruned past the start position raises
+    ``PrefixPruned``.
     """
     effective = policy or DEFAULT_POLICY
     if proposal_cap is not None:
         effective = replace(effective, proposal_cap=int(proposal_cap))
-    states = states_of(log, partitions, checkpoints)
-    return classify(states, objects, now, policy=effective, kinds=kinds)
+    untrusted: list[Untrusted] = []
+    states = states_of(log, partitions, checkpoints, keyring=keyring, untrusted=untrusted)
+    report = classify(states, objects, now, policy=effective, kinds=kinds)
+    return replace(report, untrusted=tuple(sorted(untrusted)))
 
 
 def expand_partitions(log: LogStore, partitions: Iterable[str] | None) -> list[str]:
@@ -463,23 +488,36 @@ def expand_partitions(log: LogStore, partitions: Iterable[str] | None) -> list[s
     return sorted(names)
 
 
-def fold_partition(log: LogStore, partition: str, base: PartitionState | None = None) -> PartitionState:
+def fold_partition(log: LogStore, partition: str, base: PartitionState | None = None, *,
+                   keyring: Keyring | None = None, untrusted: list[Untrusted] | None = None) -> PartitionState:
     """Fold one partition from ``base`` (copied) or from nothing; ``PrefixPruned`` when the stored
-    records start after the base position, so no reader ever folds a hole silently."""
+    records start after the base position, so no reader ever folds a hole silently.  Each record
+    is authorised against ``keyring`` first (``None`` = empty keyring); a refused one is skipped
+    and appended to ``untrusted`` as ``(partition, seq, reason)``."""
     state = base.copy() if base is not None else PartitionState(partition)
+    ring = keyring if keyring is not None else Keyring()
     start = getattr(log, "start", None)
     if callable(start):
         stored_from = start(partition)[0]
         if stored_from > state.through_seq:
             raise PrefixPruned(f"{partition!r}: stored records start after seq {stored_from} but the reader is at "
                                f"{state.through_seq}; start from a checkpoint (compaction.latest_checkpoint)")
-    return state.fold_all(log.read(partition, since_seq=state.through_seq))
+    for record in log.read(partition, since_seq=state.through_seq):
+        reason = refusal_reason(record, ring)
+        if reason is None:
+            state.fold(record)
+        else:
+            state.skip(record)
+            if untrusted is not None:
+                untrusted.append((record.partition, record.seq, reason))
+    return state
 
 
 def states_of(log: LogStore, partitions: Iterable[str] | None = None,
-              checkpoints: Mapping[str, PartitionState] | None = None) -> dict[str, PartitionState]:
+              checkpoints: Mapping[str, PartitionState] | None = None, *,
+              keyring: Keyring | None = None, untrusted: list[Untrusted] | None = None) -> dict[str, PartitionState]:
     """Fold without classifying; what ``derive``, ``compaction`` and ``intents`` use."""
-    return {partition: fold_partition(log, partition, (checkpoints or {}).get(partition))
+    return {partition: fold_partition(log, partition, (checkpoints or {}).get(partition), keyring=keyring, untrusted=untrusted)
             for partition in expand_partitions(log, partitions)}
 
 
@@ -491,6 +529,6 @@ def iter_tasks(states: Mapping[str, PartitionState]) -> Iterator[tuple[str, Task
 
 __all__ = [
     "DEFAULT_POLICY", "DEFAULT_PROPOSAL_CAP", "FoldOrder", "FrontierPolicy", "FrontierReport", "IntentState", "PartitionState",
-    "MAX_CHECKPOINT_SEQS", "PrefixPruned", "TaskState", "classify", "derive", "expand_partitions", "fold",
+    "MAX_CHECKPOINT_SEQS", "PrefixPruned", "TaskState", "Untrusted", "classify", "derive", "expand_partitions", "fold",
     "fold_partition", "iter_tasks", "states_of",
 ]

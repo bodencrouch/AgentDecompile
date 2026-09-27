@@ -31,6 +31,7 @@ from collections.abc import Mapping
 
 from agentdecompile_grid.core import GridError, LogStore, Record, RecordType
 from agentdecompile_grid.log.frontier import IntentState, PartitionState, TaskState, states_of
+from agentdecompile_grid.log.signing import Keyring
 from agentdecompile_grid.log.outbox import Appender
 from agentdecompile_grid.log.records import Draft
 
@@ -100,8 +101,9 @@ def issue_intent(appender: Appender, partition: str, task_id: str, ttl_s: int, n
     return Lease.from_record(record)
 
 
-def _task_state(log: LogStore, partition: str, task_id: str, state: PartitionState | None) -> TaskState | None:
-    folded = state if state is not None else states_of(log, [partition]).get(partition)
+def _task_state(log: LogStore, partition: str, task_id: str, state: PartitionState | None, keyring: Keyring | None = None) -> TaskState | None:
+    """The task's folded state; folding authorises every record against ``keyring`` (``None`` = empty keyring)."""
+    folded = state if state is not None else states_of(log, [partition], keyring=keyring).get(partition)
     if folded is None:
         return None
     return folded.tasks.get(task_id)
@@ -120,18 +122,20 @@ def fence_check(task: TaskState | None, lease: Lease) -> IntentState:
 
 
 def renew_intent(appender: Appender, log: LogStore, lease: Lease, now: float, *, ttl_s: int | None = None,
-                 state: PartitionState | None = None) -> Lease:
-    """Extend the lease from ``now`` with the same fence; refuses by name when fenced out."""
-    fence_check(_task_state(log, lease.partition, lease.task_id, state), lease)
+                 state: PartitionState | None = None, keyring: Keyring | None = None) -> Lease:
+    """Extend the lease from ``now`` with the same fence; refuses by name when fenced out.  Without
+    ``state``, the log is folded through ``keyring`` (the holder's own key must be in it)."""
+    fence_check(_task_state(log, lease.partition, lease.task_id, state, keyring), lease)
     ttl = lease.ttl_s if ttl_s is None else int(ttl_s)
     record = appender.append_one(lease.partition, Draft(RecordType.INTENT, intent_body(lease.task_id, lease.key_id, ttl, lease.issued_seq, now)))
     return Lease.from_record(record)
 
 
-def drop_intent(appender: Appender, log: LogStore, lease: Lease, now: float, *, state: PartitionState | None = None) -> Lease | None:
+def drop_intent(appender: Appender, log: LogStore, lease: Lease, now: float, *, state: PartitionState | None = None,
+                keyring: Keyring | None = None) -> Lease | None:
     """Release the lease (``ttl_s == 0``).  Returns ``None`` when it was already fenced out: nothing to drop."""
     try:
-        fence_check(_task_state(log, lease.partition, lease.task_id, state), lease)
+        fence_check(_task_state(log, lease.partition, lease.task_id, state, keyring), lease)
     except IntentFenced:
         return None
     record = appender.append_one(lease.partition, Draft(RecordType.INTENT, intent_body(lease.task_id, lease.key_id, 0, lease.issued_seq, now)))

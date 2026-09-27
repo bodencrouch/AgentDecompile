@@ -9,6 +9,11 @@ writer identity, so two nodes compacting the same prefix write the *same* object
 ``summary_ref`` is identical (design §2.2: idempotent checkpoint-index).  The summary lives in the
 object store; the CHECKPOINT record ``{through_seq, through_digest, summary_ref}`` points at it.
 
+Trust: a summary replaces the records it covers, so ``compact`` folds only records that pass
+``signing.authorize_record`` against its keyring, and a reader accepts only CHECKPOINT records an
+operator key signed (``latest_checkpoint(..., keyring=)``); ``keyring=None`` is an empty keyring,
+so an unwired reader starts from record 1 instead of trusting a summary.
+
 A reader starts from the latest checkpoint whose summary object exists, verifies that the first
 tail record's ``prev`` equals ``through_digest`` (the tail chains onto the summary), folds the
 tail, and derives the same frontier as a full replay (design U123).
@@ -38,6 +43,7 @@ from agentdecompile_grid.log.frontier import FrontierPolicy, FrontierReport, Par
 from agentdecompile_grid.log.local import PruneRefused
 from agentdecompile_grid.log.outbox import Appender
 from agentdecompile_grid.log.records import ChainBroken, Draft
+from agentdecompile_grid.log.signing import Keyring, refusal_reason
 
 CHECKPOINT_SCHEMA = 1
 
@@ -105,15 +111,20 @@ class CompactionResult:
 
 
 def compact(log: LogStore, objects: ObjectStore, appender: Appender, partition: str, *, base: CheckpointSummary | None = None,
-            through_seq: int | None = None, allow_empty: bool = False) -> CompactionResult:
+            through_seq: int | None = None, allow_empty: bool = False, keyring: Keyring | None = None) -> CompactionResult:
     """Fold ``base`` (or nothing) plus the tail up to ``through_seq`` (default: the tail), write the
-    summary object, append the CHECKPOINT record.  Deletes nothing."""
+    summary object, append the CHECKPOINT record.  Deletes nothing.  A record ``keyring`` refuses
+    is moved past, never folded (``None`` = empty keyring)."""
     state = base.to_state() if base is not None else PartitionState(partition)
+    ring = keyring if keyring is not None else Keyring()
     folded = 0
     for record in log.read(partition, since_seq=state.through_seq):
         if through_seq is not None and record.seq > through_seq:
             break
-        state.fold(record)
+        if refusal_reason(record, ring) is None:
+            state.fold(record)
+        else:
+            state.skip(record)
         folded += 1
     if folded == 0 and not allow_empty:
         raise NothingToCompact(f"{partition!r}: no records after seq {state.through_seq}")
@@ -146,10 +157,14 @@ def load_summary(objects: ObjectStore, record: Record) -> CheckpointSummary | No
     return summary
 
 
-def latest_checkpoint(log: LogStore, objects: ObjectStore, partition: str) -> CheckpointSummary | None:
-    """The newest CHECKPOINT whose summary object exists; ``None`` when there is none."""
+def latest_checkpoint(log: LogStore, objects: ObjectStore, partition: str, *, keyring: Keyring | None = None) -> CheckpointSummary | None:
+    """The newest operator-signed CHECKPOINT whose summary object exists; ``None`` when there is
+    none.  A CHECKPOINT ``keyring`` refuses is ignored (``None`` = empty keyring: every one is)."""
+    ring = keyring if keyring is not None else Keyring()
     latest: CheckpointSummary | None = None
     for record in checkpoint_records(log, partition):
+        if refusal_reason(record, ring) is not None:
+            continue
         summary = load_summary(objects, record)
         if summary is not None:
             latest = summary
@@ -167,19 +182,22 @@ def tail_after(log: LogStore, summary: CheckpointSummary) -> Iterator[Record]:
         yield record
 
 
-def read_from_checkpoint(log: LogStore, objects: ObjectStore, partition: str) -> tuple[PartitionState, Iterator[Record]]:
-    """``(state to start from, tail records)``; a fresh state and the full log when no checkpoint exists."""
-    summary = latest_checkpoint(log, objects, partition)
+def read_from_checkpoint(log: LogStore, objects: ObjectStore, partition: str, *,
+                         keyring: Keyring | None = None) -> tuple[PartitionState, Iterator[Record]]:
+    """``(state to start from, tail records)``; a fresh state and the full log when no trusted
+    checkpoint exists.  The tail is not authorised here: fold it through ``frontier.fold_partition``."""
+    summary = latest_checkpoint(log, objects, partition, keyring=keyring)
     if summary is None:
         return PartitionState(partition), log.read(partition)
     return summary.to_state(), tail_after(log, summary)
 
 
-def states_from_checkpoints(log: LogStore, objects: ObjectStore, partitions: Sequence[str] | None = None) -> dict[str, PartitionState]:
-    """Base states for ``frontier.derive(..., checkpoints=...)`` from the latest checkpoints."""
+def states_from_checkpoints(log: LogStore, objects: ObjectStore, partitions: Sequence[str] | None = None, *,
+                            keyring: Keyring | None = None) -> dict[str, PartitionState]:
+    """Base states for ``frontier.derive(..., checkpoints=...)`` from the latest trusted checkpoints."""
     bases: dict[str, PartitionState] = {}
     for partition in expand_partitions(log, partitions):
-        summary = latest_checkpoint(log, objects, partition)
+        summary = latest_checkpoint(log, objects, partition, keyring=keyring)
         if summary is not None:
             bases[partition] = summary.to_state()
     return bases
@@ -187,10 +205,11 @@ def states_from_checkpoints(log: LogStore, objects: ObjectStore, partitions: Seq
 
 def derive_from_latest(log: LogStore, objects: ObjectStore, now: float, *, partitions: Sequence[str] | None = None,
                        policy: FrontierPolicy | None = None, kinds: Sequence[str] | None = None,
-                       proposal_cap: int | None = None) -> FrontierReport:
-    """``frontier.derive`` starting every partition from its latest checkpoint (U123's reader path)."""
+                       proposal_cap: int | None = None, keyring: Keyring | None = None) -> FrontierReport:
+    """``frontier.derive`` starting every partition from its latest trusted checkpoint (U123's reader path)."""
     return derive(log, objects, now, proposal_cap=proposal_cap, kinds=kinds, partitions=partitions,
-                  checkpoints=states_from_checkpoints(log, objects, partitions), policy=policy)
+                  checkpoints=states_from_checkpoints(log, objects, partitions, keyring=keyring), policy=policy,
+                  keyring=keyring)
 
 
 def lag(log: LogStore, partition: str, summary: CheckpointSummary | None) -> int:

@@ -39,7 +39,6 @@ logger = logging.getLogger(__name__)
 
 # APIs that load resource strings; .rsrc strings have no direct code xrefs.
 _LOADSTRING_NAMES = ("LoadStringA", "LoadStringW", "LoadString")
-_DIRECTIONAL_MODES = frozenset({"to", "from", "both"})
 
 
 class CrossReferencesToolProvider(ToolProvider):
@@ -142,11 +141,12 @@ class CrossReferencesToolProvider(ToolProvider):
         )
 
     def _resolve_mode(self, args: dict[str, Any]) -> str:
-        """``direction`` refines the directional modes; agentdecompile-cli always sends a
-        ``mode`` (``both`` by default), so reading ``mode`` first made ``--direction`` dead."""
+        """``direction`` narrows an absent or ``both`` mode; agentdecompile-cli always sends a
+        ``mode`` (``both`` by default), so reading ``mode`` first made ``--direction`` dead.
+        An explicit ``to``/``from`` mode (``references to``) keeps its direction."""
         mode = self._get_str(args, "mode", default="")
         direction = self._get_str(args, "direction", default="")
-        if direction and (not mode or n(mode) in _DIRECTIONAL_MODES):
+        if direction and (not mode or n(mode) == "both"):
             return direction
         return mode or "to"
 

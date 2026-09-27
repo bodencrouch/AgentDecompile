@@ -1450,11 +1450,13 @@ async def _execute_tool_call(
 async def _read_resource_locally(ctx: click.Context, uri: str) -> Any:
     try:
         backend = _get_local_backend(ctx)
+        with _scoped_shared_server_env(ctx):
+            await backend.initialize()
     except (ImportError, EnvironmentError) as exc:
         click.echo(f"Error (local mode): {exc}", err=True)
         sys.exit(1)
+    # Other errors propagate so _read_resource can auto-open and retry.
     with _scoped_shared_server_env(ctx):
-        await backend.initialize()
         return await backend.read_resource(uri)
 
 

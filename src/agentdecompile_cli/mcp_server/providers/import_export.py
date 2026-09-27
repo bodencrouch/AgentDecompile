@@ -1129,6 +1129,7 @@ class ImportExportToolProvider(ToolProvider):
                         "repository": repository_name,
                         "programs": binaries,
                         "method": "pyghidra_api",
+                        "_sharedImportIdentity": (server_host, server_port, repository_name),
                     }
                 except Exception:
                     if not transient_program_released:
@@ -1382,6 +1383,7 @@ class ImportExportToolProvider(ToolProvider):
             "repository": repository_name,
             "programs": binaries,
             "stdout": stdout or None,
+            "_sharedImportIdentity": (server_host, server_port, repository_name),
         }
         if not analyze_after_import:
             result["inSessionAnalysisPending"] = True
@@ -1406,12 +1408,16 @@ class ImportExportToolProvider(ToolProvider):
         by_key[key] = {"name": program_name, "path": key, "type": "Program"}
         SESSION_CONTEXTS.set_project_binaries(session_id, list(by_key.values()))
 
-    def _program_info_for_shared_import_result(self, result: dict[str, Any]) -> SimpleNamespace | None:
+    def _program_info_for_shared_import_result(
+        self,
+        result: dict[str, Any],
+        shared_identity: tuple[str, int, str] | None,
+    ) -> SimpleNamespace | None:
         """Bind a versioned/shared _handle_shared_import success to the program it just created.
 
-        Mirrors the default (non-versioned) import path's `program_info = _pi` reassignment
-        (~1682-1683 below), which rebinds the response to the last-imported program instead of
-        whatever program_info the manager dispatched with. Without this, a successful
+        Mirrors the later non-versioned import loop's `program_info = _pi` reassignment, which
+        rebinds the response to the last-imported program instead of whatever program_info the
+        manager dispatched with. Without this, a successful
         enableVersionControl=True import would call create_success_response with the manager's
         original (often None) program_info, and the restored call-scoped injection contract
         (tool_providers.py ToolProvider.call_tool) would then attach no projectContext at all.
@@ -1421,9 +1427,8 @@ class ImportExportToolProvider(ToolProvider):
         handle before returning, and the analyzeHeadless fallback runs import in a separate JVM
         subprocess. So this builds the minimal duck-typed object collect_target_project_context
         (program_metadata.py) needs: a `.domain_file` with getPathname/getSharedProjectURL/
-        getProjectLocator, using the repository identity already on the session's shared-server
-        handle. Because the handle is always shared-server here (is_shared_server_handle guard in
-        _handle_shared_import), the resulting projectContext takes the shared-mode shape (mode,
+        getProjectLocator, using the repository identity captured by _handle_shared_import for
+        this operation. The resulting projectContext takes the shared-mode shape (mode,
         serverHost, serverPort, repository, programUrl) — it does not set `projectPath`, which
         collect_target_project_context only sets for the local-gpr branch.
         """
@@ -1434,23 +1439,12 @@ class ImportExportToolProvider(ToolProvider):
             return None
         # Last entry wins, matching the default path's loop-reassignment behavior.
         last = imported[-1] or {}
-        # A folder import yields ONE entry whose sourcePath is the folder and whose programName is
-        # the folder's own name (both _handle_shared_import return sites). That is not a program,
-        # so keep the incoming program_info rather than binding e.g. activeProgram="/corpus".
-        source_path = str(last.get("sourcePath") or "").strip()
-        if source_path and Path(source_path).is_dir():
-            return None
         program_name = str(last.get("programName") or "").strip()
         if not program_name:
             return None
-        session_id = get_current_mcp_session_id()
-        session = SESSION_CONTEXTS.get_or_create(session_id)
-        handle = session.project_handle if isinstance(session.project_handle, dict) else None
-        if not handle or not is_shared_server_handle(handle):
+        if shared_identity is None:
             return None
-        server_host = str(handle.get("server_host") or "").strip()
-        server_port = handle.get("server_port") or 13100
-        repository_name = str(handle.get("repository_name") or "").strip()
+        server_host, server_port, repository_name = shared_identity
         if not server_host or not repository_name:
             return None
         program_path = f"/{program_name}"
@@ -1510,11 +1504,12 @@ class ImportExportToolProvider(ToolProvider):
             original_source = source
             source = Path(protection['analysisPath'])
             result = await _native_call(self._handle_shared_import, source, recursive, analyze_after_import, program_file_name=repo_program_name or original_source.name, program_info=program_info)
+            shared_identity = result.pop("_sharedImportIdentity", None)
             result['protection'] = protection
             result['originalSourcePath'] = str(original_source)
             return create_success_response(
                 result,
-                program_info=self._program_info_for_shared_import_result(result) or program_info,
+                program_info=self._program_info_for_shared_import_result(result, shared_identity) or program_info,
             )
 
         if enable_version_control:
@@ -1531,9 +1526,10 @@ class ImportExportToolProvider(ToolProvider):
                 program_file_name=repo_program_name,
                 program_info=program_info,
             )
+            shared_result.pop("_sharedImportIdentity", None)
             return create_success_response(
                 shared_result,
-                program_info=self._program_info_for_shared_import_result(shared_result) or program_info,
+                program_info=program_info,
             )
 
         imported_programs: list[dict[str, Any]] = []

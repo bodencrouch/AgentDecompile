@@ -29,6 +29,7 @@ import asyncio
 import copy
 import contextlib
 import hashlib
+import inspect
 import json
 import logging
 import multiprocessing
@@ -5660,37 +5661,23 @@ def tool_seq_file_cmd(ctx: click.Context, file: str, continue_on_error: bool) ->
     _run_parsed_tool_sequence(ctx, parsed_steps, continue_on_error=continue_on_error)
 
 
-def _run_embedded_cli(entrypoint: Any, args: tuple[str, ...]) -> None:
+def _run_embedded_cli(
+    entrypoint: Any,
+    args: tuple[str, ...] | list[str],
+    *,
+    prog: str | None = None,
+) -> None:
     forwarded = list(args) or ["--help"]
-    raise SystemExit(int(entrypoint(forwarded) or 0))
-
-
-@main.command(
-    "recover",
-    context_settings={"ignore_unknown_options": True, "allow_extra_args": True, "token_normalize_func": _identity_cli_token},
-    add_help_option=False,
-    help="Run the integrated staged recovery CLI. Pass subcommand args directly, for example `agentdecompile-cli recover inspect <path>`.",
-)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def recover_passthrough_cmd(args: tuple[str, ...]) -> None:
-    from agentdecompile_recovery.cli import main as recovery_main
-
+    kwargs: dict[str, str] = {}
+    if prog is not None:
+        try:
+            accepts_prog = "prog" in inspect.signature(entrypoint).parameters
+        except (TypeError, ValueError):
+            accepts_prog = False
+        if accepts_prog:
+            kwargs["prog"] = prog
     with _scoped_shared_server_env(click.get_current_context()):
-        _run_embedded_cli(recovery_main, args)
-
-
-@main.command(
-    "reconstruct",
-    context_settings={"ignore_unknown_options": True, "allow_extra_args": True, "token_normalize_func": _identity_cli_token},
-    add_help_option=False,
-    help="Run the integrated reconstruction front door. Pass arguments directly, for example `agentdecompile-cli reconstruct <binary>` or `agentdecompile-cli reconstruct self-check`.",
-)
-@click.argument("args", nargs=-1, type=click.UNPROCESSED)
-def reconstruct_passthrough_cmd(args: tuple[str, ...]) -> None:
-    from agentdecompile_recovery.frontdoor import main as reconstruct_main
-
-    with _scoped_shared_server_env(click.get_current_context()):
-        _run_embedded_cli(reconstruct_main, args)
+        raise SystemExit(int(entrypoint(forwarded, **kwargs) or 0))
 
 
 # ---------------------------------------------------------------------------
@@ -5706,6 +5693,11 @@ if __name__ == "__main__":
 # (important for subcommand resolution before main() callback runs).
 _ensure_dynamic_commands_registered()
 _register_output_format_option_on_all_commands(main)
+
+# After the -f/--format walk: bridge leaves forward every token to argparse.
+from agentdecompile_cli.recovery_commands import register as _register_recovery_commands  # noqa: E402
+
+_register_recovery_commands(main)
 
 
 def cli_entry_point() -> None:

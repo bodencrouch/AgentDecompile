@@ -6,8 +6,8 @@ streamable-http/sse/http), list/delete project binaries, and import binaries bef
 For forwarding to a remote MCP backend without local Ghidra, use agentdecompile-proxy instead.
 
 agentdecompile-proxy (proxy_main()): Forward MCP to a remote backend. No local PyGhidra/JVM.
-Requires backend URL via --backend-url, --mcp-server-url, or env AGENT_DECOMPILE_MCP_SERVER_URL
-/ AGENTDECOMPILE_MCP_SERVER_URL.
+Requires backend URL via --backend-url, --mcp-server-url, or env AGENT_DECOMPILE_BACKEND_URL /
+AGENT_DECOMPILE_MCP_SERVER_URL / AGENT_DECOMPILE_SERVER_URL (or their AGENTDECOMPILE_* forms).
 
 Environment (1:1 with Python AgentDecompileLauncher / ConfigManager) for agentdecompile-server:
 - AGENT_DECOMPILE_PROJECT_PATH: Path to a .gpr file or to a project directory location
@@ -1051,13 +1051,13 @@ def build_proxy_parser() -> argparse.ArgumentParser:
         "--ghidra-server-host",
         type=str,
         default=None,
-        help="Auth only: Ghidra Server host the credentials belong to. AGENT_DECOMPILE_GHIDRA_SERVER_HOST wins over this flag. Default: unset.",
+        help="Auth only: Ghidra Server host the credentials belong to. AGENT_DECOMPILE_GHIDRA_SERVER_HOST wins over this flag; the AGENTDECOMPILE_* aliases are not read. Default: unset.",
     )
     parser.add_argument(
         "--ghidra-server-port",
         type=int,
         default=None,
-        help="Auth only: Ghidra Server port. AGENT_DECOMPILE_GHIDRA_SERVER_PORT wins over this flag. Default: unset (MCP HTTP auth then uses 13100).",
+        help="Auth only: Ghidra Server port. AGENT_DECOMPILE_GHIDRA_SERVER_PORT (or AGENT_DECOMPILE_SERVER_PORT) wins over this flag; the AGENTDECOMPILE_* aliases are not read. Default: unset (MCP HTTP auth then uses 13100).",
     )
     parser.add_argument(
         "--ghidra-server-username",

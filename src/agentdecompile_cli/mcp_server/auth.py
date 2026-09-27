@@ -158,9 +158,9 @@ def validate_credentials(
     if not username:
         return False
     if not config.default_username or not config.default_password:
-        # Reject when no configured pair exists. Once defaults exist, a different host accepts
-        # any non-empty username (Basic auth or X-Agent-Server-Username) with any password,
-        # including empty, because they are forwarded rather than checked here; operators must not rely on MCP
+        # Reject when no configured pair exists. Once defaults exist, a different host accepts any
+        # non-empty username (Basic auth or X-Agent-Server-Username) with any password, including
+        # empty, because they are forwarded rather than checked here; operators must not rely on MCP
         # auth to restrict dynamic routing.
         return False
 

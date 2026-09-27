@@ -179,18 +179,29 @@ class StringToolProvider(ToolProvider):
         query: str = self._require_str(args, "query", "pattern", "text", name="query")
         offset, limit = self._get_pagination_params(args, default_limit=10)
         mode: str = self._get_str(args, "searchmode", "mode", default="semantic")
+        mode_norm: str = mode.strip().lower()
+        case_sensitive = self._get_bool(args, "casesensitive", "cases", default=False)
 
-        if ghidra_tools is not None:
+        # The code index (GhidraTools.search_code) has no regex or case-sensitive
+        # matching, so those requests go straight to the decompiling fallback.
+        if ghidra_tools is not None and mode_norm != "regex" and not case_sensitive:
             try:
                 from agentdecompile_cli.models import SearchMode
 
-                mode_norm: str = mode.strip().lower()
                 search_mode = SearchMode.LITERAL if mode_norm == "literal" else SearchMode.SEMANTIC
+                threshold_raw = self._get_str(args, "similaritythreshold", "simthreshold", "threshold", default="")
+                try:
+                    similarity_threshold = float(threshold_raw) if threshold_raw != "" else 0.0
+                except ValueError:
+                    similarity_threshold = 0.0
                 results = ghidra_tools.search_code(
                     query=query,
                     limit=limit,
                     offset=offset,
                     search_mode=search_mode,
+                    include_full_code=self._get_bool(args, "includefullcode", "fullcode", default=False),
+                    preview_length=self._get_int(args, "previewlength", "previewlen", "snippetlength", default=200) or 200,
+                    similarity_threshold=similarity_threshold,
                 )
                 if hasattr(results, "model_dump"):
                     return create_success_response(results.model_dump())

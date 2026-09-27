@@ -1783,11 +1783,22 @@ def _add_global_options(cmd: click.Command | FunctionType) -> click.Command | Fu
         "--mcp-server-url",
         help="Full server URL (overrides --host/--port)",
     )(cmd)
-    # A few tools own a `format` parameter of their own (export, gen-callgraph, ...).
-    # Stacking the output-format flag on those declares --format twice, and one
-    # declaration silently wins. Root `main` still carries -f/--format, so output
-    # format stays reachable as `agentdecompile -f json <command>`.
-    if not _declares_format_param(cmd):
+    # A few tools own a `format` parameter of their own (export, gen-callgraph,
+    # export-context, manage-files). Stacking the output-format flag on those
+    # declares --format twice and lets one declaration silently win, so the long
+    # flag is left to the tool. `-f` still selects output format there: it is
+    # attached separately, and because it does not expose a value it cannot
+    # collide with the tool's own `format` parameter or leak into the request.
+    if _declares_format_param(cmd):
+        cmd = click.option(
+            "-f",
+            type=str,
+            default=None,
+            expose_value=False,
+            callback=_set_output_format_option,
+            help="Output format (default: text). This command's --format is its own parameter.",
+        )(cmd)
+    else:
         cmd = click.option(
             "-f",
             "--format",

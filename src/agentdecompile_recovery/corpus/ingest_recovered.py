@@ -84,25 +84,50 @@ def ensure_recovered_function(con: sqlite3.Connection) -> None:
     additively, like ``store.ensure_match_columns``: missing columns are added
     and, when no (program, name) pair repeats, a unique index restores the key
     INSERT OR REPLACE relies on. Rows are never dropped, rewritten or reordered.
+
+    Like the store.py ensure_* helpers, this never commits or rolls back a
+    caller's open transaction: it joins it through a SAVEPOINT. With no open
+    transaction it takes its own BEGIN IMMEDIATE ... COMMIT.
     """
     info = list(con.execute("PRAGMA table_info(recovered_function)"))
-    if not info:
-        con.executescript(RECOVERED_FUNCTION_DDL)
-        return
-    cols = {row[1] for row in info}
-    has_pk = any(row[5] for row in info)
-    missing = [(c, d) for c, d in RECOVERED_FUNCTION_ADDED_COLUMNS if c not in cols]
-    if has_pk and not missing:
-        return
+    if info:
+        cols = {row[1] for row in info}
+        has_pk = any(row[5] for row in info)
+        if has_pk and all(c in cols for c, _d in RECOVERED_FUNCTION_ADDED_COLUMNS):
+            return
+        work = _upgrade_recovered_function
+    else:
+        work = _create_recovered_function
     if con.in_transaction:
-        con.commit()
+        # Join the caller's transaction; the caller owns COMMIT/ROLLBACK.
+        # In legacy isolation, in_transaction means the caller already holds
+        # the RESERVED lock, so the emptiness check below is still protected.
+        con.execute("SAVEPOINT recovered_function_upgrade")
+        try:
+            work(con)
+        except BaseException:
+            con.execute("ROLLBACK TO recovered_function_upgrade")
+            con.execute("RELEASE recovered_function_upgrade")
+            raise
+        con.execute("RELEASE recovered_function_upgrade")
+        return
     con.execute("BEGIN IMMEDIATE")
     try:
-        _upgrade_recovered_function(con)
+        work(con)
         con.execute("COMMIT")
     except BaseException:
         con.execute("ROLLBACK")
         raise
+
+
+def _recovered_function_statements() -> list[str]:
+    return [stmt for stmt in RECOVERED_FUNCTION_DDL.split(";") if stmt.strip()]
+
+
+def _create_recovered_function(con: sqlite3.Connection) -> None:
+    """Per-statement DDL: executescript would COMMIT the caller's work."""
+    for stmt in _recovered_function_statements():
+        con.execute(stmt)
 
 
 def _upgrade_recovered_function(con: sqlite3.Connection) -> None:
@@ -113,9 +138,7 @@ def _upgrade_recovered_function(con: sqlite3.Connection) -> None:
         empty = con.execute("SELECT 1 FROM recovered_function LIMIT 1").fetchone() is None
         if empty:
             con.execute("DROP TABLE recovered_function")
-            for stmt in RECOVERED_FUNCTION_DDL.split(";"):
-                if stmt.strip():
-                    con.execute(stmt)
+            _create_recovered_function(con)
             return
     cols = {row[1] for row in info}
     for col, decl in RECOVERED_FUNCTION_ADDED_COLUMNS:
@@ -139,6 +162,11 @@ def _upgrade_recovered_function(con: sqlite3.Connection) -> None:
 
 def ensure_recovered_schema(con: sqlite3.Connection) -> None:
     ensure_recovered_function(con)
+    # This commit is load-bearing, unlike ensure_recovered_function: the
+    # `ingest-recovered --report` paths (corpus/cli.py and main() below) call
+    # store.connect(), whose ensure_binary_columns() may leave a recovery_family
+    # backfill UPDATE uncommitted, and then only read. This commit is what
+    # persists that backfill; without it the connection closes and drops it.
     con.executescript(REUSE_CANDIDATE_DDL)
     con.commit()
 

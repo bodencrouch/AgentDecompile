@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "ProgramAnalysisIncomplete",
     "ProgramAnalysisTimeout",
     "analysis_failure",
     "analysis_gate_exempt_tool",
@@ -33,6 +34,15 @@ __all__ = [
 
 class ProgramAnalysisTimeout(TimeoutError):
     """Ghidra auto-analysis did not become idle within the allowed wait."""
+
+
+class ProgramAnalysisIncomplete(ProgramAnalysisTimeout):
+    """Analysis ran to idle but the program still reports it needs analysis.
+
+    Unlike an idle-wait timeout this repeats on every run, so it is recorded in
+    ``_FAILED_ANALYSIS``.  It subclasses ProgramAnalysisTimeout so existing
+    handlers keep returning the analysis-timeout response.
+    """
 
 
 _LOCKS: dict[str, threading.Lock] = {}
@@ -379,7 +389,9 @@ def _run_auto_analysis(program: GhidraProgram, *, analyzers: list[str] | None = 
 # a failed analysis on every call (each rerun failed the same way and blocked
 # unrelated tools); an explicit analyze-program retries and clears the entry on
 # success, and importing or (re)opening a program under the path clears it.
-# ProgramAnalysisTimeout is not recorded: it is transient, so the gate retries.
+# An idle-wait ProgramAnalysisTimeout is not recorded: it is transient, so the
+# gate retries.  ProgramAnalysisIncomplete (analysis ran, flag never flipped)
+# repeats on every run and is recorded.
 #
 # The record is per process.  Each ``--local`` CLI invocation starts with an
 # empty dict, so for CLI users this record never stops a repeated failure; the
@@ -439,10 +451,12 @@ def blocking_ensure_analyzed(
             try:
                 deferred = _run_auto_analysis(program, analyzers=analyzers)
                 if program_needs_analysis(program, program_info=program_info):
-                    raise ProgramAnalysisTimeout(
+                    raise ProgramAnalysisIncomplete(
                         f"Ghidra auto-analysis did not complete for program (key={key})"
                     )
-            except ProgramAnalysisTimeout:
+            except ProgramAnalysisTimeout as exc:
+                if isinstance(exc, ProgramAnalysisIncomplete):
+                    _record_analysis_failure(key, exc)
                 raise
             except Exception as exc:
                 _record_analysis_failure(key, exc)
@@ -487,10 +501,12 @@ def wait_for_program_analysis_ready(
                 _run_auto_analysis(program)
                 wait_for_program_analysis_idle(program, max_wait_sec=max_wait_sec)
             if program_needs_analysis(program, program_info=program_info):
-                raise ProgramAnalysisTimeout(
+                raise ProgramAnalysisIncomplete(
                     f"Ghidra auto-analysis did not complete for program (key={key})"
                 )
-        except ProgramAnalysisTimeout:
+        except ProgramAnalysisTimeout as exc:
+            if isinstance(exc, ProgramAnalysisIncomplete):
+                _record_analysis_failure(key, exc)
             raise
         except Exception as exc:
             _record_analysis_failure(key, exc)

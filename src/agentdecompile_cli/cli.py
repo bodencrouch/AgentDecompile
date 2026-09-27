@@ -3662,9 +3662,32 @@ def function_grp() -> None:
     pass
 
 
+# manage-function's own action names (providers/getfunction.py _handle_manage
+# dispatch table) that this command's options can drive, plus the CLI's earlier
+# spellings. The provider has no "rename_function"; sending it verbatim failed
+# with "Unsupported mode".
+_FUNCTION_RUN_ACTIONS: tuple[str, ...] = (
+    "create",
+    "info",
+    "rename",
+    "rename_variable",
+    "set_prototype",
+    "set_variable_type",
+    "change_datatypes",
+    "change_variable_datatypes",
+    "delete",
+)
+_FUNCTION_RUN_ACTION_ALIASES: dict[str, str] = {"rename_function": "rename"}
+
+
 @function_grp.command("run", help="Run manage-function with --action and optional params")
 @click.option("-b", "--binary", "program_path")
-@click.option("--action", type=click.Choice(["create", "rename_function", "rename_variable", "set_prototype", "set_variable_type", "change_datatypes"]), required=True)
+@click.option(
+    "--action",
+    type=click.Choice([*_FUNCTION_RUN_ACTIONS, *_FUNCTION_RUN_ACTION_ALIASES], case_sensitive=False),
+    required=True,
+    help="manage-function action. rename_function is an alias of rename.",
+)
 @click.option("--address", multiple=True)
 @click.option("--function-identifier", "function_identifier", multiple=True)
 @click.option("--name")
@@ -3706,6 +3729,7 @@ def function_run(
     propagate_max_instructions: int | None,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:function_run")
+    action = _FUNCTION_RUN_ACTION_ALIASES.get(action.lower(), action.lower())
     payload: dict[str, Any] = {"action": action}
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path

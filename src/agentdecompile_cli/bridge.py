@@ -52,7 +52,7 @@ from agentdecompile_cli.app_logger import basename_hint, redact_session_id
 from agentdecompile_cli.executor import get_server_start_message, normalize_backend_url
 from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
 from agentdecompile_cli.mcp_utils.tool_reference import build_initialize_instructions
-from agentdecompile_cli.registry import resolve_tool_name
+from agentdecompile_cli.registry import apply_alias_implied_arguments, resolve_tool_name
 
 logger = logging.getLogger(__name__)
 
@@ -1393,9 +1393,9 @@ class AgentDecompileStdioBridge:
 
         logger.info("stdio bridge forwarding call_tool name=%s", backend_name)
         try:
-            # Forward arguments untouched: `format` belongs to tools (get-data, export,
-            # inspect-memory), and the backend renders markdown unless responseFormat=json.
-            call_args: dict[str, Any] = dict(arguments or {})
+            # The backend sees only the canonical name, so add the mode an overload
+            # alias (get-function-count -> mode=count) implies before it is dropped.
+            call_args: dict[str, Any] = apply_alias_implied_arguments(name, dict(arguments or {})) if isinstance(name, str) else dict(arguments or {})
             raw_result: dict[str, Any] = await self._backend_request("call_tool", backend_name, call_args)
             # raw_result is the JSON-RPC "result" value which should be
             # a CallToolResult-shaped dict: {content: [...], isError: bool}

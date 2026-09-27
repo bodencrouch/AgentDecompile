@@ -73,19 +73,68 @@ RECOVERED_SCHEMA = RECOVERED_FUNCTION_DDL + REUSE_CANDIDATE_DDL
 
 
 def ensure_recovered_function(con: sqlite3.Connection) -> None:
-    """Create recovered_function in the canonical shape, or add missing columns.
+    """Create recovered_function in the canonical shape, or upgrade an old one.
 
-    Same additive pattern as ``store.ensure_match_columns``: read
-    ``PRAGMA table_info`` first so an up-to-date store gets no write, then
-    ``ALTER TABLE ... ADD COLUMN`` for anything missing. Existing rows,
-    columns and constraints are never dropped, rewritten or reordered.
+    A canonical table (it has the primary key and every column) is only read:
+    no DDL, no write lock, so read-only stores and concurrent writers are safe.
+
+    The narrow shape once created by export_run_report has no binary_id and no
+    primary key. Every row writer names binary_id, so in practice that table is
+    empty; an empty one is rebuilt canonical. One that holds rows is upgraded
+    additively, like ``store.ensure_match_columns``: missing columns are added
+    and, when no (program, name) pair repeats, a unique index restores the key
+    INSERT OR REPLACE relies on. Rows are never dropped, rewritten or reordered.
     """
-    con.executescript(RECOVERED_FUNCTION_DDL)
-    cols = {row[1] for row in con.execute("PRAGMA table_info(recovered_function)")}
+    info = list(con.execute("PRAGMA table_info(recovered_function)"))
+    if not info:
+        con.executescript(RECOVERED_FUNCTION_DDL)
+        return
+    cols = {row[1] for row in info}
+    has_pk = any(row[5] for row in info)
+    missing = [(c, d) for c, d in RECOVERED_FUNCTION_ADDED_COLUMNS if c not in cols]
+    if has_pk and not missing:
+        return
+    if con.in_transaction:
+        con.commit()
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        _upgrade_recovered_function(con)
+        con.execute("COMMIT")
+    except BaseException:
+        con.execute("ROLLBACK")
+        raise
+
+
+def _upgrade_recovered_function(con: sqlite3.Connection) -> None:
+    """Run inside one BEGIN IMMEDIATE transaction; re-reads the shape under lock."""
+    info = list(con.execute("PRAGMA table_info(recovered_function)"))
+    has_pk = any(row[5] for row in info)
+    if not has_pk:
+        empty = con.execute("SELECT 1 FROM recovered_function LIMIT 1").fetchone() is None
+        if empty:
+            con.execute("DROP TABLE recovered_function")
+            for stmt in RECOVERED_FUNCTION_DDL.split(";"):
+                if stmt.strip():
+                    con.execute(stmt)
+            return
+    cols = {row[1] for row in info}
     for col, decl in RECOVERED_FUNCTION_ADDED_COLUMNS:
         if col not in cols:
             con.execute(f"ALTER TABLE recovered_function ADD COLUMN {col} {decl}")
-            con.commit()
+    if has_pk:
+        return
+    con.execute(
+        "CREATE INDEX IF NOT EXISTS ix_recovered_logical ON recovered_function(logical_id)"
+    )
+    duplicate = con.execute(
+        "SELECT 1 FROM recovered_function GROUP BY program, name"
+        " HAVING COUNT(*) > 1 LIMIT 1"
+    ).fetchone()
+    if duplicate is None:
+        con.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ux_recovered_program_name"
+            " ON recovered_function(program, name)"
+        )
 
 
 def ensure_recovered_schema(con: sqlite3.Connection) -> None:

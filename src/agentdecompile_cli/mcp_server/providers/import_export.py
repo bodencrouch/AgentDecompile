@@ -33,7 +33,7 @@ from mcp import types
 from agentdecompile_cli.app_logger import basename_hint, redact_session_id
 from agentdecompile_cli.context import ProgramInfo
 from agentdecompile_cli.mcp_server.providers._collectors import iter_items
-from agentdecompile_cli.mcp_server.providers.project import ProjectToolProvider
+from agentdecompile_cli.mcp_server.providers.project import ProjectToolProvider, domain_file_sha256
 from agentdecompile_cli.mcp_server.repository_adapter_listing import list_repository_adapter_items
 from agentdecompile_cli.mcp_server.session_context import (
     SESSION_CONTEXTS,
@@ -1604,8 +1604,7 @@ class ImportExportToolProvider(ToolProvider):
                             folder = pending.pop()
                             pending.extend(list(folder.getFolders()))
                             for domain_file in folder.getFiles():
-                                metadata = domain_file.getMetadata()
-                                prior = str(metadata.get("Executable SHA256") or metadata.get("SHA256") or "").lower()
+                                prior = domain_file_sha256(domain_file)
                                 if digest and prior == digest:
                                     return str(domain_file.getPathname()), str(domain_file.getName())
                                 if str(domain_file.getName()) == name and str(folder.getPathname()).rstrip("/") == dest_folder.rstrip("/"):

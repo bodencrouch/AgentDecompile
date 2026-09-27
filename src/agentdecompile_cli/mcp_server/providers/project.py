@@ -175,6 +175,45 @@ def _shared_auth_failed(adapter_error_type: str | None, adapter_error: str | Non
     )
 
 
+def domain_file_sha256(domain_file: Any) -> str:
+    """Lowercased source-file SHA256 stored in a project file's metadata, or "".
+
+    Loaders record it as the Program Information option "Executable SHA256"
+    (AbstractProgramLoader.setProgramProperties), and ProgramDB.getMetadata copies
+    Program Information options into the file metadata.
+    """
+    try:
+        metadata = domain_file.getMetadata()
+        return str(metadata.get("Executable SHA256") or metadata.get("SHA256") or "").lower()
+    except Exception:
+        return ""
+
+
+def find_project_file_by_sha256(root_folder: Any, digest: str) -> Any | None:
+    """First DomainFile under ``root_folder`` whose recorded SHA256 equals ``digest``."""
+    if not digest:
+        return None
+    digest = digest.lower()
+    pending = [root_folder]
+    while pending:
+        folder = pending.pop()
+        pending.extend(list(folder.getFolders() or []))
+        for domain_file in folder.getFiles() or []:
+            if domain_file_sha256(domain_file) == digest:
+                return domain_file
+    return None
+
+
+def source_file_sha256(path: Path) -> str:
+    """SHA256 of a local file via import-binary's cached hasher; "" disables reuse."""
+    try:
+        from agentdecompile_recovery.corpus.dashboard.library_identity import binary_sha256
+    except Exception as exc:
+        logger.warning("import_reuse hash_helper_unavailable exc_type=%s exc=%s", type(exc).__name__, exc)
+        return ""
+    return binary_sha256(str(path)).lower()
+
+
 class ProjectToolProvider(ToolProvider):
     HANDLERS: ClassVar[dict[str, str]] = {
         "open": "_handle_open_project",
@@ -3630,16 +3669,29 @@ class ProjectToolProvider(ToolProvider):
                 if project_handle is None:
                     raise RuntimeError("No active Ghidra project context available for import")
 
-                program: GhidraProgram = project_handle.importProgram(JavaFile(str(entry)))
-                if program is None:
-                    raise RuntimeError("import_binary returned None")
-                # GhidraProject.importProgram loads the program but does not save it
-                # (GhidraProject.java importProgram: ProgramLoader "created but not
-                # saved").  Until it is saved into a project folder its DomainFile is a
-                # DomainFileProxy: nothing reaches <name>.rep/idata, every later
-                # GhidraProject.save() throws "Location does not exist for a save
-                # operation!" (DomainFileProxy.save), and a new process sees 0 files.
-                self._persist_imported_program(ghidra_project, project_handle, program)
+                # Same policy as import-binary (_handle_import): bytes already in the
+                # project are opened, not imported again.
+                existing_file = find_project_file_by_sha256(
+                    self._project_root_folder(ghidra_project, project_handle),
+                    source_file_sha256(entry),
+                )
+                program: GhidraProgram | None
+                if existing_file is not None:
+                    program = self._open_reused_import(ghidra_project, existing_file, session_id)
+                    if program is None:
+                        raise RuntimeError(f"Existing program {existing_file.getPathname()} could not be opened")
+                    logger.info("import_reuse sha256_match path=%s", existing_file.getPathname())
+                else:
+                    program = project_handle.importProgram(JavaFile(str(entry)))
+                    if program is None:
+                        raise RuntimeError("import_binary returned None")
+                    # GhidraProject.importProgram loads the program but does not save it
+                    # (GhidraProject.java importProgram: ProgramLoader "created but not
+                    # saved").  Until it is saved into a project folder its DomainFile is a
+                    # DomainFileProxy: nothing reaches <name>.rep/idata, every later
+                    # GhidraProject.save() throws "Location does not exist for a save
+                    # operation!" (DomainFileProxy.save), and a new process sees 0 files.
+                    self._persist_imported_program(ghidra_project, project_handle, program)
                 # A failure recorded for an earlier program at this path must not
                 # suppress analysis of the one just imported (key = domain path).
                 from agentdecompile_cli.mcp_utils.program_analysis import clear_analysis_failure
@@ -3691,7 +3743,14 @@ class ProjectToolProvider(ToolProvider):
                 imported_program_info = program_info
                 imported_count += 1
                 prog_name = program.getName() if hasattr(program, "getName") else entry.name
-                imported.append({"path": str(entry), "programName": prog_name, "projectPath": program_path})
+                imported.append(
+                    {
+                        "path": str(entry),
+                        "programName": prog_name,
+                        "projectPath": program_path,
+                        "reused": existing_file is not None,
+                    },
+                )
                 imported_session_binaries.append(
                     {
                         "path": program_path,
@@ -4067,10 +4126,7 @@ class ProjectToolProvider(ToolProvider):
         except Exception:
             logger.debug("import_persist domain_file_probe_failed", exc_info=True)
 
-        if ghidra_project is not None and hasattr(ghidra_project, "getRootFolder"):
-            root_folder = ghidra_project.getRootFolder()
-        else:
-            root_folder = project_handle.getProjectData().getRootFolder()
+        root_folder = ProjectToolProvider._project_root_folder(ghidra_project, project_handle)
         base_name: str = str(program.getName())
         name: str = base_name
         suffix = 1
@@ -4082,6 +4138,7 @@ class ProjectToolProvider(ToolProvider):
             # saveAs ends and restarts GhidraProject's batch transaction around
             # DomainFolder.createFile (GhidraProject.java saveAs).
             try:
+                ProjectToolProvider._rename_program(program, name)
                 ghidra_project.saveAs(program, "/", name, False)
             except Exception:
                 # The import is abandoned (InvalidNameException, DuplicateFileException,
@@ -4093,8 +4150,58 @@ class ProjectToolProvider(ToolProvider):
         else:
             from ghidra.util.task import TaskMonitor as GhidraTaskMonitor  # pyright: ignore[reportMissingModuleSource]
 
+            ProjectToolProvider._rename_program(program, name)
             root_folder.createFile(name, program, GhidraTaskMonitor.DUMMY)
         logger.info("import_persist saved_as=/%s", name)
+
+    @staticmethod
+    def _project_root_folder(ghidra_project: GhidraProject | None, project_handle: Any) -> Any:
+        if ghidra_project is not None and hasattr(ghidra_project, "getRootFolder"):
+            return ghidra_project.getRootFolder()
+        return project_handle.getProjectData().getRootFolder()
+
+    @staticmethod
+    def _rename_program(program: GhidraProgram, name: str) -> None:
+        """Make programName match the file name saveAs will create (``name.N``).
+
+        DomainFolder.createFile does not rename the object.  ProgramDB.setName writes
+        program data, so it runs in its own transaction, ended before saveAs.
+        """
+        if str(program.getName()) == name:
+            return
+        tx_id = program.startTransaction("AgentDecompile import rename")
+        try:
+            program.setName(name)
+        finally:
+            program.endTransaction(tx_id, True)
+
+    def _open_reused_import(
+        self,
+        ghidra_project: GhidraProject | None,
+        domain_file: GhidraDomainFile,
+        session_id: str,
+    ) -> GhidraProgram | None:
+        """Open the project file an import resolved to by SHA256.
+
+        Reuses this session's open instance when there is one: DomainFile.getDomainObject
+        hands back the same object (GhidraFileData.getDomainObject), and
+        GhidraProject.openProgram would start a second "Batch Processing" transaction
+        and overwrite the first one's id in openPrograms, leaving it open.
+        """
+        target = str(domain_file.getPathname())
+        for info in list(SESSION_CONTEXTS.get_or_create(session_id).open_programs.values()):
+            candidate = getattr(info, "program", None)
+            if candidate is None:
+                continue
+            try:
+                df = candidate.getDomainFile()
+                if df is not None and str(df.getPathname()) == target and not candidate.isClosed():
+                    return candidate
+            except Exception:
+                continue
+        if ghidra_project is not None:
+            return self._ghidra_project_open_program_compat(ghidra_project, domain_file)
+        return self._open_program_from_domain_file(domain_file)
 
     @staticmethod
     def _close_abandoned_import(ghidra_project: GhidraProject, program: GhidraProgram) -> None:

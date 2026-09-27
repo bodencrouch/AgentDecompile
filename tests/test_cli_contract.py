@@ -1046,3 +1046,21 @@ def test_per_command_connection_flag_keeps_preexisting_local_mode(monkeypatch: p
     # The no-obj, no --local, explicit-backend case is already covered by
     # test_per_command_connection_flags_route_like_top_level_ones (local_mode False).
 
+
+def test_per_command_connection_flag_drops_auto_only_local_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A pre-existing obj whose local_mode was only auto-derived must not survive.
+
+    `local_mode_requested: False` records that the earlier run's local_mode came
+    from auto-local mode, not an explicit ask. `main()` used to fall back to
+    `existing_obj.get("local_mode", False)` (True here) instead of
+    `existing_obj.get("local_mode_requested", ...)`, so an explicit per-command
+    backend flag failed to clear an auto-only local_mode.
+    """
+    obj = {"local_mode": True, "local_mode_requested": False}
+    result = _run_generated(
+        monkeypatch, ["decompile-function", "--port", "9999", *_TOOL_ARGS], obj=dict(obj)
+    )
+    assert result["local_mode"] is False, (
+        f"per-command flag should have cleared auto-only local_mode: {result['local_mode']!r}"
+    )
+

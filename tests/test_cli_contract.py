@@ -517,6 +517,7 @@ def test_argparse_handlers_only_read_declared_dests(prog: str, module_name: str)
     problems: list[str] = []
     unreachable: list[str] = []
     uninspectable: list[str] = []
+    group_dispatched: list[str] = []
     checked = 0
 
     for name, sub in action.choices.items():
@@ -555,13 +556,16 @@ def test_argparse_handlers_only_read_declared_dests(prog: str, module_name: str)
             for nested_name, nested_sub in nested.choices.items():
                 nested_handler = nested_sub._defaults.get("fn")
                 if not callable(nested_handler):
+                    # No dedicated handler: the group's own handler dispatches this
+                    # verb, so the group-level check above already covers its reads.
+                    group_dispatched.append(f"{name} {nested_name}")
                     continue
                 nested_reads = _handler_reads(nested_handler)
                 if nested_reads is None:
                     uninspectable.append(f"{name} {nested_name}")
                     continue
                 checked += 1
-                nested_declared = dests_of(nested_sub) | declared
+                nested_declared = dests_of(nested_sub) | dests_of(sub) | root_dests
                 nested_attrs = nested_reads[0] | _resolve_delegated_reads(nested_reads[2], table)
                 nested_missing = {
                     attr for attr in nested_attrs if attr not in nested_declared and not attr.startswith("_")
@@ -579,7 +583,10 @@ def test_argparse_handlers_only_read_declared_dests(prog: str, module_name: str)
     assert checked, f"{prog}: no handlers were checked, the scan is not covering anything"
     print(
         f"\n{prog}: {checked} handlers scanned, "
-        f"{len(delegated)} pass the namespace on whole (body-depth visibility only)"
+        f"{len(delegated)} pass the namespace on whole (body-depth visibility only), "
+        f"{len(uninspectable)} with unparseable handlers "
+        f"{sorted(uninspectable) if uninspectable else ''}, "
+        f"{len(group_dispatched)} nested verbs dispatched by their group handler"
     )
 
 # --------------------------------------------------------------------------- #
@@ -679,4 +686,116 @@ def test_repaired_commands_send_camelcase_payload_keys(
     assert not snake_keys, f"{' '.join(path)} sent snake_case wire key(s) {sorted(snake_keys)}"
     missing = set(expected_keys) - payload_keys
     assert not missing, f"{' '.join(path)} omitted wire key(s) {sorted(missing)} from {sorted(payload_keys)}"
+
+# --------------------------------------------------------------------------- #
+# coverage floors and the output-format flag
+# --------------------------------------------------------------------------- #
+# Counts observed on the tree these checks were written against. They are floors
+# and a ceiling, not exact pins: commands get added, so a modest drift is fine,
+# but a collapse means the checks above stopped walking anything and would pass on
+# an empty tree.
+MIN_CLICK_LEAF_COMMANDS = 150
+MIN_ARGPARSE_PARSERS = 100
+# 128 of 186 leaves accept **kwargs, which exempts them from the unexpected-param
+# half of the binding check. Pinning a ceiling keeps that blind spot from widening
+# unnoticed; lowering it is the improvement.
+MAX_KWARGS_EXEMPT_LEAVES = 130
+
+
+def _click_leaves() -> list[tuple[str, click.Command]]:
+    return [
+        (path, command)
+        for path, command in walk_click(click_root(), "agentdecompile")
+        if not isinstance(command, click.Group) and command.callback is not None
+    ]
+
+
+def test_click_surface_has_not_collapsed() -> None:
+    """The binding and duplicate checks assert on a collected list.
+
+    An empty list satisfies them, so a registration failure that dropped every
+    command would read as a clean pass. This is the floor that makes them mean
+    something.
+    """
+    leaves = _click_leaves()
+    assert len(leaves) >= MIN_CLICK_LEAF_COMMANDS, (
+        f"only {len(leaves)} leaf commands walked, expected at least "
+        f"{MIN_CLICK_LEAF_COMMANDS}; command registration may have failed"
+    )
+
+
+def test_kwargs_exempt_share_does_not_grow() -> None:
+    """A callback taking **kwargs absorbs any parameter click passes it.
+
+    Those commands cannot fail the unexpected-param check, so they are checked
+    only by the invocation tests. Hold the line on how many are exempt.
+    """
+    exempt: list[str] = []
+    for path, command in _click_leaves():
+        signature = callback_signature(command.callback)
+        if signature is not None and signature[2]:
+            exempt.append(path)
+    assert len(exempt) <= MAX_KWARGS_EXEMPT_LEAVES, (
+        f"{len(exempt)} leaf commands are exempt from the unexpected-parameter "
+        f"check via **kwargs, above the {MAX_KWARGS_EXEMPT_LEAVES} recorded; "
+        "either narrow a callback signature or raise the ceiling deliberately"
+    )
+
+
+def test_every_leaf_command_accepts_the_output_format_flag() -> None:
+    """`-f` selects output format on every command.
+
+    Four commands own a `format` parameter of their own, so they take `-f` as a
+    separate short-only option. Skipping that step once removed `-f` from those
+    four and turned `agentdecompile export -f json` into "No such option", which
+    no structural check noticed.
+    """
+    missing = [path for path, command in _click_leaves() if not any("-f" in param.opts for param in command.params)]
+    assert not missing, f"commands that do not accept -f: {missing}"
+
+
+def test_output_format_flag_never_reaches_the_request() -> None:
+    """`-f` is CLI presentation and must not be sent to the server.
+
+    On the four commands that own a `format` parameter, the short flag has to stay
+    out of the payload or it would overwrite the tool's own format value.
+    """
+    from click.testing import CliRunner
+
+    from agentdecompile_cli import cli as cli_module
+
+    captured: dict[str, Any] = {}
+
+    async def fake_call(ctx: click.Context, tool: str, **kwargs: Any) -> None:
+        captured["payload"] = kwargs
+        captured["resolved_format"] = cli_module._fmt(ctx)
+
+    monkey = pytest.MonkeyPatch()
+    try:
+        monkey.setattr(cli_module, "_call", fake_call)
+        result = CliRunner().invoke(
+            cli_module.main,
+            ["export", "-f", "json", "--program-path", "p", "--output-path", "o"],
+        )
+    finally:
+        monkey.undo()
+
+    assert result.exit_code == 0, f"export -f json failed: {result.exception!r} {result.output[:300]}"
+    assert captured.get("resolved_format") == "json", (
+        f"-f json did not select the output format (got {captured.get('resolved_format')!r})"
+    )
+    assert "format" not in captured.get("payload", {}), (
+        "the -f output-format flag leaked into the tool request payload"
+    )
+
+
+def test_argparse_surface_has_not_collapsed() -> None:
+    """Floor for the argparse help/parse sweep, for the same reason as above."""
+    total = 0
+    for prog, module_name in ARGPARSE_CLIS:
+        root = importlib.import_module(module_name).build_parser()
+        total += sum(1 for _ in walk_argparse(root, prog))
+    assert total >= MIN_ARGPARSE_PARSERS, (
+        f"only {total} argparse parsers walked, expected at least {MIN_ARGPARSE_PARSERS}"
+    )
 

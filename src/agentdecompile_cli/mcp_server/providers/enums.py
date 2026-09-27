@@ -252,9 +252,9 @@ class EnumToolProvider(ToolProvider):
         name = self._require_str(args, "name", "enumname", name="name")
         cat_path = self._get_str(args, "categorypath", "category", default="/")
         description = self._get_str(args, "description", "comment", default="")
-        size = self._get_int(args, "size", "length", default=4)
-        if size not in (1, 2, 4, 8):
-            raise ValueError(f"size must be 1, 2, 4 or 8 bytes, got {size}")
+        size_arg = self._get_int(args, "size", "length", default=None)
+        if size_arg is not None and size_arg not in (1, 2, 4, 8):
+            raise ValueError(f"size must be 1, 2, 4 or 8 bytes, got {size_arg}")
         members = parse_enum_member_specs(
             self._get_list(args, "members"),
             single_name=None,
@@ -298,6 +298,14 @@ class EnumToolProvider(ToolProvider):
 
         force_apply = bool(args.get(FORCE_APPLY_CONFLICT_ID_KEY))
         existing = self._find_enum(dtm, name, program_info=program_info) if force_apply else None
+        # No explicit size: preserve the replaced enum's width instead of silently
+        # narrowing/widening it to the 4-byte fallback.
+        if size_arg is not None:
+            size = size_arg
+        elif existing is not None:
+            size = existing.getLength()
+        else:
+            size = 4
 
         def _create_enum() -> None:
             if existing is not None:

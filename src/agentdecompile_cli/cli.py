@@ -4025,7 +4025,11 @@ def callgraph_grp() -> None:
 @click.option("--function", "function_identifier", required=True)
 @click.option("--mode", type=click.Choice(["graph", "tree", "callers", "callees", "callers_decomp", "common_callers"]), default="graph")
 @click.option("--depth", type=int)
-@click.option("--direction", type=click.Choice(["callers", "callees"]))
+@click.option(
+    "--direction",
+    type=click.Choice(["calling", "called", "callers", "callees"]),
+    help="graph/tree only. calling (or callers) = who calls this function; called (or callees) = what it calls. Default: calling",
+)
 @click.option("--max-depth", type=int)
 @click.option("--start-index", type=int)
 @click.option("--max-callers", type=int)
@@ -4071,6 +4075,15 @@ _derive_convenience_commands(
     callgraph_run,
     "mode",
     omitted_options=frozenset({"direction", "start_index", "include_call_context", "function_addresses"}),
+    omitted_choices=frozenset({"graph", "tree"}),
+)
+# graph and tree draw one direction, so they keep --direction.
+_derive_convenience_commands(
+    callgraph_grp,
+    callgraph_run,
+    "mode",
+    omitted_options=frozenset({"start_index", "include_call_context", "function_addresses"}),
+    omitted_choices=frozenset({"callers", "callees", "callers_decomp", "common_callers"}),
 )
 
 

@@ -146,12 +146,15 @@ class StringToolProvider(ToolProvider):
                         "programPath": {"type": "string", "description": "The active program project."},
                         "binaryName": {"type": "string", "description": "Alternative parameter for programPath."},
                         "query": {"type": "string", "description": "Text or regex to find in function names and decompiled code."},
+                        "pattern": {"type": "string", "description": "Alternative parameter for query."},
+                        "maxResults": {"type": "integer", "default": 10, "description": "Alternative parameter for limit."},
+                        "similarityThreshold": {"type": "number", "default": 0.0, "description": "Minimum similarity (0.0-1.0) for semantic code-index results."},
                         "searchMode": {"type": "string", "description": "How to match: semantic (code index), literal, or regex.", "enum": ["semantic", "literal", "regex"], "default": "semantic"},
                         "caseSensitive": {"type": "boolean", "default": False, "description": "Case-sensitive matching (fallback search)."},
                         "includeFullCode": {"type": "boolean", "default": False, "description": "Include the full decompiled function in each result."},
                         "previewLength": {"type": "integer", "default": 200, "description": "Snippet length around a code match."},
                         "overrideMaxFunctionsLimit": {"type": "boolean", "default": False, "description": "Scan every function instead of the first 500."},
-                        "limit": {"type": "integer", "default": 100, "description": "Number of results to return. Typical values are 100–500."},
+                        "limit": {"type": "integer", "default": 10, "description": "Number of results to return."},
                         "offset": {"type": "integer", "default": 0, "description": "Pagination offset."},
                     },
                     "required": ["query"],
@@ -231,7 +234,7 @@ class StringToolProvider(ToolProvider):
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._search_code_fallback")
         program = program_info.program
         fm = self._get_function_manager(program, program_info=program_info)
-        case_sensitive = self._get_bool(args, "casesensitive", default=False)
+        case_sensitive = self._get_bool(args, "casesensitive", "cases", default=False)
         include_full_code = self._get_bool(args, "includefullcode", "fullcode", default=False)
         preview_length = self._get_int(args, "previewlength", "previewlen", "snippetlength", default=200) or 200
         no_limit = self._get_bool(args, "overridemaxfunctionslimit", "nolimit", default=False)

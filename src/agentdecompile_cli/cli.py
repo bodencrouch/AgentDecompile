@@ -2504,7 +2504,7 @@ def main(
 @click.option("--bsim-template", default="medium_nosize", help="BSim database template")
 @click.option("--bsim-cat", "bsim_cat", multiple=True, help="BSim category. (type:value)")
 @click.option("--sast", is_flag=True, help="Run SAST scanning on decompiled code with semgrep and CodeQL")
-@click.option("--semgrep-rules", "semgrep_rules", multiple=True, help="Path to local semgrep rule file or directory")
+@click.option("--semgrep-rules", "semgrep_rules", multiple=True, help="Local semgrep rule file or directory (required with --sast; no offline default)")
 @click.option("--codeql-rules", default=None, help="Comma-separated paths to local CodeQL query directories")
 def ghidrecomp_command(
     bin: str,
@@ -2577,9 +2577,20 @@ def ghidrecomp_command(
         semgrep_rules=list(semgrep_rules) if semgrep_rules else None,
         codeql_rules=codeql_rules,
     )
+    import shutil
+
+    from agentdecompile_cli.mcp_utils import batch_sast
     from agentdecompile_cli.mcp_utils.ghidrecomp_runner import run_ghidrecomp
 
+    if sast and not semgrep_rules:
+        raise click.UsageError(batch_sast.MISSING_SEMGREP_RULES_MESSAGE.replace("semgrepRules", "--semgrep-rules"))
+    started_at = time.time() - 1.0
     run_ghidrecomp(args, decompile)
+    if sast and shutil.which("semgrep") is not None:
+        sast_dir = batch_sast._resolve_sast_directory(Path(output_path).expanduser().resolve(), Path(bin).expanduser().resolve())
+        outcome = batch_sast.check_semgrep_outcome(sast_dir, started_at)
+        if not outcome["ok"]:
+            raise click.ClickException(batch_sast.semgrep_failure_message(outcome))
 
 
 # ---------------------------------------------------------------------------

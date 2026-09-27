@@ -37,12 +37,18 @@ ADD_COLUMNS = [
 
 
 def ensure_columns(con) -> None:
+    """Add the STABS columns and index to func.
+
+    Never commits, like the store.py ensure_* helpers: callers run this on
+    their own connections, where a commit would also commit their pending
+    work.  With no transaction open the DDL autocommits; inside one it joins
+    the caller's transaction and the caller owns COMMIT/ROLLBACK.
+    """
     have = {r[1] for r in con.execute("PRAGMA table_info(func)")}
     for name, typ in ADD_COLUMNS:
         if name not in have:
             con.execute(f"ALTER TABLE func ADD COLUMN {name} {typ}")
     con.execute("CREATE INDEX IF NOT EXISTS ix_func_srcfile ON func(binary_id, source_file)")
-    con.commit()
 
 
 def _normalise_arch(arch: str | None) -> str:

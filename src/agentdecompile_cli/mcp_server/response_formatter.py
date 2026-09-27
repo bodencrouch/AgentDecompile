@@ -57,13 +57,21 @@ def _md_code_block(code: str, lang: str = "") -> str:
     return f"```{lang}\n{code}\n```"
 
 
+def _md_table_cell(value: Any) -> str:
+    """One markdown table cell: newlines would end the row and a bare pipe would split it."""
+    text = str(value)
+    if "\n" in text or "\r" in text:
+        text = " ".join(part.strip() for part in text.splitlines() if part.strip())
+    return text.replace("|", "\\|")
+
+
 def _md_table(headers: list[str], rows: list[list[str]]) -> str:
     logger.debug("diag.enter %s", "mcp_server/response_formatter.py:_md_table")
     if not headers:
         return ""
     header_row: str = "| " + " | ".join(headers) + " |"
     sep_row: str = "| " + " | ".join("---" for _ in headers) + " |"
-    body: str = "\n".join("| " + " | ".join(str(c) for c in row) + " |" for row in rows)
+    body: str = "\n".join("| " + " | ".join(_md_table_cell(c) for c in row) + " |" for row in rows)
     return f"{header_row}\n{sep_row}\n{body}" if body else f"{header_row}\n{sep_row}"
 
 
@@ -1700,7 +1708,7 @@ def _render_memory(data: dict[str, Any]) -> str:
         lines.append(_md_bold_kv("Address", _md_code_inline(data.get("address", ""))))
         dt = data.get("dataType")
         if dt:
-            lines.append(_md_bold_kv("Data Type", _md_code_inline(str(dt))))
+            lines.append(_md_bold_kv("Data Type", _md_code_inline(str(dt).strip().split("\n", 1)[0])))
             lines.append(_md_bold_kv("Length", f"{data.get('length', 0)} bytes"))
             val = data.get("value")
             if val is not None:
@@ -1721,7 +1729,12 @@ def _render_memory(data: dict[str, Any]) -> str:
         results = data.get("results", [])
         if results:
             headers = ["Address", "Data Type", "Length", "Label"]
-            rows: list[list[str]] = [[r.get("address", ""), r.get("dataType", ""), str(r.get("length", "")), r.get("label", "") or ""] for r in results]
+            # str(DataType) of a composite is its multi-line layout dump whose
+            # first line is the path name; keep only that line in the cell.
+            rows: list[list[str]] = [
+                [r.get("address", ""), str(r.get("dataType", "") or "").strip().split("\n", 1)[0], str(r.get("length", "")), r.get("label", "") or ""]
+                for r in results
+            ]
             lines.append(_md_table(headers, rows))
         return "\n".join(lines)
 

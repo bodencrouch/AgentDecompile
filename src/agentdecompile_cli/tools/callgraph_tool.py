@@ -180,12 +180,14 @@ class CallGraphTool:
             bottom_layers=bottom_layers,
         )
 
+        # The link has to open the drawing returned as `graph`, not always the flow one.
+        drawing = result[_DISPLAY_TYPE_KEYS[cg_display_type]]
         return CallGraphResult(
             function_name=f"{func.getName()[:MAX_PATH_LEN]}-{func.entryPoint}",
             direction=cg_direction,
             display_type=cg_display_type,
-            graph=result[_DISPLAY_TYPE_KEYS[cg_display_type]],
-            mermaid_url=result["mermaid_url"],
+            graph=drawing,
+            mermaid_url=self._mermaid_url(drawing),
         )
 
     def generate_for_cli(
@@ -318,28 +320,30 @@ class CallGraphTool:
             flow_ends = ""
             mind = ""
 
-        # Create mermaid URL
-        mermaid_url = ""
-        if flow:
-            try:
-                compressed = zlib.compress(flow.encode("utf-8"))
-                encoded = base64.b64encode(compressed).decode("utf-8")
-                mermaid_url = f"https://mermaid.ink/img/{encoded}"
-            except Exception:
-                # If compression/encoding fails, create simple URL
-                try:
-                    encoded = base64.b64encode(flow.encode("utf-8")).decode("utf-8")
-                    mermaid_url = f"https://mermaid.ink/img/{encoded}"
-                except Exception:
-                    pass
-
         return {
             "graph": flow,
             "flow_ends": flow_ends,
             "mind_map": mind,
-            "mermaid_url": mermaid_url,
+            "mermaid_url": self._mermaid_url(flow),
             "function_name": name,
         }
+
+    @staticmethod
+    def _mermaid_url(drawing: str) -> str:
+        """Return a mermaid.ink image link for one Mermaid drawing, or "" when there is none."""
+        if not drawing:
+            return ""
+        try:
+            compressed = zlib.compress(drawing.encode("utf-8"))
+            encoded = base64.b64encode(compressed).decode("utf-8")
+            return f"https://mermaid.ink/img/{encoded}"
+        except Exception:
+            # If compression/encoding fails, create simple URL
+            try:
+                encoded = base64.b64encode(drawing.encode("utf-8")).decode("utf-8")
+                return f"https://mermaid.ink/img/{encoded}"
+            except Exception:
+                return ""
 
     def _get_calling(
         self,

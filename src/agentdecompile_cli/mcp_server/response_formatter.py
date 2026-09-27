@@ -1744,6 +1744,8 @@ def _render_callgraph(data: dict[str, Any]) -> str:
         direction = data.get("direction", "")
         if direction:
             lines.append(_md_bold_kv("Direction", direction))
+        if data.get("truncated"):
+            lines.append(f"> Partial graph: the walk stopped after {data.get('maxRunTime', '?')} s. Raise maxRunTime to see more.")
 
         # If we have callers/callees directly
         callers: list[dict[str, Any]] = data.get("callers", [])  # pyright: ignore[reportRedeclaration]

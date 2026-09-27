@@ -188,6 +188,8 @@ class CallGraphTool:
             display_type=cg_display_type,
             graph=drawing,
             mermaid_url=self._mermaid_url(drawing),
+            truncated=result["truncated"],
+            max_run_time=result["max_run_time"],
         )
 
     def generate_for_cli(
@@ -320,12 +322,18 @@ class CallGraphTool:
             flow_ends = ""
             mind = ""
 
+        # ghidrecomp stops walking at max_run_time and marks the spot with a
+        # "MAX_TIME_HIT - ..." node, so the drawing is only part of the graph.
+        truncated = callgraph is not None and any(str(node).startswith("MAX_TIME_HIT") for node in callgraph.graph)
+
         return {
             "graph": flow,
             "flow_ends": flow_ends,
             "mind_map": mind,
             "mermaid_url": self._mermaid_url(flow),
             "function_name": name,
+            "truncated": truncated,
+            "max_run_time": DEFAULT_MAX_RUN_TIME if max_run_time is None else float(max_run_time),
         }
 
     @staticmethod

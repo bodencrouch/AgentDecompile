@@ -154,15 +154,17 @@ class CallGraphToolProvider(ToolProvider):
                     bottom_layers=bottom,
                 )
                 logger.debug("get-call-graph completed via CallGraphTool function=%s", func)
-                return create_success_response(
-                    {
-                        "functionName": result.function_name,
-                        "direction": result.direction.value if hasattr(result.direction, "value") else str(result.direction),
-                        "displayType": result.display_type.value if hasattr(result.display_type, "value") else str(result.display_type),
-                        "graph": result.graph if hasattr(result, "graph") else {},
-                        "mermaidUrl": getattr(result, "mermaid_url", None),
-                    },
-                )
+                payload: dict[str, Any] = {
+                    "functionName": result.function_name,
+                    "direction": result.direction.value if hasattr(result.direction, "value") else str(result.direction),
+                    "displayType": result.display_type.value if hasattr(result.display_type, "value") else str(result.display_type),
+                    "graph": result.graph if hasattr(result, "graph") else {},
+                    "mermaidUrl": getattr(result, "mermaid_url", None),
+                }
+                if getattr(result, "truncated", False):
+                    payload["truncated"] = True
+                    payload["maxRunTime"] = result.max_run_time
+                return create_success_response(payload)
             except Exception as e:
                 logger.warning("CallGraphTool failed, using Ghidra API fallback: %s", e)
 

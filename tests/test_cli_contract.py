@@ -36,11 +36,23 @@ pytestmark = pytest.mark.unit
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Argparse CLIs that expose a module-level ``build_parser()``.
+#
+# ``agentdecompile_grid`` ships only on branches that have not been published
+# yet; this checkout may not have ``src/agentdecompile_grid`` even though the
+# editable install's sys.path can still resolve an *unrelated* checkout's copy
+# of the package. Only test "adgrid" when the package actually lives in this
+# checkout's source tree, so this file exercises the CLIs this repo state
+# actually ships rather than failing on a package that belongs to a different,
+# unpublished branch.
 ARGPARSE_CLIS: tuple[tuple[str, str], ...] = (
     ("agentdecompile-recover", "agentdecompile_recovery.cli"),
     ("agentdecompile-corpus", "agentdecompile_recovery.corpus.cli"),
     ("agentdecompile-reconstruct", "agentdecompile_recovery.frontdoor"),
-    ("adgrid", "agentdecompile_grid.cli"),
+    *(
+        (("adgrid", "agentdecompile_grid.cli"),)
+        if (REPO_ROOT / "src" / "agentdecompile_grid").is_dir()
+        else ()
+    ),
 )
 
 # Modules that dispatch corpus subcommands. ``corpus/cli.py`` delegates part of

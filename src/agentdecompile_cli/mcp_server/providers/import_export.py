@@ -1433,7 +1433,14 @@ class ImportExportToolProvider(ToolProvider):
         if not imported:
             return None
         # Last entry wins, matching the default path's loop-reassignment behavior.
-        program_name = str((imported[-1] or {}).get("programName") or "").strip()
+        last = imported[-1] or {}
+        # A folder import yields ONE entry whose sourcePath is the folder and whose programName is
+        # the folder's own name (both _handle_shared_import return sites). That is not a program,
+        # so keep the incoming program_info rather than binding e.g. activeProgram="/corpus".
+        source_path = str(last.get("sourcePath") or "").strip()
+        if source_path and Path(source_path).is_dir():
+            return None
+        program_name = str(last.get("programName") or "").strip()
         if not program_name:
             return None
         session_id = get_current_mcp_session_id()

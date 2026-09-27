@@ -21,8 +21,10 @@ Auth is all-or-nothing:
 The /health endpoint is a FastAPI route mounted separately and is always exempt.
 
 Dynamic server routing:
-  A request naming a different Ghidra host is accepted with any non-empty Basic
-  credentials because they are forwarded to that host rather than checked here.
+  A request naming a different Ghidra host (X-Ghidra-Server-Host) is accepted with
+  any non-empty username (Basic auth or X-Agent-Server-Username) with any
+  password, including empty, because the credentials are forwarded to that host
+  rather than checked here.
   Operators who expose the server must not rely on MCP auth to restrict dynamic routing.
 """
 
@@ -146,20 +148,20 @@ def validate_credentials(
       Compare username and password against the configured defaults using a
       constant-time comparison to prevent timing-based enumeration.
     * **Different Ghidra server** (target_host present but differs from config):
-      Accept any non-empty username+password.  The Ghidra server itself will
-      validate them when connect-shared-project is called; requiring *something*
-      here ensures the MCP endpoint is not anonymously accessible even when
-      dynamic routing is used.
-    * **No server configured and no target_host**: auth should not be required
-      in this case; callers should not invoke this function.
+      Accept any non-empty username (Basic auth or X-Agent-Server-Username)
+      with any password, including empty.
+      The Ghidra server itself checks them when connect-shared-project is
+      called; requiring a username here only stops fully anonymous requests.
+    * **No configured username/password pair**: reject everything.
     """
     logger.debug("diag.enter %s", "mcp_server/auth.py:validate_credentials")
     if not username:
         return False
     if not config.default_username or not config.default_password:
         # Reject when no configured pair exists. Once defaults exist, a different host accepts
-        # any non-empty Basic credentials because they are forwarded rather than checked here;
-        # operators must not rely on MCP auth to restrict dynamic routing.
+        # any non-empty username (Basic auth or X-Agent-Server-Username) with any password,
+        # including empty, because they are forwarded rather than checked here; operators must not rely on MCP
+        # auth to restrict dynamic routing.
         return False
 
     using_default_server = not target_host or not config.default_server_host or target_host.lower() == config.default_server_host.lower()
@@ -172,7 +174,7 @@ def validate_credentials(
             expected_pass,
         )
 
-    # Dynamic routing to a different Ghidra server: accept any non-empty credentials.
+    # Dynamic routing to a different Ghidra server: any non-empty username, any password (even "").
     return bool(username) and password is not None
 
 
@@ -234,14 +236,6 @@ class AuthMiddleware:
         self._inner_app = inner_app
         self._config = auth_config
 
-    def _auth_required(self, target_host: str) -> bool:
-        # The middleware is only installed when auth is switched on, so every
-        # request needs credentials. An earlier version let requests through
-        # when no username was configured, which made
-        # AGENT_DECOMPILE_AUTH_ENABLED=1 on its own a no-op.
-        logger.debug("diag.enter %s", "mcp_server/auth.py:AuthMiddleware._auth_required")
-        return True
-
     async def __call__(
         self,
         scope: dict[str, Any],
@@ -291,11 +285,11 @@ class AuthMiddleware:
         if not target_repo and agent_repo:
             target_repo = agent_repo
 
-        if not self._auth_required(target_host):
-            await self._inner_app(scope, receive, send)
-            return
-
-        # Auth required — try Authorization: Basic first, fall back to
+        # The middleware is only installed when auth is switched on, so every
+        # request needs credentials. An earlier version let requests through
+        # when no username was configured, which made
+        # AGENT_DECOMPILE_AUTH_ENABLED=1 on its own a no-op.
+        # Try Authorization: Basic first, fall back to
         # X-Agent-Server-Username / X-Agent-Server-Password headers.
         username: str = ""
         password: str = ""
@@ -352,6 +346,7 @@ AUTH_ENABLED_ENV = "AGENT_DECOMPILE_AUTH_ENABLED"
 class AuthConfigError(ValueError):
     """MCP HTTP auth configuration is invalid."""
 
+
 _TRUTHY = frozenset({"true", "1", "yes", "on"})
 
 
@@ -404,7 +399,7 @@ def resolve_auth_config(
         raise AuthConfigError("Ghidra server port must be an integer") from exc
 
     config = AuthConfig(
-        require_auth=bool(require_auth_flag),
+        require_auth=True,
         default_server_host=_first_env(environ, "AGENT_DECOMPILE_GHIDRA_SERVER_HOST", "AGENT_DECOMPILE_SERVER_HOST") or cli_host,
         default_server_port=default_server_port,
         default_username=_first_env(environ, "AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME", "AGENT_DECOMPILE_SERVER_USERNAME") or cli_username,

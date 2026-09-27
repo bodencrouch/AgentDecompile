@@ -1776,6 +1776,13 @@ def _declares_format_param(cmd: click.Command | FunctionType) -> bool:
     return any(getattr(param, "name", None) == "format" for param in pending + built)
 
 
+_BACKEND_EXPLICIT_MARKERS: dict[str, str] = {
+    "host": "backend_host_explicit",
+    "port": "backend_port_explicit",
+    "server_url": "backend_cli_url_explicit",
+}
+
+
 def _set_backend_option_override(
     ctx: click.Context,
     param: click.Parameter,
@@ -1796,26 +1803,20 @@ def _set_backend_option_override(
         root_ctx.obj = {}
     opts: dict[str, Any] = root_ctx.obj
     opts[param.name] = value
-    if param.name == "server_url":
-        opts["backend_cli_url_explicit"] = True
-    else:
-        opts[f"backend_{param.name}_explicit"] = True
+    opts[_BACKEND_EXPLICIT_MARKERS[param.name]] = True
     opts["backend_cli_explicit"] = True
     if opts.get("auto_local_mode"):
         # Local mode was only on because no backend had been named. Keep it only
         # when the user asked for it with --local.
         opts["auto_local_mode"] = False
-        opts["local_mode"] = bool(root_ctx.params.get("local_mode"))
+        opts["local_mode"] = bool(opts.get("local_mode_requested"))
     return value
 
 
 def _add_global_options(cmd: click.Command | FunctionType) -> click.Command | FunctionType:
     logger.debug("diag.enter %s", "cli.py:_add_global_options")
-    # These are CLI connection and presentation settings, not tool arguments.
-    # With exposed values they were forwarded into the tool request while the
-    # connection kept using the root options, so `--port 9999` here still
-    # connected to 8080. They now update the root options, as the top-level
-    # flags do, and never reach the payload.
+    # Connection and format settings, not tool arguments: they update the root
+    # options as the top-level flags do and never reach the payload.
     cmd = click.option(
         "--host",
         default=None,
@@ -1856,9 +1857,9 @@ def _add_global_options(cmd: click.Command | FunctionType) -> click.Command | Fu
             help="Output format (default: text). This command's --format is its own parameter.",
         )(cmd)
     else:
-        # Same handling as the top-level -f/--format. As an exposed value it was
-        # sent to the server as `format` (overriding the markdown default that
-        # _call_raw documents) while the client kept rendering the root format.
+        # Same handling as the top-level -f/--format: it updates the root render
+        # option and never reaches the payload, so `_call_raw`'s markdown
+        # default for the request is preserved.
         cmd = click.option(
             "-f",
             "--format",
@@ -2327,6 +2328,7 @@ def main(
         "cli_default_binary_name": bn or existing_obj.get("cli_default_binary_name"),
         "format": existing_obj.get("format", format),
         "local_mode": local_mode or auto_local_mode or existing_obj.get("local_mode", False),
+        "local_mode_requested": local_mode or existing_obj.get("local_mode", False),
         "local_project_path": (local_project_path or "").strip() or existing_obj.get("local_project_path") or None,
         "local_project_name": (local_project_name or "").strip() or existing_obj.get("local_project_name") or "agentdecompile",
     }

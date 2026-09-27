@@ -352,7 +352,11 @@ class StringToolProvider(ToolProvider):
     async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle")
         self._require_program(program_info=program_info)
-        mode = self._get_str(args, "mode", default="list")
+        # search-strings reaches here as manage-strings with no mode; a search text
+        # without a mode means search, not "list everything".
+        mode = self._get_str(args, "mode", default="")
+        if not mode:
+            mode = "search" if self._get_str(args, "pattern", "query", "search", "text", "regex", "searchstring", "filter") else "list"
         if n(mode) in _STRING_MUTATING_MODES:
             return await self._dispatch_handler(
                 args,
@@ -462,7 +466,8 @@ class StringToolProvider(ToolProvider):
         *, program_info: ProgramInfo | SimpleNamespace | None,
     ) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/strings.py:StringToolProvider._handle_list")
-        return self._filter_strings(strings, "list", "", min_len, max_results, offset, include_refs, program_info=program_info)
+        # A pattern given with mode=list narrows the listing (case-insensitive substring).
+        return self._filter_strings(strings, "list", pattern, min_len, max_results, offset, include_refs, program_info=program_info)
 
     async def _handle_regex(
         self,
@@ -561,6 +566,9 @@ class StringToolProvider(ToolProvider):
         total: int = len(strings)
 
         if mode_n == "count":
+            if pattern:
+                p_lower = pattern.lower()
+                strings = [s for s in strings if p_lower in str(s.get("value", "")).lower()]
             return create_success_response({"mode": "count", "totalStrings": len(strings)})
 
         if mode_n in {"search", "similarity"} and pattern:

@@ -1126,7 +1126,46 @@ def _add_builtin_param_aliases() -> None:
         _add(tool_name, "repositoryName", "path")
 
 
+# TOOLS_LIST.md's synonym line for the last parameter of some tools lists the
+# overload signatures' parameter names instead of synonyms. Parsed as aliases,
+# they copy unrelated values into that parameter (call_tool fills a canonical key
+# from any alias when it is unset): `get-call-graph maxDepth=3` also set
+# functionAddresses="3", `analyze-vtables maxEntries=5` capped maxResults at 5.
+# Tool -> canonical parameter -> aliases that must not feed it (all normalized).
+_POLLUTED_PARAM_ALIASES: dict[str, dict[str, frozenset[str]]] = {
+    "listfunctions": {
+        "identifiers": frozenset({"filter", "pattern", "minrefs", "index", "max", "start", "count", "defaults", "tag", "notags", "tagged", "details"}),
+    },
+    "getcallgraph": {
+        "functionaddresses": frozenset({"function", "analysismode", "level", "dir", "maxdepth", "offset", "limit", "context"}),
+    },
+    "getreferences": {
+        "includedatarefs": frozenset({"addressorsymbol", "type", "dir", "start", "index", "count", "max", "library", "maxrefs", "context"}),
+    },
+    "analyzevtables": {
+        "maxresults": frozenset({"analysismode", "vtable", "function", "maxentries"}),
+    },
+}
+
+
+def _scrub_polluted_param_aliases() -> None:
+    logger.debug("diag.enter %s", "registry.py:_scrub_polluted_param_aliases")
+    for tool_norm, params in _POLLUTED_PARAM_ALIASES.items():
+        per_tool = TOOL_PARAM_ALIASES.get(tool_norm)
+        if not per_tool:
+            continue
+        for canonical, aliases in params.items():
+            for alias in aliases:
+                targets = per_tool.get(alias)
+                if not targets or canonical not in targets:
+                    continue
+                targets.discard(canonical)
+                if not targets:
+                    del per_tool[alias]
+
+
 _add_builtin_param_aliases()
+_scrub_polluted_param_aliases()
 
 
 # Key that selects how a tool result is rendered (markdown or json). No tool

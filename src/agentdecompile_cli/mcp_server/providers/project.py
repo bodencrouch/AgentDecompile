@@ -260,6 +260,18 @@ def svr_admin_script_candidates(server_dir: Path, os_name: str | None = None) ->
     return (server_dir / "svrAdmin", server_dir / "svrAdmin.sh")
 
 
+# manage-files operations that route to _handle_sync_shared (normalized).
+_SHARED_SYNC_OPERATIONS = frozenset(
+    {
+        "downloadshared", "downloadsharedproject", "downloadsharedrepository",
+        "pullshared", "pullsharedproject", "pullsharedrepository",
+        "importtoshared", "pushshared", "pushsharedproject", "pushsharedrepository",
+        "uploadshared", "uploadsharedrepository",
+        "mirrorshared", "syncshared", "syncsharedproject", "syncsharedrepository", "syncwithshared",
+    }
+)
+
+
 class ProjectToolProvider(ToolProvider):
     HANDLERS: ClassVar[dict[str, str]] = {
         "open": "_handle_open_project",
@@ -2867,50 +2879,59 @@ class ProjectToolProvider(ToolProvider):
 
     async def _handle_manage(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/project.py:ProjectToolProvider._handle_manage")
-        operation: str = self._require_str(args, "mode", "action", "operation", name="mode")
+        dispatch = {
+            "open": "_handle_open",
+            "changeprocessor": "_handle_change_processor",
+            "import": "_handle_import",
+            "export": "_handle_export",
+            "downloadshared": "_handle_sync_shared",
+            "downloadsharedproject": "_handle_sync_shared",
+            "downloadsharedrepository": "_handle_sync_shared",
+            "pullshared": "_handle_sync_shared",
+            "pullsharedproject": "_handle_sync_shared",
+            "pullsharedrepository": "_handle_sync_shared",
+            "importtoshared": "_handle_sync_shared",
+            "pushshared": "_handle_sync_shared",
+            "pushsharedproject": "_handle_sync_shared",
+            "pushsharedrepository": "_handle_sync_shared",
+            "uploadshared": "_handle_sync_shared",
+            "uploadsharedrepository": "_handle_sync_shared",
+            "mirrorshared": "_handle_sync_shared",
+            "syncshared": "_handle_sync_shared",
+            "syncsharedproject": "_handle_sync_shared",
+            "syncsharedrepository": "_handle_sync_shared",
+            "syncwithshared": "_handle_sync_shared",
+            "checkout": "_handle_checkout",
+            "uncheckout": "_handle_uncheckout",
+            "unhijack": "_handle_unhijack",
+            "list": "_handle_list_files",
+            "mkdir": "_handle_filesystem_operation_blocked",
+            "touch": "_handle_filesystem_operation_blocked",
+            "info": "_handle_filesystem_operation_blocked",
+            "read": "_handle_filesystem_operation_blocked",
+            "write": "_handle_filesystem_operation_blocked",
+            "append": "_handle_filesystem_operation_blocked",
+            "copy": "_handle_filesystem_operation_blocked",
+            "rename": "_handle_rename",
+            "delete": "_handle_delete",
+            "move": "_handle_move",
+        }
+        operation = self._manage_files_operation(args, {n(key) for key in dispatch})
+        return await self._dispatch_handler(args, operation, dispatch, program_info=program_info)
 
-        return await self._dispatch_handler(
-            args,
-            operation,
-            {
-                "open": "_handle_open",
-                "changeprocessor": "_handle_change_processor",
-                "import": "_handle_import",
-                "export": "_handle_export",
-                "downloadshared": "_handle_sync_shared",
-                "downloadsharedproject": "_handle_sync_shared",
-                "downloadsharedrepository": "_handle_sync_shared",
-                "pullshared": "_handle_sync_shared",
-                "pullsharedproject": "_handle_sync_shared",
-                "pullsharedrepository": "_handle_sync_shared",
-                "importtoshared": "_handle_sync_shared",
-                "pushshared": "_handle_sync_shared",
-                "pushsharedproject": "_handle_sync_shared",
-                "pushsharedrepository": "_handle_sync_shared",
-                "uploadshared": "_handle_sync_shared",
-                "uploadsharedrepository": "_handle_sync_shared",
-                "mirrorshared": "_handle_sync_shared",
-                "syncshared": "_handle_sync_shared",
-                "syncsharedproject": "_handle_sync_shared",
-                "syncsharedrepository": "_handle_sync_shared",
-                "syncwithshared": "_handle_sync_shared",
-                "checkout": "_handle_checkout",
-                "uncheckout": "_handle_uncheckout",
-                "unhijack": "_handle_unhijack",
-                "list": "_handle_list_files",
-                "mkdir": "_handle_filesystem_operation_blocked",
-                "touch": "_handle_filesystem_operation_blocked",
-                "info": "_handle_filesystem_operation_blocked",
-                "read": "_handle_filesystem_operation_blocked",
-                "write": "_handle_filesystem_operation_blocked",
-                "append": "_handle_filesystem_operation_blocked",
-                "copy": "_handle_filesystem_operation_blocked",
-                "rename": "_handle_rename",
-                "delete": "_handle_delete",
-                "move": "_handle_move",
-            },
-            program_info=program_info,
-        )
+    def _manage_files_operation(self, args: dict[str, Any], known: set[str]) -> str:
+        """Pick the manage-files operation from ``operation``/``action``/``mode``.
+
+        agentdecompile-cli sends ``operation`` for the operation and ``mode`` for the
+        shared-sync direction (pull/push/bidirectional). Reading ``mode`` first made
+        ``--operation sync-shared --mode pull`` dispatch "pull". The first value that
+        names a known operation wins; ``_resolve_shared_sync_mode`` still reads ``mode``
+        as the direction.
+        """
+        values = [value for value in (self._get_str(args, key) for key in ("operation", "action", "mode")) if value]
+        if not values:
+            raise ValueError("Required parameter missing or empty: `mode`")
+        return next((value for value in values if n(value) in known), values[0])
 
     async def _handle_filesystem_operation_blocked(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/project.py:ProjectToolProvider._handle_filesystem_operation_blocked")
@@ -3046,9 +3067,7 @@ class ProjectToolProvider(ToolProvider):
 
     async def _handle_sync_shared(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/project.py:ProjectToolProvider._handle_sync_shared")
-        operation: str | None = self._get_str(args, "mode", "action", "operation", default="syncshared")
-        if operation is None:
-            operation = "syncshared"
+        operation: str = self._manage_files_operation(args, _SHARED_SYNC_OPERATIONS) if any(self._get_str(args, key) for key in ("operation", "action", "mode")) else "syncshared"
         op: str = n(operation)
         logger.info(
             "shared-sync dispatch start operation=%s normalized=%s arg_keys=%s",

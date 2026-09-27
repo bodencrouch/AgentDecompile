@@ -50,3 +50,79 @@ def test_get_current_program_reports_path_image_base_and_symbols(monkeypatch: py
     assert "**Path:** `/test_program`" in text
     assert "**Image Base:** `00100000`" in text
     assert "**Symbols:** 57" in text
+
+
+@pytest.mark.unit
+def test_disassembly_bytes_are_unsigned_hex(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Java byte[] arrives signed: MOV RBP,RSP printed as '48 -77 -1b'."""
+    from agentdecompile_cli.mcp_server.providers.functions import FunctionToolProvider
+
+    provider = FunctionToolProvider.__new__(FunctionToolProvider)
+    instr = MagicMock()
+    instr.getAddress.return_value = "0040115e"
+    instr.getMnemonicString.return_value = "MOV"
+    instr.__str__ = lambda _self: "MOV RBP,RSP"
+    instr.getBytes.return_value = [0x48, -119, -27]
+    it = MagicMock()
+    it.hasNext.side_effect = [True, False]
+    it.next.return_value = instr
+    listing = MagicMock()
+    listing.getInstructions.return_value = it
+    monkeypatch.setattr(provider, "_get_listing", lambda *_a, **_k: listing, raising=False)
+    func = MagicMock()
+    func.getName.return_value = "main"
+
+    result = asyncio.run(provider._handle_disassemble({}, func, MagicMock(), 10, 30, program_info=None))
+    data = json.loads(result[0].text)
+    assert data["instructions"][0]["bytes"] == "48 89 e5"
+
+
+@pytest.mark.unit
+def test_callgraph_graph_renders_mermaid_text() -> None:
+    """CallGraphTool returns Mermaid text; the renderer dropped it and printed only a header."""
+    flow = "flowchart TD\n  a[add] --> b[main]"
+    text = render_tool_response("getcallgraph", {"functionName": "add-00401136", "direction": "calling", "graph": flow})
+    assert "```mermaid" in text
+    assert "a[add] --> b[main]" in text
+
+    empty = render_tool_response("getcallgraph", {"functionName": "main-0040115d", "direction": "calling", "graph": ""})
+    assert "No call relationships" in empty
+
+
+class _SymAddr:
+    def __init__(self, offset: int) -> None:
+        self.offset = offset
+
+
+class _SymProgram:
+    """Minimal program: default space builds addresses; one symbol named 'add'."""
+
+    def __init__(self, symbols: dict[str, int]) -> None:
+        self._symbols = symbols
+
+    def getAddressFactory(self):
+        space = SimpleNamespace(getAddress=lambda off: _SymAddr(int(off)))
+        return SimpleNamespace(getDefaultAddressSpace=lambda: space)
+
+    def getSymbolTable(self):
+        def by_name(name, _ns):
+            if name in self._symbols:
+                return [SimpleNamespace(getAddress=lambda: _SymAddr(self._symbols[name]))]
+            return []
+
+        return SimpleNamespace(getLabelOrFunctionSymbols=by_name, getSymbols=lambda _n: [])
+
+
+@pytest.mark.unit
+def test_hex_looking_symbol_name_resolves_to_the_symbol() -> None:
+    """Live: `references to --target add` resolved to address 0x00000add, not function add."""
+    from agentdecompile_cli.mcp_utils.address_util import AddressUtil
+
+    prog = _SymProgram({"add": 0x401136})
+    assert AddressUtil.resolve_address_or_symbol(prog, "add").offset == 0x401136
+    # No symbol named "dead": still parsed as hex.
+    assert AddressUtil.resolve_address_or_symbol(prog, "dead").offset == 0xDEAD
+    # Digit-leading hex and 0x-prefixed stay address-first even if a symbol shares the text.
+    prog2 = _SymProgram({"007b5000": 0x1})
+    assert AddressUtil.resolve_address_or_symbol(prog2, "007b5000").offset == 0x007B5000
+    assert AddressUtil.resolve_address_or_symbol(prog, "0xadd").offset == 0xADD

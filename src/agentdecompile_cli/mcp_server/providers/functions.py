@@ -486,7 +486,7 @@ class FunctionToolProvider(ToolProvider):
                         "address": str(instr.getAddress()),
                         "mnemonic": instr.getMnemonicString(),
                         "operands": str(instr),
-                        "bytes": " ".join(f"{b:02x}" for b in instr.getBytes()),
+                        "bytes": " ".join(f"{b & 0xFF:02x}" for b in instr.getBytes()),
                     },
                 )
         result: dict[str, Any] = {

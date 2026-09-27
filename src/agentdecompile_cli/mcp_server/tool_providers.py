@@ -2332,9 +2332,10 @@ class ToolProviderManager:
             return activated
 
         if project_provider is not None:
-            await self._bootstrap_shared_session_from_env(session_id, requested_program_key)
+            activated = await self._bootstrap_shared_session_from_env(session_id, requested_program_key)
             requested_program_key = SESSION_CONTEXTS.canonicalize_program_path(session_id, requested_program_key)
-            activated = SESSION_CONTEXTS.get_program_info(session_id, requested_program_key)
+            if activated is None:
+                activated = SESSION_CONTEXTS.get_program_info(session_id, requested_program_key)
             if activated is not None:
                 logger.info(
                     "activate_requested_program route=bootstrap session_id=%s program_tail=%s",

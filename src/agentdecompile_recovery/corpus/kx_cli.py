@@ -64,6 +64,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     seed.add_argument("--results", type=Path, required=True)
     seed.add_argument("--summary", type=Path, required=True)
     seed.add_argument("--coverage-dir", type=Path)
+    seed.add_argument("--compile-input-manifest", type=Path)
     seed.add_argument("--compile", action="store_true")
     seed.add_argument("--retry-failed", action="store_true")
 

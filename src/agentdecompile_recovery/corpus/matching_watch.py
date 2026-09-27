@@ -1,20 +1,8 @@
-"""Autonomous matching-decompilation watch loop.
+"""Refresh an exact-placement diagnostic or an explicitly supplied observation.
 
-Each pass emits an exact-placement assembly-floor diagnostic from the current
-per-function sources (asm floor where no verified C exists, verified-C bytes
-where it does) and refreshes the honest ledger. It reads whatever the verify pass and the
-recovery cascade have produced so far, so the matching exe and the
-"% genuinely recovered" number stay current without any manual step.
-
-This is the measurement/build half of the loop; the compile-heavy halves
-(cascade, permuter, verify) run as their own --watch drivers and feed the
-receipts + .bin dir this reads. Fast and wine-free by design.
-
-    python3 -m agentdecompile_recovery.corpus.matching_watch \\
-        --target <raw_image> --db <corpus.sqlite> --binary-id N \\
-        --src-dir <recovered-source/program> --receipts <receipts.json> \\
-        --func-bytes <bin-dir> --out-exe <matching.exe> \\
-        --out-manifest <manifest.json> [--watch --interval 60]
+Legacy bin directories remain diagnostic with zero contribution. A typed
+reconstruction is independently reevaluated against the selected corpus rows;
+watch never recompiles or imports stored JSON as trusted provenance.
 """
 from __future__ import annotations
 
@@ -24,17 +12,26 @@ import time
 from pathlib import Path
 
 from . import matching_status, whole_image_relink
+from .finish_binary import total_functions
 
 
 def one_pass(args) -> dict:
+    observation = getattr(args, "reconstruction_observation", None)
     target = Path(args.target).read_bytes()
-    # Build the matching image: asm floor + verified-C substitution.
-    rebuilt, stats = whole_image_relink.rebuild(
-        target, str(args.db), args.binary_id,
-        str(args.func_bytes) if args.func_bytes else None)
-    if args.out_exe:
-        Path(args.out_exe).write_bytes(rebuilt)
-    identical = hashlib.sha256(rebuilt).hexdigest() == hashlib.sha256(target).hexdigest()
+    if observation is not None:
+        contribution = whole_image_relink.evaluate_reconstruction(
+            observation, target_path=args.target, output_path=args.out_exe,
+            db=args.db, binary_id=args.binary_id)
+        stats = {**contribution, "substituted_byte_equal": contribution["placedCompiledRegions"],
+                 "substituted_mismatch": 0, "functions": total_functions(str(args.db), args.binary_id)}
+        identical = contribution["wholeFileByteIdentical"]
+    else:
+        rebuilt, stats = whole_image_relink.rebuild(
+            target, str(args.db), args.binary_id,
+            str(args.func_bytes) if args.func_bytes else None)
+        if args.out_exe:
+            Path(args.out_exe).write_bytes(rebuilt)
+        identical = hashlib.sha256(rebuilt).hexdigest() == hashlib.sha256(target).hexdigest()
     # Refresh the honest ledger (recovered = real-C byte-exact only).
     mst_argv = ["--target", str(args.target), "--db", str(args.db),
                 "--binary-id", str(args.binary_id), "--src-dir", str(args.src_dir)]
@@ -46,8 +43,8 @@ def one_pass(args) -> dict:
         mst_argv += ["--out-report", str(args.out_report)]
     if args.byte_exact_floor:
         mst_argv += ["--byte-exact-floor", str(args.byte_exact_floor)]
-    matching_status.main(mst_argv)
-    print(f"[matching-watch] substituted_from_C={stats['substituted_byte_equal']} "
+    matching_status.main(mst_argv, reconstruction_observation=observation)
+    print(f"[matching-watch] placed_compiled_regions={stats['substituted_byte_equal']} "
           f"mismatch={stats['substituted_mismatch']} exact_placement_hash_equal={identical} "
           "compiler_produced=False",
           flush=True)

@@ -35,6 +35,10 @@ export function workflowStatusText(value: unknown): string {
   return text;
 }
 
+export function ownershipUnresolved(job: Data): boolean {
+  return job.resourceDisposition === "quarantined" || job.ownershipUnresolved === true;
+}
+
 export function activityHeadline(jobs: Data[]): string {
   const live = jobs.filter((job) => LIVE.has(String(job.status)) && !job.ownerUnavailable);
   const matching = live.filter((job) => job.actionId === "corpus.match-pair");
@@ -47,6 +51,8 @@ export function activityHeadline(jobs: Data[]): string {
     ),
   ).length;
   const parts: string[] = [];
+  const quarantined = jobs.filter(ownershipUnresolved).length;
+  if (quarantined) parts.push(`${quarantined} ownership unresolved`);
   if (comparing) parts.push(`${comparing} comparing`);
   if (queued) parts.push(`${queued} queued`);
   if (recoverable) parts.push(`${recoverable} recoverable`);

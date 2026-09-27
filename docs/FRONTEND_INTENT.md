@@ -213,20 +213,20 @@ Their existence does not close any missing capability.
 
 ## 6. Pipeline, failover and concurrency represented by the UI
 
-**Use current STRATEGY as the ordered policy.** The UI presents its actual state,
+**Use current STRATEGY for prerequisites and feedback.** The UI presents its actual state,
 not an independently reimplemented ladder.
 
 ```text
 Reconcile existing artifact/project/evidence/owners; reuse valid work
   → identity evidence cascade
-  → global compiler / ABI / layout calibration
-  → linkable scaffold, explicitly accounting for assembly floor
-  → readable C from Ghidra / authoritative context
+  ↔ scoped compiler / ABI / layout hypotheses
+  → validated linkable regions + early unchanged reconstruction round trip
+  → C/C++ candidates from Ghidra / authoritative context
        compile fails → deterministic helpers → retry
                        → bounded LLM cleanup only when needed → recompile
-       compile passes → eligible sibling source placement
+       compile passes → compatible recipient candidate distribution
                        → verify → applicable permuter / residue tools → LLM last
-  → target parity
+  ↔ continuous local / linked parity; source contribution checked
   → fresh exact-placement whole-image rebuild + comparison
   → enrich eligible shared knowledge, continue next target
 
@@ -235,6 +235,15 @@ Concurrent branches where ownership permits:
   identity extraction / bounded read-only evidence and indexing
   runtime export → typed adapter / cave preflight → observed behavior → evidence
 ```
+
+The [task/acceptance design](plans/2026-09-22-task-acceptance-and-continuation-design.md)
+defines the shared states consumed by both UIs: separate liveness, execution and
+goal progress; evidence-specific refusal and wake conditions; current publication
+authority versus quarantined resources; per-operation capability/readiness; and
+exhaustive inventory accounting. Correct bytes under a false semantic label must
+remain a hypothesis, not animate an accepted binding. A source-floor badge cannot
+hide a separately usable original-code capability. Partial behavior evidence with
+failed recording remains visible without becoming video-qualified success.
 
 ### Identity is not source propagation
 
@@ -246,7 +255,10 @@ reuse, maintain uniqueness/margins, quarantine bad seeds, retain ambiguity and
 one-to-many relationships. Do not repeat the historical research's unsupported
 “100% confidence” or “40–60% instantly” assertions as guarantees.
 
-Source propagation requires compiled source and recipient-specific validation.
+Source propagation requires compiled candidates, compatible implementation variants
+and recipient-specific validation. Compilation, ABI checks, tested behavior, local
+match, linked match and whole-file equality are separate facts; runtime capability
+states are located/readable/callable/detourable/writable with their own evidence.
 A shared logical ID alone does not make source, structure layout or calling
 convention portable. Name precedence is human annotations, original debug/STABS
 provenance, authentic symbols, meaningful analysis names, then placeholders.
@@ -551,3 +563,43 @@ migrated sessions may retain import timestamps rather than original send times.
 Remaining historical gaps do not erase known requirements. Add newly recovered
 requirements here with sources and explicit supersession; do not create another
 competing vision document or silently restore old presentation/port policies.
+
+
+## Failure handling and unattended progress — required design
+
+The [prevention and recovery contracts](plans/2026-09-22-failure-prevention-and-recovery-contracts.md)
+define required behavior; this section is not an implementation claim. The same
+projection drives both frontends, CLI and agent consumers.
+
+Every objective shows accepted capabilities, active attempts, independent eligible
+work, unmet required predicates and the next automatic action. A failure record
+shows a stable reason, affected scope, evidence freshness, attempts/budget spent,
+recovery action, wake condition and the authority needed only if an external
+intervention is unavoidable. Diagnosis details expand in place; users must not need
+to correlate several logs just to learn whether work is progressing.
+
+| Situation | Required presentation and interaction |
+|---|---|
+| Deterministic worker error | “Provider paused for this input revision”; show diagnostic/repair dependency, continuing tasks and conditions for automatic resumption. Retry cannot bypass budget or ownership. |
+| Slow but advancing attempt | Display actual durable units and last checkpoint with separate heartbeat. No invented percent or premature no-progress alarm. |
+| Ambiguous command outcome | “Checking whether the operation completed”; mutation/retry controls disabled for that conflicting operation until reconciled. Read-only observations remain available where supported. |
+| Resource quarantine | Name occupied resource and unresolved access evidence; lease countdown is never presented as a guaranteed release time. Show independent ready work. |
+| Coordinator/store unavailable | Last verified snapshot visibly dated and read-only. Clearly show disconnected/unknown freshness. Do not queue hidden offline mutations or show a successful launch. |
+| Missing fixture or capability | Show the exact missing predicate and planned compatible producer/alternative. Absent support remains explicit; it never becomes a generic red gameplay failure. |
+| Evidence invalidation | Remove dependent readiness, retain history, explain changed basis and scheduled revalidation; coverage can fall without erasing prior receipts. |
+| External action required | One deduplicated actionable item with impact and available independent work. Repeat notification only for material changes under notification policy; dismissing is not resolution. |
+| Policy rollout | Show revision and affected scope. Rollback preserves command/acceptance history and never resurrects stale claims or spent budget. |
+
+Operator actions use versioned intent IDs through the same admission path as agent
+actions. Double-click, reconnect and stale-tab requests must not create duplicate
+commands. Stale-version responses refresh the view with an explanation. Pause stops
+new admission and asks owned workers to checkpoint; it does not claim immediate
+process termination or freed memory. Resume reconciles durable state. Cancellation
+applies to a named scope, preserves independently accepted outputs, and reports
+unresolved side effects/access rather than pretending rollback occurred.
+
+Future UX acceptance pairs each historical failure with a healthy independent task:
+within the declared freshness contract, all surfaces must show the same reason,
+automatic next step and accepted capability set. No user action should be necessary
+for a policy-authorized routine retry, checkpoint resume or compatible fixture
+selection. These acceptance checks have not been run.

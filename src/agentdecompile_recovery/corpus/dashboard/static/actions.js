@@ -405,7 +405,7 @@
       const title = document.createElement("button");
       title.type = "button";
       title.className = "job-open";
-      title.textContent = job.title + " — " + job.status;
+      title.textContent = job.title + " — " + job.status + ((job.resourceDisposition === "quarantined" || job.ownershipUnresolved === true) ? " — resource ownership unresolved; conflicting work remains reserved" : "");
       title.addEventListener("click", function () { showJob(job.id); });
       row.appendChild(title);
       if (job.status === "running" || job.status === "queued" || job.status === "cancelling") {

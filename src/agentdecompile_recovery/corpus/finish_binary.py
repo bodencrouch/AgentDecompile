@@ -1,42 +1,115 @@
-"""Reconciliation driver for recovered-C coverage and assembly-floor placement.
+"""Reconcile current raw local C observations for one required PE image.
 
-Ties the tiers together for one binary:
-  1. Aggregate every byte-exact source (verify receipts + on-disk verified_c
-     pools) into one canonical {addr: recovered .c} set.
-  2. Emit the placed, relocation-resolved bytes for each byte-exact function as
-     an assembly-floor diagnostic. Its equal hash is not a compiler/relink
-     receipt; recovered-C coverage is the count of genuine (non-asm-floor)
-     functions.
-  3. Report the remainder (functions still on the asm floor) as the permuter
-     work queue -- the exact set the byte-accuracy campaign must still convert.
-
-This does not itself compile (Wine-free): it consumes verify receipts already
-produced by `verify_recovered_byteexact`. Run that first over each candidate
-pool, then this to reconcile and measure.
+Consumes producer-bound source/target observations in supplied receipt order.
+Masked matches remain diagnostic. No compilation, placement, semantic identity
+acceptance or linked-image proof is performed by this report.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import struct
 from pathlib import Path
 
+from .verify_recovered_byteexact import file_region_offset
 
-def load_byte_exact(receipts: list[str]) -> dict[int, str]:
-    """{addr: reason} for every function a receipt marks byte-exact."""
-    out: dict[int, str] = {}
+_file_region_offset = file_region_offset
+
+
+def load_byte_exact(receipts: list[str], *, target_path=None,
+                    expected_sizes: dict[int, int] | None = None,
+                    rejected: list[dict] | None = None) -> dict[int, str]:
+    """Current raw local observations; later supplied rows supersede earlier ones.
+
+    This does not establish semantic identity, toolchain currentness or linked
+    contribution. A legacy/masked ``ok`` cannot qualify raw equality.
+    """
+    from .coverage_evidence import source_binding, target_binding
+    from .source_claims import is_real_c
+    candidates: dict[tuple[str, int], str] = {}
+    target_cache: dict = {}
+    def refuse(receipt, row, reason):
+        if rejected is not None:
+            rejected.append({'receipt': str(receipt), 'file': row.get('file'), 'reason': reason})
+    try:
+        required_target = Path(target_path).resolve()
+        raw = required_target.read_bytes()
+        target_cache[('target-binding-v1', str(required_target))] = (raw, hashlib.sha256(raw).hexdigest())
+    except (OSError, ValueError, TypeError, struct.error):
+        refuse(target_path, {}, 'required_pe_target_unavailable')
+        return {}
     for r in receipts:
         p = Path(r)
-        if not p.is_file():
+        try:
+            data = json.loads(p.read_text())
+        except (OSError, ValueError):
+            refuse(p, {}, 'receipt_unreadable')
             continue
-        data = json.loads(p.read_text())
-        for row in data.get("results", []):
-            if row.get("ok") and row.get("addr"):
-                try:
-                    out[int(str(row["addr"]), 16)] = row.get("reason", "byte-exact")
-                except ValueError:
-                    continue
-    return out
+        if not isinstance(data, dict) or not isinstance(data.get('results'), list):
+            refuse(p, {}, 'invalid_receipt')
+            continue
+        for row in data['results']:
+            if not isinstance(row, dict):
+                refuse(p, {}, 'invalid_result')
+                continue
+            source_path = row.get('sourcePath')
+            if isinstance(source_path, str) and Path(source_path).is_absolute():
+                source_key = str(Path(source_path).resolve())
+            else:
+                source_key = str(p.resolve()) + ':' + str(row.get('file'))
+            try:
+                value = row.get('addr')
+                addr = value if type(value) is int else int(value, 16) if isinstance(value, str) else -1
+            except ValueError:
+                addr = -1
+            if addr < 0:
+                for key in [key for key in candidates if key[0] == source_key]:
+                    candidates.pop(key, None)
+                refuse(p, row, 'missing_or_invalid_address')
+                continue
+            candidate_key = (source_key, addr)
+            candidates.pop(candidate_key, None)
+            if (target_path is None or data.get('current') is False
+                    or row.get('ok') is not True or row.get('rawEqual') is not True
+                    or row.get('comparisonPolicy') != 'raw-region-v1'):
+                refuse(p, row, 'raw_observation_not_qualified')
+                continue
+            try:
+                if not isinstance(source_path, str) or not Path(source_path).is_absolute():
+                    raise ValueError('missing absolute source path')
+                source = Path(source_path).read_bytes()
+                readable = is_real_c(source.decode('utf-8'))
+            except (OSError, ValueError):
+                refuse(p, row, 'source_unreadable')
+                continue
+            if not readable or not source_binding(row, source)['current']:
+                refuse(p, row, 'source_not_current_readable_c')
+                continue
+            target = target_binding(row, expected_path=target_path,
+                                    expected_address=addr, cache=target_cache)
+            if not target['current']:
+                refuse(p, row, target['reason'])
+                continue
+            if _file_region_offset(raw, addr, row['targetRegion']['size']) != row['targetRegion']['offset']:
+                refuse(p, row, 'target_address_mapping_mismatch')
+                continue
+            size = row.get('size')
+            if (type(size) is not int or size != row['targetRegion']['size']
+                    or expected_sizes is not None and expected_sizes.get(addr) != size):
+                refuse(p, row, 'target_function_size_mismatch')
+                continue
+            candidates[candidate_key] = 'current-source-target-raw-local-observation'
+    # Multiple independently current sources may corroborate one address. The
+    # report counts that address once only after every source-specific stream
+    # has been reconciled.
+    return {address: reason for (_, address), reason in candidates.items()}
+
+
+def contribution_state(observation=None, *, target_path=None, db=None, binary_id=None) -> dict:
+    """Explicit opt-in; the default report remains a raw-local observation."""
+    from .source_contribution import evaluate_reconstruction
+    return evaluate_reconstruction(observation, target_path=target_path, db=db, binary_id=binary_id)
 
 
 def total_functions(db: str, binary_id: int) -> int:
@@ -63,7 +136,7 @@ def text_range(target: bytes) -> tuple[int, int, int]:
     raise ValueError("no .text")
 
 
-def main() -> int:
+def main(*, reconstruction_observation=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--receipts", nargs="+", required=True,
                     help="verify_recovered_byteexact JSON receipts to union")
@@ -73,9 +146,6 @@ def main() -> int:
     ap.add_argument("--out", required=True, help="reconciliation report JSON")
     args = ap.parse_args()
 
-    target = Path(args.target).read_bytes()
-    image_base, text_rva, text_vsize = text_range(target)
-    be = load_byte_exact(args.receipts)
     total = total_functions(args.db, args.binary_id)
 
     import sqlite3
@@ -84,22 +154,39 @@ def main() -> int:
         "SELECT addr, size FROM func WHERE binary_id=? AND size>0", (args.binary_id,))]
     con.close()
 
+    rejected: list[dict] = []
+    be = load_byte_exact(args.receipts, target_path=args.target,
+                         expected_sizes=dict(funcs), rejected=rejected)
+
     byte_exact = [a for a, _ in funcs if a in be]
     remainder = [a for a, _ in funcs if a not in be]
 
+    contribution = contribution_state(reconstruction_observation, target_path=args.target,
+                                      db=args.db, binary_id=args.binary_id)
     report = {
         "target": args.target,
         "totalFunctions": total,
         "byteExactRecoveredC": len(byte_exact),
+        "rawLocalObservedC": len(byte_exact),
+        "comparisonScope": "current-source-target-raw-local-observation",
+        "semanticIdentityVerified": False,
+        "linkedSourceContributionVerified": contribution["linkedSourceContributionVerified"],
+        "contribution": contribution,
+        "placedCompiledRegions": contribution["placedCompiledRegions"],
+        "placedCompiledBytes": contribution["placedCompiledBytes"],
+        "wholeFileByteIdentical": contribution["wholeFileByteIdentical"],
+        "toolchainCurrentnessVerified": False,
+        "receiptRejections": rejected,
         "coveragePct": round(100 * len(byte_exact) / max(total, 1), 2),
         "asmFloorRemainder": len(remainder),
-        "exactPlacementHashEqual": True,  # assembly-floor placement diagnostic only
+        "exactPlacementHashEqual": None,  # No placement or hash comparison is performed here.
         "compilerProducedWholeImage": False,
         "wholeImageByteIdentical": False,
-        "claim": ("Exact-placement hash equality uses original bytes for the assembly floor; it is "
-                  "not a compiler-produced whole-image receipt. "
-                  "byteExactRecoveredC = functions reproduced from genuine recovered C rather than "
-                  "embedded original bytes; the remainder is the permuter/byte-accuracy work queue."),
+        "claim": ("byteExactRecoveredC is the compatibility count of current-source/target raw local "
+                  "observations. Masked comparisons do not qualify. This report does not verify "
+                  "semantic identity or a compiler-produced whole image. Optional contribution fields "
+                  "independently evaluate a typed reconstruction; absent that input they remain "
+                  "unverified. Receipt order defines local-observation supersession."),
         "permuterQueueSample": [f"0x{a:08x}" for a in remainder[:50]],
     }
     Path(args.out).write_text(json.dumps(report, indent=1))

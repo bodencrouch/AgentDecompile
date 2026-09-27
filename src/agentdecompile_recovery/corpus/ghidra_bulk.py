@@ -120,6 +120,8 @@ ASM_FALLBACK = True
 _RAW_IMAGE = b""
 _FUNC_FILE: dict[str, tuple[int, int]] = {}
 _CROSS_INDEX: dict | None = None
+_CROSS_CONFIG: dict | None = None
+_COMPILE_BINDINGS: dict = {}
 EXTRACT_RAW: pathlib.Path | None = None
 
 # `A::B(` / `A::~B(` -> `A__B(` / `A____B(`, matching kx.ctxtypes.c_name() so a
@@ -807,15 +809,62 @@ def existing_c(prog_dir: pathlib.Path, raw_name: str, entry_hex: str) -> pathlib
 
 
 def logical_ids_with_real_c(con) -> set[int]:
-    """logical_id values that already have assembly-free compiling C."""
+    """Logical IDs with a current source-bound real-C observation."""
+    from .coverage_evidence import source_file_binding
     try:
         rows = con.execute(
-            "SELECT DISTINCT logical_id FROM recovered_function "
+            "SELECT logical_id,path,source_sha256 FROM recovered_function "
             "WHERE real_c=1 AND logical_id IS NOT NULL"
         )
-        return {int(r[0]) for r in rows if r[0] is not None}
+        return {int(r[0]) for r in rows
+                if source_file_binding({"path": r[1], "source_sha256": r[2]})["current"]}
     except sqlite3.Error:
         return set()
+
+
+def current_recovered_addresses(con, binary_id: int) -> set[int]:
+    """Target-local observations only; a logical sibling is a reuse candidate.
+
+    Current donor source does not establish recipient ABI, bytes or compilation.
+    This does not itself establish binary-content freshness or semantic identity.
+    """
+    from .coverage_evidence import source_file_binding
+    addresses: set[int] = set()
+    try:
+        for row in con.execute(
+            "SELECT addr,path,source_sha256 FROM recovered_function "
+            "WHERE binary_id=? AND real_c=1 AND addr IS NOT NULL", (binary_id,)
+        ):
+            if not source_file_binding({"path": row[1], "source_sha256": row[2]})["current"]:
+                continue
+            try:
+                addresses.add(int(row[0]))
+            except (TypeError, ValueError):
+                continue
+    except sqlite3.Error:
+        return set()
+    return addresses
+
+
+def current_source_at_address(con, binary_id: int, address: int, source: pathlib.Path | None) -> bool:
+    """Check the actual local candidate against a target-local producer digest."""
+    from .coverage_evidence import source_binding, source_file_binding
+    if source is None:
+        return False
+    try:
+        snapshot = source.read_bytes()
+        rows = con.execute(
+            "SELECT path,source_sha256 FROM recovered_function "
+            "WHERE binary_id=? AND addr=? AND real_c=1", (binary_id, address)
+        )
+        for row in rows:
+            if source_file_binding({"path": row[0], "source_sha256": row[1]})["current"] and source_binding(
+                {"sourceSha256": row[1]}, snapshot
+            )["current"]:
+                return True
+    except (OSError, sqlite3.Error):
+        return False
+    return False
 
 
 def skip_real_c_sibling(lid: int | None, real_c_logicals: set[int], kind: str) -> bool:
@@ -834,14 +883,64 @@ def addr_to_logical(con, bid: int) -> dict[int, int]:
         return {}
 
 
-def write_compile_receipt(out_dir: pathlib.Path, program: str, ok_ids: list[str]) -> pathlib.Path:
+def write_compile_receipt(out_dir: pathlib.Path, program: str, ok_ids: list[str], *, results=()) -> pathlib.Path:
+    """Legacy address list is diagnostic only; distribution consumes bound rows."""
+    from .cross_place_admission import canonical
     dest = pathlib.Path(out_dir) / "compile-receipt.json"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_text(
-        json.dumps({"program": program, "ok": sorted(ok_ids)}, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    import tempfile
+    for parent in [dest, *dest.parents]:
+        if parent.is_symlink(): raise ValueError('unsafe_compile_receipt_output')
+    if dest.exists() and dest.stat().st_nlink != 1:
+        raise ValueError('unsafe_compile_receipt_output')
+    fd, name = tempfile.mkstemp(prefix='.compile-receipt-', dir=dest.parent)
+    temp = pathlib.Path(name)
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(canonical({"schema": "agentdecompile.bulk-compile/v2", "program": program,
+                "ok": sorted(ok_ids), "results": sorted(results, key=lambda r: str(r.get('addr', '')))}) + b"\n")
+            stream.flush(); os.fsync(stream.fileno())
+        os.replace(temp, dest)
+    finally:
+        temp.unlink(missing_ok=True)
     return dest
+
+
+def distribute_compiled_source(source_path, entry_hex, binding):
+    """Use the same fresh admission path; cached address index has no authority."""
+    if not _CROSS_CONFIG:
+        return {"placed": 0, "reason": "missing_distribution_context"}
+    from . import cross_place, cross_place_admission as admission
+    config = _CROSS_CONFIG
+    dest = pathlib.Path(source_path)
+    row = {"ok": True, "addr": hex(int(entry_hex, 16))}
+    if binding:
+        row.update(binding)
+        row['distribution'] = dict(binding['distribution'])
+        row['distribution']['source'] = admission.snapshot(dest)
+        if row['distribution']['source']['sha256'] != binding['distribution']['source']['sha256']:
+            row = {"ok": False, "reason": "published_source_differs_from_compiled_TU"}
+    receipts = OUT_DIR / 'compile-receipts'
+    if receipts.is_symlink(): raise ValueError('unsafe_compile_receipt_directory')
+    receipts.mkdir(parents=True, exist_ok=True)
+    receipt = receipts / (admission.digest(str(dest.resolve()).encode()) + '.json')
+    if receipt.is_symlink() or (receipt.exists() and receipt.stat().st_nlink != 1):
+        raise ValueError('unsafe_compile_receipt_output')
+    # A function's worker has sole ownership of its receipt; publish atomically.
+    pending = receipt.with_suffix('.pending')
+    if pending.exists() or pending.is_symlink(): raise ValueError('compile_receipt_writer_conflict')
+    with pending.open('xb') as f: f.write(admission.canonical({'results': [row]}))
+    os.replace(pending, receipt)
+    try:
+        with admission.read_database(config['db']) as con:
+            result = cross_place.place_tree(dest.parent, config['bid'], OUT_DIR, con,
+                source_paths=[dest], raw_dir=config['raw_dir'], receipt_path=receipt)
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        # A concurrent placement cannot erase successful source evidence from
+        # the aggregate receipt; the watcher can retry this source later.
+        result = {'placed': 0, 'reason': str(exc)}
+    result['compileReceiptRow'] = row
+    return result
 
 
 def existing_real_c(prog_dir: pathlib.Path, raw_name: str, entry_hex: str) -> pathlib.Path | None:
@@ -879,7 +978,7 @@ def should_queue(kind: str, policy: str) -> bool:
         return True
     if policy == "force-c-replace":
         return kind != "real-c"
-    return kind in {"missing", "asm-seed"}
+    return kind in {"missing", "asm-seed", "unverified-c"}
 
 
 def raw_image_path(repo_path: str) -> pathlib.Path:
@@ -974,7 +1073,7 @@ def _run_cl(src: pathlib.Path, obj: pathlib.Path, name: str) -> tuple[bool, str]
             capture_output=True, text=True, timeout=60)
     except subprocess.TimeoutExpired:
         return False, "INFRA timeout"
-    ok = obj.exists() and obj.stat().st_size > 0
+    ok = p.returncode == 0 and obj.exists() and obj.stat().st_size > 0
     if ok:
         return True, ""
     err = (p.stdout or "") + (p.stderr or "")
@@ -1262,9 +1361,34 @@ def _note_success() -> None:
 def _compile_text(src, obj, name, header, body) -> tuple[bool, str]:
     src.write_text(header + "\n" + body)
     obj.unlink(missing_ok=True)
+    _COMPILE_BINDINGS.pop(str(src), None)
+    binding = None
+    if _CROSS_CONFIG:
+        try:
+            from . import cross_place, cross_place_admission as admission
+            raw = src.read_bytes()
+            address = cross_place.parse_addr(raw.decode('utf-8'))
+            with admission.read_database(_CROSS_CONFIG['db']) as con:
+                binding = admission.capture_source_basis(con, _CROSS_CONFIG['bid'], address,
+                    src, raw, raw_dir=_CROSS_CONFIG['raw_dir'])
+            compiler = admission.snapshot(COMPILE)
+        except (OSError, ValueError, TypeError, sqlite3.Error):
+            binding = None  # ordinary recovery continues; distribution is unadmitted
     ok, err = _run_cl(src, obj, name)
     if (not ok) and err.startswith("INFRA"):
+        obj.unlink(missing_ok=True)
         ok, err = _run_cl(src, obj, name)
+    if ok and binding:
+        try:
+            with admission.read_database(_CROSS_CONFIG['db']) as con:
+                current = admission.capture_source_basis(con, _CROSS_CONFIG['bid'], address,
+                    src, src.read_bytes(), raw_dir=_CROSS_CONFIG['raw_dir'])
+            if current == binding and admission.snapshot(COMPILE) == compiler:
+                _COMPILE_BINDINGS[str(src)] = {'distribution': binding,
+                    'producer': {'scope': 'wrapper-compile-only-diagnostic', 'compiler': compiler,
+                        'object': admission.snapshot(obj), 'returncode': 0}}
+        except (OSError, ValueError, TypeError, sqlite3.Error):
+            pass
     return ok, err
 
 
@@ -1291,7 +1415,7 @@ def try_compile(job) -> dict:
 def _try_compile_inner(entry_hex, name, header, body, tmpdir, prog_dir, program_path) -> dict:
     src = pathlib.Path(tmpdir) / f"g_{entry_hex}.c"
     obj = pathlib.Path(tmpdir) / f"g_{entry_hex}.obj"
-    header = _seed_gl_pointers(header, body)
+    header = f"/* address: 0x{entry_hex}; compiled candidate; not byte verified. */\n" + _seed_gl_pointers(header, body)
     ok, err = _compile_text(src, obj, name, header, body)
     compile_only = NORMALIZE_MODE is NormalizeMode.COMPILE_ONLY
     if (not ok) and not err.startswith("INFRA") and compile_only:
@@ -1398,17 +1522,19 @@ def _try_compile_inner(entry_hex, name, header, body, tmpdir, prog_dir, program_
                 f" * pending for this function.\n"
                 f" * source: ghidra_bulk.py\n */\n")
         dest_c = prog_dir / f"{fname}.c"
-        dest_c.write_text(head_comment + header + "\n" + body)
+        if asm_used:
+            dest_c.write_text(head_comment + header + "\n" + body)
+        else:
+            # Exact final compiler TU, including its address comment.
+            dest_c.write_bytes(src.read_bytes())
         if not asm_used:
             _note_success()
-        if _CROSS_INDEX:
+        distribution = None
+        if _CROSS_CONFIG and not asm_used:
             try:
-                from . import cross_place
-                cross_place.place_one(
-                    dest_c, int(entry_hex, 16), _CROSS_INDEX, OUT_DIR,
-                )
-            except (OSError, ValueError, KeyError):
-                pass
+                distribution = distribute_compiled_source(dest_c, entry_hex, _COMPILE_BINDINGS.get(str(src)))
+            except (OSError, ValueError, KeyError, sqlite3.Error) as exc:
+                distribution = {"placed": 0, "reason": str(exc)}
     src.unlink(missing_ok=True)
     obj.unlink(missing_ok=True)
     return {
@@ -1418,11 +1544,12 @@ def _try_compile_inner(entry_hex, name, header, body, tmpdir, prog_dir, program_
         "error": err,
         "asm": asm_used,
         "kept_asm": kept_asm,
+        "distribution": locals().get("distribution"),
     }
 
 
 def main(argv: list[str] | None = None) -> int:
-    global OUT_DIR, KB, COMPILE, NORMALIZE_MODE, ASM_FALLBACK, EXTRACT_RAW, _CROSS_INDEX, _RAW_IMAGE
+    global OUT_DIR, KB, COMPILE, NORMALIZE_MODE, ASM_FALLBACK, EXTRACT_RAW, _CROSS_INDEX, _RAW_IMAGE, _CROSS_CONFIG
     ap = argparse.ArgumentParser()
     ap.add_argument("--program", required=True)
     ap.add_argument("--repo", required=True, help="binary repo_path in the store")
@@ -1576,7 +1703,9 @@ def main(argv: list[str] | None = None) -> int:
                     f"({_res.get('reason')}). Refusing to recover from ciphertext -- "
                     f"supply an external runtime dump (Scylla/x64dbg) then re-run.")
     from . import cross_place
-    _CROSS_INDEX = cross_place.load_index(con, bid)
+    _CROSS_INDEX = None  # an address-only cached index never admits distribution
+    _CROSS_CONFIG = {"db": str(pathlib.Path(args.db).resolve()), "bid": bid,
+                     "raw_dir": str(raw_image_path(args.repo).parent.resolve())}
     types = ctxtypes.load_types(con, bid)
     global _TYPE_FIELDS
     _TYPE_FIELDS = set()
@@ -1619,8 +1748,7 @@ def main(argv: list[str] | None = None) -> int:
     already = 0
     skipped_tried = 0
     skipped_logical = 0
-    real_c_logicals = logical_ids_with_real_c(con) if policy != "force" else set()
-    logical_by_addr = addr_to_logical(con, bid) if real_c_logicals else {}
+    recovered_addresses = current_recovered_addresses(con, bid) if policy != "force" else set()
     already_ok: list[str] = []
     if args.write and prog_dir.exists() and policy != "force":
         kept = []
@@ -1633,8 +1761,11 @@ def main(argv: list[str] | None = None) -> int:
                 addr_i = int(r["entry_hex"], 16)
             except (TypeError, ValueError):
                 addr_i = None
-            lid = logical_by_addr.get(addr_i) if addr_i is not None else None
-            if skip_real_c_sibling(lid, real_c_logicals, kind):
+            if kind == "real-c" and (addr_i is None or not current_source_at_address(
+                con, bid, addr_i, existing_c(prog_dir, r["name"] or "", r["entry_hex"])
+            )):
+                kind = "unverified-c"
+            if addr_i in recovered_addresses and kind not in {"real-c", "unverified-c"}:
                 skipped_logical += 1
                 continue
             if not should_queue(kind, policy):
@@ -1650,7 +1781,7 @@ def main(argv: list[str] | None = None) -> int:
         f"normalize mode: {NORMALIZE_MODE.value}  queue: {policy}  "
         f"try {len(rows)}  real C on disk: {already}  "
         f"c-replace-tried skipped: {skipped_tried}  "
-        f"logical real_c skipped: {skipped_logical}",
+        f"target-local recovered C skipped: {skipped_logical}",
         flush=True,
     )
     global _COMPILED_COUNT, _CORPUS_TOTAL, _LLM_STOPPED
@@ -1788,7 +1919,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nwrote {len(ok)} new files -> {prog_dir}  "
               f"(skipped {already} already on disk)")
         ok_ids = already_ok + [str(r["entry_hex"]) for r in ok]
-        write_compile_receipt(OUT_DIR, args.program, ok_ids)
+        write_compile_receipt(OUT_DIR, args.program, ok_ids, results=[
+            r["distribution"]["compileReceiptRow"] for r in ok
+            if r.get("distribution") and r["distribution"].get("compileReceiptRow")])
 
     return 0
 

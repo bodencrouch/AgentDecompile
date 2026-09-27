@@ -165,8 +165,8 @@ def test_place_tree_glob_order_is_directory_order_independent(tmp_path: Path, mo
     src_dir = tmp_path / "src"
     src_dir.mkdir()
     out_root = tmp_path / "out"
-    # Two source files claim the same address; the lexicographically first
-    # one must win regardless of how the directory enumerates them.
+    # Two source files claim the same address; both remain separate unadmitted
+    # proposals in deterministic source order, without recipient replacement.
     (src_dir / "a.c").write_text("/*\n * address: 0x00001000\n */\nint a(void) { return 1; }\n")
     (src_dir / "b.c").write_text("/*\n * address: 0x00001000\n */\nint b(void) { return 2; }\n")
     index = {0x1000: [(2, 0x2000, "dst_prog", "fn")]}
@@ -177,9 +177,15 @@ def test_place_tree_glob_order_is_directory_order_independent(tmp_path: Path, mo
         return iter(sorted(real_glob(self, pattern), reverse=True))
 
     monkeypatch.setattr(Path, "glob", reversed_glob)
-    summary = cross_place.place_tree(src_dir, 1, out_root, con=None)
-    assert summary["placed"] == 1
-    assert "int a(void)" in (out_root / "dst_prog" / "fn_00002000.c").read_text()
+    database = tmp_path / 'fixture.sqlite'; database.write_bytes(b'fixture')
+    monkeypatch.setattr(cross_place, '_db_path', lambda con: database)
+    def unsupported(*args, **kwargs): raise ValueError('unsupported-fixture-provider')
+    monkeypatch.setattr(cross_place.admission, 'physical', unsupported)
+    summary = cross_place.place_tree(src_dir, 1, out_root, con=object())
+    assert summary['placed'] == 0 and summary['proposed'] == 2
+    rows = [json.loads((Path(r['candidate']) / 'manifest.json').read_text()) for r in summary['results']]
+    assert [Path(r['sourcePath']).name for r in rows] == ['a.c', 'b.c']
+    assert not (out_root / 'dst_prog').exists()
 
 
 # --- store.backfill_recovery_family (D9) --------------------------------------

@@ -1,0 +1,7 @@
+project_profile:
+  name: agentdecompile-original-canary
+  source_root: source-positive
+  hooks_csv: null
+backend:
+  type: ghidra-json
+  export_dir: snapshot

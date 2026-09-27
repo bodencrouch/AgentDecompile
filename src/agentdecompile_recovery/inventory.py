@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import datetime
+import hashlib
 import json
 import math
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -282,7 +283,12 @@ def supports_binary_format(binary_format: str) -> bool:
 
 
 def build_binary_inventory(target: TargetIdentity, *, analysis_target: dict[str, Any] | None = None) -> dict[str, Any]:
-    view = BinaryView(target.binary_path, target.binary_path.read_bytes())
+    data = target.snapshot if target.snapshot is not None else target.binary_path.read_bytes()
+    view = BinaryView(target.binary_path, data)
+    # The inventory digest describes the bytes parsed, never an earlier path read.
+    # Retain the selected analysis format (e.g. extracted NDS CPU images do not
+    # carry a cartridge header), but bind all size/digest fields to this read.
+    target = replace(target, sha256=hashlib.sha256(data).hexdigest(), size=len(data), snapshot=None)
     if target.format == "pe":
         return pe_inventory(target, view)
     if target.format == "elf":
@@ -363,6 +369,21 @@ def pe_inventory(target: TargetIdentity, view: BinaryView) -> dict[str, Any]:
         )
 
     exports = pe_exports(view, sections, data_dirs[0] if len(data_dirs) > 0 else {"rva": 0, "size": 0})
+    try:
+        minimum_optional = 112 if is_pe32_plus else 96
+        if optional_size < minimum_optional + data_dir_count * 8:
+            raise InventoryError("export observation: optional header is truncated")
+        view.bytes(optional, optional_size)
+        headers_size = view.u32(optional + 60)
+        if headers_size < section_offset + section_count * 40 or headers_size > len(view.data):
+            raise InventoryError("export observation: invalid header extent")
+        strict_exports = pe_exports(view, sections, data_dirs[0] if data_dirs else {"rva": 0, "size": 0},
+                                    strict=True, headers_size=headers_size)
+        if any(image_base + row["rva"] >= (1 << (64 if is_pe32_plus else 32)) for row in strict_exports):
+            raise InventoryError("export observation: export VA overflows image address width")
+        export_observation = {"status": "complete", "exports": strict_exports}
+    except (InventoryError, UnicodeError) as exc:
+        export_observation = {"status": "malformed", "reason": str(exc), "exports": []}
     imports = pe_imports(view, sections, data_dirs[1] if len(data_dirs) > 1 else {"rva": 0, "size": 0}, is_pe32_plus)
     code_ranges = [
         {
@@ -405,6 +426,7 @@ def pe_inventory(target: TargetIdentity, view: BinaryView) -> dict[str, Any]:
         "entryRva": address_of_entry,
         "entryVa": image_base + address_of_entry,
         "imageBase": image_base,
+        "sizeOfHeaders": view.u32(optional + 60),
         "sectionAlignment": section_alignment,
         "fileAlignment": file_alignment,
         "subsystem": subsystem,
@@ -412,6 +434,7 @@ def pe_inventory(target: TargetIdentity, view: BinaryView) -> dict[str, Any]:
         "dataDirectories": data_dirs,
         "sections": sections,
         "exports": exports,
+        "exportObservation": export_observation,
         "imports": imports,
         "symbols": [],
         "codeRanges": code_ranges,
@@ -479,10 +502,60 @@ def pe_imports(view: BinaryView, sections: list[dict[str, Any]], import_dir: dic
     return imports
 
 
-def pe_exports(view: BinaryView, sections: list[dict[str, Any]], export_dir: dict[str, int]) -> list[dict[str, Any]]:
+def pe_file_offset(view: BinaryView, sections: list[dict[str, Any]], rva: int, size: int,
+                   *, headers_size: int = 0) -> int:
+    """Map a complete range only when it has one unambiguous file-backed mapping."""
+    if rva < 0 or size <= 0 or rva + size > 0x100000000:
+        raise InventoryError("export observation: invalid RVA extent")
+    mappings = ([{"virtualAddress": 0, "virtualSize": headers_size,
+                  "rawSize": headers_size, "rawPointer": 0}] if headers_size else []) + sections
+    hits = [s for s in mappings if rva < s["virtualAddress"] + max(s["rawSize"], s["virtualSize"])
+            and s["virtualAddress"] < rva + size]
+    if len(hits) != 1:
+        raise InventoryError("export observation: unmapped or ambiguous RVA")
+    section = hits[0]
+    delta = rva - section["virtualAddress"]
+    if delta < 0 or delta + size > section["rawSize"]:
+        raise InventoryError("export observation: range is not fully file-backed")
+    offset = section["rawPointer"] + delta
+    view.bytes(offset, size)
+    return offset
+
+
+def pe_exports(view: BinaryView, sections: list[dict[str, Any]], export_dir: dict[str, int],
+               *, strict: bool = False, headers_size: int = 0) -> list[dict[str, Any]]:
+    """Parse exports; strict mode requires a complete file-backed observation.
+
+    Both modes preserve each name-table row, including aliases and duplicates.
+    Exploratory callers retain permissive partial-table behavior by default.
+    """
+    mappings = ([{"virtualAddress": 0, "virtualSize": headers_size,
+                  "rawSize": headers_size, "rawPointer": 0}] if headers_size else []) + sections
+
+    def span(rva: int, size: int) -> int:
+        return pe_file_offset(view, sections, rva, size, headers_size=headers_size)
+
+    def string(rva: int, *, end_rva: int | None = None) -> str:
+        offset = span(rva, 1)
+        section = next(s for s in mappings if s["virtualAddress"] <= rva < s["virtualAddress"] + s["rawSize"])
+        limit = min(len(view.data), section["rawPointer"] + section["rawSize"])
+        if end_rva is not None:
+            limit = min(limit, offset + end_rva - rva)
+        end = view.data.find(b"\0", offset, limit)
+        if end < 0:
+            raise InventoryError("export observation: unterminated string")
+        span(rva, end - offset + 1)
+        if end == offset:
+            raise InventoryError("export observation: empty export string")
+        return view.data[offset:end].decode("ascii")
+
     if not export_dir.get("rva"):
+        if strict and export_dir.get("size"):
+            raise InventoryError("export observation: size without RVA")
         return []
-    off = rva_to_offset(sections, int(export_dir["rva"]))
+    if strict and export_dir.get("size", 0) < 40:
+        raise InventoryError("export observation: truncated export directory")
+    off = span(int(export_dir["rva"]), int(export_dir["size"])) if strict else rva_to_offset(sections, int(export_dir["rva"]))
     if off is None or off + 40 > len(view.data):
         return []
     ordinal_base = view.u32(off + 16)
@@ -491,9 +564,18 @@ def pe_exports(view: BinaryView, sections: list[dict[str, Any]], export_dir: dic
     function_table_rva = view.u32(off + 28)
     name_table_rva = view.u32(off + 32)
     ordinal_table_rva = view.u32(off + 36)
-    function_table_off = rva_to_offset(sections, function_table_rva)
-    name_table_off = rva_to_offset(sections, name_table_rva)
-    ordinal_table_off = rva_to_offset(sections, ordinal_table_rva)
+    if strict:
+        if ordinal_base + function_count > 0x100000000:
+            raise InventoryError("export observation: ordinal range overflows")
+        function_table_off = span(function_table_rva, function_count * 4) if function_count else None
+        name_table_off = span(name_table_rva, name_count * 4) if name_count else None
+        ordinal_table_off = span(ordinal_table_rva, name_count * 2) if name_count else None
+        if name_count and not function_count:
+            raise InventoryError("export observation: names without functions")
+    else:
+        function_table_off = rva_to_offset(sections, function_table_rva)
+        name_table_off = rva_to_offset(sections, name_table_rva)
+        ordinal_table_off = rva_to_offset(sections, ordinal_table_rva)
     if function_table_off is None:
         return []
 
@@ -504,7 +586,7 @@ def pe_exports(view: BinaryView, sections: list[dict[str, Any]], export_dir: dic
             break
         functions.append(view.u32(entry_off))
 
-    names_by_index: dict[int, dict[str, Any]] = {}
+    names_by_index: dict[int, list[dict[str, Any]]] = {}
     if name_table_off is not None and ordinal_table_off is not None:
         for index in range(name_count):
             name_ptr_off = name_table_off + index * 4
@@ -512,15 +594,17 @@ def pe_exports(view: BinaryView, sections: list[dict[str, Any]], export_dir: dic
             if name_ptr_off + 4 > len(view.data) or ordinal_off + 2 > len(view.data):
                 break
             name_rva = view.u32(name_ptr_off)
-            name_off = rva_to_offset(sections, name_rva)
+            name_off = span(name_rva, 1) if strict else rva_to_offset(sections, name_rva)
             ordinal_index = view.u16(ordinal_off)
+            if strict and (ordinal_index >= len(functions) or not functions[ordinal_index]):
+                raise InventoryError("export observation: invalid named ordinal")
             if name_off is None:
                 continue
-            names_by_index[ordinal_index] = {
-                "name": view.c_string(name_off),
+            names_by_index.setdefault(ordinal_index, []).append({
+                "name": string(name_rva) if strict else view.c_string(name_off),
                 "nameRva": name_rva,
                 "hint": index,
-            }
+            })
 
     exports: list[dict[str, Any]] = []
     export_start = int(export_dir.get("rva") or 0)
@@ -528,20 +612,23 @@ def pe_exports(view: BinaryView, sections: list[dict[str, Any]], export_dir: dic
     for index, rva in enumerate(functions):
         if not rva:
             continue
-        name_info = names_by_index.get(index, {})
         forwarded = export_start <= rva < export_end
-        exports.append(
-            {
-                "name": name_info.get("name") or f"ordinal_{ordinal_base + index}",
-                "ordinal": ordinal_base + index,
-                "ordinalIndex": index,
-                "rva": rva,
-                "forwarded": forwarded,
-                "forwarder": view.c_string(rva_to_offset(sections, rva)) if forwarded and rva_to_offset(sections, rva) is not None else None,
-                "nameRva": name_info.get("nameRva"),
-                "hint": name_info.get("hint"),
-            }
-        )
+        if strict:
+            span(rva, 1)
+        forwarder = (string(rva, end_rva=export_end) if strict else view.c_string(rva_to_offset(sections, rva))) if forwarded and (strict or rva_to_offset(sections, rva) is not None) else None
+        for name_info in names_by_index.get(index, [{}]):
+            exports.append(
+                {
+                    "name": name_info.get("name") or f"ordinal_{ordinal_base + index}",
+                    "ordinal": ordinal_base + index,
+                    "ordinalIndex": index,
+                    "rva": rva,
+                    "forwarded": forwarded,
+                    "forwarder": forwarder,
+                    "nameRva": name_info.get("nameRva"),
+                    "hint": name_info.get("hint"),
+                }
+            )
     return exports
 
 

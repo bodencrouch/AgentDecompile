@@ -440,6 +440,47 @@ def collect_prompt_evidence_batch(con: sqlite3.Connection, *, binary_id: int,
     }
 
 
+def current_recovered_skips(con, binary_id: int | None, coverage_ledger=None) -> tuple[set[int], set[str]]:
+    """Return only source-current automatic exclusions; explicit manifests differ."""
+    from .coverage_evidence import source_file_binding
+    addresses: set[int] = set()
+    names: set[str] = set()
+    try:
+        columns = {r[1] for r in con.execute("PRAGMA table_info(recovered_function)")}
+        if binary_id is not None and "source_sha256" in columns:
+            for row in con.execute(
+                "SELECT addr,name,path,source_sha256 FROM recovered_function "
+                "WHERE binary_id=? AND real_c=1", (binary_id,)
+            ):
+                if not source_file_binding(dict(row))["current"]:
+                    continue
+                if row["addr"] is not None:
+                    try:
+                        addresses.add(int(row["addr"]))
+                    except (TypeError, ValueError):
+                        continue
+                if row["name"]:
+                    names.add(str(row["name"]))
+    except sqlite3.Error:
+        pass
+    if coverage_ledger is not None and pathlib.Path(coverage_ledger).is_file():
+        latest = {}
+        for line in pathlib.Path(coverage_ledger).read_text(errors="replace").splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(row, dict) and isinstance(row.get("function"), str):
+                latest[row["function"]] = row
+        for name, row in latest.items():
+            # No filename-based path guesses and no digest manufactured now.
+            reference = {"source_sha256": row.get("sourceSha256"),
+                         "path": row.get("path") or row.get("source_path")}
+            if row.get("byteExact") is True and source_file_binding(reference)["current"]:
+                names.add(name)
+    return addresses, names
+
+
 def generate_project(
     *,
     con: sqlite3.Connection,
@@ -515,28 +556,17 @@ def generate_project(
             nm = f.get("canonical_name") or f.get("name")
             if nm:
                 skip_names.add(str(nm))
-    if skip_recovered:
-        try:
-            for r in con.execute(
-                    "SELECT addr, name FROM recovered_function WHERE binary_id=?",
-                    (brow["id"],)):
-                if r["addr"] is not None:
-                    skip.add(int(r["addr"]))
-                if r["name"]:
-                    skip_names.add(str(r["name"]))
-        except sqlite3.Error:
-            pass
-    if coverage_ledger is not None and pathlib.Path(coverage_ledger).is_file():
-        for line in pathlib.Path(coverage_ledger).read_text(errors="replace").splitlines():
-            if not line.strip():
-                continue
-            try:
-                row = json.loads(line)
-            except ValueError:
-                continue
-            fn = row.get("function")
-            if fn and row.get("byteExact"):
-                skip_names.add(str(fn))
+    # Explicit skip manifests remain user exclusions. Automatic recovery skips
+    # require a current source observation, including the optional ledger path.
+    if skip_recovered or coverage_ledger is not None:
+        if skip_recovered:
+            recovered_addresses, recovered_names = current_recovered_skips(
+                con, brow["id"], coverage_ledger)
+        else:
+            recovered_addresses, recovered_names = current_recovered_skips(
+                con, None, coverage_ledger)
+        skip.update(recovered_addresses)
+        skip_names.update(recovered_names)
 
     real_c_lids: set[int] = set()
     tried_lids: set[int] = set()

@@ -1,3 +1,4 @@
+import { preparationResponse } from "./preparationResponse";
 import { useEffect, useState } from "react";
 import { API, request, type Data } from "./contracts";
 
@@ -22,8 +23,9 @@ export function usePreparationRuns(pollMs = 2000): PreparationFeed {
     async function poll() {
       try {
         const data = await request(API + "/preparations", { signal: AbortSignal.timeout(30000) });
+        const received = preparationResponse(data);
         if (alive) {
-          setRuns(data.runs || []);
+          setRuns(received);
           setLastConnectedAt(Date.now());
           setError("");
         }
@@ -38,9 +40,11 @@ export function usePreparationRuns(pollMs = 2000): PreparationFeed {
       }
     }
     void poll();
+    const clock = setInterval(() => { if (alive) setNow(Date.now()); }, 1000);
     return () => {
       alive = false;
       clearTimeout(timer);
+      clearInterval(clock);
     };
   }, [pollMs]);
 

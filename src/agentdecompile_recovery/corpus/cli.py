@@ -257,6 +257,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     hookpack.add_argument("--db", type=Path, required=True)
     hookpack.add_argument("--out", type=Path, required=True)
+    hookpack.add_argument(
+        "--site-policy", type=Path, default=None,
+        help="Optional validated site-kind/field policy for emitted hook sites.",
+    )
+    hookpack.add_argument(
+        "--adapter-map", type=Path, default=None,
+        help="Optional validated mapping from exported site names to runtime adapter roles.",
+    )
+    hookpack.add_argument(
+        "--operation-contract", type=Path, default=None,
+        help="Validated target-bound native operation declarations to include in the hook pack.",
+    )
 
     verify_det = sub.add_parser(
         "verify-determinism",
@@ -451,12 +463,14 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Wine prefix for a direct MSVC/Wine link")
     clink.add_argument("--no-entrypoint", dest="entrypoint", action="store_false")
 
-    xplace = sub.add_parser("cross-place", help="Copy compiling C onto bound sibling binaries")
+    xplace = sub.add_parser("cross-place", help="Publish separately admitted recipient candidates; never replace accepted source")
     xplace.long_running = True
+    xplace.mutating = True
     xplace.add_argument("--from", dest="program", required=True)
     xplace.add_argument("--db", type=Path, required=True)
     xplace.add_argument("--out-dir", type=Path, required=True)
     xplace.add_argument("--repo", required=True)
+    xplace.add_argument("--raw-dir", type=Path, required=True, help="Current original images by binary slug")
     xplace.add_argument("--watch", action="store_true")
     xplace.add_argument("--interval", type=float, default=8.0)
     xplace.add_argument("--no-compile-gate", action="store_true")
@@ -481,15 +495,14 @@ def build_parser() -> argparse.ArgumentParser:
     vbx.add_argument("--workers", type=int, default=3)
     vbx.add_argument("--limit", type=int, default=None)
     vbx.add_argument("--no-incremental", action="store_true",
-                     help="ignore the mtime/size cache and recompile every file "
-                          "(use after a transient-failure spike to purge bad cached results)")
+                     help="ignore cached results and freshly recompile every selected file")
+
+    vbx.add_argument("--cache-input-manifest", type=Path, help="Declared compiler/header/library input closure for verified cache reuse")
+    vbx.add_argument("--transient-retry-seconds", type=float, default=300.0)
 
     vpd = sub.add_parser(
         "verify-periodic",
-        help="Self-healing verify-byteexact wrapper: runs incremental most of the "
-             "time, but every Nth invocation forces a --no-incremental full pass "
-             "to purge any cache contamination from a transient compile failure "
-             "-- no human needs to notice a plateau and intervene.",
+        help="Content-aware incremental verification with bounded time-based full audits",
     )
     vpd.add_argument("--verified-dir", type=Path, required=True)
     vpd.add_argument("--raw", type=Path, required=True)
@@ -501,7 +514,12 @@ def build_parser() -> argparse.ArgumentParser:
     vpd.add_argument("--compiler", type=Path)
     vpd.add_argument("--workers", type=int, default=3)
     vpd.add_argument("--limit", type=int, default=None)
-    vpd.add_argument("--full-every", type=int, default=6)
+    vpd.add_argument("--full-every", type=int, default=0, help="Legacy explicit pass-count audit; zero disables")
+    vpd.add_argument("--full-interval-seconds", type=float, default=86400.0)
+    vpd.add_argument("--force-full", action="store_true")
+    vpd.add_argument("--counter-file", type=Path)
+    vpd.add_argument("--cache-input-manifest", type=Path)
+    vpd.add_argument("--transient-retry-seconds", type=float, default=300.0)
 
     vfi = sub.add_parser(
         "verify-full-image-receipt",
@@ -616,9 +634,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     orch = sub.add_parser(
         "recovery-orchestrator",
-        help="Autonomous supervisor: keep cascade + permuter + verify + "
-             "matching-watch + cross-place all running, relaunch any that exit",
+        help="Durable bounded recovery supervision; failed-stage budgets survive restart",
     )
+    # The aggregate command launches mutable providers; CLI exposure alone does
+    # not reserve corpus/Ghidra state. Status inspection is read-only at admission.
+    orch.mutating = orch.long_running = True
+    orch.identity_scope = "database"
+    orch.ghidra_exclusive = True
     orch.add_argument("--program", required=True)
     orch.add_argument("--repo", required=True)
     orch.add_argument("--db", required=True)
@@ -628,8 +650,8 @@ def build_parser() -> argparse.ArgumentParser:
     orch.add_argument("--binary-id", type=int, required=True)
     orch.add_argument("--compiler")
     orch.add_argument("--extract-raw")
-    orch.add_argument("--cascade-workers", type=int, default=2)
-    orch.add_argument("--verify-workers", type=int, default=2)
+    orch.add_argument("--cascade-workers", type=int, default=1)
+    orch.add_argument("--verify-workers", type=int, default=1)
     orch.add_argument("--no-cascade", dest="cascade", action="store_false", default=True)
     orch.add_argument("--no-verify", dest="verify", action="store_false", default=True)
     orch.add_argument("--no-nearmiss", dest="nearmiss", action="store_false", default=True)
@@ -637,6 +659,29 @@ def build_parser() -> argparse.ArgumentParser:
     orch.add_argument("--no-cross-place", dest="cross_place", action="store_false", default=True)
     orch.add_argument("--poll", type=float, default=20.0)
     orch.add_argument("--log-dir", default="/tmp")
+    orch.add_argument("--nearmiss-workers", type=int, default=1)
+    orch.add_argument("--cache-input-manifest", type=Path)
+    orch.add_argument("--transient-retry-seconds", type=float, default=300.0)
+    orch.add_argument("--full-interval-seconds", type=float, default=86400.0)
+    orch.add_argument("--input-basis", help="Verified semantic input manifest identity; required to launch")
+    orch.add_argument("--max-failed-exits", type=int, default=3)
+    orch.add_argument("--backoff", type=float, default=30.0)
+    orch.add_argument("--success-backoff", type=float, default=300.0)
+    orch.add_argument("--stagger", type=float, default=5.0)
+    orch.add_argument("--status", action="store_true", help="Read persisted supervision status without launching")
+    orch.add_argument("--once", action="store_true", help="One reconciliation/admission cycle; not goal completion")
+
+    external = sub.add_parser("normalize-validation-report", help="Read external diagnostics as unaccepted proposals; no provider execution")
+    external.add_argument("--provider", choices=("reagent-benchmark", "reccmp-compare"), required=True)
+    external.add_argument("--report", type=Path, required=True)
+
+    snapshot = sub.add_parser("export-reagent-snapshot", help="Export selected cached Ghidra evidence for ReAgent without new analysis")
+    snapshot.mutating = True  # creates a new private destination, never edits the cache
+    snapshot.add_argument("--kb", type=Path, required=True)
+    snapshot.add_argument("--program", required=True)
+    snapshot.add_argument("--address", action="append", required=True)
+    snapshot.add_argument("--destination", type=Path, required=True)
+    snapshot.add_argument("--max-functions", type=int, default=100)
 
     from . import kx_cli
 
@@ -650,6 +695,25 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.cmd == "export-reagent-snapshot":
+        from .export_reagent_snapshot import export_reagent_snapshot
+        try:
+            result = export_reagent_snapshot(knowledge_db=args.kb, program=args.program,
+                addresses=args.address, output_dir=args.destination, max_functions=args.max_functions)
+        except (ValueError, OSError, sqlite3.Error) as exc:
+            print(json.dumps({"ok": False, "recovery_accepted": False, "error": str(exc)}))
+            return 2
+        print(json.dumps(result, sort_keys=True, allow_nan=False))
+        return 0
+    if args.cmd == "normalize-validation-report":
+        from .external_validation import InvalidReport, read_report
+        try:
+            result = read_report(args.report, args.provider)
+        except (InvalidReport, OSError) as exc:
+            print(json.dumps({"report_state": "invalid_output", "recovery_accepted": False, "error": str(exc)}))
+            return 2
+        print(json.dumps(result, sort_keys=True, allow_nan=False))
+        return 0
     if args.cmd == "init":
         save_corpus(args.out, new_corpus(args.corpus_id))
         print(args.out)
@@ -806,7 +870,14 @@ def main(argv: list[str] | None = None) -> int:
         # A refusal (basis, content hash, lock) is exit 2 with one named
         # line; the basis check runs before the site loop so it costs
         # milliseconds, not the loop's minutes. Nothing was written.
-        summary = _run_keyed_verb(lambda: export_hookpack(connect(args.db), args.out))
+        summary = _run_keyed_verb(
+            lambda: export_hookpack(
+                connect(args.db), args.out,
+                site_policy=args.site_policy,
+                adapter_map=args.adapter_map,
+                operation_contract=args.operation_contract,
+            )
+        )
         if summary is REFUSED:
             return 2
         print(json.dumps(summary))
@@ -1093,6 +1164,7 @@ def main(argv: list[str] | None = None) -> int:
             "--db", str(args.db),
             "--out-dir", str(args.out_dir),
             "--repo", args.repo,
+            "--raw-dir", str(args.raw_dir),
         ]
         if args.watch:
             argv.append("--watch")
@@ -1120,6 +1192,9 @@ def main(argv: list[str] | None = None) -> int:
             argv += ["--limit", str(args.limit)]
         if getattr(args, "no_incremental", False):
             argv += ["--no-incremental"]
+        if args.cache_input_manifest:
+            argv += ["--cache-input-manifest", str(args.cache_input_manifest)]
+        argv += ["--transient-retry-seconds", str(args.transient_retry_seconds)]
         return vbx_main(argv)
     if args.cmd == "verify-periodic":
         from .verify_periodic import main as vpd_main
@@ -1138,6 +1213,14 @@ def main(argv: list[str] | None = None) -> int:
             argv += ["--maxc-bin-dir", str(args.maxc_bin_dir)]
         if args.limit is not None:
             argv += ["--limit", str(args.limit)]
+        argv += ["--full-interval-seconds", str(args.full_interval_seconds),
+                 "--transient-retry-seconds", str(args.transient_retry_seconds)]
+        if args.force_full:
+            argv.append("--force-full")
+        if args.counter_file:
+            argv += ["--counter-file", str(args.counter_file)]
+        if args.cache_input_manifest:
+            argv += ["--cache-input-manifest", str(args.cache_input_manifest)]
         return vpd_main(argv)
     if args.cmd == "verify-full-image-receipt":
         from .verify_full_image_receipt import main as vfi_main
@@ -1249,6 +1332,20 @@ def main(argv: list[str] | None = None) -> int:
             argv.append("--no-verify")
         if not args.nearmiss:
             argv.append("--no-nearmiss")
+        argv += ["--nearmiss-workers", str(args.nearmiss_workers),
+                 "--max-failed-exits", str(args.max_failed_exits),
+                 "--backoff", str(args.backoff), "--success-backoff", str(args.success_backoff),
+                 "--stagger", str(args.stagger)]
+        argv += ["--transient-retry-seconds", str(args.transient_retry_seconds),
+                 "--full-interval-seconds", str(args.full_interval_seconds)]
+        if args.cache_input_manifest:
+            argv += ["--cache-input-manifest", str(args.cache_input_manifest)]
+        if args.input_basis:
+            argv += ["--input-basis", args.input_basis]
+        if args.status:
+            argv.append("--status")
+        if args.once:
+            argv.append("--once")
         return orch_main(argv)
     from . import kx_cli
 

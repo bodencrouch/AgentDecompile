@@ -155,7 +155,7 @@ def discover_checkers() -> list[ParityChecker]:
     from ..corpus.objdiff_check import default_script
 
     script = default_script()
-    wasm_root = os.environ.get("AGENT_DECOMPILE_OBJDIFF_WASM_ROOT", "").strip() or os.environ.get("MIZUCHI_ROOT", "").strip()
+    wasm_root = os.environ.get("AGENT_DECOMPILE_OBJDIFF_WASM_ROOT", "").strip()
     if script is not None and wasm_root:
         try:
             found.append(register_node(script, wasm_root))

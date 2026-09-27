@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import math
 import os
 import re
 import queue
@@ -29,7 +31,11 @@ from agentdecompile_recovery.corpus.dashboard.actions.catalog import (
 )
 from agentdecompile_recovery.corpus.dashboard.common import live_db, live_root
 
-from agentdecompile_recovery.corpus.dashboard.mcp_bridge import CONTEXT_LOCK
+from agentdecompile_recovery.corpus.dashboard.mcp_bridge import CONTEXT_LOCK, ownership_metadata
+
+# Audited local SQLite-only action; other providers need their own complete
+# lifecycle proof (a clear Python session cannot prove remote/Wine clearance).
+LOCAL_RECONCILIATION_ACTIONS = frozenset({'corpus.logical-build'})
 
 MAX_JOBS = 50
 MAX_CONCURRENT = 4
@@ -116,6 +122,14 @@ class JobRecord:
     work_progress: dict[str, Any] | None = None
     trusted_preparation_facts_inventory: bool = False
     trusted_preparation_probe: bool = False
+    mcp_reserve: Callable[[str], Any] | None = field(default=None, repr=False, compare=False)
+    resource_disposition: str = "unreserved"
+    resource_keys: dict[str, Any] = field(default_factory=dict)
+    execution_attempt: str = field(default_factory=lambda: uuid.uuid4().hex)
+    execution_root: str = ""
+    execution_owner: dict[str, Any] = field(default_factory=dict)
+    clearance_observation: dict[str, Any] = field(default_factory=dict)
+    no_dispatch_observation: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self, *, include_log: bool = True, include_details: bool = True) -> dict[str, Any]:
         payload = {
@@ -133,6 +147,14 @@ class JobRecord:
                 key: value for key, value in self.params.items()
                 if key not in {"candidateSource", "code", "script", "source"}
             }),
+            "resourceDisposition": self.resource_disposition,
+            "resourceKeys": _json_safe(self.resource_keys),
+            "executionAttempt": self.execution_attempt,
+            "executionRoot": self.execution_root,
+            "executionOwner": _json_safe(self.execution_owner),
+            "clearanceObservation": _json_safe(self.clearance_observation),
+            "noDispatchObservation": _json_safe(self.no_dispatch_observation),
+            "ownershipUnresolved": self.resource_disposition == "quarantined",
             "historyOnly": self.history_only,
             "ownerUnavailable": self.owner_unavailable,
             "historySource": self.history_source,
@@ -207,7 +229,180 @@ def _last_percent(log: str) -> int | None:
     return None
 
 
+def _read_only_supervisor_status(action_id: str, params: dict) -> bool:
+    return action_id == "corpus.recovery-orchestrator" and type(params.get("status")) is bool and params["status"]
+
+
+# Only audited local, synchronous action implementations belong here. The
+# snapshot CLI's --destination maps to exporter output_dir; it reads SQLite
+# and writes this tree in its own process, without launching provider children.
+_EXTERNAL_ACTION_CONTRACTS = {
+    "corpus.export-reagent-snapshot": (("output", "destination"),),
+    "recover.verify-package": (("output", "out-dir"),),
+    "corpus.cross-place": (("output", "out-dir"),),
+}
+_EXTERNAL_RESOURCE_KINDS = frozenset({"compiler", "wineprefix", "project", "output", "store"})
+
+
+def _paths_overlap(left: str, right: str) -> bool:
+    a, b = Path(left), Path(right)
+    return a == b or a in b.parents or b in a.parents
+
+
+def _external_contract_matches(action_id: str, params: dict, keys: dict, root: Path) -> bool:
+    contract = _EXTERNAL_ACTION_CONTRACTS.get(action_id)
+    if not contract:
+        return False
+    expected = [[kind, _canonical_resource_path(params.get(name), base=root)] for kind, name in contract]
+    if action_id == 'corpus.cross-place':
+        # Shared SQLite reader and refreshable versioned inputs; only the
+        # derived candidate tree is exclusively owned for the watch lifetime.
+        expected = [['output', str(Path(expected[0][1]) / '.cross-place')]] if expected[0][1] else []
+    return all(value for _, value in expected) and keys.get("external") == sorted(expected)
+
+
+def _bound_clearance(row: dict) -> bool:
+    if row.get("actionId") == "recover.verify-package":
+        from agentdecompile_recovery.native_verify_contract import command_matches
+        if not command_matches(row.get("argv"), row.get("params") or {}):
+            return False
+    if row.get("actionId") == "corpus.cross-place":
+        from agentdecompile_recovery.corpus.cross_place import command_matches
+        if not command_matches(row.get("argv"), row.get("params") or {}):
+            return False
+    proof, owner = row.get("clearanceObservation"), row.get("executionOwner")
+    if not isinstance(proof, dict) or not isinstance(owner, dict) or not owner:
+        return False
+    expected = {"jobId": row.get("id"), "attempt": row.get("executionAttempt"),
+                "resourceKeys": row.get("resourceKeys"), "process": owner,
+                "argvDigest": hashlib.sha256(json.dumps(row.get("argv"), separators=(",", ":")).encode()).hexdigest()}
+    return (bool(row.get("executionAttempt")) and all(proof.get(k) == v for k, v in expected.items())
+            and proof.get("source") == "local-executor-session-observer-v1"
+            and proof.get("sessionClearance") == "clear"
+            and type(owner.get("pid")) is int and bool(owner.get("start_ticks")) and bool(owner.get("boot_id")))
+
+
+def _native_no_dispatch_binding(row: dict) -> dict:
+    return {"source": "catalog-native-before-dispatch-v1", "jobId": row.get("id"),
+            "actionId": row.get("actionId"), "attempt": row.get("executionAttempt"),
+            "executionRoot": row.get("executionRoot"), "status": row.get("status"),
+            "argvDigest": hashlib.sha256(json.dumps(row.get("argv"), separators=(",", ":")).encode()).hexdigest(),
+            "paramsDigest": hashlib.sha256(json.dumps(row.get("params"), sort_keys=True, separators=(",", ":")).encode()).hexdigest()}
+
+
+def _native_not_dispatched(row: dict) -> bool:
+    """A durable predispatch phase is distinct from compiler-session clearance."""
+    return (row.get("actionId") in {"recover.verify-package", "corpus.cross-place"}
+            and row.get("status") in {"queued", "cancelling", "failed", "cancelled"}
+            and row.get("resourceDisposition") == "unreserved" and not row.get("resourceKeys")
+            and not row.get("executionOwner") and not row.get("clearanceObservation")
+            and not row.get("startedAt")
+            and bool(row.get("executionAttempt")) and bool(row.get("executionRoot"))
+            and row.get("noDispatchObservation") == _native_no_dispatch_binding(row))
+
+
+def _observe_native_no_dispatch(job: JobRecord) -> None:
+    if job.action_id in {"recover.verify-package", "corpus.cross-place"}:
+        job.no_dispatch_observation = _native_no_dispatch_binding(job.to_dict())
+
+
+def _canonical_resource_path(value: Any, *, base: Path) -> str | None:
+    if not isinstance(value, (str, Path)) or not str(value).strip():
+        return None
+    try:
+        path = Path(value).expanduser()
+        if not path.is_absolute():
+            path = base / path
+        return str(path.resolve(strict=False))
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def _external_resource_entries(action: ActionSpec | None, params: dict, *, base: Path | None = None) -> tuple[tuple[str, str], ...]:
+    if action is None:
+        return ()
+    contract = _EXTERNAL_ACTION_CONTRACTS.get(action.id, ())
+    base = base or (live_root() or Path.cwd()).resolve()
+    claims = []
+    for kind, name in contract:
+        value = _canonical_resource_path(params.get(name), base=base)
+        if value is None:
+            raise ValueError(f"{action.id} requires resource parameter {name}")
+        claims.append((kind, value))
+    if action.id == 'corpus.cross-place':
+        claims = [('output', str(Path(claims[0][1]) / '.cross-place'))]
+    return tuple(sorted(claims))
+
+
+def _resource_keys(action: ActionSpec | None, params: dict, *, base: Path | None = None) -> dict:
+    if action is None or _read_only_supervisor_status(action.id, params):
+        return {}
+    keys = {}
+    identity = identity_lock_key(params) or ""
+    if action.identity_scope == "database" and identity:
+        keys["identity"] = identity
+    elif action.identity_scope == "pair" and identity:
+        pair = match_pair_lock_key(params)
+        if pair:
+            keys["pair"] = [identity, pair]
+    if action.ghidra_exclusive or (action.backend == "mcp-cli" and action.mutating):
+        keys["ghidra"] = ghidra_lock_key(params)
+    external = _external_resource_entries(action, params, base=base)
+    if external:
+        keys["external"] = [[kind, value] for kind, value in external]
+    return keys
+
+
+def _ownership_unresolved(log: str) -> bool:
+    if "ownership remains unresolved" in log:
+        return True
+    def unresolved(value: Any, depth: int = 0) -> bool:
+        if depth > 8:
+            return True  # unknown deeply nested adapter envelope cannot clear access
+        if isinstance(value, dict):
+            return (value.get('ownershipResolved') is False or bool(value.get('ownershipUnresolved'))
+                    or any(unresolved(item, depth + 1) for item in value.values()))
+        if isinstance(value, list):
+            return any(unresolved(item, depth + 1) for item in value)
+        if isinstance(value, str) and value.lstrip().startswith(('{', '[')):
+            try:
+                return unresolved(json.loads(value), depth + 1)
+            except ValueError:
+                return False
+        return False
+    # Progress JSON may precede a terminal envelope; inspect every JSON object
+    # rather than letting the first unrelated observation conceal quarantine.
+    decoder = json.JSONDecoder()
+    for match in re.finditer(r'\{', log):
+        try:
+            payload, _ = decoder.raw_decode(log, match.start())
+            if unresolved(payload):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def _ownership_note(value: Any) -> str:
+    # Bridge responses repeat the payload under raw.content/text/parsed. Use
+    # provider-depth accounting here; the final log scanner sees the emitted
+    # provider body without those duplicated transport wrappers.
+    serialized = json.dumps(value, default=str)
+    unresolved = ('ownership remains unresolved' in serialized
+                  or (bool(ownership_metadata(value)) if isinstance(value, dict)
+                      else _ownership_unresolved(serialized)))
+    return ('\n{"ownershipResolved":false,"ownershipUnresolved":true}\n' if unresolved else '')
+
+
 class JobStore:
+    """One serving workbench owner; resource maps are not a multi-server lease.
+
+    Durable receipts preserve reservations across sequential owner restart.
+    A receipt-root flock excludes another scoped JobStore on that same root.
+    Different receipt roots sharing an external corpus still need external
+    ownership corroboration; this is not distributed provider fencing.
+    """
+
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._jobs: dict[str, JobRecord] = {}
@@ -217,7 +412,12 @@ class JobStore:
         self._identity_held: dict[str, str] = {}
         self._pair_held: dict[tuple[str, str], str] = {}
         self._ghidra_held: dict[str, str] = {}
+        self._external_held: dict[tuple[str, str], str] = {}
         self.executor: Executor | None = None
+        self._resource_owner_handle = None
+        self._resource_root_key: str | None = None
+        self._restored_root: str | None = None
+        self._receipt_versions: dict[str, int] = {}
         self._persisted_at: dict[str, float] = {}
         self._persist_pending: dict[str, dict[str, Any]] = {}
         self._persist_lock = threading.Lock()
@@ -225,17 +425,29 @@ class JobStore:
         threading.Thread(target=self._persist_loop, name="dashboard-job-receipts", daemon=True).start()
 
     def _persist_locked(self, job: JobRecord, *, force: bool = False) -> None:
-        """Queue the latest receipt snapshot; never perform filesystem I/O here."""
+        """Resource intents commit synchronously in the existing receipt store."""
+        from . import job_history
+        from agentdecompile_recovery.corpus.supervision import save_state
         now = time.monotonic()
         if not force and now - self._persisted_at.get(job.id, 0) < .1:
             return
         payload = job.to_dict()
-        payload['updatedAt'] = time.time()
-        payload['logTruncated'] = job.log_truncated or len(job.log) >= MAX_LOG_BYTES
+        payload.update(updatedAt=time.time(), **job_history.owner())
         self._persisted_at[job.id] = now
         with self._persist_lock:
-            self._persist_pending[job.id] = payload
-        self._persist_wake.set()
+            version = self._receipt_versions.get(job.id, 0) + 1
+            self._receipt_versions[job.id] = version
+            payload['receiptVersion'] = version
+            if job.resource_keys or job.no_dispatch_observation:
+                root = job_history.directory()
+                if root is None:
+                    raise OSError('Durable resource admission requires a workbench receipt directory')
+                root.mkdir(parents=True, exist_ok=True, mode=0o700)
+                self._persist_pending.pop(job.id, None)
+                save_state(root / (job.id + '.json'), payload)
+            else:
+                self._persist_pending[job.id] = payload
+                self._persist_wake.set()
 
     def _persist_loop(self) -> None:
         from . import job_history
@@ -246,13 +458,277 @@ class JobStore:
                 pending, self._persist_pending = self._persist_pending, {}
             for job_id, payload in pending.items():
                 try:
-                    payload.update(job_history.owner())
-                    job_history.write(payload)
+                    with self._persist_lock:
+                        if payload.get('receiptVersion') != self._receipt_versions.get(job_id):
+                            continue
+                        job_history.write(payload)
                 except OSError as exc:
                     with self._lock:
                         job = self._jobs.get(job_id)
                         if job is not None:
                             job.log_reason = f'Durable job output could not be saved: {exc}'
+
+    def _restore_reservations_locked(self) -> None:
+        """Read original receipts, never infer release from server/PID death."""
+        from . import job_history
+        root = job_history.directory()
+        if root is None:
+            raise OSError('Durable resource admission requires a workbench receipt directory')
+        root_key = str(root.resolve())
+        if self._resource_root_key is not None and self._resource_root_key != root_key:
+            raise OSError('Resource receipt root changed; reconcile the previous scope first')
+        if self._resource_owner_handle is None:
+            try:
+                import fcntl
+            except ImportError as exc:
+                raise OSError('Scoped workbench admission requires POSIX owner locking on this host') from exc
+            root.mkdir(parents=True, exist_ok=True, mode=0o700)
+            handle = (root / '.resource-owner.lock').open('a+')
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                handle.close()
+                raise OSError('Another JobStore owns resource admission for this receipt root')
+            self._resource_owner_handle = handle
+            self._resource_root_key = root_key
+        if self._restored_root == root_key:
+            self._auto_reconcile_retained_locked()
+            return
+        if self._restored_root is not None:
+            raise OSError('Resource receipt root changed; reconcile the previous scope first')
+        restored = []
+        for path in root.glob('*.json'):
+            try:
+                row = json.loads(path.read_text())
+                if not isinstance(row, dict) or not isinstance(row.get('id'), str):
+                    raise ValueError('invalid receipt shape')
+                keys = row.get('resourceKeys')
+                disposition = row.get('resourceDisposition')
+                historical_verify_params = None
+                if _native_not_dispatched(row):
+                    continue
+                if row.get('actionId') == 'corpus.cross-place' and not _bound_clearance(row):
+                    from agentdecompile_recovery.corpus.cross_place import freeze_parameters
+                    if not row.get('executionRoot'):
+                        raise ValueError('historical cross-place has no original execution root')
+                    historical_verify_params = freeze_parameters(row.get('params') or {}, Path(row['executionRoot']))
+                    expected_action = action_by_id('corpus.cross-place')
+                    if not keys:
+                        keys = _resource_keys(expected_action, historical_verify_params, base=Path(row['executionRoot']))
+                    disposition = 'quarantined'
+                if row.get('actionId') == 'recover.verify-package' and not _bound_clearance(row):
+                    # An old unguarded exit is not compiler-session clearance.
+                    # Recover the deterministic output claim, including terminal
+                    # rows that predate resourceKeys. Ambiguous history blocks
+                    # admission rather than guessing a different execution root.
+                    from agentdecompile_recovery.native_verify_contract import freeze_paths
+                    original_root = row.get('executionRoot')
+                    if not original_root:
+                        raise ValueError('historical native verification has no original execution root')
+                    historical_params = row.get('params') or {}
+                    if not historical_params.get('out-dir'):
+                        original_package = Path(str(historical_params.get('package') or ''))
+                        if not original_package.is_absolute():
+                            original_package = Path(original_root) / original_package
+                        if not (original_package.is_dir() or original_package.is_file()):
+                            raise ValueError('historical native verification default output is ambiguous: package no longer exists')
+                    historical_verify_params = freeze_paths(historical_params, Path(original_root))
+                    if not keys:
+                        keys = {'external': [['output', historical_verify_params['out-dir']]]}
+                    disposition = 'quarantined'
+                if disposition not in {None, 'unreserved', 'held', 'quarantined', 'released'}:
+                    raise ValueError('invalid resource disposition')
+                if keys is not None and (not isinstance(keys, dict) or any(key not in {'identity', 'pair', 'ghidra', 'external'} for key in keys)):
+                    raise ValueError('invalid resource keys')
+                if keys:
+                    for kind, value in keys.items():
+                        if kind == 'pair':
+                            if not isinstance(value, list) or len(value) != 2 or any(not isinstance(item, str) or not item for item in value):
+                                raise ValueError('invalid pair resource identity')
+                        elif kind == 'external':
+                            if (not isinstance(value, list) or not value
+                                    or any(not isinstance(item, list) or len(item) != 2
+                                           or not all(isinstance(part, str) and part for part in item)
+                                           for item in value)):
+                                raise ValueError('invalid external resource identity')
+                            if any(item[0] not in _EXTERNAL_RESOURCE_KINDS or not Path(item[1]).is_absolute() or _canonical_resource_path(item[1], base=Path('/')) != item[1] for item in value):
+                                raise ValueError('noncanonical or unknown external resource identity')
+                        elif not isinstance(value, str) or not value:
+                            raise ValueError('invalid resource identity')
+                        path_key = value[0] if kind == 'pair' else value if kind == 'identity' else None
+                        if path_key is not None and (not Path(path_key).is_absolute() or _canonical_resource_path(path_key, base=Path('/')) != path_key):
+                            raise ValueError('noncanonical database resource identity')
+                if disposition in {'held', 'quarantined'} and not keys:
+                    raise ValueError('reserved receipt has no resource keys')
+                if disposition == 'released':
+                    if not (keys or {}).get('external'):
+                        continue
+                    if self._reconciliation_report_locked(row['id']).get('eligible'):
+                        continue
+                    # Unknown/mismatched external release receipts cannot drop a claim.
+                    disposition = 'quarantined'
+                unresolved = disposition in {'held', 'quarantined'} or row.get('status') in {'running', 'cancelling', 'interrupted'} or _ownership_unresolved(row.get('log') or '')
+                if not unresolved:
+                    continue
+                prior_action = action_by_id(row.get('actionId', ''))
+                if prior_action is None and not keys:
+                    raise ValueError('unknown interrupted action has no recoverable resource identity')
+                expected = _resource_keys(prior_action, historical_verify_params or row.get('params') or {}, base=Path(row.get('executionRoot') or root_key))
+                if keys is None or not keys:
+                    keys = expected
+                elif any(keys.get(kind) != value for kind, value in expected.items()):
+                    raise ValueError('retained resource identity disagrees with action requirements')
+                if not isinstance(keys, dict):
+                    raise ValueError('invalid resource keys')
+                restored.append((row['id'], keys))
+            except (OSError, ValueError, TypeError) as exc:
+                raise OSError(f'Cannot reconcile resource receipt {path.name}: {exc}') from exc
+        # Validate the whole set before changing any map; duplicate receipts
+        # must not silently overwrite an earlier owner.
+        seen = set()
+        external_seen = []
+        for owner, keys in restored:
+            for kind, value in keys.items():
+                if kind == "external":
+                    for claim in value:
+                        if any(other != owner and _paths_overlap(claim[1], prior[1]) for other, prior in external_seen):
+                            raise OSError("Ambiguous overlapping retained external owners")
+                        external_seen.append((owner, claim))
+                else:
+                    key = (kind, tuple(value) if isinstance(value, list) else value)
+                    if key in seen:
+                        raise OSError("Ambiguous duplicate retained resource owners")
+                    seen.add(key)
+        identities = {keys['identity'] for _, keys in restored if keys.get('identity')}
+        if any(keys.get('pair') and keys['pair'][0] in identities for _, keys in restored):
+            raise OSError("Ambiguous retained database and pair owners")
+        for owner, keys in restored:
+            if keys.get('identity'):
+                self._identity_held[str(keys['identity'])] = owner
+            if keys.get('pair'):
+                pair = keys['pair']
+                if not isinstance(pair, list) or len(pair) != 2:
+                    raise OSError('Invalid retained pair reservation')
+                self._pair_held[tuple(pair)] = owner
+            if keys.get('ghidra'):
+                self._ghidra_held[str(keys['ghidra'])] = owner
+            for claim in keys.get('external', []):
+                self._external_held[tuple(claim)] = owner
+        self._restored_root = root_key
+
+    def _reconciliation_report_locked(self, job_id: str) -> dict[str, Any]:
+        from . import job_history
+        result = {'jobId': job_id, 'ok': False, 'eligible': False,
+                  'nextAction': 'retain_reservation', 'missingEvidence': [],
+                  'scope': 'repair stale reservation from committed terminal local receipt',
+                  'limitations': ['No remote operation reconciliation', 'No detached-child or external-writer proof']}
+        if not re.fullmatch(r'[a-f0-9]{12,32}', job_id):
+            return {**result, 'error': 'Invalid job identity'}
+        root = job_history.directory()
+        try:
+            if root is None:
+                raise OSError('Receipt store unavailable')
+            row = json.loads((root / (job_id + '.json')).read_text())
+            if not isinstance(row, dict) or row.get('id') != job_id:
+                raise ValueError('Receipt identity mismatch')
+        except (OSError, ValueError) as exc:
+            return {**result, 'error': str(exc), 'missingEvidence': ['durable_job_receipt']}
+        current = self._jobs.get(job_id)
+        keys, proof, owner = row.get('resourceKeys'), row.get('clearanceObservation'), row.get('executionOwner')
+        missing = []
+        if type(row.get('receiptVersion')) is not int or row['receiptVersion'] < 1:
+            missing.append('valid_receipt_generation')
+        if row.get('actionId') not in LOCAL_RECONCILIATION_ACTIONS | _EXTERNAL_ACTION_CONTRACTS.keys():
+            missing.append('qualified_provider_lifecycle_contract')
+        if isinstance(keys, dict) and keys.get('external') and not _external_contract_matches(row.get('actionId'), row.get('params') or {}, keys, Path(row.get('executionRoot') or '/')):
+            missing.append('qualified_external_resource_contract')
+        if row.get('actionId') == 'recover.verify-package' and not _bound_clearance(row):
+            missing.append('qualified_native_guarded_execution')
+        if row.get('resourceDisposition') != 'released' or row.get('status') not in {'ok', 'failed', 'cancelled'} or not row.get('finishedAt'):
+            missing.append('committed_terminal_release')
+        if not isinstance(keys, dict) or not keys:
+            missing.append('recorded_resource_identity')
+        if not isinstance(proof, dict) or not isinstance(owner, dict) or not owner:
+            missing.append('trusted_local_executor_clearance')
+        else:
+            expected_argv = hashlib.sha256(json.dumps(row.get('argv'), separators=(',', ':')).encode()).hexdigest()
+            expected = {'jobId': job_id, 'attempt': row.get('executionAttempt'), 'resourceKeys': keys,
+                        'argvDigest': expected_argv, 'process': owner}
+            if not row.get('executionAttempt') or any(proof.get(key) != value for key, value in expected.items()):
+                missing.append('same_attempt_resource_and_execution_binding')
+            if proof.get('source') != 'local-executor-session-observer-v1' or proof.get('sessionClearance') != 'clear':
+                missing.append('qualified_local_clearance_observation')
+            observed = proof.get('observedAt')
+            finished = row.get('finishedAt')
+            try:
+                valid_times = type(observed) in (int, float) and math.isfinite(observed) and observed > 0 and type(finished) in (int, float) and math.isfinite(finished) and observed <= finished
+            except OverflowError:
+                valid_times = False
+            if not valid_times:
+                missing.append('clearance_before_full_action_completion')
+            if not owner.get('start_ticks') or not owner.get('boot_id') or type(owner.get('pid')) is not int:
+                missing.append('stable_execution_owner')
+        if current is not None:
+            if current.status not in {'ok', 'failed', 'cancelled'}:
+                missing.append('live_executor_terminal')
+            if current.action_id != row.get('actionId') or current.execution_attempt != row.get('executionAttempt') or current.resource_keys != keys or current.argv != row.get('argv'):
+                missing.append('current_reservation_matches_receipt')
+            if self._receipt_versions.get(job_id) != row.get('receiptVersion'):
+                missing.append('current_receipt_generation')
+        result.update(ok=True, eligible=not missing, missingEvidence=missing,
+                      resourceDisposition=current.resource_disposition if current else row.get('resourceDisposition'),
+                      resourceKeys=keys, receiptVersion=row.get('receiptVersion'),
+                      nextAction='repair_stale_reservation' if not missing else 'retain_reservation')
+        return result
+
+    def reconciliation_report(self, job_id: str) -> dict[str, Any]:
+        """Read-only: no owner lock acquisition, writes, process probes or release."""
+        with self._lock:
+            return self._reconciliation_report_locked(job_id)
+
+    def _repair_retained_locked(self, job_id: str, *, trigger: str) -> dict[str, Any]:
+        from . import job_history
+        from agentdecompile_recovery.corpus.supervision import save_state
+        report = self._reconciliation_report_locked(job_id)
+        if not report.get('eligible'):
+            return report
+        root = job_history.directory()
+        path = root / (job_id + '.json')
+        row = json.loads(path.read_text())
+        # The receipt-root authority excludes another scoped executor; compare
+        # generation again before recording the decision and releasing maps.
+        if row.get('receiptVersion') != report['receiptVersion']:
+            return {**report, 'eligible': False, 'nextAction': 'retain_reservation', 'error': 'Receipt changed during reconciliation'}
+        row['resourceReconciliation'] = {'trigger': trigger, 'at': time.time(),
+                                         'basisReceiptVersion': row.get('receiptVersion'),
+                                         'operation': 'repair_committed_terminal_release'}
+        with self._persist_lock:
+            save_state(path, row)
+        current = self._jobs.get(job_id)
+        if current is not None:
+            current.resource_disposition = 'released'
+        keys = report['resourceKeys']
+        releases = [(self._identity_held, keys.get('identity')),
+                    (self._pair_held, tuple(keys['pair']) if keys.get('pair') else None),
+                    (self._ghidra_held, keys.get('ghidra'))]
+        releases.extend((self._external_held, tuple(claim)) for claim in keys.get('external', []))
+        for mapping, key in releases:
+            if key is not None and mapping.get(key) == job_id:
+                del mapping[key]
+        return {**report, 'released': True, 'nextAction': 'reservation_repaired'}
+
+    def _auto_reconcile_retained_locked(self) -> None:
+        owners = (set(self._identity_held.values()) | set(self._pair_held.values())
+                  | set(self._ghidra_held.values()) | set(self._external_held.values()))
+        for owner in owners:
+            job = self._jobs.get(owner)
+            if job is not None and job.resource_disposition == 'quarantined':
+                self._repair_retained_locked(owner, trigger='scoped_admission')
+
+    def reconcile_resources(self, job_id: str) -> dict[str, Any]:
+        with self._lock:
+            self._restore_reservations_locked()
+            return self._repair_retained_locked(job_id, trigger='catalog_action')
 
     def _watch_cancel(self, job_id: str, cancel: threading.Event) -> None:
         from .job_history import cancel_requested
@@ -289,6 +765,7 @@ class JobStore:
         *,
         trusted_preparation_facts_inventory: bool = False,
         trusted_preparation_probe: bool = False,
+        mcp_reserve: Callable[[str], Any] | None = None,
     ) -> JobRecord:
         job = JobRecord(
             id=uuid.uuid4().hex[:12],
@@ -296,11 +773,14 @@ class JobStore:
             title=action.title,
             argv=list(argv),
             params=dict(params),
+            execution_root=str((live_root() or Path.cwd()).resolve()),
             trusted_preparation_facts_inventory=trusted_preparation_facts_inventory,
             trusted_preparation_probe=trusted_preparation_probe,
+            mcp_reserve=mcp_reserve,
         )
         cancel = threading.Event()
         with self._lock:
+            _observe_native_no_dispatch(job)
             self._jobs[job.id] = job
             self._order.append(job.id)
             self._cancels[job.id] = cancel
@@ -331,8 +811,11 @@ class JobStore:
             event = self._cancels.get(job_id)
             if job is None:
                 return None
+            native_pending = _native_not_dispatched(job.to_dict())
             if job.status in {"queued", "running"}:
                 job.status = "cancelling"
+            if native_pending:
+                _observe_native_no_dispatch(job)
             if event is not None:
                 event.set()
             self._persist_locked(job, force=True)
@@ -342,18 +825,61 @@ class JobStore:
         identity_key = ""
         pair_entry: tuple[str, str] | None = None
         ghidra_key = ""
+        external_entries: tuple[tuple[str, str], ...] = ()
         worker_acquired = False
         action = action_by_id(self._jobs[job_id].action_id)
+        if _read_only_supervisor_status(self._jobs[job_id].action_id, self._jobs[job_id].params):
+            action = None  # inspection must remain available under quarantine
+        job = self._jobs[job_id]
+        cwd = Path(job.execution_root) if job.execution_root else (live_root() or Path.cwd()).resolve()
+        job.execution_root = str(cwd)
+        try:
+            if job.action_id in {"recover.verify-package", "corpus.cross-place"}:
+                if job.action_id == "recover.verify-package":
+                    from agentdecompile_recovery.native_verify_contract import freeze_parameters, guarded_command
+                else:
+                    from agentdecompile_recovery.corpus.cross_place import freeze_parameters, guarded_command
+                frozen_params = freeze_parameters(dict(job.params), cwd)
+                frozen_argv = guarded_command(frozen_params)
+                frozen_keys = _resource_keys(action, frozen_params, base=cwd)
+                # cancel() must never observe frozen argv/params paired with
+                # an obsolete predispatch binding, including resource waiters.
+                with self._lock:
+                    job.params, job.argv = frozen_params, frozen_argv
+                    _observe_native_no_dispatch(job)
+                    self._persist_locked(job, force=True)
+            else:
+                # Pin snapshot arguments to their reserved physical paths;
+                # subprocess argparse does not expand a shell-style ~/out.
+                for _kind, name in _EXTERNAL_ACTION_CONTRACTS.get(job.action_id, ()):
+                    destination = _canonical_resource_path(job.params.get(name), base=cwd)
+                    if destination is None:
+                        raise ValueError(f"{job.action_id} requires resource parameter {name}")
+                    job.params[name] = destination
+                if job.action_id in _EXTERNAL_ACTION_CONTRACTS:
+                    job.argv = build_command(action, job.params)
+                frozen_keys = _resource_keys(action, job.params, base=cwd)
+            with self._lock:
+                if frozen_keys:
+                    self._restore_reservations_locked()
+        except (OSError, ValueError) as exc:
+            with self._lock:
+                job = self._jobs[job_id]
+                job.status, job.error, job.finished_at = 'failed', str(exc), time.time()
+                _observe_native_no_dispatch(job)
+                self._persist_locked(job, force=True)
+            return
         while True:
             with self._lock:
                 if cancel.is_set():
                     job = self._jobs[job_id]
                     job.status = "cancelled"
                     job.finished_at = time.time()
+                    _observe_native_no_dispatch(job)
                     self._persist_locked(job, force=True)
                     return
                 job = self._jobs[job_id]
-                coordinator = job.action_id in {"workbench.prepare", "workbench.workflow-control", "workbench.activity-snapshot"}
+                coordinator = job.action_id in {"workbench.prepare", "workbench.workflow-control", "workbench.activity-snapshot", "workbench.resource-reconciliation-report", "workbench.resource-reconcile"}
                 # Coordinators do not consume a worker slot below, so requiring a
                 # free one here only starved them: with MAX_CONCURRENT real jobs
                 # running, a Pause (workbench.workflow-control) could never reach
@@ -384,6 +910,9 @@ class JobStore:
                     holder = self._ghidra_held.get(ghidra_key)
                     if ghidra_key and holder and holder != job_id:
                         can_run = False
+                external_entries = tuple(tuple(claim) for claim in frozen_keys.get("external", []))
+                if can_run and any(owner != job_id and _paths_overlap(entry[1], held[1]) for entry in external_entries for held, owner in self._external_held.items()):
+                    can_run = False
                 if can_run:
                     # Coordinators wait on and schedule child jobs; they do
                     # not themselves consume a worker slot. Counting them
@@ -399,6 +928,13 @@ class JobStore:
                         self._pair_held[pair_entry] = job_id
                     if ghidra_key:
                         self._ghidra_held[ghidra_key] = job_id
+                    for entry in external_entries:
+                        self._external_held[entry] = job_id
+                    job.resource_keys = frozen_keys
+                    job.resource_disposition = "held" if job.resource_keys else "unreserved"
+                    # Persist invalidation synchronously with held intent, before
+                    # any injected or default executor can possibly be invoked.
+                    job.no_dispatch_observation = {}
                     job.status = "running"
                     job.started_at = time.time()
                     try:
@@ -407,13 +943,13 @@ class JobStore:
                         job.error = str(exc)
                         job.status = "failed"
                         job.finished_at = time.time()
-                        self._release_admission_locked(job_id, identity_key, pair_entry, ghidra_key, worker_acquired)
+                        job.resource_disposition = "released"
+                        self._release_admission_locked(job_id, identity_key, pair_entry, ghidra_key, external_entries, worker_acquired)
                         return
                     argv = list(job.argv)
                     break
             time.sleep(POLL_S)
         try:
-            cwd = live_root() or Path.cwd()
             if action is not None and action.backend == "preparation":
                 from agentdecompile_recovery.corpus.dashboard.preparation import execute
                 code, log = execute(dict(job.params), cancel)
@@ -426,6 +962,12 @@ class JobStore:
             elif action is not None and action.backend == "activity-snapshot":
                 from agentdecompile_recovery.corpus.dashboard.entity_activity import snapshot
                 code, log = 0, json.dumps(snapshot(locator=job.params.get("locator", ""), slug=job.params.get("slug", ""), program=job.params.get("program", "") or job.params.get("programPath", "")))
+            elif action is not None and action.backend == "resource-reconciliation-report":
+                result = self.reconciliation_report(str(job.params['job_id']))
+                code, log = (0 if result.get('ok') else 1), json.dumps(result)
+            elif action is not None and action.backend == "resource-reconcile":
+                result = self.reconcile_resources(str(job.params['job_id']))
+                code, log = (0 if result.get('released') else 1), json.dumps(result)
             elif action is not None and action.backend == "matching":
                 from agentdecompile_recovery.corpus.dashboard.actions.matching import execute
                 code, log = execute(dict(job.params), cancel)
@@ -519,6 +1061,7 @@ class JobStore:
                     cancel,
                     trusted_preparation_facts_inventory=job.trusted_preparation_facts_inventory,
                     trusted_preparation_probe=job.trusted_preparation_probe,
+                    mcp_reserve=job.mcp_reserve,
                 )
             else:
                 def publish_log(text: str) -> None:
@@ -540,9 +1083,23 @@ class JobStore:
                         job.action_id == "corpus.match-pair"
                         and job.params.get("_preparationUnlimited") is True
                     )
+                    def observe_owner(identity: dict) -> None:
+                        with self._lock:
+                            job.execution_owner = dict(identity)
+                            self._persist_locked(job, force=True)
+                    def observe_clearance(identity: dict) -> None:
+                        with self._lock:
+                            job.clearance_observation = {
+                                'source': 'local-executor-session-observer-v1', 'jobId': job.id,
+                                'attempt': job.execution_attempt, 'resourceKeys': dict(job.resource_keys),
+                                'argvDigest': hashlib.sha256(json.dumps(job.argv, separators=(',', ':')).encode()).hexdigest(),
+                                'process': dict(identity), 'sessionClearance': 'clear', 'observedAt': time.time(),
+                            }
+                            self._persist_locked(job, force=True)
                     code, log = _default_executor(
                         argv, cwd, cancel, on_output=publish_log,
-                        unlimited=unlimited_match,
+                        unlimited=unlimited_match or (job.action_id == "corpus.cross-place" and bool(job.params.get("watch"))), on_started=observe_owner,
+                        on_clearance=observe_clearance if job.action_id in LOCAL_RECONCILIATION_ACTIONS | _EXTERNAL_ACTION_CONTRACTS.keys() else None,
                     )
                 if action is not None and action.backend == "bsim-cli":
                     from agentdecompile_recovery.corpus.bsim_ops import _bsim_cli_error
@@ -550,6 +1107,12 @@ class JobStore:
                         code = code or 1
             with self._lock:
                 job = self._jobs[job_id]
+                # Audited snapshot and exact guarded native-verifier commands
+                # can release after bound session clearance. Other compiler,
+                # Wine and provider profiles remain unqualified.
+                has_external_claims = bool(job.resource_keys.get("external"))
+                job.resource_disposition = ("quarantined" if (has_external_claims and not (self.executor is None and _external_contract_matches(job.action_id, job.params, job.resource_keys, cwd) and _bound_clearance(job.to_dict()))) or _ownership_unresolved(log)
+                                            else "released") if job.resource_keys else "unreserved"
                 job.log = log[-MAX_LOG_BYTES:]
                 job.returncode = code
                 job.finished_at = time.time()
@@ -564,12 +1127,19 @@ class JobStore:
             with self._lock:
                 job = self._jobs[job_id]
                 job.error = str(exc)
+                if job.resource_keys:
+                    job.resource_disposition = "quarantined"
                 job.status = "failed"
                 job.finished_at = time.time()
         finally:
             with self._lock:
-                self._release_admission_locked(job_id, identity_key, pair_entry, ghidra_key, worker_acquired)
-                self._persist_locked(self._jobs[job_id], force=True)
+                job = self._jobs[job_id]
+                try:
+                    self._persist_locked(job, force=True)
+                except OSError as exc:
+                    job.resource_disposition = "quarantined" if job.resource_keys else "unreserved"
+                    job.log_reason = f"Terminal receipt not committed; reservation retained: {exc}"
+                self._release_admission_locked(job_id, identity_key, pair_entry, ghidra_key, external_entries, worker_acquired)
 
     def _release_admission_locked(
         self,
@@ -577,22 +1147,29 @@ class JobStore:
         identity_key: str,
         pair_entry: tuple[str, str] | None,
         ghidra_key: str,
+        external_entries: tuple[tuple[str, str], ...],
         worker_acquired: bool,
     ) -> None:
         if worker_acquired:
             self._running = max(0, self._running - 1)
+        job = self._jobs.get(job_id)
+        if job is not None and job.resource_disposition in {"held", "quarantined"}:
+            return
         if identity_key and self._identity_held.get(identity_key) == job_id:
             self._identity_held.pop(identity_key, None)
         if pair_entry and self._pair_held.get(pair_entry) == job_id:
             self._pair_held.pop(pair_entry, None)
         if ghidra_key and self._ghidra_held.get(ghidra_key) == job_id:
             self._ghidra_held.pop(ghidra_key, None)
+        for entry in external_entries:
+            if self._external_held.get(entry) == job_id:
+                self._external_held.pop(entry, None)
 
     def _trim_locked(self) -> None:
         while len(self._order) > MAX_JOBS:
             old = self._order.pop(0)
             job = self._jobs.get(old)
-            if job is not None and job.status in {"queued", "running", "cancelling"}:
+            if job is not None and (job.status in {"queued", "running", "cancelling"} or job.resource_disposition in {"held", "quarantined"}):
                 self._order.insert(0, old)
                 break
             self._jobs.pop(old, None)
@@ -613,6 +1190,9 @@ def _copy_job(job: JobRecord) -> JobRecord:
         error=job.error,
         log=job.log,
         params=dict(job.params),
+        resource_disposition=job.resource_disposition, resource_keys=dict(job.resource_keys),
+        execution_attempt=job.execution_attempt, execution_root=job.execution_root, execution_owner=dict(job.execution_owner), clearance_observation=dict(job.clearance_observation),
+        no_dispatch_observation=dict(job.no_dispatch_observation),
         history_only=job.history_only, owner_unavailable=job.owner_unavailable,
         history_source=job.history_source, log_state=job.log_state,
         log_reason=job.log_reason, log_truncated=job.log_truncated,
@@ -637,6 +1217,9 @@ def _from_history(payload: dict, *, compact: bool = False) -> JobRecord:
                      argv=list(payload.get('argv') or []), status=status, created_at=payload.get('createdAt') or 0,
                      started_at=payload.get('startedAt'), finished_at=payload.get('finishedAt'), returncode=payload.get('returncode'),
                      error=error, log=payload.get('log') or '', params=dict(payload.get('params') or {}),
+                     resource_disposition=('quarantined' if payload.get('resourceDisposition') == 'held' else payload.get('resourceDisposition', 'unreserved')), resource_keys=dict(payload.get('resourceKeys') or {}),
+                     execution_attempt=payload.get('executionAttempt', ''), execution_root=payload.get('executionRoot', ''), execution_owner=dict(payload.get('executionOwner') or {}), clearance_observation=dict(payload.get('clearanceObservation') or {}),
+                     no_dispatch_observation=dict(payload.get('noDispatchObservation') or {}),
                      history_only=True, owner_unavailable=unavailable, history_source=payload.get('historySource') or 'durable-job-receipt',
                      log_state=payload.get('logState') or ('available' if payload.get('log') else 'unavailable'),
                      log_reason=payload.get('logReason') or '', log_truncated=bool(payload.get('logTruncated')),
@@ -671,6 +1254,9 @@ def _export_archive_program(output_path: Path, context: dict[str, Any], cancel: 
             "'functionCount': int(currentProgram.getFunctionManager().getFunctionCount()), 'project': str(currentProgram.getDomainFile().getProjectLocator()), 'program': str(currentProgram.getDomainFile().getPathname())})",
             "timeout": 30}, cancel, trusted_preparation_probe=True)
         observed = payload(log)
+        if _ownership_unresolved(log):
+            return {'ok': False, 'ownershipResolved': False, 'ownershipUnresolved': True,
+                    'error': 'Remote inspection ownership remains unresolved', 'observation': observed}
         if code or not observed.get("md5") or str(observed["md5"]).lower() != str(context.get("programFingerprint", "")).lower():
             return {"ok": False, "error": "The selected Ghidra program's fingerprint could not be matched to this binary.", "observation": observed}
         if observed.get("needsAnalysis") is not False:
@@ -682,6 +1268,9 @@ def _export_archive_program(output_path: Path, context: dict[str, Any], cancel: 
             cancel,
         )
         data = payload(log)
+    if _ownership_unresolved(log):
+        return {'ok': False, 'ownershipResolved': False, 'ownershipUnresolved': True,
+                'error': 'Remote export ownership remains unresolved', 'data': data, 'observation': observed}
     accepted = code == 0 and data.get("success") is True and output_path.is_file()
     return {"ok": accepted, "tool": "export", "data": data, "observation": observed,
             "error": "" if accepted else data.get("error") or log[-4000:]}
@@ -699,7 +1288,7 @@ def _bounded_archive_export(
         try:
             result.put(_export_archive_program(output_path, context, cancel))
         except BaseException as exc:
-            result.put({'ok': False, 'error': str(exc)})
+            result.put({'ok': False, 'error': str(exc), 'ownershipResolved': False, 'ownershipUnresolved': True})
     worker = threading.Thread(target=run, name='source-archive-live-export', daemon=True)
     worker.start()
     while worker.is_alive():
@@ -714,7 +1303,10 @@ def _bounded_archive_export(
             }
         worker.join(min(.1, max(0.0, deadline - time.monotonic())))
     value = result.get()
-    value['ownershipResolved'] = True
+    if _ownership_note(value):
+        value.update(ok=False, ownershipResolved=False, ownershipUnresolved=True, quarantined=True)
+    else:
+        value['ownershipResolved'] = True
     return value
 
 
@@ -725,19 +1317,32 @@ def _mcp_executor(
     *,
     trusted_preparation_facts_inventory: bool = False,
     trusted_preparation_probe: bool = False,
+    mcp_reserve: Callable[[str], Any] | None = None,
 ) -> tuple[int, str]:
     # Do not hold CONTEXT_LOCK across the loopback MCP HTTP request.  The MCP
     # handler uses the same lock while serving that request; holding it here
     # makes a dashboard job wait forever for its own request to acquire the
     # lock.  Each bridge operation serializes its own session-critical call.
-    with MCP_EXECUTOR_LOCK:
-        return _mcp_executor_in_context(
-            action,
-            params,
-            cancel,
-            trusted_preparation_facts_inventory=trusted_preparation_facts_inventory,
-            trusted_preparation_probe=trusted_preparation_probe,
-        )
+    from .. import mcp_budget
+    with mcp_budget.dispatch_scope(mcp_reserve) as dispatch:
+        try:
+            with MCP_EXECUTOR_LOCK:
+                code, log = _mcp_executor_in_context(
+                    action, params, cancel,
+                    trusted_preparation_facts_inventory=trusted_preparation_facts_inventory,
+                    trusted_preparation_probe=trusted_preparation_probe,
+                )
+                if dispatch['unknown']:
+                    # A later clear response cannot reconcile an earlier
+                    # uncertain provider effect in this execution sequence.
+                    return code or 1, log + _ownership_note({'ownershipUnresolved': True})
+                return code, log
+        except mcp_budget.DispatchRefused as exc:
+            unresolved = dispatch['unknown'] or bool(dispatch['dispatched'] and action.mutating)
+            return 1, json.dumps({
+                'ok': False, 'error': str(exc), **exc.decision,
+                **({'ownershipResolved': False, 'ownershipUnresolved': True} if unresolved else {}),
+            })
 
 
 def _mcp_executor_in_context(
@@ -761,7 +1366,7 @@ def _mcp_executor_in_context(
     if locator and action.command not in {"open", "connect-shared-project"}:
         opened = ensure_project(locator)
         if not opened.get("ok"):
-            return 1, "Could not open the selected project without analysis.\n" + str(opened.get("error") or opened.get("text"))
+            return 1, "Could not open the selected project without analysis.\n" + str(opened.get("error") or opened.get("text")) + _ownership_note(opened)
         if cancel.is_set():
             return 1, "[cancelled before action]\n"
     # Opening a project does not make a nested program current in the MCP
@@ -793,7 +1398,7 @@ def _mcp_executor_in_context(
         )
         if not ensured.get("ok"):
             detail = ensured.get("error") or ensured.get("steps") or "program could not be opened"
-            return 1, f"Could not make {program} current in the selected project.\n{detail}\n"
+            return 1, f"Could not make {program} current in the selected project.\n{detail}\n" + _ownership_note(ensured)
         program = str(ensured.get("program_path") or program)
         if "programPath" in arguments:
             arguments["programPath"] = program
@@ -826,11 +1431,13 @@ def _mcp_executor_in_context(
     hit = call_tool(action.command, arguments, timeout=timeout)
     # A Ghidra MCP restart invalidates the HTTP session but does not mean the
     # requested script ran.  Re-open the project and selected program once,
-    # then replay that unaccepted request.  Without this recovery a long
+    # then replay only when the response establishes no unresolved effect.
+    # An uncertain earlier dispatch must be reconciled, never blindly replayed.
+    # Without this recovery a long
     # automatic preparation wave quietly accumulates transient failures until
     # an operator manually restarts it.
     missing_session = "missing session id" in str(hit.get("error") or "").casefold()
-    if missing_session and not cancel.is_set():
+    if missing_session and not cancel.is_set() and not _ownership_note(hit):
         reset_session()
         reopened = ensure_project(locator) if locator else {"ok": True}
         if reopened.get("ok") and locator and program and needs_program:
@@ -850,11 +1457,16 @@ def _mcp_executor_in_context(
                 + str(reopened.get("error") or reopened.get("steps") or "unknown restore failure"),
                 "text": "",
                 "parsed": None,
+                **({'ownershipResolved': False, 'ownershipUnresolved': True} if _ownership_note(reopened) else {}),
             }
+    unknown_ownership = bool(_ownership_note(hit))
+    if unknown_ownership:
+        hit = {**hit, 'ok': False}
     text = hit.get("text") or ""
     parsed = hit.get("parsed")
     if (
         action.command == "analyze-program"
+        and not unknown_ownership
         and isinstance(parsed, dict)
         and parsed.get("alreadyAnalyzed") is True
     ):
@@ -895,6 +1507,8 @@ def _mcp_executor_in_context(
             else:
                 error = checkin.get('error') or 'checkin-program failed'
                 log_parts.append(f'checkin-program warning: {error}\n')
+                log_parts.append(_ownership_note(checkin))
+    log_parts.append(_ownership_note(hit))
     if cancel.is_set():
         return 1, "".join(log_parts) + "[cancelled]\n"
     return (0 if hit.get("ok") else 1), "".join(log_parts)
@@ -923,13 +1537,23 @@ def _default_executor(
     on_output: Callable[[str], None] | None = None,
     timeout_seconds: float | None = None,
     unlimited: bool = False,
+    on_started: Callable[[dict], None] | None = None,
+    on_clearance: Callable[[dict], None] | None = None,
 ) -> tuple[int, str]:
     """Drain output without blocking cancellation when a child is silent."""
     if not argv:
         return 2, "empty command"
+    from agentdecompile_recovery.native_verify_contract import _BOOTSTRAP, clean_environment
+    from agentdecompile_recovery.corpus.cross_place import _BOOTSTRAP as _CROSS_BOOTSTRAP
+    native_guarded = (len(argv) == 7 and argv[1:4] == ["-I", "-S", "-c"]
+                      and argv[4] in {_BOOTSTRAP, _CROSS_BOOTSTRAP})
     proc = subprocess.Popen(argv, cwd=str(cwd), stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, text=True, bufsize=1, env=isolated_job_env(argv),
+        stderr=subprocess.STDOUT, text=True, bufsize=1, env=clean_environment() if native_guarded else isolated_job_env(argv),
         start_new_session=os.name != "nt")
+    from agentdecompile_recovery.corpus.supervision import process_identity, session_clearance
+    admitted_process = process_identity(proc.pid)
+    if on_started:
+        on_started(admitted_process)
     lines: queue.Queue[str | None] = queue.Queue(maxsize=1000)
     def read() -> None:
         assert proc.stdout is not None
@@ -1005,8 +1629,10 @@ def _default_executor(
             returncode = proc.wait(timeout=2)
         except subprocess.TimeoutExpired:
             returncode = None
-    if returncode is None:
+    if returncode is None or session_clearance(admitted_process) != "clear":
         return 124, log + "\n[process did not reach a terminal state; ownership remains unresolved]\n"
+    if on_clearance:
+        on_clearance(admitted_process)
     return (124 if timed_out else int(returncode)), log
 
 
@@ -1104,6 +1730,7 @@ def start_job(
     confirm: bool = False,
     dry_run: bool = False,
     _trusted_context: object | None = None,
+    _mcp_reserve: Callable[[str], Any] | None = None,
 ) -> tuple[dict[str, Any], int]:
     action = action_by_id(action_id)
     if action is None:
@@ -1115,7 +1742,7 @@ def start_job(
     errors = validate_params(action, filled, confirm=confirm)
     if errors:
         return {"error": "; ".join(errors), "actionId": action.id}, 400
-    owner = _external_pipeline_owner(action.id, filled)
+    owner = None if _read_only_supervisor_status(action.id, filled) else _external_pipeline_owner(action.id, filled)
     if owner is not None and not dry_run:
         return {
             "ok": False,
@@ -1143,6 +1770,7 @@ def start_job(
         action,
         filled,
         argv,
+        mcp_reserve=_mcp_reserve,
         trusted_preparation_facts_inventory=(
             _trusted_context is _PREPARATION_FACTS_INVENTORY
             and action.id == "mcp.execute-script"
@@ -1156,7 +1784,7 @@ def start_job(
 
 
 def _start_preparation_facts_inventory(
-    params: dict[str, Any], context: dict[str, Any]
+    params: dict[str, Any], context: dict[str, Any], *, _mcp_reserve=None
 ) -> tuple[dict[str, Any], int]:
     """Submit the preparation-owned, read-only inventory script."""
     return start_job(
@@ -1165,11 +1793,12 @@ def _start_preparation_facts_inventory(
         context=context,
         confirm=True,
         _trusted_context=_PREPARATION_FACTS_INVENTORY,
+        _mcp_reserve=_mcp_reserve,
     )
 
 
 def _start_preparation_probe(
-    params: dict[str, Any], context: dict[str, Any]
+    params: dict[str, Any], context: dict[str, Any], *, _mcp_reserve=None
 ) -> tuple[dict[str, Any], int]:
     """Submit a preparation-owned, bounded read-only probe."""
     return start_job(
@@ -1178,6 +1807,7 @@ def _start_preparation_probe(
         context=context,
         confirm=True,
         _trusted_context=_PREPARATION_PROBE,
+        _mcp_reserve=_mcp_reserve,
     )
 
 

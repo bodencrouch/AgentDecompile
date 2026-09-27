@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { API } from './contracts';
+import type { ClaimProjection } from './ScopedClaims';
 
 export interface EntityActivity {
+  claimProjection?: ClaimProjection;
   id: string;
   kind: 'project' | 'binary' | 'function';
   locator: string;
@@ -37,13 +39,17 @@ export interface ActivitySnapshot {
 }
 
 /** Keep the last valid snapshot while independently reconnecting the live feed. */
-export function useEntityActivity(locator: string, slug: string, program = "") {
+export function useEntityActivity(locator: string, slug: string, program = "", enabled = true) {
   const [state, setState] = useState<{
     entities: EntityActivity[]; revision: number;
     connection: 'connecting' | 'live' | 'polling' | 'disconnected'; error: string;
   }>({ entities: [], revision: 0, connection: 'connecting', error: '' });
 
   useEffect(() => {
+    if (!enabled) {
+      setState({entities: [], revision: 0, connection: 'disconnected', error: ''});
+      return;
+    }
     let disposed = false;
     let eventSource: EventSource | null = null;
     let cursor = 0;
@@ -185,6 +191,6 @@ export function useEntityActivity(locator: string, slug: string, program = "") {
       void poll();
     }, 5000);
     return () => { disposed = true; document.removeEventListener('visibilitychange', onVisibilityChange); abort.abort(); eventSource?.close(); window.clearInterval(timer); };
-  }, [locator, slug, program]);
+  }, [locator, slug, program, enabled]);
   return state;
 }

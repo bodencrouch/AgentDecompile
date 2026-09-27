@@ -960,6 +960,76 @@
     </section>`;
   }
 
+  function preparationResponse(data) {
+  if (!data || data.ok === false || !Array.isArray(data.runs)) throw new Error("Invalid preparation response");
+  const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+  const texts = ["id", "status", "locator", "program", "slug", "title", "key", "reason", "error", "currentProgram", "currentTarget", "currentAction", "jobStatus", "unit", "nextFallback", "message", "action", "nextAction", "wakeCondition", "label", "state", "why", "next", "receipt", "programPath", "src", "dst", "actionId"];
+  const numbers = ["completed", "total", "done", "attempts", "attemptsSpent", "attemptsRemaining", "executionLimitSeconds"];
+  const times = ["updatedAt", "createdAt", "startedAt", "retryAt", "at", "executionDeadlineAt", "deadline"];
+  function row(value) {
+    if (!object(value)) return false;
+    if (texts.some(key => value[key] != null && typeof value[key] !== "string")) return false;
+    if (numbers.some(key => value[key] != null && (typeof value[key] !== "number" || !Number.isFinite(value[key])))) return false;
+    if (times.some(key => value[key] != null && (typeof value[key] !== "number" || !Number.isFinite(value[key]) || Math.abs(value[key]) > 8640000000000))) return false;
+    return true;
+  }
+  for (const run of data.runs) {
+    if (!row(run)) throw new Error("Invalid preparation record");
+    for (const key of ["stages", "events"]) {
+      if (run[key] != null && (!Array.isArray(run[key]) || !run[key].every(row))) throw new Error("Invalid preparation " + key);
+    }
+    if (run.currentJob != null && (!row(run.currentJob) || (run.currentJob.params != null && !row(run.currentJob.params)))) throw new Error("Invalid current job");
+    for (const stage of run.stages || []) {
+      if (stage.workProgress != null && !row(stage.workProgress)) throw new Error("Invalid stage work progress");
+    }
+    if (run.programs != null && (!Array.isArray(run.programs) || !run.programs.every(value => typeof value === "string"))) throw new Error("Invalid preparation programs");
+    if (run.retryDecisions != null && (!object(run.retryDecisions) || !Object.values(run.retryDecisions).every(row))) throw new Error("Invalid continuation decisions");
+  }
+  return data.runs;
+  }
+
+  function preparationBudgetText(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return "Action admissions: unknown";
+    const budget = value;
+    const count = (n) => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
+    const used = count(budget.consumed) ? String(budget.consumed) : "unknown";
+    const limit = budget.maxActionAdmissions === null ? "unlimited" : count(budget.maxActionAdmissions) ? String(budget.maxActionAdmissions) : "unknown";
+    const revision = count(budget.allocationRevision) ? String(budget.allocationRevision) : "unknown";
+    const prior = budget.priorUsageUnknown === true ? " · earlier spending unknown; shown usage is a lower bound" : "";
+    const exhausted = count(budget.consumed) && count(budget.maxActionAdmissions) && budget.consumed >= budget.maxActionAdmissions ? " · allowance exhausted" : "";
+    return `Action admissions: ${used} used / ${limit} allowance · allocation revision ${revision}${exhausted}${prior}`;
+  }
+
+  function preparationProviderBudgetText(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return "MCP tool calls: unknown";
+    const budget = value;
+    if (budget.schema !== 1 || budget.accountingScope !== "mcp-tool-dispatches-since-allocation") return "MCP tool calls: unknown";
+    const count = (n) => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
+    const used = count(budget.consumed) ? String(budget.consumed) : "unknown";
+    const limit = budget.maxMcpToolCalls === null ? "unlimited" : count(budget.maxMcpToolCalls) ? String(budget.maxMcpToolCalls) : "unknown";
+    const revision = count(budget.allocationRevision) ? String(budget.allocationRevision) : "unknown";
+    const prior = budget.priorUsageUnknown === true ? " · earlier spending unknown; shown usage is a lower bound" : "";
+    const exhausted = count(budget.consumed) && count(budget.maxMcpToolCalls) && budget.consumed >= budget.maxMcpToolCalls ? " · allowance exhausted" : "";
+    return `MCP tool calls: ${used} used / ${limit} allowance · allocation revision ${revision}${exhausted}${prior}`;
+  }
+
+  function PreparationObservation({ run, feed, now }) {
+    const stale = ["disconnected", "resync"].includes(String(run && run.status)) || Boolean(feed.error) || Boolean(feed.receivedAt && now - feed.receivedAt > 10000);
+    const decisions = Object.values(run && run.retryDecisions || {}).filter(function (value) { return value && typeof value === "object" && value.nextAction !== "dispatch"; });
+    return html`<section className="wb-preparation-observation" aria-label="Recorded preparation state">
+      <p role="status">${stale ? "Connection lost · showing last received state; current state unknown" : feed.receivedAt ? "Preparation feed connected" : "Preparation status not yet received"}</p>
+      ${feed.receivedAt ? html`<p className="wb-hint">Last received: <time dateTime=${new Date(feed.receivedAt).toISOString()}>${new Date(feed.receivedAt).toLocaleString()}</time></p>` : null}
+      ${feed.error ? html`<p className="wb-hint">${feed.error}</p>` : null}
+      ${run ? html`<p>${preparationProviderBudgetText(run.providerBudget)}${stale ? " · last received observation; current usage unknown" : ""}</p>
+        <p className="wb-hint">MCP allowance counts prerequisite, retry and check-in tools/call attempts since allocation. It is separate from action admissions and the execution deadline; it does not count tokens, money or provider-internal work.</p>
+        <p>${preparationBudgetText(run.objectiveBudget)}</p>
+        <p className="wb-hint">Admission allowance counts reserved action attempts, including uncertain or rejected dispatches. It is separate from the execution deadline and does not measure recovered code. Accounting scope: ${run.objectiveBudget && typeof run.objectiveBudget.accountingScope === "string" ? run.objectiveBudget.accountingScope : "unknown"}.</p>
+        ${typeof run.updatedAt === "number" && Number.isFinite(run.updatedAt) ? html`<p className="wb-hint">Last recorded change: <time dateTime=${new Date(run.updatedAt * 1000).toISOString()}>${new Date(run.updatedAt * 1000).toLocaleString()}</time></p>` : null}
+        ${decisions.map(function (decision, index) { return html`<p key=${index} className="wb-hint">${decision.reason || "Awaiting reconciliation"}${decision.wakeCondition ? " · Continues after: " + String(decision.wakeCondition).replace(/_/g, " ") : ""}</p>`; })}
+        <p className="wb-hint">Stage completion does not establish byte verification or accepted source contribution.</p>` : null}
+    </section>`;
+  }
+
   function selectPreparationRun(runs, locator, program, slug) {
     const normalizedLocator = String(locator || "").replace(/\/+$/, "");
     return (runs || []).filter(function (run) {
@@ -2169,7 +2239,7 @@
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickJob(job.id); }}>
                 <strong>${job.actionId || job.id}</strong>
-                <span>${job.status}</span>
+                <span>${job.status}${job.resourceDisposition === "quarantined" || job.ownershipUnresolved === true ? " · ownership unresolved" : ""}</span>
               </button>
             </li>`;
           })}</ul>
@@ -2280,7 +2350,7 @@
                 <button type="button" className="wb-job-row" onClick=${function () { onSelectJob(job.id); }}>
                   <code>${job.id}</code>
                   <span>${actionTitle(job.actionId, actions)}</span>
-                  <span className=${"st-" + (job.status || "unknown")}>${job.status}</span>
+                  <span className=${"st-" + (job.status || "unknown")}>${job.status}${job.resourceDisposition === "quarantined" || job.ownershipUnresolved === true ? " · ownership unresolved" : ""}</span>
                 </button>
                 ${live ? html`<button type="button" className="wb-btn danger wb-job-cancel"
                   onClick=${function (ev) { ev.stopPropagation(); onCancel(job.id); }}>Cancel</button>` : null}
@@ -2329,6 +2399,14 @@
     const [overview, setOverview] = useState(null);
     const [corpusStatus, setCorpusStatus] = useState(null);
     const [preparationRuns, setPreparationRuns] = useState([]);
+    const [preparationFeed, setPreparationFeed] = useState({ receivedAt: 0, error: "" });
+    const [preparationNow, setPreparationNow] = useState(Date.now());
+    const preparationSequence = useRef(0);
+    const preparationInFlight = useRef(false);
+    useEffect(function () {
+      const timer = setInterval(function () { setPreparationNow(Date.now()); }, 1000);
+      return function () { clearInterval(timer); };
+    }, []);
     const [graph, setGraph] = useState(null);
     const [actions, setActions] = useState([]);
     const [jobs, setJobs] = useState([]);
@@ -2463,12 +2541,22 @@
     }, []);
 
     const loadPreparations = useCallback(async function () {
+      if (preparationInFlight.current) return;
+      preparationInFlight.current = true;
+      const sequence = ++preparationSequence.current;
       try {
-        const res = await fetch(API.preparations, { cache: "no-store" });
+        const res = await fetch(API.preparations, { cache: "no-store", signal: AbortSignal.timeout(10000) });
+        if (!res.ok) throw new Error("Preparation request failed (" + res.status + ")");
         const data = await res.json();
-        setPreparationRuns(data.runs || []);
-      } catch (_err) {
-        /* Keep the last durable preparation receipt visible while reconnecting. */
+        const received = preparationResponse(data);
+        if (sequence !== preparationSequence.current) return;
+        setPreparationRuns(received);
+        setPreparationFeed({ receivedAt: Date.now(), error: "" });
+      } catch (err) {
+        if (sequence !== preparationSequence.current) return;
+        setPreparationFeed(function (previous) { return { receivedAt: previous.receivedAt, error: String(err && err.message || err) }; });
+      } finally {
+        preparationInFlight.current = false;
       }
     }, []);
 
@@ -4795,6 +4883,7 @@
           ${quickBar("pipeline")}
           <${StepLadder} title="Corpus" steps=${ladder.corpus_steps} onRun=${runLadderStep} />
           ${active ? html`<${StepLadder} title=${"Build " + active.slug} steps=${active.steps} onRun=${runLadderStep} />` : null}
+          <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} />
           ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + recoveryRun.status} steps=${recoveryRun.stages} />` : null}
         </${Surface}>`;
       }
@@ -5001,6 +5090,7 @@
           runActionButton("corpus.external-bridge", "External bridge")
         )}>
           <${CorpusHeadline} headline=${corpusStatus && corpusStatus.headline} claim="Compile and byte-accuracy stay separate columns." />
+          <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} />
           ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + (recoveryRun.program || program || slug || recoveryRun.status)} steps=${recoverySteps} />` : null}
           <${StepLadder} title="Compile and verify" steps=${steps} onRun=${runLadderStep} />
         </${Surface}>`;

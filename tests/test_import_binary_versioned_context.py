@@ -7,6 +7,13 @@ falls back to session-wide context on the success path), the versioned/shared im
 branches in ImportExportToolProvider._handle_import passed the incoming (often None)
 program_info straight through to create_success_response, so a successful versioned
 import returned no projectContext at all.
+
+Note on `projectPath`: collect_target_project_context (program_metadata.py) only sets
+`projectPath` for the local-gpr branch (a real GhidraProject-backed DomainFile with a
+ProjectLocator). Shared/versioned imports never have that -- the resolved context takes
+the shared-mode shape instead (mode="shared-server", serverHost, serverPort, repository,
+programUrl). These tests assert `activeProgram` and the shared-mode fields, including
+`programUrl`, as the shared-mode equivalent of pinning `projectPath`.
 """
 
 from __future__ import annotations
@@ -34,6 +41,12 @@ def _shared_server_handle() -> dict[str, object]:
     }
 
 
+def _no_op_protection(path, output_root):
+    # Stand-in for prepare_analysis_binary: no container/protection handling, no
+    # writes under live_root()/the real corpus store, just pass the source through.
+    return {"status": "unknown", "handling": "none", "analysisPath": str(path)}
+
+
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_versioned_file_import_attaches_imported_program_context(
@@ -43,6 +56,10 @@ async def test_versioned_file_import_attaches_imported_program_context(
     SESSION_CONTEXTS.set_project_handle(session_id, _shared_server_handle())
     monkeypatch.setattr(import_export_module, "get_current_mcp_session_id", lambda: session_id)
     monkeypatch.setattr(tool_providers_module, "get_current_mcp_session_id", lambda: session_id)
+    monkeypatch.setattr(
+        "agentdecompile_recovery.corpus.dashboard.protection.prepare_analysis_binary",
+        _no_op_protection,
+    )
 
     binary = tmp_path / "sample.bin"
     binary.write_bytes(b"\x90" * 64)
@@ -77,13 +94,17 @@ async def test_versioned_file_import_attaches_imported_program_context(
     assert ctx["serverHost"] == "127.0.0.1"
     assert ctx["serverPort"] == 26100
     assert ctx["repository"] == "agentrepo"
+    assert ctx["programUrl"] == "ghidra://127.0.0.1:26100/agentrepo/sample.bin"
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_versioned_folder_import_attaches_imported_program_context(
+async def test_versioned_folder_import_attaches_last_imported_program_context(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Several programs imported in one call: the context binds to the last one,
+    matching the default (non-versioned) path's loop-reassignment behavior
+    (`program_info = _pi` on each iteration, so the final iteration wins)."""
     session_id = "test-versioned-folder-import-context"
     SESSION_CONTEXTS.set_project_handle(session_id, _shared_server_handle())
     monkeypatch.setattr(import_export_module, "get_current_mcp_session_id", lambda: session_id)
@@ -92,6 +113,7 @@ async def test_versioned_folder_import_attaches_imported_program_context(
     folder = tmp_path / "corpus"
     folder.mkdir()
     (folder / "a.bin").write_bytes(b"\x90" * 64)
+    (folder / "b.bin").write_bytes(b"\x90" * 64)
 
     provider = ImportExportToolProvider()
     provider._manager = SimpleNamespace(ghidra_project=None)
@@ -100,7 +122,10 @@ async def test_versioned_folder_import_attaches_imported_program_context(
         return {
             "action": "import",
             "importedFrom": str(source),
-            "importedPrograms": [{"sourcePath": str(source / "a.bin"), "programName": "a.bin"}],
+            "importedPrograms": [
+                {"sourcePath": str(source / "a.bin"), "programName": "a.bin"},
+                {"sourcePath": str(source / "b.bin"), "programName": "b.bin"},
+            ],
             "success": True,
             "versionControlRequested": True,
             "versionControlEnabled": True,
@@ -118,6 +143,7 @@ async def test_versioned_folder_import_attaches_imported_program_context(
     ctx = payload.get("projectContext")
     assert ctx is not None, payload
     assert ctx["scope"] == "target-program"
-    assert ctx["activeProgram"] == "/a.bin"
+    assert ctx["activeProgram"] == "/b.bin"
     assert ctx["mode"] == "shared-server"
     assert ctx["repository"] == "agentrepo"
+    assert ctx["programUrl"] == "ghidra://127.0.0.1:26100/agentrepo/b.bin"

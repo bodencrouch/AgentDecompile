@@ -233,6 +233,16 @@ def list_functions(
     limit: int | str = "all",
     program_path: str = "",
 ) -> dict[str, Any]:
+    """List a live program's functions through the MCP list-functions tool.
+
+    With a query ``q``, a successful empty page means nothing matched: the
+    result has no rows and no ``next`` hint. That holds on a program Ghidra
+    has not analysed yet too, so a search there reports "no match" rather
+    than the analyze-program hint an unfiltered listing gives.
+
+    ``total`` covers only the rows fetched so far (``offset`` plus this
+    page), not every function or match in the program.
+    """
     from agentdecompile_recovery.corpus.dashboard.common import page_window
 
     wanted = (program_path or program or "").strip()

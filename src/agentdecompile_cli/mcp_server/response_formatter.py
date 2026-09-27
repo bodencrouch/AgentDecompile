@@ -1921,7 +1921,8 @@ def _render_bookmarks(data: dict[str, Any]) -> str:
         lines.append(_md_heading(2, "All Bookmarks Removed"))
         return "\n".join(lines)
 
-    if action == "categories":
+    # _handle_categories returns {"categories", "count"} without an action key.
+    if action == "categories" or ("categories" in data and "results" not in data):
         lines.append(_md_heading(2, "Bookmark Categories"))
         lines.append("")
         categories = data.get("categories", [])

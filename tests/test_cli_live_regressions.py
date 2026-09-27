@@ -157,3 +157,11 @@ def test_constants_count_every_hit_and_render_samples() -> None:
     text = render_tool_response("searchconstants", {"mode": "specific", "results": results, "instructionsScanned": 7})
     assert "| 5 | 0x5 | 7 |" in text
     assert "`00400000`" in text
+
+
+@pytest.mark.unit
+def test_bookmark_categories_render_the_category_list() -> None:
+    """Live: `bookmarks categories` printed "Showing 1 of 1" then "No bookmarks found"."""
+    text = render_tool_response("managebookmarks", {"categories": ["live"], "count": 1})
+    assert "Bookmark Categories" in text
+    assert "- live" in text

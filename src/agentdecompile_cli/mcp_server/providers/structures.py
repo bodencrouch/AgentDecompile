@@ -369,24 +369,35 @@ class StructureToolProvider(ToolProvider):
         c_def = self._require_str(args, "cdefinition", "headercontent", "definition", "code", name="cDefinition")
         assert program_info is not None  # for type checker
 
+        scratch = None
         try:
-            from ghidra.app.util.cparser.C import CParser
-            from ghidra.program.model.data import StandAloneDataTypeManager
-
-            # Validation must not add types to the program: parse into a throwaway manager.
-            # The program's manager is passed as a read-only source so definitions that
-            # use program types (DWORD, undefined4, user structs) still resolve.
-            scratch = StandAloneDataTypeManager("agentdecompile-validate")
             try:
-                parser = CParser(scratch, False, [program_info.program.getDataTypeManager()])
+                from jpype import JArray
+
+                from ghidra.app.util.cparser.C import CParser
+                from ghidra.program.model.data import DataTypeManager, StandAloneDataTypeManager
+
+                # Validation must not add types to the program: parse into a throwaway manager.
+                # The program's manager is passed as a read-only source so definitions that
+                # use program types (DWORD, undefined4, user structs) still resolve.
+                program_dtm = program_info.program.getDataTypeManager()
+                scratch = StandAloneDataTypeManager("agentdecompile-validate")
+                parser = CParser(scratch, False, JArray(DataTypeManager)([program_dtm]))
+            except Exception as e:
+                return create_success_response(
+                    {"action": "validate", "valid": False, "error": f"{type(e).__name__}: {e}"},
+                )
+
+            try:
                 dt = parser.parse(c_def)
                 # Read the name while the scratch manager is still open.
                 name = str(dt.getName()) if hasattr(dt, "getName") else str(dt)
-            finally:
+                return create_success_response({"action": "validate", "valid": True, "name": name})
+            except Exception as e:
+                return create_success_response({"action": "validate", "valid": False, "error": str(e)})
+        finally:
+            if scratch is not None:
                 scratch.close()
-            return create_success_response({"action": "validate", "valid": True, "name": name})
-        except Exception as e:
-            return create_success_response({"action": "validate", "valid": False, "error": str(e)})
 
     async def _apply(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._apply")

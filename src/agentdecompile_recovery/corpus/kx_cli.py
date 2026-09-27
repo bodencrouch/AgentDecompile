@@ -573,7 +573,7 @@ def dispatch(args: argparse.Namespace) -> int | None:
     if cmd == "bsim-createdatabase":
         from . import bsim_ops as bo
 
-        url = args.bsim_url or bo.default_bsim_url(datadir=args.datadir, name=args.name)
+        url = bo.resolve_bsim_url(bsim_url=args.bsim_url or "", datadir=args.datadir, name=args.name)
         payload = bo.createdatabase(
             url,
             template=args.template,

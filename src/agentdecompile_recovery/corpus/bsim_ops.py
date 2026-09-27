@@ -102,17 +102,49 @@ def classify_datadir(datadir: str | Path) -> dict[str, Any]:
     }
 
 
-def default_bsim_url(*, datadir: str | Path | None = None, name: str = "") -> str:
-    env = (os.environ.get("AGENT_DECOMPILE_BSIM_URL") or "").strip()
+BSIM_URL_ENV = "AGENT_DECOMPILE_BSIM_URL"
+MISSING_BSIM_URL = (
+    "No BSim database given. Pass bsimUrl (postgresql://host:port/name or file:/dir/name), "
+    "or datadir (a BSimControl PostgreSQL data directory; the URL becomes "
+    f"postgresql://127.0.0.1:<port from postgresql.conf>/<name>), or set {BSIM_URL_ENV}."
+)
+
+
+def resolve_bsim_url(*, bsim_url: str = "", datadir: str | Path | None = None, name: str = "") -> str:
+    """The one place create, ingest, report and listfuncs pick a BSim database URL.
+
+    Order: explicit ``bsim_url``, then ``AGENT_DECOMPILE_BSIM_URL``, then a
+    localhost PostgreSQL URL derived from ``datadir``. Returns "" when none is
+    given, so callers report ``MISSING_BSIM_URL`` instead of guessing a server.
+    """
+    explicit = (bsim_url or "").strip()
+    if explicit:
+        return _strip_sslmode_query(explicit)
+    env = (os.environ.get(BSIM_URL_ENV) or "").strip()
     if env:
-        return env
-    db = (name or os.environ.get("AGENT_DECOMPILE_BSIM_NAME") or "bsim").strip() or "bsim"
-    port = 5432
+        return _strip_sslmode_query(env)
     if datadir:
-        classified = classify_datadir(datadir)
-        if classified.get("port"):
-            port = int(classified["port"])
-    return f"postgresql://127.0.0.1:{port}/{db}"
+        db = (name or os.environ.get("AGENT_DECOMPILE_BSIM_NAME") or "bsim").strip() or "bsim"
+        port = classify_datadir(datadir).get("port") or 5432
+        return f"postgresql://127.0.0.1:{int(port)}/{db}"
+    return ""
+
+
+def default_bsim_url(*, datadir: str | Path | None = None, name: str = "") -> str:
+    """Compatibility alias for :func:`resolve_bsim_url` without an explicit URL."""
+    return resolve_bsim_url(datadir=datadir, name=name)
+
+
+def _bsim_error_text(stdout: str, stderr: str) -> str:
+    """Pick the error lines out of bsim output instead of the JVM start-up banner."""
+    lines = [line.strip() for line in f"{stderr}\n{stdout}".splitlines() if line.strip()]
+    hits = [
+        line
+        for line in lines
+        if "ERROR" in line or "Exception" in line or "error" in line.lower() or "FATAL" in line
+    ]
+    picked = hits or lines[-5:]
+    return "\n".join(picked[:10])
 
 
 def ghidra_url_for_program(repository: str, program: str, *, ghidra_url: str = "") -> str:
@@ -143,7 +175,7 @@ def createdatabase(
 ) -> dict[str, Any]:
     url = _strip_sslmode_query((bsim_url or "").strip())
     if not url:
-        return {"ok": False, "error": "bsim URL is required"}
+        return {"ok": False, "action": "bsim-createdatabase", "error": MISSING_BSIM_URL}
     argv = ["createdatabase", url, template or DEFAULT_TEMPLATE]
     if name:
         argv.extend(["--name", name])
@@ -152,17 +184,18 @@ def createdatabase(
     if description:
         argv.extend(["--description", description])
     ran = _run(argv, runner=runner)
-    out = (ran.get("stdout") or "") + (ran.get("stderr") or "")
-    if (ran["returncode"] or _bsim_cli_error(ran.get("stdout") or "", ran.get("stderr") or "")) and url.startswith("postgresql://") and "does not support SSL" in out:
-        fallback = Path(os.environ.get("AGENT_DECOMPILE_CORPUS_WORK_DIR") or "/tmp") / "bsim-file" / (name or "bsim")
-        fallback.parent.mkdir(parents=True, exist_ok=True)
-        file_url = f"file:{fallback}"
-        retry = createdatabase(file_url, template=template, name=name, owner=owner, description=description, runner=runner)
-        retry["fallbackFrom"] = url
-        retry["fallbackReason"] = "PostgreSQL BSim URL failed (server does not support SSL). Used a file database."
-        return retry
-    if ran["returncode"] or _bsim_cli_error(ran.get("stdout") or "", ran.get("stderr") or ""):
-        return {"ok": False, "error": ran["stderr"] or ran["stdout"] or "createdatabase failed", **ran, "bsimUrl": url}
+    stdout, stderr = ran.get("stdout") or "", ran.get("stderr") or ""
+    if ran["returncode"] or _bsim_cli_error(stdout, stderr):
+        error = _bsim_error_text(stdout, stderr) or "createdatabase failed"
+        # No silent file-database fallback: bsim-report and bsim-ingest resolve the
+        # URL the same way and would never find a database written elsewhere.
+        if url.startswith("postgresql://") and "does not support SSL" in stdout + stderr:
+            error = (
+                f"{error}\nThe PostgreSQL server at {url} does not accept SSL. Start the "
+                "BSim server with BSimControl, or pass bsimUrl=file:/dir/name for a file database "
+                "(use the same bsimUrl for bsim-ingest and bsim-report)."
+            )
+        return {"ok": False, "action": "bsim-createdatabase", "error": error, **ran, "bsimUrl": url}
     return {"ok": True, "action": "bsim-createdatabase", "bsimUrl": url, "template": template or DEFAULT_TEMPLATE, **ran}
 
 
@@ -174,10 +207,7 @@ def report(
     runner: Callable[..., subprocess.CompletedProcess[str]] | None = None,
 ) -> dict[str, Any]:
     cluster = classify_datadir(datadir) if datadir else None
-    url = _strip_sslmode_query(
-        (bsim_url or "").strip()
-        or (default_bsim_url(datadir=datadir, name=name) if datadir or name else "")
-    )
+    url = resolve_bsim_url(bsim_url=bsim_url, datadir=datadir, name=name)
     if cluster and cluster.get("state") in {"missing_datadir", "not_a_datadir", "no_postgres", "no_bsim_database"}:
         return {
             "ok": True,
@@ -193,14 +223,19 @@ def report(
     if not url:
         return {
             "ok": False,
-            "error": "bsim URL or datadir is required",
+            "action": "bsim-report",
+            "error": MISSING_BSIM_URL,
             "cluster": cluster,
         }
     meta = _run(["getmetadata", url], runner=runner)
     count = _run(["getexecount", url], runner=runner)
     listed = _run(["listexes", url], runner=runner)
     if meta["returncode"] and count["returncode"]:
-        err = meta["stderr"] or count["stderr"] or listed["stderr"] or "BSim did not answer"
+        err = (
+            _bsim_error_text(meta.get("stdout") or "", meta.get("stderr") or "")
+            or _bsim_error_text(count.get("stdout") or "", count.get("stderr") or "")
+            or "BSim did not answer"
+        )
         state = "no_bsim_database"
         if cluster and cluster.get("state") == "cluster_has_extra_databases":
             state = "database_unreachable"
@@ -260,7 +295,9 @@ def ingest(
     repo = (repository or "").strip()
     if not repo:
         return {"ok": False, "error": "repository or Ghidra project path is required"}
-    url = _strip_sslmode_query((bsim_url or "").strip() or default_bsim_url(datadir=datadir, name=name))
+    url = resolve_bsim_url(bsim_url=bsim_url, datadir=datadir, name=name)
+    if not url:
+        return {"ok": False, "action": "bsim-ingest", "error": MISSING_BSIM_URL, "repository": repo}
     names = list(programs or [])
     if not names:
         names = _discover_programs(repo, list_programs=list_programs)
@@ -320,7 +357,9 @@ def list_program_functions(
 ) -> dict[str, Any]:
     from agentdecompile_recovery.corpus.dashboard.common import page_window
 
-    url = (bsim_url or "").strip() or default_bsim_url(datadir=datadir, name=name)
+    url = resolve_bsim_url(bsim_url=bsim_url, datadir=datadir, name=name)
+    if not url:
+        return {"ok": False, "error": MISSING_BSIM_URL, "results": [], "total": 0}
     if not program:
         return {"ok": False, "error": "program name is required", "results": [], "total": 0}
     ran = _run(["listfuncs", url, "--name", program], runner=runner)

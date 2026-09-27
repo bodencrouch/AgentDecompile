@@ -315,7 +315,6 @@ def _defer_expensive_default_analyzers(program: GhidraProgram, analyzers: list[s
 
 
 def _run_auto_analysis(program: GhidraProgram, *, analyzers: list[str] | None = None) -> list[str]:
-    deferred = _defer_expensive_default_analyzers(program, analyzers)
     # Callers reach this only after ``program_needs_analysis`` said analysis is
     # needed, so the run is always forced.  ghidrecomp's own gate consults only
     # ``shouldAskToAnalyze``; a freshly imported program can have that flag off
@@ -334,12 +333,18 @@ def _run_auto_analysis(program: GhidraProgram, *, analyzers: list[str] | None = 
     # entry here is harmless when the batch transaction is alive (it nests) and
     # its writes are visible to the analyzed-flag check below, which reads the
     # same database handle.
+    #
+    # Analyzer options are program data too: set them inside the same entry, or
+    # with no batch transaction setBoolean raises NoTransactionException, which
+    # _defer_expensive_default_analyzers swallows and the deferral silently lapses.
     start_transaction = getattr(program, "startTransaction", None)
     if not callable(start_transaction):
+        deferred = _defer_expensive_default_analyzers(program, analyzers)
         run_analysis(program, force_analysis=True)
     else:
         tx_id = start_transaction("AgentDecompile auto-analysis")
         try:
+            deferred = _defer_expensive_default_analyzers(program, analyzers)
             run_analysis(program, force_analysis=True)
         finally:
             # Commit what ran, as HeadlessAnalyzer does, even when an analyzer raised.

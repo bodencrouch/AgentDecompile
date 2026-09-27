@@ -314,6 +314,13 @@ def _defer_expensive_default_analyzers(program: GhidraProgram, analyzers: list[s
         return []
 
 
+def _safe_program_name(program: GhidraProgram) -> str:
+    try:
+        return str(program.getName())
+    except Exception:
+        return "?"
+
+
 def _run_auto_analysis(program: GhidraProgram, *, analyzers: list[str] | None = None) -> list[str]:
     # Callers reach this only after ``program_needs_analysis`` said analysis is
     # needed, so the run is always forced.  ghidrecomp's own gate consults only
@@ -346,8 +353,21 @@ def _run_auto_analysis(program: GhidraProgram, *, analyzers: list[str] | None = 
         try:
             deferred = _defer_expensive_default_analyzers(program, analyzers)
             run_analysis(program, force_analysis=True)
-        finally:
+        except BaseException:
             # Commit what ran, as HeadlessAnalyzer does, even when an analyzer raised.
+            # endTransaction can itself throw (IllegalStateException when the entry
+            # was already terminated); log that and re-raise the analyzer's error.
+            try:
+                program.endTransaction(tx_id, True)
+            except Exception as end_exc:
+                logger.warning(
+                    "program_analysis_end_transaction_failed program=%s error=%s: %s",
+                    _safe_program_name(program),
+                    type(end_exc).__name__,
+                    end_exc,
+                )
+            raise
+        else:
             program.endTransaction(tx_id, True)
     wait_for_program_analysis_idle(program)
     return deferred

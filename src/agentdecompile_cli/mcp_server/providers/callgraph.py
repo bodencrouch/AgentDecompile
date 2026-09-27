@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 class CallGraphToolProvider(ToolProvider):
     HANDLERS = {
         "getcallgraph": "_handle",
-        "gencallgraph": "_handle",
+        "gencallgraph": "_handle_gen",
     }
 
     def _get_callgraph_tool(self, *, program_info: ProgramInfo | SimpleNamespace | None):
@@ -86,6 +86,13 @@ class CallGraphToolProvider(ToolProvider):
                 inputSchema=schema,
             ),
         ]
+
+    async def _handle_gen(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        """gen-callgraph draws a graph; without a mode, _handle would infer callers/callees from direction and drop displayType."""
+        logger.debug("diag.enter %s", "mcp_server/providers/callgraph.py:CallGraphToolProvider._handle_gen")
+        if not self._get_str(args, "mode", "action", "operation"):
+            args = {**args, "mode": "graph"}
+        return await self._handle(args, program_info=program_info)
 
     async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/callgraph.py:CallGraphToolProvider._handle")

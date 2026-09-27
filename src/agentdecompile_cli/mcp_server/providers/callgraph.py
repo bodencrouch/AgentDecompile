@@ -99,12 +99,19 @@ class CallGraphToolProvider(ToolProvider):
         self._require_program(program_info=program_info)
         # function/addressOrSymbol: resolved via AddressUtil (0x=hex, else decimal) in CallGraphTool or _resolve_function
         func = self._get_address_or_symbol(args)
+        mode_explicit = self._get_str(args, "mode", "action", "operation")
+
+        # find-common-callers(programPath, functionAddresses) names no single function:
+        # the first functionAddresses entry is the primary one. _handle_callers skips
+        # it when it reappears among the others.
+        if not func and n(mode_explicit) == "commoncallers":
+            listed = self._other_functions(args, None)
+            func = listed[0] if listed else ""
 
         # No function specified → return whole-program call graph overview
         if not func:
             return await self._handle_overview(args, program_info=program_info)
 
-        mode_explicit = self._get_str(args, "mode", "action", "operation")
         direction_raw = self._get_str(args, "direction", default="calling")
         logger.info("get-call-graph function=%s direction=%s", func, direction_raw)
         _dir_aliases = {"callers": "calling", "callees": "called", "up": "calling", "down": "called"}

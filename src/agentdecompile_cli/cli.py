@@ -78,6 +78,7 @@ from agentdecompile_cli.registry import (
     TOOL_PARAM_ALIASES,
     TOOLS,
     Tool,
+    apply_alias_implied_arguments,
     get_tool_params,
     normalize_identifier,
     to_snake_case,
@@ -1258,7 +1259,9 @@ def _resolve_tool_call_target(tool: str, payload: dict[str, Any]) -> tuple[str, 
     if resolved_tool is not None:
         call_tool_name = resolved_tool
 
-    resolved_payload = dict(payload)
+    # The server sees only the canonical name, so add the mode an overload alias
+    # (get-function-count -> mode=count) implies before the alias is dropped.
+    resolved_payload = apply_alias_implied_arguments(tool, payload)
 
     if call_tool_name in NON_ADVERTISED_TOOL_ALIASES:
         forwarded_tool = NON_ADVERTISED_TOOL_ALIASES[call_tool_name]

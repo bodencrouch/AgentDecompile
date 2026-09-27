@@ -1209,6 +1209,85 @@ def tool_owns_format_param(tool_name: str) -> bool:
         return False
     return any(normalize_identifier(param) == "format" for param in TOOL_PARAMS.get(tool, []))
 
+# Keys that choose what a tool does (mode/action/...). A caller that sends any of
+# them has already picked a behaviour.
+SELECTOR_PARAM_ALIASES: frozenset[str] = frozenset(
+    {
+        "action",
+        "actiontype",
+        "command",
+        "intent",
+        "method",
+        "mode",
+        "op",
+        "operation",
+        "task",
+        "type",
+        "verb",
+    },
+)
+
+# Overload aliases that forward to a multi-mode tool and imply its selector.
+# Key: normalized alias tool name -> arguments to add when the caller chose none.
+# Every value is a key of the owning provider's dispatch table.
+TOOL_ALIAS_IMPLIED_ARGUMENTS: dict[str, dict[str, str]] = {
+    normalize_identifier(alias): implied
+    for alias, implied in {
+        # analyze-data-flow reads direction before mode.
+        "find-variable-accesses": {"direction": "variable_accesses"},
+        "trace-data-flow-backward": {"direction": "backward"},
+        "trace-data-flow-forward": {"direction": "forward"},
+        "analyze-vtable": {"mode": "analyze"},
+        "find-vtable-callers": {"mode": "callers"},
+        "find-vtables-containing-function": {"mode": "containing"},
+        "find-common-callers": {"mode": "common_callers"},
+        "get-call-tree": {"mode": "tree"},
+        "get-callers-decompiled": {"mode": "callers_decomp"},
+        "disassemble_function": {"view": "disassemble"},
+        "get_xrefs_to": {"mode": "to"},
+        "get_xrefs_from": {"mode": "from"},
+        "find-import-references": {"mode": "import"},
+        "get-referencers-decompiled": {"mode": "referencers_decomp"},
+        "resolve-thunk": {"mode": "thunk"},
+        "get-memory-blocks": {"mode": "blocks"},
+        "read-memory": {"mode": "read"},
+        "list_segments": {"mode": "segments"},
+        "list_data_items": {"mode": "data_items"},
+        "get-function-count": {"mode": "count"},
+        "get-functions-by-similarity": {"mode": "similarity"},
+        "get-undefined-function-candidates": {"mode": "undefined"},
+        "find-constant-uses": {"mode": "specific"},
+        "find-constants-in-range": {"mode": "range"},
+        "list-common-constants": {"mode": "common"},
+    }.items()
+}
+
+
+def apply_alias_implied_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return *arguments* plus the selector an overload alias implies.
+
+    ``get-function-count`` forwards to list-functions and means ``mode=count``.
+    Nothing is added when the caller already chose: the implied key itself, any
+    selector key, or a TOOLS_LIST synonym of the implied key with a value.
+    ``format`` never counts: it is every tool's output format and the CLI always
+    sends it, although TOOLS_LIST lists it as an inspect-memory mode synonym.
+    """
+    implied = TOOL_ALIAS_IMPLIED_ARGUMENTS.get(normalize_identifier(tool_name))
+    if not implied:
+        return dict(arguments)
+    canonical = resolve_tool_name(tool_name) or tool_name
+    synonyms = TOOL_PARAM_ALIASES.get(normalize_identifier(canonical), {})
+    chosen_keys = set(SELECTOR_PARAM_ALIASES)
+    for key in implied:
+        chosen_keys.add(key)
+        chosen_keys.update(alias for alias, targets in synonyms.items() if key in targets)
+    chosen_keys.discard("format")
+    for key, value in arguments.items():
+        if normalize_identifier(key) in chosen_keys and value is not None and str(value).strip():
+            return dict(arguments)
+    return {**arguments, **implied}
+
+
 # Default advertised surface (MCP + CLI) is blacklist-driven.
 # All tools remain accepted via normalize/resolve/dispatch regardless of advertisement.
 # New tools are auto-advertised unless added to this hidden set.

@@ -66,10 +66,13 @@ from agentdecompile_cli.registry import (  # pyright: ignore[reportMissingImport
     ADVERTISED_TOOL_PARAMS,
     RESPONSE_FORMAT_PARAM,
     RESPONSE_FORMAT_VALUES,
+
+    SELECTOR_PARAM_ALIASES,
     TOOL_ALIASES,
     TOOL_PARAM_ALIASES,
     Tool,
     _auto_checkin_enabled,
+    apply_alias_implied_arguments,
     get_advertised_tools_for_list,
     get_effective_max_analysis_tier,
     get_tool_analysis_tier,
@@ -394,21 +397,7 @@ _ARRAY_PARAMS = frozenset(
     },
 )
 
-_SELECTOR_PARAM_ALIASES = frozenset(
-    {
-        "action",
-        "actiontype",
-        "command",
-        "intent",
-        "method",
-        "mode",
-        "op",
-        "operation",
-        "task",
-        "type",
-        "verb",
-    },
-)
+_SELECTOR_PARAM_ALIASES = SELECTOR_PARAM_ALIASES
 
 
 T = TypeVar("T")
@@ -975,6 +964,11 @@ class ToolProvider:
         # preserves the existing last-spelling-wins behavior for colliding inputs.
         norm_args: dict[str, Any] = {n(k): v for k, v in (arguments or {}).items()}
         auto_prereq_invocation: bool = self._get_bool(norm_args, "autoprereqinvocation", default=False)
+
+        # An overload alias such as get-function-count implies its mode when the
+        # caller chose none. `name` is still the name the caller used. Runs before the
+        # synonym pass, which would copy the output `format` into inspect-memory's mode.
+        norm_args = apply_alias_implied_arguments(name, norm_args)
 
         # Apply tool-specific parameter aliases: if the client sent a synonym (e.g. "action"
         # instead of "mode"), copy the value to the canonical key so _get_str(args, "mode", "action")

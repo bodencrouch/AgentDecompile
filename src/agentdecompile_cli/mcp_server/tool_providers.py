@@ -66,8 +66,7 @@ from agentdecompile_cli.registry import (  # pyright: ignore[reportMissingImport
     ADVERTISED_TOOL_PARAMS,
     RESPONSE_FORMAT_PARAM,
     RESPONSE_FORMAT_VALUES,
-
-    SELECTOR_PARAM_ALIASES,
+    SELECTOR_PARAM_ALIASES as _SELECTOR_PARAM_ALIASES,
     TOOL_ALIASES,
     TOOL_PARAM_ALIASES,
     Tool,
@@ -396,8 +395,6 @@ _ARRAY_PARAMS = frozenset(
         "tags",
     },
 )
-
-_SELECTOR_PARAM_ALIASES = SELECTOR_PARAM_ALIASES
 
 
 T = TypeVar("T")

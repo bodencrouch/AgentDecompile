@@ -957,6 +957,8 @@ def collect_constants(
     predicate: Callable[[int], bool] = value_filter or (lambda _v: True)
 
     constants: dict[int, list[dict[str, Any]]] = {}
+    # Full hit count per value; ``constants`` keeps at most samples_per_constant samples.
+    counts: dict[int, int] = {}
     instr_count = 0
     try:
         instr_iter: GhidraInstructionIterator = listing.getInstructions(True)
@@ -975,6 +977,7 @@ def collect_constants(
                             continue
                         if val not in constants:
                             constants[val] = []
+                        counts[val] = counts.get(val, 0) + 1
                         if len(constants[val]) < samples_per_constant:
                             constants[val].append(
                                 {
@@ -987,14 +990,14 @@ def collect_constants(
     except Exception as e:
         logger.warning("Instruction scan error: %s", e)
 
-    sorted_vals = sorted(constants.keys(), key=lambda v: len(constants[v]), reverse=True)
+    sorted_vals = sorted(constants.keys(), key=lambda v: counts[v], reverse=True)
     all_results: list[dict[str, Any]] = []
     for val in sorted_vals:
         all_results.append(
             {
                 "value": val,
                 "hex": hex(val),
-                "occurrences": len(constants[val]),
+                "occurrences": counts[val],
                 "samples": constants[val],
             },
         )

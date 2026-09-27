@@ -126,3 +126,34 @@ def test_hex_looking_symbol_name_resolves_to_the_symbol() -> None:
     prog2 = _SymProgram({"007b5000": 0x1})
     assert AddressUtil.resolve_address_or_symbol(prog2, "007b5000").offset == 0x007B5000
     assert AddressUtil.resolve_address_or_symbol(prog, "0xadd").offset == 0xADD
+
+
+@pytest.mark.unit
+def test_constants_count_every_hit_and_render_samples() -> None:
+    """Live: `constants specific --value 5` printed rows with empty Address/Function/Mnemonic,
+    and occurrences were capped at samples_per_constant."""
+    from agentdecompile_cli.mcp_server.providers._collectors import collect_constants
+
+    def instr(addr: str, value: int):
+        scalar = SimpleNamespace(getValue=lambda: value)
+        return SimpleNamespace(
+            getNumOperands=lambda: 1,
+            getOpObjects=lambda _i: [scalar],
+            getAddress=lambda: addr,
+            __str__=lambda: f"MOV EAX,{value:#x}",
+        )
+
+    instrs = [instr(f"0040{i:04x}", 5) for i in range(7)]
+    it = iter(instrs)
+    pending = list(instrs)
+    iterator = SimpleNamespace(hasNext=lambda: bool(pending), next=lambda: (pending.pop(0), next(it))[1])
+    program = SimpleNamespace(getListing=lambda: SimpleNamespace(getInstructions=lambda _fwd: iterator))
+
+    results, scanned = collect_constants(program, value_filter=lambda v: v == 5, samples_per_constant=3)
+    assert scanned == 7
+    assert results[0]["occurrences"] == 7
+    assert len(results[0]["samples"]) == 3
+
+    text = render_tool_response("searchconstants", {"mode": "specific", "results": results, "instructionsScanned": 7})
+    assert "| 5 | 0x5 | 7 |" in text
+    assert "`00400000`" in text

@@ -2100,7 +2100,17 @@ def _render_constants(data: dict[str, Any]) -> str:
     results: list[dict[str, Any]] = data.get("results", [])
     if results:
         sample = results[0]
-        if "value" in sample:
+        if "value" in sample and "samples" in sample:
+            # collect_constants groups hits per value: value, hex, occurrences, samples[address, instruction].
+            headers = ["Value", "Hex", "Occurrences", "Sample Locations"]
+            rows = []
+            for r in results:
+                samples = r.get("samples") or []
+                shown = ", ".join(f"`{s.get('address', '')}` {s.get('instruction', '')}".strip() for s in samples[:3])
+                if len(samples) > 3:
+                    shown += f" (+{len(samples) - 3} more samples)"
+                rows.append([str(r.get("value", "")), str(r.get("hex", "")), str(r.get("occurrences", "")), shown])
+        elif "value" in sample:
             headers: list[str] = ["Address", "Value", "Function", "Mnemonic"]
             rows: list[list[str]] = [
                 [

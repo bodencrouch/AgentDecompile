@@ -368,9 +368,13 @@ def dispatch(args: argparse.Namespace) -> int | None:
         from .store import connect
 
         con = connect(args.db)
-        manifest, summary_path, summary = sm.generate(
-            con, args.repo_path, raw_dir=args.raw_dir, out_dir=args.out_dir
-        )
+        try:
+            manifest, summary_path, summary = sm.generate(
+                con, args.repo_path, raw_dir=args.raw_dir, out_dir=args.out_dir
+            )
+        except FileNotFoundError as exc:
+            print(f"error: {exc} (check --raw-dir)", file=sys.stderr)
+            return 2
         print(json.dumps(summary, indent=2))
         print(f"wrote {manifest}")
         print(f"wrote {summary_path}")
@@ -479,6 +483,12 @@ def dispatch(args: argparse.Namespace) -> int | None:
         row = con.execute("SELECT id FROM binary WHERE repo_path=?", (args.repo_path,)).fetchone()
         if row is None:
             print(f"error: not in database: {args.repo_path}", file=sys.stderr)
+            return 2
+        has_table = con.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='ghidra_type'"
+        ).fetchone()
+        if has_table is None:
+            print("error: no ghidra_type table (run export-types first)", file=sys.stderr)
             return 2
         result = bth.build_header(con, int(row["id"]), args.out, program=args.repo_path)
         print(json.dumps(result, indent=2))

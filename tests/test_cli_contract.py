@@ -903,3 +903,41 @@ def test_derived_shortcuts_can_reach_their_run_command() -> None:
         "derived shortcuts cannot bind their run command:\n" + "\n".join(problems)
     )
 
+# Global options `_add_global_options` stacks onto every generated command. They
+# are not tool parameters, so they are excluded when checking derivability.
+GENERATED_GLOBAL_PARAMS = frozenset({"host", "port", "server_url", "format"})
+
+
+def test_dynamic_command_params_come_from_the_tool_registry() -> None:
+    """Every parameter of a generated command must trace back to its tool.
+
+    The 68 commands built by `_create_dynamic_commands` take **kwargs and forward
+    them straight into the request, so a parameter name that does not match the
+    registry is sent to the server as-is: the option still parses, the command
+    still exits 0, and the payload carries a key the tool does not know. That is
+    silent corruption rather than a failure, and no other check here would see it.
+    """
+    from agentdecompile_cli.cli import _supported_cli_tool_params, to_snake_case
+    from agentdecompile_cli.registry import TOOL_PARAMS
+
+    root = click_root()
+    problems: list[str] = []
+    checked = 0
+    for name, command in root.commands.items():
+        if isinstance(command, click.Group):
+            continue
+        inner = getattr(command.callback, "__wrapped__", command.callback)
+        if getattr(inner, "__name__", "") != "tool_command" or name not in TOOL_PARAMS:
+            continue
+        checked += 1
+        expected = {to_snake_case(param) for param in _supported_cli_tool_params(name)}
+        exposed = {param.name for param in command.params if param.expose_value}
+        undeclared = exposed - expected - GENERATED_GLOBAL_PARAMS
+        if undeclared:
+            problems.append(f"{name} exposes {sorted(undeclared)}, absent from its registry parameters")
+    assert checked, "no generated tool commands found; the introspection no longer matches"
+    assert not problems, (
+        "generated commands expose parameters the tool registry does not declare:\n"
+        + "\n".join(problems)
+    )
+

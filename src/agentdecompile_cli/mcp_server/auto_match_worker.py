@@ -132,10 +132,12 @@ def run_auto_match_subprocess(
     Then propagates name/prototype/tags/comments/bookmarks as requested; handles
     versioned checkout/checkin when needed. Caller must pass only serializable
     arguments (strings, lists, floats). Returns a dict with success, error,
-    results (list of per-target entries), count, and sourceFunction.
+    results (list of per-target entries), count, errors (count of propagation
+    failures recorded per-target under entry["propagationErrors"]), and
+    sourceFunction.
     """
     logger.debug("diag.enter %s", "mcp_server/auto_match_worker.py:run_auto_match_subprocess")
-    result: dict[str, Any] = {"success": False, "error": None, "results": [], "count": 0}
+    result: dict[str, Any] = {"success": False, "error": None, "results": [], "count": 0, "errors": 0}
     logger.debug(
         "auto_match_worker_ipc_entry target_count=%s min_similarity=%s flags=name=%s tags=%s comments=%s proto=%s bookmarks=%s",
         len(target_program_paths),
@@ -303,7 +305,9 @@ def run_auto_match_subprocess(
                                 entry["propagated"].append("prototype")
                                 did_propagate = True
                             except Exception as exc:
+                                logger.debug("Propagate prototype failed for %s: %s", target_path, exc)
                                 entry.setdefault("propagationErrors", []).append({"kind": "prototype", "error": str(exc)})
+                                result["errors"] += 1
 
                     if propagate_tags:
                         source_tags: list[str] = [t.getName() for t in cast("Iterator[GhidraFunctionTag]", source_func.getTags())]
@@ -347,10 +351,15 @@ def run_auto_match_subprocess(
                                         _run_program_transaction(target_program, "match-function-comment", _set_comment)
                                         entry["propagated"].append("comment")
                                         did_propagate = True
-                                except Exception:
+                                except Exception as exc:
+                                    logger.debug("Propagate comment (%s) failed for %s: %s", ctype, target_path, exc)
+                                    entry.setdefault("propagationErrors", []).append({"kind": "comment", "error": str(exc)})
+                                    result["errors"] += 1
                                     continue
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("Propagate comments failed for %s: %s", target_path, exc)
+                            entry.setdefault("propagationErrors", []).append({"kind": "comments", "error": str(exc)})
+                            result["errors"] += 1
 
                     if propagate_bookmarks:
                         try:
@@ -375,8 +384,10 @@ def run_auto_match_subprocess(
                                 _run_program_transaction(target_program, "match-function-bookmarks", _set_bookmarks)
                                 entry["propagated"].append("bookmarks")
                                 did_propagate = True
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("Propagate bookmarks failed for %s: %s", target_path, exc)
+                            entry.setdefault("propagationErrors", []).append({"kind": "bookmarks", "error": str(exc)})
+                            result["errors"] += 1
 
                     # If we modified the target (or checked it out), checkin so changes are committed to the repo
                     if is_versioned and domain_file_tgt is not None and (we_did_checkout or did_propagate):

@@ -947,8 +947,6 @@ class ToolProvider:
                     if norm_args.get(target) is None:
                         norm_args[target] = value
 
-        # Freeze the resolved target before a handler can yield or open another program.
-        response_program_info = effective_program_info if norm_args.get("programpath") else None
         try:
             handler_params = inspect.signature(handler).parameters
             accepts_program_info = "program_info" in handler_params or any(
@@ -970,12 +968,14 @@ class ToolProvider:
 
                 sid = _get_sid()
                 if result and isinstance(result[0], types.TextContent):
-                    injected_text = inject_project_context(
-                        result[0].text,
-                        sid,
-                        tool_name_normalized=norm_name,
-                        target_program_info=response_program_info,
-                    )
+                    injected_text = result[0].text
+                    if effective_program_info is not None or not has_program_override:
+                        injected_text = inject_project_context(
+                            injected_text,
+                            sid,
+                            tool_name_normalized=norm_name,
+                            target_program_info=effective_program_info,
+                        )
                     injected_text = inject_ui_hints(
                         injected_text,
                         sid,

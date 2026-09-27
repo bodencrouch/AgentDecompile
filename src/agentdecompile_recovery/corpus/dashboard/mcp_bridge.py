@@ -243,6 +243,9 @@ def list_functions(
         "offset": start,
         "limit": chunk,
         "responseFormat": "json",
+        # list-functions includes imports by default; their EXTERNAL: addresses
+        # have no integer form, so the function browser would show blank rows.
+        "includeExternals": False,
     }
     if path:
         args["program_path"] = path

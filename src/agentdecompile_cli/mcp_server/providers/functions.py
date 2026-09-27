@@ -50,6 +50,10 @@ _VERBOSE_ROW_KEYS = ("parameters", "returnType", "hasVarArgs", "tags", "comments
 _DEFAULT_FUNCTION_NAME = re.compile(r"^(?:thunk_)?FUN_[0-9A-Fa-f]+$")
 
 
+def _strip_hex_prefix(text: str) -> str:
+    return text[2:] if text.startswith("0x") else text
+
+
 class FunctionToolProvider(ToolProvider):
     HANDLERS: ClassVar[dict[str, str]] = {
         "listfunctions": "_handle_list",
@@ -183,6 +187,9 @@ class FunctionToolProvider(ToolProvider):
         pat = re.compile(pattern, re.IGNORECASE) if pattern else None
 
         query_lower = query.lower()
+        # An address query matches like the workbench search: case-insensitive
+        # substring, with a leading 0x ignored on both sides (Ghidra prints 00401000).
+        query_addr = _strip_hex_prefix(query_lower.strip())
         try:
             query_regex = re.compile(query, re.IGNORECASE) if query else None
         except re.error:
@@ -210,13 +217,18 @@ class FunctionToolProvider(ToolProvider):
         verbose = self._get_bool(args, "verbose", default=False)
         ref_mgr = program.getReferenceManager() if min_refs > 0 else None
 
+        def query_matches(row, name):
+            if query_lower in name.lower() or (query_regex and query_regex.search(name)):
+                return True
+            return bool(query_addr) and query_addr in _strip_hex_prefix(str(row.get("address", "")).lower())
+
         def matches(row):
             name = str(row.get("name", ""))
             if not include_ext and row.get("isExternal"):
                 return False
             if pat and not pat.search(name):
                 return False
-            if query and query_lower not in name.lower() and not (query_regex and query_regex.search(name)):
+            if query and not query_matches(row, name):
                 return False
             if filter_default_names and _DEFAULT_FUNCTION_NAME.match(name):
                 return False

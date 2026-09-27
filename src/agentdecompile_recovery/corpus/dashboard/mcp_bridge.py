@@ -276,6 +276,7 @@ def list_functions(
     collected: list[dict[str, Any]] = []
     cursor = start
     last_error = ""
+    no_match = False
     while True:
         args["offset"] = cursor
         args["limit"] = chunk
@@ -287,9 +288,14 @@ def list_functions(
             if cap is not None or len(page) < chunk:
                 break
             continue
+        if q and hit.get("ok"):
+            # A successful empty page for a search means nothing matched, not
+            # that the program lacks functions or needs analysis.
+            no_match = True
+            break
         last_error = hit.get("error") or hit.get("text") or "Ghidra has no functions for this program yet."
         break
-    if collected:
+    if collected or no_match:
         return {
             "ok": True,
             "program": program,
@@ -297,7 +303,7 @@ def list_functions(
             "q": q,
             "offset": start,
             "limit": "all" if cap is None else cap,
-            "total": start + len(collected),
+            "total": start + len(collected) if collected else 0,
             "results": collected,
             "hasMore": cap is not None and len(collected) >= cap,
             "source": "ghidra-mcp",

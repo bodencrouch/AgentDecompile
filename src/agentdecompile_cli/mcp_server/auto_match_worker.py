@@ -294,13 +294,16 @@ def run_auto_match_subprocess(
                             try:
 
                                 def _set_proto() -> None:
-                                    target_func.setSignature(source_sig)
+                                    # Function has no setSignature(); see function_signature.py.
+                                    from agentdecompile_cli.mcp_server.function_signature import apply_function_signature
+
+                                    apply_function_signature(target_program, target_func, source_func.getSignature(), rename=False)
 
                                 _run_program_transaction(target_program, "match-function-prototype", _set_proto)
                                 entry["propagated"].append("prototype")
                                 did_propagate = True
-                            except Exception:
-                                pass  # setSignature not supported on all Ghidra versions or target may be read-only
+                            except Exception as exc:
+                                entry.setdefault("propagationErrors", []).append({"kind": "prototype", "error": str(exc)})
 
                     if propagate_tags:
                         source_tags: list[str] = [t.getName() for t in cast("Iterator[GhidraFunctionTag]", source_func.getTags())]

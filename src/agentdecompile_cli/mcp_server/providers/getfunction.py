@@ -1391,13 +1391,17 @@ class GetFunctionToolProvider(ToolProvider):
                     try:
 
                         def _set_proto() -> None:
-                            target_func.setSignature(source_sig)
+                            from agentdecompile_cli.mcp_server.function_signature import apply_function_signature
+
+                            apply_function_signature(target_program, target_func, source_func.getSignature(), rename=False)
 
                         self._run_program_transaction(target_program, "match-function-prototype", _set_proto)
                         entry["propagated"].append("prototype")
                         did_propagate = True
                     except Exception as e:
-                        logger.debug("Propagate prototype skipped for %s: %s", target_path, e)
+                        logger.debug("Propagate prototype failed for %s: %s", target_path, e)
+                        errors.append(f"{target_path}: prototype propagation failed: {e}")
+                        entry.setdefault("propagationErrors", []).append({"kind": "prototype", "error": str(e)})
 
             if propagate_tags:
                 source_tags = [t.getName() for t in source_func.getTags()]
@@ -1440,10 +1444,14 @@ class GetFunctionToolProvider(ToolProvider):
                                 self._run_program_transaction(target_program, "match-function-comment", _set_comment)
                                 entry["propagated"].append("comment")
                                 did_propagate = True
-                        except Exception:
+                        except Exception as e:
+                            errors.append(f"{target_path}: comment propagation failed: {e}")
+                            entry.setdefault("propagationErrors", []).append({"kind": "comment", "error": str(e)})
                             continue
                 except Exception as e:
-                    logger.debug("Propagate comments skipped: %s", e)
+                    logger.debug("Propagate comments failed: %s", e)
+                    errors.append(f"{target_path}: comment propagation failed: {e}")
+                    entry.setdefault("propagationErrors", []).append({"kind": "comments", "error": str(e)})
 
             if propagate_bookmarks:
                 try:
@@ -1467,7 +1475,9 @@ class GetFunctionToolProvider(ToolProvider):
                         entry["propagated"].append("bookmarks")
                         did_propagate = True
                 except Exception as e:
-                    logger.debug("Propagate bookmarks skipped: %s", e)
+                    logger.debug("Propagate bookmarks failed: %s", e)
+                    errors.append(f"{target_path}: bookmark propagation failed: {e}")
+                    entry.setdefault("propagationErrors", []).append({"kind": "bookmarks", "error": str(e)})
 
             # Enrich with get-function output for contextual details (same shape as get-function tool)
             manager: Any | None = getattr(self, "_manager", None)

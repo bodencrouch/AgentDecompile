@@ -3108,6 +3108,133 @@ def _render_get_function(data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _references_table(refs: list[dict[str, Any]]) -> str:
+    """From/To/Type(/Function) table for get-references to/from/function rows."""
+    if not refs:
+        return "*No references.*"
+    with_function = any("function" in r for r in refs)
+    headers = ["From", "To", "Type"] + (["Function"] if with_function else [])
+    rows: list[list[str]] = []
+    for r in refs:
+        row = [str(r.get("fromAddress", "")), str(r.get("toAddress", "")), str(r.get("type", ""))]
+        if with_function:
+            row.append(str(r.get("function") or ""))
+        rows.append(row)
+    return _md_table(headers, rows)
+
+
+def _render_references(data: dict[str, Any]) -> str:
+    """Render get-references / list-cross-references for every mode the xrefs provider returns."""
+    logger.debug("diag.enter %s", "mcp_server/response_formatter.py:_render_references")
+    mode = str(data.get("mode", "") or "")
+    lines: list[str] = []
+
+    if mode == "index":
+        lines.append(_md_heading(2, "Reference Hot Spots"))
+        lines.append("")
+        entries: list[dict[str, Any]] = data.get("entries", []) or []
+        total = data.get("total", len(entries))
+        lines.append(f"Showing **{len(entries)}** of **{total}** functions (offset {data.get('offset', 0)}), most referenced first.")
+        lines.append("")
+        if entries:
+            rows = [[str(e.get("address", "")), str(e.get("name", "")), str(e.get("referencesTo", "")), str(e.get("referencesFrom", ""))] for e in entries]
+            lines.append(_md_table(["Address", "Function", "Refs To", "Refs From"], rows))
+        else:
+            lines.append("*No functions.*")
+        return "\n".join(lines)
+
+    target = data.get("target") or data.get("function") or ""
+    heading = {
+        "to": "References To",
+        "from": "References From",
+        "both": "References",
+        "function": "References From Function",
+        "referencers_decomp": "Referencing Functions (Decompiled)",
+        "import": "Import References",
+        "thunk": "Thunk Target",
+    }.get(mode, "References")
+    lines.append(_md_heading(2, f"{heading} `{target}`" if target else heading))
+    lines.append("")
+
+    if mode == "both":
+        refs_to: list[dict[str, Any]] = data.get("referencesTo", []) or []
+        refs_from: list[dict[str, Any]] = data.get("referencesFrom", []) or []
+        lines.append(_md_heading(3, f"To ({len(refs_to)})"))
+        lines.append("")
+        lines.append(_references_table(refs_to))
+        lines.append("")
+        lines.append(_md_heading(3, f"From ({len(refs_from)})"))
+        lines.append("")
+        lines.append(_references_table(refs_from))
+        return "\n".join(lines)
+
+    if mode == "referencers_decomp":
+        referencers: list[dict[str, Any]] = data.get("referencers", []) or []
+        lines.append(_md_bold_kv("Functions", data.get("count", len(referencers))))
+        if not referencers:
+            lines.append("")
+            lines.append("*No referencing functions.*")
+        for item in referencers:
+            lines.append("")
+            addr = item.get("address")
+            name = item.get("function", "")
+            lines.append(_md_heading(3, f"`{name}` @ `{addr}`" if addr else f"`{name}`"))
+            lines.append("")
+            lines.append(_md_code_block(str(item.get("decompilation", "") or "").strip("\n"), "c"))
+        return "\n".join(lines)
+
+    if mode == "import":
+        refs: list[dict[str, Any]] = data.get("references", []) or []
+        lines.append(_md_bold_kv("Count", data.get("count", len(refs))))
+        lines.append("")
+        if refs:
+            rows = [[str(r.get("importName", "")), str(r.get("fromAddress", "")), str(r.get("function") or "")] for r in refs]
+            lines.append(_md_table(["Import", "From", "Function"], rows))
+        else:
+            lines.append("*No references.*")
+        return "\n".join(lines)
+
+    if mode == "thunk":
+        results: list[dict[str, Any]] = data.get("results", []) or []
+        if results:
+            rows = [[str(r.get("thunk", "")), str(r.get("thunkAddress", "")), str(r.get("target", "")), str(r.get("targetAddress", ""))] for r in results]
+            lines.append(_md_table(["Thunk", "Thunk Address", "Target", "Target Address"], rows))
+        else:
+            lines.append("*Not a thunk.*")
+        return "\n".join(lines)
+
+    # to / from / function (and any future mode that returns "references")
+    refs = data.get("references", []) or []
+    lines.append(_md_bold_kv("Count", data.get("count", len(refs))))
+    lines.append("")
+    lines.append(_references_table(refs))
+    return "\n".join(lines)
+
+
+def _key_display_title(key: str) -> str:
+    """Heading for a payload key: split camelCase and snake_case ("analysisByProgram" -> "Analysis By Program")."""
+    words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", key).replace("_", " ").split()
+    return " ".join(w[:1].upper() + w[1:] for w in words)
+
+
+def _tool_display_title(tool_name: str) -> str:
+    """Heading for a tool: canonical kebab name split into words ("get-references" -> "Get References").
+
+    Callers pass either a canonical name or the normalized squashed form
+    ("getreferences"); title-casing the squashed form gave "Getreferences".
+    """
+    if not tool_name:
+        return ""
+    canonical = tool_name
+    try:
+        resolved = Tool.from_string(tool_name)
+    except Exception:
+        resolved = None
+    if resolved is not None:
+        canonical = resolved.value
+    return " ".join(part.capitalize() for part in re.split(r"[-_\s]+", canonical) if part)
+
+
 def _render_generic(data: dict[str, Any], tool_name: str = "") -> str:
     """Smart generic renderer for tools without a custom renderer.
 
@@ -3120,9 +3247,9 @@ def _render_generic(data: dict[str, Any], tool_name: str = "") -> str:
 
     # Title from mode/action or tool name so the user knows which tool produced this
     mode = data.get("mode", data.get("action", data.get("operation", "")))
-    title = tool_name.replace("-", " ").title()
+    title = _tool_display_title(tool_name)
     if mode:
-        title = f"{title} ({mode})"
+        title = f"{title} ({mode})" if title else str(mode)
     lines.append(_md_heading(2, title))
     lines.append("")
 
@@ -3145,7 +3272,8 @@ def _render_generic(data: dict[str, Any], tool_name: str = "") -> str:
             lines.append("*No results.*")
     else:
         # Single item — render as key-value pairs
-        skip_keys = {"success", "nextSteps", "context", "nextTools"}
+        # projectContext/uiVisibility/guiHint/autoCheckin get their own sections in render_tool_response.
+        skip_keys = {"success", "nextSteps", "context", "nextTools", "projectContext", "uiVisibility", "guiHint", "autoCheckin"}
         for key, value in data.items():
             if key in skip_keys:
                 continue
@@ -3154,14 +3282,14 @@ def _render_generic(data: dict[str, Any], tool_name: str = "") -> str:
                     lines.append(_md_bold_kv(key, ", ".join(str(v) for v in value)))
                 elif isinstance(value, list) and value and isinstance(value[0], dict):
                     lines.append("")
-                    lines.append(_md_heading(3, key.replace("_", " ").title()))
+                    lines.append(_md_heading(3, _key_display_title(key)))
                     lines.append("")
                     headers = list(value[0].keys())
                     rows = [[_truncate(str(item.get(h, "")), 60) for h in headers] for item in cast("list[dict[str, Any]]", value)]
                     lines.append(_md_table(headers, rows))
                 elif isinstance(value, dict):
                     lines.append("")
-                    lines.append(_md_heading(3, key.replace("_", " ").title()))
+                    lines.append(_md_heading(3, _key_display_title(key)))
                     lines.append("")
                     for k2, v2 in value.items():
                         lines.append(_md_bold_kv(k2, v2))
@@ -3236,6 +3364,8 @@ TOOL_RENDERERS: dict[str, Callable[[dict[str, Any]], str]] = {
     "matchfunction": _render_generic,
     "managefunctiontags": _render_generic,
     "managefunction": _render_generic,
+    "getreferences": _render_references,
+    "listcrossreferences": _render_references,
 }
 
 
@@ -3270,7 +3400,8 @@ def render_tool_response(normalized_tool_name: str, data: dict[str, Any]) -> str
         renderer = TOOL_RENDERERS.get(normalized_tool_name)
         if renderer is not None:
             try:
-                body = renderer(data)
+                # _render_generic needs the tool name for its heading ("##  (list)" otherwise).
+                body = _render_generic(data, normalized_tool_name) if renderer is _render_generic else renderer(data)
             except Exception as exc:
                 logger.warning(
                     "tool_markdown_render_fallback normalized_tool=%s exc_type=%s payload_keys=%s",

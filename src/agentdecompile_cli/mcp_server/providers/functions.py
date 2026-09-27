@@ -189,7 +189,12 @@ class FunctionToolProvider(ToolProvider):
         query_lower = query.lower()
         # An address query matches like the workbench search: case-insensitive
         # substring, with a leading 0x ignored on both sides (Ghidra prints 00401000).
-        query_addr = _strip_hex_prefix(query_lower.strip())
+        # Only a query that looks like an address does, so "add" or "face" stay name searches.
+        query_stripped = query_lower.strip()
+        looks_like_address = bool(re.fullmatch(r"(0x)?[0-9a-f]+", query_stripped)) and (
+            query_stripped.startswith("0x") or any(ch.isdigit() for ch in query_stripped) or len(query_stripped) >= 6
+        )
+        query_addr = _strip_hex_prefix(query_stripped) if looks_like_address else ""
         try:
             query_regex = re.compile(query, re.IGNORECASE) if query else None
         except re.error:

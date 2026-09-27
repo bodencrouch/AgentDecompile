@@ -380,6 +380,12 @@ def _run_auto_analysis(program: GhidraProgram, *, analyzers: list[str] | None = 
 # unrelated tools); an explicit analyze-program retries and clears the entry on
 # success, and importing or (re)opening a program under the path clears it.
 # ProgramAnalysisTimeout is not recorded: it is transient, so the gate retries.
+#
+# The record is per process.  Each ``--local`` CLI invocation starts with an
+# empty dict, so for CLI users this record never stops a repeated failure; the
+# analysis transaction in _run_auto_analysis is what prevents the
+# NoTransactionException wedge there.  The record only matters to a long-lived
+# server process.
 _FAILED_ANALYSIS: dict[str, str] = {}
 
 

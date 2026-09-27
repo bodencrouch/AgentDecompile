@@ -627,6 +627,19 @@ REPAIRED_COMMAND_FLAGS: dict[tuple[str, ...], tuple[str, ...]] = {
     ("suggest",): ("-b", "--binary", "--suggestion-type", "--address", "--function", "--data-type", "--variable-address"),
     ("open-all-in-code-browser",): ("--folder-path", "--extensions"),
     ("data", "create-label"): ("-b", "--binary", "--name", "--primary"),
+    ("match-function",): (
+        "-b", "--binary", "--function-identifier", "--target-program-paths",
+        "--max-instructions", "--min-similarity", "--propagate-names", "--no-propagate-names",
+        "--propagate-tags", "--no-propagate-tags", "--propagate-comments", "--no-propagate-comments",
+        "--filter-default-names", "--no-filter-default-names", "--filter-by-tag",
+        "--max-functions", "--batch-size",
+    ),
+    ("function", "run"): (
+        "--action", "-b", "--binary", "--function-identifier", "--old-name", "--new-name",
+        "--variable-mappings", "--variable-name", "--new-type", "--datatype-mappings",
+        "--archive-name", "--create-if-not-exists", "--no-create-if-not-exists",
+        "--propagate-program-paths", "--propagate-max-candidates", "--propagate-max-instructions",
+    ),
 }
 
 
@@ -757,8 +770,13 @@ def test_only_generated_commands_escape_the_binding_check() -> None:
 
     A **kwargs callback cannot fail the unexpected-parameter check, so a
     hand-written command that grows one becomes unguarded against exactly the
-    defect this file exists to catch. The generated commands are structurally
-    exempt and covered instead by the invocation tests.
+    defect this file exists to catch.
+
+    The generated commands stay exempt and are NOT broadly covered elsewhere:
+    of the 128, only `export` is ever invoked by a test, and only to check that
+    `-f` stays out of the payload. The shortcut half of them is covered by
+    test_derived_shortcuts_can_reach_their_run_command below; the dynamic half
+    is not, which is a known gap rather than a claim of coverage.
     """
     hand_written_exempt: list[str] = []
     for path, command in _click_leaves():
@@ -829,5 +847,59 @@ def test_argparse_surface_has_not_collapsed() -> None:
         total += sum(1 for _ in walk_argparse(root, prog))
     assert total >= MIN_ARGPARSE_PARSERS, (
         f"only {total} argparse parsers walked, expected at least {MIN_ARGPARSE_PARSERS}"
+    )
+
+def _derived_shortcuts() -> list[tuple[str, click.Command, dict[str, Any]]]:
+    """Every shortcut built by `_derive_convenience_commands`, with its closure.
+
+    The shortcut's callback closes over the `run` command it forwards to, the
+    selector it pins, and the `omitted_values` dict it splats in. Those three are
+    what decide whether the forward can bind.
+    """
+    found: list[tuple[str, click.Command, dict[str, Any]]] = []
+    for path, command in _click_leaves():
+        inner = getattr(command.callback, "__wrapped__", command.callback)
+        try:
+            nonlocals = inspect.getclosurevars(inner).nonlocals
+        except (TypeError, ValueError):
+            continue
+        if {"run_command", "selector_name", "omitted_values"} <= set(nonlocals):
+            found.append((path, command, nonlocals))
+    return found
+
+
+def test_derived_shortcuts_can_reach_their_run_command() -> None:
+    """A shortcut forwards `omitted_options` by name into its `run` command.
+
+    `_derive_convenience_commands` splats `{name: None for name in
+    omitted_options}` into `ctx.invoke(run_command, ...)`, and that frozenset is
+    maintained by hand at ten call sites. A name left in it after the `run`
+    command's parameter was renamed makes every shortcut in that group raise
+    `TypeError: <run>() got an unexpected keyword argument '<stale>'` -- the same
+    failure as the eight commands this file was written for, one frame deeper.
+    The binding check cannot see it: these callbacks take **values.
+    """
+    shortcuts = _derived_shortcuts()
+    assert shortcuts, "no derived shortcuts found; the introspection no longer matches"
+    problems: list[str] = []
+    for path, command, nonlocals in shortcuts:
+        run_command = nonlocals["run_command"]
+        forwarded = set(nonlocals["omitted_values"])
+        forwarded.add(nonlocals["selector_name"])
+        forwarded.update(param.name for param in command.params if param.expose_value)
+        signature = callback_signature(run_command.callback)
+        if signature is None:
+            continue
+        accepted, _required, accepts_kwargs = signature
+        if accepts_kwargs:
+            continue
+        unexpected = forwarded - accepted
+        if unexpected:
+            problems.append(
+                f"{path} forwards {sorted(unexpected)} to "
+                f"{getattr(run_command, 'name', '?')}, which accepts no such parameter"
+            )
+    assert not problems, (
+        "derived shortcuts cannot bind their run command:\n" + "\n".join(problems)
     )
 

@@ -1208,6 +1208,11 @@ def _render_list_functions(data: dict[str, Any]) -> str:
     """Render list-functions response as markdown table."""
     logger.debug("diag.enter %s", "mcp_server/response_formatter.py:_render_list_functions")
     lines: list[str] = []
+    if data.get("mode") == "count":
+        lines.append(_md_heading(2, "Function Count"))
+        lines.append("")
+        lines.append(_md_bold_kv("Functions", data.get("count", 0)))
+        return "\n".join(lines)
     lines.append(_md_heading(2, "Function Listing"))
     lines.append("")
     lines.append(_pagination_footer(data))

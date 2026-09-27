@@ -567,12 +567,38 @@ def _get_function_list(fm: GhidraFunctionManager) -> list[GhidraFunction]:
     return []
 
 
-def collect_functions(program: GhidraProgram, *, limit: int | None = None) -> list[dict[str, Any]]:
-    """Single pass over all functions: name, address, signature, params, comments, tags, caller/callee counts. Used by list-functions and others."""
+def _get_external_function_list(fm: GhidraFunctionManager) -> list[GhidraFunction]:
+    """External (imported) functions. ``FunctionManager.getFunctions`` never yields these;
+    ``getFunctionCount`` does count them, so a listing without them falls short of the count."""
+    logger.debug("diag.enter %s", "mcp_server/providers/_collectors.py:_get_external_function_list")
+    if not hasattr(fm, "getExternalFunctions"):
+        return []
+    try:
+        iterator = fm.getExternalFunctions()
+    except Exception as exc:
+        logger.debug("_get_external_function_list: getExternalFunctions failed: %s", exc)
+        return []
+    try:
+        if hasattr(iterator, "hasNext"):
+            return list(iter_items(iterator))
+        return list(iterator)
+    except Exception as exc:
+        logger.debug("_get_external_function_list: iteration failed: %s", exc)
+        return []
+
+
+def collect_functions(program: GhidraProgram, *, limit: int | None = None, include_externals: bool = False) -> list[dict[str, Any]]:
+    """Single pass over all functions: name, address, signature, params, comments, tags, caller/callee counts. Used by list-functions and others.
+
+    ``include_externals`` appends external functions, which ``getFunctions`` does not iterate.
+    """
     logger.debug("diag.enter %s", "mcp_server/providers/_collectors.py:collect_functions")
     fm: GhidraFunctionManager = program.getFunctionManager()
     results: list[dict[str, Any]] = []
     func_list: list[GhidraFunction] = _get_function_list(fm)
+    if include_externals:
+        seen = {str(func.getEntryPoint()) for func in func_list if hasattr(func, "getEntryPoint")}
+        func_list = func_list + [func for func in _get_external_function_list(fm) if str(func.getEntryPoint()) not in seen]
 
     for func in func_list:
         if not hasattr(func, "getName"):

@@ -3589,7 +3589,8 @@ def list_functions_grp() -> None:
 @click.option("--offset", type=int)
 @click.option(
     "--filter-default-names/--no-filter-default-names",
-    default=True,
+    default=None,
+    help="Hide auto-generated FUN_ names (default: shown)",
 )
 @click.option("--filter-by-tag")
 @click.option("--untagged", is_flag=True)
@@ -3606,7 +3607,7 @@ def list_functions_run(
     identifiers: tuple[str, ...],
     start_index: int | None,
     offset: int | None,
-    filter_default_names: bool,
+    filter_default_names: bool | None,
     filter_by_tag: str | None,
     untagged: bool,
     has_tags: bool,
@@ -3628,7 +3629,8 @@ def list_functions_run(
         payload["startIndex"] = start_index
     if offset is not None:
         payload["offset"] = offset
-    payload["filterDefaultNames"] = filter_default_names
+    if filter_default_names is not None:
+        payload["filterDefaultNames"] = filter_default_names
     if filter_by_tag is not None and filter_by_tag.strip():
         payload["filterByTag"] = filter_by_tag
     if untagged is not None:
@@ -3644,7 +3646,7 @@ _derive_convenience_commands(
     list_functions_run,
     "mode",
     omitted_options=frozenset(
-        {"search_string", "min_reference_count", "identifiers", "start_index", "filter_by_tag", "untagged", "has_tags"},
+        {"search_string", "start_index"},
     ),
 )
 

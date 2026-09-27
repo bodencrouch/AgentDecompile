@@ -334,27 +334,48 @@ class StructureToolProvider(ToolProvider):
 
             parser = CParser(dtm)
 
-            def _parse_c_struct() -> Any:
+            def _parse_c_struct() -> tuple[list[Any], str]:
                 from ghidra.program.model.data import DataTypeConflictHandler
 
-                dt = parser.parse(c_def)
-                # CParser does not necessarily store what it parses; resolve the
-                # result into the program's manager so it can be found afterwards.
-                if dt is not None:
-                    dt = dtm.resolve(dt, DataTypeConflictHandler.REPLACE_HANDLER)
-                return dt
+                last = parser.parse(c_def)
+                # CParser(dtm) does not store what it parses and parse() returns only
+                # the last declaration, so resolve every composite, enum and typedef
+                # it collected. Types the header only references were looked up in
+                # dtm by the parser and are not in these maps, so existing program
+                # types are not replaced by empty placeholders.
+                parsed: list[Any] = []
+                for table in (parser.getComposites(), parser.getEnums(), parser.getTypes()):
+                    if table is not None:
+                        parsed.extend(value for value in table.values() if value is not None)
+                if not parsed and last is not None:
+                    parsed.append(last)
+                resolved: list[Any] = []
+                seen: set[str] = set()
+                for item in parsed:
+                    stored = dtm.resolve(item, DataTypeConflictHandler.REPLACE_HANDLER)
+                    key = str(stored.getPathName()) if hasattr(stored, "getPathName") else str(stored)
+                    if key not in seen:
+                        seen.add(key)
+                        resolved.append(stored)
+                last_name = str(last.getName()) if last is not None and hasattr(last, "getName") else ""
+                return resolved, last_name
 
-            dt = self._run_program_transaction(program, "parse-c-struct", _parse_c_struct)
-            return create_success_response(
-                {
-                    "action": "modify_from_c",
-                    "parsed": True,
-                    "name": dt.getName() if hasattr(dt, "getName") else str(dt),
-                    "success": True,
-                },
-            )
-        except ImportError as e:
-            raise ValueError("CParser not available in this environment") from e
+            stored_types, last_name = self._run_program_transaction(program, "parse-c-struct", _parse_c_struct)
+            names = sorted(str(dt.getName()) if hasattr(dt, "getName") else str(dt) for dt in stored_types)
+            payload: dict[str, Any] = {
+                "action": "modify_from_c",
+                "parsed": True,
+                "name": last_name if last_name in names else (names[-1] if names else ""),
+                "names": names,
+                "count": len(names),
+                "success": True,
+            }
+            if len(names) > 1:
+                payload["batch"] = True
+                payload["results"] = [{"name": name, "success": True} for name in names]
+            return create_success_response(payload)
+        except ImportError:
+            raise ValueError("CParser not available in this environment")
 
     async def _parse(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._parse")

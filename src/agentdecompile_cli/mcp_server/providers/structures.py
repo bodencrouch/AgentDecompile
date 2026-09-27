@@ -371,16 +371,20 @@ class StructureToolProvider(ToolProvider):
 
         try:
             from ghidra.app.util.cparser.C import CParser
-            from ghidra.program.model.data import StandaloneDataTypeManager
+            from ghidra.program.model.data import StandAloneDataTypeManager
 
             # Validation must not add types to the program: parse into a throwaway manager.
-            scratch = StandaloneDataTypeManager("agentdecompile-validate")
+            # The program's manager is passed as a read-only source so definitions that
+            # use program types (DWORD, undefined4, user structs) still resolve.
+            scratch = StandAloneDataTypeManager("agentdecompile-validate")
             try:
-                parser = CParser(scratch)
+                parser = CParser(scratch, False, [program_info.program.getDataTypeManager()])
                 dt = parser.parse(c_def)
+                # Read the name while the scratch manager is still open.
+                name = str(dt.getName()) if hasattr(dt, "getName") else str(dt)
             finally:
                 scratch.close()
-            return create_success_response({"action": "validate", "valid": True, "name": str(dt.getName()) if hasattr(dt, "getName") else str(dt)})
+            return create_success_response({"action": "validate", "valid": True, "name": name})
         except Exception as e:
             return create_success_response({"action": "validate", "valid": False, "error": str(e)})
 

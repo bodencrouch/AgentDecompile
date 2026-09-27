@@ -251,6 +251,23 @@ def test_argparse_options_are_not_declared_twice() -> None:
 # --------------------------------------------------------------------------- #
 # argparse: handler reads vs declared dests
 # --------------------------------------------------------------------------- #
+def _dotted_name(node: ast.expr) -> str | None:
+    """The full dotted chain of a ``Name``/``Attribute`` expression, or ``None``.
+
+    ``agentdecompile_recovery.x.y(args)`` calls this on the ``func.value`` of the
+    call (``agentdecompile_recovery.x``) to get the whole prefix, not just the
+    last segment -- a plain ``isinstance(..., ast.Name)`` check would miss a
+    fully-dotted, unaliased module reference entirely. A call chain such as
+    ``foo().y(args)`` is not a dotted name and correctly returns ``None``.
+    """
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        base = _dotted_name(node.value)
+        return f"{base}.{node.attr}" if base is not None else None
+    return None
+
+
 class _NamespaceReads(ast.NodeVisitor):
     """Collect ``<var>.attr`` reads, and note when ``<var>`` is passed on whole."""
 
@@ -276,10 +293,12 @@ class _NamespaceReads(ast.NodeVisitor):
             name = node.func.id
         elif isinstance(node.func, ast.Attribute):
             name = node.func.attr
-            if isinstance(node.func.value, ast.Name):
-                # `kx_cli.dispatch(args)` -- `kx_cli` is an imported module, not a
-                # local function, so it is resolved through imports, not `table`.
-                qualifier = node.func.value.id
+            # `kx_cli.dispatch(args)` or the fully-dotted
+            # `agentdecompile_recovery.x.dispatch(args)` -- either way the base is
+            # an imported module, not a local function, so it is resolved through
+            # imports, not `table`. `_dotted_name` returns the whole chain
+            # ("agentdecompile_recovery.x"), not just its last segment.
+            qualifier = _dotted_name(node.func.value)
         # `getattr(args, "unity_editor", None)` is a read of `unity_editor`, but it
         # is a Call node, so visit_Attribute never sees it. Harvesting the literal
         # name is what keeps these out of the "passed whole" bucket, where they
@@ -456,15 +475,59 @@ def _handler_reads(handler: Any) -> _DispatchEntry | None:
 
 
 
-def _function_table(sources: tuple[str, ...]) -> dict[str, ast.FunctionDef | ast.AsyncFunctionDef]:
-    """Top-level functions of the dispatching modules, by name."""
+def _index_functions(
+    tree: ast.Module,
+) -> tuple[dict[str, ast.FunctionDef | ast.AsyncFunctionDef], frozenset[int]]:
+    """Functions defined anywhere in ``tree``, by name, plus the ``id()`` of the
+    ones defined directly inside a class body.
+
+    Unlike a blanket ``ast.walk``, this tracks nesting explicitly so a class
+    method can be told apart from a same-named module-level function -- needed
+    to know whether a qualified call (``X.m(args)``) has an implicit
+    ``self``/``cls`` to drop before binding an argument position.
+    """
+    functions: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
+    methods: set[int] = set()
+
+    def visit(statements: list[ast.stmt], in_class: bool) -> None:
+        for statement in statements:
+            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                functions.setdefault(statement.name, statement)
+                if in_class:
+                    methods.add(id(statement))
+                visit(statement.body, False)
+            elif isinstance(statement, ast.ClassDef):
+                visit(statement.body, True)
+            elif isinstance(statement, (ast.If, ast.Try, ast.With, ast.For, ast.While)):
+                visit(statement.body, in_class)
+                visit(list(getattr(statement, "orelse", []) or []), in_class)
+
+    visit(tree.body, False)
+    return functions, frozenset(methods)
+
+
+def _is_staticmethod(function: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    for decorator in function.decorator_list:
+        if isinstance(decorator, ast.Name) and decorator.id == "staticmethod":
+            return True
+        if isinstance(decorator, ast.Attribute) and decorator.attr == "staticmethod":
+            return True
+    return False
+
+
+def _function_table(
+    sources: tuple[str, ...],
+) -> tuple[dict[str, ast.FunctionDef | ast.AsyncFunctionDef], frozenset[int]]:
+    """Functions of the dispatching modules, by name, and which of them are methods."""
     table: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {}
+    methods: set[int] = set()
     for relative in sources:
         tree = ast.parse((REPO_ROOT / relative).read_text())
-        for node in ast.walk(tree):
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                table.setdefault(node.name, node)
-    return table
+        found, found_methods = _index_functions(tree)
+        for name, node in found.items():
+            table.setdefault(name, node)
+        methods |= found_methods
+    return table, frozenset(methods)
 
 
 # Packages this scan is willing to follow a delegate into. A read inside stdlib
@@ -548,21 +611,19 @@ def _nested_imports(statements: list[ast.stmt]) -> Iterator[ast.Import | ast.Imp
                 yield node
 
 
-# Module dotted-name -> (its top-level functions, its module-level import aliases),
-# or ``None`` when the module could not be resolved/parsed. Read from source text
-# only -- nothing here is ever imported, so a heavy or side-effecting module stays
-# inert. The alias map here is module-level only (see ``_toplevel_imports``); two
-# handlers in the same file each importing a same-named delegate under the same
-# local alias -- ``as _run``, for instance -- is common in this codebase, and a
-# whole-module merge would silently let one shadow the other.
-_MODULE_CACHE: dict[
-    str, tuple[dict[str, ast.FunctionDef | ast.AsyncFunctionDef], dict[str, tuple[str, str | None]]] | None
-] = {}
+# Module dotted-name -> (its functions, which of them are methods, its
+# module-level import aliases), or ``None`` when the module could not be
+# resolved/parsed. Read from source text only -- nothing here is ever
+# imported, so a heavy or side-effecting module stays inert. The alias map
+# here is module-level only (see ``_toplevel_imports``); two handlers in the
+# same file each importing a same-named delegate under the same local alias --
+# ``as _run``, for instance -- is common in this codebase, and a whole-module
+# merge would silently let one shadow the other.
+_LoadedModule = tuple[dict[str, ast.FunctionDef | ast.AsyncFunctionDef], frozenset[int], dict[str, tuple[str, str | None]]]
+_MODULE_CACHE: dict[str, _LoadedModule | None] = {}
 
 
-def _load_module(
-    dotted: str,
-) -> tuple[dict[str, ast.FunctionDef | ast.AsyncFunctionDef], dict[str, tuple[str, str | None]]] | None:
+def _load_module(dotted: str) -> _LoadedModule | None:
     if dotted in _MODULE_CACHE:
         return _MODULE_CACHE[dotted]
     result = None
@@ -574,12 +635,8 @@ def _load_module(
                     tree = ast.parse(candidate.read_text())
                 except SyntaxError:
                     break
-                functions = {
-                    node.name: node
-                    for node in ast.walk(tree)
-                    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-                }
-                result = (functions, _alias_map(_toplevel_imports(tree.body), dotted))
+                functions, methods = _index_functions(tree)
+                result = (functions, methods, _alias_map(_toplevel_imports(tree.body), dotted))
                 break
     _MODULE_CACHE[dotted] = result
     return result
@@ -591,7 +648,7 @@ def _scoped_import_map(body: list[ast.stmt], dotted: str) -> dict[str, tuple[str
     delegate to keep startup import time down.
     """
     loaded = _load_module(dotted)
-    module_level = loaded[1] if loaded else {}
+    module_level = loaded[2] if loaded else {}
     return {**module_level, **_alias_map(_nested_imports(body), dotted)}
 
 
@@ -603,9 +660,20 @@ def _delegate_target(
         # `kx_cli.dispatch(args)`: `qualifier` must be a module alias, and `name`
         # is the attribute called on it.
         target = imports.get(qualifier)
-        if target is None or target[1] is not None:
-            return None
-        return target[0], name
+        if target is not None and target[1] is None:
+            return target[0], name
+        # Fully dotted and unaliased -- `agentdecompile_recovery.x.y(args)` after
+        # a plain `import agentdecompile_recovery.x`. There is no single alias
+        # key for "agentdecompile_recovery.x" (only its leading segment is ever
+        # bound by an import statement), so the qualifier is used as the module
+        # path directly once that leading segment is confirmed to be a real
+        # import surface; a wrong guess simply fails to resolve to a file in
+        # `_load_module`, so nothing wrong gets followed.
+        head = qualifier.split(".", 1)[0]
+        head_target = imports.get(head)
+        if head_target is not None and head_target[1] is None and "." in qualifier:
+            return qualifier, name
+        return None
     # `apply_extras(args)` after `from .registry import apply_extras`.
     target = imports.get(name)
     if target is None or target[1] is None:
@@ -616,6 +684,7 @@ def _delegate_target(
 def _resolve_delegated_reads(
     delegates: set[tuple[str | None, str, int | str]],
     table: dict[str, ast.FunctionDef | ast.AsyncFunctionDef],
+    table_methods: frozenset[int],
     current_dotted: str,
     local_imports: dict[str, tuple[str, str | None]],
     depth: int = 3,
@@ -630,7 +699,9 @@ def _resolve_delegated_reads(
     at the exact call site, not the whole module -- so a handler that hands off
     to another module is no longer invisible here; once followed, the callee's
     own module and its own scoped imports become the context for anything it
-    delegates to in turn.
+    delegates to in turn. ``table_methods`` is the ``id()`` of every function in
+    ``table`` that is a class method, needed to drop an implicit ``self``/``cls``
+    before binding a qualified call's argument position.
     """
     if depth <= 0:
         return set()
@@ -638,34 +709,43 @@ def _resolve_delegated_reads(
     for delegate in delegates - seen:
         qualifier, name, where = delegate
         function = table.get(name) if qualifier is None else None
-        next_table, next_dotted = table, current_dotted
+        next_table, next_methods, next_dotted = table, table_methods, current_dotted
         if function is None:
             target = _delegate_target(qualifier, name, local_imports)
             if target is not None:
                 owner_dotted, func_name = target
                 loaded = _load_module(owner_dotted)
                 if loaded is not None:
-                    functions, _imports = loaded
+                    functions, owner_methods, _imports = loaded
                     function = functions.get(func_name)
                     if function is not None:
-                        next_table, next_dotted = functions, owner_dotted
+                        next_table, next_methods, next_dotted = functions, owner_methods, owner_dotted
             if function is None and qualifier is not None:
                 # `qualifier` was not an import alias -- most likely a locally
-                # defined class or object (``Grid.open(args)``). Same-file bare-
-                # name lookup is imprecise for a bound method (`self`/`cls` is
-                # invisible at the call site, so position tracking can be off by
-                # one), but it is what this scan did before qualifiers existed,
-                # so a local attribute call does not go blind here instead.
+                # defined class or object (``Grid.open(args)``). Same-file
+                # bare-name lookup, same as this scan did before qualifiers
+                # existed, so a local attribute call does not go blind instead.
                 function = table.get(name)
             if function is None:
                 continue
         parameters = [a.arg for a in function.args.args]
+        kwonly = [a.arg for a in function.args.kwonlyargs]
+        # A qualified call (`X.m(args)`) never spells out a bound `self`/`cls`
+        # at the call site, but the function's own parameter list still has it
+        # as parameters[0] -- an off-by-one that silently binds `where` to
+        # `self`/`cls` instead of the namespace unless dropped here first.
+        # Keyed on "is this a method" (`id(function) in table_methods`/
+        # `next_methods`), not the parameter's name: a plain module-level
+        # function called through an import alias, whose first parameter
+        # happens to be named `self`, is not a method and is left alone.
+        if qualifier is not None and id(function) in next_methods and not _is_staticmethod(function) and parameters:
+            parameters = parameters[1:]
         if isinstance(where, int):
             if where >= len(parameters):
                 continue
             var = parameters[where]
         else:
-            if where not in parameters:
+            if where not in parameters and where not in kwonly:
                 continue
             var = where
         reads = _NamespaceReads(var)
@@ -674,7 +754,7 @@ def _resolve_delegated_reads(
         attrs |= reads.attrs
         next_local_imports = _scoped_import_map(function.body, next_dotted)
         attrs |= _resolve_delegated_reads(
-            reads.delegates, next_table, next_dotted, next_local_imports, depth - 1, seen | {delegate}
+            reads.delegates, next_table, next_methods, next_dotted, next_local_imports, depth - 1, seen | {delegate}
         )
     return attrs
 
@@ -719,7 +799,7 @@ def test_argparse_handlers_only_read_declared_dests(prog: str, module_name: str)
         pytest.skip(f"{prog} declares no subcommands; no dispatch to cross-check")
 
     sources = EXTRA_DISPATCH_SOURCES.get(prog) or (_module_source(module_name),)
-    table = _function_table(sources)
+    table, table_methods = _function_table(sources)
     dispatch: dict[str, tuple[set[str], bool]] = {}
     delegated: list[str] = []
     for relative in sources:
@@ -727,7 +807,7 @@ def test_argparse_handlers_only_read_declared_dests(prog: str, module_name: str)
         for command, (attrs, whole, delegates, local_imports) in _scan_dispatch(REPO_ROOT / relative, dotted).items():
             # Follow the per-verb handler the branch delegates to, so the check
             # sees the reads that actually happen.
-            resolved = attrs | _resolve_delegated_reads(delegates, table, dotted, local_imports)
+            resolved = attrs | _resolve_delegated_reads(delegates, table, table_methods, dotted, local_imports)
             still_opaque = whole and not resolved - attrs
             known_attrs, known_whole = dispatch.get(command, (set(), False))
             dispatch[command] = (known_attrs | resolved, known_whole or still_opaque)
@@ -755,7 +835,7 @@ def test_argparse_handlers_only_read_declared_dests(prog: str, module_name: str)
                 uninspectable.append(name)
                 continue
             attrs, passed_whole, delegates, local_imports = reads
-            resolved = _resolve_delegated_reads(delegates, table, handler.__module__, local_imports)
+            resolved = _resolve_delegated_reads(delegates, table, table_methods, handler.__module__, local_imports)
             if resolved - attrs:
                 passed_whole = False
             attrs |= resolved
@@ -786,7 +866,7 @@ def test_argparse_handlers_only_read_declared_dests(prog: str, module_name: str)
                 checked += 1
                 nested_declared = dests_of(nested_sub) | dests_of(sub) | root_dests
                 nested_attrs = nested_reads[0] | _resolve_delegated_reads(
-                    nested_reads[2], table, nested_handler.__module__, nested_reads[3]
+                    nested_reads[2], table, table_methods, nested_handler.__module__, nested_reads[3]
                 )
                 nested_missing = {
                     attr for attr in nested_attrs if attr not in nested_declared and not attr.startswith("_")

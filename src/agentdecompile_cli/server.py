@@ -733,14 +733,23 @@ def build_parser() -> argparse.ArgumentParser:
         dest="require_auth",
         action="store_true",
         default=None,
-        help="Require HTTP Basic auth on every MCP request (auto-enabled when --ghidra-server-username is set)",
+        help=(
+            "Force HTTP Basic auth on every MCP request. Default: %(default)s "
+            "(unset: auth stays off unless AGENT_DECOMPILE_AUTH_ENABLED is set, and even then is "
+            "enforced only per-request, when a dynamic Ghidra host or a configured username is present)"
+        ),
     )
     g_server.add_argument(
         "--no-require-auth",
         dest="require_auth",
         action="store_false",
-        help="Disable HTTP Basic auth enforcement even when --ghidra-server-username is set",
+        help=(
+            "Explicitly leave auth unforced; has the same effect as omitting --require-auth "
+            "(AGENT_DECOMPILE_AUTH_ENABLED and any per-request signals still apply). "
+            "Default: %(default)s"
+        ),
     )
+    g_server.set_defaults(require_auth=None)
     g_server.add_argument(
         "--tls-cert",
         dest="tls_certfile",
@@ -981,14 +990,21 @@ def build_proxy_parser() -> argparse.ArgumentParser:
         dest="enable_exchange",
         action="store_true",
         default=None,
-        help="EXPERIMENTAL: serve the donated-compute work exchange on this proxy. Env: AGENT_DECOMPILE_EXCHANGE_ENABLED",
+        help=(
+            "EXPERIMENTAL: serve the donated-compute work exchange on this proxy. "
+            "Default: %(default)s (follows AGENT_DECOMPILE_EXCHANGE_ENABLED, else off)"
+        ),
     )
     parser.add_argument(
         "--no-enable-exchange",
         dest="enable_exchange",
         action="store_false",
-        help="Disable the experimental work exchange even when AGENT_DECOMPILE_EXCHANGE_ENABLED is set",
+        help=(
+            "Disable the experimental work exchange even when AGENT_DECOMPILE_EXCHANGE_ENABLED is set. "
+            "Default: %(default)s (follows AGENT_DECOMPILE_EXCHANGE_ENABLED, else off)"
+        ),
     )
+    parser.set_defaults(enable_exchange=None)
     return parser
 
 

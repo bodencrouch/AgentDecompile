@@ -318,3 +318,62 @@ def test_entry_point_only_reads_declared_dests(prog: str, module_name: str, buil
         f"{prog}: checked {len(attrs)} distinct dest read(s), "
         f"{unresolved} unresolved computed read site(s): {sorted(attrs)}",
     )
+
+
+# --------------------------------------------------------------------------- #
+# help-rendered default vs actual parsed default (Task 6 / D1, D2)
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    ("prog", "module_name", "builder_name", "entry_func_name"),
+    SERVER_CLIS,
+    ids=[case[0] for case in SERVER_CLIS],
+)
+def test_onoff_pair_default_matches_parsed_default(
+    prog: str, module_name: str, builder_name: str, entry_func_name: str,
+) -> None:
+    """``ArgumentDefaultsHelpFormatter`` prints ``action.default`` verbatim.
+
+    For a dest shared by a ``store_true``/``store_false`` on/off pair, argparse
+    resolves ``parse_args([])`` by walking the actions in declaration order and
+    keeping the *first* action's default that applies -- so whichever action
+    was declared first silently wins the real parsed default, while the
+    formatter still prints each action's own (possibly different, often
+    implicit) ``.default`` next to its own flag. D1/D2 were exactly this: the
+    ``store_false`` action had no explicit ``default=`` kwarg, so argparse gave
+    it an implicit ``True``, and the help text for ``--no-require-auth`` /
+    ``--no-enable-exchange`` printed "(default: True)" while
+    ``parse_args([])`` actually produced ``None``.
+
+    This check is structural, not textual: it does not scan rendered help
+    strings (which can legitimately explain the default in prose, e.g. "Default:
+    %(default)s (follows AGENT_DECOMPILE_AUTH_ENABLED, else off)"). It instead
+    compares each action's own ``.default`` attribute -- the exact value
+    ``ArgumentDefaultsHelpFormatter`` substitutes for ``%(default)s`` -- against
+    the real ``parse_args([]).<dest>`` value. Any future on/off pair that omits
+    ``default=`` on one side (or a ``set_defaults`` call that only reaches one
+    of the two actions) will fail here.
+    """
+    parser = _build(module_name, builder_name)
+    groups = _shared_dest_groups(parser)
+    real_defaults = vars(parser.parse_args([]))
+
+    problems: list[str] = []
+    for dest, actions in groups.items():
+        by_class = {type(a).__name__: a for a in actions}
+        if set(by_class) != {"_StoreTrueAction", "_StoreFalseAction"}:
+            # Not an on/off pair; covered by test_shared_dests_are_only_valid_onoff_pairs.
+            continue
+        if dest not in real_defaults:
+            problems.append(f"{prog}: dest {dest!r} not present in parse_args([]) namespace")
+            continue
+        real_default = real_defaults[dest]
+        for action in actions:
+            if action.default != real_default:
+                problems.append(
+                    f"{prog}: {action.option_strings[0]} help would render "
+                    f"'(default: {action.default!r})' but parse_args([]).{dest} is {real_default!r}",
+                )
+
+    assert not problems, "\n".join(problems)

@@ -1060,6 +1060,9 @@ def _drop_cross_param_synonyms(
     A synonym line that lists the tool's other parameter names (an overload
     signature pasted in by mistake) would copy an unrelated value into that
     parameter whenever it is unset: ``maxEntries=5`` also capped ``maxResults``.
+    The same slip can list one synonym under two parameters, which copies one
+    value into both (``inspect-memory view=bytes`` also set ``limit``); such a
+    synonym is dropped whole, since the doc does not say which edge is right.
     Runs after every section is parsed, so forwarded sections count too.
     Logs and drops the edge rather than raising, so a doc slip cannot break import.
     """
@@ -1077,6 +1080,14 @@ def _drop_cross_param_synonyms(
                     continue
                 logger.warning("TOOLS_LIST.md: %s lists parameter %s as a synonym of %s; ignoring it", tool_norm, alias, target)
                 targets.discard(target)
+        for alias, targets in list(alias_map.items()):
+            if len(targets - {alias}) <= 1:
+                continue
+            if allowed.get(alias) in targets:
+                alias_map[alias] = {allowed[alias]}
+                continue
+            logger.warning("TOOLS_LIST.md: %s lists synonym %s under %s; ignoring it", tool_norm, alias, ", ".join(sorted(targets)))
+            del alias_map[alias]
 
 
 def _merge_tools_list_params(base: dict[str, list[str]], extra: dict[str, list[str]]) -> dict[str, list[str]]:

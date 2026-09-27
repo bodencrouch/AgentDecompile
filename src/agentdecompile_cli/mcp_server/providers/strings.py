@@ -276,8 +276,10 @@ class StringToolProvider(ToolProvider):
                     session_decompiler = getattr(program_info, "decompiler", None)
             else:
                 session_decompiler = getattr(program_info, "decompiler", None)
-            lease_cm = acquire_decompiler_for_program(session_decompiler, program)
+            # Build the monitor first: acquiring the lease takes the session lock,
+            # and an exception after that point would never release it.
             monitor = make_task_monitor()
+            lease_cm = acquire_decompiler_for_program(session_decompiler, program)
         except Exception as exc:
             decompile_unavailable = str(exc)
             lease_cm = None

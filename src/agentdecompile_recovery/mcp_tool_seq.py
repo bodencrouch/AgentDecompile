@@ -150,8 +150,27 @@ def ensure_program_path_on_steps(steps: list[dict[str, Any]], program_path: str 
     return enriched
 
 
+def _parse_tool_seq_json_stdout(stdout: str) -> dict[str, Any] | None:
+    """Parse ``agentdecompile-cli -f json tool-seq`` output.
+
+    Shape: ``{"success": bool, "steps": [{"index", "name", "success", "result"}]}``
+    where ``result`` is the tool's JSON data (the CLI unwraps the MCP envelope).
+    """
+    try:
+        payload = json.loads(stdout or "")
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return None
+    if not isinstance(payload, dict) or not isinstance(payload.get("steps"), list) or not payload["steps"]:
+        return None
+    steps = [row for row in payload["steps"] if isinstance(row, dict)]
+    return {"success": payload.get("success"), "steps": steps, "json": True}
+
+
 def _parse_tool_seq_shell_stdout(stdout: str) -> dict[str, Any] | None:
-    """Parse agentdecompile-cli ``tool-seq`` shell-format output."""
+    """Parse agentdecompile-cli ``tool-seq`` output from before the CLI rendered step text.
+
+    Older CLIs printed ``success: ...`` / ``steps: [<repr>]`` lines by default.
+    """
 
     success: bool | None = None
     steps: list[dict[str, Any]] | None = None
@@ -175,13 +194,19 @@ def _parse_tool_seq_shell_stdout(stdout: str) -> dict[str, Any] | None:
 def _parse_step_outcome(stdout: str, stderr: str, returncode: int, *, step_index: int = 0, step_name: str | None = None) -> dict[str, Any]:
     conflict_id: str | None = None
     error: str | None = None
-    parsed = _parse_tool_seq_shell_stdout(stdout)
+    parsed = _parse_tool_seq_json_stdout(stdout) or _parse_tool_seq_shell_stdout(stdout)
     if parsed and parsed.get("steps"):
         steps = parsed["steps"]
         if 0 <= step_index < len(steps):
             row = steps[step_index]
             ok = bool(row.get("success"))
             result = row.get("result") if isinstance(row.get("result"), dict) else {}
+            if parsed.get("json") and "content" not in result:
+                # Tool data, not an envelope: the CLI already judged success.
+                conflict_id = str(result.get("conflictId") or result.get("conflict_id") or "") or None
+                if not ok:
+                    error = str(result.get("error") or result.get("message") or json.dumps(result, default=str))[:500] or None
+                return {"ok": ok and not conflict_id, "conflictId": conflict_id, "error": error}
             content = result.get("content") if isinstance(result.get("content"), list) else []
             text = ""
             if content and isinstance(content[0], dict):
@@ -269,7 +294,8 @@ def run_tool_seq(
     cmd = ["uv", "run", "agentdecompile-cli"]
     if resolved_url:
         cmd.extend(["--server-url", resolved_url])
-    cmd.extend(["tool-seq", json.dumps(enriched)])
+    # -f json: per-step results as JSON. The default text output is for people.
+    cmd.extend(["-f", "json", "tool-seq", json.dumps(enriched)])
 
     runner = run_subprocess or default_run_subprocess
     env = subprocess_env_for_work_dir(work_dir)

@@ -3013,7 +3013,7 @@ def list_grp() -> None:
     "local_format",
     type=_OUTPUT_FORMAT_TYPE,
     default=None,
-    help=("Output format override (default: inherited text output). Use -f/--format json only when you strictly need machine-readable output; text/markdown is recommended."),
+    help=_OUTPUT_FORMAT_HELP,
 )
 @click.pass_context
 def list_binaries(ctx: click.Context, local_format: str | None) -> None:
@@ -5341,7 +5341,7 @@ def tool_cmd(
                             nested_json = nested
                             break
             if nested_json is not None:
-                click.echo(format_output(nested_json, "json"))
+                click.echo(format_output(nested_json, _fmt(ctx) if _wants_tool_data(ctx) else "json"))
                 return
 
         click.echo(format_output(display_data, _fmt(ctx)))
@@ -5410,6 +5410,37 @@ def tool_seq_cmd(
         click.echo(tool_seq_json_error_message(exc), err=True)
         sys.exit(1)
     _run_parsed_tool_sequence(ctx, parsed_steps, continue_on_error=continue_on_error)
+
+
+def _envelope_text(result: Any) -> str | None:
+    """Join the text items of an MCP envelope, or None when it has none."""
+    content = result.get("content") if isinstance(result, dict) else getattr(result, "content", None)
+    if not isinstance(content, list):
+        return None
+    texts = [text for item in content if isinstance(text := (item.get("text") if isinstance(item, dict) else getattr(item, "text", None)), str)]
+    return "\n".join(texts) if texts else None
+
+
+def _render_tool_sequence(ctx: click.Context, success: bool, results: list[dict[str, Any]]) -> str:
+    """Render tool-seq results.
+
+    json/xml/table: ``{"success", "steps": [...]}`` with each step's result
+    unwrapped to the tool's JSON data (not the MCP envelope). text/shell/markdown:
+    each step's own text under a heading, instead of a repr of the envelopes.
+    """
+    fmt = _fmt(ctx)
+    if _wants_tool_data(ctx):
+        steps = [{**step, "result": _tool_data(step.get("result"))} for step in results]
+        return format_output({"success": success, "steps": steps}, fmt)
+    blocks: list[str] = []
+    for step in results:
+        status = "ok" if step.get("success") else "failed"
+        result = step.get("result")
+        text = _envelope_text(result)
+        body = text if text is not None else format_output(result, fmt)
+        blocks.append(f"## Step {step.get('index')}: {step.get('name')} ({status})\n\n{body}")
+    blocks.append(f"Sequence {'succeeded' if success else 'failed'}: {sum(1 for s in results if s.get('success'))}/{len(results)} steps ok.")
+    return "\n\n".join(blocks)
 
 
 def _run_parsed_tool_sequence(
@@ -5519,14 +5550,14 @@ def _run_parsed_tool_sequence(
                 results.append(step_result)
 
                 if not step_ok and not continue_on_error:
-                    click.echo(format_output({"success": False, "steps": results}, _fmt(ctx)))
+                    click.echo(_render_tool_sequence(ctx, False, results))
                     sys.exit(1)
 
         async with _tool_sequence_client(ctx) as client_override:
             await _run_steps(client_override)
 
         all_ok = all(step["success"] for step in results)
-        click.echo(format_output({"success": all_ok, "steps": results}, _fmt(ctx)))
+        click.echo(_render_tool_sequence(ctx, all_ok, results))
         if not all_ok:
             sys.exit(1)
 

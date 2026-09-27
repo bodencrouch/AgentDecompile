@@ -211,3 +211,186 @@ def test_canonical_store_gets_no_alter(tmp_path: Path) -> None:
     con.set_trace_callback(None)
     assert not [sql for sql in seen if "ALTER" in sql.upper()]
     con.close()
+
+
+# --- Narrow tables: rebuild when empty, unique index when safe --------------
+
+from agentdecompile_recovery.corpus import db as legacy_db  # noqa: E402
+from agentdecompile_recovery.corpus import mizuchi_bridge  # noqa: E402
+from agentdecompile_recovery.corpus.ingest_recovered import (  # noqa: E402
+    apply_seed_promotions,
+    ensure_recovered_function,
+)
+
+UNIQUE_ROWS = [
+    ("swkotor", "FUN_00401000", 0x401000, 16, "__stdcall", 1, 7, "/r/a.c", "ev-a", "c3"),
+    ("swkotor2", "FUN_00402000", 0x402000, 8, None, 0, None, "/r/b.c", "ev-b", "90"),
+]
+
+PROMOTION = {
+    "program": "swkotor", "binary_id": 3, "addr": 0x401000, "name": "FUN_00401000",
+    "size": 16, "convention": None, "machine_code": "c3", "real_c": 1,
+    "logical_id": 7, "path": "/r/seed.c", "evidence": "seed-validation-byte-exact:x",
+}
+
+
+def _plain_narrow(path: Path, rows: list[tuple]) -> None:
+    con = sqlite3.connect(path)
+    con.executescript(OLD_NARROW_DDL)
+    con.executemany(
+        f"INSERT INTO recovered_function ({', '.join(NARROW_COLUMNS)}) "
+        f"VALUES ({', '.join('?' for _ in NARROW_COLUMNS)})",
+        rows,
+    )
+    con.commit()
+    con.close()
+
+
+def _open(path: Path, **kw) -> sqlite3.Connection:
+    con = sqlite3.connect(path, **kw)
+    con.row_factory = sqlite3.Row
+    return con
+
+
+def _master(con) -> list[tuple]:
+    return sorted(
+        tuple(row)
+        for row in con.execute(
+            "SELECT type, name, sql FROM sqlite_master WHERE tbl_name='recovered_function'"
+        )
+    )
+
+
+def _info(con) -> dict[str, tuple[int, int]]:
+    """column -> (notnull, pk)"""
+    return {
+        row[1]: (row[3], row[5])
+        for row in con.execute("PRAGMA table_info(recovered_function)")
+    }
+
+
+def _canonical_sql(tmp_path: Path) -> str:
+    con = _open(tmp_path / "canonical.sqlite")
+    ensure_recovered_function(con)
+    sql = con.execute(
+        "SELECT sql FROM sqlite_master WHERE name='recovered_function'"
+    ).fetchone()[0]
+    con.close()
+    return sql
+
+
+def test_empty_narrow_table_is_rebuilt_canonical(tmp_path: Path) -> None:
+    db_path = tmp_path / "empty-narrow.sqlite"
+    _plain_narrow(db_path, [])
+    con = _open(db_path)
+    ensure_recovered_function(con)
+    info = _info(con)
+    assert info["program"] == (1, 1) and info["name"] == (1, 2)
+    assert info["real_c"][0] == 1 and info["path"][0] == 1
+    assert con.execute(
+        "SELECT sql FROM sqlite_master WHERE name='recovered_function'"
+    ).fetchone()[0] == _canonical_sql(tmp_path)
+    assert not con.in_transaction
+
+    apply_seed_promotions(con, [PROMOTION])
+    apply_seed_promotions(con, [PROMOTION])
+    assert con.execute("SELECT COUNT(*) FROM recovered_function").fetchone()[0] == 1
+    con.close()
+
+
+def test_nonempty_narrow_table_keeps_rows_and_gets_unique_index(tmp_path: Path) -> None:
+    db_path = tmp_path / "narrow-rows.sqlite"
+    _plain_narrow(db_path, UNIQUE_ROWS)
+    con = _open(db_path)
+    ensure_recovered_function(con)
+    assert _narrow_snapshot(con) == sorted(UNIQUE_ROWS)
+    assert "binary_id" in _info(con)
+    assert all(pk == 0 for _nn, pk in _info(con).values())
+    assert con.execute(
+        "SELECT 1 FROM sqlite_master WHERE name='ux_recovered_program_name'"
+    ).fetchone() is not None
+
+    apply_seed_promotions(con, [PROMOTION])
+    apply_seed_promotions(con, [PROMOTION])
+    assert con.execute("SELECT COUNT(*) FROM recovered_function").fetchone()[0] == 2
+    con.close()
+
+
+def test_narrow_table_with_duplicates_keeps_rows_and_no_index(tmp_path: Path) -> None:
+    db_path = tmp_path / "narrow-dups.sqlite"
+    _plain_narrow(db_path, NARROW_ROWS)
+    con = _open(db_path)
+    ensure_recovered_function(con)
+    assert _narrow_snapshot(con) == sorted(NARROW_ROWS)
+    assert "binary_id" in _info(con)
+    assert con.execute(
+        "SELECT 1 FROM sqlite_master WHERE name='ux_recovered_program_name'"
+    ).fetchone() is None
+    con.close()
+
+
+@pytest.mark.parametrize("rows", [[], UNIQUE_ROWS, NARROW_ROWS], ids=["empty", "unique", "dups"])
+def test_narrow_upgrade_is_idempotent(tmp_path: Path, rows: list[tuple]) -> None:
+    db_path = tmp_path / "narrow.sqlite"
+    _plain_narrow(db_path, rows)
+    con = _open(db_path)
+    ensure_recovered_function(con)
+    first = (_master(con), _narrow_snapshot(con))
+    ensure_recovered_function(con)
+    ensure_recovered_function(con)
+    assert (_master(con), _narrow_snapshot(con)) == first
+    con.close()
+
+
+def _canonical_store(path: Path) -> None:
+    con = _open(path)
+    ensure_recovered_function(con)
+    apply_seed_promotions(con, [PROMOTION])
+    con.close()
+
+
+def test_canonical_store_needs_no_write_access(tmp_path: Path) -> None:
+    db_path = tmp_path / "wide.sqlite"
+    _canonical_store(db_path)
+    db_path.chmod(0o444)
+    try:
+        con = _open(db_path)
+        ensure_recovered_function(con)
+        assert len(external_bridge.load_recovered(con)) == 1
+        assert len(mizuchi_bridge.load_recovered(con)) == 1
+        con.close()
+    finally:
+        db_path.chmod(0o644)
+
+
+def test_canonical_store_takes_no_write_lock(tmp_path: Path) -> None:
+    db_path = tmp_path / "wide.sqlite"
+    _canonical_store(db_path)
+    holder = sqlite3.connect(db_path)
+    holder.execute("BEGIN IMMEDIATE")
+    try:
+        con = _open(db_path, timeout=0.1)
+        ensure_recovered_function(con)
+        assert len(external_bridge.load_recovered(con)) == 1
+        assert len(mizuchi_bridge.load_recovered(con)) == 1
+        assert not con.in_transaction
+        con.close()
+    finally:
+        holder.rollback()
+        holder.close()
+
+
+def test_mizuchi_load_recovered_on_store_without_table(tmp_path: Path) -> None:
+    con = legacy_db.connect(tmp_path / "legacy.sqlite")
+    assert mizuchi_bridge.load_recovered(con) == []
+    con.close()
+
+
+def test_mizuchi_load_recovered_on_narrow_store(tmp_path: Path) -> None:
+    db_path = tmp_path / "narrow.sqlite"
+    _plain_narrow(db_path, UNIQUE_ROWS)
+    con = _open(db_path)
+    recovered = mizuchi_bridge.load_recovered(con)
+    assert len(recovered) == len(UNIQUE_ROWS)
+    assert all(rec["binary_id"] is None for rec in recovered)
+    con.close()

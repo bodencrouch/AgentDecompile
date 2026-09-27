@@ -945,7 +945,9 @@ def test_dynamic_command_params_come_from_the_tool_registry() -> None:
 # --------------------------------------------------------------------------- #
 # per-command connection and output flags on generated commands
 # --------------------------------------------------------------------------- #
-def _run_generated(argv: list[str]) -> dict[str, Any]:
+def _run_generated(
+    monkeypatch: pytest.MonkeyPatch, argv: list[str], obj: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """Invoke a generated command with the network layer stubbed.
 
     Stubs `_execute_tool_call`, below `_call_raw`, so the payload recorded is the
@@ -966,12 +968,9 @@ def _run_generated(argv: list[str]) -> dict[str, Any]:
         seen["render"] = cli_module._fmt(ctx)
         return {"content": [{"type": "text", "text": "BODY"}], "isError": False}
 
-    monkey = pytest.MonkeyPatch()
-    try:
-        monkey.setattr(cli_module, "_execute_tool_call", fake_execute)
-        result = CliRunner().invoke(cli_module.main, argv)
-    finally:
-        monkey.undo()
+    monkeypatch.delenv("AGENTDECOMPILE_LOCAL_MODE", raising=False)
+    monkeypatch.setattr(cli_module, "_execute_tool_call", fake_execute)
+    result = CliRunner().invoke(cli_module.main, argv, obj=obj)
     assert result.exit_code == 0, f"{argv} failed: {result.exception!r} {result.output[:300]}"
     return seen
 
@@ -984,15 +983,17 @@ _TOOL_ARGS = ["--program-path", "p", "--function-identifier", "main"]
     [["--host", "10.0.0.5", "--port", "9999"], ["--server-url", "http://example.invalid:1/mcp"]],
     ids=["host-port", "server-url"],
 )
-def test_per_command_connection_flags_route_like_top_level_ones(flags: list[str]) -> None:
+def test_per_command_connection_flags_route_like_top_level_ones(
+    flags: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     """`decompile-function --port 9999` must connect where `--port 9999 decompile-function` does.
 
     Generated commands advertise --host/--port/--server-url in their help. They
     used to be forwarded into the tool request while the connection kept the root
     defaults, so the per-command form reached 127.0.0.1:8080 regardless.
     """
-    per_command = _run_generated(["decompile-function", *flags, *_TOOL_ARGS])
-    top_level = _run_generated([*flags, "decompile-function", *_TOOL_ARGS])
+    per_command = _run_generated(monkeypatch, ["decompile-function", *flags, *_TOOL_ARGS])
+    top_level = _run_generated(monkeypatch, [*flags, "decompile-function", *_TOOL_ARGS])
     assert per_command["target"] == top_level["target"], (
         f"per-command {flags} connects to {per_command['target']}, top-level form to {top_level['target']}"
     )
@@ -1002,19 +1003,46 @@ def test_per_command_connection_flags_route_like_top_level_ones(flags: list[str]
     assert not leaked, f"connection flags leaked into the tool request: {sorted(leaked)}"
 
 
-def test_per_command_output_format_matches_top_level() -> None:
+def test_per_command_output_format_matches_top_level(monkeypatch: pytest.MonkeyPatch) -> None:
     """`decompile-function -f json` must render what `-f json decompile-function` renders.
 
     The generated form used to send `format` to the server while the client kept
     rendering text, and its default of "text" overrode the markdown default that
     `_call_raw` documents for every request.
     """
-    per_command = _run_generated(["decompile-function", "-f", "json", *_TOOL_ARGS])
-    top_level = _run_generated(["-f", "json", "decompile-function", *_TOOL_ARGS])
-    plain = _run_generated(["decompile-function", *_TOOL_ARGS])
-    assert per_command["render"] == top_level["render"] == "json"
+    per_command = _run_generated(monkeypatch, ["decompile-function", "-f", "json", *_TOOL_ARGS])
+    top_level = _run_generated(monkeypatch, ["-f", "json", "decompile-function", *_TOOL_ARGS])
+    plain = _run_generated(monkeypatch, ["decompile-function", *_TOOL_ARGS])
+    assert per_command["render"] == top_level["render"] == "json", (
+        f"per-command renders {per_command['render']!r}, top-level {top_level['render']!r}"
+    )
     assert per_command["payload"].get("format") == top_level["payload"].get("format") == "markdown"
     assert plain["payload"].get("format") == "markdown", (
         f"generated commands must keep the documented markdown default, got {plain['payload'].get('format')!r}"
     )
+
+
+def test_per_command_connection_flag_keeps_preexisting_local_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A pre-existing obj["local_mode"] must survive a per-command --port override.
+
+    `main()` OR's a fresh --local flag with `existing_obj.get("local_mode")` when
+    computing its own `local_mode`, but the per-command override callback used to
+    read only `root_ctx.params.get("local_mode")` (this invocation's --local flag),
+    dropping a pre-existing obj's local_mode. Both argv orders must agree.
+    """
+    obj = {"local_mode": True}
+    per_command = _run_generated(
+        monkeypatch, ["decompile-function", "--port", "9999", *_TOOL_ARGS], obj=dict(obj)
+    )
+    top_level = _run_generated(
+        monkeypatch, ["--port", "9999", "decompile-function", *_TOOL_ARGS], obj=dict(obj)
+    )
+    assert per_command["local_mode"] is True, (
+        f"per-command form dropped pre-existing local_mode: {per_command['local_mode']!r}"
+    )
+    assert top_level["local_mode"] is True, (
+        f"top-level form dropped pre-existing local_mode: {top_level['local_mode']!r}"
+    )
+    # The no-obj, no --local, explicit-backend case is already covered by
+    # test_per_command_connection_flags_route_like_top_level_ones (local_mode False).
 

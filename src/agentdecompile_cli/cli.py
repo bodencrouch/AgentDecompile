@@ -1805,7 +1805,7 @@ def _set_backend_option_override(
     opts["backend_cli_explicit"] = True
     if opts.get("auto_local_mode"):
         # Local mode was only on because no backend had been named. Keep it only
-        # when the user asked for it with --local.
+        # when it was requested: --local, AGENTDECOMPILE_LOCAL_MODE, or a pre-existing obj's local_mode.
         opts["auto_local_mode"] = False
         opts["local_mode"] = bool(opts.get("local_mode_requested"))
     return value
@@ -2293,7 +2293,7 @@ def main(
         "cli_default_binary_name": bn or existing_obj.get("cli_default_binary_name"),
         "format": existing_obj.get("format", format),
         "local_mode": local_mode or auto_local_mode or existing_obj.get("local_mode", False),
-        "local_mode_requested": local_mode or existing_obj.get("local_mode", False),
+        "local_mode_requested": local_mode or existing_obj.get("local_mode_requested", existing_obj.get("local_mode", False)),
         "local_project_path": (local_project_path or "").strip() or existing_obj.get("local_project_path") or None,
         "local_project_name": (local_project_name or "").strip() or existing_obj.get("local_project_name") or "agentdecompile",
     }

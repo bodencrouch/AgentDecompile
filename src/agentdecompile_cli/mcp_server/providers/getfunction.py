@@ -659,7 +659,9 @@ class GetFunctionToolProvider(ToolProvider):
                 return create_conflict_response(conflict_id, Tool.MANAGE_FUNCTION.value, conflict_summary, next_step)
 
         def _set_prototype() -> None:
-            func.setSignature(proto)
+            from agentdecompile_cli.mcp_server.function_signature import apply_function_signature
+
+            apply_function_signature(program, func, proto, rename=True)
 
         self._run_program_transaction(program, "set-prototype", _set_prototype)
         return create_success_response(
@@ -667,6 +669,7 @@ class GetFunctionToolProvider(ToolProvider):
                 "action": "set_prototype",
                 "function": func.getName(),
                 "prototype": proto,
+                "appliedSignature": str(func.getSignature()),
                 "success": True,
             },
         )

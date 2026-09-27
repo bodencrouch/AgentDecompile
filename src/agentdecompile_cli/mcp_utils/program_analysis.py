@@ -313,9 +313,14 @@ def _defer_expensive_default_analyzers(program: GhidraProgram, analyzers: list[s
         return []
 
 
-def _run_auto_analysis(program: GhidraProgram, *, force: bool, analyzers: list[str] | None = None) -> list[str]:
+def _run_auto_analysis(program: GhidraProgram, *, analyzers: list[str] | None = None) -> list[str]:
     deferred = _defer_expensive_default_analyzers(program, analyzers)
-    run_analysis(program, force_analysis=force)
+    # Callers reach this only after ``program_needs_analysis`` said analysis is
+    # needed, so the run is always forced.  ghidrecomp's own gate consults only
+    # ``shouldAskToAnalyze``; a freshly imported program can have that flag off
+    # while ``isAnalyzed`` is still false, and ghidrecomp would then skip the run
+    # ("already analyzed... skipping") and leave our gate failing.
+    run_analysis(program, force_analysis=True)
     wait_for_program_analysis_idle(program)
     return deferred
 
@@ -350,7 +355,7 @@ def blocking_ensure_analyzed(
             result = {"skipped": True, "reason": "already-analyzed", "programKey": key}
         else:
             logger.info("program_analysis_start key=%s force=%s", key, force)
-            deferred = _run_auto_analysis(program, force=force, analyzers=analyzers)
+            deferred = _run_auto_analysis(program, analyzers=analyzers)
             if program_needs_analysis(program, program_info=program_info):
                 raise ProgramAnalysisTimeout(
                     f"Ghidra auto-analysis did not complete for program (key={key})"
@@ -384,7 +389,7 @@ def wait_for_program_analysis_ready(
         wait_for_program_analysis_idle(program, max_wait_sec=max_wait_sec)
         if program_needs_analysis(program, program_info=program_info):
             logger.info("program_analysis_wait_ensure key=%s", key)
-            _run_auto_analysis(program, force=False)
+            _run_auto_analysis(program)
             wait_for_program_analysis_idle(program, max_wait_sec=max_wait_sec)
         if program_needs_analysis(program, program_info=program_info):
             raise ProgramAnalysisTimeout(

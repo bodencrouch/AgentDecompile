@@ -81,9 +81,8 @@ from agentdecompile_cli.registry import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Coroutine, Mapping
+    from collections.abc import Awaitable, Callable, Coroutine, Mapping
     from types import FunctionType
-
 
 logger = logging.getLogger(__name__)
 
@@ -556,8 +555,9 @@ def _shared_server_env_overrides(ctx: click.Context, base_env: Mapping[str, str]
 
     The in-process tool providers and a spawned local server read these env
     vars directly; HTTP backends get the same values as X-Ghidra-Server-*
-    headers from ``_shared_request_headers``.  An env value the user already
-    set wins over the flag, as before.
+    headers from ``_shared_request_headers``.  Per key: a key already set in
+    the environment is kept; the flag only fills missing keys (so a flag can
+    still win over a differently-named alias).
     """
     env = os.environ if base_env is None else base_env
     opts = _get_opts(ctx)
@@ -580,6 +580,8 @@ def _scoped_shared_server_env(ctx: click.Context):
     Restores the previous state exactly on exit, so flags from one command
     never leak into later commands in the same process (tool-seq, CliRunner).
     In-process embedded CLIs must run inside this context manager too.
+    Mutates process-global os.environ; not safe for concurrent use — callers
+    are sequential.
     """
     overrides = _shared_server_env_overrides(ctx)
     previous = {key: os.environ.get(key) for key in overrides}
@@ -1333,6 +1335,27 @@ async def _attempt_local_backend_recovery(
     payload: dict[str, Any],
     original_error: BaseException,
 ) -> Any | None:
+    async def run_on_client(client: Any) -> Any:
+        return await _run_tool_with_connected_client(ctx, client, call_tool_name, payload)
+
+    async def run_locally() -> Any:
+        return await _call_tool_locally(ctx, call_tool_name, payload)
+
+    return await _recover_on_local_backend(ctx, original_error, run_on_client, run_locally)
+
+
+async def _recover_on_local_backend(
+    ctx: click.Context,
+    original_error: BaseException,
+    run_on_client: Callable[[Any], Awaitable[Any]],
+    run_locally: Callable[[], Awaitable[Any]],
+) -> Any | None:
+    """Shared fallback when an implicit backend is down.
+
+    Order: auto-started local server first, then in-process execution.
+    Returns None (no fallback) when the backend was given explicitly.
+    Used by tool calls and resource reads alike.
+    """
     resolution = _resolve_backend_target(ctx)
     if resolution.explicit_cli:
         return None
@@ -1344,7 +1367,7 @@ async def _attempt_local_backend_recovery(
         try:
             client = _client(ctx, url_override=local_url)
             async with client:
-                return await _run_tool_with_connected_client(ctx, client, call_tool_name, payload)
+                return await run_on_client(client)
         except Exception as exc:
             click.echo(f"Local AgentDecompile server startup did not produce a usable backend: {exc}", err=True)
 
@@ -1352,7 +1375,7 @@ async def _attempt_local_backend_recovery(
         f"Falling back to in-process local execution after backend connection failure: {original_error}",
         err=True,
     )
-    return await _call_tool_locally(ctx, call_tool_name, payload)
+    return await run_locally()
 
 
 def _emit_backend_recovery_notice(resolution: BackendTargetResolution) -> None:
@@ -1464,28 +1487,41 @@ async def _read_resource_via_transport(ctx: click.Context, uri: str) -> Any:
     """Read an MCP resource the way ``_execute_tool_call`` runs a tool.
 
     ``--local`` (or auto-local) reads from the in-process backend.  Otherwise
-    the resolved HTTP backend is used; an implicit backend that is down falls
-    back to local, an explicit --server-url/--host/--port never does.
+    the resolved HTTP backend is used; an implicit backend that is down gets
+    the same recovery as a tool call (auto-started local server, then
+    in-process), an explicit --server-url/--host/--port never does.  A 400
+    clears the persisted session id; unlike a tool call the error is then
+    re-raised, so ``_read_resource`` can still auto-open a program and retry.
     """
     logger.debug("diag.enter %s", "cli.py:_read_resource_via_transport")
     if _is_local_mode(ctx):
         return await _read_resource_locally(ctx, uri)
 
-    from agentdecompile_cli.bridge import ServerNotRunningError  # noqa: PLC0415
+    from agentdecompile_cli.bridge import ClientError, ServerNotRunningError  # noqa: PLC0415
+
+    async def run_on_client(client: Any) -> Any:
+        result = await client.read_resource(uri)
+        _persist_session_id(ctx, client)
+        return result
+
+    async def run_locally() -> Any:
+        return await _read_resource_locally(ctx, uri)
 
     try:
         client = _client(ctx)
         async with client:
-            result = await client.read_resource(uri)
-        _persist_session_id(ctx, client)
-        return result
+            return await run_on_client(client)
     except ServerNotRunningError as exc:
         if _should_attempt_local_recovery(ctx):
-            _emit_backend_recovery_notice(_resolve_backend_target(ctx))
-            click.echo(f"Falling back to in-process local execution after backend connection failure: {exc}", err=True)
-            return await _read_resource_locally(ctx, uri)
+            recovered = await _recover_on_local_backend(ctx, exc, run_on_client, run_locally)
+            if recovered is not None:
+                return recovered
         click.echo(str(exc), err=True)
         sys.exit(1)
+    except ClientError as exc:
+        if "400" in str(exc):
+            _clear_persisted_session_id(ctx)
+        raise
 
 
 async def _migrate_metadata_then_checkin(ctx: click.Context, match_payload: dict[str, Any]) -> None:

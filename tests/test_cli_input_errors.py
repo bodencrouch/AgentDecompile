@@ -94,3 +94,52 @@ def test_name_census_missing_db_reports_clean_error(
     assert '"error"' in captured.err
     assert "nope.gbf" in captured.err
     assert captured.out == ""
+
+
+def test_stabs_manifest_other_file_not_found_propagates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A FileNotFoundError for something other than the raw image must not be
+    reported as a raw-dir problem -- it isn't one. It should propagate so the
+    caller sees the real cause instead of a misleading "check --raw-dir"."""
+    db = tmp_path / "store.sqlite"
+    con = store.connect(db)
+    con.execute("INSERT INTO binary (repo_path, slug, arch) VALUES (?,?,?)", ("repoA", "slugA", "x86"))
+    con.commit()
+    con.close()
+
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    (raw_dir / "slugA").write_bytes(b"")  # raw image IS present
+    out_dir = tmp_path / "out"
+
+    import agentdecompile_recovery.corpus.machostabs as machostabs
+
+    def boom(_path):
+        raise FileNotFoundError("/elsewhere/dep.bin")
+
+    monkeypatch.setattr(machostabs, "analyze", boom)
+
+    with pytest.raises(FileNotFoundError, match="dep.bin"):
+        corpus_main(
+            ["stabs-manifest", "repoA", "--db", str(db), "--raw-dir", str(raw_dir), "--out-dir", str(out_dir)]
+        )
+
+
+def test_name_census_filename_less_not_found_propagates(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A FileNotFoundError with no filename attached can't be confirmed as
+    the --db path, so it must propagate rather than being reported as a bad
+    --db value."""
+    db = tmp_path / "some.gbf"
+
+    import agentdecompile_recovery.ghidra_db as ghidra_db
+
+    def boom(_path):
+        raise FileNotFoundError("some other file went missing")
+
+    monkeypatch.setattr(ghidra_db, "open_program", boom)
+
+    with pytest.raises(FileNotFoundError, match="some other file went missing"):
+        recover_main(["name-census", "--db", str(db)])

@@ -594,7 +594,7 @@ def run_name_census(args: argparse.Namespace) -> int:
         try:
             program = open_program(args.db)
         except FileNotFoundError as exc:
-            if exc.filename is not None and Path(exc.filename) != Path(args.db):
+            if exc.filename is None or Path(exc.filename).resolve() != Path(args.db).resolve():
                 raise
             print(
                 json.dumps(

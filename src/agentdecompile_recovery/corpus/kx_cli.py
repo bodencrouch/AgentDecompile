@@ -368,13 +368,21 @@ def dispatch(args: argparse.Namespace) -> int | None:
         from .store import connect
 
         con = connect(args.db)
-        try:
-            manifest, summary_path, summary = sm.generate(
-                con, args.repo_path, raw_dir=args.raw_dir, out_dir=args.out_dir
-            )
-        except FileNotFoundError as exc:
-            print(f"error: {exc} (check --raw-dir)", file=sys.stderr)
-            return 2
+        row = con.execute(
+            "SELECT slug FROM binary WHERE repo_path=?", (args.repo_path,)
+        ).fetchone()
+        if row is not None:
+            # Mirrors the raw-image path generate() itself computes and checks
+            # (stabs_manifest.py); pre-checking here means the raw-image case
+            # is reported without also catching FileNotFoundError raised by
+            # anything else inside generate()'s analysis.
+            raw = Path(args.raw_dir) / row["slug"]
+            if not raw.is_file():
+                print(f"error: raw image not found: {raw} (check --raw-dir)", file=sys.stderr)
+                return 2
+        manifest, summary_path, summary = sm.generate(
+            con, args.repo_path, raw_dir=args.raw_dir, out_dir=args.out_dir
+        )
         print(json.dumps(summary, indent=2))
         print(f"wrote {manifest}")
         print(f"wrote {summary_path}")

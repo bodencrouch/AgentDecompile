@@ -249,6 +249,17 @@ def record_source_sha256(program: Any, digest: str) -> None:
         program.endTransaction(tx_id, True)
 
 
+
+def svr_admin_script_candidates(server_dir: Path, os_name: str | None = None) -> tuple[Path, ...]:
+    """svrAdmin launchers for this platform: the shell script on POSIX, .bat/.cmd on Windows.
+
+    A Ghidra install ships both svrAdmin and svrAdmin.bat; a .bat cannot run on Linux.
+    """
+    if (os_name or os.name) == "nt":
+        return (server_dir / "svrAdmin.bat", server_dir / "svrAdmin.cmd")
+    return (server_dir / "svrAdmin", server_dir / "svrAdmin.sh")
+
+
 class ProjectToolProvider(ToolProvider):
     HANDLERS: ClassVar[dict[str, str]] = {
         "open": "_handle_open_project",
@@ -846,16 +857,7 @@ class ProjectToolProvider(ToolProvider):
 
         server_dir: Path = Path(ghidra_install_dir) / "server"
         script_path: Path | None = next(
-            (
-                candidate
-                for candidate in (
-                    server_dir / "svrAdmin.bat",
-                    server_dir / "svrAdmin.cmd",
-                    server_dir / "svrAdmin.sh",
-                    server_dir / "svrAdmin",
-                )
-                if candidate.exists()
-            ),
+            (candidate for candidate in svr_admin_script_candidates(server_dir) if candidate.exists()),
             None,
         )
         if script_path is None:

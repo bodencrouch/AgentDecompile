@@ -3189,7 +3189,12 @@ def _references_table(refs: list[dict[str, Any]]) -> str:
     headers = ["From", "To", "Type"] + (["Function"] if with_function else [])
     rows: list[list[str]] = []
     for r in refs:
-        row = [str(r.get("fromAddress", "")), str(r.get("toAddress", "")), str(r.get("type", ""))]
+        ref_type = str(r.get("type", ""))
+        if r.get("indirect"):
+            # LoadStringA/W call sites for .rsrc strings, not direct xrefs to the target.
+            via = r.get("via")
+            ref_type = f"{ref_type} (indirect via {via})" if via else f"{ref_type} (indirect)"
+        row = [str(r.get("fromAddress", "")), str(r.get("toAddress", "")), ref_type]
         if with_function:
             row.append(str(r.get("function") or ""))
         rows.append(row)

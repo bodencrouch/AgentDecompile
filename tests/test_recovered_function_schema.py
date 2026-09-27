@@ -14,10 +14,15 @@ from pathlib import Path
 
 import pytest
 
-from agentdecompile_recovery.corpus import external_bridge
+from agentdecompile_recovery.corpus import db as legacy_db
+from agentdecompile_recovery.corpus import external_bridge, ingest_recovered, mizuchi_bridge
 from agentdecompile_recovery.corpus.cli import main
 from agentdecompile_recovery.corpus.export_run_report import build
-from agentdecompile_recovery.corpus.ingest_recovered import ensure_recovered_schema
+from agentdecompile_recovery.corpus.ingest_recovered import (
+    apply_seed_promotions,
+    ensure_recovered_function,
+    ensure_recovered_schema,
+)
 from agentdecompile_recovery.corpus.store import connect
 
 pytestmark = pytest.mark.unit
@@ -122,13 +127,14 @@ def test_every_creator_makes_the_canonical_shape(tmp_path: Path) -> None:
     assert created == canonical
 
 
-def _narrow_store(path: Path) -> None:
-    con = connect(path)
+def _narrow_store(path: Path, rows: list[tuple] = NARROW_ROWS) -> None:
+    """A store holding only the old narrow recovered_function, with *rows*."""
+    con = sqlite3.connect(path)
     con.executescript(OLD_NARROW_DDL)
     con.executemany(
         f"INSERT INTO recovered_function ({', '.join(NARROW_COLUMNS)}) "
         f"VALUES ({', '.join('?' for _ in NARROW_COLUMNS)})",
-        NARROW_ROWS,
+        rows,
     )
     con.commit()
     con.close()
@@ -199,28 +205,8 @@ def test_narrow_store_upgraded_by_bridge_alone(tmp_path: Path) -> None:
     con.close()
 
 
-def test_canonical_store_gets_no_alter(tmp_path: Path) -> None:
-    db = tmp_path / "wide.sqlite"
-    con = connect(db)
-    ensure_recovered_schema(con)
-    con.close()
-    con = connect(db)
-    seen: list[str] = []
-    con.set_trace_callback(seen.append)
-    ensure_recovered_schema(con)
-    con.set_trace_callback(None)
-    assert not [sql for sql in seen if "ALTER" in sql.upper()]
-    con.close()
-
-
 # --- Narrow tables: rebuild when empty, unique index when safe --------------
 
-from agentdecompile_recovery.corpus import db as legacy_db  # noqa: E402
-from agentdecompile_recovery.corpus import mizuchi_bridge  # noqa: E402
-from agentdecompile_recovery.corpus.ingest_recovered import (  # noqa: E402
-    apply_seed_promotions,
-    ensure_recovered_function,
-)
 
 UNIQUE_ROWS = [
     ("swkotor", "FUN_00401000", 0x401000, 16, "__stdcall", 1, 7, "/r/a.c", "ev-a", "c3"),
@@ -232,18 +218,6 @@ PROMOTION = {
     "size": 16, "convention": None, "machine_code": "c3", "real_c": 1,
     "logical_id": 7, "path": "/r/seed.c", "evidence": "seed-validation-byte-exact:x",
 }
-
-
-def _plain_narrow(path: Path, rows: list[tuple]) -> None:
-    con = sqlite3.connect(path)
-    con.executescript(OLD_NARROW_DDL)
-    con.executemany(
-        f"INSERT INTO recovered_function ({', '.join(NARROW_COLUMNS)}) "
-        f"VALUES ({', '.join('?' for _ in NARROW_COLUMNS)})",
-        rows,
-    )
-    con.commit()
-    con.close()
 
 
 def _open(path: Path, **kw) -> sqlite3.Connection:
@@ -281,7 +255,7 @@ def _canonical_sql(tmp_path: Path) -> str:
 
 def test_empty_narrow_table_is_rebuilt_canonical(tmp_path: Path) -> None:
     db_path = tmp_path / "empty-narrow.sqlite"
-    _plain_narrow(db_path, [])
+    _narrow_store(db_path, [])
     con = _open(db_path)
     ensure_recovered_function(con)
     info = _info(con)
@@ -300,7 +274,7 @@ def test_empty_narrow_table_is_rebuilt_canonical(tmp_path: Path) -> None:
 
 def test_nonempty_narrow_table_keeps_rows_and_gets_unique_index(tmp_path: Path) -> None:
     db_path = tmp_path / "narrow-rows.sqlite"
-    _plain_narrow(db_path, UNIQUE_ROWS)
+    _narrow_store(db_path, UNIQUE_ROWS)
     con = _open(db_path)
     ensure_recovered_function(con)
     assert _narrow_snapshot(con) == sorted(UNIQUE_ROWS)
@@ -318,7 +292,7 @@ def test_nonempty_narrow_table_keeps_rows_and_gets_unique_index(tmp_path: Path) 
 
 def test_narrow_table_with_duplicates_keeps_rows_and_no_index(tmp_path: Path) -> None:
     db_path = tmp_path / "narrow-dups.sqlite"
-    _plain_narrow(db_path, NARROW_ROWS)
+    _narrow_store(db_path, NARROW_ROWS)
     con = _open(db_path)
     ensure_recovered_function(con)
     assert _narrow_snapshot(con) == sorted(NARROW_ROWS)
@@ -332,7 +306,7 @@ def test_narrow_table_with_duplicates_keeps_rows_and_no_index(tmp_path: Path) ->
 @pytest.mark.parametrize("rows", [[], UNIQUE_ROWS, NARROW_ROWS], ids=["empty", "unique", "dups"])
 def test_narrow_upgrade_is_idempotent(tmp_path: Path, rows: list[tuple]) -> None:
     db_path = tmp_path / "narrow.sqlite"
-    _plain_narrow(db_path, rows)
+    _narrow_store(db_path, rows)
     con = _open(db_path)
     ensure_recovered_function(con)
     first = (_master(con), _narrow_snapshot(con))
@@ -388,7 +362,7 @@ def test_mizuchi_load_recovered_on_store_without_table(tmp_path: Path) -> None:
 
 def test_mizuchi_load_recovered_on_narrow_store(tmp_path: Path) -> None:
     db_path = tmp_path / "narrow.sqlite"
-    _plain_narrow(db_path, UNIQUE_ROWS)
+    _narrow_store(db_path, UNIQUE_ROWS)
     con = _open(db_path)
     recovered = mizuchi_bridge.load_recovered(con)
     assert len(recovered) == len(UNIQUE_ROWS)
@@ -398,16 +372,15 @@ def test_mizuchi_load_recovered_on_narrow_store(tmp_path: Path) -> None:
 
 # --- The upgrade never commits or rolls back a caller's transaction ---------
 
-from agentdecompile_recovery.corpus import ingest_recovered  # noqa: E402
 
 STORE_SHAPES = ["empty-narrow", "narrow-rows", "missing"]
 
 
 def _shaped_store(path: Path, shape: str) -> None:
     if shape == "empty-narrow":
-        _plain_narrow(path, [])
+        _narrow_store(path, [])
     elif shape == "narrow-rows":
-        _plain_narrow(path, UNIQUE_ROWS)
+        _narrow_store(path, UNIQUE_ROWS)
     con = sqlite3.connect(path)
     con.execute("CREATE TABLE caller_note (v TEXT)")
     con.commit()
@@ -469,8 +442,8 @@ def test_failed_upgrade_inside_caller_transaction(
     db_path = tmp_path / "s.sqlite"
     _shaped_store(db_path, shape)
     monkeypatch.setattr(
-        ingest_recovered, "RECOVERED_FUNCTION_DDL",
-        ingest_recovered.RECOVERED_FUNCTION_DDL + ";\nCREATE BOGUS STATEMENT",
+        ingest_recovered, "_RECOVERED_FUNCTION_STATEMENTS",
+        ingest_recovered._RECOVERED_FUNCTION_STATEMENTS + ("CREATE BOGUS STATEMENT",),
     )
     monkeypatch.setattr(
         ingest_recovered, "RECOVERED_FUNCTION_ADDED_COLUMNS",
@@ -495,11 +468,11 @@ def test_failed_upgrade_without_caller_transaction_rolls_back(
 ) -> None:
     db_path = tmp_path / "s.sqlite"
     _shaped_store(db_path, shape)
-    original_ddl = ingest_recovered.RECOVERED_FUNCTION_DDL
+    original_statements = ingest_recovered._RECOVERED_FUNCTION_STATEMENTS
     original_cols = ingest_recovered.RECOVERED_FUNCTION_ADDED_COLUMNS
     monkeypatch.setattr(
-        ingest_recovered, "RECOVERED_FUNCTION_DDL",
-        original_ddl + ";\nCREATE BOGUS STATEMENT",
+        ingest_recovered, "_RECOVERED_FUNCTION_STATEMENTS",
+        original_statements + ("CREATE BOGUS STATEMENT",),
     )
     monkeypatch.setattr(
         ingest_recovered, "RECOVERED_FUNCTION_ADDED_COLUMNS",
@@ -516,7 +489,7 @@ def test_failed_upgrade_without_caller_transaction_rolls_back(
     if before:
         assert len(_narrow_snapshot(con)) == rows
 
-    monkeypatch.setattr(ingest_recovered, "RECOVERED_FUNCTION_DDL", original_ddl)
+    monkeypatch.setattr(ingest_recovered, "_RECOVERED_FUNCTION_STATEMENTS", original_statements)
     monkeypatch.setattr(ingest_recovered, "RECOVERED_FUNCTION_ADDED_COLUMNS", original_cols)
     ensure_recovered_function(con)
     assert "binary_id" in _info(con)

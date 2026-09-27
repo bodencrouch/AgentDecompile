@@ -1989,15 +1989,19 @@ def _is_cli_result_limit_param(param: str) -> bool:
 def _supported_cli_tool_params(tool_name: str) -> list[str]:
     logger.debug("diag.enter %s", "cli.py:_supported_cli_tool_params")
     params: list[str] = get_tool_params(tool_name)
-    # Some tools list the same parameter twice (manage-bookmarks and
-    # manage-structures both repeat `mode`); a repeat would declare the option
-    # twice and let one declaration silently win.
+    # `get_tool_params` can return one parameter twice: `_canonical_param_name`
+    # collapses every MODE_PARAM_ALIASES synonym onto `mode`, so a tool carrying
+    # both `mode` and a synonym such as `type` yields `mode` twice
+    # (manage-bookmarks and manage-structures do today). A repeat would declare
+    # the option twice and let one declaration silently win. Key on the canonical
+    # identifier, since that -- not the raw spelling -- is what collides.
     seen: set[str] = set()
     unique: list[str] = []
     for param in params:
-        if param in seen:
+        key: str = normalize_identifier(param)
+        if key in seen:
             continue
-        seen.add(param)
+        seen.add(key)
         unique.append(param)
     return [param for param in unique if not _is_cli_result_limit_param(param)]
 

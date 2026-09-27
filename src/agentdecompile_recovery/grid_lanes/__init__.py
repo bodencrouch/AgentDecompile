@@ -41,7 +41,7 @@ from typing import Any
 
 from agentdecompile_grid.core import TASK_KINDS
 
-from . import analysis, cascade, compile, parity, splitter, verbs  # noqa: F401  (registration on import)
+from . import analysis, canary_probes, cascade, compile, parity, splitter, verbs  # noqa: F401  (registration on import; canary_probes binds the analyzer/parity canary hooks)
 from ._common import (
     BASIS_FIELD_SETS, BASIS_SOURCES, BasisRefused, BasisSource, ContentHashRefused, ExplicitBasisSource, Infra, Locked,
     PackBasisSource, PlannableKind, ResolvedBasis, StoreBasisSource, basis_fields_for, hashed_slug, lane_spec, project_for,

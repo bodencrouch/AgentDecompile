@@ -12,7 +12,9 @@ group) are imported at start, so every verb sees them.
 Verbs::
 
     adgrid join [<url>] [--with toolchain <hash>] [--toolchain-path DIR [--toolchain-manifest M] [--probe-parallel N]]
-                [--with analyzer] [--idle-only] [--cores N]
+                [--with analyzer [--analyzer-fixture REF] [--analyzer-install DIR] [--analyzer-pin HASH]]
+                [--with parity [<checker hash>] [--parity-checker PATH|REF] [--parity-pin HASH] [--parity-objdump PATH]]
+                [--idle-only] [--cores N]
                 (no url: $ADGRID_INVITE)
     adgrid leave | status
     adgrid publish <kind> --snapshot PATH|sha256:... [--basis-hash H] [--shard-size N]
@@ -304,10 +306,33 @@ def _canary_plan(args: argparse.Namespace) -> tuple[dict[str, Any] | None, list[
             only.append("toolchain")
             lanes.append("toolchain")
         elif entry[0] == "analyzer":
+            if len(entry) != 1:
+                raise UsageError("--with analyzer takes no hash; pin the inventory with --analyzer-pin")
+            # The canary resolves the install (owned or an unpacked bundle root) and the fixture (a packed
+            # program by ref, or the lane's synthetic image) through the hook the loaded lane registered,
+            # boots the analyzer in a child under a deadline and pins the function-inventory hash.
+            pool["analyzer"] = canaries_mod.AnalyzerCanary(
+                fixture=getattr(args, "analyzer_fixture", None), install_dir=getattr(args, "analyzer_install", None),
+                pin=getattr(args, "analyzer_pin", None) or "",
+            )
             only.append("analyzer")
             lanes.append("analyzer")
+        elif entry[0] == "parity":
+            if len(entry) > 2:
+                raise UsageError("--with parity takes at most one checker hash")
+            # The canary resolves the checker (a path or a sha256: ref; an asserted hash must match its bytes),
+            # runs it on the fixture pair and pins the receipt hash; ``parity-objdump`` advertises the target
+            # objdump next to it and refuses by name (mkobj-target) when there is none.
+            canary = canaries_mod.ParityCanary(
+                checker=getattr(args, "parity_checker", None), checker_hash=entry[1] if len(entry) == 2 else "",
+                pin=getattr(args, "parity_pin", None) or "", objdump=getattr(args, "parity_objdump", None),
+            )
+            pool["parity"] = canary
+            pool["parity-objdump"] = canary.objdump_canary()
+            only.extend(["parity", "parity-objdump"])
+            lanes.append("parity")
         else:
-            raise UsageError(f"unknown --with lane {entry[0]!r} (toolchain <hash> | analyzer)")
+            raise UsageError(f"unknown --with lane {entry[0]!r} (toolchain <hash> | analyzer | parity [<hash>])")
     manifest_source = getattr(args, "toolchain_manifest", None)
     if args.toolchain_path or toolchain_hash or manifest_source:
         # The canary proves the tree against its declared manifest (identity = manifest hash), compiles the
@@ -694,10 +719,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     join = sub.add_parser("join", help="attach to (or bootstrap) the local agent and join a grid")
     join.add_argument("url", nargs="?", help=f"invite url (default: ${INVITE_ENV})")
-    join.add_argument("--with", dest="with_", nargs="+", action="append", metavar="LANE", help="toolchain <hash> | analyzer")
+    join.add_argument("--with", dest="with_", nargs="+", action="append", metavar="LANE", help="toolchain <hash> | analyzer | parity [<checker hash>]")
     join.add_argument("--toolchain-path", help="root of a toolchain tree: an owned install or a fetched toolchain unpacked to a temp root (proved by canary)")
     join.add_argument("--toolchain-manifest", metavar="M", help="manifest file, a tree holding toolchain-manifest.json, or sha256:<ref> (default: <path>/toolchain-manifest.json)")
     join.add_argument("--probe-parallel", type=int, metavar="N", help="parallel probe compiles for the concurrency cap (default: cpu count)")
+    join.add_argument("--analyzer-fixture", metavar="REF", help="sha256:<ref> of a packed program object to open (default: the lane's synthetic image)")
+    join.add_argument("--analyzer-install", metavar="DIR", help="unpacked analyzer bundle root (default: the owned install, GHIDRA_INSTALL_DIR)")
+    join.add_argument("--analyzer-pin", metavar="HASH", help="pinned function-inventory hash; without it the canary measures and proves nothing")
+    join.add_argument("--parity-checker", metavar="PATH|REF", help="parity checker binary: a path or sha256:<ref> (default: AGENT_DECOMPILE_OBJDIFF)")
+    join.add_argument("--parity-pin", metavar="HASH", help="pinned receipt hash; without it the canary measures and proves nothing")
+    join.add_argument("--parity-objdump", metavar="PATH", help="target objdump for the objdump capability (default: AGENT_DECOMPILE_OBJDUMP)")
     join.add_argument("--idle-only", action="store_true")
     join.add_argument("--cores", type=int)
     join.add_argument("--node", help="node state directory name under <root>/nodes (default: worker.node_name)")

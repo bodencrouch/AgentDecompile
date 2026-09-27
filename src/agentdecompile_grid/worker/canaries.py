@@ -11,11 +11,23 @@ naming the probe object or binary they need:
                            older fixture only as ``python_fixture_digest`` for callers that still use it).
 * ``toolchain``            compile a fixed translation unit under ``toolchain_path``; the masked
                            object hash must equal the pin.  Capability ``toolchain:<identity_hash>``.
-* ``analyzer``             open a fixture packed program headless; hash its function inventory.
-                           Capability ``analyzer:<version>:<options_hash>``.
-* ``parity``               run the hash-pinned parity checker on a fixture pair; the receipt must
-                           equal the pin.  Capability ``parity:<checker_hash>``.
+* ``analyzer``             working (U164) -- a lane hook (``AnalyzerCanary.HOOKS``) resolves the
+                           install and a fixture (a packed program object by ref, or the lane's
+                           synthetic image) and boots the analyzer in a child under a deadline; the
+                           sorted ``(entry, size)`` inventory hash must equal the pin.  Capability
+                           ``analyzer:<version>:<options_hash>`` (what the analysis kinds require).
+* ``parity``               working (U165) -- a lane hook (``ParityCanary.HOOKS``) resolves the checker
+                           (object ref or path, hash verified against the pin) and a fixture pair;
+                           the canonical receipt hash must equal the pin.  Capability
+                           ``parity:<checker sha256>`` (the ``parity-check`` kind's ``verifier_id``);
+                           ``ParityCanary.Objdump`` advertises ``objdump:<sha256>`` next to it and
+                           refuses by the name ``mkobj-target`` when the target objdump is absent.
 * ``browser``              proven only by the browser lane's own wasm fixture; never on a node.
+
+A canary without a pin never proves: the first run is a failed row named ``unpinned`` carrying the
+measured hash so an operator can pin it; a pin that disagrees is ``pin-mismatch``; a lane refusal
+(missing checker, missing fixture) is its own name.  Pins are explicit (``--analyzer-pin``,
+``--parity-pin``) or an embedding's ``pins`` mapping; a config-file pin table is a slot.
 
 ``run_canaries`` gives every canary a backstop wall-clock deadline (canaries that spawn processes
 must enforce their own through the sandbox; this is the last line) and returns a ``CanaryReport``;
@@ -30,6 +42,9 @@ Acceptance tests named for the final verification phase (U125):
     names the probe object, binary or path it needs and ``describe()`` lists ``needs``.
   * ``test_canary_deadline``: a canary that never returns is reported as ``timeout`` within the
     backstop deadline and proves nothing.
+  * ``test_analyzer_canary_pins_inventory_hash`` (U164): the synthetic fixture measures one hash
+    unpinned, proves once pinned to it, and fails ``pin-mismatch`` on an edited pin.
+  * ``test_parity_canary_pins_receipt`` / ``test_parity_checker_missing_refuses_by_name`` (U165).
 """
 from __future__ import annotations
 
@@ -42,7 +57,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping
 
-from ..core import CANARIES, GRID_SCHEMA_VERSION, Canary, NodeIdentity, NotConfigured, ObjectStore, Registry, canonical_json, digest
+from ..core import CANARIES, GRID_SCHEMA_VERSION, Canary, NodeIdentity, NotConfigured, ObjectStore, Refused, Registry, canonical_json, digest
 
 PYTHON_FIXTURE: Mapping[str, Any] = {
     "schema": GRID_SCHEMA_VERSION,
@@ -322,66 +337,310 @@ class ToolchainCanary:
                     "needs": self.parent._needs(), "measures": "bounded parallel probe trial; cap = probes that reached the pin"}
 
 
-# --------------------------------------------------------------------------- declared: analyzer, parity, browser
+# --------------------------------------------------------------------------- working: analyzer
 class AnalyzerCanary:
-    """Open a fixture packed program headless with the analyzer bundle; the canonical function
-    inventory hash must equal the pin.  Capability ``analyzer:<version>:<options_hash>``."""
+    """Prove ``analyzer:<version>:<options_hash>`` for this node (U164).
+
+    Steps: resolve the install and the fixture through the lane hook (``HOOKS['analyzer']``,
+    registered by the lane on import; this module names no lane) -> the hook's ``inventory``
+    boots the analyzer in a child under ``deadline_s`` (never in this process: a JVM never
+    exits on its own, H14) and returns the function inventory rows ``(entry, size)`` ->
+    ``inventory_hash`` = sha256 over the sorted ``"<entry:#x> <size>"`` lines, newline-joined ->
+    compare to the pin.  Fixture sources the lane offers: a packed program object by ref
+    (``fixture='sha256:...'``, opened as-is) or the lane's deterministic synthetic image (no
+    fixture given, auto-analysed with the headless defaults); install sources: the owned
+    install (``GHIDRA_INSTALL_DIR``) or an unpacked bundle root (``install_dir``).
+
+    The pin is explicit (``pin`` / ``--analyzer-pin``) or looked up in a ``pins`` mapping
+    (``pins['analyzer'][<version>]``); a config-file pin table is a slot (``describe()['pin_source']``).
+    Without a pin the first run is ``unpinned``: a failed row carrying the measured hash and
+    **no** capability (``test_capability_only_after_pin``); a mismatch is the named failure
+    ``pin-mismatch`` and the lane stays closed.  ``options_hash`` comes from the lane (the
+    determinism basis' analyzer options field), so the capability is byte-identical to what
+    ``analysis-slice`` / ``decompile-chunk`` tasks require.
+    """
 
     name = "analyzer"
+    HOOKS = Registry("analyzer canary hook")
     CONFIG_SCHEMA: Mapping[str, str] = {
-        "bundle_ref": "ObjectRef of the analyzer bundle (JRE + analyzer, content-addressed toolchain object)",
-        "version": "analyzer version string", "options_hash": "hash of the analysis options (basis field)",
-        "fixture_ref": "ObjectRef of the fixture packed program", "expected_inventory_hash": "pinned canonical function-inventory hash",
-        "headless_command": "shell template with {bundle} {fixture} {output}",
+        "fixture": "sha256: ref of a packed program object (packed source); omit for the lane's synthetic image",
+        "install_dir": "unpacked analyzer bundle root (bundle source); omit for the owned install (GHIDRA_INSTALL_DIR)",
+        "pin": "pinned inventory hash (--analyzer-pin); omit to measure (unpinned, no capability)",
+        "pins": "mapping pins['analyzer'][<version>] -> hash (embedding); config-file pins are a slot",
+        "deadline_s": "child probe deadline (boot + open + analysis)",
+        "version/options_hash/inventory": "explicit pieces instead of a HOOKS entry (tests, embedding)",
     }
 
-    def __init__(self, **config: Any) -> None:
-        self.config = dict(config)
+    def __init__(self, *, fixture: str | None = None, install_dir: str | os.PathLike[str] | None = None, pin: str = "",
+                 pins: Mapping[str, Any] | None = None, deadline_s: float = 90.0, hook: str = "analyzer",
+                 version: str = "", options_hash: str = "", inventory: Callable[[str, float], Any] | None = None) -> None:
+        self.fixture = fixture
+        self.install_dir = str(install_dir) if install_dir is not None else None
+        self.pin = pin.strip()
+        self.pins = pins
+        self.deadline_s = deadline_s
+        self.hook = hook
+        self.version = version
+        self.options_hash = options_hash
+        self.inventory = inventory
+        self.last_evidence: dict[str, Any] = {}
 
     @property
     def capability(self) -> str:
-        return f"analyzer:{self.config.get('version', '')}:{self.config.get('options_hash', '')}"
+        return f"analyzer:{self.version}:{self.options_hash}"
+
+    @staticmethod
+    def inventory_hash(rows: Iterable[tuple[int, int]]) -> str:
+        lines = sorted(f"{int(entry):#x} {int(size)}" for entry, size in rows)
+        return hashlib.sha256(("\n".join(lines) + "\n").encode("ascii")).hexdigest()
+
+    def expected(self) -> str:
+        if self.pin:
+            return self.pin
+        table = (self.pins or {}).get("analyzer", {}) if self.pins else {}
+        return str(table.get(self.version, "") or "").strip() if isinstance(table, Mapping) else ""
+
+    def _needs(self) -> list[str]:
+        if self.inventory is not None and self.version:
+            return []
+        needs = []
+        if self.hook not in self.HOOKS:
+            needs.append(f"a lane hook named {self.hook!r} in AnalyzerCanary.HOOKS (load the lanes: config lanes / ADGRID_LANES)")
+        if self.install_dir and not os.path.isdir(self.install_dir):
+            needs.append("install_dir is not a directory")
+        return needs
+
+    def _configure(self, objects: ObjectStore, scratch: str) -> dict[str, Any]:
+        if self.inventory is not None and self.version:
+            return {}
+        cfg = self.HOOKS.get(self.hook).configure(fixture=self.fixture, install=self.install_dir, objects=objects, scratch=scratch)
+        self.version = str(cfg["version"])
+        self.options_hash = str(cfg.get("options_hash", self.options_hash))
+        self.inventory = cfg["inventory"]
+        return cfg
 
     def prove(self, objects: ObjectStore, scratch: str) -> tuple[bool, Mapping[str, Any]]:
-        missing = [k for k in self.CONFIG_SCHEMA if not self.config.get(k)]
-        raise NotConfigured("analyzer canary is declared only; it needs " + ", ".join(missing or self.CONFIG_SCHEMA) + " and the headless runner from grid_lanes/analysis (U137)")
+        needs = self._needs()
+        if needs:
+            raise NotConfigured("analyzer canary needs: " + "; ".join(needs))
+        evidence: dict[str, Any] = {}
+        self.last_evidence = evidence
+
+        def fail(message: str) -> tuple[bool, Mapping[str, Any]]:
+            evidence["failure"] = message
+            return False, evidence
+
+        try:
+            cfg = self._configure(objects, scratch)
+        except Refused as exc:                    # a lane refusal is a named failure, never a traceback
+            return fail(str(exc.reason))
+        fixture = cfg.get("fixture")
+        install = cfg.get("install")
+        evidence.update({
+            "version": self.version, "options_hash": self.options_hash,
+            "fixture": {"sha256": getattr(fixture, "sha256", ""), "kind": getattr(fixture, "kind", ""), "source": getattr(fixture, "source", "")},
+            "install": {"version": getattr(install, "version", self.version), "source": getattr(install, "source", "")},
+        })
+        assert self.inventory is not None
+        run = self.inventory(scratch, self.deadline_s)
+        evidence["probe"] = {"wall_s": round(float(getattr(run, "elapsed_s", 0.0)), 3), "boot_s": getattr(run, "boot_s", None),
+                             "open_s": getattr(run, "open_s", None), "returncode": getattr(run, "returncode", None),
+                             "live_version": getattr(run, "live_version", ""), "stderr_sha256": getattr(run, "stderr_sha256", "")}
+        if getattr(run, "timed_out", False):
+            return fail(f"analyzer-canary: probe timed out after {self.deadline_s:.0f}s for {self.version}")
+        if getattr(run, "failure", ""):
+            return fail(str(run.failure))
+        rows = list(getattr(run, "rows", ()))
+        if not rows:
+            return fail(f"analyzer-canary: empty function inventory for {self.version}")
+        got = self.inventory_hash(rows)
+        evidence["inventory_hash"] = got
+        evidence["functions"] = len(rows)
+        expected = self.expected()
+        evidence["expected_inventory_hash"] = expected
+        if not expected:
+            return fail("unpinned")
+        if got != expected:
+            return fail(f"analyzer-canary: inventory hash mismatch (pin-mismatch) for {self.version}")
+        evidence["failure"] = ""
+        return True, evidence
 
     def describe(self) -> Mapping[str, Any]:
-        return {"name": self.name, "capability": self.capability, "status": "declared", "needs": [k for k in self.CONFIG_SCHEMA if not self.config.get(k)], "config_schema": dict(self.CONFIG_SCHEMA)}
+        needs = self._needs()
+        hook = self.HOOKS.get(self.hook) if self.hook in self.HOOKS else None
+        sources = hook.describe() if hook is not None and hasattr(hook, "describe") else {
+            "fixture_sources": {"working": ["packed", "synthetic"], "slots": ["remote"]},
+            "install_sources": {"working": ["owned", "bundle"], "slots": []},
+        }
+        return {"name": self.name, "capability": self.capability, "status": "working" if not needs else "not-configured", "needs": needs,
+                "config_schema": dict(self.CONFIG_SCHEMA), "hooks": self.HOOKS.names(), "pin": self.expected(),
+                "pin_source": {"working": ["--analyzer-pin", "pins mapping"], "slots": ["config pins.analyzer.<version>"]},
+                "inventory_hash": "sha256 over sorted '<entry:#x> <size>' lines, newline-joined, trailing newline",
+                "unpinned": "first run without a pin: failed row 'unpinned' with the measured hash, no capability", **sources}
 
 
+# --------------------------------------------------------------------------- working: parity
 class ParityCanary:
-    """Run the hash-pinned parity checker on a fixture pair; the canonical receipt must equal the
-    pin.  A node with a different checker binary advertises a *different* capability
-    (``parity:<its hash>``) and is never offered tasks keyed to the pinned one."""
+    """Prove ``parity:<checker sha256>`` for this node (U165).
+
+    Steps: resolve the checker through the lane hook (``HOOKS['parity']``) -- a checker binary
+    object by ref (its ref is its hash) or a configured path whose bytes must hash to
+    ``checker_hash`` when one is asserted; a checker built from source is the lane's slot -> run
+    it on the fixture pair (two object refs, or the lane's synthetic pair) under ``deadline_s`` ->
+    the canonical receipt's sha256 must equal ``pin``.  The capability is the full
+    ``parity:<sha256>`` the ``parity-check`` kind requires (``verifier_id``), so a node with a
+    different checker build advertises a different capability and is never offered tasks keyed to
+    the pinned one.  A missing checker is the named failure ``parity-checker-missing:native``
+    (``test_parity_checker_missing_refuses_by_name``); no receipt pin is ``unpinned`` with the
+    measured receipt hash and no capability; a receipt mismatch is ``pin-mismatch``.
+
+    The target ``objdump`` that ``mkobj-target`` needs is a second, declared capability
+    (``objdump:<sha256>``) advertised by ``objdump_canary()``; its absence is the named refusal
+    ``mkobj-target``, never an exception.
+    """
 
     name = "parity"
+    HOOKS = Registry("parity canary hook")
     CONFIG_SCHEMA: Mapping[str, str] = {
-        "checker_path": "path of the parity checker binary", "checker_hash": "sha256 of the binary (pinned release)",
-        "fixture_pair_ref": "ObjectRef of the fixture object pair", "expected_receipt_hash": "pinned canonical receipt hash",
-        "check_command": "shell template with {checker} {left} {right} {output}",
+        "checker": "checker binary: a path, or a sha256: object ref (--parity-checker)",
+        "checker_hash": "asserted sha256 of the checker bytes (--with parity <hash>); a mismatch refuses by name",
+        "pin": "pinned canonical receipt hash (--parity-pin); omit to measure (unpinned, no capability)",
+        "fixture_pair": "two sha256: refs, target then candidate; omit for the lane's synthetic pair",
+        "objdump": "target objdump path for the objdump capability (--parity-objdump)",
+        "deadline_s": "checker run deadline",
+        "runner/checker_sha256": "explicit pieces instead of a HOOKS entry (tests, embedding)",
     }
 
-    def __init__(self, **config: Any) -> None:
-        self.config = dict(config)
+    def __init__(self, *, checker: str | None = None, checker_hash: str = "", pin: str = "", fixture_pair: Iterable[str] | None = None,
+                 objdump: str | os.PathLike[str] | None = None, deadline_s: float = 60.0, hook: str = "parity",
+                 runner: Callable[[str, float], Any] | None = None, checker_sha256: str = "") -> None:
+        self.checker = checker
+        self.checker_hash = checker_hash.strip()
+        self.pin = pin.strip()
+        self.fixture_pair = tuple(fixture_pair) if fixture_pair else None
+        self.objdump = str(objdump) if objdump is not None else None
+        self.deadline_s = deadline_s
+        self.hook = hook
+        self.runner = runner
+        self.checker_sha256 = checker_sha256.strip()
+        self.last_evidence: dict[str, Any] = {}
 
     @property
     def capability(self) -> str:
-        return f"parity:{self.config.get('checker_hash', '')}"
+        return f"parity:{self.checker_sha256 or self.checker_hash}"
+
+    def objdump_canary(self) -> "ParityCanary.Objdump":
+        return ParityCanary.Objdump(self)
+
+    def _needs(self) -> list[str]:
+        if self.runner is not None and self.checker_sha256:
+            return []
+        needs = []
+        if self.hook not in self.HOOKS:
+            needs.append(f"a lane hook named {self.hook!r} in ParityCanary.HOOKS (load the lanes: config lanes / ADGRID_LANES)")
+        return needs
+
+    def _configure(self, objects: ObjectStore, scratch: str) -> dict[str, Any]:
+        if self.runner is not None and self.checker_sha256:
+            return {}
+        cfg = self.HOOKS.get(self.hook).configure(checker=self.checker, checker_hash=self.checker_hash, objects=objects, scratch=scratch,
+                                                  fixture_pair=self.fixture_pair)
+        self.checker_sha256 = str(cfg["checker_sha256"])
+        self.runner = cfg["run"]
+        return cfg
 
     def prove(self, objects: ObjectStore, scratch: str) -> tuple[bool, Mapping[str, Any]]:
-        path = self.config.get("checker_path")
-        if path and os.path.isfile(path):
-            actual = hashlib.sha256(Path(path).read_bytes()).hexdigest()
-            if self.config.get("checker_hash") and actual != self.config["checker_hash"]:
-                return False, {"failure": "checker-hash-mismatch", "checker_hash": actual, "expected": self.config["checker_hash"]}
-        missing = [k for k in self.CONFIG_SCHEMA if not self.config.get(k)]
-        raise NotConfigured("parity canary is declared only; it needs " + ", ".join(missing or self.CONFIG_SCHEMA) + " and the checker runner from grid_lanes/parity (U136)")
+        needs = self._needs()
+        if needs:
+            raise NotConfigured("parity canary needs: " + "; ".join(needs))
+        evidence: dict[str, Any] = {"asserted_checker_hash": self.checker_hash}
+        self.last_evidence = evidence
+
+        def fail(message: str) -> tuple[bool, Mapping[str, Any]]:
+            evidence["failure"] = message
+            return False, evidence
+
+        try:
+            cfg = self._configure(objects, scratch)
+        except Refused as exc:                    # missing checker / hash mismatch: named, never a traceback
+            return fail(str(exc.reason))
+        if self.checker_hash and self.checker_sha256 != self.checker_hash:
+            return fail(f"parity-checker-hash-mismatch:{self.checker_sha256[:16]}!={self.checker_hash[:16]}")
+        pair = cfg.get("pair")
+        evidence.update({"checker_sha256": self.checker_sha256, "checker_source": cfg.get("checker_source", "explicit"),
+                         "sides": {"target": getattr(pair, "target_sha256", ""), "candidate": getattr(pair, "candidate_sha256", "")},
+                         "pair_source": getattr(pair, "source", "")})
+        assert self.runner is not None
+        run = self.runner(scratch, self.deadline_s)
+        evidence["probe"] = {"wall_s": round(float(getattr(run, "elapsed_s", 0.0)), 3), "returncode": getattr(run, "returncode", None),
+                             "stderr_sha256": getattr(run, "stderr_sha256", "")}
+        if getattr(run, "timed_out", False):
+            return fail(f"parity-canary: checker timed out after {self.deadline_s:.0f}s for {self.checker_sha256[:16]}")
+        if getattr(run, "failure", ""):
+            return fail(str(run.failure))
+        receipt = dict(getattr(run, "receipt", {}) or {})
+        if not receipt:
+            return fail(f"parity-canary: checker produced no receipt for {self.checker_sha256[:16]}")
+        got = digest(canonical_json(receipt))
+        evidence["receipt_hash"] = got
+        evidence["grade"] = str(receipt.get("grade", receipt.get("status", "error")))
+        evidence["expected_receipt_hash"] = self.pin
+        if not self.pin:
+            return fail("unpinned")
+        if got != self.pin:
+            return fail(f"parity-canary: receipt hash mismatch (pin-mismatch) for {self.checker_sha256[:16]}")
+        evidence["failure"] = ""
+        return True, evidence
 
     def describe(self) -> Mapping[str, Any]:
-        return {"name": self.name, "capability": self.capability, "status": "declared", "needs": [k for k in self.CONFIG_SCHEMA if not self.config.get(k)], "config_schema": dict(self.CONFIG_SCHEMA)}
+        needs = self._needs()
+        hook = self.HOOKS.get(self.hook) if self.hook in self.HOOKS else None
+        sources = hook.describe() if hook is not None and hasattr(hook, "describe") else {
+            "checker_sources": {"working": ["object", "path"], "slots": ["built"]},
+            "pair_sources": {"working": ["objects", "synthetic"], "slots": []},
+            "objdump": {"capability": "objdump:<sha256>", "refusal": "mkobj-target"},
+        }
+        return {"name": self.name, "capability": self.capability, "status": "working" if not needs else "not-configured", "needs": needs,
+                "config_schema": dict(self.CONFIG_SCHEMA), "hooks": self.HOOKS.names(), "pin": self.pin,
+                "pin_source": {"working": ["--parity-pin"], "slots": ["config pins.parity.<checker sha256>"]},
+                "receipt_hash": "sha256 of the canonical JSON receipt (parity-check shape minus raw output)",
+                "unpinned": "first run without a pin: failed row 'unpinned' with the measured receipt hash, no capability", **sources}
+
+    # ----------------------------------------------------------------- the declared objdump capability
+    class Objdump:
+        """``objdump:<sha256>`` for the target objdump ``mkobj-target`` cuts targets with; absent
+        or unusable is the named refusal ``mkobj-target``, never an exception."""
+
+        name = "parity-objdump"
+
+        def __init__(self, parent: "ParityCanary") -> None:
+            self.parent = parent
+            self.sha256 = ""
+
+        @property
+        def capability(self) -> str:
+            return f"objdump:{self.sha256}"
+
+        def prove(self, objects: ObjectStore, scratch: str) -> tuple[bool, Mapping[str, Any]]:
+            parent = self.parent
+            if parent.hook not in parent.HOOKS:
+                raise NotConfigured(f"objdump canary needs a lane hook named {parent.hook!r} in ParityCanary.HOOKS (load the lanes: config lanes / ADGRID_LANES)")
+            hook = parent.HOOKS.get(parent.hook)
+            if not hasattr(hook, "probe_objdump"):
+                raise NotConfigured(f"lane hook {parent.hook!r} offers no probe_objdump")
+            facts = dict(hook.probe_objdump(parent.objdump, scratch=scratch, deadline_s=parent.deadline_s))
+            if facts.get("failure"):
+                return False, facts
+            self.sha256 = str(facts.get("sha256", ""))
+            return bool(self.sha256), {**facts, "failure": "" if self.sha256 else "mkobj-target: target objdump has no hash"}
+
+        def describe(self) -> Mapping[str, Any]:
+            return {"name": self.name, "capability": self.capability, "status": "declared" if not self.parent.objdump else "working",
+                    "needs": [] if self.parent.objdump else ["--parity-objdump <path> or AGENT_DECOMPILE_OBJDUMP"],
+                    "refusal": "mkobj-target"}
 
 
+# --------------------------------------------------------------------------- declared: browser
 class BrowserCanary:
     name = "browser"
     capability = "browser"

@@ -20,6 +20,7 @@ Environment (1:1 with Python AgentDecompileLauncher / ConfigManager) for agentde
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import logging
@@ -652,11 +653,9 @@ def _cleanup_resources(
             pass
 
 
-def main() -> None:
-    """Parse server options and run init + transport."""
-    logger.debug("diag.enter %s", "server.py:main")
-    import argparse
-
+def build_parser() -> argparse.ArgumentParser:
+    """Build the agentdecompile-server argument parser (no side effects)."""
+    logger.debug("diag.enter %s", "server.py:build_parser")
     try:
         from agentdecompile_cli import __version__
     except ImportError:
@@ -803,6 +802,13 @@ def main() -> None:
         help="Binary paths to import before serving",
     )
     parser.add_argument("--config", type=Path, default=None, help="AgentDecompile config file")
+    return parser
+
+
+def main() -> None:
+    """Parse server options and run init + transport."""
+    logger.debug("diag.enter %s", "server.py:main")
+    parser = build_parser()
     args = parser.parse_args()
 
     # ---------------------------------------------------------------
@@ -928,16 +934,9 @@ def main() -> None:
         _cleanup_resources(launcher, project_manager)
 
 
-def proxy_main() -> None:
-    """Entry point for agentdecompile-proxy: forward MCP to a remote backend (no local PyGhidra).
-
-    Use this command when you want to expose a remote AgentDecompile MCP server over stdio
-    or HTTP without running a local Ghidra instance. Backend URL is required via
-    --backend-url, --mcp-server-url, or env AGENT_DECOMPILE_MCP_SERVER_URL / AGENTDECOMPILE_MCP_SERVER_URL.
-    """
-    logger.debug("diag.enter %s", "server.py:proxy_main")
-    import argparse
-
+def build_proxy_parser() -> argparse.ArgumentParser:
+    """Build the agentdecompile-proxy argument parser (no side effects)."""
+    logger.debug("diag.enter %s", "server.py:build_proxy_parser")
     parser = argparse.ArgumentParser(
         description="AgentDecompile MCP proxy: forward MCP requests to a remote backend (no local PyGhidra/JVM)",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -990,6 +989,18 @@ def proxy_main() -> None:
         action="store_false",
         help="Disable the experimental work exchange even when AGENT_DECOMPILE_EXCHANGE_ENABLED is set",
     )
+    return parser
+
+
+def proxy_main() -> None:
+    """Entry point for agentdecompile-proxy: forward MCP to a remote backend (no local PyGhidra).
+
+    Use this command when you want to expose a remote AgentDecompile MCP server over stdio
+    or HTTP without running a local Ghidra instance. Backend URL is required via
+    --backend-url, --mcp-server-url, or env AGENT_DECOMPILE_MCP_SERVER_URL / AGENTDECOMPILE_MCP_SERVER_URL.
+    """
+    logger.debug("diag.enter %s", "server.py:proxy_main")
+    parser = build_proxy_parser()
     args = parser.parse_args()
 
     backend_url = _resolve_proxy_backend_url(

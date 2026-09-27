@@ -351,9 +351,9 @@ class AgentDecompileCLI:
             self.cleanup()
 
 
-def _setup_main_argument_parser() -> argparse.ArgumentParser:
-    """Set up the argument parser for the main CLI."""
-    logger.debug("diag.enter %s", "__main__.py:_setup_main_argument_parser")
+def build_parser() -> argparse.ArgumentParser:
+    """Build the mcp-agentdecompile argument parser (no side effects)."""
+    logger.debug("diag.enter %s", "__main__.py:build_parser")
     parser = argparse.ArgumentParser(
         description="AgentDecompile MCP server with stdio transport for Claude CLI integration",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -551,7 +551,7 @@ def main():
     """
     apply_default_env()
     logger.debug("diag.enter %s", "__main__.py:main")
-    parser = _setup_main_argument_parser()
+    parser = build_parser()
     args = parser.parse_args()
 
     # Resolve backend: --server-url wins; else --host/--port or env vars (connect mode)

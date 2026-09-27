@@ -866,7 +866,7 @@ def _next_steps_search_code(data: dict[str, Any]) -> list[str]:
     steps: list[str] = []
     if results:
         first: dict[str, Any] = results[0]
-        func_name = first.get("function", "")
+        func_name = first.get("function") or first.get("function_name", "")
         if func_name:
             steps.append(f"Decompile/disassemble/inspect matching function: `get-function function={func_name}`.")
     steps.append("Use `searchMode=regex` for pattern matching, or `searchMode=literal` for exact text.")
@@ -2249,6 +2249,78 @@ def _render_strings(data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _render_search_code(data: dict[str, Any]) -> str:
+    """Render search-code: code-index results (function_name/code/similarity) or the
+    name+decompiled-code fallback (function/address/match/snippet)."""
+    logger.debug("diag.enter %s", "mcp_server/response_formatter.py:_render_search_code")
+    lines: list[str] = []
+    query = data.get("query", "")
+    lines.append(_md_heading(2, f"Code Search: `{query}`" if query else "Code Search"))
+    lines.append("")
+    results: list[dict[str, Any]] = data.get("results", []) or []
+    mode = data.get("searchMode", data.get("search_mode", ""))
+    returned = data.get("returnedCount", data.get("returned_count", len(results)))
+    offset = data.get("offset", 0)
+    summary = f"Showing **{returned}** result(s) (offset {offset})"
+    if data.get("literal_total") is not None:
+        summary += f"; literal matches: **{data.get('literal_total')}**"
+    if data.get("total_functions") is not None:
+        summary += f"; functions indexed: {data.get('total_functions')}"
+    if data.get("scannedFunctions") is not None:
+        summary += f"; functions scanned: {data.get('scannedFunctions')}"
+    lines.append(summary + ".")
+    if mode:
+        lines.append(_md_bold_kv("Mode", mode))
+    if data.get("decompileFailures"):
+        lines.append(_md_bold_kv("Decompile Failures", data.get("decompileFailures")))
+    note = data.get("note")
+    if note:
+        lines.append("")
+        lines.append(f"> {note}")
+    limit = data.get("limit")
+    if isinstance(limit, int) and isinstance(returned, int) and limit and returned >= limit:
+        lines.append("")
+        lines.append(f"More results may exist; use `offset={int(offset or 0) + returned}` to continue.")
+    lines.append("")
+    if not results:
+        lines.append("*No matches.*")
+        return "\n".join(lines)
+
+    if "function_name" in results[0]:
+        headers = ["Function", "Similarity", "Preview"]
+        rows = [
+            [
+                str(r.get("function_name", "")),
+                f"{float(r.get('similarity', 0) or 0):.2f}",
+                _truncate(str(r.get("preview") or r.get("code") or ""), 120),
+            ]
+            for r in results
+        ]
+        lines.append(_md_table(headers, rows))
+        return "\n".join(lines)
+
+    headers = ["Function", "Address", "Match", "Line", "Snippet"]
+    rows = [
+        [
+            str(r.get("function", "")),
+            str(r.get("address", "")),
+            str(r.get("match", "")),
+            str(r.get("line", "")),
+            _truncate(str(r.get("snippet", "") or ""), 120),
+        ]
+        for r in results
+    ]
+    lines.append(_md_table(headers, rows))
+    for r in results:
+        code = r.get("code")
+        if code:
+            lines.append("")
+            lines.append(_md_heading(3, f"`{r.get('function', '')}` @ `{r.get('address', '')}`"))
+            lines.append("")
+            lines.append(_md_code_block(str(code).strip("\n"), "c"))
+    return "\n".join(lines)
+
+
 def _render_datatypes(data: dict[str, Any]) -> str:
     logger.debug("diag.enter %s", "mcp_server/response_formatter.py:_render_datatypes")
     action = data.get("action", "")
@@ -3338,7 +3410,7 @@ TOOL_RENDERERS: dict[str, Callable[[dict[str, Any]], str]] = {
     "managestrings": _render_strings,
     "liststrings": _render_strings,
     "searchstrings": _render_strings,
-    "searchcode": _render_strings,
+    "searchcode": _render_search_code,
     "getdata": _render_data,
     "applydatatype": _render_data,
     "importbinary": _render_import_export,

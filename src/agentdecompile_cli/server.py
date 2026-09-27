@@ -52,6 +52,29 @@ logger = logging.getLogger(__name__)
 _HTTP_TRANSPORTS: frozenset[str] = frozenset({"streamable-http", "http", "sse"})
 
 
+def _resource_texts(result: Any) -> list[Any]:
+    """Text items of a resources/read result, in order.
+
+    ``AgentDecompileMcpClient.read_resource`` returns the JSON-RPC ``result``
+    dict ``{"contents": [{"text": ...}]}``. Also accepts the local backend
+    dict ``{"uri", "raw", "parsed"}`` and SDK objects with ``.contents``.
+    Mirrors ``cli._extract_text`` without importing the Click CLI here.
+    """
+    if isinstance(result, dict):
+        raw = result.get("raw")
+        if isinstance(raw, str) and raw:
+            return [raw]
+        contents: Any = result.get("contents")
+    else:
+        contents = getattr(result, "contents", None)
+    texts: list[Any] = []
+    for c in contents or []:
+        text = c.get("text") if isinstance(c, dict) else getattr(c, "text", None)
+        if text:
+            texts.append(text)
+    return texts
+
+
 def _get_pyghidra_vmargs() -> list[str]:
     """Return extra JVM args for embedded PyGhidra startup from env."""
     raw = str(
@@ -142,18 +165,15 @@ def init_agentdecompile_context(
         async with client:
             try:
                 result = await client.read_resource("ghidra://programs")
-                contents = getattr(result, "contents", None) or []
-                for c in contents:
-                    text = getattr(c, "text", None)
-                    if text:
-                        data = json.loads(text) if isinstance(text, str) else text
-                        programs = data if isinstance(data, list) else (data.get("programs") if isinstance(data, dict) else [])
-                        if isinstance(programs, list) and programs:
-                            sys.stderr.write("Project programs:\n")
-                            for p in programs:
-                                name = p.get("programPath", p.get("name", p)) if isinstance(p, dict) else p
-                                sys.stderr.write(f"  - {name}\n")
-                            sys.exit(0)
+                for text in _resource_texts(result):
+                    data = json.loads(text) if isinstance(text, str) else text
+                    programs = data if isinstance(data, list) else (data.get("programs") if isinstance(data, dict) else [])
+                    if isinstance(programs, list) and programs:
+                        sys.stderr.write("Project programs:\n")
+                        for p in programs:
+                            name = p.get("programPath", p.get("name", p)) if isinstance(p, dict) else p
+                            sys.stderr.write(f"  - {name}\n")
+                        sys.exit(0)
                 sys.stderr.write("No programs in project.\n")
             except Exception as e:
                 sys.stderr.write(f"Error listing programs: {e.__class__.__name__}: {e}\n")

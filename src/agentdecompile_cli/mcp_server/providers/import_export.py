@@ -5641,41 +5641,66 @@ class ImportExportToolProvider(ToolProvider):
             )
 
     async def _handle_list_processors(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        """List non-deprecated Ghidra languages from the language service, filtered case-insensitively."""
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_list_processors")
         filter_str = self._get_str(args, "filter", "query", "search")
+        needle = filter_str.strip().lower()
 
         try:
-            from ghidra.framework.main import AppInfo as GhidraAppInfo  # pyright: ignore[reportMissingModuleSource, reportMissingImports]
-
-            GhidraAppInfo.getActiveProject().getProjectData()
-            # This needs proper language service access
-            return create_success_response(
-                {
-                    "action": "list_processors",
-                    "note": "Processor listing requires Ghidra LanguageService",
-                    "filter": filter_str,
-                },
-            )
-        except Exception:
-            # Common processors
+            from ghidra.program.util import DefaultLanguageService as GhidraDefaultLanguageService  # pyright: ignore[reportMissingModuleSource, reportMissingImports]
+        except ImportError:
+            # Outside a Ghidra JVM there is no language service; say so instead of
+            # passing a hardcoded list off as the installed languages.
             common = [
                 "x86:LE:32:default",
                 "x86:LE:64:default",
                 "ARM:LE:32:v8",
-                "ARM:LE:64:v8A",
                 "AARCH64:LE:64:v8A",
                 "MIPS:BE:32:default",
                 "MIPS:LE:32:default",
                 "PowerPC:BE:32:default",
                 "PowerPC:BE:64:default",
             ]
-            if filter_str:
-                common = [p for p in common if filter_str.lower() in p.lower()]
+            if needle:
+                common = [p for p in common if needle in p.lower()]
             return create_success_response(
                 {
                     "action": "list_processors",
+                    "filter": filter_str,
                     "processors": common,
-                    "note": "Showing common processors; full list requires Ghidra environment",
                     "count": len(common),
+                    "source": "fallback",
+                    "note": "Ghidra language service unavailable; showing a fixed list of common language IDs",
                 },
             )
+
+        languages: list[dict[str, Any]] = []
+        for desc in list(GhidraDefaultLanguageService.getLanguageService().getLanguageDescriptions(False)):
+            if desc is None:
+                continue
+            language_id = str(desc.getLanguageID())
+            processor = str(desc.getProcessor())
+            description = str(desc.getDescription() or "")
+            if needle and needle not in f"{language_id}\n{processor}\n{description}".lower():
+                continue
+            languages.append(
+                {
+                    "languageId": language_id,
+                    "processor": processor,
+                    "endian": str(desc.getEndian()),
+                    "size": int(desc.getSize()),
+                    "variant": str(desc.getVariant()),
+                    "description": description,
+                },
+            )
+        languages.sort(key=lambda row: row["languageId"].lower())
+        return create_success_response(
+            {
+                "action": "list_processors",
+                "filter": filter_str,
+                "processors": [row["languageId"] for row in languages],
+                "languages": languages,
+                "count": len(languages),
+                "source": "language-service",
+            },
+        )

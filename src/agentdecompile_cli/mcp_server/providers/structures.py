@@ -264,7 +264,7 @@ class StructureToolProvider(ToolProvider):
                 for field in batch:
                     ni = {n(k): v for k, v in field.items()}
                     f_name = ni.get("fieldname") or ni.get("name") or f"field_{dt.getNumComponents()}"
-                    f_type = ni.get("fieldtype") or ni.get("type") or "byte"
+                    f_type = ni.get("fieldtype") or ni.get("datatype") or ni.get("type") or "byte"
                     f_comment = ni.get("fieldcomment") or ni.get("comment") or ""
                     try:
                         fdt = parser.parse(f_type)
@@ -278,7 +278,8 @@ class StructureToolProvider(ToolProvider):
 
         # Single field
         field_name = self._get_str(args, "fieldname", "field", default=f"field_{dt.getNumComponents()}")
-        field_type = self._require_str(args, "fieldtype", "type", name="fieldType")
+        # dataType is the name TOOL_PARAMS/the CLI advertise (--data_type).
+        field_type = self._require_str(args, "fieldtype", "datatype", "type", name="fieldType")
         field_comment = self._get_str(args, "fieldcomment", "comment", default="")
         fdt = parser.parse(field_type)
 
@@ -329,7 +330,7 @@ class StructureToolProvider(ToolProvider):
                     "fieldoffset": self._get(args, "fieldoffset", "offset"),
                     "fieldname": self._get_str(args, "fieldname", "field"),
                     "newfieldname": self._get_str(args, "newfieldname", "newname"),
-                    "fieldtype": self._get_str(args, "fieldtype", "type", "newfieldtype"),
+                    "fieldtype": self._get_str(args, "fieldtype", "datatype", "newdatatype", "type", "newfieldtype"),
                     "fieldcomment": self._get(args, "fieldcomment", "comment"),
                 },
             ]
@@ -371,7 +372,7 @@ class StructureToolProvider(ToolProvider):
         raw_offset = item.get("fieldoffset", item.get("offset"))
         selector_name = str(item.get("fieldname") or item.get("name") or "").strip()
         new_name = str(item.get("newfieldname") or item.get("newname") or "").strip()
-        new_type = str(item.get("fieldtype") or item.get("type") or item.get("newfieldtype") or "").strip()
+        new_type = str(item.get("fieldtype") or item.get("datatype") or item.get("newdatatype") or item.get("type") or item.get("newfieldtype") or "").strip()
         comment = item.get("fieldcomment", item.get("comment"))
 
         if raw_offset is not None and str(raw_offset).strip() != "":

@@ -33,7 +33,12 @@ from mcp import types
 from agentdecompile_cli.app_logger import basename_hint, redact_session_id
 from agentdecompile_cli.context import ProgramInfo
 from agentdecompile_cli.mcp_server.providers._collectors import iter_items
-from agentdecompile_cli.mcp_server.providers.project import ProjectToolProvider, domain_file_sha256
+from agentdecompile_cli.mcp_server.providers.project import (
+    ProjectToolProvider,
+    domain_file_sha256s,
+    file_sha256,
+    record_source_sha256,
+)
 from agentdecompile_cli.mcp_server.repository_adapter_listing import list_repository_adapter_items
 from agentdecompile_cli.mcp_server.session_context import (
     SESSION_CONTEXTS,
@@ -1594,8 +1599,14 @@ class ImportExportToolProvider(ToolProvider):
                     if protection.get('handling') == 'blocked':
                         raise ValueError(f"protection-unavailable: {protection.get('reason')}")
                     analysis_item = Path(protection['analysisPath'])
-                    from agentdecompile_recovery.corpus.dashboard.library_identity import binary_sha256
-                    digest = await _native_call(binary_sha256, str(analysis_item))
+                    # Reuse is keyed on the raw file the caller named, the same bytes
+                    # _import_file hashes.  ``digest`` (bytes Ghidra loads) still
+                    # matches files imported before the source hash was recorded.
+                    source_digest = await _native_call(file_sha256, item)
+                    if analysis_item.resolve() == Path(item).resolve():
+                        digest = source_digest
+                    else:
+                        digest = await _native_call(file_sha256, analysis_item)
                     def existing_content():
                         root = ghidra_project.getProject().getProjectData().getRootFolder()
                         pending = [root]
@@ -1604,8 +1615,8 @@ class ImportExportToolProvider(ToolProvider):
                             folder = pending.pop()
                             pending.extend(list(folder.getFolders()))
                             for domain_file in folder.getFiles():
-                                prior = domain_file_sha256(domain_file)
-                                if digest and prior == digest:
+                                known = domain_file_sha256s(domain_file)
+                                if (source_digest and source_digest in known) or (digest and digest in known):
                                     return str(domain_file.getPathname()), str(domain_file.getName())
                                 if str(domain_file.getName()) == name and str(folder.getPathname()).rstrip("/") == dest_folder.rstrip("/"):
                                     collision = True
@@ -1673,6 +1684,8 @@ class ImportExportToolProvider(ToolProvider):
                                 program.name = name
                         except Exception:
                             pass
+                        # Saved into the file metadata by saveAs / the save below.
+                        await _native_call(record_source_sha256, program, source_digest)
                         needs_save_as = protection.get("handling") != "container-extract"
                         if not needs_save_as:
                             def _domain_file_missing() -> bool:
@@ -1699,6 +1712,7 @@ class ImportExportToolProvider(ToolProvider):
                         "analysisPath": str(analysis_item),
                         "reused": bool(reused),
                         "sha256": digest,
+                        "sourceSha256": source_digest,
                         "protection": protection,
                         "programName": final_name,
                         "programPath": path_in_project,

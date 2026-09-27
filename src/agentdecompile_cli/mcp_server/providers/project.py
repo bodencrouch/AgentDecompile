@@ -10,6 +10,7 @@ or a shared-server adapter.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -175,22 +176,47 @@ def _shared_auth_failed(adapter_error_type: str | None, adapter_error: str | Non
     )
 
 
-def domain_file_sha256(domain_file: Any) -> str:
-    """Lowercased source-file SHA256 stored in a project file's metadata, or "".
+# Program Information option holding the SHA256 of the file the user pointed the
+# import at.  "Executable SHA256" is what the loader read, which differs when
+# import-binary unpacks or extracts first; reuse is keyed on the raw file.  No "."
+# in the name: ProgramDB.getMetadata skips second-tier option names.
+SOURCE_FILE_SHA256_OPTION = "Source File SHA256"
 
-    Loaders record it as the Program Information option "Executable SHA256"
-    (AbstractProgramLoader.setProgramProperties), and ProgramDB.getMetadata copies
-    Program Information options into the file metadata.
-    """
+
+def file_sha256(path: str | os.PathLike[str]) -> str:
+    """Lowercase SHA256 of a local file's bytes; "" when unreadable or it changed mid-read."""
     try:
-        metadata = domain_file.getMetadata()
-        return str(metadata.get("Executable SHA256") or metadata.get("SHA256") or "").lower()
-    except Exception:
+        source = Path(path)
+        before = source.stat()
+        digest = hashlib.sha256()
+        with source.open("rb") as handle:
+            for block in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(block)
+        after = source.stat()
+        if (before.st_size, before.st_mtime_ns) != (after.st_size, after.st_mtime_ns):
+            return ""
+        return digest.hexdigest()
+    except (OSError, ValueError):
         return ""
 
 
+def domain_file_sha256s(domain_file: Any) -> set[str]:
+    """Lowercased SHA256 values recorded in a project file's metadata.
+
+    ``SOURCE_FILE_SHA256_OPTION`` (raw import source) and "Executable SHA256" (bytes
+    the loader read; AbstractProgramLoader.setProgramProperties).  ProgramDB.getMetadata
+    copies Program Information options into the file metadata.
+    """
+    try:
+        metadata = domain_file.getMetadata()
+        values = (metadata.get(key) for key in (SOURCE_FILE_SHA256_OPTION, "Executable SHA256", "SHA256"))
+        return {str(value).lower() for value in values if value}
+    except Exception:
+        return set()
+
+
 def find_project_file_by_sha256(root_folder: Any, digest: str) -> Any | None:
-    """First DomainFile under ``root_folder`` whose recorded SHA256 equals ``digest``."""
+    """First DomainFile under ``root_folder`` that records ``digest``."""
     if not digest:
         return None
     digest = digest.lower()
@@ -199,19 +225,28 @@ def find_project_file_by_sha256(root_folder: Any, digest: str) -> Any | None:
         folder = pending.pop()
         pending.extend(list(folder.getFolders() or []))
         for domain_file in folder.getFiles() or []:
-            if domain_file_sha256(domain_file) == digest:
+            if digest in domain_file_sha256s(domain_file):
                 return domain_file
     return None
 
 
-def source_file_sha256(path: Path) -> str:
-    """SHA256 of a local file via import-binary's cached hasher; "" disables reuse."""
+def record_source_sha256(program: Any, digest: str) -> None:
+    """Store the raw import source's SHA256 on a new program (saved with its metadata)."""
+    if not digest:
+        return
     try:
-        from agentdecompile_recovery.corpus.dashboard.library_identity import binary_sha256
+        from ghidra.program.model.listing import Program as GhidraProgramClass  # pyright: ignore[reportMissingImports]
+
+        category = GhidraProgramClass.PROGRAM_INFO
+    except Exception:
+        category = "Program Information"
+    tx_id = program.startTransaction("AgentDecompile source SHA256")
+    try:
+        program.getOptions(category).setString(SOURCE_FILE_SHA256_OPTION, digest)
     except Exception as exc:
-        logger.warning("import_reuse hash_helper_unavailable exc_type=%s exc=%s", type(exc).__name__, exc)
-        return ""
-    return binary_sha256(str(path)).lower()
+        logger.warning("import_reuse record_source_sha256_failed exc_type=%s exc=%s", type(exc).__name__, exc)
+    finally:
+        program.endTransaction(tx_id, True)
 
 
 class ProjectToolProvider(ToolProvider):
@@ -3673,7 +3708,7 @@ class ProjectToolProvider(ToolProvider):
                 # project are opened, not imported again.
                 existing_file = find_project_file_by_sha256(
                     self._project_root_folder(ghidra_project, project_handle),
-                    source_file_sha256(entry),
+                    file_sha256(entry),
                 )
                 program: GhidraProgram | None
                 if existing_file is not None:

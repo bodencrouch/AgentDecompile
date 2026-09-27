@@ -654,7 +654,11 @@ def _cleanup_resources(
 
 
 def build_server_parser() -> argparse.ArgumentParser:
-    """Build the ``agentdecompile-server`` argument parser (no side effects)."""
+    """Build the ``agentdecompile-server`` argument parser (no side effects).
+
+    Help text states each default as ``Default: X.``; the plain formatter is
+    used so argparse does not append a second, raw ``(default: None)``.
+    """
     try:
         from agentdecompile_cli import __version__
     except ImportError:
@@ -662,18 +666,19 @@ def build_server_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         description="AgentDecompile MCP server with project and transport options",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
 
-    # Server options (defaults from env to match Java headless launcher)
     g_server = parser.add_argument_group("Server options")
     g_server.add_argument(
         "-t",
         "--transport",
         choices=["stdio", "streamable-http", "sse", "http"],
         default="stdio",
-        help="Transport: stdio (stdio bridge) or HTTP-based (server only)",
+        help=(
+            "stdio bridges stdin/stdout to the server, which still binds --host/--port. "
+            "streamable-http, http and sse serve MCP over HTTP on --host/--port. Default: stdio."
+        ),
     )
     g_server.add_argument(
         "-p",
@@ -681,126 +686,165 @@ def build_server_parser() -> argparse.ArgumentParser:
         "--mcp-server-port",
         type=int,
         default=None,
-        help="Port for the MCP server (default: AGENT_DECOMPILE_PORT or 8080)",
+        help="Port to bind, for every transport. Default: AGENT_DECOMPILE_PORT, else 8080.",
     )
     g_server.add_argument(
         "-o",
         "--host",
         type=str,
         default=None,
-        help="Host for HTTP transports (default: AGENT_DECOMPILE_HOST or 127.0.0.1)",
+        help="Host to bind. Default: AGENT_DECOMPILE_HOST, else 127.0.0.1.",
     )
     g_server.add_argument(
         "--verbose",
         "-v",
         action="store_true",
         default=False,
-        help="Enable verbose logs (including HTTP request diagnostics)",
+        help="Log at DEBUG level, including HTTP client requests. Default: off.",
     )
     g_server.add_argument(
         "--ghidra-server-host",
         type=str,
         default=None,
-        help="Shared Ghidra server host (prefer AGENT_DECOMPILE_GHIDRA_SERVER_HOST in environment)",
+        help="Shared Ghidra Server host. Overrides AGENT_DECOMPILE_GHIDRA_SERVER_HOST. Default: that variable or an alias, else unset.",
     )
     g_server.add_argument(
         "--ghidra-server-port",
         type=int,
         default=None,
-        help="Shared Ghidra server port (prefer AGENT_DECOMPILE_GHIDRA_SERVER_PORT in environment)",
+        help="Shared Ghidra Server port. Overrides AGENT_DECOMPILE_GHIDRA_SERVER_PORT. Default: that variable or an alias, else unset.",
     )
     g_server.add_argument(
         "--ghidra-server-username",
         type=str,
         default=None,
-        help="Shared Ghidra server username (prefer AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME in environment)",
+        help=(
+            "Shared Ghidra Server username, also the MCP HTTP auth username when auth is on. "
+            "Removed from the process arguments after parsing; prefer the env var. "
+            "Overrides AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME. Default: that variable or an alias, else unset."
+        ),
     )
     g_server.add_argument(
         "--ghidra-server-password",
         type=str,
         default=None,
-        help="Shared Ghidra server password (prefer AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD in environment)",
+        help=(
+            "Shared Ghidra Server password, also the MCP HTTP auth password when auth is on. "
+            "Removed from the process arguments after parsing; prefer the env var. "
+            "Overrides AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD. Default: that variable or an alias, else unset."
+        ),
     )
     g_server.add_argument(
         "--ghidra-server-repository",
         type=str,
         default=None,
-        help="Shared Ghidra repository (prefer AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY in environment)",
+        help="Shared Ghidra repository. Overrides AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY. Default: that variable or an alias, else unset.",
     )
     g_server.add_argument(
         "--require-auth",
         dest="require_auth",
         action="store_true",
         default=None,
-        help="Require HTTP Basic auth on every MCP request (auto-enabled when --ghidra-server-username is set)",
+        help=(
+            "Require HTTP Basic auth on every MCP request except /health (HTTP transports only). "
+            "The Ghidra username and password are the credentials; startup fails if either is missing. "
+            "Default: off, unless AGENT_DECOMPILE_AUTH_ENABLED is set."
+        ),
     )
     g_server.add_argument(
         "--no-require-auth",
         dest="require_auth",
         action="store_false",
-        help="Disable HTTP Basic auth enforcement even when --ghidra-server-username is set",
+        help=(
+            "Same as leaving out --require-auth. It does not switch off AGENT_DECOMPILE_AUTH_ENABLED; "
+            "unset that variable to run without auth. Default: off."
+        ),
     )
+    g_server.set_defaults(require_auth=None)
     g_server.add_argument(
         "--tls-cert",
         dest="tls_certfile",
         type=str,
         default=None,
-        help="Path to TLS certificate (PEM) for HTTPS. Requires --tls-key. Env: AGENT_DECOMPILE_TLS_CERT",
+        help="TLS certificate (PEM) for HTTPS. Needs --tls-key. Default: AGENT_DECOMPILE_TLS_CERT, else plain HTTP.",
     )
     g_server.add_argument(
         "--tls-key",
         dest="tls_keyfile",
         type=str,
         default=None,
-        help="Path to TLS private key (PEM) for HTTPS. Requires --tls-cert. Env: AGENT_DECOMPILE_TLS_KEY",
+        help="TLS private key (PEM) for HTTPS. Needs --tls-cert. Default: AGENT_DECOMPILE_TLS_KEY, else plain HTTP.",
     )
     g_server.add_argument(
         "--project-path",
         type=Path,
         default=Path("agentdecompile_projects"),
-        help="Project directory or path to .gpr file",
+        help=(
+            "Project directory or .gpr file. Default: agentdecompile_projects. "
+            "Left at that value, AGENT_DECOMPILE_DEFAULT_PROJECT_DIR is used instead, "
+            "then /projects/agentdecompile_projects when /projects exists."
+        ),
     )
     g_server.add_argument(
         "--project-name",
         type=str,
         default=os.environ.get("AGENT_DECOMPILE_PROJECT_NAME", "my_project"),
-        help="Project name (ignored when using .gpr). Env: AGENT_DECOMPILE_PROJECT_NAME",
+        help=(
+            "Project name. Cannot be combined with a .gpr --project-path. "
+            "Default: AGENT_DECOMPILE_PROJECT_NAME, else AGENTDECOMPILE_PROJECT_NAME, else my_project."
+        ),
     )
-    g_server.add_argument("--threaded", dest="threaded", action="store_true", help="Allow threaded analysis")
-    g_server.add_argument("--no-threaded", dest="threaded", action="store_false", help="Disable threaded analysis")
+    _not_applied = "Not applied: agentdecompile-server accepts it but does not pass it to the analysis backend."
+    g_server.add_argument("--threaded", dest="threaded", action="store_true", help=f"{_not_applied} Default: on.")
+    g_server.add_argument("--no-threaded", dest="threaded", action="store_false", help=f"{_not_applied} Default: on.")
     g_server.set_defaults(threaded=True)
-    g_server.add_argument("--max-workers", type=int, default=0, help="Workers for analysis (0 = CPU count)")
-    g_server.add_argument("--wait-for-analysis", dest="wait_for_analysis", action="store_true", help="Wait for initial analysis before serving")
-    g_server.add_argument("--no-wait-for-analysis", dest="wait_for_analysis", action="store_false", help="Do not wait for initial analysis before serving")
+    g_server.add_argument("--max-workers", type=int, default=0, help=f"{_not_applied} Default: 0.")
+    g_server.add_argument(
+        "--wait-for-analysis",
+        dest="wait_for_analysis",
+        action="store_true",
+        help="Sleep 5 seconds after startup imports. It does not wait for analysis to finish. Default: off.",
+    )
+    g_server.add_argument(
+        "--no-wait-for-analysis",
+        dest="wait_for_analysis",
+        action="store_false",
+        help="Skip the 5-second sleep. Default: off.",
+    )
     g_server.set_defaults(wait_for_analysis=False)
 
-    # Project management
     g_proj = parser.add_argument_group("Project management")
-    g_proj.add_argument("--list-project-binaries", action="store_true", help="List programs and exit")
-    g_proj.add_argument("--delete-project-binary", type=str, metavar="NAME", help="Delete a program and exit")
+    g_proj.add_argument("--list-project-binaries", action="store_true", help="Start, list the project's programs, and exit. Default: off.")
+    g_proj.add_argument(
+        "--delete-project-binary",
+        type=str,
+        metavar="NAME",
+        help="Not implemented: prints a notice and exits without deleting. Default: unset.",
+    )
 
-    # Analysis options (passed through for future use; Java backend may use env)
+    # Only --verbose-analysis reaches code (_initialize_pyghidra). The rest are
+    # accepted for compatibility and never forwarded (see init_agentdecompile_context).
     g_analysis = parser.add_argument_group("Analysis options")
-    g_analysis.add_argument("--force-analysis", dest="force_analysis", action="store_true", help="Force re-analysis")
-    g_analysis.add_argument("--no-force-analysis", dest="force_analysis", action="store_false", help="Disable forced re-analysis")
+    g_analysis.add_argument("--force-analysis", dest="force_analysis", action="store_true", help=f"{_not_applied} Default: off.")
+    g_analysis.add_argument("--no-force-analysis", dest="force_analysis", action="store_false", help=f"{_not_applied} Default: off.")
     g_analysis.set_defaults(force_analysis=False)
-    g_analysis.add_argument("--verbose-analysis", dest="verbose_analysis", action="store_true", help="Verbose analysis log")
-    g_analysis.add_argument("--no-verbose-analysis", dest="verbose_analysis", action="store_false", help="Disable verbose analysis log")
+    g_analysis.add_argument("--verbose-analysis", dest="verbose_analysis", action="store_true", help="Start PyGhidra in verbose mode. Default: off.")
+    g_analysis.add_argument("--no-verbose-analysis", dest="verbose_analysis", action="store_false", help="Start PyGhidra quietly. Default: off.")
     g_analysis.set_defaults(verbose_analysis=False)
-    g_analysis.add_argument("--no-symbols", action="store_true", help="Disable symbols for analysis")
-    g_analysis.add_argument("--symbols-path", type=Path, default=None, help="Symbols directory")
-    g_analysis.add_argument("--sym-file-path", type=Path, default=None, help="Single PDB symbol file")
-    g_analysis.add_argument("--gdt", type=Path, action="append", default=[], help="GDT file (repeatable)")
-    g_analysis.add_argument("--program-options", type=Path, default=None, help="JSON program options")
-    g_analysis.add_argument("--gzfs-path", type=Path, default=None, help="GZF output path")
+    g_analysis.add_argument("--no-symbols", action="store_true", help=f"{_not_applied} Default: off.")
+    g_analysis.add_argument("--symbols-path", type=Path, default=None, help=f"{_not_applied} Default: unset.")
+    g_analysis.add_argument("--sym-file-path", type=Path, default=None, help=f"{_not_applied} Default: unset.")
+    g_analysis.add_argument("--gdt", type=Path, action="append", default=[], help=f"{_not_applied} Repeatable. Default: none.")
+    g_analysis.add_argument("--program-options", type=Path, default=None, help=f"{_not_applied} Default: unset.")
+    g_analysis.add_argument("--gzfs-path", type=Path, default=None, help=f"{_not_applied} Default: unset.")
 
     parser.add_argument(
         "input_paths",
         nargs="*",
         type=Path,
-        help="Binary paths to import before serving",
+        help="Binaries to import, with analysis, once the server is up. Default: none.",
     )
-    parser.add_argument("--config", type=Path, default=None, help="AgentDecompile config file")
+    parser.add_argument("--config", type=Path, default=None, help="AgentDecompile config file for the launcher. Default: unset.")
     return parser
 
 
@@ -931,10 +975,13 @@ def main() -> None:
 
 
 def build_proxy_parser() -> argparse.ArgumentParser:
-    """Build the ``agentdecompile-proxy`` argument parser (no side effects)."""
+    """Build the ``agentdecompile-proxy`` argument parser (no side effects).
+
+    Auth, TLS and the work exchange only apply to the HTTP transports:
+    stdio hands off to the bridge before any of them is read.
+    """
     parser = argparse.ArgumentParser(
         description="AgentDecompile MCP proxy: forward MCP requests to a remote backend (no local PyGhidra/JVM)",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "--backend-url",
@@ -942,48 +989,108 @@ def build_proxy_parser() -> argparse.ArgumentParser:
         dest="backend_url",
         type=str,
         default=None,
-        help="Remote MCP backend URL (http(s)://host:port[/mcp/message]); env: AGENT_DECOMPILE_BACKEND_URL",
+        help=(
+            "Remote MCP backend URL (http(s)://host:port[/mcp/message]). Required from a flag or the environment. "
+            "Default: AGENT_DECOMPILE_BACKEND_URL, AGENT_DECOMPILE_MCP_SERVER_URL or AGENT_DECOMPILE_SERVER_URL, "
+            "then the same names spelled AGENTDECOMPILE_*."
+        ),
     )
     parser.add_argument(
         "--mcp-server-url",
         dest="mcp_server_url",
         type=str,
         default=None,
-        help="Fallback backend URL; env: AGENT_DECOMPILE_MCP_SERVER_URL or AGENTDECOMPILE_MCP_SERVER_URL",
+        help="Backend URL used when --backend-url is not given. Default: unset (see --backend-url).",
     )
     parser.add_argument(
         "-t",
         "--transport",
         choices=["stdio", "streamable-http", "sse", "http"],
         default="stdio",
-        help="Transport: stdio (forward over stdio) or HTTP (expose proxy on host:port)",
+        help="stdio forwards stdin/stdout to the backend. streamable-http, http and sse serve the proxy on --host/--port. Default: stdio.",
     )
-    parser.add_argument("-p", "--port", type=int, default=None, help="Port for HTTP proxy (default: 8080)")
-    parser.add_argument("-o", "--host", type=str, default=None, help="Host for HTTP proxy (default: 127.0.0.1)")
-    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose logs")
-    parser.add_argument("--tls-cert", dest="tls_certfile", type=str, default=None, help="TLS cert (PEM) for HTTPS proxy")
-    parser.add_argument("--tls-key", dest="tls_keyfile", type=str, default=None, help="TLS key (PEM) for HTTPS proxy")
-    parser.add_argument("--require-auth", dest="require_auth", action="store_true", help="Require HTTP Basic auth on proxy")
-    parser.add_argument("--no-require-auth", dest="require_auth", action="store_false", help="Do not require auth")
+    parser.add_argument("-p", "--port", type=int, default=None, help="Port for the HTTP proxy. Default: AGENT_DECOMPILE_PORT, else 8080.")
+    parser.add_argument("-o", "--host", type=str, default=None, help="Host for the HTTP proxy. Default: AGENT_DECOMPILE_HOST, else 127.0.0.1.")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Log at DEBUG level, including HTTP client requests. Default: off.")
+    parser.add_argument(
+        "--tls-cert",
+        dest="tls_certfile",
+        type=str,
+        default=None,
+        help="TLS certificate (PEM) for the HTTP proxy. Needs --tls-key. Default: AGENT_DECOMPILE_TLS_CERT, else plain HTTP.",
+    )
+    parser.add_argument(
+        "--tls-key",
+        dest="tls_keyfile",
+        type=str,
+        default=None,
+        help="TLS private key (PEM) for the HTTP proxy. Needs --tls-cert. Default: AGENT_DECOMPILE_TLS_KEY, else plain HTTP.",
+    )
+    parser.add_argument(
+        "--require-auth",
+        dest="require_auth",
+        action="store_true",
+        help=(
+            "Require HTTP Basic auth on every proxied request except /health (HTTP transports only). "
+            "The Ghidra username and password are the credentials; startup fails if either is missing. "
+            "Default: off, unless AGENT_DECOMPILE_AUTH_ENABLED is set."
+        ),
+    )
+    parser.add_argument(
+        "--no-require-auth",
+        dest="require_auth",
+        action="store_false",
+        help=(
+            "Same as leaving out --require-auth. It does not switch off AGENT_DECOMPILE_AUTH_ENABLED; "
+            "unset that variable to run without auth. Default: off."
+        ),
+    )
     parser.set_defaults(require_auth=None)
-    parser.add_argument("--ghidra-server-host", type=str, default=None, help="Auth: Ghidra server host")
-    parser.add_argument("--ghidra-server-port", type=int, default=None, help="Auth: Ghidra server port")
-    parser.add_argument("--ghidra-server-username", type=str, default=None, help="Auth: Ghidra server username")
-    parser.add_argument("--ghidra-server-password", type=str, default=None, help="Auth: Ghidra server password")
-    parser.add_argument("--ghidra-server-repository", type=str, default=None, help="Auth: Ghidra server repository")
+    # The proxy does not copy these into the environment, so an env value wins
+    # over the flag here (resolve_auth_config reads env first).
+    parser.add_argument(
+        "--ghidra-server-host",
+        type=str,
+        default=None,
+        help="Auth only: Ghidra Server host the credentials belong to. AGENT_DECOMPILE_GHIDRA_SERVER_HOST wins over this flag. Default: unset.",
+    )
+    parser.add_argument(
+        "--ghidra-server-port",
+        type=int,
+        default=None,
+        help="Auth only: Ghidra Server port. AGENT_DECOMPILE_GHIDRA_SERVER_PORT wins over this flag. Default: 13100.",
+    )
+    parser.add_argument(
+        "--ghidra-server-username",
+        type=str,
+        default=None,
+        help="Auth only: MCP HTTP auth username. AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME wins over this flag. Default: unset.",
+    )
+    parser.add_argument(
+        "--ghidra-server-password",
+        type=str,
+        default=None,
+        help="Auth only: MCP HTTP auth password. AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD wins over this flag. Default: unset.",
+    )
+    parser.add_argument(
+        "--ghidra-server-repository",
+        type=str,
+        default=None,
+        help="Auth only: repository recorded for authenticated requests. AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY wins over this flag. Default: unset.",
+    )
     parser.add_argument(
         "--enable-exchange",
         dest="enable_exchange",
         action="store_true",
-        default=None,
-        help="EXPERIMENTAL: serve the donated-compute work exchange on this proxy. Env: AGENT_DECOMPILE_EXCHANGE_ENABLED",
+        help="EXPERIMENTAL: serve the donated-compute work exchange (HTTP transports only). Default: AGENT_DECOMPILE_EXCHANGE_ENABLED, else off.",
     )
     parser.add_argument(
         "--no-enable-exchange",
         dest="enable_exchange",
         action="store_false",
-        help="Disable the experimental work exchange even when AGENT_DECOMPILE_EXCHANGE_ENABLED is set",
+        help="Turn the work exchange off even when AGENT_DECOMPILE_EXCHANGE_ENABLED is set. Default: AGENT_DECOMPILE_EXCHANGE_ENABLED, else off.",
     )
+    parser.set_defaults(enable_exchange=None)
     return parser
 
 

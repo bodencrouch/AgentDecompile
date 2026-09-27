@@ -17,9 +17,9 @@
 #     AGENT_DECOMPILE_PROJECT_NAME    Project name (ignored with .gpr)       (default: my_project)
 #     AGENT_DECOMPILE_CONFIG_FILE     Path to AgentDecompile config file
 #
-#   Proxy / backend
-#     AGENT_DECOMPILE_BACKEND_URL     Forward all MCP requests to a remote MCP server (proxy mode)
-#     AGENT_DECOMPILE_MCP_SERVER_URL  Alias for AGENT_DECOMPILE_BACKEND_URL
+#   Proxy / backend (not supported by this script, see the block below)
+#     AGENT_DECOMPILE_BACKEND_URL     Passed as --backend-url, which agentdecompile-server rejects
+#     AGENT_DECOMPILE_MCP_SERVER_URL  Passed as --mcp-server-url, which agentdecompile-server rejects
 #
 #   Ghidra shared-project server
 #     AGENT_DECOMPILE_GHIDRA_SERVER_HOST        Ghidra server host
@@ -28,16 +28,22 @@
 #     AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME    Username
 #     AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD    Password
 #
-#   HTTP auth
-#     AGENT_DECOMPILE_REQUIRE_AUTH    true/1 = enforce; false/0 = disable; unset = auto
+#   HTTP auth (HTTP transports only)
+#     AGENT_DECOMPILE_AUTH_ENABLED    true/1 = require HTTP Basic auth (read by agentdecompile-server itself)
+#     AGENT_DECOMPILE_REQUIRE_AUTH    true/1 = pass --require-auth (same effect as AGENT_DECOMPILE_AUTH_ENABLED)
+#                                     false/0 = pass --no-require-auth, which does NOT turn off
+#                                     AGENT_DECOMPILE_AUTH_ENABLED; unset = no flag
+#     Auth on needs AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME and _PASSWORD (they are the Basic auth
+#     pair); agentdecompile-server exits at startup when either is missing.
 #
 #   TLS (HTTPS)
 #     AGENT_DECOMPILE_TLS_CERT        Path to PEM certificate file
 #     AGENT_DECOMPILE_TLS_KEY         Path to PEM private key file
 #
-#   Analysis options
-#     AGENT_DECOMPILE_FORCE_ANALYSIS       true/1 = re-analyse every binary
-#     AGENT_DECOMPILE_VERBOSE_ANALYSIS     true/1 = verbose analysis log
+#   Analysis options. Only VERBOSE_ANALYSIS has an effect today; agentdecompile-server
+#   accepts the other flags but does not pass them to the analysis backend (see --help).
+#     AGENT_DECOMPILE_FORCE_ANALYSIS       true/1 = --force-analysis (not applied)
+#     AGENT_DECOMPILE_VERBOSE_ANALYSIS     true/1 = start PyGhidra in verbose mode
 #     AGENT_DECOMPILE_NO_SYMBOLS           true/1 = skip symbol loading
 #     AGENT_DECOMPILE_SYMBOLS_PATH         Path to symbols directory
 #     AGENT_DECOMPILE_SYM_FILE_PATH        Path to a single PDB symbol file
@@ -46,13 +52,13 @@
 #     AGENT_DECOMPILE_GZFS_PATH            GZF output path
 #
 #   Analysis performance
-#     AGENT_DECOMPILE_MAX_WORKERS          Worker count for analysis (0 = CPU count)
-#     AGENT_DECOMPILE_WAIT_FOR_ANALYSIS    true/1 = wait before serving
-#     AGENT_DECOMPILE_THREADED             false/0 = disable threaded analysis
+#     AGENT_DECOMPILE_MAX_WORKERS          --max-workers (not applied)
+#     AGENT_DECOMPILE_WAIT_FOR_ANALYSIS    true/1 = sleep 5 s after startup imports
+#     AGENT_DECOMPILE_THREADED             false/0 = --no-threaded (not applied)
 #
 #   Project management (one-shot commands)
 #     AGENT_DECOMPILE_LIST_PROJECT_BINARIES    true/1 = list programs and exit
-#     AGENT_DECOMPILE_DELETE_PROJECT_BINARY    Program name to delete, then exit
+#     AGENT_DECOMPILE_DELETE_PROJECT_BINARY    Not implemented: prints a notice and exits
 #
 #   Input binaries
 #     AGENT_DECOMPILE_INPUT_PATHS   Colon-separated binary paths to import at startup
@@ -80,8 +86,10 @@ if [[ -n "${AGENT_DECOMPILE_CONFIG_FILE:-}" ]]; then
 fi
 
 # ── Proxy / backend URL ───────────────────────────────────────────────────────
-# Also read directly from env by server.py; CLI flags passed here are merged
-# with server.py's own env-var reading (CMD args at the end override all).
+# agentdecompile-server always runs PyGhidra locally and defines neither
+# --backend-url nor --mcp-server-url, so setting either variable makes it exit
+# with an argparse usage error. Proxy mode is agentdecompile-proxy, which this
+# script does not start.
 if [[ -n "${AGENT_DECOMPILE_BACKEND_URL:-}" ]]; then
     ARGS+=(--backend-url "${AGENT_DECOMPILE_BACKEND_URL}")
 elif [[ -n "${AGENT_DECOMPILE_MCP_SERVER_URL:-}" ]]; then
@@ -112,6 +120,7 @@ if [[ -n "${AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD:-}" ]]; then
 fi
 
 # ── HTTP auth ─────────────────────────────────────────────────────────────────
+# --no-require-auth only drops the flag; AGENT_DECOMPILE_AUTH_ENABLED still applies.
 if [[ "${AGENT_DECOMPILE_REQUIRE_AUTH:-}" == "true" || "${AGENT_DECOMPILE_REQUIRE_AUTH:-}" == "1" ]]; then
     ARGS+=(--require-auth)
 elif [[ "${AGENT_DECOMPILE_REQUIRE_AUTH:-}" == "false" || "${AGENT_DECOMPILE_REQUIRE_AUTH:-}" == "0" ]]; then

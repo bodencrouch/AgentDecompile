@@ -413,6 +413,8 @@ class ScriptToolProvider(ToolProvider):
 
         stdout_capture: io.StringIO = io.StringIO()
         stderr_capture: io.StringIO = io.StringIO()
+        script_error: str = ""
+        script_traceback: str = ""
 
         def execute_code() -> Any:
             with _capture_thread_streams(stdout_capture, stderr_capture):
@@ -453,6 +455,11 @@ class ScriptToolProvider(ToolProvider):
             tb: str = traceback.format_exc()
             stderr_capture.write(tb)
             result = None
+            script_error = f"{type(script_exc).__name__}: {script_exc}"
+            script_frames = [frame for frame in traceback.extract_tb(script_exc.__traceback__) if frame.filename == "<string>"]
+            if script_frames and script_frames[-1].lineno:
+                script_error += f" (script line {script_frames[-1].lineno})"
+            script_traceback = _short_script_traceback(script_exc, code, tb)
             logger.warning(
                 "pyghidra_script_execute_fail exc_type=%s arg_keys=%s",
                 type(script_exc).__name__,
@@ -473,7 +480,16 @@ class ScriptToolProvider(ToolProvider):
                 result_str = repr(result_value)
 
         # Build response: success=True only if no errors caught
-        response: dict[str, Any] = {"success": not (stderr_text and not stdout_text and result_str == "")}
+        failed = bool(script_error) or bool(stderr_text and not stdout_text and result_str == "")
+        response: dict[str, Any] = {"success": not failed}
+        if script_error:
+            # Error responses render only `error`; put the type and message there.
+            response["error"] = script_error
+            response["exceptionType"] = script_error.split(":", 1)[0]
+            response["traceback"] = script_traceback
+        elif failed:
+            last_line = next((line for line in reversed(stderr_text.splitlines()) if line.strip()), "")
+            response["error"] = f"Script wrote to stderr: {last_line.strip()}" if last_line else "Script wrote to stderr"
         if stdout_text:
             response["stdout"] = stdout_text
         if stderr_text:
@@ -506,6 +522,30 @@ class ScriptToolProvider(ToolProvider):
             response["executedProgram"] = execution_target
 
         return create_success_response(response)
+
+
+def _short_script_traceback(exc: BaseException, code: str, full_traceback: str, max_frames: int = 5) -> str:
+    """Return the user-script part of a traceback: its frames with source lines, then the exception line.
+
+    Frames from this provider (eval/exec wrappers, asyncio) are dropped. When the
+    script contributed no frame (e.g. a SyntaxError at compile time) the tail of
+    the full traceback is returned instead.
+    """
+    code_lines = code.splitlines()
+    frames = [frame for frame in traceback.extract_tb(exc.__traceback__) if frame.filename == "<string>"]
+    exception_line = "".join(traceback.format_exception_only(type(exc), exc)).rstrip()
+    if not frames:
+        tail = [line for line in full_traceback.rstrip().splitlines() if line.strip()]
+        return "\n".join(tail[-(max_frames * 2 + 1) :])
+    lines = ["Traceback (script frames):"]
+    for frame in frames[-max_frames:]:
+        lineno = frame.lineno or 0
+        source = code_lines[lineno - 1].strip() if 0 < lineno <= len(code_lines) else ""
+        lines.append(f"  line {lineno}, in {frame.name}")
+        if source:
+            lines.append(f"    {source}")
+    lines.append(exception_line)
+    return "\n".join(lines)
 
 
 def _serialize_result(obj: Any, max_depth: int = 3, max_items: int = 200) -> str:

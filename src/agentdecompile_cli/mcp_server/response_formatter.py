@@ -1752,6 +1752,18 @@ def _render_callgraph(data: dict[str, Any]) -> str:
         if callers or (callees and not graph_data):
             return _render_function_calls(data)
 
+        # CallGraphTool returns the graph as Mermaid flowchart text.
+        if isinstance(graph_data, str):
+            if graph_data.strip():
+                lines.append("")
+                lines.append("```mermaid")
+                lines.append(graph_data.strip())
+                lines.append("```")
+            else:
+                lines.append("")
+                lines.append("*No call relationships in this direction.*")
+            return "\n".join(lines)
+
         # Rendered graph from CallGraphTool
         if graph_data:
             mermaid = data.get("mermaidUrl", "")  # noqa: F841

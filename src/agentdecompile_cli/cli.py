@@ -2577,7 +2577,9 @@ def ghidrecomp_command(
         semgrep_rules=list(semgrep_rules) if semgrep_rules else None,
         codeql_rules=codeql_rules,
     )
-    decompile(args)
+    from agentdecompile_cli.mcp_utils.ghidrecomp_runner import run_ghidrecomp
+
+    run_ghidrecomp(args, decompile)
 
 
 # ---------------------------------------------------------------------------

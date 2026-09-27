@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from agentdecompile_cli.mcp_utils.batch_decompile import build_ghidrecomp_namespace
+from agentdecompile_cli.mcp_utils.ghidrecomp_runner import run_ghidrecomp
 
 try:
     from ghidrecomp.decompile import decompile as ghidrecomp_decompile
@@ -84,7 +85,7 @@ def build_batch_gzf_payload(
             raise RuntimeError("ghidrecomp is not installed")
         runner = ghidrecomp_decompile
 
-    runner(args)
+    run_ghidrecomp(args, runner)
 
     if gen_proj_bin_name_from_path is None or get_bin_output_path is None:
         raise RuntimeError("ghidrecomp is not installed")

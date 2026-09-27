@@ -297,7 +297,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `maxEntries` (integer, optional): Maximum vtable entries to analyze (default: 200).
   - Synonyms: `maxEntries`, `maxe`.
 - `maxResults` (integer, optional): Maximum results for `callers` or `containing` (default: 100).
-  - Synonyms: `analysisMode`, `vtable`, `function`, `max_entries`, `max_results`, `maxr`.
+  - Synonyms: `maxResults`, `maxr`.
 **Overloads**:
 - `analyze-vtable(programPath, vtableAddress, maxEntries)` → forwards to `analyze-vtables`.
 - `find-vtable-callers(programPath, functionAddress, vtableAddress, maxResults)` → forwards to `analyze-vtables`.
@@ -681,7 +681,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `includeCallContext` (boolean, optional): Include call-site context (default: true).
   - Synonyms: `includeCallContext`, `includecc`.
 - `functionAddresses` (string, optional): Comma-separated addresses for `common_callers`.
-  - Synonyms: `function`, `analysisMode`, `level`, `dir`, `max_depth`, `offset`, `limit`, `context`, `functions`, `functionAddresses`
+  - Synonyms: `functionAddresses`, `functions`.
 **Overloads**:
 - `find-common-callers(programPath, functionAddresses)` → forwards to `get-call-graph`.
 - `get-call-graph(programPath, functionAddress, depth)` → forwards to `get-call-graph`.
@@ -806,7 +806,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `programPath` (string or array, optional): Source program path(s).
   - Synonyms: `programPath`, `programp`, `program`, `path`, `binaryPath`, `filePath`, `targetProgram`.
 - `identifier` (string or array, optional): Function identifier(s) (omit for all).
-  - Synonyms: `identifier`, `overrideMaxFunctionsLimit`, `address`.
+  - Synonyms: `identifier`, `address`.
 - `view` (string, optional): View (`decompile`, `disassemble`, `info`, `calls`, default: decompile).
   - Synonyms: `view`
 - `offset` (integer, optional): Decompile line start (1-based, default: 1).
@@ -822,7 +822,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `includeIncomingReferences` (boolean, optional): Include incoming references (default: true).
   - Synonyms: `includeIncomingReferences`, `includeir`.
 - `includeReferenceContext` (boolean, optional): Include context (default: true).
-  - Synonyms: `identifiers`, `functionIdentifier`, `mode`, `startIndex`, `maxLines`, `callers`, `callees`, `comments`, `refs`, `context`, `includeReferenceContext`
+  - Synonyms: `includeReferenceContext`, `context`.
 - `filterDefaultNames` (boolean, optional): Filter out default-named functions (default: false).
   - Synonyms: `filterDefaultNames`, `filterdn`.
 - `filterByTag` (string, optional): Filter functions by tag.
@@ -867,7 +867,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `includeRefContext` (boolean, optional): Include context (default: true).
   - Synonyms: `includeRefContext`, `includerc`, `includeContext`.
 - `includeDataRefs` (boolean, optional): Include data refs (default: true).
-  - Synonyms: `addressOrSymbol`, `type`, `dir`, `start`, `count`, `max`, `library`, `index`, `max_refs`, `context`, `dataRefs`, `includeDataRefs`, `includeData`.
+  - Synonyms: `includeDataRefs`, `dataRefs`, `includeData`.
 - `contextLines` (integer, optional): Number of context lines to include (default: 3).
   - Synonyms: `contextLines`, `contextSize`.
 - `importName` (string, optional): Import function name to find references for.
@@ -1006,7 +1006,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `verbose` (boolean, optional): Include details (default: false).
   - Synonyms: `verbose`
 - `identifiers` (array, optional): Specific IDs.
-  - Synonyms: `filter`, `pattern`, `minRefs`, `index`, `max`, `start`, `count`, `defaults`, `tag`, `noTags`, `tagged`, `details`.
+  - Synonyms: `identifiers`, `functions`.
 **Overloads**:
 - `list_functions()` → forwards to `list-functions`.
 - `list_methods(offset, limit)` → forwards to `list-functions`.

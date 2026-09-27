@@ -1036,7 +1036,47 @@ def _extract_tools_list_sync_data() -> tuple[dict[str, list[str]], dict[str, dic
             for alias in re.findall(r"`([^`]+)`", synonyms_match.group(1)):
                 tool_aliases_by_norm[normalize_identifier(alias)] = canonical_tool
 
+    _drop_cross_param_synonyms(param_aliases_by_tool, params_by_tool)
     return params_by_tool, param_aliases_by_tool, tool_aliases_by_norm
+
+
+# Synonyms that name another documented parameter of the same tool on purpose.
+# Tool -> synonym -> the one parameter it may feed (all normalized).
+_CROSS_PARAM_SYNONYMS_ALLOWED: dict[str, dict[str, str]] = {
+    # The get-call-graph(programPath, functionAddress, depth) overload; the provider reads maxDepth.
+    "getcallgraph": {"depth": "maxdepth"},
+    # Documented as "Alias for query/startIndex/maxCount".
+    "listfunctions": {"searchstring": "query", "startindex": "offset", "maxcount": "limit"},
+    "getreferences": {"startindex": "offset"},
+}
+
+
+def _drop_cross_param_synonyms(
+    param_aliases_by_tool: dict[str, dict[str, set[str]]],
+    params_by_tool: dict[str, list[str]],
+) -> None:
+    """Ignore a TOOLS_LIST synonym that is another parameter of the same tool.
+
+    A synonym line that lists the tool's other parameter names (an overload
+    signature pasted in by mistake) would copy an unrelated value into that
+    parameter whenever it is unset: ``maxEntries=5`` also capped ``maxResults``.
+    Runs after every section is parsed, so forwarded sections count too.
+    Logs and drops the edge rather than raising, so a doc slip cannot break import.
+    """
+    canonical_by_tool: dict[str, set[str]] = {}
+    for tool, params in params_by_tool.items():
+        canonical_by_tool.setdefault(normalize_identifier(tool), set()).update(normalize_identifier(p) for p in params)
+    for tool_norm, alias_map in param_aliases_by_tool.items():
+        canonical = canonical_by_tool.get(tool_norm, set())
+        allowed = _CROSS_PARAM_SYNONYMS_ALLOWED.get(tool_norm, {})
+        for alias, targets in alias_map.items():
+            if alias not in canonical:
+                continue
+            for target in sorted(targets - {alias}):
+                if allowed.get(alias) == target:
+                    continue
+                logger.warning("TOOLS_LIST.md: %s lists parameter %s as a synonym of %s; ignoring it", tool_norm, alias, target)
+                targets.discard(target)
 
 
 def _merge_tools_list_params(base: dict[str, list[str]], extra: dict[str, list[str]]) -> dict[str, list[str]]:
@@ -1126,46 +1166,7 @@ def _add_builtin_param_aliases() -> None:
         _add(tool_name, "repositoryName", "path")
 
 
-# TOOLS_LIST.md's synonym line for the last parameter of some tools lists the
-# overload signatures' parameter names instead of synonyms. Parsed as aliases,
-# they copy unrelated values into that parameter (call_tool fills a canonical key
-# from any alias when it is unset): `get-call-graph maxDepth=3` also set
-# functionAddresses="3", `analyze-vtables maxEntries=5` capped maxResults at 5.
-# Tool -> canonical parameter -> aliases that must not feed it (all normalized).
-_POLLUTED_PARAM_ALIASES: dict[str, dict[str, frozenset[str]]] = {
-    "listfunctions": {
-        "identifiers": frozenset({"filter", "pattern", "minrefs", "index", "max", "start", "count", "defaults", "tag", "notags", "tagged", "details"}),
-    },
-    "getcallgraph": {
-        "functionaddresses": frozenset({"function", "analysismode", "level", "dir", "maxdepth", "offset", "limit", "context"}),
-    },
-    "getreferences": {
-        "includedatarefs": frozenset({"addressorsymbol", "type", "dir", "start", "index", "count", "max", "library", "maxrefs", "context"}),
-    },
-    "analyzevtables": {
-        "maxresults": frozenset({"analysismode", "vtable", "function", "maxentries"}),
-    },
-}
-
-
-def _scrub_polluted_param_aliases() -> None:
-    logger.debug("diag.enter %s", "registry.py:_scrub_polluted_param_aliases")
-    for tool_norm, params in _POLLUTED_PARAM_ALIASES.items():
-        per_tool = TOOL_PARAM_ALIASES.get(tool_norm)
-        if not per_tool:
-            continue
-        for canonical, aliases in params.items():
-            for alias in aliases:
-                targets = per_tool.get(alias)
-                if not targets or canonical not in targets:
-                    continue
-                targets.discard(canonical)
-                if not targets:
-                    del per_tool[alias]
-
-
 _add_builtin_param_aliases()
-_scrub_polluted_param_aliases()
 
 
 # Key that selects how a tool result is rendered (markdown or json). No tool

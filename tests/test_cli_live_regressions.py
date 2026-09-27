@@ -165,3 +165,66 @@ def test_bookmark_categories_render_the_category_list() -> None:
     text = render_tool_response("managebookmarks", {"categories": ["live"], "count": 1})
     assert "Bookmark Categories" in text
     assert "- live" in text
+
+
+@pytest.mark.unit
+def test_structures_parse_and_validate_use_ghidra12_cparser(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Live: `structures parse/validate` failed with "Failed to import
+    'ghidra.app.util.cparser.CParser'"; Ghidra 12 ships it as ghidra.app.util.cparser.C.CParser.
+    Parse must resolve the result into the program; validate must not touch it."""
+    import sys
+    import types as pytypes
+
+    from agentdecompile_cli.mcp_server.providers.structures import StructureToolProvider
+
+    parsed = SimpleNamespace(getName=lambda: "LiveTwo")
+    managers_seen: list[object] = []
+
+    class FakeCParser:
+        def __init__(self, dtm):
+            managers_seen.append(dtm)
+
+        def parse(self, _text):
+            return parsed
+
+    class FakeStandalone:
+        def __init__(self, _name):
+            self.closed = False
+
+        def close(self):
+            self.closed = True
+
+    mods = {
+        "ghidra": pytypes.ModuleType("ghidra"),
+        "ghidra.app": pytypes.ModuleType("ghidra.app"),
+        "ghidra.app.util": pytypes.ModuleType("ghidra.app.util"),
+        "ghidra.app.util.cparser": pytypes.ModuleType("ghidra.app.util.cparser"),
+        "ghidra.app.util.cparser.C": pytypes.ModuleType("ghidra.app.util.cparser.C"),
+        "ghidra.program": pytypes.ModuleType("ghidra.program"),
+        "ghidra.program.model": pytypes.ModuleType("ghidra.program.model"),
+        "ghidra.program.model.data": pytypes.ModuleType("ghidra.program.model.data"),
+    }
+    mods["ghidra.app.util.cparser.C"].CParser = FakeCParser
+    mods["ghidra.program.model.data"].StandaloneDataTypeManager = FakeStandalone
+    mods["ghidra.program.model.data"].DataTypeConflictHandler = SimpleNamespace(REPLACE_HANDLER="replace")
+    for name, mod in mods.items():
+        monkeypatch.setitem(sys.modules, name, mod)
+
+    dtm = MagicMock()
+    dtm.resolve.return_value = parsed
+    program = MagicMock()
+    program.getDataTypeManager.return_value = dtm
+    info = SimpleNamespace(program=program)
+    provider = StructureToolProvider.__new__(StructureToolProvider)
+    monkeypatch.setattr(provider, "_run_program_transaction", lambda _p, _n, fn: fn(), raising=False)
+
+    out = json.loads(asyncio.run(provider._parse({"cdefinition": "struct LiveTwo { int a; };"}, program_info=info))[0].text)
+    assert out["parsed"] is True and out["name"] == "LiveTwo"
+    dtm.resolve.assert_called_once_with(parsed, "replace")
+    assert managers_seen[-1] is dtm
+
+    dtm.reset_mock()
+    out = json.loads(asyncio.run(provider._validate({"cdefinition": "struct LiveTwo { int a; };"}, program_info=info))[0].text)
+    assert out["valid"] is True
+    assert isinstance(managers_seen[-1], FakeStandalone) and managers_seen[-1].closed
+    dtm.resolve.assert_not_called()

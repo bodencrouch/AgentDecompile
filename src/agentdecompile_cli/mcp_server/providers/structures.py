@@ -330,12 +330,18 @@ class StructureToolProvider(ToolProvider):
         dtm = program.getDataTypeManager()
 
         try:
-            from ghidra.app.util.cparser import CParser
+            from ghidra.app.util.cparser.C import CParser
 
             parser = CParser(dtm)
 
             def _parse_c_struct() -> Any:
+                from ghidra.program.model.data import DataTypeConflictHandler
+
                 dt = parser.parse(c_def)
+                # CParser does not necessarily store what it parses; resolve the
+                # result into the program's manager so it can be found afterwards.
+                if dt is not None:
+                    dt = dtm.resolve(dt, DataTypeConflictHandler.REPLACE_HANDLER)
                 return dt
 
             dt = self._run_program_transaction(program, "parse-c-struct", _parse_c_struct)
@@ -362,14 +368,18 @@ class StructureToolProvider(ToolProvider):
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._validate")
         c_def = self._require_str(args, "cdefinition", "headercontent", "definition", "code", name="cDefinition")
         assert program_info is not None  # for type checker
-        program = program_info.program
-        dtm = program.getDataTypeManager()
 
         try:
-            from ghidra.app.util.cparser import CParser
+            from ghidra.app.util.cparser.C import CParser
+            from ghidra.program.model.data import StandaloneDataTypeManager
 
-            parser = CParser(dtm)
-            dt = parser.parse(c_def)
+            # Validation must not add types to the program: parse into a throwaway manager.
+            scratch = StandaloneDataTypeManager("agentdecompile-validate")
+            try:
+                parser = CParser(scratch)
+                dt = parser.parse(c_def)
+            finally:
+                scratch.close()
             return create_success_response({"action": "validate", "valid": True, "name": str(dt.getName()) if hasattr(dt, "getName") else str(dt)})
         except Exception as e:
             return create_success_response({"action": "validate", "valid": False, "error": str(e)})

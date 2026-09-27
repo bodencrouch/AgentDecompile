@@ -156,7 +156,9 @@ def test_click_commands_bind_to_their_callbacks() -> None:
     """
     problems: list[str] = []
     for path, command in walk_click(click_root(), "agentdecompile"):
-        if isinstance(command, click.Group) or command.callback is None:
+        # Groups are checked too: root `main` exposes 18 options of its own, and a
+        # mismatch on a group callback fails exactly like a leaf command's.
+        if command.callback is None:
             continue
         passed = {param.name for param in command.params if param.expose_value}
         signature = callback_signature(command.callback)
@@ -459,19 +461,28 @@ def _resolve_delegated_reads(
     return attrs
 
 
-ARGPARSE_HANDLER_CASES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
-    ("agentdecompile-corpus", "agentdecompile_recovery.corpus.cli", CORPUS_DISPATCH_MODULES),
-    ("agentdecompile-recover", "agentdecompile_recovery.cli", ("src/agentdecompile_recovery/cli.py",)),
-    ("adgrid", "agentdecompile_grid.cli", ("src/agentdecompile_grid/cli.py",)),
-)
+# Dispatch sources per CLI. Anything in ARGPARSE_CLIS without an entry here falls
+# back to its own module, so adding a CLI above cannot silently skip the dest check.
+EXTRA_DISPATCH_SOURCES: dict[str, tuple[str, ...]] = {
+    "agentdecompile-corpus": CORPUS_DISPATCH_MODULES,
+}
+
+
+def _module_source(module_name: str) -> str:
+    """Repo-relative path of a module's file, for AST scanning."""
+    module = importlib.import_module(module_name)
+    return str(Path(module.__file__).resolve().relative_to(REPO_ROOT))
+
+
+ARGPARSE_HANDLER_CASES: tuple[tuple[str, str], ...] = ARGPARSE_CLIS
 
 
 @pytest.mark.parametrize(
-    ("prog", "module_name", "sources"),
+    ("prog", "module_name"),
     ARGPARSE_HANDLER_CASES,
     ids=[case[0] for case in ARGPARSE_HANDLER_CASES],
 )
-def test_argparse_handlers_only_read_declared_dests(prog: str, module_name: str, sources: tuple[str, ...]) -> None:
+def test_argparse_handlers_only_read_declared_dests(prog: str, module_name: str) -> None:
     """Reading ``args.X`` for an undeclared dest is ``AttributeError`` at dispatch.
 
     Handlers reached through ``set_defaults(fn=...)`` are read directly; the rest
@@ -482,8 +493,14 @@ def test_argparse_handlers_only_read_declared_dests(prog: str, module_name: str,
     """
     root = importlib.import_module(module_name).build_parser()
     action = subparser_action(root)
-    assert action is not None, f"{prog} declares no subcommands"
+    if action is None:
+        # agentdecompile-reconstruct is a flat parser: every argument is a root
+        # flag and main() reads the namespace directly, so there is no per-verb
+        # dispatch to cross-check. Skipped out loud rather than omitted from the
+        # case list, which is how it went unchecked before.
+        pytest.skip(f"{prog} declares no subcommands; no dispatch to cross-check")
 
+    sources = EXTRA_DISPATCH_SOURCES.get(prog) or (_module_source(module_name),)
     table = _function_table(sources)
     dispatch: dict[str, tuple[set[str], bool]] = {}
     delegated: list[str] = []
@@ -499,6 +516,7 @@ def test_argparse_handlers_only_read_declared_dests(prog: str, module_name: str,
     root_dests = dests_of(root)
     problems: list[str] = []
     unreachable: list[str] = []
+    uninspectable: list[str] = []
     checked = 0
 
     for name, sub in action.choices.items():
@@ -514,6 +532,7 @@ def test_argparse_handlers_only_read_declared_dests(prog: str, module_name: str,
         if callable(handler):
             reads = _handler_reads(handler)
             if reads is None:
+                uninspectable.append(name)
                 continue
             attrs, passed_whole, delegates = reads
             resolved = _resolve_delegated_reads(delegates, table)
@@ -539,6 +558,7 @@ def test_argparse_handlers_only_read_declared_dests(prog: str, module_name: str,
                     continue
                 nested_reads = _handler_reads(nested_handler)
                 if nested_reads is None:
+                    uninspectable.append(f"{name} {nested_name}")
                     continue
                 checked += 1
                 nested_declared = dests_of(nested_sub) | declared
@@ -561,3 +581,102 @@ def test_argparse_handlers_only_read_declared_dests(prog: str, module_name: str,
         f"\n{prog}: {checked} handlers scanned, "
         f"{len(delegated)} pass the namespace on whole (body-depth visibility only)"
     )
+
+# --------------------------------------------------------------------------- #
+# click: the eight repaired commands, pinned and actually executed
+# --------------------------------------------------------------------------- #
+# Renaming a click parameter name is invisible to users; renaming the option
+# string is not. These are the flags the eight repaired commands must keep. The
+# binding and duplicate checks above pass happily with a flag missing, so this is
+# what catches a lost flag.
+REPAIRED_COMMAND_FLAGS: dict[tuple[str, ...], tuple[str, ...]] = {
+    ("checkin",): ("-b", "--binary", "-m", "--message", "--keep-checked-out"),
+    ("change-processor",): ("-b", "--binary", "--language-id", "--compiler-spec-id"),
+    ("dataflow",): ("-b", "--binary", "--function-address", "--start-address", "--variable-name"),
+    ("suggest",): ("-b", "--binary", "--suggestion-type", "--address", "--function", "--data-type", "--variable-address"),
+    ("open-all-in-code-browser",): ("--folder-path", "--extensions"),
+    ("data", "create-label"): ("-b", "--binary", "--name", "--primary"),
+}
+
+
+@pytest.mark.parametrize(
+    "path",
+    list(REPAIRED_COMMAND_FLAGS),
+    ids=[" ".join(path) for path in REPAIRED_COMMAND_FLAGS],
+)
+def test_repaired_commands_keep_their_option_strings(path: tuple[str, ...]) -> None:
+    """The user-facing flags of the repaired commands are pinned.
+
+    The camelCase-to-snake_case fix changed parameter names only. If a future edit
+    drops or renames one of these flags, scripts and docs break silently -- the
+    binding and duplicate-declaration checks would both still pass.
+    """
+    command = click_root()
+    for segment in path:
+        command = command.commands[segment]
+    declared: set[str] = set()
+    for param in command.params:
+        declared.update(param.opts)
+        declared.update(param.secondary_opts)
+    missing = set(REPAIRED_COMMAND_FLAGS[path]) - declared
+    assert not missing, f"{' '.join(path)} lost option string(s) {sorted(missing)}"
+
+
+# The wire contract is camelCase (src/agentdecompile_cli/CLAUDE.md). The Python
+# parameters are snake_case. These commands translate between the two, so a rename
+# that also rewrote a payload key would corrupt the MCP request while every
+# introspection check above still passed.
+PAYLOAD_INVOCATIONS: tuple[tuple[tuple[str, ...], list[str], tuple[str, ...]], ...] = (
+    (("checkin",), ["--keep-checked-out", "-b", "prog"], ("keepCheckedOut", "programPath")),
+    (("change-processor",), ["-b", "prog", "--language-id", "x86:LE:32:default"], ("languageId", "programPath")),
+    (("dataflow",), ["-b", "prog", "--function-address", "0x1000", "--direction", "forward"],
+     ("functionAddress", "programPath")),
+    (("suggest",), ["-b", "prog", "--suggestion-type", "variable-name"], ("suggestionType", "programPath")),
+    (("data", "create-label"), ["-b", "prog", "--name", "myLabel", "--primary", "0x1000"],
+     ("labelName", "setAsPrimary", "addressOrSymbol")),
+)
+
+
+@pytest.mark.parametrize(
+    ("path", "argv", "expected_keys"),
+    PAYLOAD_INVOCATIONS,
+    ids=[" ".join(case[0]) for case in PAYLOAD_INVOCATIONS],
+)
+def test_repaired_commands_send_camelcase_payload_keys(
+    monkeypatch: pytest.MonkeyPatch,
+    path: tuple[str, ...],
+    argv: list[str],
+    expected_keys: tuple[str, ...],
+) -> None:
+    """Run each repaired command and inspect the request it would send.
+
+    The transport is replaced, so no server is contacted and no port is opened.
+    This is the one check here that executes a command body: it proves the
+    TypeError is gone in practice, not just that the names line up.
+    """
+    from click.testing import CliRunner
+
+    from agentdecompile_cli import cli as cli_module
+
+    captured: dict[str, Any] = {}
+
+    async def fake_call(ctx: click.Context, tool: str, **kwargs: Any) -> None:
+        captured["tool"] = tool
+        captured["payload"] = kwargs
+
+    monkeypatch.setattr(cli_module, "_call", fake_call)
+    result = CliRunner().invoke(cli_module.main, list(path) + argv, catch_exceptions=True)
+
+    assert not isinstance(result.exception, TypeError), (
+        f"{' '.join(path)} raised TypeError binding its callback: {result.exception}"
+    )
+    assert "payload" in captured, (
+        f"{' '.join(path)} never reached the transport; exit={result.exit_code} "
+        f"exception={result.exception!r} output={result.output[:400]}"
+    )
+    payload_keys = set(captured["payload"])
+    snake_keys = {key for key in payload_keys if "_" in key}
+    assert not snake_keys, f"{' '.join(path)} sent snake_case wire key(s) {sorted(snake_keys)}"
+    missing = set(expected_keys) - payload_keys
+    assert not missing, f"{' '.join(path)} omitted wire key(s) {sorted(missing)} from {sorted(payload_keys)}"
+

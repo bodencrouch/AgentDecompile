@@ -898,8 +898,19 @@ def collect_enums(program: GhidraProgram, *, limit: int | None = None) -> list[d
     logger.debug("diag.enter %s", "mcp_server/providers/_collectors.py:collect_enums")
     dtm: GhidraDataTypeManager = program.getDataTypeManager()
     results: list[dict[str, Any]] = []
+    # DataTypeManager has no getAllEnums() (Ghidra 12.1); filter getAllDataTypes() for Enum instances.
+    try:
+        from ghidra.program.model.data import Enum as _EnumClass  # pyright: ignore[reportMissingImports, reportMissingModuleSource]
+    except ImportError:  # no JVM (fakes): fall back to the Enum interface's own methods
+        _EnumClass = None
+
+    def _is_enum(dt: Any) -> bool:
+        if _EnumClass is not None:
+            return isinstance(dt, _EnumClass)
+        return callable(getattr(dt, "getCount", None)) and callable(getattr(dt, "getValues", None))
+
     enum_dt: GhidraEnum
-    for enum_dt in iter_items(dtm.getAllEnums()):
+    for enum_dt in (dt for dt in iter_items(dtm.getAllDataTypes()) if _is_enum(dt)):
         results.append(
             {
                 "name": str(enum_dt.getName() or ""),

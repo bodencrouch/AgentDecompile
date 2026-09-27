@@ -431,6 +431,7 @@ _TOOL_PARAMS_STR: dict[str, list[str]] = {
         "enumName",
         "categoryPath",
         "description",
+        "size",
         "memberName",
         "newMemberName",
         "memberValue",

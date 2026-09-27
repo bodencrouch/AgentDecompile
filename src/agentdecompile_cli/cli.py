@@ -1776,14 +1776,69 @@ def _declares_format_param(cmd: click.Command | FunctionType) -> bool:
     return any(getattr(param, "name", None) == "format" for param in pending + built)
 
 
+def _set_backend_option_override(
+    ctx: click.Context,
+    param: click.Parameter,
+    value: Any,
+) -> Any:
+    """Apply a per-command --host/--port/--server-url to the root options.
+
+    The connection target is read from the root context (`_get_opts`), so a
+    per-command flag only routes if it lands there. It must also mark the backend
+    as explicit: `main` decides auto-local mode from those markers, and an
+    explicit backend must not fall back to in-process execution.
+    """
+    logger.debug("diag.enter %s", "cli.py:_set_backend_option_override")
+    if value is None:
+        return value
+    root_ctx = ctx.find_root()
+    if root_ctx.obj is None:
+        root_ctx.obj = {}
+    opts: dict[str, Any] = root_ctx.obj
+    opts[param.name] = value
+    if param.name == "server_url":
+        opts["backend_cli_url_explicit"] = True
+    else:
+        opts[f"backend_{param.name}_explicit"] = True
+    opts["backend_cli_explicit"] = True
+    if opts.get("auto_local_mode"):
+        # Local mode was only on because no backend had been named. Keep it only
+        # when the user asked for it with --local.
+        opts["auto_local_mode"] = False
+        opts["local_mode"] = bool(root_ctx.params.get("local_mode"))
+    return value
+
+
 def _add_global_options(cmd: click.Command | FunctionType) -> click.Command | FunctionType:
     logger.debug("diag.enter %s", "cli.py:_add_global_options")
-    cmd = click.option("--host", default="127.0.0.1", help="Server host")(cmd)
-    cmd = click.option("--port", type=int, default=8080, help="Server port")(cmd)
+    # These are CLI connection and presentation settings, not tool arguments.
+    # With exposed values they were forwarded into the tool request while the
+    # connection kept using the root options, so `--port 9999` here still
+    # connected to 8080. They now update the root options, as the top-level
+    # flags do, and never reach the payload.
+    cmd = click.option(
+        "--host",
+        default=None,
+        expose_value=False,
+        callback=_set_backend_option_override,
+        help="Server host (same as the top-level --host).",
+    )(cmd)
+    cmd = click.option(
+        "--port",
+        type=int,
+        default=None,
+        expose_value=False,
+        callback=_set_backend_option_override,
+        help="Server port (same as the top-level --port).",
+    )(cmd)
     cmd = click.option(
         "--server-url",
         "--mcp-server-url",
-        help="Full server URL (overrides --host/--port)",
+        "server_url",
+        default=None,
+        expose_value=False,
+        callback=_set_backend_option_override,
+        help="Full server URL, overrides --host/--port (same as the top-level --server-url).",
     )(cmd)
     # A few tools own a `format` parameter of their own (export, gen-callgraph,
     # export-context, manage-files). Stacking the output-format flag on those
@@ -1801,11 +1856,16 @@ def _add_global_options(cmd: click.Command | FunctionType) -> click.Command | Fu
             help="Output format (default: text). This command's --format is its own parameter.",
         )(cmd)
     else:
+        # Same handling as the top-level -f/--format. As an exposed value it was
+        # sent to the server as `format` (overriding the markdown default that
+        # _call_raw documents) while the client kept rendering the root format.
         cmd = click.option(
             "-f",
             "--format",
             type=str,
-            default=_DEFAULT_OUTPUT_FORMAT,
+            default=None,
+            expose_value=False,
+            callback=_set_output_format_option,
             help=("Output format (default: text). Use -f/--format json only when you strictly need machine-readable output; text/markdown is recommended."),
         )(cmd)
     return cmd

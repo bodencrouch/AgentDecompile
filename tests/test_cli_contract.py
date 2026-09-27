@@ -903,9 +903,6 @@ def test_derived_shortcuts_can_reach_their_run_command() -> None:
         "derived shortcuts cannot bind their run command:\n" + "\n".join(problems)
     )
 
-# Global options `_add_global_options` stacks onto every generated command. They
-# are not tool parameters, so they are excluded when checking derivability.
-GENERATED_GLOBAL_PARAMS = frozenset({"host", "port", "server_url", "format"})
 
 
 def test_dynamic_command_params_come_from_the_tool_registry() -> None:
@@ -932,12 +929,92 @@ def test_dynamic_command_params_come_from_the_tool_registry() -> None:
         checked += 1
         expected = {to_snake_case(param) for param in _supported_cli_tool_params(name)}
         exposed = {param.name for param in command.params if param.expose_value}
-        undeclared = exposed - expected - GENERATED_GLOBAL_PARAMS
+        # No exclusions: the connection and output-format flags _add_global_options
+        # attaches do not expose values, so everything exposed must be a tool
+        # parameter.
+        undeclared = exposed - expected
         if undeclared:
             problems.append(f"{name} exposes {sorted(undeclared)}, absent from its registry parameters")
     assert checked, "no generated tool commands found; the introspection no longer matches"
     assert not problems, (
         "generated commands expose parameters the tool registry does not declare:\n"
         + "\n".join(problems)
+    )
+
+
+# --------------------------------------------------------------------------- #
+# per-command connection and output flags on generated commands
+# --------------------------------------------------------------------------- #
+def _run_generated(argv: list[str]) -> dict[str, Any]:
+    """Invoke a generated command with the network layer stubbed.
+
+    Stubs `_execute_tool_call`, below `_call_raw`, so the payload recorded is the
+    one that would go on the wire and `_call`'s own rendering still runs.
+    """
+    from click.testing import CliRunner
+
+    from agentdecompile_cli import cli as cli_module
+
+    seen: dict[str, Any] = {}
+
+    async def fake_execute(ctx: click.Context, tool: str, payload: dict[str, Any], client_override: Any = None) -> Any:
+        opts = cli_module._get_opts(ctx)
+        seen["payload"] = dict(payload)
+        seen["target"] = {key: opts.get(key) for key in ("host", "port", "server_url")}
+        seen["explicit"] = opts.get("backend_cli_explicit")
+        seen["local_mode"] = opts.get("local_mode")
+        seen["render"] = cli_module._fmt(ctx)
+        return {"content": [{"type": "text", "text": "BODY"}], "isError": False}
+
+    monkey = pytest.MonkeyPatch()
+    try:
+        monkey.setattr(cli_module, "_execute_tool_call", fake_execute)
+        result = CliRunner().invoke(cli_module.main, argv)
+    finally:
+        monkey.undo()
+    assert result.exit_code == 0, f"{argv} failed: {result.exception!r} {result.output[:300]}"
+    return seen
+
+
+_TOOL_ARGS = ["--program-path", "p", "--function-identifier", "main"]
+
+
+@pytest.mark.parametrize(
+    "flags",
+    [["--host", "10.0.0.5", "--port", "9999"], ["--server-url", "http://example.invalid:1/mcp"]],
+    ids=["host-port", "server-url"],
+)
+def test_per_command_connection_flags_route_like_top_level_ones(flags: list[str]) -> None:
+    """`decompile-function --port 9999` must connect where `--port 9999 decompile-function` does.
+
+    Generated commands advertise --host/--port/--server-url in their help. They
+    used to be forwarded into the tool request while the connection kept the root
+    defaults, so the per-command form reached 127.0.0.1:8080 regardless.
+    """
+    per_command = _run_generated(["decompile-function", *flags, *_TOOL_ARGS])
+    top_level = _run_generated([*flags, "decompile-function", *_TOOL_ARGS])
+    assert per_command["target"] == top_level["target"], (
+        f"per-command {flags} connects to {per_command['target']}, top-level form to {top_level['target']}"
+    )
+    assert per_command["explicit"] is True, "a named backend must be marked explicit"
+    assert per_command["local_mode"] is False, "a named backend must not fall back to local execution"
+    leaked = {"host", "port", "server_url", "serverUrl"} & set(per_command["payload"])
+    assert not leaked, f"connection flags leaked into the tool request: {sorted(leaked)}"
+
+
+def test_per_command_output_format_matches_top_level() -> None:
+    """`decompile-function -f json` must render what `-f json decompile-function` renders.
+
+    The generated form used to send `format` to the server while the client kept
+    rendering text, and its default of "text" overrode the markdown default that
+    `_call_raw` documents for every request.
+    """
+    per_command = _run_generated(["decompile-function", "-f", "json", *_TOOL_ARGS])
+    top_level = _run_generated(["-f", "json", "decompile-function", *_TOOL_ARGS])
+    plain = _run_generated(["decompile-function", *_TOOL_ARGS])
+    assert per_command["render"] == top_level["render"] == "json"
+    assert per_command["payload"].get("format") == top_level["payload"].get("format") == "markdown"
+    assert plain["payload"].get("format") == "markdown", (
+        f"generated commands must keep the documented markdown default, got {plain['payload'].get('format')!r}"
     )
 

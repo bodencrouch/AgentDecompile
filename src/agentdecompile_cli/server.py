@@ -712,7 +712,7 @@ def build_server_parser() -> argparse.ArgumentParser:
         "--ghidra-server-port",
         type=int,
         default=None,
-        help="Shared Ghidra Server port. Overrides AGENT_DECOMPILE_GHIDRA_SERVER_PORT. Default: that variable or an alias, else unset.",
+        help="Shared Ghidra Server port. Overrides AGENT_DECOMPILE_GHIDRA_SERVER_PORT. Default: that variable or an alias, else unset (MCP HTTP auth then uses 13100).",
     )
     g_server.add_argument(
         "--ghidra-server-username",
@@ -977,8 +977,7 @@ def main() -> None:
 def build_proxy_parser() -> argparse.ArgumentParser:
     """Build the ``agentdecompile-proxy`` argument parser (no side effects).
 
-    Auth, TLS and the work exchange only apply to the HTTP transports:
-    stdio hands off to the bridge before any of them is read.
+    Auth, TLS and the work exchange only take effect on the HTTP transports.
     """
     parser = argparse.ArgumentParser(
         description="AgentDecompile MCP proxy: forward MCP requests to a remote backend (no local PyGhidra/JVM)",
@@ -1058,19 +1057,19 @@ def build_proxy_parser() -> argparse.ArgumentParser:
         "--ghidra-server-port",
         type=int,
         default=None,
-        help="Auth only: Ghidra Server port. AGENT_DECOMPILE_GHIDRA_SERVER_PORT wins over this flag. Default: 13100.",
+        help="Auth only: Ghidra Server port. AGENT_DECOMPILE_GHIDRA_SERVER_PORT wins over this flag. Default: unset (MCP HTTP auth then uses 13100).",
     )
     parser.add_argument(
         "--ghidra-server-username",
         type=str,
         default=None,
-        help="Auth only: MCP HTTP auth username. AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME wins over this flag. Default: unset.",
+        help="Auth only: MCP HTTP auth username. AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME wins over this flag; the AGENTDECOMPILE_* aliases are not read. Default: unset.",
     )
     parser.add_argument(
         "--ghidra-server-password",
         type=str,
         default=None,
-        help="Auth only: MCP HTTP auth password. AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD wins over this flag. Default: unset.",
+        help="Auth only: MCP HTTP auth password. AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD wins over this flag; the AGENTDECOMPILE_* aliases are not read. Default: unset.",
     )
     parser.add_argument(
         "--ghidra-server-repository",
@@ -1099,7 +1098,14 @@ def proxy_main() -> None:
 
     Use this command when you want to expose a remote AgentDecompile MCP server over stdio
     or HTTP without running a local Ghidra instance. Backend URL is required via
-    --backend-url, --mcp-server-url, or env AGENT_DECOMPILE_MCP_SERVER_URL / AGENTDECOMPILE_MCP_SERVER_URL.
+    --backend-url, --mcp-server-url, or env AGENT_DECOMPILE_BACKEND_URL,
+    AGENT_DECOMPILE_MCP_SERVER_URL, AGENT_DECOMPILE_SERVER_URL, AGENTDECOMPILE_BACKEND_URL,
+    AGENTDECOMPILE_MCP_SERVER_URL or AGENTDECOMPILE_SERVER_URL (first set wins).
+
+    Auth credentials come from the canonical AGENT_DECOMPILE_GHIDRA_SERVER_* or
+    AGENT_DECOMPILE_SERVER_* variables only. Unlike agentdecompile-server, the proxy
+    does not normalize the compact AGENTDECOMPILE_* aliases: that rewrites os.environ,
+    which would also change what the stdio bridge's shared-server auto-open reads.
     """
     logger.debug("diag.enter %s", "server.py:proxy_main")
     parser = build_proxy_parser()
@@ -1110,7 +1116,10 @@ def proxy_main() -> None:
         getattr(args, "mcp_server_url", None),
     )
     if not backend_url or not backend_url.strip():
-        sys.stderr.write("agentdecompile-proxy requires a backend URL. Set --backend-url or --mcp-server-url, or env AGENT_DECOMPILE_MCP_SERVER_URL / AGENTDECOMPILE_MCP_SERVER_URL.\n")
+        sys.stderr.write(
+            "agentdecompile-proxy requires a backend URL. Set --backend-url or --mcp-server-url, or env "
+            "AGENT_DECOMPILE_BACKEND_URL, AGENT_DECOMPILE_MCP_SERVER_URL, AGENT_DECOMPILE_SERVER_URL, AGENTDECOMPILE_BACKEND_URL, AGENTDECOMPILE_MCP_SERVER_URL or AGENTDECOMPILE_SERVER_URL.\n",
+        )
         sys.exit(1)
     backend_url = normalize_backend_url(backend_url.strip())
 

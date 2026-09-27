@@ -439,10 +439,14 @@ class StructureToolProvider(ToolProvider):
         listing = self._get_listing(program, program_info=program_info)
 
         if not args.get(FORCE_APPLY_CONFLICT_ID_KEY):
+            from agentdecompile_cli.mcp_utils.datatype_util import data_type_label, is_defined_data, same_data_type
+
             existing_data = listing.getDataAt(addr)
-            if existing_data is not None:
-                existing_type = str(existing_data.getDataType() or "")
-                if existing_type.strip():
+            # getDataAt also returns undefined data (DefaultDataType) where nothing is defined; that is not a type to overwrite.
+            if is_defined_data(existing_data):
+                existing_dt = existing_data.getDataType()
+                existing_type = data_type_label(existing_dt)
+                if existing_type and not same_data_type(existing_dt, dt):
                     from agentdecompile_cli.mcp_server.conflict_store import store as conflict_store_store
                     from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
 

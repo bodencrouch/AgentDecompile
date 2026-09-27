@@ -1999,7 +1999,8 @@ def _render_structures(data: dict[str, Any]) -> str:
                 [
                     str(f.get("offset", "")),
                     f.get("name", ""),
-                    f.get("dataType", ""),
+                    # collect_structure_fields emits "type"; accept "dataType" too.
+                    f.get("dataType") or f.get("type", ""),
                     str(f.get("length", "")),
                     f.get("comment", "") or "",
                 ]

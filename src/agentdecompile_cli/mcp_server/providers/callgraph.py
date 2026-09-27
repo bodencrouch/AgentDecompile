@@ -113,6 +113,10 @@ class CallGraphToolProvider(ToolProvider):
         # If caller didn't set mode, derive it from direction so "direction: called" → mode "callees"
         if mode_explicit:
             mode = mode_explicit
+        elif self._get_str(args, "displaytype"):
+            # displayType only means something for a drawn graph. Keying on the
+            # argument keeps it working whichever alias the call arrived under.
+            mode = "graph"
         else:
             mode = "callees" if direction == "called" else "callers"
         display_type = self._get_str(args, "displaytype", default="flow")

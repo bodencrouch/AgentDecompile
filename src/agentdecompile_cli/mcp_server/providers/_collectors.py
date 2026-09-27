@@ -746,6 +746,8 @@ def collect_strings(
             # Fallback to direct iterator access below
 
     # Fallback 1: Try direct DefinedDataIterator access
+    from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
+
     results: list[dict[str, Any]] = []
     try:
         from ghidra.program.util import DefinedDataIterator as GhidraDefinedDataIterator  # pyright: ignore[reportMissingImports,reportMissingModuleSource]
@@ -760,7 +762,7 @@ def collect_strings(
                     "address": str(data.getAddress()),
                     "value": value,
                     "length": len(value),
-                    "dataType": str(data.getDataType()),
+                    "dataType": data_type_label(data.getDataType()),
                 },
             )
             if limit is not None and len(results) >= limit:
@@ -794,7 +796,7 @@ def collect_strings(
                                     "address": str(data.getAddress()),
                                     "value": value,
                                     "length": len(value),
-                                    "dataType": str(data_type),
+                                    "dataType": data_type_label(data_type),
                                 },
                             )
                             if limit is not None and len(results) >= limit:

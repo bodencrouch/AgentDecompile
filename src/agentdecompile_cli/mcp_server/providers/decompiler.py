@@ -230,6 +230,8 @@ class DecompilerToolProvider(ToolProvider):
 
     @staticmethod
     def _collect_referenced_strings(program: GhidraProgram, target_func: GhidraFunction) -> list[dict[str, str]]:
+        from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
+
         try:
             listing = program.getListing()
             references = program.getReferenceManager()
@@ -241,7 +243,7 @@ class DecompilerToolProvider(ToolProvider):
                     data = listing.getDataAt(to_addr)
                     if data is None:
                         continue
-                    data_type = str(data.getDataType())
+                    data_type = data_type_label(data.getDataType())
                     if "string" not in data_type.lower():
                         continue
                     key = str(to_addr)

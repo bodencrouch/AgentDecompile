@@ -60,6 +60,28 @@ def test_stabs_manifest_missing_raw_image_reports_clean_error(
     assert captured.out == ""
 
 
+def test_stabs_manifest_unknown_repo_path_reports_clean_error(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    db = tmp_path / "store.sqlite"
+    store.connect(db).close()
+
+    raw_dir = tmp_path / "raw"
+    raw_dir.mkdir()
+    out_dir = tmp_path / "out"
+
+    rc = corpus_main(
+        ["stabs-manifest", "nosuch", "--db", str(db), "--raw-dir", str(raw_dir), "--out-dir", str(out_dir)]
+    )
+
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "Traceback" not in captured.err
+    assert "error: not in database" in captured.err
+    assert "nosuch" in captured.err
+    assert captured.out == ""
+
+
 def test_build_types_header_missing_table_reports_clean_error(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

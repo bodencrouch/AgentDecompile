@@ -282,10 +282,8 @@ class CallGraphToolProvider(ToolProvider):
         return create_success_response({"function": func, "mode": mode, "callers": caller_info, "count": len(caller_info)})
 
     def _other_functions(self, args: dict[str, Any], second: str | None) -> list[str]:
-        values: list[str] = []
-        raw = self._get(args, "functionaddresses", "functions")
-        items = raw if isinstance(raw, (list, tuple)) else str(raw or "").split(",")
-        values.extend(str(item).strip() for item in items if str(item).strip())
+        items = self._get_list(args, "functionaddresses", "functions") or []
+        values: list[str] = [str(item).strip() for item in items if str(item).strip()]
         if second and second not in values:
             values.append(second)
         return values

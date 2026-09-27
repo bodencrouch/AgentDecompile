@@ -394,3 +394,131 @@ def test_mizuchi_load_recovered_on_narrow_store(tmp_path: Path) -> None:
     assert len(recovered) == len(UNIQUE_ROWS)
     assert all(rec["binary_id"] is None for rec in recovered)
     con.close()
+
+
+# --- The upgrade never commits or rolls back a caller's transaction ---------
+
+from agentdecompile_recovery.corpus import ingest_recovered  # noqa: E402
+
+STORE_SHAPES = ["empty-narrow", "narrow-rows", "missing"]
+
+
+def _shaped_store(path: Path, shape: str) -> None:
+    if shape == "empty-narrow":
+        _plain_narrow(path, [])
+    elif shape == "narrow-rows":
+        _plain_narrow(path, UNIQUE_ROWS)
+    con = sqlite3.connect(path)
+    con.execute("CREATE TABLE caller_note (v TEXT)")
+    con.commit()
+    con.close()
+
+
+def _notes(path: Path) -> int:
+    con = sqlite3.connect(path)
+    try:
+        return con.execute("SELECT COUNT(*) FROM caller_note").fetchone()[0]
+    finally:
+        con.close()
+
+
+def _shape(con) -> list[tuple]:
+    return list(con.execute("PRAGMA table_info(recovered_function)"))
+
+
+@pytest.mark.parametrize("shape", STORE_SHAPES)
+def test_caller_rollback_survives_ensure(tmp_path: Path, shape: str) -> None:
+    db_path = tmp_path / "s.sqlite"
+    _shaped_store(db_path, shape)
+    con = _open(db_path)
+    before = _shape(con)
+    con.execute("INSERT INTO caller_note VALUES ('pending')")
+    assert con.in_transaction
+    ensure_recovered_function(con)
+    assert con.in_transaction
+    con.rollback()
+    assert _notes(db_path) == 0
+    # The upgrade joined the caller's transaction, so it rolled back with it.
+    assert _shape(con) == before
+    con.close()
+
+
+@pytest.mark.parametrize("shape", STORE_SHAPES)
+def test_caller_commit_keeps_rows_and_upgrade(tmp_path: Path, shape: str) -> None:
+    db_path = tmp_path / "s.sqlite"
+    _shaped_store(db_path, shape)
+    con = _open(db_path)
+    con.execute("INSERT INTO caller_note VALUES ('kept')")
+    ensure_recovered_function(con)
+    con.commit()
+    con.close()
+    assert _notes(db_path) == 1
+    con = _open(db_path)
+    assert "binary_id" in _info(con)
+    if shape != "narrow-rows":
+        assert _info(con)["program"] == (1, 1)
+    else:
+        assert _narrow_snapshot(con) == sorted(UNIQUE_ROWS)
+    con.close()
+
+
+@pytest.mark.parametrize("shape", STORE_SHAPES)
+def test_failed_upgrade_inside_caller_transaction(
+    tmp_path: Path, shape: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "s.sqlite"
+    _shaped_store(db_path, shape)
+    monkeypatch.setattr(
+        ingest_recovered, "RECOVERED_FUNCTION_DDL",
+        ingest_recovered.RECOVERED_FUNCTION_DDL + ";\nCREATE BOGUS STATEMENT",
+    )
+    monkeypatch.setattr(
+        ingest_recovered, "RECOVERED_FUNCTION_ADDED_COLUMNS",
+        (("binary_id", "INTEGER"), ("bogus", "NOT A )) TYPE")),
+    )
+    con = _open(db_path)
+    before = _shape(con)
+    con.execute("INSERT INTO caller_note VALUES ('pending')")
+    with pytest.raises(sqlite3.OperationalError):
+        ensure_recovered_function(con)
+    assert con.in_transaction
+    assert _shape(con) == before
+    assert con.execute("SELECT COUNT(*) FROM caller_note").fetchone()[0] == 1
+    con.rollback()
+    assert _notes(db_path) == 0
+    con.close()
+
+
+@pytest.mark.parametrize("shape", STORE_SHAPES)
+def test_failed_upgrade_without_caller_transaction_rolls_back(
+    tmp_path: Path, shape: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "s.sqlite"
+    _shaped_store(db_path, shape)
+    original_ddl = ingest_recovered.RECOVERED_FUNCTION_DDL
+    original_cols = ingest_recovered.RECOVERED_FUNCTION_ADDED_COLUMNS
+    monkeypatch.setattr(
+        ingest_recovered, "RECOVERED_FUNCTION_DDL",
+        original_ddl + ";\nCREATE BOGUS STATEMENT",
+    )
+    monkeypatch.setattr(
+        ingest_recovered, "RECOVERED_FUNCTION_ADDED_COLUMNS",
+        (("binary_id", "INTEGER"), ("bogus", "NOT A )) TYPE")),
+    )
+    con = _open(db_path)
+    before = _shape(con)
+    rows = len(_narrow_snapshot(con)) if before else 0
+    assert not con.in_transaction
+    with pytest.raises(sqlite3.OperationalError):
+        ensure_recovered_function(con)
+    assert not con.in_transaction
+    assert _shape(con) == before
+    if before:
+        assert len(_narrow_snapshot(con)) == rows
+
+    monkeypatch.setattr(ingest_recovered, "RECOVERED_FUNCTION_DDL", original_ddl)
+    monkeypatch.setattr(ingest_recovered, "RECOVERED_FUNCTION_ADDED_COLUMNS", original_cols)
+    ensure_recovered_function(con)
+    assert "binary_id" in _info(con)
+    assert len(_narrow_snapshot(con)) == rows
+    con.close()

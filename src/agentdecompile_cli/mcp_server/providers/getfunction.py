@@ -241,8 +241,8 @@ class GetFunctionToolProvider(ToolProvider):
                         "addressOrSymbol": {"type": "string", "description": "Alternative way to specify the function."},
                         "mode": {
                             "type": "string",
-                            "description": "What to do with tags: 'list' (view tags), 'add' (attach a tag), 'remove' (detach a tag), 'set' (replace all tags on the function), or 'search' (find functions by tag).",
-                            "enum": ["list", "add", "remove", "set", "search"],
+                            "description": "What to do with tags: 'get' or 'list' (view tags), 'add' (attach a tag), 'remove' (detach a tag), 'set' (replace all tags on the function), or 'search' (find functions by tag).",
+                            "enum": ["get", "list", "add", "remove", "set", "search"],
                         },
                         "tag": {"type": "string", "description": "The specific tag to add, remove, or search for (e.g. 'encryption')."},
                         "tagName": {"type": "string", "description": "Alternative parameter name for 'tag'."},
@@ -1009,6 +1009,9 @@ class GetFunctionToolProvider(ToolProvider):
                     results.append({"name": func.getName(), "address": str(func.getEntryPoint()), "tags": tag_names})
             return create_success_response({"action": "search", "tag": tag_name, "functions": results, "count": len(results)})
 
+        if not func_id and action_n in ("set", "add", "remove", "delete"):
+            raise ValueError(f"function or addressOrSymbol is required for tag mode '{action}'")
+
         if not func_id:
             # List all known tags
             fm = self._get_function_manager(program, program_info=program_info)
@@ -1021,11 +1024,11 @@ class GetFunctionToolProvider(ToolProvider):
         if func is None:
             raise ValueError(f"Function not found: {func_id}")
 
-        if action_n == "list":
+        if action_n in ("list", "get"):
             tags = [t.getName() for t in func.getTags()]
             return create_success_response(
                 {
-                    "action": "list",
+                    "action": action_n,
                     "function": func.getName(),
                     "tags": tags,
                     "count": len(tags),

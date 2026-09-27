@@ -1888,6 +1888,7 @@ class ToolRegistry:
                 augmented_arguments,
                 param,
                 normalized_arguments=normalized_arguments,
+                declared_params=expected_params,
             )
             if value is not None:
                 parsed_args[param] = value
@@ -2182,6 +2183,7 @@ class ToolRegistry:
         arguments: dict[str, Any],
         param_name: str,
         normalized_arguments: dict[str, Any] | None = None,
+        declared_params: list[str] | None = None,
     ) -> Any:
         """Extract an argument value using fuzzy matching for parameter names.
 
@@ -2206,8 +2208,14 @@ class ToolRegistry:
 
         # Try variations of the parameter name
         variations: tuple[str, ...] = self._generate_param_variations(param_name)
+        # A semantic alias that is itself a declared parameter of this tool
+        # belongs to that parameter (manage-files `path` is a filesystem path,
+        # import-binary `path` is the source file), never to programPath.
+        declared: set[str] = {normalize_identifier(p) for p in (declared_params or ()) if p != param_name}
 
         for variation in variations:
+            if variation != param_name and normalize_identifier(variation) in declared:
+                continue
             if variation in arguments:
                 return arguments[variation]
 

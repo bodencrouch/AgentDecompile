@@ -3169,7 +3169,8 @@ class ProjectToolProvider(ToolProvider):
 
     async def _handle_list_files(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/project.py:ProjectToolProvider._handle_list_files")
-        file_path: str | None = self._get_str(args, "filepath", "file", "path", "programpath")
+        # Filesystem listing: the active/injected programPath is a project path, not a directory.
+        file_path: str | None = self._get_str(args, "filepath", "file", "path")
         res = self._get_int(args, "maxresults", default=200)
         max_results = 200 if res is None else res
         base_path = Path(file_path).expanduser().resolve() if file_path else Path.cwd()

@@ -202,6 +202,11 @@ _NO_AUTO_SELECT_TOOLS: frozenset[str] = frozenset(
     }
 )
 
+# manage-files modes whose `path` is a filesystem path (never a program key).
+_MANAGE_FILES_FILESYSTEM_MODES: frozenset[str] = frozenset(
+    {"list", "import", "export", "info", "mkdir", "touch", "read", "write", "append", "copy"}
+)
+
 # Maximum number of programs to eagerly open when a project is opened.
 MAX_AUTO_OPEN_PROGRAMS: int = 50
 
@@ -2750,6 +2755,11 @@ class ToolProviderManager:
             # open/connect-shared-project/sync-project use `path` for project/repository selection, not an existing program.
             # Pre-activating that value as a program causes false "program-resolution-failed" before those tools run.
             resolution_keys = ("programpath", "binary", "binaryname") if norm_name in {"open", "connectsharedproject", "syncproject"} else ("programpath", "binary", "binaryname", "path")
+            # manage-files list/import/export/... take a filesystem `path`, not a program.
+            if norm_name == "managefiles":
+                fs_mode = n(str(norm_args.get("mode") or norm_args.get("operation") or norm_args.get("action") or ""))
+                if fs_mode in _MANAGE_FILES_FILESYSTEM_MODES:
+                    resolution_keys = ("programpath", "binary", "binaryname")
             for key in resolution_keys:
                 value = norm_args.get(key)
                 if value is None:

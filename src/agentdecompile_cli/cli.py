@@ -94,6 +94,8 @@ _dynamic_commands_registered = False
 _format_options_registered = False
 _CLI_STATE_DIR = ".agentdecompile"
 _CLI_STATE_FILE = "cli_state.json"
+_CLI_INJECTED_PROGRAM_KEY = "cli_injected_cached_program"
+_PROGRAM_OPENING_TOOLS = frozenset({"open", "open_project", "import_binary"})
 _DEFAULT_OUTPUT_FORMAT = "text"
 _LOCAL_SERVER_STATE_KEY = "local_server"
 _LOCAL_SERVER_MANAGED_MARKER = "agentdecompile-cli"
@@ -1207,7 +1209,21 @@ async def _call_raw(
         dispatch_display = call_tool_name
     call_tool_snake = to_snake_case(dispatch_display)
 
-    return await _execute_tool_call(ctx, call_tool_snake, prepared_payload, client_override)
+    result = await _execute_tool_call(ctx, call_tool_snake, prepared_payload, client_override)
+    stale = _is_stale_injected_program_error(ctx, result)
+    if stale is not None:
+        # The remembered program is gone (server restart, new project). Drop it
+        # and let the server pick the session's active or only program.
+        _drop_cached_program(ctx)
+        _get_root_obj(ctx).pop(_CLI_INJECTED_PROGRAM_KEY, None)
+        click.echo(f"Warning: dropped stale active program '{stale}' from {_CLI_STATE_DIR}/{_CLI_STATE_FILE}.", err=True)
+        retry_payload = {k: v for k, v in prepared_payload.items() if not (k in ("programPath", "binaryName") and v == stale)}
+        result = await _execute_tool_call(ctx, call_tool_snake, retry_payload, client_override)
+    elif call_tool_snake in _PROGRAM_OPENING_TOOLS and _get_error_result_message(result) is None:
+        # A successful open/import makes the server's active program current;
+        # a remembered older program must not override it on later commands.
+        _drop_cached_program(ctx)
+    return result
 
 
 async def _call_tool_locally(
@@ -1700,6 +1716,8 @@ def _prepare_tool_payload_with_program_fallback(
 
     explicit_program = _extract_program_argument(normalized_payload)
     if explicit_program is not None:
+        if explicit_program != _get_root_obj(ctx).get(_CLI_INJECTED_PROGRAM_KEY):
+            _get_root_obj(ctx).pop(_CLI_INJECTED_PROGRAM_KEY, None)
         _set_cached_program(ctx, explicit_program)
         return normalized_payload, None
 
@@ -1716,7 +1734,45 @@ def _prepare_tool_payload_with_program_fallback(
     cached_program = _get_cached_program(ctx)
     if cached_program is not None:
         normalized_payload[program_key] = cached_program
+        # Remember the value came from cli_state.json, not the user, so a stale
+        # entry can be dropped and the call retried (see _call_raw).
+        _get_root_obj(ctx)[_CLI_INJECTED_PROGRAM_KEY] = cached_program
     return normalized_payload, cached_program
+
+
+def _get_root_obj(ctx: click.Context) -> dict[str, Any]:
+    root = ctx.find_root()
+    if not isinstance(root.obj, dict):
+        root.obj = {}
+    return root.obj
+
+
+def _drop_cached_program(ctx: click.Context) -> None:
+    """Forget the persisted last_program for this backend scope."""
+    state = _load_cli_state()
+    backends = state.get("backends")
+    if not isinstance(backends, dict):
+        return
+    scope = _cache_scope_key(ctx)
+    entry = backends.get(scope)
+    if not isinstance(entry, dict) or "last_program" not in entry:
+        return
+    entry = dict(entry)
+    entry.pop("last_program", None)
+    backends[scope] = entry
+    state["backends"] = backends
+    _save_cli_state(state)
+
+
+def _is_stale_injected_program_error(ctx: click.Context, result: Any) -> str | None:
+    """Return the cached program when *result* says it no longer resolves."""
+    injected = _get_root_obj(ctx).get(_CLI_INJECTED_PROGRAM_KEY)
+    if not isinstance(injected, str) or not injected:
+        return None
+    err = _get_error_result_message(result) or ""
+    if "could not be resolved in this session" in err and f"'{injected}'" in err:
+        return injected
+    return None
 
 
 def _inject_inferred_program(data: Any, inferred_program: str | None) -> Any:

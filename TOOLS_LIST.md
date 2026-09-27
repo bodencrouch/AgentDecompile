@@ -334,7 +334,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `dataTypeString` (string, required): String representation of the data type (e.g., "uint8_t[256]").
   - Synonyms: `dataTypeString`, `datats`.
 - `archiveName` (string, optional): Name of the data type archive to use.
-  - Synonyms: `address`, `symbol`, `dataType`, `type`, `archive`, `archiveName`, `archiven`.
+  - Synonyms: `archive`, `archiveName`, `archiven`.
 **Overloads**:
 - `apply-data-type(programPath, addressOrSymbol, dataTypeString, archiveName)` → forwards to `apply-data-type`.
 
@@ -399,9 +399,9 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `programPath` (string, optional): Path to the program in the project.
   - Synonyms: `programPath`, `programp`, `program`, `path`, `binaryPath`, `filePath`, `targetProgram`.
 - `comment` (string, optional): Check-in comment describing changes.
-  - Synonyms: `comment`
+  - Synonyms: `comment`, `message`
 - `keepCheckedOut` (boolean, optional): Keep the program checked out after commit (default: false).
-  - Synonyms: `path`, `message`, `keepOpen`, `keepCheckedOut`, `keepco`.
+  - Synonyms: `keepOpen`, `keepCheckedOut`, `keepco`.
 **Overloads**:
 - `checkin-program(programPath, message, keepCheckedOut)` → forwards to `checkin-program`.
 
@@ -481,7 +481,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `includeIncomingReferences` (boolean, optional): Include references (default: true).
   - Synonyms: `includeIncomingReferences`, `includeir`.
 - `includeReferenceContext` (boolean, optional): Include context snippets (default: true).
-  - Synonyms: `function`, `identifier`, `startLine`, `lineCount`, `comments`, `refs`, `context`, `includeReferenceContext`
+  - Synonyms: `refs`, `context`, `includeReferenceContext`
 - `includeDisassembly` (boolean, optional): Include disassembly alongside decompilation (default: false).
   - Synonyms: `includeDisassembly`, `includedisasm`.
 - `includeCallers` (boolean, optional): Include caller context (default: false).
@@ -511,7 +511,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `programPath` (string, required): Path to the binary to delete.
   - Synonyms: `programPath`, `programp`, `program`, `path`, `binaryPath`, `filePath`, `targetProgram`, `binary_name`
 - `confirm` (boolean, optional): Confirm deletion (default: false).
-  - Synonyms: `binaryPath`, `force`, `confirm`
+  - Synonyms: `force`, `confirm`
 **Overloads**:
 - `delete_project_binary(binary_name)` → forwards to `delete-project-binary`.
 
@@ -556,7 +556,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `programPath` (string, optional): Program path (optional in GUI mode if active program is set).
   - Synonyms: `programPath`, `program`, `path`, `binaryPath`, `filePath`, `targetProgram`.
 - `outputPath` (string, required): Output file path.
-  - Synonyms: `outputPath`, `output`, `file`, `path`.
+  - Synonyms: `outputPath`, `output`, `file`.
 - `format` (string, optional): Export format (`gzf`, `c`, `cpp`, `cxx`, `sarif`, `xml`, `html`, `ascii`; default: `cpp`).
   - Synonyms: `format`, `exportType`.
 - `createHeader` (boolean, optional): Emit header output for C/C++ export when supported (default: true).
@@ -761,7 +761,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `addressOrSymbol` (string, required): Target address or symbol.
   - Synonyms: `addressOrSymbol`, `addressos`, `address`, `symbol`, `target`, `nameOrAddress`, `addrOrSym`.
 - `view` (string, optional): Data view (`hex`, `ascii`, `structured`, default: hex).
-  - Synonyms: `address`, `symbol`, `format`, `view`
+  - Synonyms: `view`, `format`
 **Overloads**:
 - `get-data(programPath, addressOrSymbol)` → forwards to `get-data`.
 
@@ -814,11 +814,11 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `limit` (integer, optional): Decompile line count (default: 50).
   - Synonyms: `limit`, `maxResults`, `maxCount`, `count`, `size`, `max`, `take`, `cap`, `pageSize`.
 - `includeCallers` (boolean, optional): Include callers (default: false).
-  - Synonyms: `includeCallers`, `includec`.
+  - Synonyms: `includeCallers`.
 - `includeCallees` (boolean, optional): Include callees (default: false).
-  - Synonyms: `includeCallees`, `includec`.
+  - Synonyms: `includeCallees`.
 - `includeComments` (boolean, optional): Include comments (default: false).
-  - Synonyms: `includeComments`, `includec`.
+  - Synonyms: `includeComments`.
 - `includeIncomingReferences` (boolean, optional): Include incoming references (default: true).
   - Synonyms: `includeIncomingReferences`, `includeir`.
 - `includeReferenceContext` (boolean, optional): Include context (default: true).
@@ -909,7 +909,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `mirrorFs` (boolean, optional): Mirror filesystem structure (default: false).
   - Synonyms: `mirrorFs`, `mirrorf`.
 - `enableVersionControl` (boolean, optional): Request import into shared-project version control (default: false). Local-only imports cannot satisfy this request and fail explicitly.
-  - Synonyms: `filePath`, `destFolder`, `recurse`, `depth`, `autoAnalyze`, `stripPath`, `stripContainer`, `mirror`, `versioning`, `enableVersionControl`
+  - Synonyms: `versioning`, `enableVersionControl`
 **Overloads**:
 - `import_binary(binary_path)` → forwards to `import-binary`.
 - `import-file(path, destinationFolder, recursive, maxDepth, analyzeAfterImport, stripLeadingPath, stripAllContainerPath, mirrorFs, enableVersionControl)` → forwards to `import-binary`.
@@ -937,7 +937,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `offset` (integer, optional): Result offset.
   - Synonyms: `offset`, `startIndex`, `start`, `index`, `from`, `skip`, `cursor`, `begin`, `position`.
 - `limit` (integer, optional): Max results.
-  - Synonyms: `view`, `start`, `size`, `startIndex`, `max`, `limit`, `maxResults`, `maxCount`, `count`, `take`, `cap`.
+  - Synonyms: `limit`, `maxResults`, `maxCount`, `count`, `take`, `cap`.
 **Overloads**:
 - `list_data_items(offset, limit)` → forwards to `inspect-memory`.
 - `list_segments(offset, limit)` → forwards to `inspect-memory`.
@@ -1387,7 +1387,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `maxFunctions` (integer, optional): Max functions.
   - Synonyms: `maxFunctions`, `maxf`.
 - `batchSize` (integer, optional): Batch size.
-  - Synonyms: `sourcePath`, `function`, `targets`, `maxInstr`, `simThreshold`, `propNames`, `propTags`, `propComms`, `defaults`, `tag`, `maxFuncs`, `batch`.
+  - Synonyms: `batch`.
 **Overloads**:
 - `match-function(programPath, functionIdentifier, targetProgramPaths, maxInstructions, minSimilarity, propagateNames, propagateTags, propagateComments, filterDefaultNames, filterByTag, maxFunctions, batchSize)` canonical signature.
 
@@ -1608,7 +1608,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `includeSmallValues` (boolean, optional): Include small in common (default: false).
   - Synonyms: `includeSmallValues`, `includesv`.
 - `topN` (integer, optional): Top N in common (default: 50).
-  - Synonyms: `action`, `val`, `min`, `max`, `limit`, `smallVals`, `top`, `topN`
+  - Synonyms: `topN`, `top`
 **Overloads**:
 - `find-constant-uses(programPath, value, maxResults)` → forwards to `search-constants`.
 - `find-constants-in-range(programPath, minValue, maxValue, maxResults)` → forwards to `search-constants`.
@@ -1723,7 +1723,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `dataType` (string, optional): Type suggestion.
   - Synonyms: `dataType`, `datat`.
 - `variableAddress` (string, optional): Var address.
-  - Synonyms: `type`, `addr`, `func`, `dt`, `varAddr`, `variableAddress`, `variablea`.
+  - Synonyms: `varAddr`, `variableAddress`, `variablea`.
 **Overloads**:
 - `suggest(programPath, suggestionType, address, function, dataType, variableAddress)` canonical signature.
 

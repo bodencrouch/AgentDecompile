@@ -123,6 +123,11 @@ class DataToolProvider(ToolProvider):
         data = listing.getDataAt(addr)
         if data is not None:
             result["definedType"] = str(data.getDataType())
+            # "length" is the number of bytes read; the defined unit can be longer or shorter.
+            try:
+                result["definedLength"] = int(data.getLength())
+            except Exception:
+                pass
             try:
                 result["value"] = str(data.getValue())
             except Exception:

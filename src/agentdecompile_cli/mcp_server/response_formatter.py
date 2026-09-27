@@ -2685,11 +2685,16 @@ def _render_data(data: dict[str, Any]) -> str:
     lines.append("")
     lines.append(_md_bold_kv("Address", _md_code_inline(data.get("address", ""))))
     if data.get("definedType"):
-        lines.append(_md_bold_kv("Type", _md_code_inline(data.get("definedType", ""))))
+        defined_type = str(data.get("definedType", "")).strip().split("\n", 1)[0]
+        lines.append(_md_bold_kv("Type", _md_code_inline(defined_type)))
     if data.get("value"):
         lines.append(_md_bold_kv("Value", _md_code_inline(str(data.get("value", "")))))
+    # "length" is how many bytes were read (the request, default 16), not the
+    # size of the defined data; show the data unit length separately.
+    if data.get("definedLength"):
+        lines.append(_md_bold_kv("Data Length", f"{data['definedLength']} bytes"))
     if data.get("length"):
-        lines.append(_md_bold_kv("Length", f"{data['length']} bytes"))
+        lines.append(_md_bold_kv("Bytes Read", f"{data['length']} bytes"))
     hex_str = data.get("hex", "")
     ascii_str = data.get("ascii", "")
     if hex_str:

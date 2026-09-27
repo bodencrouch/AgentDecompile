@@ -29,7 +29,9 @@
 #     AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD    Password
 #
 #   HTTP auth
-#     AGENT_DECOMPILE_REQUIRE_AUTH    true/1 = enforce; false/0 = disable; unset = auto
+#     AGENT_DECOMPILE_REQUIRE_AUTH    true/1 = force auth on every request; false/0 or unset =
+#                                      leave unforced (does not override AGENT_DECOMPILE_AUTH_ENABLED,
+#                                      which can still turn on per-request auth)
 #
 #   TLS (HTTPS)
 #     AGENT_DECOMPILE_TLS_CERT        Path to PEM certificate file

@@ -978,7 +978,16 @@ def build_proxy_parser() -> argparse.ArgumentParser:
     parser.add_argument("--tls-cert", dest="tls_certfile", type=str, default=None, help="TLS cert (PEM) for HTTPS proxy")
     parser.add_argument("--tls-key", dest="tls_keyfile", type=str, default=None, help="TLS key (PEM) for HTTPS proxy")
     parser.add_argument("--require-auth", dest="require_auth", action="store_true", help="Require HTTP Basic auth on proxy")
-    parser.add_argument("--no-require-auth", dest="require_auth", action="store_false", help="Do not require auth")
+    parser.add_argument(
+        "--no-require-auth",
+        dest="require_auth",
+        action="store_false",
+        help=(
+            "Explicitly leave auth unforced; has the same effect as omitting --require-auth "
+            "(AGENT_DECOMPILE_AUTH_ENABLED and any per-request signals still apply). "
+            "Default: %(default)s"
+        ),
+    )
     parser.set_defaults(require_auth=None)
     parser.add_argument("--ghidra-server-host", type=str, default=None, help="Auth: Ghidra server host")
     parser.add_argument("--ghidra-server-port", type=int, default=None, help="Auth: Ghidra server port")

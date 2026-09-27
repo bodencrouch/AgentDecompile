@@ -34,7 +34,7 @@ from typing import TYPE_CHECKING, Any
 
 from agentdecompile_cli.executor import normalize_backend_url
 from agentdecompile_cli.launcher import AgentDecompileLauncher
-from agentdecompile_cli.mcp_server.auth import AuthConfig, resolve_auth_config
+from agentdecompile_cli.mcp_server.auth import AuthConfig, AuthConfigError, resolve_auth_config
 from agentdecompile_cli.project_manager import ProjectManager
 from agentdecompile_cli.registry import Tool
 from agentdecompile_cli.utils import get_client, run_async
@@ -839,19 +839,24 @@ def main() -> None:
     # Build AuthConfig from CLI args / env.
     # EXPERIMENTAL: Auth is disabled by default.  Set the env var
     # AGENT_DECOMPILE_AUTH_ENABLED=true (or pass --require-auth) to enable it.
+    # When on, the Ghidra username and password are the MCP credentials and
+    # startup fails if either is missing (fail closed, see resolve_auth_config).
     # NOTE: Auth is ONLY applied for HTTP transports.  In stdio mode the internal
     # HTTP server is used exclusively by the in-process bridge — no external
     # clients ever reach it, so requiring auth would block the bridge itself.
-    auth_config: AuthConfig | None = resolve_auth_config(
-        is_http=args.transport in _HTTP_TRANSPORTS,
-        require_auth_flag=getattr(args, "require_auth", None),
-        environ=os.environ,
-        cli_host=getattr(args, "ghidra_server_host", None),
-        cli_port=getattr(args, "ghidra_server_port", None),
-        cli_username=getattr(args, "ghidra_server_username", None),
-        cli_password=getattr(args, "ghidra_server_password", None),
-        cli_repository=getattr(args, "ghidra_server_repository", None),
-    )
+    try:
+        auth_config: AuthConfig | None = resolve_auth_config(
+            is_http=args.transport in _HTTP_TRANSPORTS,
+            require_auth_flag=getattr(args, "require_auth", None),
+            environ=os.environ,
+            cli_host=getattr(args, "ghidra_server_host", None),
+            cli_port=getattr(args, "ghidra_server_port", None),
+            cli_username=getattr(args, "ghidra_server_username", None),
+            cli_password=getattr(args, "ghidra_server_password", None),
+            cli_repository=getattr(args, "ghidra_server_repository", None),
+        )
+    except AuthConfigError as exc:
+        parser.error(str(exc))
 
     # Resolve transport configuration
     port = args.port if args.port is not None else _env_port()
@@ -1007,16 +1012,19 @@ def proxy_main() -> None:
     tls_keyfile = args.tls_keyfile or os.environ.get("AGENT_DECOMPILE_TLS_KEY") or None
     if bool(tls_certfile) != bool(tls_keyfile):
         parser.error("--tls-cert and --tls-key must be provided together")
-    auth_config = resolve_auth_config(
-        is_http=args.transport in _HTTP_TRANSPORTS,
-        require_auth_flag=getattr(args, "require_auth", None),
-        environ=os.environ,
-        cli_host=getattr(args, "ghidra_server_host", None),
-        cli_port=getattr(args, "ghidra_server_port", None),
-        cli_username=getattr(args, "ghidra_server_username", None),
-        cli_password=getattr(args, "ghidra_server_password", None),
-        cli_repository=getattr(args, "ghidra_server_repository", None),
-    )
+    try:
+        auth_config = resolve_auth_config(
+            is_http=args.transport in _HTTP_TRANSPORTS,
+            require_auth_flag=getattr(args, "require_auth", None),
+            environ=os.environ,
+            cli_host=getattr(args, "ghidra_server_host", None),
+            cli_port=getattr(args, "ghidra_server_port", None),
+            cli_username=getattr(args, "ghidra_server_username", None),
+            cli_password=getattr(args, "ghidra_server_password", None),
+            cli_repository=getattr(args, "ghidra_server_repository", None),
+        )
+    except AuthConfigError as exc:
+        parser.error(str(exc))
     port = args.port if args.port is not None else _env_port()
     host = args.host if args.host is not None else _env_host()
 

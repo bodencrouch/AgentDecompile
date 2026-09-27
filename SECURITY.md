@@ -28,7 +28,7 @@ We aim to acknowledge within a few business days and will work with you on discl
 AgentDecompile runs Ghidra analysis locally or against a Ghidra Server you configure. Typical risks:
 
 - **MCP HTTP bind** — default is `127.0.0.1`. Do not bind `0.0.0.0` without `AGENT_DECOMPILE_AUTH_ENABLED` plus firewall/TLS. See [docs/MCP_CONFIGURATION_SECURITY.md](docs/MCP_CONFIGURATION_SECURITY.md).
-- **Ghidra Server credentials** in env vars or headers grant access to shared repositories — treat them like production secrets. They are not MCP HTTP auth.
+- **Ghidra Server credentials** in env vars or headers grant access to shared repositories — treat them like production secrets. With `AGENT_DECOMPILE_AUTH_ENABLED` on, the configured `AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME` / `_PASSWORD` pair is also the MCP HTTP Basic auth pair. The server refuses to start when auth is on and either is missing. Without that switch they are not MCP HTTP auth.
 - **Arbitrary binary analysis** — importing untrusted binaries into Ghidra can trigger parser bugs in Ghidra itself; run in an isolated VM when analyzing malware.
 
 We treat issues in this repo's Python MCP layer as in scope. Upstream Ghidra/JVM vulnerabilities should be reported to the [Ghidra project](https://github.com/NationalSecurityAgency/ghidra/security).

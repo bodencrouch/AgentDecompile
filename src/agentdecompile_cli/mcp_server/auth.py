@@ -12,11 +12,11 @@ This module provides:
 - get_current_auth_context(): helper for tool providers to read current auth state
 - AuthMiddleware: ASGI middleware that enforces Basic auth before MCP session handling
 
-Auth is conditional:
-- When no Ghidra server is configured and no X-Ghidra-Server-Host header is sent,
-  requests pass through anonymously.
-- When a server IS configured (--ghidra-server-username set) or the client sends
-  X-Ghidra-Server-Host, Basic auth is required.
+Auth is all-or-nothing:
+- Off (the default): no middleware is installed and requests are anonymous.
+- On (``--require-auth`` or ``AGENT_DECOMPILE_AUTH_ENABLED``, HTTP transports
+  only): every request needs credentials. The configured Ghidra username and
+  password are the MCP credentials; startup fails when either is missing.
 
 The /health endpoint is a FastAPI route mounted separately and is always exempt.
 
@@ -158,6 +158,10 @@ def validate_credentials(
     logger.debug("diag.enter %s", "mcp_server/auth.py:validate_credentials")
     if not username:
         return False
+    if not config.default_username or not config.default_password:
+        # Nothing configured to check against: fail closed, including for
+        # dynamic routing to another Ghidra host.
+        return False
 
     using_default_server = not target_host or not config.default_server_host or target_host.lower() == config.default_server_host.lower()
 
@@ -221,10 +225,9 @@ class AuthMiddleware:
     The ``/health`` FastAPI route is mounted separately and never reaches this
     middleware.
 
-    Auth is required when ANY of the following is true:
-    - ``auth_config.require_auth`` is True
-    - The request includes ``X-Ghidra-Server-Host`` (dynamic routing signal)
-    - ``auth_config.default_username`` is set (server started with credentials)
+    Once installed, every request except ``/health`` needs credentials. The
+    server and proxy only install it when auth is on, and refuse to start
+    when no username/password is configured (see :func:`resolve_auth_config`).
     """
 
     def __init__(self, inner_app: Any, auth_config: AuthConfig) -> None:
@@ -233,10 +236,12 @@ class AuthMiddleware:
         self._config = auth_config
 
     def _auth_required(self, target_host: str) -> bool:
+        # The middleware is only installed when auth is switched on, so every
+        # request needs credentials. An earlier version let requests through
+        # when no username was configured, which made
+        # AGENT_DECOMPILE_AUTH_ENABLED=1 on its own a no-op.
         logger.debug("diag.enter %s", "mcp_server/auth.py:AuthMiddleware._auth_required")
-        return bool(
-            self._config.require_auth or target_host or self._config.default_username,
-        )
+        return True
 
     async def __call__(
         self,
@@ -343,6 +348,11 @@ class AuthMiddleware:
 # ---------------------------------------------------------------------------
 
 AUTH_ENABLED_ENV = "AGENT_DECOMPILE_AUTH_ENABLED"
+
+
+class AuthConfigError(ValueError):
+    """MCP HTTP auth is switched on but cannot check anyone (no credentials configured)."""
+
 _TRUTHY = frozenset({"true", "1", "yes", "on"})
 
 
@@ -377,10 +387,14 @@ def resolve_auth_config(
     cannot switch off the env var: it resolves the same as omitting the flag.
     stdio never gets auth (the internal HTTP server only serves the in-process
     bridge). Environment credentials win over the ``cli_*`` values.
+
+    Fails closed: when auth is on but the username or password is missing,
+    raise :class:`AuthConfigError` instead of starting a listener that either
+    lets everyone in or can never let anyone in.
     """
     if not is_http or not (require_auth_flag or auth_env_enabled(environ)):
         return None
-    return AuthConfig(
+    config = AuthConfig(
         require_auth=bool(require_auth_flag),
         default_server_host=_first_env(environ, "AGENT_DECOMPILE_GHIDRA_SERVER_HOST", "AGENT_DECOMPILE_SERVER_HOST") or cli_host,
         default_server_port=int(_first_env(environ, "AGENT_DECOMPILE_GHIDRA_SERVER_PORT", "AGENT_DECOMPILE_SERVER_PORT") or cli_port or 13100),
@@ -394,3 +408,21 @@ def resolve_auth_config(
         )
         or cli_repository,
     )
+    missing = [
+        name
+        for name, value in (
+            ("AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME", config.default_username),
+            ("AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD", config.default_password),
+        )
+        if not value
+    ]
+    if missing:
+        switch = "--require-auth" if require_auth_flag else AUTH_ENABLED_ENV
+        raise AuthConfigError(
+            f"MCP HTTP auth is on ({switch}) but {' and '.join(missing)} "
+            f"{'is' if len(missing) == 1 else 'are'} not set, so no request could be checked. "
+            "Set AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME and AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD "
+            "(or --ghidra-server-username / --ghidra-server-password); clients send the same pair "
+            "as HTTP Basic auth. To run without auth, unset AGENT_DECOMPILE_AUTH_ENABLED and drop --require-auth.",
+        )
+    return config

@@ -16,6 +16,7 @@ import pytest
 
 from agentdecompile_cli.mcp_server.auth import (
     AuthConfig,
+    AuthConfigError,
     AuthMiddleware,
     auth_env_enabled,
     resolve_auth_config,
@@ -144,3 +145,51 @@ def test_cli_credentials_used_when_env_has_none() -> None:
         "repo",
     )
     assert config.default_server_port == 13100
+
+
+# ---------------------------------------------------------------------------
+# Auth switched on with nothing to check against: refuse, never pass through
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("flag", "env"),
+    [
+        (None, ENV_ON),  # the reported case: AGENT_DECOMPILE_AUTH_ENABLED=1 alone
+        (False, ENV_ON),  # --no-require-auth does not turn the env var off
+        (True, {}),  # --require-auth alone
+    ],
+)
+def test_auth_on_without_credentials_refuses_to_start(flag: bool | None, env: dict[str, str]) -> None:
+    with pytest.raises(AuthConfigError) as excinfo:
+        resolve_auth_config(is_http=True, require_auth_flag=flag, environ=dict(env))
+    message = str(excinfo.value)
+    assert "AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME" in message
+    assert "AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD" in message
+
+
+@pytest.mark.parametrize(
+    "partial",
+    [
+        {"AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME": "alice"},
+        {"AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD": "s3cret"},
+    ],
+)
+def test_auth_on_with_half_the_credentials_refuses_to_start(partial: dict[str, str]) -> None:
+    # A username with an empty password would let anyone who knows the name in.
+    with pytest.raises(AuthConfigError):
+        resolve_auth_config(is_http=True, require_auth_flag=None, environ={**ENV_ON, **partial})
+
+
+def test_stdio_with_env_on_and_no_credentials_still_starts() -> None:
+    assert resolve_auth_config(is_http=False, require_auth_flag=None, environ=dict(ENV_ON)) is None
+
+
+@pytest.mark.parametrize("require_auth", [False, True])
+def test_installed_middleware_without_credentials_rejects_everything(require_auth: bool) -> None:
+    # Defence in depth for code that builds AuthConfig directly: installing the
+    # middleware means auth is on, so an empty config must not pass requests.
+    config = AuthConfig(require_auth=require_auth)
+    assert _call(config) == 401
+    assert _call(config, {"Authorization": _basic("anyone", "anything")}) == 401
+    assert _call(config, {"X-Ghidra-Server-Host": "elsewhere", "Authorization": _basic("anyone", "x")}) == 401

@@ -380,6 +380,8 @@ class CrossReferencesToolProvider(ToolProvider):
                 seen_funcs: set[str] = set()
                 refs_seen = 0
                 for ref in ref_mgr.getReferencesTo(addr):
+                    if not self._keep_reference(args, ref):
+                        continue
                     if refs_seen >= max_results:
                         break
                     refs_seen += 1

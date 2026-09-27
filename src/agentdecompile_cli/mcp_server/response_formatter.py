@@ -2012,8 +2012,9 @@ def _render_structures(data: dict[str, Any]) -> str:
                 [
                     str(f.get("offset", "")),
                     f.get("name", ""),
-                    # collect_structure_fields emits "type"; accept "dataType" too.
-                    f.get("dataType") or f.get("type", ""),
+                    # collect_structure_fields emits "type" (str(DataType)); accept "dataType" too.
+                    # A nested composite stringifies to a multi-line dump; keep its path line.
+                    str(f.get("dataType") or f.get("type", "") or "").strip().split("\n", 1)[0],
                     str(f.get("length", "")),
                     f.get("comment", "") or "",
                 ]

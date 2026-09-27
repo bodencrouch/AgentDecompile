@@ -9,28 +9,16 @@ JSON-schema types: integer, number, boolean, array, string.
 
 Source: ``ToolProviderManager.list_tools()`` (provider inputSchema first, then
 ``_infer_param_schema``), widened to every Tool and every TOOL_PARAMS name.
-Kept as data so the CLI does not import mcp_server at startup. Regenerate
-after changing a provider schema (no JVM, no network)::
+Kept as data so the CLI does not import mcp_server at startup.
 
-    PYTHONPATH=src python -c '
-    import json, agentdecompile_cli.mcp_server.tool_providers as tp
-    from agentdecompile_cli.registry import TOOL_PARAMS, ADVERTISED_TOOL_PARAMS, Tool, normalize_identifier as n
-    allp = {}
-    for t in Tool:
-        names = list(ADVERTISED_TOOL_PARAMS.get(t.value, []))
-        names += [p for p in TOOL_PARAMS.get(t, []) if n(p) not in {n(x) for x in names}]
-        allp[t.value] = names
-    tp.ADVERTISED_TOOL_PARAMS = allp
-    tp.get_advertised_tools_for_list = lambda *a, **k: [t.value for t in Tool]
-    m = tp.ToolProviderManager(); m.register_all_providers()
-    out = {}
-    for tool in m.list_tools():
-        for k, s in (tool.inputSchema or {}).get("properties", {}).items():
-            if n(k) == "responseformat": continue
-            ty = s.get("type") if isinstance(s, dict) else None
-            if isinstance(ty, list): ty = next((x for x in ty if x != "null"), None)
-            out.setdefault(tool.name, {})[n(k)] = ty or "string"
-    print(json.dumps(out, sort_keys=True))'
+Drift guard (in memory, no JVM, no network; run it by hand after changing a
+provider schema or TOOL_PARAMS -- nothing runs it on a schedule)::
+
+    PYTHONPATH=src python -m agentdecompile_cli.cli_param_types --check
+    PYTHONPATH=src python -m agentdecompile_cli.cli_param_types --write
+
+``--check`` prints every added, removed or retyped param and exits 1 on drift.
+``--write`` rewrites the table below from the same regeneration.
 """
 
 from __future__ import annotations
@@ -919,3 +907,118 @@ ADVERTISED_PARAM_TYPES: dict[str, dict[str, str]] = {
         "sourcepath": "string",
     },
 }
+
+
+def generate_param_types() -> dict[str, dict[str, str]]:
+    """Rebuild the table from the providers' advertised schemas, in memory.
+
+    Widens ADVERTISED_TOOL_PARAMS to every Tool (and every TOOL_PARAMS name)
+    on the tool_providers module for this call only, so hidden tools are typed
+    too; restores the module attributes afterwards.
+    """
+    import agentdecompile_cli.mcp_server.tool_providers as tp
+
+    from agentdecompile_cli.registry import ADVERTISED_TOOL_PARAMS, TOOL_PARAMS, Tool, normalize_identifier as n
+
+    all_params: dict[str, list[str]] = {}
+    for tool in Tool:
+        names = list(ADVERTISED_TOOL_PARAMS.get(tool.value, []))
+        seen = {n(x) for x in names}
+        names += [p for p in TOOL_PARAMS.get(tool, []) if n(p) not in seen]
+        all_params[tool.value] = names
+
+    saved = (tp.ADVERTISED_TOOL_PARAMS, tp.get_advertised_tools_for_list)
+    tp.ADVERTISED_TOOL_PARAMS = all_params
+    tp.get_advertised_tools_for_list = lambda *a, **k: [t.value for t in Tool]
+    try:
+        manager = tp.ToolProviderManager()
+        manager.register_all_providers()
+        tools = manager.list_tools()
+    finally:
+        tp.ADVERTISED_TOOL_PARAMS, tp.get_advertised_tools_for_list = saved
+
+    out: dict[str, dict[str, str]] = {}
+    for tool in tools:
+        for key, schema in (tool.inputSchema or {}).get("properties", {}).items():
+            if n(key) == "responseformat":
+                continue
+            ty = schema.get("type") if isinstance(schema, dict) else None
+            if isinstance(ty, list):
+                ty = next((x for x in ty if x != "null"), None)
+            out.setdefault(tool.name, {})[n(key)] = ty or "string"
+    return {tool: dict(sorted(params.items())) for tool, params in sorted(out.items())}
+
+
+def diff_param_types(current: dict[str, dict[str, str]], fresh: dict[str, dict[str, str]]) -> list[str]:
+    """One line per difference between the stored table and a regeneration."""
+    lines: list[str] = []
+    for tool in sorted(set(current) | set(fresh)):
+        old, new = current.get(tool), fresh.get(tool)
+        if old is None:
+            lines.append(f"+ {tool} (new tool: {len(new or {})} params)")
+            continue
+        if new is None:
+            lines.append(f"- {tool} (tool no longer advertised)")
+            continue
+        for param in sorted(set(old) | set(new)):
+            if param not in new:
+                lines.append(f"- {tool}.{param} ({old[param]})")
+            elif param not in old:
+                lines.append(f"+ {tool}.{param} ({new[param]})")
+            elif old[param] != new[param]:
+                lines.append(f"~ {tool}.{param}: {old[param]} -> {new[param]}")
+    return lines
+
+
+def render_param_types(table: dict[str, dict[str, str]]) -> str:
+    """The ``ADVERTISED_PARAM_TYPES = {...}`` source block, in this file's layout."""
+    lines = ["ADVERTISED_PARAM_TYPES: dict[str, dict[str, str]] = {"]
+    for tool, params in table.items():
+        lines.append(f'    "{tool}": {{')
+        lines.extend(f'        "{param}": "{ty}",' for param, ty in params.items())
+        lines.append("    },")
+    lines.append("}")
+    return "\n".join(lines) + "\n"
+
+
+def _write_table(table: dict[str, dict[str, str]]) -> None:
+    from pathlib import Path
+
+    path = Path(__file__)
+    text = path.read_text(encoding="utf-8")
+    head = "ADVERTISED_PARAM_TYPES: dict[str, dict[str, str]] = {\n"
+    start = text.index(head)
+    end = text.index("\n}\n", start) + len("\n}\n")
+    path.write_text(text[:start] + render_param_types(table) + text[end:], encoding="utf-8")
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="python -m agentdecompile_cli.cli_param_types",
+        description="Compare ADVERTISED_PARAM_TYPES with the providers' advertised schemas.",
+    )
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--check", action="store_true", help="Print differences; exit 1 on drift.")
+    group.add_argument("--write", action="store_true", help="Rewrite the table in this file.")
+    args = parser.parse_args(argv)
+
+    fresh = generate_param_types()
+    differences = diff_param_types(ADVERTISED_PARAM_TYPES, fresh)
+    if args.write:
+        if differences:
+            _write_table(fresh)
+        print(f"cli_param_types: {len(differences)} difference(s) written." if differences else "cli_param_types: already current.")
+        return 0
+    if differences:
+        print("cli_param_types.ADVERTISED_PARAM_TYPES drifted from the advertised schemas:")
+        print("\n".join(differences))
+        print("Regenerate with: python -m agentdecompile_cli.cli_param_types --write")
+        return 1
+    print("cli_param_types: ADVERTISED_PARAM_TYPES matches the advertised schemas.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -2304,10 +2304,9 @@ class ImportExportToolProvider(ToolProvider):
             # program. Drain any open transaction first, same as the version-control
             # save/checkin paths already do.
             await _native_call(self._end_all_open_transactions_on_program, program)
-            # ``FlatProgramAPI.analyzeAll`` owns Ghidra's analysis transaction.
-            # Wrapping it in another transaction makes the analyzed flag
-            # invisible to ``blocking_ensure_analyzed`` until after this method
-            # returns; the ensuing timeout rolls the outer transaction back.
+            # ``FlatProgramAPI.analyzeAll`` opens no transaction of its own;
+            # ``program_analysis._run_auto_analysis`` owns it (see the comment
+            # there).  Do not add a second one around this call.
             analysis_result = await _native_call(_run_auto_analysis)
             project = getattr(self._manager, "ghidra_project", None) if self._manager else None
             if project is not None:

@@ -1717,7 +1717,10 @@ class ImportExportToolProvider(ToolProvider):
                     )
                     from agentdecompile_cli.launcher import ProgramInfo as _ProgramInfo
                     from agentdecompile_cli.mcp_utils.decompiler_util import open_decompiler_for_program
-                    from agentdecompile_cli.mcp_utils.program_analysis import blocking_ensure_analyzed
+                    from agentdecompile_cli.mcp_utils.program_analysis import (
+                        blocking_ensure_analyzed,
+                        clear_analysis_failure,
+                    )
 
                     _dec = None
                     try:
@@ -1734,6 +1737,9 @@ class ImportExportToolProvider(ToolProvider):
                         file_path=item,
                         load_time=time.time(),
                     )
+                    # Imported or reused, the program now sits at its final path; a
+                    # failure recorded earlier for that path must not suppress analysis.
+                    clear_analysis_failure(program, path_in_project)
                     SESSION_CONTEXTS.set_active_program_info(session_id, path_in_project, _pi)
                     program_info = _pi
                     if analyze_after_import:

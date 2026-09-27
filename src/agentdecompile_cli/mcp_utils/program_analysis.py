@@ -22,6 +22,7 @@ __all__ = [
     "ProgramAnalysisTimeout",
     "analysis_failure",
     "analysis_gate_exempt_tool",
+    "clear_analysis_failure",
     "blocking_ensure_analyzed",
     "mark_program_analysis_complete",
     "program_needs_analysis",
@@ -374,15 +375,24 @@ def _run_auto_analysis(program: GhidraProgram, *, analyzers: list[str] | None = 
 
 
 # Programs whose automatic analysis already failed in this process, keyed like
-# the analysis lock.  The per-tool gate must not re-run a failed analysis on
-# every call (each rerun failed the same way and blocked unrelated tools); an
-# explicit analyze-program retries and clears the entry on success.
+# the analysis lock (lowercased domain path).  The per-tool gate must not re-run
+# a failed analysis on every call (each rerun failed the same way and blocked
+# unrelated tools); an explicit analyze-program retries and clears the entry on
+# success, and importing or (re)opening a program under the path clears it.
+# ProgramAnalysisTimeout is not recorded: it is transient, so the gate retries.
 _FAILED_ANALYSIS: dict[str, str] = {}
 
 
 def analysis_failure(program: GhidraProgram, program_path: str | None = None) -> str | None:
     """Return the recorded auto-analysis failure for this program, if any."""
     return _FAILED_ANALYSIS.get(_program_lock_key(program, program_path))
+
+
+def clear_analysis_failure(program: GhidraProgram, program_path: str | None = None) -> None:
+    """Forget a recorded failure; call once the program has its final domain path."""
+    key = _program_lock_key(program, program_path)
+    if _FAILED_ANALYSIS.pop(key, None) is not None:
+        logger.info("program_analysis_failure_cleared key=%s", key)
 
 
 def _record_analysis_failure(key: str, exc: BaseException) -> None:
@@ -426,6 +436,8 @@ def blocking_ensure_analyzed(
                     raise ProgramAnalysisTimeout(
                         f"Ghidra auto-analysis did not complete for program (key={key})"
                     )
+            except ProgramAnalysisTimeout:
+                raise
             except Exception as exc:
                 _record_analysis_failure(key, exc)
                 raise
@@ -472,6 +484,8 @@ def wait_for_program_analysis_ready(
                 raise ProgramAnalysisTimeout(
                     f"Ghidra auto-analysis did not complete for program (key={key})"
                 )
+        except ProgramAnalysisTimeout:
+            raise
         except Exception as exc:
             _record_analysis_failure(key, exc)
             raise

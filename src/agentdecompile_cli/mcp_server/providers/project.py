@@ -3640,6 +3640,11 @@ class ProjectToolProvider(ToolProvider):
                 # GhidraProject.save() throws "Location does not exist for a save
                 # operation!" (DomainFileProxy.save), and a new process sees 0 files.
                 self._persist_imported_program(ghidra_project, project_handle, program)
+                # A failure recorded for an earlier program at this path must not
+                # suppress analysis of the one just imported (key = domain path).
+                from agentdecompile_cli.mcp_utils.program_analysis import clear_analysis_failure
+
+                clear_analysis_failure(program)
 
                 from agentdecompile_cli.launcher import ProgramInfo
                 from agentdecompile_cli.mcp_utils.decompiler_util import open_decompiler_for_program
@@ -3999,6 +4004,12 @@ class ProjectToolProvider(ToolProvider):
         logger.debug("diag.enter %s", "mcp_server/providers/project.py:ProjectToolProvider._set_active_program_info")
         from agentdecompile_cli.launcher import ProgramInfo
         from agentdecompile_cli.mcp_utils.decompiler_util import open_decompiler_for_program
+
+        from agentdecompile_cli.mcp_utils.program_analysis import clear_analysis_failure
+
+        # Only explicit open paths (open / open .gpr) reach here: a (re)open retries
+        # analysis instead of inheriting an earlier failure for this path.
+        clear_analysis_failure(program, program_path)
 
         decompiler = open_decompiler_for_program(program)
 

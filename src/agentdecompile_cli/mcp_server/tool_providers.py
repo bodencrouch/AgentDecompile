@@ -755,6 +755,40 @@ def resolve_domain_program_path(program: Any, fallback_path: str | None) -> str 
     return fallback_path
 
 
+def analysis_skipped_warning(program: Any, program_info: Any, program_path: str | None) -> str | None:
+    """One-line warning when the gate let a tool run past a recorded analysis failure.
+
+    Blocking (Ghidra calls); run it off the event loop.  A stale record on a
+    program that is analyzed now yields no warning.
+    """
+    from agentdecompile_cli.mcp_utils.program_analysis import analysis_failure, program_needs_analysis
+
+    failure = analysis_failure(program, program_path)
+    if failure is None or not program_needs_analysis(program, program_info=program_info):
+        return None
+    return (
+        f"Warning: auto-analysis of {program_path or 'this program'} failed earlier ({failure}); "
+        "this result uses the listing as it is. Run analyze-program to retry."
+    )
+
+
+def attach_analysis_warning(result: list[Any], warning: str | None, *, markdown: bool) -> list[Any]:
+    """Put ``warning`` into the first text part: a key in a JSON object, else a leading line."""
+    if not warning or not result or not isinstance(result[0], types.TextContent):
+        return result
+    text = result[0].text or ""
+    if not markdown:
+        try:
+            data = _json.loads(text)
+        except Exception:
+            data = None
+        if isinstance(data, dict):
+            data["analysisWarning"] = warning
+            return [types.TextContent(type="text", text=_json.dumps(data)), *result[1:]]
+    prefix = f"> {warning}" if markdown else warning
+    return [types.TextContent(type="text", text=f"{prefix}\n\n{text}"), *result[1:]]
+
+
 def analysis_timeout_error_response(
     exc: ProgramAnalysisTimeout,
     program_path: str | None,
@@ -2822,6 +2856,7 @@ class ToolProviderManager:
             )
 
         resolved_prog_path: str | None = requested_program_key or SESSION_CONTEXTS.get_active_program_key(session_id)
+        analysis_warning: str | None = None
         if effective_program_info is not None and effective_program_info.program is not None:
             resolved_prog_path = resolve_domain_program_path(
                 effective_program_info.program,
@@ -2837,13 +2872,17 @@ class ToolProviderManager:
             from agentdecompile_cli.mcp_utils.program_analysis import wait_for_program_analysis_ready
 
             prog = effective_program_info.program
-            try:
-                await asyncio.to_thread(
-                    wait_for_program_analysis_ready,
+
+            def _run_analysis_gate() -> str | None:
+                wait_for_program_analysis_ready(
                     prog,
                     effective_program_info,
                     program_path=resolved_prog_path,
                 )
+                return analysis_skipped_warning(prog, effective_program_info, resolved_prog_path)
+
+            try:
+                analysis_warning = await asyncio.to_thread(_run_analysis_gate)
             except ProgramAnalysisTimeout as exc:
                 return analysis_timeout_error_response(exc, resolved_prog_path)
 
@@ -3013,11 +3052,13 @@ class ToolProviderManager:
             try:
                 data = _json.loads(result[0].text)
                 markdown = render_tool_response(norm_name, data)
-                return [types.TextContent(type="text", text=markdown)]
+                return attach_analysis_warning(
+                    [types.TextContent(type="text", text=markdown)], analysis_warning, markdown=True
+                )
             except Exception:
                 pass  # Fall back to raw JSON on any formatting error
 
-        return result
+        return attach_analysis_warning(result, analysis_warning, markdown=False)
 
     def program_opened(self, program_info_or_path: ProgramInfo | os.PathLike | str) -> None:
         """Notify all providers that a program was opened; accept path string or ProgramInfo/PathLike."""

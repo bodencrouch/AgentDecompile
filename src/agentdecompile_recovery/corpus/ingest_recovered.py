@@ -25,7 +25,10 @@ HDR_EVID = re.compile(r"evidence:\s*(\S+)")
 ADDR_IN_NAME = re.compile(r"(?:FUN|sub|LAB)_([0-9a-fA-F]{6,16})")
 ADDR_SUFFIX = re.compile(r"_([0-9a-fA-F]{6,16})$")
 
-RECOVERED_SCHEMA = """
+# Canonical recovered_function shape. Every module that creates the table
+# uses this DDL (export_run_report and restore_recovered_tree import it), so
+# the first verb to touch a store can no longer fix a different shape.
+RECOVERED_FUNCTION_DDL = """
 CREATE TABLE IF NOT EXISTS recovered_function (
     program      TEXT NOT NULL,
     binary_id    INTEGER,
@@ -41,7 +44,16 @@ CREATE TABLE IF NOT EXISTS recovered_function (
     PRIMARY KEY (program, name)
 );
 CREATE INDEX IF NOT EXISTS ix_recovered_logical ON recovered_function(logical_id);
+"""
 
+# Columns added after the first shipped shape. export_run_report once created
+# recovered_function without binary_id; those stores gain it here, additively.
+# binary_id stays NULL on upgraded rows: the canonical writer only sets it from
+# an operator-supplied program -> repo_path map (ingest(program_to_repo=...)),
+# so the store alone cannot derive it, and NULL is already a normal value.
+RECOVERED_FUNCTION_ADDED_COLUMNS = (("binary_id", "INTEGER"),)
+
+REUSE_CANDIDATE_DDL = """
 CREATE TABLE IF NOT EXISTS reuse_candidate (
     src_program   TEXT NOT NULL,
     src_name      TEXT NOT NULL,
@@ -57,8 +69,28 @@ CREATE INDEX IF NOT EXISTS ix_reuse_dst ON reuse_candidate(dst_binary_id, dst_ad
 """
 
 
+RECOVERED_SCHEMA = RECOVERED_FUNCTION_DDL + REUSE_CANDIDATE_DDL
+
+
+def ensure_recovered_function(con: sqlite3.Connection) -> None:
+    """Create recovered_function in the canonical shape, or add missing columns.
+
+    Same additive pattern as ``store.ensure_match_columns``: read
+    ``PRAGMA table_info`` first so an up-to-date store gets no write, then
+    ``ALTER TABLE ... ADD COLUMN`` for anything missing. Existing rows,
+    columns and constraints are never dropped, rewritten or reordered.
+    """
+    con.executescript(RECOVERED_FUNCTION_DDL)
+    cols = {row[1] for row in con.execute("PRAGMA table_info(recovered_function)")}
+    for col, decl in RECOVERED_FUNCTION_ADDED_COLUMNS:
+        if col not in cols:
+            con.execute(f"ALTER TABLE recovered_function ADD COLUMN {col} {decl}")
+            con.commit()
+
+
 def ensure_recovered_schema(con: sqlite3.Connection) -> None:
-    con.executescript(RECOVERED_SCHEMA)
+    ensure_recovered_function(con)
+    con.executescript(REUSE_CANDIDATE_DDL)
     con.commit()
 
 

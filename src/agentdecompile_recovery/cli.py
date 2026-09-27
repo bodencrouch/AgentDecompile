@@ -641,7 +641,7 @@ def run_recover(args: argparse.Namespace) -> int:
         try:
             resolve_existing_project_source(project, project_program)
         except (OSError, ValueError) as exc:
-            print(f"agentdecompile-recovery: --project error: {exc}", file=sys.stderr)
+            print(f"{getattr(args, '_prog', DEFAULT_PROG)}: --project error: {exc}", file=sys.stderr)
             return 2
     work_dir = args.work_dir or default_work_dir(args.input)
     config = RecoveryConfig(
@@ -698,6 +698,7 @@ def run_recover(args: argparse.Namespace) -> int:
         skip_enrichment=bool(getattr(args, "skip_enrichment", False)),
         project=project,
         project_program=project_program,
+        display_prog=getattr(args, "_prog", None) or DEFAULT_PROG,
         **unity_config_kwargs(args),
     )
     return RecoveryRunner(config).run()
@@ -728,6 +729,7 @@ def run_recover_windows(args: argparse.Namespace) -> int:
         context_max_index_text_chars=args.context_max_index_text_chars,
         context_extract_containers=not args.no_context_extract_containers,
         context_include_low_signal_members=args.context_include_low_signal_members,
+        display_prog=getattr(args, "_prog", None) or DEFAULT_PROG,
     )
     summary = run_recovery_windows(
         base_config=config,
@@ -1053,7 +1055,7 @@ def run_acquire(args: argparse.Namespace) -> int:
     if project is not None:
         problem = project_input_error(project)
         if problem:
-            print(f"agentdecompile-recovery: --project error: {problem}", file=sys.stderr)
+            print(f"{getattr(args, '_prog', DEFAULT_PROG)}: --project error: {problem}", file=sys.stderr)
             return 2
 
     receipt = acquire_context(
@@ -1386,6 +1388,10 @@ def run_survey_project(args: argparse.Namespace) -> int:
 def main(argv: list[str] | None = None, prog: str | None = None) -> int:
     parser = build_parser(prog)
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
+    # Not an argparse action/default: the 8080 catalog introspects parser
+    # actions, and adding one here would leak into that surface. This is
+    # purely for diagnostics printed by the run_* handlers below.
+    args._prog = parser.prog
     if args.command == "inspect":
         return run_inspect(args)
     if args.command == "headers":

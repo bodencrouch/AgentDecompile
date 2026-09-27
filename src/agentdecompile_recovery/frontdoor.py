@@ -594,6 +594,7 @@ def run_one_shot(args: argparse.Namespace, *, prog: str = DEFAULT_PROG) -> int:
         skip_enrichment=bool(args.skip_enrichment),
         project=project,
         project_program=getattr(args, "project_program", None),
+        display_prog=prog,
         **unity_config_kwargs(args),
     )
     rc = RecoveryRunner(config).run()

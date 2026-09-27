@@ -28,8 +28,7 @@ ADDR_SUFFIX = re.compile(r"_([0-9a-fA-F]{6,16})$")
 # Canonical recovered_function shape. Every module that creates the table
 # uses this DDL (export_run_report and restore_recovered_tree import it), so
 # the first verb to touch a store can no longer fix a different shape.
-RECOVERED_FUNCTION_DDL = """
-CREATE TABLE IF NOT EXISTS recovered_function (
+_CREATE_RECOVERED_FUNCTION_SQL = """CREATE TABLE IF NOT EXISTS recovered_function (
     program      TEXT NOT NULL,
     binary_id    INTEGER,
     addr         INTEGER,
@@ -42,9 +41,17 @@ CREATE TABLE IF NOT EXISTS recovered_function (
     path         TEXT NOT NULL,
     evidence     TEXT,
     PRIMARY KEY (program, name)
-);
-CREATE INDEX IF NOT EXISTS ix_recovered_logical ON recovered_function(logical_id);
-"""
+)"""
+_CREATE_RECOVERED_LOGICAL_INDEX_SQL = (
+    "CREATE INDEX IF NOT EXISTS ix_recovered_logical ON recovered_function(logical_id)"
+)
+# Run one by one through con.execute (executescript would COMMIT caller work).
+_RECOVERED_FUNCTION_STATEMENTS = (
+    _CREATE_RECOVERED_FUNCTION_SQL,
+    _CREATE_RECOVERED_LOGICAL_INDEX_SQL,
+)
+# The same statements as one script, for executescript consumers.
+RECOVERED_FUNCTION_DDL = "\n" + ";\n".join(_RECOVERED_FUNCTION_STATEMENTS) + ";\n"
 
 # Columns added after the first shipped shape. export_run_report once created
 # recovered_function without binary_id; those stores gain it here, additively.
@@ -100,8 +107,10 @@ def ensure_recovered_function(con: sqlite3.Connection) -> None:
         work = _create_recovered_function
     if con.in_transaction:
         # Join the caller's transaction; the caller owns COMMIT/ROLLBACK.
-        # In legacy isolation, in_transaction means the caller already holds
-        # the RESERVED lock, so the emptiness check below is still protected.
+        # An open transaction holds at least a SHARED lock (a deferred or
+        # read-only one holds no more), escalating on the first write. A
+        # competing writer then makes the DROP or ALTER fail as busy, and the
+        # savepoint rolls back, so no row can slip in after the emptiness check.
         con.execute("SAVEPOINT recovered_function_upgrade")
         try:
             work(con)
@@ -120,18 +129,18 @@ def ensure_recovered_function(con: sqlite3.Connection) -> None:
         raise
 
 
-def _recovered_function_statements() -> list[str]:
-    return [stmt for stmt in RECOVERED_FUNCTION_DDL.split(";") if stmt.strip()]
-
-
 def _create_recovered_function(con: sqlite3.Connection) -> None:
     """Per-statement DDL: executescript would COMMIT the caller's work."""
-    for stmt in _recovered_function_statements():
+    for stmt in _RECOVERED_FUNCTION_STATEMENTS:
         con.execute(stmt)
 
 
 def _upgrade_recovered_function(con: sqlite3.Connection) -> None:
-    """Run inside one BEGIN IMMEDIATE transaction; re-reads the shape under lock."""
+    """Run inside BEGIN IMMEDIATE or SAVEPOINT recovered_function_upgrade.
+
+    Re-reads the shape inside that transaction or savepoint, so the decision
+    uses what the store holds now, not what ensure_recovered_function saw.
+    """
     info = list(con.execute("PRAGMA table_info(recovered_function)"))
     has_pk = any(row[5] for row in info)
     if not has_pk:
@@ -146,9 +155,7 @@ def _upgrade_recovered_function(con: sqlite3.Connection) -> None:
             con.execute(f"ALTER TABLE recovered_function ADD COLUMN {col} {decl}")
     if has_pk:
         return
-    con.execute(
-        "CREATE INDEX IF NOT EXISTS ix_recovered_logical ON recovered_function(logical_id)"
-    )
+    con.execute(_CREATE_RECOVERED_LOGICAL_INDEX_SQL)
     duplicate = con.execute(
         "SELECT 1 FROM recovered_function GROUP BY program, name"
         " HAVING COUNT(*) > 1 LIMIT 1"
@@ -162,11 +169,13 @@ def _upgrade_recovered_function(con: sqlite3.Connection) -> None:
 
 def ensure_recovered_schema(con: sqlite3.Connection) -> None:
     ensure_recovered_function(con)
-    # This commit is load-bearing, unlike ensure_recovered_function: the
-    # `ingest-recovered --report` paths (corpus/cli.py and main() below) call
-    # store.connect(), whose ensure_binary_columns() may leave a recovery_family
-    # backfill UPDATE uncommitted, and then only read. This commit is what
-    # persists that backfill; without it the connection closes and drops it.
+    # Unlike ensure_recovered_function, this commits pending caller work.
+    # executescript() issues an implicit COMMIT first, so any work left open
+    # by store.connect() (such as a recovery_family backfill UPDATE from
+    # ensure_binary_columns()) is persisted here. The `ingest-recovered
+    # --report` paths (corpus/cli.py and main() below) only read afterwards
+    # and never commit. The explicit commit() keeps that true if this DDL
+    # ever stops using executescript().
     con.executescript(REUSE_CANDIDATE_DDL)
     con.commit()
 

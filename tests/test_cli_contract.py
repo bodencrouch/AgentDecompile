@@ -271,6 +271,30 @@ class _NamespaceReads(ast.NodeVisitor):
             name = node.func.id
         elif isinstance(node.func, ast.Attribute):
             name = node.func.attr
+        # `getattr(args, "unity_editor", None)` is a read of `unity_editor`, but it
+        # is a Call node, so visit_Attribute never sees it. Harvesting the literal
+        # name is what keeps these out of the "passed whole" bucket, where they
+        # were counted as fully checked while being invisible.
+        if (
+            name == "getattr"
+            and node.args
+            and isinstance(node.args[0], ast.Name)
+            and node.args[0].id == self.var
+            and len(node.args) >= 2
+        ):
+            attribute = node.args[1]
+            if isinstance(attribute, ast.Constant) and isinstance(attribute.value, str):
+                self.attrs.add(attribute.value)
+            else:
+                # A computed attribute name cannot be resolved statically.
+                self.passed_whole = True
+            self.generic_visit(node)
+            return
+        # `vars(args)` and `**vars(args)` hand over every field at once.
+        if name == "vars" and any(
+            isinstance(argument, ast.Name) and argument.id == self.var for argument in node.args
+        ):
+            self.passed_whole = True
         for position, argument in enumerate(node.args):
             if isinstance(argument, ast.Name) and argument.id == self.var:
                 self.passed_whole = True
@@ -696,10 +720,14 @@ def test_repaired_commands_send_camelcase_payload_keys(
 # an empty tree.
 MIN_CLICK_LEAF_COMMANDS = 150
 MIN_ARGPARSE_PARSERS = 100
-# 128 of 186 leaves accept **kwargs, which exempts them from the unexpected-param
-# half of the binding check. Pinning a ceiling keeps that blind spot from widening
-# unnoticed; lowering it is the improvement.
-MAX_KWARGS_EXEMPT_LEAVES = 130
+# Commands whose callback takes **kwargs absorb any parameter click passes, so the
+# unexpected-parameter check cannot fail for them. Every such command today is
+# machine-generated: `tool_command` from _create_dynamic_commands, `callback` from
+# _derive_convenience_commands. Those two grow with the tool registry, so counting
+# them is a nuisance rather than a guard. What matters is that no HAND-WRITTEN
+# command drifts into the exemption, because that is the surface where the eight
+# TypeErrors lived.
+GENERATED_CALLBACK_NAMES = frozenset({"tool_command", "callback"})
 
 
 def _click_leaves() -> list[tuple[str, click.Command]]:
@@ -724,21 +752,25 @@ def test_click_surface_has_not_collapsed() -> None:
     )
 
 
-def test_kwargs_exempt_share_does_not_grow() -> None:
-    """A callback taking **kwargs absorbs any parameter click passes it.
+def test_only_generated_commands_escape_the_binding_check() -> None:
+    """No hand-written command may take **kwargs.
 
-    Those commands cannot fail the unexpected-param check, so they are checked
-    only by the invocation tests. Hold the line on how many are exempt.
+    A **kwargs callback cannot fail the unexpected-parameter check, so a
+    hand-written command that grows one becomes unguarded against exactly the
+    defect this file exists to catch. The generated commands are structurally
+    exempt and covered instead by the invocation tests.
     """
-    exempt: list[str] = []
+    hand_written_exempt: list[str] = []
     for path, command in _click_leaves():
         signature = callback_signature(command.callback)
-        if signature is not None and signature[2]:
-            exempt.append(path)
-    assert len(exempt) <= MAX_KWARGS_EXEMPT_LEAVES, (
-        f"{len(exempt)} leaf commands are exempt from the unexpected-parameter "
-        f"check via **kwargs, above the {MAX_KWARGS_EXEMPT_LEAVES} recorded; "
-        "either narrow a callback signature or raise the ceiling deliberately"
+        if signature is None or not signature[2]:
+            continue
+        target = getattr(command.callback, "__wrapped__", command.callback)
+        if getattr(target, "__name__", "") not in GENERATED_CALLBACK_NAMES:
+            hand_written_exempt.append(f"{path} (callback {getattr(target, '__name__', '?')})")
+    assert not hand_written_exempt, (
+        "hand-written commands take **kwargs and so cannot fail the "
+        f"unexpected-parameter check: {hand_written_exempt}"
     )
 
 

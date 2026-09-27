@@ -173,9 +173,19 @@ def connect(path: pathlib.Path | str) -> sqlite3.Connection:
     try:
         con.execute("PRAGMA busy_timeout=30000")
         con.row_factory = sqlite3.Row
-        con.executescript(SCHEMA)
-        ensure_func_columns(con)
-        ensure_match_columns(con)
+        try:
+            con.executescript(SCHEMA)
+            ensure_func_columns(con)
+            ensure_match_columns(con)
+        except sqlite3.OperationalError as exc:
+            # A read-only store that predates a column or index cannot be
+            # upgraded here.  Every reader of the newer columns (pipeline's
+            # match.relation) is itself a write verb that fails on such a
+            # store anyway, and dashboard.workflow tolerates their absence, so
+            # read-only verbs get the schema as it is instead of a crash.
+            code = getattr(exc, "sqlite_errorcode", None)
+            if code is None or (code & 0xFF) != sqlite3.SQLITE_READONLY:
+                raise
         if con.in_transaction:
             con.commit()
     except BaseException:
@@ -254,6 +264,8 @@ def ensure_match_columns(con: sqlite3.Connection) -> None:
 
 # Primary result codes that mean "cannot write right now", not "broken schema".
 _BACKFILL_SKIP_CODES = frozenset({sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED, sqlite3.SQLITE_READONLY})
+# The backfill is best-effort, so it waits this long at most for the lock.
+_BACKFILL_BUSY_TIMEOUT_MS = 250
 
 
 def ensure_binary_columns(con: sqlite3.Connection) -> None:
@@ -287,7 +299,13 @@ def ensure_binary_columns(con: sqlite3.Connection) -> None:
         # pending work, so only undo a transaction this UPDATE opened.  A
         # failed UPDATE (busy, read-only file) otherwise leaves the implicit
         # BEGIN open.
+        # Wait only briefly for the write lock: connect() would otherwise
+        # stall a read-only verb for its whole 30s busy timeout behind another
+        # writer, and a skipped backfill is retried on the next connect.  The
+        # caller's own busy timeout is restored afterwards.
         owned = not con.in_transaction
+        saved_timeout = con.execute("PRAGMA busy_timeout").fetchone()[0]
+        con.execute(f"PRAGMA busy_timeout={min(int(saved_timeout), _BACKFILL_BUSY_TIMEOUT_MS)}")
         try:
             con.execute(
                 "UPDATE binary SET recovery_family='unclassified:' || id "
@@ -299,6 +317,8 @@ def ensure_binary_columns(con: sqlite3.Connection) -> None:
             code = getattr(exc, "sqlite_errorcode", None)
             if code is None or (code & 0xFF) not in _BACKFILL_SKIP_CODES:
                 raise
+        finally:
+            con.execute(f"PRAGMA busy_timeout={int(saved_timeout)}")
 
 
 def ensure_priority_index(con: sqlite3.Connection) -> None:

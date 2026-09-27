@@ -20,12 +20,13 @@ Auth is all-or-nothing:
 
 The /health endpoint is a FastAPI route mounted separately and is always exempt.
 
-Dynamic server routing:
-  A request naming a different Ghidra host (X-Ghidra-Server-Host) is accepted with
-  any non-empty username (Basic auth or X-Agent-Server-Username) with any
-  password, including empty, because the credentials are forwarded to that host
-  rather than checked here.
-  Operators who expose the server must not rely on MCP auth to restrict dynamic routing.
+Dynamic Ghidra-host routing (disabled):
+  With auth on, a request whose X-Ghidra-Server-Host names a host other than the
+  configured one gets HTTP 403 "dynamic Ghidra-host routing is disabled". So does a
+  request that names any host when no host is configured. Requests that name the
+  configured host (case-insensitive) or no host are checked against the configured
+  username and password as before. The old routing code stays in place behind
+  DYNAMIC_GHIDRA_HOST_ROUTING_ENABLED for a future implementation.
 """
 
 from __future__ import annotations
@@ -40,6 +41,15 @@ from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Dynamic Ghidra-host routing: disabled by user decision 2026-09-27.
+# While False, AuthMiddleware answers 403 to a request whose X-Ghidra-Server-Host
+# names a host other than the configured one, and validate_credentials rejects it.
+# Re-enabling requires a real login check against the target host (not implemented):
+# the old path accepted any non-empty username with any password and forwarded them.
+# Deliberately a code constant with no env var or CLI flag, so it cannot be turned
+# on by accident.
+DYNAMIC_GHIDRA_HOST_ROUTING_ENABLED = False
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +144,19 @@ def _constant_time_eq(a: str, b: str) -> bool:
     return hmac.compare_digest(a.encode(), b.encode())
 
 
+def names_other_ghidra_host(target_host: str | None, config: AuthConfig) -> bool:
+    """Return True when the request names a Ghidra host other than the configured one.
+
+    Naming a host while none is configured also counts: honouring it would switch
+    the backend Ghidra host from the header.
+    """
+    if not target_host:
+        return False
+    if not config.default_server_host:
+        return True
+    return target_host.lower() != config.default_server_host.lower()
+
+
 def validate_credentials(
     username: str,
     password: str,
@@ -147,21 +170,23 @@ def validate_credentials(
     * **Matching/default server** (target_host == config.default_server_host or absent):
       Compare username and password against the configured defaults using a
       constant-time comparison to prevent timing-based enumeration.
-    * **Different Ghidra server** (target_host present but differs from config):
-      Accept any non-empty username (Basic auth or X-Agent-Server-Username)
-      with any password, including empty.
-      The Ghidra server itself checks them when connect-shared-project is
-      called; requiring a username here only stops fully anonymous requests.
+    * **Different Ghidra server** (target_host present and differs from the
+      configured host, or present with no configured host): rejected, because
+      dynamic Ghidra-host routing is disabled (DYNAMIC_GHIDRA_HOST_ROUTING_ENABLED).
+      AuthMiddleware answers these requests with 403 before calling this.
+      The branch kept for a future implementation accepted any non-empty
+      username with any password and forwarded them unchecked.
     * **No configured username/password pair**: reject everything.
     """
     logger.debug("diag.enter %s", "mcp_server/auth.py:validate_credentials")
     if not username:
         return False
     if not config.default_username or not config.default_password:
-        # Reject when no configured pair exists. Once defaults exist, a different host accepts any
-        # non-empty username (Basic auth or X-Agent-Server-Username) with any password, including
-        # empty, because they are forwarded rather than checked here; operators must not rely on MCP
-        # auth to restrict dynamic routing.
+        # Reject when no configured pair exists.
+        return False
+
+    if not DYNAMIC_GHIDRA_HOST_ROUTING_ENABLED and names_other_ghidra_host(target_host, config):
+        # Dynamic Ghidra-host routing is disabled (user decision 2026-09-27).
         return False
 
     using_default_server = not target_host or not config.default_server_host or target_host.lower() == config.default_server_host.lower()
@@ -174,7 +199,9 @@ def validate_credentials(
             expected_pass,
         )
 
-    # Dynamic routing to a different Ghidra server: any non-empty username, any password (even "").
+    # Kept for a future implementation and unreachable while DYNAMIC_GHIDRA_HOST_ROUTING_ENABLED
+    # is False. It accepts any non-empty username and any password (even "") and must not be
+    # re-enabled without a real login check against the target host.
     return bool(username) and password is not None
 
 
@@ -207,6 +234,23 @@ async def _send_401(send: Any) -> None:
             "more_body": False,
         },
     )
+
+
+_403_ROUTING_BODY: bytes = (
+    b"Forbidden: dynamic Ghidra-host routing is disabled. "
+    b"Omit X-Ghidra-Server-Host or send the host this server is configured for."
+)
+_403_ROUTING_HEADERS: list[tuple[bytes, bytes]] = [
+    (b"content-type", b"text/plain; charset=utf-8"),
+    (b"content-length", str(len(_403_ROUTING_BODY)).encode("ascii")),
+]
+
+
+async def _send_403_routing_disabled(send: Any) -> None:
+    """Emit HTTP 403 for a request that names a Ghidra host other than the configured one."""
+    logger.debug("diag.enter %s", "mcp_server/auth.py:_send_403_routing_disabled")
+    await send({"type": "http.response.start", "status": 403, "headers": _403_ROUTING_HEADERS})
+    await send({"type": "http.response.body", "body": _403_ROUTING_BODY, "more_body": False})
 
 
 # ---------------------------------------------------------------------------
@@ -284,6 +328,11 @@ class AuthMiddleware:
         # Use X-Agent-Server-Repository as fallback for X-Ghidra-Repository
         if not target_repo and agent_repo:
             target_repo = agent_repo
+
+        if not DYNAMIC_GHIDRA_HOST_ROUTING_ENABLED and names_other_ghidra_host(target_host, self._config):
+            logger.warning("mcp_auth_rejected reason=dynamic_host_routing_disabled")
+            await _send_403_routing_disabled(send)
+            return
 
         # The middleware is only installed when auth is switched on, so every
         # request needs credentials. An earlier version let requests through

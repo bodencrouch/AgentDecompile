@@ -17,9 +17,9 @@
 #     AGENT_DECOMPILE_PROJECT_NAME    Project name (ignored with .gpr)       (default: my_project)
 #     AGENT_DECOMPILE_CONFIG_FILE     Path to AgentDecompile config file
 #
-#   Proxy / backend (not supported by this script, see the block below)
-#     AGENT_DECOMPILE_BACKEND_URL     Passed as --backend-url, which agentdecompile-server rejects
-#     AGENT_DECOMPILE_MCP_SERVER_URL  Passed as --mcp-server-url, which agentdecompile-server rejects
+#   Proxy / backend (not supported by this agentdecompile-server entry point)
+#     AGENT_DECOMPILE_BACKEND_URL     Fails with guidance to use agentdecompile-proxy
+#     AGENT_DECOMPILE_MCP_SERVER_URL  Fails with guidance to use agentdecompile-proxy
 #
 #   Ghidra shared-project server
 #     AGENT_DECOMPILE_GHIDRA_SERVER_HOST        Ghidra server host
@@ -86,14 +86,11 @@ if [[ -n "${AGENT_DECOMPILE_CONFIG_FILE:-}" ]]; then
 fi
 
 # ── Proxy / backend URL ───────────────────────────────────────────────────────
-# agentdecompile-server always runs PyGhidra locally and defines neither
-# --backend-url nor --mcp-server-url, so setting either variable makes it exit
-# with an argparse usage error. Proxy mode is agentdecompile-proxy, which this
-# script does not start.
-if [[ -n "${AGENT_DECOMPILE_BACKEND_URL:-}" ]]; then
-    ARGS+=(--backend-url "${AGENT_DECOMPILE_BACKEND_URL}")
-elif [[ -n "${AGENT_DECOMPILE_MCP_SERVER_URL:-}" ]]; then
-    ARGS+=(--mcp-server-url "${AGENT_DECOMPILE_MCP_SERVER_URL}")
+# agentdecompile-server always runs PyGhidra locally. Proxy mode belongs to the
+# separate agentdecompile-proxy entry point, which this script does not start.
+if [[ -n "${AGENT_DECOMPILE_BACKEND_URL:-}" || -n "${AGENT_DECOMPILE_MCP_SERVER_URL:-}" ]]; then
+    echo "error: agentdecompile-server does not support a backend URL; run agentdecompile-proxy instead" >&2
+    exit 2
 fi
 
 # ── Ghidra shared-project server ──────────────────────────────────────────────

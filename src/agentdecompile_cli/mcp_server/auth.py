@@ -21,11 +21,9 @@ Auth is all-or-nothing:
 The /health endpoint is a FastAPI route mounted separately and is always exempt.
 
 Dynamic server routing:
-  Clients may send X-Ghidra-Server-Host / X-Ghidra-Server-Port / X-Ghidra-Repository
-  headers to target a Ghidra server that differs from the one configured at startup.
-  For the configured server, credentials are validated locally (constant-time compare).
-  For an unknown/different server, any non-empty credentials are accepted and actual
-  Ghidra authentication is delegated to connect-shared-project at call time.
+  A request naming a different Ghidra host is accepted with any non-empty Basic
+  credentials because they are forwarded to that host rather than checked here.
+  Operators who expose the server must not rely on MCP auth to restrict dynamic routing.
 """
 
 from __future__ import annotations
@@ -159,8 +157,9 @@ def validate_credentials(
     if not username:
         return False
     if not config.default_username or not config.default_password:
-        # Nothing configured to check against: fail closed, including for
-        # dynamic routing to another Ghidra host.
+        # Reject when no configured pair exists. Once defaults exist, a different host accepts
+        # any non-empty Basic credentials because they are forwarded rather than checked here;
+        # operators must not rely on MCP auth to restrict dynamic routing.
         return False
 
     using_default_server = not target_host or not config.default_server_host or target_host.lower() == config.default_server_host.lower()
@@ -351,7 +350,7 @@ AUTH_ENABLED_ENV = "AGENT_DECOMPILE_AUTH_ENABLED"
 
 
 class AuthConfigError(ValueError):
-    """MCP HTTP auth is switched on but cannot check anyone (no credentials configured)."""
+    """MCP HTTP auth configuration is invalid."""
 
 _TRUTHY = frozenset({"true", "1", "yes", "on"})
 
@@ -394,10 +393,20 @@ def resolve_auth_config(
     """
     if not is_http or not (require_auth_flag or auth_env_enabled(environ)):
         return None
+    port_value = (
+        _first_env(environ, "AGENT_DECOMPILE_GHIDRA_SERVER_PORT", "AGENT_DECOMPILE_SERVER_PORT")
+        or cli_port
+        or 13100
+    )
+    try:
+        default_server_port = int(port_value)
+    except (TypeError, ValueError) as exc:
+        raise AuthConfigError("Ghidra server port must be an integer") from exc
+
     config = AuthConfig(
         require_auth=bool(require_auth_flag),
         default_server_host=_first_env(environ, "AGENT_DECOMPILE_GHIDRA_SERVER_HOST", "AGENT_DECOMPILE_SERVER_HOST") or cli_host,
-        default_server_port=int(_first_env(environ, "AGENT_DECOMPILE_GHIDRA_SERVER_PORT", "AGENT_DECOMPILE_SERVER_PORT") or cli_port or 13100),
+        default_server_port=default_server_port,
         default_username=_first_env(environ, "AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME", "AGENT_DECOMPILE_SERVER_USERNAME") or cli_username,
         default_password=_first_env(environ, "AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD", "AGENT_DECOMPILE_SERVER_PASSWORD") or cli_password,
         default_repository=_first_env(

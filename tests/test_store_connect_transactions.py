@@ -10,7 +10,6 @@ from __future__ import annotations
 import os
 import sqlite3
 import stat
-import time
 from pathlib import Path
 
 import pytest
@@ -61,11 +60,10 @@ def test_open_connection_does_not_hold_the_write_lock(tmp_path: Path) -> None:
     holder = store.connect(db)
     other = sqlite3.connect(db, timeout=0.2)
     try:
-        started = time.monotonic()
+        # The 0.2s timeout makes a held lock fail fast with "database is locked".
         other.execute("BEGIN IMMEDIATE")
         other.execute("INSERT INTO eval (run, metric, value) VALUES ('r', 'm', 1.0)")
         other.commit()
-        assert time.monotonic() - started < 0.2
     finally:
         other.close()
         holder.close()
@@ -182,3 +180,67 @@ def test_second_connect_issues_no_writes(tmp_path: Path, monkeypatch: pytest.Mon
         assert con.in_transaction is False
     finally:
         con.close()
+
+
+def test_backfill_helper_never_commits_caller_work(tmp_path: Path) -> None:
+    """ensure_binary_columns runs on callers' connections; only connect() commits."""
+    db = _unclassified_store(tmp_path / "store.sqlite")
+    con = sqlite3.connect(db)
+    try:
+        con.execute("INSERT INTO eval (run, metric, value) VALUES ('caller', 'm', 1.0)")
+        assert con.in_transaction is True
+
+        store.ensure_binary_columns(con)
+
+        assert con.in_transaction is True
+        con.rollback()
+        assert con.execute("SELECT count(*) FROM eval").fetchone()[0] == 0
+    finally:
+        con.close()
+    assert _families(db) == [None, None]
+
+
+def test_backfill_propagates_errors_that_are_not_busy_or_readonly(tmp_path: Path) -> None:
+    """Only "cannot write now" is best-effort; a broken schema must surface."""
+    db = _unclassified_store(tmp_path / "store.sqlite")
+    setup = sqlite3.connect(db)
+    # Trigger bodies resolve at run time, so the UPDATE fails with SQLITE_ERROR.
+    setup.execute(
+        "CREATE TRIGGER broken AFTER UPDATE ON binary BEGIN "
+        "INSERT INTO no_such_table VALUES (1); END"
+    )
+    setup.commit()
+    setup.close()
+
+    con = sqlite3.connect(db)
+    try:
+        with pytest.raises(sqlite3.OperationalError, match="no_such_table"):
+            store.ensure_binary_columns(con)
+        assert con.in_transaction is False
+    finally:
+        con.close()
+    with pytest.raises(sqlite3.OperationalError, match="no_such_table"):
+        store.connect(db)
+    assert _families(db) == [None, None]
+
+
+def test_connect_closes_connection_when_schema_script_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    opened: list[sqlite3.Connection] = []
+    real_connect = sqlite3.connect
+
+    def recording_connect(*args, **kwargs):
+        con = real_connect(*args, **kwargs)
+        opened.append(con)
+        return con
+
+    monkeypatch.setattr(sqlite3, "connect", recording_connect)
+    monkeypatch.setattr(store, "SCHEMA", "THIS IS NOT SQL;")
+
+    with pytest.raises(sqlite3.OperationalError):
+        store.connect(tmp_path / "store.sqlite")
+
+    assert len(opened) == 1
+    with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+        opened[0].execute("SELECT 1")

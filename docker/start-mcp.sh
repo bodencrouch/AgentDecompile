@@ -44,12 +44,12 @@
 #   accepts the other flags but does not pass them to the analysis backend (see --help).
 #     AGENT_DECOMPILE_FORCE_ANALYSIS       true/1 = --force-analysis (not applied)
 #     AGENT_DECOMPILE_VERBOSE_ANALYSIS     true/1 = start PyGhidra in verbose mode
-#     AGENT_DECOMPILE_NO_SYMBOLS           true/1 = skip symbol loading
-#     AGENT_DECOMPILE_SYMBOLS_PATH         Path to symbols directory
-#     AGENT_DECOMPILE_SYM_FILE_PATH        Path to a single PDB symbol file
-#     AGENT_DECOMPILE_GDT                  Colon-separated list of GDT files
-#     AGENT_DECOMPILE_PROGRAM_OPTIONS      Path to JSON program-options file
-#     AGENT_DECOMPILE_GZFS_PATH            GZF output path
+#     AGENT_DECOMPILE_NO_SYMBOLS           true/1 = skip symbol loading (not applied)
+#     AGENT_DECOMPILE_SYMBOLS_PATH         Path to symbols directory (not applied)
+#     AGENT_DECOMPILE_SYM_FILE_PATH        Path to a single PDB symbol file (not applied)
+#     AGENT_DECOMPILE_GDT                  Colon-separated list of GDT files (not applied)
+#     AGENT_DECOMPILE_PROGRAM_OPTIONS      Path to JSON program-options file (not applied)
+#     AGENT_DECOMPILE_GZFS_PATH            GZF output path (not applied)
 #
 #   Analysis performance
 #     AGENT_DECOMPILE_MAX_WORKERS          --max-workers (not applied)
@@ -89,7 +89,7 @@ fi
 # agentdecompile-server always runs PyGhidra locally. Proxy mode belongs to the
 # separate agentdecompile-proxy entry point, which this script does not start.
 if [[ -n "${AGENT_DECOMPILE_BACKEND_URL:-}" || -n "${AGENT_DECOMPILE_MCP_SERVER_URL:-}" ]]; then
-    echo "error: agentdecompile-server does not support a backend URL; run agentdecompile-proxy instead" >&2
+    echo "error: AGENT_DECOMPILE_BACKEND_URL / AGENT_DECOMPILE_MCP_SERVER_URL is set; agentdecompile-server does not support a backend URL. Unset it or run agentdecompile-proxy." >&2
     exit 2
 fi
 

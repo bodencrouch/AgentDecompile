@@ -64,8 +64,11 @@ from agentdecompile_grid.core import (
 from agentdecompile_grid.view.applier import ensure_tables, view_hook
 
 from ._common import (
+    BasisRefused,
+    ContentHashRefused,
     PlannableKind,
     Infra,
+    Locked,
     assert_portable,
     check_kind,
     corpus_cli_argv,
@@ -162,7 +165,14 @@ class CorpusVerbKind(PlannableKind):
         if outcome.timed_out:
             raise Infra(f"timeout:{self.verb}:{int(deadline)}s")
         if outcome.returncode == 2:
-            raise Refused(classify_refusal_line(outcome.stderr))
+            reason = classify_refusal_line(outcome.stderr)
+            if reason.startswith("content-hash:"):
+                raise ContentHashRefused(reason)
+            if reason.startswith("basis:"):
+                raise BasisRefused(reason)
+            if reason == "locked":
+                raise Locked(reason)
+            raise Refused(reason)
         if outcome.returncode not in self.ok_exit_codes:
             raise Infra(f"verb-failed:{self.verb}:exit-{outcome.returncode}:stderr-{outcome.stderr_sha256[:12]}")
         extra, summary = self.collect(spec, objects, scratch_dir, outcome.stdout)

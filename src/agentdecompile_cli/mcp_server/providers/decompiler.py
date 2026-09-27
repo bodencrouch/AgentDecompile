@@ -145,6 +145,10 @@ class DecompilerToolProvider(ToolProvider):
                 )
 
         if len(results) == 1 and len(targets) == 1:
+            if results[0].get("error"):
+                # A lone target that failed (e.g. "Function not found: x") is an
+                # error, not an empty decompilation. Batches keep per-item errors.
+                return create_success_response({**results[0], "success": False})
             return create_success_response(results[0])
         return create_success_response({"results": results, "count": len(results)})
 

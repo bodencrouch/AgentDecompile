@@ -167,8 +167,22 @@ def connect(path: pathlib.Path | str) -> sqlite3.Connection:
     con.execute("PRAGMA busy_timeout=30000")
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)
-    ensure_func_columns(con)
-    ensure_match_columns(con)
+    # Schema maintenance must not outlive connect().  In legacy transaction
+    # control the recovery_family backfill UPDATE opens an implicit
+    # transaction, and every later ALTER joins it; left open, a read-only verb
+    # held SQLite's write lock for its whole run and the maintenance was
+    # discarded at close.  The connection is fresh, so anything pending here is
+    # ours: commit it, or roll it back and close on failure.
+    try:
+        ensure_func_columns(con)
+        ensure_match_columns(con)
+        if con.in_transaction:
+            con.commit()
+    except BaseException:
+        if con.in_transaction:
+            con.rollback()
+        con.close()
+        raise
     return con
 
 
@@ -257,13 +271,19 @@ def ensure_binary_columns(con: sqlite3.Connection) -> None:
         # it -- so a read-only consumer that cannot get the write lock (many
         # concurrent orchestrator watchers hold WAL read locks) must proceed
         # rather than crash. Whichever connection wins the lock backfills it.
+        # Callers other than connect() may pass a connection with their own
+        # pending work, so only undo a transaction this UPDATE opened.  A
+        # failed UPDATE (busy, read-only file) otherwise leaves the implicit
+        # BEGIN open.
+        owned = not con.in_transaction
         try:
             con.execute(
                 "UPDATE binary SET recovery_family='unclassified:' || id "
                 "WHERE recovery_family IS NULL OR trim(recovery_family)=''"
             )
         except sqlite3.OperationalError:
-            pass
+            if owned and con.in_transaction:
+                con.rollback()
 
 
 def ensure_priority_index(con: sqlite3.Connection) -> None:

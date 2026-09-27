@@ -498,9 +498,22 @@ def _index_functions(
                 visit(statement.body, False)
             elif isinstance(statement, ast.ClassDef):
                 visit(statement.body, True)
-            elif isinstance(statement, (ast.If, ast.Try, ast.With, ast.For, ast.While)):
+            elif isinstance(statement, (ast.If, ast.With, ast.For, ast.While)):
                 visit(statement.body, in_class)
                 visit(list(getattr(statement, "orelse", []) or []), in_class)
+            elif isinstance(statement, ast.Try):
+                # `ast.walk` finds a function defined in an `except:` fallback
+                # (the `import X except ImportError: def X(): ...` shape used
+                # throughout this repo); a plain body/orelse walk here missed
+                # `handlers` and `finalbody` and silently dropped those.
+                visit(statement.body, in_class)
+                for handler in statement.handlers:
+                    visit(handler.body, in_class)
+                visit(statement.orelse, in_class)
+                visit(statement.finalbody, in_class)
+            elif isinstance(statement, ast.Match):
+                for case in statement.cases:
+                    visit(case.body, in_class)
 
     visit(tree.body, False)
     return functions, frozenset(methods)
@@ -654,31 +667,45 @@ def _scoped_import_map(body: list[ast.stmt], dotted: str) -> dict[str, tuple[str
 
 def _delegate_target(
     qualifier: str | None, name: str, imports: dict[str, tuple[str, str | None]]
-) -> tuple[str, str] | None:
-    """Where a delegate absent from the local ``table`` is actually defined."""
+) -> list[tuple[str, str]]:
+    """Candidate (module, function-name) pairs for a delegate absent from ``table``.
+
+    Earlier candidates are preferred, but which one is real cannot always be
+    told apart without trying to load it, so the caller tries each in turn
+    against ``_load_module`` and keeps the first that actually resolves.
+    """
     if qualifier is not None:
-        # `kx_cli.dispatch(args)`: `qualifier` must be a module alias, and `name`
-        # is the attribute called on it.
-        target = imports.get(qualifier)
-        if target is not None and target[1] is None:
-            return target[0], name
-        # Fully dotted and unaliased -- `agentdecompile_recovery.x.y(args)` after
-        # a plain `import agentdecompile_recovery.x`. There is no single alias
-        # key for "agentdecompile_recovery.x" (only its leading segment is ever
-        # bound by an import statement), so the qualifier is used as the module
-        # path directly once that leading segment is confirmed to be a real
-        # import surface; a wrong guess simply fails to resolve to a file in
-        # `_load_module`, so nothing wrong gets followed.
-        head = qualifier.split(".", 1)[0]
+        # `kx_cli.dispatch(args)`, or `K.s(args)` after `from .x import K` --
+        # either way `qualifier` is bound to something at `imports[qualifier]`,
+        # and `name` is the attribute called on it: a function at that
+        # module's top level, or a method of a class living there. Both are
+        # found the same way, since `_load_module`'s functions/methods index
+        # is flat over the whole file, not scoped per class.
+        direct = imports.get(qualifier)
+        if direct is not None:
+            return [(direct[0], name)]
+        # Fully dotted and not a single bound alias -- `agentdecompile_recovery.x.y(args)`
+        # after a plain `import agentdecompile_recovery.x`, `ar.zzmut.helper(args)`
+        # after `import agentdecompile_recovery as ar`, or `m.K.s(args)` after
+        # `import ... as m` where `K` is a class defined in `m`. Only the
+        # leading segment is ever bound by an import statement -- and an
+        # alias need not equal its target's real name (`as ar`), so that
+        # segment is resolved to its actual absolute path first. What follows
+        # it could be more module path, or a class/attribute chain inside the
+        # module found so far; every split is offered as a candidate, longest
+        # module-path guess first, since a wrong one just fails to resolve to
+        # a real file/function rather than following something wrong.
+        head, _, rest = qualifier.partition(".")
         head_target = imports.get(head)
-        if head_target is not None and head_target[1] is None and "." in qualifier:
-            return qualifier, name
-        return None
+        if head_target is None or head_target[1] is not None or not rest:
+            return []
+        segments = rest.split(".")
+        return [(".".join([head_target[0], *segments[:cut]]), name) for cut in range(len(segments), -1, -1)]
     # `apply_extras(args)` after `from .registry import apply_extras`.
     target = imports.get(name)
     if target is None or target[1] is None:
-        return None
-    return target
+        return []
+    return [target]
 
 
 def _resolve_delegated_reads(
@@ -711,15 +738,15 @@ def _resolve_delegated_reads(
         function = table.get(name) if qualifier is None else None
         next_table, next_methods, next_dotted = table, table_methods, current_dotted
         if function is None:
-            target = _delegate_target(qualifier, name, local_imports)
-            if target is not None:
-                owner_dotted, func_name = target
+            for owner_dotted, func_name in _delegate_target(qualifier, name, local_imports):
                 loaded = _load_module(owner_dotted)
-                if loaded is not None:
-                    functions, owner_methods, _imports = loaded
-                    function = functions.get(func_name)
-                    if function is not None:
-                        next_table, next_methods, next_dotted = functions, owner_methods, owner_dotted
+                if loaded is None:
+                    continue
+                functions, owner_methods, _imports = loaded
+                candidate = functions.get(func_name)
+                if candidate is not None:
+                    function, next_table, next_methods, next_dotted = candidate, functions, owner_methods, owner_dotted
+                    break
             if function is None and qualifier is not None:
                 # `qualifier` was not an import alias -- most likely a locally
                 # defined class or object (``Grid.open(args)``). Same-file

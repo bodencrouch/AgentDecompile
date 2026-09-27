@@ -27,10 +27,15 @@ def _call_str(obj: Any, method: str) -> str:
 def data_type_label(dt: Any) -> str:
     """One-line display name for a Ghidra DataType (``getDisplayName``).
 
-    For built-in and DB types other than composites, enums and typedefs this
-    equals ``str(dt)`` (``AbstractDataType.toString`` / ``DataTypeDB.toString``
-    return ``getDisplayName()``). Falls back to ``getName`` and then to the
-    first line of ``str(dt)``.
+    For types that inherit ``AbstractDataType.toString`` or
+    ``DataTypeDB.toString`` this equals ``str(dt)``, since both return
+    ``getDisplayName()``. It is not ``str(dt)`` for types that override
+    ``toString``: composites (layout dump), typedefs, enums, function
+    definitions and pointers. ``PointerDataType.toString`` returns
+    ``getName()``, which can differ from its ``getDisplayName()``
+    (PointerDataType.java:290 vs :856). Commit 0fff926 claimed equality for
+    all non-composite, non-typedef types; that was too broad. Falls back to
+    ``getName`` and then to the first line of ``str(dt)``.
     """
     if dt is None:
         return ""

@@ -289,12 +289,14 @@ class StructureToolProvider(ToolProvider):
         return create_success_response({"action": "add_field", "structure": struct_name, "field": field_name, "type": field_type, "success": True})
 
     async def _modify_field(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        """Edit existing fields: rename, retype or re-comment.
+
+        Single edit: ``fieldOffset`` selects the field (``fieldName`` is then its new
+        name), or ``fieldName`` selects it by name when ``newFieldName`` is given.
+        Batch: ``fields`` is a list of objects using the same keys per entry.
+        """
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._modify_field")
-        struct_name = self._require_str(args, "name", "structurename", name="name")
-        field_offset = self._get_int(args, "fieldoffset", "offset")
-        field_name = self._get_str(args, "fieldname", "field")
-        field_type = self._get_str(args, "fieldtype", "type")
-        field_comment = self._get_str(args, "fieldcomment", "comment")
+        struct_name = self._require_str(args, "name", "structurename", "structure", name="name")
 
         assert program_info is not None  # for type checker
         program = program_info.program
@@ -306,21 +308,114 @@ class StructureToolProvider(ToolProvider):
 
         parser = self._new_data_type_parser(dtm)
 
-        comp = dt.getComponentAt(field_offset)
-        if comp is None:
-            raise ValueError(f"No field at offset {field_offset}")
+        raw_fields = self._get(args, "fields")
+        if isinstance(raw_fields, str) and raw_fields.strip():
+            import json
 
-        def _modify_field() -> None:
-            if field_name:
-                comp.setFieldName(field_name)
-            if field_comment:
-                comp.setComment(field_comment)
-            if field_type:
-                new_dt = parser.parse(field_type)
-                comp.setDataType(new_dt)
+            try:
+                raw_fields = json.loads(raw_fields)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"fields must be a JSON array of objects: {exc}") from exc
+        if isinstance(raw_fields, dict):
+            raw_fields = [raw_fields]
 
-        self._run_program_transaction(program, "modify-field", _modify_field)
-        return create_success_response({"action": "modify_field", "structure": struct_name, "offset": field_offset, "success": True})
+        if raw_fields:
+            if not isinstance(raw_fields, list):
+                raise ValueError("fields must be a list of objects")
+            edits = [{n(k): v for k, v in item.items()} if isinstance(item, dict) else None for item in raw_fields]
+        else:
+            edits = [
+                {
+                    "fieldoffset": self._get(args, "fieldoffset", "offset"),
+                    "fieldname": self._get_str(args, "fieldname", "field"),
+                    "newfieldname": self._get_str(args, "newfieldname", "newname"),
+                    "fieldtype": self._get_str(args, "fieldtype", "type", "newfieldtype"),
+                    "fieldcomment": self._get(args, "fieldcomment", "comment"),
+                },
+            ]
+
+        results: list[dict[str, Any]] = []
+
+        def _apply_edits() -> None:
+            for item in edits:
+                if item is None:
+                    results.append({"name": "?", "success": False, "error": "field entry must be an object"})
+                    continue
+                try:
+                    results.append(self._apply_field_edit(dt, parser, item))
+                except Exception as exc:
+                    label = str(item.get("fieldname") or item.get("name") or item.get("fieldoffset") or item.get("offset") or "?")
+                    results.append({"name": label, "success": False, "error": str(exc)})
+
+        self._run_program_transaction(program, "modify-field", _apply_edits)
+
+        if not raw_fields:
+            only = results[0]
+            if not only.get("success"):
+                raise ValueError(f"modify_field failed on {struct_name}: {only.get('error')}")
+            return create_success_response({"action": "modify_field", "structure": struct_name, **{k: v for k, v in only.items() if k != "name"}, "field": only.get("name"), "success": True})
+        return create_success_response(
+            {
+                "action": "modify_field",
+                "structure": struct_name,
+                "batch": True,
+                "results": results,
+                "success": all(r.get("success") for r in results),
+                **({} if all(r.get("success") for r in results) else {"error": "; ".join(f"{r.get('name')}: {r.get('error')}" for r in results if not r.get("success"))}),
+            },
+        )
+
+    @staticmethod
+    def _apply_field_edit(dt: Any, parser: Any, item: dict[str, Any]) -> dict[str, Any]:
+        """Apply one normalized field edit to *dt*; return a result row or raise ``ValueError``."""
+        raw_offset = item.get("fieldoffset", item.get("offset"))
+        selector_name = str(item.get("fieldname") or item.get("name") or "").strip()
+        new_name = str(item.get("newfieldname") or item.get("newname") or "").strip()
+        new_type = str(item.get("fieldtype") or item.get("type") or item.get("newfieldtype") or "").strip()
+        comment = item.get("fieldcomment", item.get("comment"))
+
+        if raw_offset is not None and str(raw_offset).strip() != "":
+            text = str(raw_offset).strip()
+            offset = int(text, 16) if text.lower().startswith("0x") else int(text)
+            comp = dt.getComponentAt(offset)
+            if comp is None:
+                raise ValueError(f"No field at offset {offset}")
+            if selector_name and not new_name:
+                # Offset selects; fieldName is the new name (legacy single-field form).
+                new_name = selector_name
+        elif selector_name:
+            comp = None
+            for candidate in list(dt.getDefinedComponents()):
+                if str(candidate.getFieldName() or "") == selector_name:
+                    comp = candidate
+                    break
+            if comp is None:
+                raise ValueError(f"No field named {selector_name}")
+        else:
+            raise ValueError("Select the field with fieldOffset or fieldName")
+
+        old_name = str(comp.getFieldName() or "")
+        if not new_name and not new_type and comment is None:
+            raise ValueError(f"Nothing to change for field {old_name or comp.getOffset()}: give newFieldName, fieldType or fieldComment")
+
+        final_name = new_name or (comp.getFieldName() or None)
+        final_comment = str(comment) if comment is not None else comp.getComment()
+        if new_type:
+            new_dt = parser.parse(new_type)
+            # DataTypeComponent has no setDataType; replace the component in place.
+            comp = dt.replaceAtOffset(comp.getOffset(), new_dt, new_dt.getLength(), final_name, final_comment)
+        else:
+            if new_name:
+                comp.setFieldName(new_name)
+            if comment is not None:
+                comp.setComment(str(comment))
+        return {
+            "name": str(comp.getFieldName() or ""),
+            "previousName": old_name,
+            "offset": int(comp.getOffset()),
+            "dataType": str(comp.getDataType().getName()),
+            "success": True,
+        }
 
     async def _modify_from_c(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._modify_from_c")

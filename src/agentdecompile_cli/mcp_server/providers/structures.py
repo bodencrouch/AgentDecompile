@@ -353,8 +353,8 @@ class StructureToolProvider(ToolProvider):
                     "success": True,
                 },
             )
-        except ImportError:
-            raise ValueError("CParser not available in this environment")
+        except ImportError as e:
+            raise ValueError("CParser not available in this environment") from e
 
     async def _parse(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._parse")
@@ -366,7 +366,7 @@ class StructureToolProvider(ToolProvider):
 
     async def _validate(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._validate")
-        c_def = self._require_str(args, "cdefinition", "headercontent", "definition", "code", name="cDefinition")
+        c_def = self._require_str(args, "cdefinition", "headercontent", "definition", "code", "c", name="cDefinition")
         assert program_info is not None  # for type checker
 
         scratch = None
@@ -383,10 +383,11 @@ class StructureToolProvider(ToolProvider):
                 program_dtm = program_info.program.getDataTypeManager()
                 scratch = StandAloneDataTypeManager("agentdecompile-validate")
                 parser = CParser(scratch, False, JArray(DataTypeManager)([program_dtm]))
+            except ImportError as e:
+                # A broken environment is an error, not a verdict on the caller's C.
+                raise ValueError("CParser not available in this environment") from e
             except Exception as e:
-                return create_success_response(
-                    {"action": "validate", "valid": False, "error": f"{type(e).__name__}: {e}"},
-                )
+                raise ValueError(f"structure validation setup failed: {type(e).__name__}: {e}") from e
 
             try:
                 dt = parser.parse(c_def)
@@ -394,10 +395,14 @@ class StructureToolProvider(ToolProvider):
                 name = str(dt.getName()) if hasattr(dt, "getName") else str(dt)
                 return create_success_response({"action": "validate", "valid": True, "name": name})
             except Exception as e:
+                logger.debug("structure validate parse failed", exc_info=True)
                 return create_success_response({"action": "validate", "valid": False, "error": str(e)})
         finally:
             if scratch is not None:
-                scratch.close()
+                try:
+                    scratch.close()
+                except Exception:
+                    logger.debug("structure validate scratch close failed", exc_info=True)
 
     async def _apply(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._apply")

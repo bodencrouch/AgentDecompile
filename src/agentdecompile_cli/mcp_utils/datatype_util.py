@@ -67,19 +67,47 @@ def same_data_type(existing_dt: Any, requested: Any) -> bool:
     return wanted in {_call_str(existing_dt, m) for m in ("getPathName", "getName", "getDisplayName")}
 
 
-def is_defined_data(data: Any) -> bool:
-    """False for Ghidra's undefined placeholder data, True otherwise.
 
-    ``Listing.getDataAt`` returns undefined data (``DefaultDataType``) where no
-    code unit is defined; ``Data.isDefined()`` reports that. Objects without
-    ``isDefined`` are treated as defined.
+def _same_address(a: Any, b: Any) -> bool:
+    return a is not None and b is not None and str(a) == str(b)
+
+
+def overlapping_data_conflicts(listing: Any, start: Any, requested: Any) -> list[tuple[str, str]]:
+    """Defined data that applying ``requested`` at ``start`` would clear, as (address, label).
+
+    The apply sites call ``listing.clearCodeUnits(start, start + len - 1)``,
+    which clears every code unit that overlaps the range, including one that
+    starts before ``start``. This returns each defined data unit in that range
+    (``Listing.getDefinedDataContaining`` for a unit that starts earlier, plus
+    ``Listing.getDefinedData(AddressSet(start, end), True)`` for units that start
+    inside it). A unit at ``start`` whose type is ``same_data_type`` as
+    ``requested`` is not a conflict. Undefined placeholder data is never listed:
+    both Listing calls return defined data only.
     """
-    if data is None:
-        return False
-    is_defined = getattr(data, "isDefined", None)
-    if not callable(is_defined):
-        return True
+    from ghidra.program.model.address import AddressSet  # pyright: ignore[reportMissingImports, reportMissingModuleSource]
+
+    length = 1
     try:
-        return bool(is_defined())
+        length = max(int(requested.getLength()), 1)
     except Exception:
-        return True
+        length = 1
+    end = start.add(length - 1)
+
+    units: list[Any] = []
+    containing = listing.getDefinedDataContaining(start)
+    if containing is not None and not _same_address(containing.getAddress(), start):
+        units.append(containing)
+    units.extend(listing.getDefinedData(AddressSet(start, end), True))
+
+    conflicts: list[tuple[str, str]] = []
+    for unit in units:
+        unit_dt = unit.getDataType()
+        if _same_address(unit.getAddress(), start) and same_data_type(unit_dt, requested):
+            continue
+        conflicts.append((str(unit.getAddress()), data_type_label(unit_dt)))
+    return conflicts
+
+
+def format_conflict_lines(conflicts: list[tuple[str, str]], prefix: str = "") -> str:
+    """One ``- <prefix><address> <type>`` diff line per overlapping data unit."""
+    return "\n".join(f"- {prefix}{address} {label}" for address, label in conflicts)

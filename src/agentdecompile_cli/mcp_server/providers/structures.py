@@ -439,32 +439,29 @@ class StructureToolProvider(ToolProvider):
         listing = self._get_listing(program, program_info=program_info)
 
         if not args.get(FORCE_APPLY_CONFLICT_ID_KEY):
-            from agentdecompile_cli.mcp_utils.datatype_util import data_type_label, is_defined_data, same_data_type
+            from agentdecompile_cli.mcp_utils.datatype_util import format_conflict_lines, overlapping_data_conflicts
 
-            existing_data = listing.getDataAt(addr)
-            # getDataAt also returns undefined data (DefaultDataType) where nothing is defined; that is not a type to overwrite.
-            if is_defined_data(existing_data):
-                existing_dt = existing_data.getDataType()
-                existing_type = data_type_label(existing_dt)
-                if existing_type and not same_data_type(existing_dt, dt):
-                    from agentdecompile_cli.mcp_server.conflict_store import store as conflict_store_store
-                    from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
+            # clearCodeUnits below clears every code unit overlapping [addr, addr+len-1]; ask before losing defined data anywhere in it.
+            conflicts = overlapping_data_conflicts(listing, addr, dt)
+            if conflicts:
+                from agentdecompile_cli.mcp_server.conflict_store import store as conflict_store_store
+                from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
 
-                    conflict_id = str(uuid.uuid4())
-                    conflict_summary = f"Apply structure would overwrite existing data at address:\n\n```diff\n- (existing) {existing_type}\n+ {struct_name}\n```"
-                    next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                    program_path = args.get(n("programPath")) or getattr(program_info, "path", None) or getattr(program_info, "file_path", None)
-                    store_args = dict(args)
-                    store_args["mode"] = "apply"
-                    conflict_store_store(
-                        get_current_mcp_session_id(),
-                        conflict_id,
-                        tool=Tool.MANAGE_STRUCTURES.value,
-                        arguments=store_args,
-                        program_path=str(program_path) if program_path else None,
-                        summary=conflict_summary,
-                    )
-                    return create_conflict_response(conflict_id, Tool.MANAGE_STRUCTURES.value, conflict_summary, next_step)
+                conflict_id = str(uuid.uuid4())
+                conflict_summary = f"Apply structure would overwrite existing data at address:\n\n```diff\n{format_conflict_lines(conflicts, prefix='(existing) ')}\n+ {struct_name}\n```"
+                next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
+                program_path = args.get(n("programPath")) or getattr(program_info, "path", None) or getattr(program_info, "file_path", None)
+                store_args = dict(args)
+                store_args["mode"] = "apply"
+                conflict_store_store(
+                    get_current_mcp_session_id(),
+                    conflict_id,
+                    tool=Tool.MANAGE_STRUCTURES.value,
+                    arguments=store_args,
+                    program_path=str(program_path) if program_path else None,
+                    summary=conflict_summary,
+                )
+                return create_conflict_response(conflict_id, Tool.MANAGE_STRUCTURES.value, conflict_summary, next_step)
 
         def _apply_struct() -> None:
             listing.clearCodeUnits(addr, addr.add(dt.getLength() - 1), False)

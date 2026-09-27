@@ -3633,6 +3633,13 @@ class ProjectToolProvider(ToolProvider):
                 program: GhidraProgram = project_handle.importProgram(JavaFile(str(entry)))
                 if program is None:
                     raise RuntimeError("import_binary returned None")
+                # GhidraProject.importProgram loads the program but does not save it
+                # (GhidraProject.java importProgram: ProgramLoader "created but not
+                # saved").  Until it is saved into a project folder its DomainFile is a
+                # DomainFileProxy: nothing reaches <name>.rep/idata, every later
+                # GhidraProject.save() throws "Location does not exist for a save
+                # operation!" (DomainFileProxy.save), and a new process sees 0 files.
+                self._persist_imported_program(ghidra_project, project_handle, program)
 
                 from agentdecompile_cli.launcher import ProgramInfo
                 from agentdecompile_cli.mcp_utils.decompiler_util import open_decompiler_for_program
@@ -3669,7 +3676,12 @@ class ProjectToolProvider(ToolProvider):
                     self._manager.set_program_info(program_info)
                 else:
                     self.set_program_info(program_info)
-                self._blocking_ensure_program_analyzed(program, program_path, program_info)
+                try:
+                    self._blocking_ensure_program_analyzed(program, program_path, program_info)
+                finally:
+                    # Save the analysis (or whatever part of it ran) into the project file
+                    # created above, so a restart does not reopen an unanalyzed copy.
+                    self._save_imported_program(ghidra_project, program)
 
                 imported_program_info = program_info
                 imported_count += 1
@@ -4024,6 +4036,62 @@ class ProjectToolProvider(ToolProvider):
             from agentdecompile_cli.mcp_utils.program_analysis import program_needs_analysis
             program_info.ghidra_analysis_complete = not program_needs_analysis(program)
         return program_info
+
+    @staticmethod
+    def _persist_imported_program(
+        ghidra_project: GhidraProject | None,
+        project_handle: Any,
+        program: GhidraProgram,
+    ) -> None:
+        """Give a freshly imported program a real DomainFile in the project root.
+
+        No-op when the program already lives in a writable project (e.g. a loader
+        that saved it itself).  An existing file of the same name is never
+        overwritten; the new program gets the first free ``name.N``.
+        """
+        try:
+            df = program.getDomainFile()
+            if df is not None and bool(df.isInWritableProject()):
+                return
+        except Exception:
+            logger.debug("import_persist domain_file_probe_failed", exc_info=True)
+
+        if ghidra_project is not None and hasattr(ghidra_project, "getRootFolder"):
+            root_folder = ghidra_project.getRootFolder()
+        else:
+            root_folder = project_handle.getProjectData().getRootFolder()
+        base_name: str = str(program.getName())
+        name: str = base_name
+        suffix = 1
+        while root_folder.getFile(name) is not None:
+            name = f"{base_name}.{suffix}"
+            suffix += 1
+
+        if ghidra_project is not None and hasattr(ghidra_project, "saveAs"):
+            # saveAs ends and restarts GhidraProject's batch transaction around
+            # DomainFolder.createFile (GhidraProject.java saveAs).
+            ghidra_project.saveAs(program, "/", name, False)
+        else:
+            from ghidra.util.task import TaskMonitor as GhidraTaskMonitor  # pyright: ignore[reportMissingModuleSource]
+
+            root_folder.createFile(name, program, GhidraTaskMonitor.DUMMY)
+        logger.info("import_persist saved_as=/%s", name)
+
+    @staticmethod
+    def _save_imported_program(ghidra_project: GhidraProject | None, program: GhidraProgram) -> None:
+        """Best-effort save after post-import analysis; never masks the analysis result."""
+        try:
+            df = program.getDomainFile()
+            if df is None or not bool(df.isInWritableProject()):
+                return
+            if ghidra_project is not None and hasattr(ghidra_project, "save"):
+                ghidra_project.save(program)
+            else:
+                from ghidra.util.task import TaskMonitor as GhidraTaskMonitor  # pyright: ignore[reportMissingModuleSource]
+
+                program.save("AgentDecompile import", GhidraTaskMonitor.DUMMY)
+        except Exception as exc:
+            logger.warning("import_persist post_analysis_save_failed exc_type=%s exc=%s", type(exc).__name__, exc)
 
     def _blocking_ensure_program_analyzed(
         self,

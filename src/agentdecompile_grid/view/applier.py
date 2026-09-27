@@ -12,9 +12,23 @@ it reads records in partition order and writes exactly two grid-owned tables --
 
 plus ``grid_tasks`` (``task_id -> kind``, filled from TASK records so a VERIFIED record never
 needs to carry the kind).  Everything kind-specific goes through ``VIEW_HOOKS``: a registered
-kind implements ``apply_result(kind, result, objects, con)`` and is the only code that may touch
-pipeline tables, and only through the pipeline's own binders.  The applier itself never writes
-``identity``, ``logical_function``, ``match`` or ``func`` -- verified results only, hooks only.
+kind implements ``apply_result(kind, result, objects, con)`` and writes receipt tables only.
+
+**Delta binders (U143/U150).**  Store tables (``identity``, ``logical_function``, ``binary``
+columns) change through exactly one path: a VERIFIED record whose result names a delta object
+(``deltas.Delta``, output ``delta`` / ``delta.<label>``) is loaded, validated
+(``deltas.validate_delta``), and handed to the ``DELTA_BINDERS`` entry the delta names, inside
+the applier's transaction, under a ``ConflictPolicy``.  The binder is the only code that writes
+the table; it states the columns it may write and refuses the rest.  A RESULT record never
+binds (it is a proposal); a VERIFIED record signed by the producer's own key never binds
+(``delta-self-verified``); a delta ref already in the receipt table ``grid_applied_deltas`` is a
+no-op by content hash; apply order is log order (``seq``), never wall clock.  Neither a hook nor
+the applier itself writes an identity table directly.  Working binders: ``identity-delta``,
+``logical-delta``, ``image-registered``, ``basis-stamped`` (registered by the lanes); declared
+slots: ``placement-delta`` (U144), ``bsim-merge`` (U169).  Working policy: ``RefuseOnConflict``
+(a differing existing row is a named conflict in the receipt, never an overwrite); declared
+slots ``LastVerifiedWins`` and ``QuorumWins`` (the thesis is trust-the-hash: a verified delta is
+right because an independent key recomputed it, so a quorum adds nothing and is not default).
 
 Rules the applier enforces by construction:
 
@@ -45,7 +59,13 @@ Acceptance tests (named here, landed in the verification phase, see U128):
 * ``test_view_basis_mismatch_named`` -- a record under a second basis is refused by name;
 * ``test_view_no_worker_opens_view_for_writing`` -- grep: no worker module imports this one;
 * ``test_view_position_commits_with_rows`` -- killing the process mid-batch leaves position and
-  rows consistent.
+  rows consistent;
+* ``test_identity_delta_applied_only_from_verified_records`` -- a RESULT record binds nothing;
+  the VERIFIED record of the same result binds the delta once; a second materialisation (or a
+  second sight of the same ref) adds no row and writes no second receipt;
+* ``test_backfill_replays_identically_on_both_surfaces`` -- the ``image-registered`` /
+  ``basis-stamped`` deltas bound into a fresh store copy give the same ``binary`` columns as the
+  verb run in place.
 """
 from __future__ import annotations
 
@@ -55,7 +75,7 @@ import sqlite3
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Sequence
+from typing import Any, Callable, ClassVar, Iterable, Mapping, Protocol, Sequence, runtime_checkable
 
 from ..core import (
     APPLIERS,
@@ -65,11 +85,13 @@ from ..core import (
     ObjectStore,
     Record,
     RecordType,
+    Refused,
     Registry,
     ResultStatus,
     TaskResult,
     canonical_json,
 )
+from .deltas import Delta, delta_ref, is_delta_output, load_delta, validate_delta
 
 # --------------------------------------------------------------------------- registries
 #: kind -> ``apply_result(kind, result, objects, con) -> int``; registered by the kind's lane module.
@@ -98,6 +120,184 @@ def view_reset(kind: str, *, replace: bool = False):
         return fn
 
     return register
+
+
+# --------------------------------------------------------------------------- delta binders
+class BinderRefused(Refused):
+    """A binder refused the whole delta by name (a column it may not write, a missing table).
+
+    Raised *before* the binder writes anything; the applier records it as a ``delta-refused``
+    event, binds nothing for that delta and advances the position (the record is consumed, the
+    refusal is surfaced in the materialize report -- never a silent skip, never a stalled view).
+    """
+
+    exit_code = 9
+
+
+@dataclass
+class BindReceipt:
+    """What a binder did with one delta: counts plus the named conflicts (rows it did not write)."""
+
+    binder: str
+    target_table: str
+    applied: int = 0            # rows written (insert or update)
+    skipped: int = 0            # rows already equal in the store (idempotent no-op)
+    conflicts: list[dict[str, Any]] = field(default_factory=list)   # {key, reason, ...} per refused row
+    policy: str = ""
+    columns_written: list[str] = field(default_factory=list)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "binder": self.binder, "target_table": self.target_table, "applied": self.applied,
+            "skipped": self.skipped, "conflicts": [dict(c) for c in self.conflicts], "policy": self.policy,
+            "columns_written": list(self.columns_written),
+        }
+
+
+@runtime_checkable
+class ConflictPolicy(Protocol):
+    """What a binder does when the store already holds a *different* row for a delta key.
+
+    ``resolve`` returns ``"apply"`` (write the incoming row), ``"skip"`` (keep the stored row, no
+    conflict) or ``"conflict"`` (keep the stored row, record it in the receipt).  A binder with
+    an irreversibility rule of its own (``image-registered`` never overwrites a stored hash) may
+    refuse regardless of the policy; the receipt says which rule fired.
+    """
+
+    name: ClassVar[str]
+
+    def resolve(self, existing: Mapping[str, Any], incoming: Mapping[str, Any], key: tuple[Any, ...]) -> str: ...
+
+
+class RefuseOnConflict:
+    """Working default: a differing stored row is a named conflict; nothing is overwritten.
+
+    Trust-the-hash (design §2.4): a verified delta is right because an independent key
+    recomputed it from the same basis, so a *different* stored row means two verified facts
+    disagree -- that is a defect to surface, never a vote to take.
+    """
+
+    name: ClassVar[str] = "refuse-on-conflict"
+
+    def resolve(self, existing: Mapping[str, Any], incoming: Mapping[str, Any], key: tuple[Any, ...]) -> str:
+        return "conflict"
+
+    @classmethod
+    def describe(cls) -> dict[str, Any]:
+        return {"policy": cls.name, "status": "working", "on_difference": "conflict (recorded, never overwritten)"}
+
+
+class LastVerifiedWins:
+    """Slot: the later VERIFIED record (higher ``seq``) overwrites.  Declared so the choice is
+    named; refuses until a lane needs it, because it turns a disagreement into a silent
+    overwrite ordered by log position."""
+
+    name: ClassVar[str] = "last-verified-wins"
+
+    def resolve(self, existing: Mapping[str, Any], incoming: Mapping[str, Any], key: tuple[Any, ...]) -> str:
+        raise NotConfigured("conflict policy last-verified-wins is declared, not wired: a differing row is a defect, not a race")
+
+    @classmethod
+    def describe(cls) -> dict[str, Any]:
+        return {"policy": cls.name, "status": "declared", "on_difference": "later seq overwrites (not default: hides disagreement)"}
+
+
+class QuorumWins:
+    """Slot: the row most verified keys agree on wins.  Named to document why it is **not** the
+    default: the grid trusts the hash, not a count -- one independent recompute under the same
+    basis is the whole proof (a VERIFIED record needs a second key), and N keys running the same
+    code on the same basis add correlated votes, not evidence.  Refuses until a lane can show a
+    disagreement that a count, rather than a basis, would settle."""
+
+    name: ClassVar[str] = "quorum-wins"
+
+    def resolve(self, existing: Mapping[str, Any], incoming: Mapping[str, Any], key: tuple[Any, ...]) -> str:
+        raise NotConfigured("conflict policy quorum-wins is declared, not wired: trust-the-hash, no quorum")
+
+    @classmethod
+    def describe(cls) -> dict[str, Any]:
+        return {"policy": cls.name, "status": "declared", "on_difference": "majority of verified keys (not default: trust-the-hash, no quorum)"}
+
+
+CONFLICT_POLICIES = Registry("conflict policy")
+for _policy in (RefuseOnConflict, LastVerifiedWins, QuorumWins):
+    CONFLICT_POLICIES.register(_policy.name, _policy)
+DEFAULT_CONFLICT_POLICY = RefuseOnConflict.name
+
+
+@runtime_checkable
+class DeltaBinder(Protocol):
+    """Binds one validated delta into its store table inside the applier's transaction.
+
+    ``bind`` uses ``con.execute`` only (never ``commit`` / ``rollback`` / ``executescript``),
+    writes ``writes`` columns of ``target_table`` and nothing else, resolves hashes to store
+    rowids itself, and returns a ``BindReceipt``.  It raises ``BinderRefused`` before any write
+    for a delta it cannot take as a whole (a foreign column, a missing table); per-row
+    disagreements go into ``conflicts`` under the policy.  Binding the same delta twice yields
+    ``applied == 0`` the second time (every row ``skipped``): idempotent by content.
+    """
+
+    name: ClassVar[str]
+    target_table: ClassVar[str]
+    writes: ClassVar[tuple[str, ...]]
+
+    def bind(self, con: sqlite3.Connection, delta: Delta, *, policy: ConflictPolicy) -> BindReceipt: ...
+
+
+class DeclaredBinder:
+    """A named slot in ``DELTA_BINDERS``: the delta shape is reserved; binding refuses by name."""
+
+    name: ClassVar[str] = ""
+    target_table: ClassVar[str] = ""
+    writes: ClassVar[tuple[str, ...]] = ()
+    unit: ClassVar[str] = ""
+
+    def bind(self, con: sqlite3.Connection, delta: Delta, *, policy: ConflictPolicy) -> BindReceipt:
+        raise NotConfigured(f"delta binder {self.name} is declared, not wired ({self.unit})")
+
+    @classmethod
+    def describe(cls) -> dict[str, Any]:
+        return {"binder": cls.name, "status": "declared", "target_table": cls.target_table, "writes": list(cls.writes), "unit": cls.unit}
+
+
+class PlacementDeltaBinder(DeclaredBinder):
+    """U144: placement objects ``[{dst_addr, body_hash, provenance}]`` -> the placed-body rows;
+    the cross-place ``should_write`` decision moves here so placement objects stay pure."""
+
+    name = "placement-delta"
+    target_table = "placement"
+    unit = "U144 cross-place as placement objects"
+
+
+class BsimMergeBinder(DeclaredBinder):
+    """U169: merged-signature objects -> the similarity index through its commit verb (the
+    ``similarity`` applier's path); keyed ``(merged_xml_sha256, cluster_url)``."""
+
+    name = "bsim-merge"
+    target_table = "similarity-index"
+    unit = "U169 similarity index as a view"
+
+
+DELTA_BINDERS = Registry("delta binder")
+for _slot in (PlacementDeltaBinder, BsimMergeBinder):
+    DELTA_BINDERS.register(_slot.name, _slot())
+
+
+def delta_binder(cls: type) -> type:
+    """Class decorator: register an instance of a ``DeltaBinder`` under ``cls.name`` (replacing a slot)."""
+    DELTA_BINDERS.register(cls.name, cls(), replace=True)
+    return cls
+
+
+def describe_binders() -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for name, binder in DELTA_BINDERS.items():
+        describe = getattr(binder, "describe", None)
+        out[name] = describe() if callable(describe) else {
+            "binder": name, "status": "working", "target_table": getattr(binder, "target_table", ""),
+            "writes": list(getattr(binder, "writes", ())),
+        }
+    return out
 
 
 # --------------------------------------------------------------------------- named states
@@ -183,9 +383,18 @@ CREATE TABLE IF NOT EXISTS grid_view_events (
     detail    TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (partition, seq, event)
 );
+CREATE TABLE IF NOT EXISTS grid_applied_deltas (
+    delta_ref      TEXT PRIMARY KEY,
+    task_id        TEXT NOT NULL,
+    binder         TEXT NOT NULL,
+    partition      TEXT NOT NULL,
+    applied_at_seq INTEGER NOT NULL,
+    receipt_json   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_grid_applied_deltas_partition ON grid_applied_deltas(partition, applied_at_seq);
 """
 
-GRID_TABLES = ("grid_view_position", "grid_tasks", "grid_results", "grid_view_events")
+GRID_TABLES = ("grid_view_position", "grid_tasks", "grid_results", "grid_view_events", "grid_applied_deltas")
 
 
 def ensure_tables(con: sqlite3.Connection, sql: str) -> None:
@@ -264,13 +473,19 @@ class ApplyStats:
     verified_rows: int = 0
     task_rows: int = 0
     hook_rows: int = 0
+    deltas_bound: int = 0       # delta objects bound (a receipt row written)
+    deltas_skipped: int = 0     # delta refs already in grid_applied_deltas (no-op by content hash)
+    delta_rows: int = 0         # store rows the binders wrote
+    delta_conflicts: int = 0    # rows the binders refused under the policy
     events: list[tuple[int, str, str]] = field(default_factory=list)
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "partition": self.partition, "applied": self.applied, "skipped": self.skipped,
             "verified_rows": self.verified_rows, "task_rows": self.task_rows,
-            "hook_rows": self.hook_rows, "events": [list(e) for e in self.events],
+            "hook_rows": self.hook_rows, "deltas_bound": self.deltas_bound, "deltas_skipped": self.deltas_skipped,
+            "delta_rows": self.delta_rows, "delta_conflicts": self.delta_conflicts,
+            "events": [list(e) for e in self.events],
         }
 
 
@@ -285,6 +500,8 @@ class SQLiteViewApplier:
         "batch_seconds": "float, max seconds per transaction (default 2.0, §2.4)",
         "busy_timeout_s": "float, lock wait before the named view-stale state (default 5.0)",
         "hooks": "Registry of kind -> apply_result(kind, result, objects, con)",
+        "binders": "Registry of delta binder name -> DeltaBinder (default DELTA_BINDERS)",
+        "policy": "ConflictPolicy name (default refuse-on-conflict)",
     }
 
     def __init__(
@@ -296,6 +513,8 @@ class SQLiteViewApplier:
         batch_seconds: float = 2.0,
         busy_timeout_s: float = 5.0,
         hooks: Registry | None = None,
+        binders: Registry | None = None,
+        policy: ConflictPolicy | str | None = None,
         con: sqlite3.Connection | None = None,
     ) -> None:
         if not partition:
@@ -306,6 +525,11 @@ class SQLiteViewApplier:
         self.batch_seconds = max(0.01, float(batch_seconds))
         self.busy_timeout_s = float(busy_timeout_s)
         self.hooks = hooks if hooks is not None else VIEW_HOOKS
+        self.binders = binders if binders is not None else DELTA_BINDERS
+        if policy is None or isinstance(policy, str):
+            self.policy: ConflictPolicy = CONFLICT_POLICIES.get(policy or DEFAULT_CONFLICT_POLICY)()
+        else:
+            self.policy = policy
         self._con = con
         self._state = ""
         self.stats = ApplyStats(partition)
@@ -496,6 +720,12 @@ class SQLiteViewApplier:
         if result.task_id != task_id:
             self._event(rec.seq, "result-task-mismatch", ref.hex[:12])
             return
+        # A delta object this record would bind must be here before anything is written for
+        # the record: a hole in the object store stops the partition *before* this seq.
+        delta_refs = [(name, ObjectRef(str(r))) for name, r in sorted(result.outputs.items()) if is_delta_output(name)]
+        for _name, dref in delta_refs:
+            if not objects.exists(dref):
+                raise ViewStale(f"missing-object:{dref.hex[:12]}", self.partition, rec.seq)
         kind = self._kind_of(task_id, rec.body)
         con.execute(
             "INSERT OR IGNORE INTO grid_results(task_id, kind, partition, result_ref, outputs_json, "
@@ -512,6 +742,60 @@ class SQLiteViewApplier:
             self.stats.hook_rows += int(rows or 0)
         elif not kind:
             self._event(rec.seq, "kind-unknown", task_id[:12])
+        if delta_refs and result.status == ResultStatus.OK:
+            for _name, dref in delta_refs:
+                self._bind_delta(rec, dref, result, objects, verifier_key=verifier_key)
+
+    # ----------------------------------------------------------------- delta binding
+    def _bind_delta(self, rec: Record, dref: ObjectRef, result: TaskResult, objects: ObjectStore, *, verifier_key: str) -> None:
+        """Bind one verified delta through its registered binder; the only path into a store table.
+
+        Order of checks, each a named event (position advances, nothing bound) rather than a
+        stall: already bound (receipt by content hash -> no-op); not a delta / fails
+        ``validate_delta``; verifier key equals the producer key (not an independent
+        verification); binder declared but not wired; binder refuses the whole delta.  A binder
+        that raises anything else is ``ViewHookFailed`` (the batch rolls back).
+        """
+        con = self.con
+        if con.execute("SELECT 1 FROM grid_applied_deltas WHERE delta_ref=?", (str(dref),)).fetchone() is not None:
+            self.stats.deltas_skipped += 1
+            return
+        try:
+            delta = load_delta(objects, dref)
+        except ValueError as exc:
+            self._event(rec.seq, "delta-refused", str(exc)[:80])
+            return
+        refusals = validate_delta(delta, binders=self.binders.names())
+        if delta.task_id != result.task_id:
+            refusals.append(f"delta-task-mismatch:{delta.task_id[:12]}")
+        if refusals:
+            self._event(rec.seq, "delta-refused", ";".join(refusals)[:200])
+            return
+        if not result.producer_key or not verifier_key or verifier_key == result.producer_key:
+            self._event(rec.seq, "delta-self-verified", f"{result.producer_key[:24]}=={verifier_key[:24]}")
+            return
+        binder = self.binders.get(delta.binder)
+        try:
+            receipt = binder.bind(con, delta, policy=self.policy)
+        except NotConfigured as exc:
+            self._event(rec.seq, "delta-binder-not-configured", f"{delta.binder}:{str(exc)[:80]}")
+            return
+        except BinderRefused as exc:
+            self._event(rec.seq, "delta-refused", f"{delta.binder}:{exc.reason[:120]}")
+            return
+        if str(delta_ref(delta)) != str(dref):
+            # the stored bytes were not canonical: the receipt keys on the ref the log names
+            self._event(rec.seq, "delta-ref-noncanonical", dref.hex[:12])
+        con.execute(
+            "INSERT INTO grid_applied_deltas(delta_ref, task_id, binder, partition, applied_at_seq, receipt_json) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (str(dref), result.task_id, delta.binder, self.partition, rec.seq, canonical_json(receipt.as_dict()).decode("utf-8")),
+        )
+        self.stats.deltas_bound += 1
+        self.stats.delta_rows += int(receipt.applied)
+        self.stats.delta_conflicts += len(receipt.conflicts)
+        if receipt.conflicts:
+            self._event(rec.seq, "delta-conflicts", f"{delta.binder}:{len(receipt.conflicts)}")
 
     def _kind_of(self, task_id: str, body: Mapping[str, Any]) -> str:
         row = self.con.execute("SELECT kind FROM grid_tasks WHERE task_id=?", (task_id,)).fetchone()
@@ -528,7 +812,15 @@ class SQLiteViewApplier:
 
     # ----------------------------------------------------------------- rebuild
     def reset(self) -> None:
-        """Forget this partition's replay so ``apply`` starts again from record 1."""
+        """Forget this partition's replay so ``apply`` starts again from record 1.
+
+        The delta receipts of the partition go too (``grid_applied_deltas`` is scoped by
+        ``partition``), so the replay binds every verified delta again; the binders are
+        idempotent by content (a row already equal is ``skipped``), so a rebuild over an
+        unchanged store writes nothing and a rebuild into a fresh store copy writes everything.
+        Rows a binder wrote are *not* deleted here: the store is a view of the log, and the
+        replay is what makes it current.
+        """
         con = self.con
         try:
             con.execute("BEGIN IMMEDIATE")
@@ -539,6 +831,7 @@ class SQLiteViewApplier:
                 for kind in kinds:
                     if kind in VIEW_RESETS:
                         VIEW_RESETS.get(kind)(kind, con, self.partition)
+                con.execute("DELETE FROM grid_applied_deltas WHERE partition=?", (self.partition,))
                 con.execute("DELETE FROM grid_results WHERE partition=?", (self.partition,))
                 con.execute("DELETE FROM grid_tasks WHERE partition=?", (self.partition,))
                 con.execute("DELETE FROM grid_view_events WHERE partition=?", (self.partition,))
@@ -557,18 +850,33 @@ class SQLiteViewApplier:
 
     @classmethod
     def describe(cls) -> dict[str, Any]:
+        from .deltas import describe_schema
+
         return {
             "applier": cls.name,
             "status": "working",
             "writes": list(GRID_TABLES),
-            "never_writes": ["identity", "logical_function", "match", "func", "binary"],
+            "writes_through_binders": {name: getattr(b, "target_table", "") for name, b in DELTA_BINDERS.items()},
+            "never_writes_directly": ["identity", "logical_function", "match", "func", "binary"],
+            "binds_from": [RecordType.VERIFIED.value],
+            "never_binds_from": [RecordType.RESULT.value, RecordType.INTENT.value, "a VERIFIED record signed by the producer key"],
             "consumes": [RecordType.TASK.value, RecordType.VERIFIED.value],
             "config_schema": dict(cls.CONFIG_SCHEMA),
             "hooks": VIEW_HOOKS.names(),
+            "binders": describe_binders(),
+            "conflict_policies": {name: p.describe() for name, p in CONFLICT_POLICIES.items()},
+            "default_policy": DEFAULT_CONFLICT_POLICY,
+            "delta_schema": describe_schema(),
+            "receipt_table": "grid_applied_deltas(delta_ref PK, task_id, binder, partition, applied_at_seq, receipt_json)",
             "named_states": ["view-stale: locked", "view-stale: missing-object:<ref>", "view-stale: hook-failed"],
+            "named_events": [
+                "delta-refused:<reasons>", "delta-self-verified", "delta-binder-not-configured:<binder>",
+                "delta-conflicts:<binder>:<n>", "delta-ref-noncanonical",
+            ],
             "errors": {
                 "ViewStale": ViewStale.exit_code, "ViewGap": ViewGap.exit_code,
                 "ViewBasisMismatch": ViewBasisMismatch.exit_code, "ViewHookFailed": ViewHookFailed.exit_code,
+                "BinderRefused": BinderRefused.exit_code,
             },
         }
 
@@ -654,7 +962,10 @@ def materialize(
 
 
 __all__ = [
-    "ApplyStats", "GRID_TABLES", "SCHEMA_SQL", "SQLiteViewApplier", "VIEW_HOOKS", "VIEW_RESETS",
-    "VIEW_SCHEMA_VERSION", "ViewBasisMismatch", "ViewGap", "ViewHookFailed", "ViewStale",
-    "decode_result", "ensure_tables", "is_lock_error", "materialize", "open_view", "view_hook", "view_reset",
+    "ApplyStats", "BindReceipt", "BinderRefused", "BsimMergeBinder", "CONFLICT_POLICIES", "ConflictPolicy",
+    "DEFAULT_CONFLICT_POLICY", "DELTA_BINDERS", "DeclaredBinder", "DeltaBinder", "GRID_TABLES", "LastVerifiedWins",
+    "PlacementDeltaBinder", "QuorumWins", "RefuseOnConflict", "SCHEMA_SQL", "SQLiteViewApplier", "VIEW_HOOKS",
+    "VIEW_RESETS", "VIEW_SCHEMA_VERSION", "ViewBasisMismatch", "ViewGap", "ViewHookFailed", "ViewStale",
+    "decode_result", "delta_binder", "describe_binders", "ensure_tables", "is_lock_error", "materialize", "open_view",
+    "view_hook", "view_reset",
 ]

@@ -58,8 +58,12 @@ def _resource_texts(result: Any) -> list[Any]:
     ``AgentDecompileMcpClient.read_resource`` returns the JSON-RPC ``result``
     dict ``{"contents": [{"text": ...}]}``. Also accepts the local backend
     dict ``{"uri", "raw", "parsed"}`` and SDK objects with ``.contents``.
-    Mirrors ``cli._extract_text`` without importing the Click CLI here.
+    Unlike ``cli._extract_text`` (which only reads ``.contents`` off an SDK
+    object holding ``TextContent`` items and returns the first match), this
+    also reads dict-shaped results and returns every text item, in order.
+    Kept local so the server entry point does not import the Click CLI.
     """
+    logger.debug("diag.enter %s", "server.py:_resource_texts")
     if isinstance(result, dict):
         raw = result.get("raw")
         if isinstance(raw, str) and raw:

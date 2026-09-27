@@ -2062,12 +2062,15 @@ def _is_cli_result_limit_param(param: str) -> bool:
 def _supported_cli_tool_params(tool_name: str) -> list[str]:
     logger.debug("diag.enter %s", "cli.py:_supported_cli_tool_params")
     params: list[str] = get_tool_params(tool_name)
-    # `get_tool_params` can return one parameter twice: `_canonical_param_name`
-    # collapses every MODE_PARAM_ALIASES synonym onto `mode`, so a tool carrying
-    # both `mode` and a synonym such as `type` yields `mode` twice
-    # (manage-bookmarks and manage-structures do today). A repeat would declare
-    # the option twice and let one declaration silently win. Key on the canonical
-    # identifier, since that -- not the raw spelling -- is what collides.
+    # Defensive de-dupe, keyed by normalized identifier: a genuine repeat
+    # (same param spelled/cased two ways) would otherwise declare the CLI
+    # option twice and let one declaration silently win. This used to also
+    # catch an accidental collapse where `_canonical_param_name` turned a
+    # tool's own real parameter (e.g. manage-bookmarks'/manage-structures'
+    # "type") into a second literal "mode" entry; that collapse is fixed at
+    # the source in registry.py's `_merge_tools_list_params` /
+    # `_canonical_param_name`, which now leave a tool-declared alias like
+    # "type" alone, so "mode" and "type" no longer collide here.
     seen: set[str] = set()
     unique: list[str] = []
     for param in params:
@@ -3783,7 +3786,15 @@ def structures_run(
     if size is not None:
         payload["size"] = size
     if type_ is not None:
+        # "type" (structure/union) is passed through under its own name so
+        # registry-level alias resolution never collapses it into "mode" --
+        # see registry.py MODE_PARAM_PRECEDENCE. The `create` handler itself
+        # (mcp_server/providers/structures.py `_create`) does not read "type"
+        # though; it reads the boolean `isUnion`. Translate here so `--type
+        # union` actually creates a union, not merely survives the wire.
         payload["type"] = type_
+        if action == "create":
+            payload["isUnion"] = type_ == "union"
     payload["category"] = category
     if packed is not None:
         payload["packed"] = packed

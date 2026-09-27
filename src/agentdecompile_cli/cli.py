@@ -579,6 +579,7 @@ def _scoped_shared_server_env(ctx: click.Context):
 
     Restores the previous state exactly on exit, so flags from one command
     never leak into later commands in the same process (tool-seq, CliRunner).
+    In-process embedded CLIs must run inside this context manager too.
     """
     overrides = _shared_server_env_overrides(ctx)
     previous = {key: os.environ.get(key) for key in overrides}
@@ -667,6 +668,8 @@ def _extract_text(result: Any) -> str | None:
     logger.debug("diag.enter %s", "cli.py:_extract_text")
     if isinstance(result, dict):
         raw = result.get("raw")
+        if isinstance(raw, bytes):
+            return raw.decode("utf-8", errors="replace")
         if isinstance(raw, str) and raw:
             return raw
         contents: Any = result.get("contents")
@@ -1445,17 +1448,14 @@ async def _execute_tool_call(
 
 
 async def _read_resource_locally(ctx: click.Context, uri: str) -> Any:
-    backend = _get_local_backend(ctx)
     try:
-        with _scoped_shared_server_env(ctx):
-            await backend.initialize()
-            return await backend.read_resource(uri)
+        backend = _get_local_backend(ctx)
     except (ImportError, EnvironmentError) as exc:
         click.echo(f"Error (local mode): {exc}", err=True)
         sys.exit(1)
-    except Exception as exc:
-        click.echo(f"Error reading resource '{uri}' (local mode): {exc}", err=True)
-        sys.exit(1)
+    with _scoped_shared_server_env(ctx):
+        await backend.initialize()
+        return await backend.read_resource(uri)
 
 
 async def _read_resource_via_transport(ctx: click.Context, uri: str) -> Any:
@@ -5199,7 +5199,8 @@ def _run_embedded_cli(entrypoint: Any, args: tuple[str, ...]) -> None:
 def recover_passthrough_cmd(args: tuple[str, ...]) -> None:
     from agentdecompile_recovery.cli import main as recovery_main
 
-    _run_embedded_cli(recovery_main, args)
+    with _scoped_shared_server_env(click.get_current_context()):
+        _run_embedded_cli(recovery_main, args)
 
 
 @main.command(
@@ -5212,7 +5213,8 @@ def recover_passthrough_cmd(args: tuple[str, ...]) -> None:
 def reconstruct_passthrough_cmd(args: tuple[str, ...]) -> None:
     from agentdecompile_recovery.frontdoor import main as reconstruct_main
 
-    _run_embedded_cli(reconstruct_main, args)
+    with _scoped_shared_server_env(click.get_current_context()):
+        _run_embedded_cli(reconstruct_main, args)
 
 
 # ---------------------------------------------------------------------------

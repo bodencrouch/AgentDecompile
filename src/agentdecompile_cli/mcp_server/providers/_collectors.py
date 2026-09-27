@@ -185,6 +185,92 @@ def collect_function_call_counts(func: GhidraFunction) -> dict[str, int]:
     return {"callerCount": caller_count, "calleeCount": callee_count}
 
 
+class DataFlowVariableNotFoundError(ValueError):
+    """Raised when variable_accesses names a variable the function does not have."""
+
+
+def _data_flow_op_record(op: Any) -> dict[str, Any]:
+    """Serialize one P-code op for data-flow payloads."""
+    output = op.getOutput()
+    return {
+        "address": str(op.getSeqnum().getTarget()),
+        "mnemonic": str(op.getMnemonic()),
+        "output": str(output) if output else None,
+        "inputs": [str(inp) for inp in op.getInputs()],
+    }
+
+
+def _collect_variable_accesses(
+    payload: dict[str, Any],
+    hfunc: Any,
+    variable_name: str | None,
+    max_ops: int,
+) -> dict[str, Any]:
+    """List a function's high variables and the P-code ops that write (def) or read (descendants) them.
+
+    With *variable_name*, only that variable is reported; an unknown name raises
+    ``DataFlowVariableNotFoundError`` naming the variables that do exist.
+    """
+    symbols = [sym for sym in iter_items(hfunc.getLocalSymbolMap().getSymbols()) if sym is not None]
+    wanted = (variable_name or "").strip()
+    if wanted:
+        matches = [sym for sym in symbols if str(sym.getName() or "") == wanted]
+        if not matches:
+            matches = [sym for sym in symbols if str(sym.getName() or "").lower() == wanted.lower()]
+        if not matches:
+            available = sorted({str(sym.getName() or "") for sym in symbols if sym.getName()})
+            listing = ", ".join(available) if available else "none"
+            raise DataFlowVariableNotFoundError(f"Variable not found in {payload.get('function', 'function')}: {wanted}. Available variables: {listing}")
+        symbols = matches
+        payload["variableName"] = wanted
+
+    variables: list[dict[str, Any]] = []
+    access_budget = max(int(max_ops or 0), 1)
+    total_accesses = 0
+    for sym in symbols:
+        hv = sym.getHighVariable()
+        accesses: list[dict[str, Any]] = []
+        seen: set[tuple[str, str]] = set()
+
+        def _add(op: Any, kind: str, accesses: list[dict[str, Any]] = accesses, seen: set[tuple[str, str]] = seen) -> None:
+            if op is None:
+                return
+            key = (str(op.getSeqnum()), kind)
+            if key in seen:
+                return
+            seen.add(key)
+            record = _data_flow_op_record(op)
+            record["kind"] = kind
+            accesses.append(record)
+
+        if hv is not None:
+            for vn in hv.getInstances() or []:
+                if vn is None:
+                    continue
+                _add(vn.getDef(), "write")
+                for op in iter_items(vn.getDescendants()):
+                    _add(op, "read")
+        accesses.sort(key=lambda rec: (str(rec.get("address", "")), rec.get("kind", "")))
+        remaining = max(access_budget - total_accesses, 0)
+        truncated = len(accesses) > remaining
+        accesses = accesses[:remaining]
+        total_accesses += len(accesses)
+        entry: dict[str, Any] = {
+            "name": str(sym.getName() or ""),
+            "dataType": str(sym.getDataType()),
+            "storage": str(sym.getStorage()),
+            "size": int(sym.getSize()),
+            "isParameter": bool(sym.isParameter()),
+            "accesses": accesses,
+            "accessCount": len(accesses),
+        }
+        if truncated:
+            entry["hasMore"] = True
+        variables.append(entry)
+    payload.update({"variables": variables, "count": len(variables), "accessCount": total_accesses})
+    return payload
+
+
 def collect_function_data_flow(
     program: GhidraProgram,
     func: GhidraFunction,
@@ -195,8 +281,18 @@ def collect_function_data_flow(
     max_depth: int = 10,
     timeout_s: int = 30,
     session_decompiler: Any = None,
+    variable_name: str | None = None,
 ) -> dict[str, Any]:
-    """Collect function-local data flow rooted at a specific address."""
+    """Collect function-local data flow rooted at a specific address.
+
+    Seeding for backward/forward slices:
+    - ops whose sequence target equals *addr* (``seedMode: address``);
+    - when *addr* is the function entry and nothing maps there (prologues rarely
+      survive into high P-code), backward seeds from the RETURN ops and forward
+      seeds from ops that consume function inputs (``function-returns`` /
+      ``function-inputs``);
+    - otherwise the payload names the nearest addresses that do carry P-code.
+    """
     logger.debug("diag.enter %s", "mcp_server/providers/_collectors.py:collect_function_data_flow")
     payload: dict[str, Any] = {
         "direction": direction,
@@ -224,49 +320,46 @@ def collect_function_data_flow(
                 return payload
 
             if direction in {"variable_accesses", "variableaccesses"}:
-                variables: list[dict[str, Any]] = []
-                for sym in hfunc.getLocalSymbolMap().getSymbols():
-                    hv = sym.getHighVariable()
-                    if hv is None:
-                        continue
-                    variables.append(
-                        {
-                            "name": str(sym.getName() or ""),
-                            "dataType": str(hv.getDataType()),
-                            "storage": str(hv.getRepresentative()),
-                            "size": int(hv.getSize()),
-                        },
-                    )
-                payload.update({"variables": variables, "count": len(variables)})
-                return payload
+                return _collect_variable_accesses(payload, hfunc, variable_name, max_ops)
 
             ops: list[dict[str, Any]] = []
+            op_offsets: list[int] = []
+            consumes_input: list[bool] = []
             output_to_indices: dict[str, list[int]] = {}
             input_to_indices: dict[str, list[int]] = {}
-            op_iter = hfunc.getPcodeOps()
             target_address = str(addr)
 
-            while op_iter.hasNext():
-                op = op_iter.next()
-                op_address = str(op.getSeqnum().getTarget())
-                output = str(op.getOutput()) if op.getOutput() else None
-                inputs = [str(inp) for inp in op.getInputs()]
-                ops.append(
-                    {
-                        "address": op_address,
-                        "mnemonic": str(op.getMnemonic()),
-                        "output": output,
-                        "inputs": inputs,
-                    },
-                )
+            for op in iter_items(hfunc.getPcodeOps()):
+                record = _data_flow_op_record(op)
+                ops.append(record)
+                op_offsets.append(int(op.getSeqnum().getTarget().getOffset()))
+                consumes_input.append(any(bool(vn.isInput()) for vn in op.getInputs() if vn is not None))
                 index = len(ops) - 1
-                if output:
-                    output_to_indices.setdefault(output, []).append(index)
-                for input_name in inputs:
+                if record["output"]:
+                    output_to_indices.setdefault(record["output"], []).append(index)
+                for input_name in record["inputs"]:
                     input_to_indices.setdefault(input_name, []).append(index)
 
+            seed_mode = "address"
             seed_indices = [index for index, op in enumerate(ops) if str(op.get("address", "")) == target_address]
+            if not seed_indices and target_address == str(func.getEntryPoint()):
+                if direction == "backward":
+                    seed_indices = [index for index, op in enumerate(ops) if op.get("mnemonic") == "RETURN"]
+                    seed_mode = "function-returns"
+                else:
+                    seed_indices = [index for index, flag in enumerate(consumes_input) if flag]
+                    seed_mode = "function-inputs"
             if not seed_indices:
+                target_offset = int(addr.getOffset())
+                by_offset: dict[int, str] = {}
+                for index, offset in enumerate(op_offsets):
+                    by_offset.setdefault(offset, str(ops[index].get("address", "")))
+                before = [by_offset[o] for o in sorted(o for o in by_offset if o < target_offset)[-3:]]
+                after = [by_offset[o] for o in sorted(o for o in by_offset if o > target_offset)[:3]]
+                nearest = before + after
+                note = "No P-code operations mapped directly to the requested address"
+                if nearest:
+                    note += f"; nearest addresses with P-code: {', '.join(nearest)}"
                 payload.update(
                     {
                         "pcode": [],
@@ -274,7 +367,8 @@ def collect_function_data_flow(
                         "seedCount": 0,
                         "totalPcodeOps": len(ops),
                         "analysisDepth": max_depth,
-                        "note": "No P-code operations mapped directly to the requested address",
+                        "nearestMappedAddresses": nearest,
+                        "note": note,
                     },
                 )
                 return payload
@@ -318,6 +412,7 @@ def collect_function_data_flow(
                 "pcode": sliced_ops,
                 "count": len(sliced_ops),
                 "seedCount": len(seed_indices),
+                "seedMode": seed_mode,
                 "totalPcodeOps": len(ops),
                 "analysisDepth": max_depth,
                 "hasMore": len(ordered_indices) > max_ops,
@@ -327,12 +422,12 @@ def collect_function_data_flow(
     except ImportError:
         payload.update({"pcode": [], "note": "DecompInterface not available in this environment"})
         return payload
+    except DataFlowVariableNotFoundError:
+        raise
     except Exception as exc:
         logger.error("collect_function_data_flow failed: %s", exc)
         payload.update({"pcode": [], "error": str(exc)})
         return payload
-    finally:
-        pass
 
 
 def collect_vtable_candidates(program: GhidraProgram, *, limit: int | None = None) -> list[dict[str, Any]]:

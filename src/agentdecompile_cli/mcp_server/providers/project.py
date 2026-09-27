@@ -7017,6 +7017,16 @@ class ProjectToolProvider(ToolProvider):
             function_count = fm.getFunctionCount()
         except Exception:
             pass
+        image_base: str = ""
+        try:
+            image_base = str(program.getImageBase())
+        except Exception:
+            pass
+        symbol_count: int = 0
+        try:
+            symbol_count = int(program.getSymbolTable().getNumSymbols())
+        except Exception:
+            pass
 
         return create_success_response(
             {
@@ -7025,7 +7035,9 @@ class ProjectToolProvider(ToolProvider):
                 "programPath": path or name,
                 "language": language,
                 "compiler": compiler,
+                "imageBase": image_base,
                 "functionCount": function_count,
+                "symbolCount": symbol_count,
             },
             program_info=program_info,
         )

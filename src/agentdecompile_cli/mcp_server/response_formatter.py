@@ -2565,7 +2565,7 @@ def _render_project(data: dict[str, Any]) -> str:
         lines.append(_md_heading(2, "Current Program"))
         lines.append("")
         lines.append(_md_bold_kv("Name", _md_code_inline(data.get("name", ""))))
-        lines.append(_md_bold_kv("Path", _md_code_inline(data.get("path", ""))))
+        lines.append(_md_bold_kv("Path", _md_code_inline(data.get("programPath") or data.get("path", ""))))
         lines.append(_md_bold_kv("Language", data.get("language", "")))
         lines.append(_md_bold_kv("Compiler", data.get("compiler", "")))
         lines.append(_md_bold_kv("Image Base", _md_code_inline(str(data.get("imageBase", "")))))

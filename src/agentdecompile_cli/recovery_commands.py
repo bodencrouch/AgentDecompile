@@ -182,7 +182,7 @@ def _flat_leaf(name: str, help_text: str, callback: Callable[[tuple[str, ...]], 
 def _reconstruct(args: tuple[str, ...]) -> None:
     from agentdecompile_recovery.frontdoor import main as reconstruct_main
 
-    _run_embedded_cli(reconstruct_main, args)
+    _run_embedded_cli(reconstruct_main, args, prog="agentdecompile-cli reconstruct")
 
 
 def _grid(args: tuple[str, ...]) -> None:
@@ -191,7 +191,7 @@ def _grid(args: tuple[str, ...]) -> None:
     except ImportError:
         click.echo("agentdecompile-cli grid: the agentdecompile_grid package is not installed", err=True)
         raise SystemExit(2) from None
-    _run_embedded_cli(grid_cli.main, args)
+    _run_embedded_cli(grid_cli.main, args, prog="agentdecompile-cli grid")
 
 
 def build_commands() -> list[click.Command]:

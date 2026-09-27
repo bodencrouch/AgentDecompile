@@ -20,6 +20,7 @@ Environment (1:1 with Python AgentDecompileLauncher / ConfigManager) for agentde
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import logging
@@ -33,7 +34,7 @@ from typing import TYPE_CHECKING, Any
 
 from agentdecompile_cli.executor import normalize_backend_url
 from agentdecompile_cli.launcher import AgentDecompileLauncher
-from agentdecompile_cli.mcp_server.auth import AuthConfig
+from agentdecompile_cli.mcp_server.auth import AuthConfig, resolve_auth_config
 from agentdecompile_cli.project_manager import ProjectManager
 from agentdecompile_cli.registry import Tool
 from agentdecompile_cli.utils import get_client, run_async
@@ -652,11 +653,8 @@ def _cleanup_resources(
             pass
 
 
-def main() -> None:
-    """Parse server options and run init + transport."""
-    logger.debug("diag.enter %s", "server.py:main")
-    import argparse
-
+def build_server_parser() -> argparse.ArgumentParser:
+    """Build the ``agentdecompile-server`` argument parser (no side effects)."""
     try:
         from agentdecompile_cli import __version__
     except ImportError:
@@ -803,6 +801,13 @@ def main() -> None:
         help="Binary paths to import before serving",
     )
     parser.add_argument("--config", type=Path, default=None, help="AgentDecompile config file")
+    return parser
+
+
+def main() -> None:
+    """Parse server options and run init + transport."""
+    logger.debug("diag.enter %s", "server.py:main")
+    parser = build_server_parser()
     args = parser.parse_args()
 
     # ---------------------------------------------------------------
@@ -837,24 +842,16 @@ def main() -> None:
     # NOTE: Auth is ONLY applied for HTTP transports.  In stdio mode the internal
     # HTTP server is used exclusively by the in-process bridge — no external
     # clients ever reach it, so requiring auth would block the bridge itself.
-    _require_auth_flag = getattr(args, "require_auth", None)
-    _auth_env_enabled = os.environ.get(
-        "AGENT_DECOMPILE_AUTH_ENABLED",
-        "",
-    ).lower() in ("true", "1", "yes", "on")
-    _is_http_transport = args.transport in _HTTP_TRANSPORTS
-    auth_config: AuthConfig | None = None
-    if _is_http_transport and (_require_auth_flag or _auth_env_enabled):
-        auth_config = AuthConfig(
-            require_auth=bool(_require_auth_flag),
-            default_server_host=(os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_HOST") or os.environ.get("AGENT_DECOMPILE_SERVER_HOST") or getattr(args, "ghidra_server_host", None)),
-            default_server_port=int(
-                os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_PORT") or os.environ.get("AGENT_DECOMPILE_SERVER_PORT") or getattr(args, "ghidra_server_port", None) or 13100,
-            ),
-            default_username=(os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME") or os.environ.get("AGENT_DECOMPILE_SERVER_USERNAME") or getattr(args, "ghidra_server_username", None)),
-            default_password=(os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD") or os.environ.get("AGENT_DECOMPILE_SERVER_PASSWORD") or getattr(args, "ghidra_server_password", None)),
-            default_repository=(os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY") or os.environ.get("AGENTDECOMPILE_GHIDRA_SERVER_REPOSITORY") or os.environ.get("AGENT_DECOMPILE_REPOSITORY") or getattr(args, "ghidra_server_repository", None)),
-        )
+    auth_config: AuthConfig | None = resolve_auth_config(
+        is_http=args.transport in _HTTP_TRANSPORTS,
+        require_auth_flag=getattr(args, "require_auth", None),
+        environ=os.environ,
+        cli_host=getattr(args, "ghidra_server_host", None),
+        cli_port=getattr(args, "ghidra_server_port", None),
+        cli_username=getattr(args, "ghidra_server_username", None),
+        cli_password=getattr(args, "ghidra_server_password", None),
+        cli_repository=getattr(args, "ghidra_server_repository", None),
+    )
 
     # Resolve transport configuration
     port = args.port if args.port is not None else _env_port()
@@ -928,16 +925,8 @@ def main() -> None:
         _cleanup_resources(launcher, project_manager)
 
 
-def proxy_main() -> None:
-    """Entry point for agentdecompile-proxy: forward MCP to a remote backend (no local PyGhidra).
-
-    Use this command when you want to expose a remote AgentDecompile MCP server over stdio
-    or HTTP without running a local Ghidra instance. Backend URL is required via
-    --backend-url, --mcp-server-url, or env AGENT_DECOMPILE_MCP_SERVER_URL / AGENTDECOMPILE_MCP_SERVER_URL.
-    """
-    logger.debug("diag.enter %s", "server.py:proxy_main")
-    import argparse
-
+def build_proxy_parser() -> argparse.ArgumentParser:
+    """Build the ``agentdecompile-proxy`` argument parser (no side effects)."""
     parser = argparse.ArgumentParser(
         description="AgentDecompile MCP proxy: forward MCP requests to a remote backend (no local PyGhidra/JVM)",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
@@ -990,6 +979,18 @@ def proxy_main() -> None:
         action="store_false",
         help="Disable the experimental work exchange even when AGENT_DECOMPILE_EXCHANGE_ENABLED is set",
     )
+    return parser
+
+
+def proxy_main() -> None:
+    """Entry point for agentdecompile-proxy: forward MCP to a remote backend (no local PyGhidra).
+
+    Use this command when you want to expose a remote AgentDecompile MCP server over stdio
+    or HTTP without running a local Ghidra instance. Backend URL is required via
+    --backend-url, --mcp-server-url, or env AGENT_DECOMPILE_MCP_SERVER_URL / AGENTDECOMPILE_MCP_SERVER_URL.
+    """
+    logger.debug("diag.enter %s", "server.py:proxy_main")
+    parser = build_proxy_parser()
     args = parser.parse_args()
 
     backend_url = _resolve_proxy_backend_url(
@@ -1006,21 +1007,16 @@ def proxy_main() -> None:
     tls_keyfile = args.tls_keyfile or os.environ.get("AGENT_DECOMPILE_TLS_KEY") or None
     if bool(tls_certfile) != bool(tls_keyfile):
         parser.error("--tls-cert and --tls-key must be provided together")
-    _require_auth_flag = getattr(args, "require_auth", None)
-    _auth_env = os.environ.get("AGENT_DECOMPILE_AUTH_ENABLED", "").lower() in ("true", "1", "yes", "on")
-    _is_http = args.transport in _HTTP_TRANSPORTS
-    auth_config = None
-    if _is_http and (_require_auth_flag or _auth_env):
-        auth_config = AuthConfig(
-            require_auth=bool(_require_auth_flag),
-            default_server_host=(os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_HOST") or os.environ.get("AGENT_DECOMPILE_SERVER_HOST") or getattr(args, "ghidra_server_host", None)),
-            default_server_port=int(
-                os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_PORT") or os.environ.get("AGENT_DECOMPILE_SERVER_PORT") or getattr(args, "ghidra_server_port", None) or 13100,
-            ),
-            default_username=(os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME") or os.environ.get("AGENT_DECOMPILE_SERVER_USERNAME") or getattr(args, "ghidra_server_username", None)),
-            default_password=(os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD") or os.environ.get("AGENT_DECOMPILE_SERVER_PASSWORD") or getattr(args, "ghidra_server_password", None)),
-            default_repository=(os.environ.get("AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY") or os.environ.get("AGENTDECOMPILE_GHIDRA_SERVER_REPOSITORY") or os.environ.get("AGENT_DECOMPILE_REPOSITORY") or getattr(args, "ghidra_server_repository", None)),
-        )
+    auth_config = resolve_auth_config(
+        is_http=args.transport in _HTTP_TRANSPORTS,
+        require_auth_flag=getattr(args, "require_auth", None),
+        environ=os.environ,
+        cli_host=getattr(args, "ghidra_server_host", None),
+        cli_port=getattr(args, "ghidra_server_port", None),
+        cli_username=getattr(args, "ghidra_server_username", None),
+        cli_password=getattr(args, "ghidra_server_password", None),
+        cli_repository=getattr(args, "ghidra_server_repository", None),
+    )
     port = args.port if args.port is not None else _env_port()
     host = args.host if args.host is not None else _env_host()
 

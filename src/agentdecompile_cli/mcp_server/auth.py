@@ -34,6 +34,7 @@ import base64
 import hmac
 import logging
 
+from collections.abc import Mapping
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any
@@ -335,3 +336,61 @@ class AuthMiddleware:
             await self._inner_app(scope, receive, send)
         finally:
             CURRENT_AUTH_CONTEXT.reset(token)
+
+
+# ---------------------------------------------------------------------------
+# Startup resolution (shared by agentdecompile-server and agentdecompile-proxy)
+# ---------------------------------------------------------------------------
+
+AUTH_ENABLED_ENV = "AGENT_DECOMPILE_AUTH_ENABLED"
+_TRUTHY = frozenset({"true", "1", "yes", "on"})
+
+
+def auth_env_enabled(environ: Mapping[str, str]) -> bool:
+    """Return True when ``AGENT_DECOMPILE_AUTH_ENABLED`` is set to a truthy value."""
+    return (environ.get(AUTH_ENABLED_ENV) or "").strip().lower() in _TRUTHY
+
+
+def _first_env(environ: Mapping[str, str], *keys: str) -> str | None:
+    for key in keys:
+        value = environ.get(key)
+        if value:
+            return value
+    return None
+
+
+def resolve_auth_config(
+    *,
+    is_http: bool,
+    require_auth_flag: bool | None,
+    environ: Mapping[str, str],
+    cli_host: str | None = None,
+    cli_port: int | None = None,
+    cli_username: str | None = None,
+    cli_password: str | None = None,
+    cli_repository: str | None = None,
+) -> AuthConfig | None:
+    """Build the MCP HTTP auth config for a server/proxy start, or None when auth is off.
+
+    Auth is on when the transport is HTTP and either ``--require-auth`` was
+    passed or ``AGENT_DECOMPILE_AUTH_ENABLED`` is truthy. ``--no-require-auth``
+    cannot switch off the env var: it resolves the same as omitting the flag.
+    stdio never gets auth (the internal HTTP server only serves the in-process
+    bridge). Environment credentials win over the ``cli_*`` values.
+    """
+    if not is_http or not (require_auth_flag or auth_env_enabled(environ)):
+        return None
+    return AuthConfig(
+        require_auth=bool(require_auth_flag),
+        default_server_host=_first_env(environ, "AGENT_DECOMPILE_GHIDRA_SERVER_HOST", "AGENT_DECOMPILE_SERVER_HOST") or cli_host,
+        default_server_port=int(_first_env(environ, "AGENT_DECOMPILE_GHIDRA_SERVER_PORT", "AGENT_DECOMPILE_SERVER_PORT") or cli_port or 13100),
+        default_username=_first_env(environ, "AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME", "AGENT_DECOMPILE_SERVER_USERNAME") or cli_username,
+        default_password=_first_env(environ, "AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD", "AGENT_DECOMPILE_SERVER_PASSWORD") or cli_password,
+        default_repository=_first_env(
+            environ,
+            "AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY",
+            "AGENTDECOMPILE_GHIDRA_SERVER_REPOSITORY",
+            "AGENT_DECOMPILE_REPOSITORY",
+        )
+        or cli_repository,
+    )

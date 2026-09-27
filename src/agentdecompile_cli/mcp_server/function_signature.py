@@ -38,6 +38,24 @@ def _calling_convention_names(program: Any) -> set[str]:
     return names
 
 
+def split_noreturn(signature_text: str) -> tuple[str, bool]:
+    """Remove a leading ``noreturn`` token (FunctionSignature.NORETURN_DISPLAY_STRING).
+
+    ``str(func.getSignature())`` on a non-returning function renders e.g.
+    ``noreturn void __cdecl exit(int code)`` (FunctionSignature.getPrototypeString,
+    FunctionDefinitionDataType.getPrototypeString): the noreturn marker comes first,
+    ahead of the return type and calling convention. FunctionSignatureParser has no
+    concept of it, so it must be stripped before parsing and reapplied afterwards via
+    FunctionDefinitionDataType.setNoReturn(true).
+
+    Returns (text without the token, True if the token was present).
+    """
+    tokens = signature_text.split(None, 1)
+    if tokens and tokens[0] == "noreturn" and len(tokens) > 1:
+        return tokens[1], True
+    return signature_text, False
+
+
 def split_calling_convention(signature_text: str, convention_names: set[str]) -> tuple[str, str | None]:
     """Remove a calling-convention token between the return type and the name.
 
@@ -78,7 +96,8 @@ def apply_function_signature(program: Any, func: Any, signature: Any, *, rename:
     if isinstance(signature, str):
         from ghidra.app.util.parser import FunctionSignatureParser  # pyright: ignore[reportMissingImports, reportMissingModuleSource]
 
-        text, convention = split_calling_convention(signature.strip().rstrip(";").strip(), _calling_convention_names(program))
+        text, no_return = split_noreturn(signature.strip().rstrip(";").strip())
+        text, convention = split_calling_convention(text, _calling_convention_names(program))
         parser = FunctionSignatureParser(program.getDataTypeManager(), None)
         definition = parser.parse(func.getSignature(), text)
         if convention is not None and convention != _UNKNOWN_CONVENTION:
@@ -86,6 +105,8 @@ def apply_function_signature(program: Any, func: Any, signature: Any, *, rename:
         else:
             # No convention in the text: keep the function's current one.
             preserve_convention = True
+        if no_return:
+            definition.setNoReturn(True)
         signature = definition
 
     rename_option = FunctionRenameOption.RENAME if rename else FunctionRenameOption.NO_CHANGE

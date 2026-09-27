@@ -591,7 +591,19 @@ def run_name_census(args: argparse.Namespace) -> int:
     from .ghidra_db.project import list_programs, open_project_program
 
     if args.db is not None:
-        program = open_program(args.db)
+        try:
+            program = open_program(args.db)
+        except FileNotFoundError as exc:
+            if exc.filename is not None and Path(exc.filename) != Path(args.db):
+                raise
+            print(
+                json.dumps(
+                    {"error": f"no such file: {args.db}", "hint": "pass an existing db.N.gbf, or use --project instead"},
+                    indent=2,
+                ),
+                file=sys.stderr,
+            )
+            return 1
     else:
         if args.project_program:
             program = open_project_program(args.project, args.project_program)

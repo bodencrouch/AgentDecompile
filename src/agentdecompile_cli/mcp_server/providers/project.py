@@ -4081,12 +4081,31 @@ class ProjectToolProvider(ToolProvider):
         if ghidra_project is not None and hasattr(ghidra_project, "saveAs"):
             # saveAs ends and restarts GhidraProject's batch transaction around
             # DomainFolder.createFile (GhidraProject.java saveAs).
-            ghidra_project.saveAs(program, "/", name, False)
+            try:
+                ghidra_project.saveAs(program, "/", name, False)
+            except Exception:
+                # The import is abandoned (InvalidNameException, DuplicateFileException,
+                # IOException...).  saveAs's finally re-registered a batch transaction;
+                # GhidraProject.close(program) ends it and releases the program, so the
+                # unsaved import does not stay open for the life of the process.
+                ProjectToolProvider._close_abandoned_import(ghidra_project, program)
+                raise
         else:
             from ghidra.util.task import TaskMonitor as GhidraTaskMonitor  # pyright: ignore[reportMissingModuleSource]
 
             root_folder.createFile(name, program, GhidraTaskMonitor.DUMMY)
         logger.info("import_persist saved_as=/%s", name)
+
+    @staticmethod
+    def _close_abandoned_import(ghidra_project: GhidraProject, program: GhidraProgram) -> None:
+        try:
+            ghidra_project.close(program)
+        except Exception as close_exc:
+            logger.warning(
+                "import_persist close_after_failed_save_failed exc_type=%s exc=%s",
+                type(close_exc).__name__,
+                close_exc,
+            )
 
     @staticmethod
     def _save_imported_program(ghidra_project: GhidraProject | None, program: GhidraProgram) -> None:

@@ -5680,19 +5680,16 @@ def _run_embedded_cli(
         raise SystemExit(int(entrypoint(forwarded, **kwargs) or 0))
 
 
-# ---------------------------------------------------------------------------
-# Entry (click group is invoked directly)
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    _ensure_dynamic_commands_registered()
-    main()
-
-
 # Register dynamic commands for normal CLI invocation paths as well
 # (important for subcommand resolution before main() callback runs).
 _ensure_dynamic_commands_registered()
 _register_output_format_option_on_all_commands(main)
+
+# Under `python -m agentdecompile_cli.cli` this module is __main__. Alias it so
+# recovery_commands' lazy import of agentdecompile_cli.cli reuses it instead of
+# executing this file a second time.
+if __name__ == "__main__":
+    sys.modules.setdefault("agentdecompile_cli.cli", sys.modules[__name__])
 
 # After the -f/--format walk: bridge leaves forward every token to argparse.
 from agentdecompile_cli.recovery_commands import register as _register_recovery_commands  # noqa: E402
@@ -5730,3 +5727,12 @@ def cli_entry_point() -> None:
             except Exception:  # noqa: BLE001
                 pass
             os._exit(exit_code)
+
+
+# ---------------------------------------------------------------------------
+# Entry for `python -m agentdecompile_cli.cli`. Kept last so every module-level
+# registration above (dynamic commands, -f/--format, recovery bridge) has run.
+# ---------------------------------------------------------------------------
+
+if __name__ == "__main__":
+    cli_entry_point()

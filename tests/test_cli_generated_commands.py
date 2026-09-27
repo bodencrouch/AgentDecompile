@@ -236,3 +236,164 @@ def test_max_files_is_int_not_path(monkeypatch: pytest.MonkeyPatch) -> None:
     param = next(p for p in cmd.params if p.name == "max_files")
     assert not isinstance(param.type, click.Path)
     assert isinstance(param.type, cli_module._HexAwareIntParamType)
+
+
+def test_propagate_named_int_params_are_not_bool(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Regression: `propagateMaxInstructions`/`propagateMaxCandidates` are
+    genuine integers (mcp_server/tool_providers.py `_INT_FRAGMENTS`) but also
+    start with the `propagate` boolean-prefix pattern. Checking the bool
+    fragments/prefixes before the int fragments (as a first version of this
+    fix did) misclassifies them as bool; the array param
+    `propagateProgramPaths` also starts with `propagate` and additionally
+    contains "path", so it must land on `str`, not click.Path or bool."""
+    cmd = cli_module.main.commands["manage-function"]
+    by_name = {p.name: p for p in cmd.params}
+    assert isinstance(by_name["propagate_max_instructions"].type, cli_module._HexAwareIntParamType)
+    assert isinstance(by_name["propagate_max_candidates"].type, cli_module._HexAwareIntParamType)
+    assert isinstance(by_name["propagate_program_paths"].type, click.types.StringParamType)
+    assert not isinstance(by_name["propagate_program_paths"].type, click.Path)
+    # `propagate` itself (no suffix) is the genuine boolean flag.
+    assert isinstance(by_name["propagate"].type, click.types.BoolParamType)
+
+
+def test_manage_strings_value_is_string_not_int(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`value` is ambiguous by name alone: search-constants/manage-enums use
+    it as a number, but manage-strings uses it as the literal text being
+    written (strings.py:89 declares it a string explicitly; strings.py:558
+    `_require_str`). The generic "value" fragment (used for the numeric
+    tools) must not win here -- covered by `_CLI_OPTION_TYPE_OVERRIDES`."""
+    cmd = cli_module.main.commands["manage-strings"]
+    param = next(p for p in cmd.params if p.name == "value")
+    assert isinstance(param.type, click.types.StringParamType)
+
+    result, seen = _invoke(monkeypatch, ["manage-strings", "--mode", "create", "--value", "hello world"])
+    assert result.exit_code == 0, f"{result.exception!r} {result.output}"
+    assert seen["payload"].get("value") == "hello world"
+
+
+def test_search_constants_value_stays_int(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Sanity check for the other side of the same ambiguous name: search-constants'
+    `value` genuinely is numeric (constants.py:118 `_get_int`) and must be
+    unaffected by the manage-strings override."""
+    cmd = cli_module.main.commands["search-constants"]
+    param = next(p for p in cmd.params if p.name == "value")
+    assert isinstance(param.type, cli_module._HexAwareIntParamType)
+
+
+# _CLI_OPTION_TYPE_OVERRIDES entries are per-(tool, param) evidence-backed
+# exceptions. "maxFiles" is a second, narrower kind of exception: it isn't
+# overridden per-tool, it's added directly to `_CLI_INT_FRAGMENTS` (see that
+# table's docstring) because export-context's own inputSchema declares it an
+# integer (context_substrate.py:85), stronger evidence than the server's
+# generic name-based fallback ("string", since "maxfiles" isn't literally in
+# the server's own _INT_FRAGMENTS list).
+_SCHEMA_FALLBACK_EXCEPTIONS: frozenset[tuple[str, str]] = frozenset(cli_module._CLI_OPTION_TYPE_OVERRIDES) | frozenset(
+    {(cli_module.Tool.EXPORT_CONTEXT.value, "maxFiles")},
+)
+
+
+def test_generated_option_types_match_server_schema_fallback() -> None:
+    """Parity check (R3): for every generated command's param, the CLI's
+    inferred type must agree with the type the MCP server itself would fall
+    back to for the same param name (mcp_server/tool_providers.py
+    `_infer_param_schema`, the function `_generated_option_type` was built
+    to mirror). This is the "evidence" R3 asked for, and it is meant to
+    catch future drift if either copy of the fragment tables changes without
+    the other.
+
+    Two documented exceptions:
+      - array params: the server calls these "array", the CLI has no bare
+        multi-value option syntax for a generated flat command, so they stay
+        `str` (comma-separated) -- see `_CLI_ARRAY_PARAMS`.
+      - integer params: the CLI additionally accepts 0x/0o/0b-prefixed
+        literals via `_HexAwareIntParamType`, still fundamentally "integer".
+      - anything listed in `_CLI_OPTION_TYPE_OVERRIDES` (tool, param) pairs,
+        where a provider's own declared inputSchema is stronger evidence
+        than the server's generic name-based fallback (see that table's
+        docstring for the citations).
+    """
+    from agentdecompile_cli.mcp_server import tool_providers as tp
+
+    mismatches: list[str] = []
+    for tool_name in cli_module.TOOLS:
+        for param in cli_module._supported_cli_tool_params(tool_name):
+            if (tool_name, param) in _SCHEMA_FALLBACK_EXCEPTIONS:
+                continue
+            ours = cli_module._generated_option_type(tool_name, param)
+            server_type = tp._infer_param_schema(param)["type"]
+            if server_type == "array":
+                server_type = "string"  # our documented array->str exception
+            if isinstance(ours, click.Path):
+                continue  # path substring guess isn't part of the server's fallback vocabulary
+            if ours is bool:
+                ours_label = "boolean"
+            elif ours is cli_module._CLI_HEX_INT:
+                ours_label = "integer"
+            elif ours is str:
+                ours_label = "string"
+            else:
+                ours_label = repr(ours)
+            if ours_label != server_type:
+                mismatches.append(f"{tool_name}.{param}: cli={ours_label} server_fallback={server_type}")
+
+    assert not mismatches, "CLI/server type-inference drift:\n" + "\n".join(mismatches)
+
+
+# --------------------------------------------------------------------------- #
+# _call_raw's inspect-memory format/mode alias guard
+# --------------------------------------------------------------------------- #
+
+
+def test_memory_run_explicit_mode_still_gets_format_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The format-injection guard must only skip the default when the alias
+    target (`mode`) is actually absent -- an explicit `--mode read` must
+    still get the usual `format=markdown` rendering default, unaffected by
+    the inspect-memory alias quirk."""
+    result, seen = _invoke(monkeypatch, ["memory", "run", "--mode", "read", "--address", "0x100"])
+    assert result.exit_code == 0, f"{result.exception!r} {result.output}"
+    assert seen["payload"].get("mode") == "read"
+    assert seen["payload"].get("format") == "markdown"
+
+
+def test_memory_run_omitted_mode_sends_no_format_either(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Omitting --mode must not leak the CLI's own format=markdown rendering
+    default into the backend's `mode` slot via the format->mode alias
+    (TOOLS_LIST.md documents `read-memory(..., format)` as a mode synonym)."""
+    result, seen = _invoke(monkeypatch, ["memory", "run"])
+    assert result.exit_code == 0, f"{result.exception!r} {result.output}"
+    assert "mode" not in seen["payload"]
+
+
+def test_generated_inspect_memory_command_gets_the_same_guard(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The guard is keyed on the *resolved* canonical tool name, so the
+    generated flat `inspect-memory` command (a separate click.Command from
+    `memory run`, registered because Tool.INSPECT_MEMORY isn't in
+    `_TOOLS_WITH_CURATED_COMMANDS`'s naming) is covered too, not just the
+    hand-written `memory run` spelling. `read-memory` is a server-side-only
+    alias (NON_ADVERTISED_TOOL_ALIASES) with no corresponding CLI command in
+    this build, so it isn't exercised here directly."""
+    result, seen = _invoke(monkeypatch, ["inspect-memory"])
+    assert result.exit_code == 0, f"{result.exception!r} {result.output}"
+    assert "mode" not in seen["payload"]
+    assert "format" not in seen["payload"]
+
+
+# --------------------------------------------------------------------------- #
+# Additional F10 fixes found during review: function-tags, get-references
+# --------------------------------------------------------------------------- #
+
+
+def test_function_tags_run_no_longer_requires_mode(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Backend default: mode="list" (getfunction.py `_handle_tags`)."""
+    result, seen = _invoke(monkeypatch, ["function-tags", "run"])
+    assert result.exit_code == 0, f"{result.exception!r} {result.output}"
+    assert "mode" not in seen["payload"]
+
+
+def test_references_run_no_longer_requires_target(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Omitting --target routes to a whole-program index
+    (mcp_server/providers/xrefs.py `_handle_index`), so it must not be
+    force-required."""
+    result, seen = _invoke(monkeypatch, ["references", "run"])
+    assert result.exit_code == 0, f"{result.exception!r} {result.output}"
+    assert "target" not in seen["payload"]

@@ -1200,22 +1200,32 @@ async def _call_raw(
     Returns:
         Raw tool result dictionary from MCP server
     """
+    logger.debug("diag.enter %s", "cli.py:_call_raw")
+    call_tool_name, safe_payload = _resolve_tool_call_target(tool, payload)
+
     # Default to markdown for human-readable output. Use -f json when you need
     # machine-readable output (shell/json/xml/table modes parse structured data).
     #
-    # Guard: skip this for tools where TOOL_PARAM_ALIASES maps "format" onto a
-    # *different* canonical param (currently only inspect-memory: TOOLS_LIST.md
-    # documents `read-memory(..., format)` as a synonym for its `mode` param).
+    # Guard, keyed on the *resolved* canonical tool name (so `read-memory` /
+    # `get-memory-blocks` aliases hit the same check as `inspect-memory`):
+    # skip the injection only when TOOL_PARAM_ALIASES maps "format" onto a
+    # *different*, still-absent canonical param (currently only
+    # inspect-memory: TOOLS_LIST.md documents `read-memory(..., format)` as a
+    # synonym for its `mode` param). If that canonical param is already in
+    # the payload (e.g. `memory run --mode read`), aliasing can't touch it --
+    # alias resolution only fills an empty canonical slot -- so injecting
+    # format=markdown there is unaffected and still applies normally.
     # Without this guard, omitting --mode on `memory run` (F10 fix) let this
     # injected rendering default get aliased into `mode="markdown"` by
     # _prepare_tool_payload_with_program_fallback below -- silently sending a
     # bogus mode instead of no key, defeating the backend-default fallback.
-    logger.debug("diag.enter %s", "cli.py:_call_raw")
-    _format_alias_target = TOOL_PARAM_ALIASES.get(normalize_identifier(str(tool)), {}).get("format")
-    if not _format_alias_target or _format_alias_target == {"format"}:
-        payload.setdefault("format", "markdown")
+    _format_alias_targets = TOOL_PARAM_ALIASES.get(normalize_identifier(call_tool_name), {}).get("format", {"format"})
+    _alias_would_hijack_empty_slot = _format_alias_targets != {"format"} and not any(
+        target in safe_payload for target in _format_alias_targets
+    )
+    if not _alias_would_hijack_empty_slot:
+        safe_payload.setdefault("format", "markdown")
 
-    call_tool_name, safe_payload = _resolve_tool_call_target(tool, payload)
     prepared_payload, _ = _prepare_tool_payload_with_program_fallback(ctx, call_tool_name, dict(safe_payload))
 
     if tool_registry.is_valid_tool(call_tool_name):
@@ -2017,6 +2027,13 @@ _CLI_BOOL_PREFIXES: tuple[str, ...] = (
     "enable", "filter", "include", "mirror", "override", "propagate", "strip",
 )
 _CLI_BOOL_PREFIX_EXCEPTIONS: frozenset[str] = frozenset({"filterbytag"})
+# Evidence: mcp_server/tool_providers.py _ARRAY_PARAMS. These are advertised
+# as JSON arrays server-side; the CLI has no multi-value syntax for a bare
+# flat option, so they stay `str` (comma-separated, same as before this
+# change) rather than being misrouted into int/bool/Path by a later check.
+_CLI_ARRAY_PARAMS: frozenset[str] = frozenset(
+    {"functionaddresses", "identifiers", "propagateprogrampaths", "tags"},
+)
 
 
 class _HexAwareIntParamType(click.ParamType):
@@ -2044,26 +2061,61 @@ class _HexAwareIntParamType(click.ParamType):
 
 _CLI_HEX_INT = _HexAwareIntParamType()
 
+# Per-(tool, param) overrides for names that are genuinely different types on
+# different tools, where a provider's own declared inputSchema wins over the
+# generic fragment-name fallback (tool_providers.py:2554). "value" is
+# ambiguous by name alone: search-constants/manage-enums use it as a number
+# (constants.py:118 `_get_int`; enums.py:349 `_get_int`), but manage-strings
+# uses it as the literal string being written (strings.py:89 declares
+# `"value": {"type": "string", ...}` explicitly; strings.py:558
+# `_require_str(args, "value", ...)`). Checked before the generic fragment
+# tables so the ambiguous name resolves per-tool instead of picking one
+# meaning for every tool that happens to expose a "value" param.
+_CLI_OPTION_TYPE_OVERRIDES: dict[tuple[str, str], Any] = {
+    (Tool.MANAGE_STRINGS.value, "value"): str,
+}
 
-def _generated_option_type(param: str) -> Any:
+
+def _generated_option_type(tool_name: str, param: str) -> Any:
     """Derive a generated command's click option type from evidenced fragments (P3).
 
-    Order matters: a param must be checked against the bool/int fragment
-    tables *before* falling back to the path/file substring guess, otherwise
-    real booleans and integers whose names happen to contain "path" or
-    "file" (stripLeadingPath, stripAllContainerPath, maxFiles) get
-    misclassified as click.Path. Anything not covered by evidence stays
-    `str` (conservative fallback per R3), which the provider parses itself.
+    Precedence mirrors `_infer_param_schema()` in mcp_server/tool_providers.py
+    exactly (array, then int, then bool, then bool-prefix) so the CLI agrees
+    with the type the MCP server itself advertises for the same fallback
+    case. Getting this order wrong is not cosmetic: params like
+    `propagateMaxInstructions`/`propagateMaxCandidates` are in the server's
+    own int-fragment table but also start with the `propagate` bool prefix,
+    so checking bool first would misclassify a real int as a bool.
+    `propagateProgramPaths` is an array param that also contains "path";
+    checking array first keeps it out of both the bool-prefix and
+    path-substring branches.
+
+    Params not covered by evidence stay `str` (conservative fallback per
+    R3), which the provider parses itself. Note: this is only the
+    *fallback* the server uses when a provider's own inputSchema doesn't
+    already declare the property (tool_providers.py:2554,
+    `provider_param_schema or _infer_param_schema(param)`); the CLI does
+    not have access to those per-provider schemas without importing the
+    heavier mcp_server module tree (see module comment above), so a handful
+    of params a provider types explicitly and differently from this
+    fallback may still be conservatively `str` here -- correctness-safe
+    (the provider parses strings itself) even where it is not the tightest
+    possible type.
     """
+    override = _CLI_OPTION_TYPE_OVERRIDES.get((tool_name, param))
+    if override is not None:
+        return override
     norm = normalize_identifier(param)
+    if norm in _CLI_ARRAY_PARAMS:
+        return str
+    if norm in _CLI_INT_FRAGMENTS:
+        return _CLI_HEX_INT
     if norm in _CLI_BOOL_FRAGMENTS:
         return bool
     if norm not in _CLI_BOOL_PREFIX_EXCEPTIONS:
         for prefix in _CLI_BOOL_PREFIXES:
             if norm.startswith(prefix) and len(norm) > len(prefix):
                 return bool
-    if norm in _CLI_INT_FRAGMENTS:
-        return _CLI_HEX_INT
     if "path" in param.lower() or "file" in param.lower():
         return click.Path(exists=False)
     return str
@@ -2160,7 +2212,7 @@ def _create_dynamic_commands(cli_group: click.Group) -> None:
 
             # Determine option type from evidenced fragment tables (P3), not
             # raw name-substring guessing. See _generated_option_type().
-            option_type = _generated_option_type(param)
+            option_type = _generated_option_type(tool_name, param)
 
             # Genuinely-required per-tool params only (F10); see
             # _CLI_GENERATED_REQUIRED_PARAMS for the evidence table. Omitting
@@ -3112,9 +3164,9 @@ def symbols_grp() -> None:
             "demangle",
         ],
     ),
+    # Backend default: mode="symbols" (mcp_server/providers/symbols.py:334).
     default=None,
-    help="Symbol operation mode. Defaults to the backend's own default "
-    "(mode=symbols; mcp_server/providers/symbols.py:334) when omitted.",
+    help="Symbol operation mode. Omit to use the server default.",
 )
 @click.option("--address", multiple=True)
 @click.option("--label-name", "label_name", multiple=True)
@@ -3446,19 +3498,27 @@ def function_tags_grp() -> None:
 
 @function_tags_grp.command("run", help="Run manage-function-tags with --mode")
 @click.option("-b", "--binary", "program_path")
-@click.option("--mode", type=click.Choice(["get", "set", "add", "remove", "list"]), required=True)
+@click.option(
+    "--mode",
+    type=click.Choice(["get", "set", "add", "remove", "list"]),
+    default=None,
+    help="Omit to use the server default.",
+)
 @click.option("--function", "function", multiple=True)
 @click.option("--tags", multiple=True)
 @click.pass_context
 def function_tags_run(
     ctx: click.Context,
     program_path: str | None,
-    mode: str,
+    mode: str | None,
     function: tuple[str, ...],
     tags: tuple[str, ...],
 ) -> None:
+    """Backend default: mode="list" (getfunction.py `_handle_tags`)."""
     logger.debug("diag.enter %s", "cli.py:function_tags_run")
-    payload: dict[str, Any] = {"mode": mode}
+    payload: dict[str, Any] = {}
+    if mode is not None:
+        payload["mode"] = mode
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path
     if function:
@@ -3620,9 +3680,9 @@ def memory_grp() -> None:
 @click.option(
     "--mode",
     type=click.Choice(["blocks", "read", "data_at", "data_items", "segments"]),
+    # Backend default: mode="blocks" (mcp_server/providers/memory.py:124).
     default=None,
-    help="Defaults to the backend's own default (mode=blocks; "
-    "mcp_server/providers/memory.py:124) when omitted.",
+    help="Omit to use the server default.",
 )
 @click.option("--address")
 @click.option("--length", type=int)
@@ -3753,7 +3813,13 @@ def references_grp() -> None:
 
 @references_grp.command("run", help="Run get-references with --target and --mode")
 @click.option("-b", "--binary", "program_path")
-@click.option("--target", required=True, help="Address, symbol, function, or import name")
+@click.option(
+    "--target",
+    # Omitting target routes to a whole-program cross-reference index
+    # (mcp_server/providers/xrefs.py `_handle_index`).
+    default=None,
+    help="Address, symbol, function, or import name. Omit for a whole-program index.",
+)
 @click.option("--mode", type=click.Choice(["to", "from", "both", "function", "referencers_decomp", "import", "thunk"]), default="both")
 @click.option("--direction", type=click.Choice(["to", "from", "both"]))
 @click.option("--offset", type=int)
@@ -3766,7 +3832,7 @@ def references_grp() -> None:
 def references_run(
     ctx: click.Context,
     program_path: str | None,
-    target: str,
+    target: str | None,
     mode: str,
     direction: str | None,
     offset: int | None,
@@ -3777,7 +3843,9 @@ def references_run(
     include_data_refs: bool,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:references_run")
-    payload: dict[str, Any] = {"target": target, "mode": mode}
+    payload: dict[str, Any] = {"mode": mode}
+    if target is not None:
+        payload["target"] = target
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path
     if direction is not None:
@@ -3823,9 +3891,9 @@ def datatypes_grp() -> None:
 @click.option(
     "--action",
     type=click.Choice(["archives", "list", "by_string", "apply"]),
+    # Backend default: action="list" (mcp_server/providers/datatypes.py:103).
     default=None,
-    help="Defaults to the backend's own default (action=list; "
-    "mcp_server/providers/datatypes.py:103) when omitted.",
+    help="Omit to use the server default.",
 )
 @click.option("--archive-name")
 @click.option("--category-path", default="/")
@@ -3896,9 +3964,9 @@ def structures_grp() -> None:
             "parse_header",
         ],
     ),
+    # Backend default: action="list" (mcp_server/providers/structures.py:122).
     default=None,
-    help="Defaults to the backend's own default (action=list; "
-    "mcp_server/providers/structures.py:122) when omitted.",
+    help="Omit to use the server default.",
 )
 @click.option("--c-definition")
 @click.option("--header-content")
@@ -4002,9 +4070,9 @@ def comments_grp() -> None:
 @click.option(
     "--action",
     type=click.Choice(["set", "get", "remove", "search", "search_decomp"]),
+    # Backend default: action="get" (mcp_server/providers/comments.py:127).
     default=None,
-    help="Defaults to the backend's own default (action=get; "
-    "mcp_server/providers/comments.py:127) when omitted.",
+    help="Omit to use the server default.",
 )
 @click.option("--address-or-symbol")
 @click.option("--function")
@@ -4102,9 +4170,9 @@ def bookmarks_grp() -> None:
 @click.option(
     "--action",
     type=click.Choice(["set", "get", "search", "remove", "removeAll", "categories"]),
+    # Backend default: action="list" (mcp_server/providers/bookmarks.py:86-89).
     default=None,
-    help="Defaults to the backend's own default (action=list; "
-    "mcp_server/providers/bookmarks.py:86-89) when omitted.",
+    help="Omit to use the server default.",
 )
 @click.option("--address-or-symbol")
 @click.option("--type", "type_", type=click.Choice(["Note", "Warning", "TODO", "Bug", "Analysis"]))
@@ -4174,9 +4242,9 @@ _derive_convenience_commands(
 @click.option(
     "--direction",
     type=click.Choice(["backward", "forward", "variable_accesses"]),
+    # Backend default: direction="backward" (mcp_server/providers/dataflow.py:122).
     default=None,
-    help="Defaults to the backend's own default (direction=backward; "
-    "mcp_server/providers/dataflow.py:122) when omitted.",
+    help="Omit to use the server default.",
 )
 @click.pass_context
 def dataflow(
@@ -4218,9 +4286,9 @@ def callgraph_grp() -> None:
 @click.option(
     "--function",
     "function_identifier",
+    # No function -> _handle_overview (mcp_server/providers/callgraph.py:97-98).
     default=None,
-    help="Function identifier. Omit for a whole-program overview "
-    "(mcp_server/providers/callgraph.py:97-98: no function -> _handle_overview).",
+    help="Function identifier. Omit for a whole-program overview.",
 )
 @click.option("--mode", type=click.Choice(["graph", "tree", "callers", "callees", "callers_decomp", "common_callers"]), default="graph")
 @click.option("--depth", type=int)
@@ -4291,9 +4359,9 @@ def constants_grp() -> None:
 @click.option(
     "--mode",
     type=click.Choice(["specific", "range", "common"]),
+    # Backend default: mode="common" (mcp_server/providers/constants.py:78).
     default=None,
-    help="Defaults to the backend's own default (mode=common; "
-    "mcp_server/providers/constants.py:78) when omitted.",
+    help="Omit to use the server default.",
 )
 @click.option("--value")
 @click.option("--min-value")
@@ -4350,9 +4418,9 @@ def vtables_grp() -> None:
 @click.option(
     "--mode",
     type=click.Choice(["analyze", "callers", "containing"]),
+    # Backend default: mode="analyze" (mcp_server/providers/vtable.py:80).
     default=None,
-    help="Defaults to the backend's own default (mode=analyze; "
-    "mcp_server/providers/vtable.py:80) when omitted.",
+    help="Omit to use the server default.",
 )
 @click.option("--vtable-address")
 @click.option("--function-address")

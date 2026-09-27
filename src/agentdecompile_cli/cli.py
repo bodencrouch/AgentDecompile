@@ -81,11 +81,9 @@ from agentdecompile_cli.registry import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Coroutine
+    from collections.abc import Coroutine, Mapping
     from types import FunctionType
 
-    from mcp.client.session import ClientSession
-    from mcp.types import TextContent
 
 logger = logging.getLogger(__name__)
 
@@ -419,6 +417,7 @@ async def _wait_for_backend_health(url: str, timeout_s: float) -> bool:
 def _spawn_local_server_process(port: int, ctx: click.Context) -> subprocess.Popen[str]:
     opts = _get_opts(ctx)
     env = os.environ.copy()
+    env.update(_shared_server_env_overrides(ctx, env))
     if isinstance(opts.get("local_project_path"), str) and opts.get("local_project_path"):
         env["AGENT_DECOMPILE_PROJECT_PATH"] = str(opts["local_project_path"])
     if isinstance(opts.get("local_project_name"), str) and opts.get("local_project_name"):
@@ -543,6 +542,57 @@ def _get_local_backend(ctx: click.Context) -> Any:
     return _local_backend_instance
 
 
+_SHARED_SERVER_ENV_KEYS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("ghidra_server_host", ("AGENT_DECOMPILE_GHIDRA_SERVER_HOST", "AGENTDECOMPILE_GHIDRA_SERVER_HOST")),
+    ("ghidra_server_port", ("AGENT_DECOMPILE_GHIDRA_SERVER_PORT", "AGENTDECOMPILE_GHIDRA_SERVER_PORT")),
+    ("ghidra_server_username", ("AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME", "AGENTDECOMPILE_GHIDRA_SERVER_USERNAME")),
+    ("ghidra_server_password", ("AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD", "AGENTDECOMPILE_GHIDRA_SERVER_PASSWORD")),
+    ("ghidra_server_repository", ("AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY", "AGENTDECOMPILE_GHIDRA_SERVER_REPOSITORY")),
+)
+
+
+def _shared_server_env_overrides(ctx: click.Context, base_env: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Env values implied by --ghidra-server-* flags, for keys not already set.
+
+    The in-process tool providers and a spawned local server read these env
+    vars directly; HTTP backends get the same values as X-Ghidra-Server-*
+    headers from ``_shared_request_headers``.  An env value the user already
+    set wins over the flag, as before.
+    """
+    env = os.environ if base_env is None else base_env
+    opts = _get_opts(ctx)
+    overrides: dict[str, str] = {}
+    for opt_name, env_keys in _SHARED_SERVER_ENV_KEYS:
+        value = opts.get(opt_name)
+        flag = "" if value is None else str(value).strip()
+        if not flag:
+            continue
+        for env_key in env_keys:
+            if not str(env.get(env_key, "")).strip():
+                overrides[env_key] = flag
+    return overrides
+
+
+@contextlib.contextmanager
+def _scoped_shared_server_env(ctx: click.Context):
+    """Expose --ghidra-server-* flags as env vars only for the enclosed call.
+
+    Restores the previous state exactly on exit, so flags from one command
+    never leak into later commands in the same process (tool-seq, CliRunner).
+    """
+    overrides = _shared_server_env_overrides(ctx)
+    previous = {key: os.environ.get(key) for key in overrides}
+    os.environ.update(overrides)
+    try:
+        yield
+    finally:
+        for key, old in previous.items():
+            if old is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = old
+
+
 def _cleanup_local_backend_instance() -> None:
     global _local_backend_instance
     if _local_backend_instance is not None:
@@ -608,10 +658,22 @@ def _fmt(ctx: click.Context) -> str:
 
 
 def _extract_text(result: Any) -> str | None:
+    """First text item of a resources/read result.
+
+    Handles every shape the CLI receives: the remote JSON-RPC dict
+    ``{"contents": [{"text": ...}]}``, the local backend dict
+    ``{"uri", "raw", "parsed"}``, and SDK objects with a ``.contents`` list.
+    """
     logger.debug("diag.enter %s", "cli.py:_extract_text")
-    contents: list[Any] = getattr(result, "contents", None) or []
-    for c in contents:
-        text = c.text if isinstance(c, TextContent) else None
+    if isinstance(result, dict):
+        raw = result.get("raw")
+        if isinstance(raw, str) and raw:
+            return raw
+        contents: Any = result.get("contents")
+    else:
+        contents = getattr(result, "contents", None)
+    for c in contents or []:
+        text = c.get("text") if isinstance(c, dict) else getattr(c, "text", None)
         if text:
             return text
     return None
@@ -1233,8 +1295,9 @@ async def _call_tool_locally(
 ) -> Any:
     backend = _get_local_backend(ctx)
     try:
-        await backend.initialize()
-        return await backend.call_tool(call_tool_name, payload)
+        with _scoped_shared_server_env(ctx):
+            await backend.initialize()
+            return await backend.call_tool(call_tool_name, payload)
     except (ImportError, EnvironmentError) as exc:
         click.echo(f"Error (local mode): {exc}", err=True)
         sys.exit(1)
@@ -1381,6 +1444,48 @@ async def _execute_tool_call(
         sys.exit(1)
 
 
+async def _read_resource_locally(ctx: click.Context, uri: str) -> Any:
+    backend = _get_local_backend(ctx)
+    try:
+        with _scoped_shared_server_env(ctx):
+            await backend.initialize()
+            return await backend.read_resource(uri)
+    except (ImportError, EnvironmentError) as exc:
+        click.echo(f"Error (local mode): {exc}", err=True)
+        sys.exit(1)
+    except Exception as exc:
+        click.echo(f"Error reading resource '{uri}' (local mode): {exc}", err=True)
+        sys.exit(1)
+
+
+async def _read_resource_via_transport(ctx: click.Context, uri: str) -> Any:
+    """Read an MCP resource the way ``_execute_tool_call`` runs a tool.
+
+    ``--local`` (or auto-local) reads from the in-process backend.  Otherwise
+    the resolved HTTP backend is used; an implicit backend that is down falls
+    back to local, an explicit --server-url/--host/--port never does.
+    """
+    logger.debug("diag.enter %s", "cli.py:_read_resource_via_transport")
+    if _is_local_mode(ctx):
+        return await _read_resource_locally(ctx, uri)
+
+    from agentdecompile_cli.bridge import ServerNotRunningError  # noqa: PLC0415
+
+    try:
+        client = _client(ctx)
+        async with client:
+            result = await client.read_resource(uri)
+        _persist_session_id(ctx, client)
+        return result
+    except ServerNotRunningError as exc:
+        if _should_attempt_local_recovery(ctx):
+            _emit_backend_recovery_notice(_resolve_backend_target(ctx))
+            click.echo(f"Falling back to in-process local execution after backend connection failure: {exc}", err=True)
+            return await _read_resource_locally(ctx, uri)
+        click.echo(str(exc), err=True)
+        sys.exit(1)
+
+
 async def _migrate_metadata_then_checkin(ctx: click.Context, match_payload: dict[str, Any]) -> None:
     """Run match-function (migrate-metadata) then checkin-program in the same session."""
     logger.debug("diag.enter %s", "cli.py:_migrate_metadata_then_checkin")
@@ -1399,9 +1504,9 @@ async def _migrate_metadata_then_checkin(ctx: click.Context, match_payload: dict
         call_name2 = tool_registry.get_display_name(tool_registry.canonicalize_tool_name(call_name2))
         safe_checkin = tool_registry.parse_arguments(safe_checkin, call_name2)
     call_name2 = to_snake_case(call_name2)
-    client = _client(ctx)
     try:
-        async with client:
+        # Yields None under --local, so each _execute_tool_call runs in-process.
+        async with _tool_sequence_client(ctx) as client:
             result1 = await _execute_tool_call(ctx, call_name, safe_match, client_override=client)
             err1 = _get_error_result_message(result1)
             if err1 is not None:
@@ -2357,26 +2462,11 @@ def main(
     # provided, is still honoured and forwarded to the remote backend.
     auto_local_mode: bool = not (backend_cli_explicit or backend_env_url_set or backend_env_host_set)
 
-    # Propagate --ghidra-server-* CLI flags into os.environ so the in-process
-    # tool providers (which read env vars directly) see the same shared-server
-    # configuration that HTTP clients send via X-Ghidra-Server-* headers.
-    _flag_env_pairs: tuple[tuple[str | None, tuple[str, ...]], ...] = (
-        (ghidra_server_host, ("AGENT_DECOMPILE_GHIDRA_SERVER_HOST", "AGENTDECOMPILE_GHIDRA_SERVER_HOST")),
-        (str(ghidra_server_port) if ghidra_server_port is not None else None, ("AGENT_DECOMPILE_GHIDRA_SERVER_PORT", "AGENTDECOMPILE_GHIDRA_SERVER_PORT")),
-        (ghidra_server_username, ("AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME", "AGENTDECOMPILE_GHIDRA_SERVER_USERNAME")),
-        (ghidra_server_password, ("AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD", "AGENTDECOMPILE_GHIDRA_SERVER_PASSWORD")),
-        (ghidra_server_repository, ("AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY", "AGENTDECOMPILE_GHIDRA_SERVER_REPOSITORY")),
-    )
-    for _flag_value, _env_keys in _flag_env_pairs:
-        if _flag_value is None:
-            continue
-        _flag_str = str(_flag_value).strip()
-        if not _flag_str:
-            continue
-        for _env_key in _env_keys:
-            # Don't clobber an existing env value the user already set deliberately.
-            if not os.environ.get(_env_key, "").strip():
-                os.environ[_env_key] = _flag_str
+    # --ghidra-server-* flags live in ctx.obj only.  HTTP backends get them as
+    # X-Ghidra-Server-* headers (_shared_request_headers); in-process providers
+    # and a spawned local server get them as env vars scoped to that call
+    # (_scoped_shared_server_env / _spawn_local_server_process).  Writing them
+    # into os.environ here leaked them into every later command in the process.
 
     ctx.obj = {
         "host": host,
@@ -2622,19 +2712,10 @@ def list_grp() -> None:
 @click.pass_context
 def list_binaries(ctx: click.Context, local_format: str | None) -> None:
     async def _run():
-        client: ClientSession = _client(ctx)
-        async with client:
-            result: TextContent = await client.read_resource("ghidra://programs")
-        contents: list[Any] = getattr(result, "contents", None) or []
-        programs: list[dict[str, Any]] = []
-        for c in contents:
-            text = c.text
-            if text:
-                data: Any = json.loads(text) if isinstance(text, str) else text
-                progs: Any = data if isinstance(data, list) else (data.get("programs") if isinstance(data, dict) else [])
-                if isinstance(progs, list):
-                    programs = progs
-                    break
+        result: Any = await _read_resource_via_transport(ctx, RESOURCE_URI_PROGRAMS)
+        data: Any = _parse_json(result)
+        progs: Any = data if isinstance(data, list) else (data.get("programs") if isinstance(data, dict) else [])
+        programs: list[Any] = progs if isinstance(progs, list) else []
         if programs:
             names: list[str] = [p.get("programPath", p.get("name", p)) if isinstance(p, dict) else p for p in programs]
             click.echo(format_output(names, local_format or _fmt(ctx)))
@@ -2798,11 +2879,9 @@ def resource_grp() -> None:
 async def _read_resource(ctx: click.Context, uri: str) -> None:
     """Read a resource with auto-recovery for program loading."""
     logger.debug("diag.enter %s", "cli.py:_read_resource")
-    client = _client(ctx)
 
     try:
-        async with client:
-            result = await client.read_resource(uri)
+        result = await _read_resource_via_transport(ctx, uri)
     except Exception as e:
         error_msg = str(e).lower()
 
@@ -2820,8 +2899,7 @@ async def _read_resource(ctx: click.Context, uri: str) -> None:
                         {"path": cached_prog, "local": True},
                     )
                     # Retry resource read
-                    async with client:
-                        result = await client.read_resource(uri)
+                    result = await _read_resource_via_transport(ctx, uri)
                 else:
                     # No cached program, raise original error
                     raise e
@@ -2902,37 +2980,21 @@ def functions_decompile(
     no_incoming_refs: bool,
     no_ref_context: bool,
 ) -> None:
-    async def _run():
-        client = _client(ctx)
-        async with client:
-            body: dict[str, Any] = {
-                "identifier": identifier,
-                "view": "decompile",
-                "offset": offset,
-                "includeCallers": include_callers,
-                "includeCallees": include_callees,
-                "includeComments": include_comments,
-                "includeIncomingReferences": False if no_incoming_refs else True,
-                "includeReferenceContext": False if no_ref_context else True,
-            }
-            if program_path is not None and program_path.strip():
-                body["programPath"] = program_path
-            result = await client.call_tool(
-                Tool.GET_FUNCTIONS.value,
-                body,
-            )
-        data = _parse_json(result)
-        if isinstance(data, dict):
-            text = data.get("decompilation") or data.get("code")
-            if text is not None and str(text).strip():
-                click.echo(text)
-            else:
-                click.echo(format_output(data or result, _fmt(ctx)))
-        else:
-            click.echo(format_output(data or result, _fmt(ctx)))
-
     logger.debug("diag.enter %s", "cli.py:functions_decompile")
-    _run_async(_run())
+    body: dict[str, Any] = {
+        "identifier": identifier,
+        "view": "decompile",
+        "offset": offset,
+        "includeCallers": include_callers,
+        "includeCallees": include_callees,
+        "includeComments": include_comments,
+        "includeIncomingReferences": not no_incoming_refs,
+        "includeReferenceContext": not no_ref_context,
+    }
+    if program_path is not None and program_path.strip():
+        body["programPath"] = program_path
+    # Same transport as the generated commands: honours --local and explicit backends.
+    _run_async(_call(ctx, Tool.GET_FUNCTIONS.value, **body))
 
 
 @functions_grp.command(
@@ -4661,8 +4723,9 @@ def delete_cmd(program_path: str | None) -> None:
 @click.pass_context
 def import_cmd(ctx: click.Context, path: str, no_analyze: bool) -> None:
     logger.debug("diag.enter %s", "cli.py:import_cmd")
-    opts = ctx.ensure_object(dict)
-    host = opts.get("host", "127.0.0.1")
+    # Local mode imports from this machine.  Otherwise use the backend the call
+    # will actually reach (--server-url included), not the bare --host default.
+    host = "127.0.0.1" if _is_local_mode(ctx) else _backend_host_for_recovery(ctx)
     is_remote = host not in ("127.0.0.1", "localhost", "::1")
     # Only resolve path locally when connecting to a local server;
     # for remote servers the path refers to the remote filesystem.

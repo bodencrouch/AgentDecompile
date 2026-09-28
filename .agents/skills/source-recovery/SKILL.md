@@ -9,18 +9,18 @@ metadata:
 
 # Source recovery
 
-This repo is the only active recovery cwd. Package: `src/agentdecompile_recovery/`.
+Read [AGENTS.md](../../../AGENTS.md) for operations and
+[STRATEGY.md](../../../STRATEGY.md) for the single recovery policy.
 
-## Rule
+Use the existing 8080 catalog. Inventory and corroborate existing analysis,
+source and receipts before producing more; resume/import is valid for agents.
+Never label reused artifacts as a fresh run. Regenerate only missing, invalid
+or explicitly requested work. Terminal acceptance still requires the fresh
+whole-image compiler/objdiff/relink checks in STRATEGY, with C+assembly-floor
+and max-C variants separately accounted.
 
-A run that is supposed to produce source must write inventory, facts, and match receipts **in that execution**. `--resume`, match cache, and `--dump-source-only` are for operators doing incremental work — not for agents skipping the pipeline.
-
-## Defaults
-
-- Entry: `agentdecompile-reconstruct` / `scripts/decomp-cli.sh`; corpus: `agentdecompile-corpus`.
-- Fast dump: reconstruct with `--resume --dump-source DIR`. Default reconstruct runs PyGhidra enrich-decompile (`--skip-enrichment` to opt out).
-- Never claim match without objdiff 0. Never promote byte-emitters into `verified/`.
-- Profiles are format/stem-derived (PE vs ELF). Do not hardcode product binaries.
-- Rematch intended → `--force-rematch`.
-
-See `docs/CRITICAL_PATH.md` and `docs/CORPUS_PIPELINE.md`.
+[Corpus pipeline](../../../docs/CORPUS_PIPELINE.md) and
+[critical-path reference](../../../docs/CRITICAL_PATH.md) explain implementation.
+[Runtime reuse](../../../docs/RUNTIME_REUSE.md) is a parallel branch and never
+counts original-binary calls as recovered source. Follow AGENTS.md restrictions
+on filesystem tests, systemctl, ports and duplicate compiler/Wine/Ghidra writers.

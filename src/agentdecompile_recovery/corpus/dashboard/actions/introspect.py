@@ -17,26 +17,7 @@ from agentdecompile_recovery.corpus.dashboard.actions.catalog import (
 )
 
 _SKIP_DESTS = frozenset({"help", "version"})
-_LONG_CORPUS = frozenset({
-    "run", "ghidra-bulk", "cross-place", "workspace", "compile-link",
-    "calibrate-global",
-    "ingest-recovered", "genproject", "extract-stabs", "apply-stabs",
-    "export-atlas-db", "seed-validation", "harvest-shards", "verify-legacy-recovered",
-    "permuter-harness", "recover-named-ghidra", "program-inventory", "export-bytes",
-    "export-c", "export-types", "bsim-eval", "bsim-createdatabase", "bsim-ingest",
-    "bsim-report", "propagate-corpus", "external-bridge",
-    "collect-source", "rebuild-ledger", "compile-unit",
-})
-_LONG_RECOVER = frozenset({
-    "recover", "recover-windows", "source-parity-synthesize",
-    "source-plugin-pipeline", "export-context-batch", "sweep-package",
-    "match-package", "compiler-profile-corpus", "run-pipeline",
-})
-_DANGER_CMDS = frozenset({
-    "remove-binary", "apply-annotations", "merge-parts", "init",
-    "delete-project-binary",
-})
-_DANGER_FLAGS = frozenset({"force", "apply", "watch", "llm-cleanup"})
+_CLICK_DANGER_COMMANDS = frozenset({"init", "delete", "import"})
 _CONTEXT = {
     "program": "program",
     "repo": "repo",
@@ -55,8 +36,13 @@ _CONTEXT = {
 
 
 def _kind(action: argparse.Action) -> str:
-    if isinstance(action, (argparse._StoreTrueAction, argparse._StoreFalseAction)):
+    if isinstance(
+        action,
+        (argparse._StoreTrueAction, argparse._StoreFalseAction, argparse.BooleanOptionalAction),
+    ):
         return "bool"
+    if isinstance(action, argparse._AppendAction) or action.nargs in ("+", "*", argparse.REMAINDER):
+        return "array"
     typ = action.type
     if typ is int:
         return "int"
@@ -119,10 +105,6 @@ def _fields(parser: argparse.ArgumentParser) -> tuple[FieldSpec, ...]:
     return tuple(out)
 
 
-def _danger(command: str, fields: tuple[FieldSpec, ...]) -> bool:
-    return command in _DANGER_CMDS
-
-
 def _pages(fields: tuple[FieldSpec, ...], writes: bool) -> tuple[str, ...]:
     pages = ["work", "home"]
     names = {field.name for field in fields}
@@ -140,14 +122,14 @@ def specs_from_argparse(
     group: str,
     backend: str,
     parser: argparse.ArgumentParser,
-    long_cmds: frozenset[str],
 ) -> list[ActionSpec]:
     rows: list[ActionSpec] = []
     for command, sub in _subparsers(parser).items():
         fields = _fields(sub)
         if group == "corpus" and command == "export-run-report":
             fields = tuple(replace(field, from_context="report_file", help="JSON report file; defaults to the current workspace's recovery-report.json.") if field.name == "out" else field for field in fields)
-        mutating = _danger(command, fields)
+        danger = bool(getattr(sub, "danger", False))
+        mutating = bool(getattr(sub, "mutating", False))
         rows.append(
             ActionSpec(
                 id=f"{group}.{command}",
@@ -158,9 +140,11 @@ def specs_from_argparse(
                 summary=(sub.description or sub.epilog or getattr(sub, "help", None) or command)[:300],
                 fields=fields,
                 pages=_pages(fields, mutating),
-                danger=mutating,
+                danger=danger,
                 mutating=mutating,
-                long_running=command in long_cmds,
+                long_running=bool(getattr(sub, "long_running", False)),
+                identity_scope=str(getattr(sub, "identity_scope", "")),
+                ghidra_exclusive=bool(getattr(sub, "ghidra_exclusive", False)),
             )
         )
     return rows
@@ -173,7 +157,6 @@ def corpus_specs() -> list[ActionSpec]:
         group="corpus",
         backend="corpus-cli",
         parser=build_parser(),
-        long_cmds=_LONG_CORPUS,
     )
 
 
@@ -184,7 +167,6 @@ def recover_specs() -> list[ActionSpec]:
         group="recover",
         backend="recover-cli",
         parser=build_parser(),
-        long_cmds=_LONG_RECOVER,
     )
 
 
@@ -196,7 +178,8 @@ def reconstruct_specs() -> list[ActionSpec]:
         build_upstream_status_parser,
     )
 
-    fields = _fields(build_parser())
+    parser = build_parser()
+    fields = _fields(parser)
     rows = [
         ActionSpec(
             id="reconstruct.one-shot",
@@ -207,9 +190,9 @@ def reconstruct_specs() -> list[ActionSpec]:
             summary="Default agentdecompile-reconstruct path: binary plus optional context.",
             fields=fields,
             pages=("binary", "operations", "work"),
-            danger=any(field.name in _DANGER_FLAGS for field in fields),
-            mutating=True,
-            long_running=True,
+            danger=bool(getattr(parser, "danger", False)),
+            mutating=bool(getattr(parser, "mutating", False)),
+            long_running=bool(getattr(parser, "long_running", False)),
         ),
         ActionSpec(
             id="reconstruct.corpus",
@@ -282,9 +265,6 @@ def mcp_specs() -> list[ActionSpec]:
         params = get_tool_params(name)
         meta = get_tool_metadata(name)
         writes = bool(meta and meta.writes_state)
-        long_running = name.startswith("run-batch-") or name in {
-            "reconstruct", "analyze-program", "import-binary", "run-decomp-match", "decompile-function",
-        }
         schema = schemas.get(name, {})
         properties = schema.get('properties', {})
         by_norm = {normalize_identifier(key): value for key, value in properties.items()}
@@ -310,7 +290,7 @@ def mcp_specs() -> list[ActionSpec]:
             ))
         fields = tuple(field_rows)
         tool = Tool.from_string(name)
-        danger = writes or name in {"execute-script", "svr-admin", "delete-project-binary"}
+        danger = writes
         out.append(
             ActionSpec(
                 id=f"mcp.{name}",
@@ -323,7 +303,7 @@ def mcp_specs() -> list[ActionSpec]:
                 pages=_mcp_pages(params, writes),
                 danger=danger,
                 mutating=writes,
-                long_running=long_running,
+                long_running=bool(meta and meta.long_running),
             )
         )
     return out
@@ -441,6 +421,10 @@ def click_public_names() -> list[str]:
     for name, cmd in sorted(_click_root().commands.items()):
         if getattr(cmd, "hidden", False):
             continue
+        # Bridged corpus/recover/reconstruct/grid forward raw argv to argparse;
+        # corpus.*, recover.* and reconstruct.* already expose them field-by-field.
+        if getattr(cmd, "BRIDGED", False):
+            continue
         if name in advertised or name in _GUI_CLICK:
             continue
         names.append(name)
@@ -475,7 +459,7 @@ def click_specs() -> list[ActionSpec]:
                 summary=(cmd.help or cmd.short_help or name)[:300],
                 fields=fields,
                 pages=_pages(fields, True),
-                danger=name in _DANGER_CMDS or name in {"delete", "import"},
+                danger=name in _CLICK_DANGER_COMMANDS,
                 mutating=name not in {"alias", "tool"},
                 long_running=name in {"ghidrecomp", "tool-seq", "tool-seq-file"},
             )

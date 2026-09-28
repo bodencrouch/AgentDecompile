@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 import urllib.error
 import urllib.request
@@ -80,6 +81,14 @@ def _resolve_open_program(wanted: str) -> tuple[str, list[str]]:
             matches[canonical] = path
     if len(matches) == 1:
         return next(iter(matches.values())), names
+    # The server can report both a canonical DomainFile pathname (which
+    # begins with ``/``) and a legacy short alias for the same open program.
+    # A short alias is not a second program.  Prefer the sole canonical path
+    # so a dashboard action never opens a second Program instance and clashes
+    # with an active Ghidra transaction.
+    canonical_matches = [value for value in matches.values() if value.startswith("/")]
+    if len(canonical_matches) == 1:
+        return canonical_matches[0], names
     return "", names
 
 
@@ -112,7 +121,65 @@ def call_tool(name: str, arguments: dict[str, Any] | None = None, *, timeout: fl
 
 def ensure_project(locator: str) -> dict[str, Any]:
     """Reuse the project opened by this session instead of reacquiring its file lock."""
+    from agentdecompile_recovery.corpus.ghidra_project import (
+        ghidra_connect_args,
+        inspect_locator,
+        parse_shared_locator,
+    )
+
     with CONTEXT_LOCK:
+        info = inspect_locator(locator) if locator else {}
+        # A saved shared filesystem mirror carries the authoritative RMI
+        # address in origin.json.  Treat it as the server project for every
+        # action so ordinary reads never materialize a second native checkout.
+        if info.get("kind") == "shared-fs":
+            origin = info.get("origin")
+            server_locator = origin.get("server_locator") if isinstance(origin, dict) else ""
+            if isinstance(server_locator, str) and server_locator.startswith("ghidra://"):
+                info = parse_shared_locator(server_locator)
+        if info.get("kind") == "shared-project":
+            args = ghidra_connect_args(info)
+            canonical = str(info.get("canonical") or locator)
+            key = "shared" + chr(0) + canonical
+            with _LOCK:
+                if _OPENED.get(key) == "connected":
+                    return {"ok": True, "reused": True}
+            shared_args = {
+                "serverHost": args["server_host"],
+                "serverPort": args["server_port"],
+                "path": args["repository_name"],
+            }
+            _apply_server_auth(shared_args)
+            opened = call_tool("connect-shared-project", shared_args, timeout=180.0)
+            payload = opened.get("parsed") if isinstance(opened.get("parsed"), dict) else {}
+            if not payload:
+                text = str(opened.get("text") or "")
+                repositories_match = re.search(r"\*\*availableRepositories:\*\*\s*(.+)", text)
+                program_count_match = re.search(r"\*\*programCount:\*\*\s*(\d+)", text)
+                payload = {
+                    "availableRepositories": [item.strip() for item in repositories_match.group(1).split(",")]
+                    if repositories_match else [],
+                    "programCount": int(program_count_match.group(1)) if program_count_match else 0,
+                }
+            repositories = payload.get("availableRepositories") if isinstance(payload, dict) else []
+            if opened.get("ok") and not payload.get("programCount") and isinstance(repositories, list):
+                for repository in repositories:
+                    candidate = str(repository or "")
+                    if candidate != shared_args["path"] and candidate.casefold() == str(shared_args["path"]).casefold():
+                        retry_args = {**shared_args, "path": candidate}
+                        retry = call_tool("connect-shared-project", retry_args, timeout=180.0)
+                        retry_payload = retry.get("parsed") if isinstance(retry.get("parsed"), dict) else {}
+                        if not retry_payload:
+                            retry_count = re.search(r"\*\*programCount:\*\*\s*(\d+)", str(retry.get("text") or ""))
+                            retry_payload = {"programCount": int(retry_count.group(1)) if retry_count else 0}
+                        if retry.get("ok") and retry_payload.get("programCount"):
+                            retry["sharedRepository"] = candidate
+                            opened = retry
+                            break
+            if opened.get("ok"):
+                with _LOCK:
+                    _OPENED[key] = "connected"
+            return opened
         if locator and locator == _ACTIVE_LOCATOR:
             return {"ok": True, "reused": True}
         return call_tool("open", {"path": locator, "analyzeAfterImport": False, "openAllPrograms": False}, timeout=180.0)
@@ -138,7 +205,11 @@ def _call_tool(
     text = _content_text(content if isinstance(content, list) else [])
     parsed = _maybe_json(text)
     payload_fail = isinstance(parsed, dict) and parsed.get("success") is False
-    is_error = bool(isinstance(result, dict) and result.get("isError")) or payload_fail
+    # The provider renders ActionableError as a Markdown error response rather
+    # than setting the JSON-RPC isError bit.  Treat it as a failed bridge call
+    # so a shared-project connect cannot be mistaken for an open session.
+    formatted_error = text.lstrip().startswith("## Error")
+    is_error = bool(isinstance(result, dict) and result.get("isError")) or payload_fail or formatted_error
     err = ""
     if payload_fail:
         err = str(parsed.get("error") or text)
@@ -162,6 +233,16 @@ def list_functions(
     limit: int | str = "all",
     program_path: str = "",
 ) -> dict[str, Any]:
+    """List a live program's functions through the MCP list-functions tool.
+
+    With a query ``q``, a successful empty page means nothing matched: the
+    result has no rows and no ``next`` hint. That holds on a program Ghidra
+    has not analysed yet too, so a search there reports "no match" rather
+    than the analyze-program hint an unfiltered listing gives.
+
+    ``total`` covers only the rows fetched so far (``offset`` plus this
+    page), not every function or match in the program.
+    """
     from agentdecompile_recovery.corpus.dashboard.common import page_window
 
     wanted = (program_path or program or "").strip()
@@ -172,6 +253,9 @@ def list_functions(
         "offset": start,
         "limit": chunk,
         "responseFormat": "json",
+        # list-functions includes imports by default; their EXTERNAL: addresses
+        # have no integer form, so the function browser would show blank rows.
+        "includeExternals": False,
     }
     if path:
         args["program_path"] = path
@@ -202,6 +286,7 @@ def list_functions(
     collected: list[dict[str, Any]] = []
     cursor = start
     last_error = ""
+    no_match = False
     while True:
         args["offset"] = cursor
         args["limit"] = chunk
@@ -213,9 +298,14 @@ def list_functions(
             if cap is not None or len(page) < chunk:
                 break
             continue
+        if q and hit.get("ok"):
+            # A successful empty page for a search means nothing matched, not
+            # that the program lacks functions or needs analysis.
+            no_match = True
+            break
         last_error = hit.get("error") or hit.get("text") or "Ghidra has no functions for this program yet."
         break
-    if collected:
+    if collected or no_match:
         return {
             "ok": True,
             "program": program,
@@ -223,7 +313,7 @@ def list_functions(
             "q": q,
             "offset": start,
             "limit": "all" if cap is None else cap,
-            "total": start + len(collected),
+            "total": start + len(collected) if collected else 0,
             "results": collected,
             "hasMore": cap is not None and len(collected) >= cap,
             "source": "ghidra-mcp",
@@ -245,13 +335,26 @@ def list_functions(
     }
 
 
-def ensure_program(locator: str, program: str = "", inspected: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Open the Ghidra project (once) and make ``program`` the current program."""
+def ensure_program(
+    locator: str,
+    program: str = "",
+    inspected: dict[str, Any] | None = None,
+    *,
+    require_live: bool = False,
+    exclusive: bool = False,
+    include_inventory: bool = True,
+) -> dict[str, Any]:
+    """Open the Ghidra project (once) and make ``program`` the current program.
+
+    ``include_inventory`` preserves the Workbench response by default. Action
+    jobs only need the canonical checked-out program path, not every function.
+    """
     from agentdecompile_recovery.corpus.ghidra_project import (
         classify_locator,
         ghidra_connect_args,
         ghidra_program_path,
         inspect_locator,
+        parse_shared_locator,
         shared_defaults,
     )
 
@@ -260,12 +363,21 @@ def ensure_program(locator: str, program: str = "", inspected: dict[str, Any] | 
     info = dict(inspected or {})
     if not info.get("ok") and loc:
         info = inspect_locator(loc) if loc else classify_locator(loc)
+    # A filesystem server mirror records its authoritative RMI locator. Live
+    # tools must use that shared repository session; opening the directory
+    # would copy every program database into a temporary native checkout.
+    if info.get("kind") == "shared-fs":
+        origin = info.get("origin") if isinstance(info.get("origin"), dict) else {}
+        server_locator = origin.get("server_locator") if isinstance(origin, dict) else ""
+        if isinstance(server_locator, str) and server_locator.startswith("ghidra://"):
+            info = parse_shared_locator(server_locator)
+    name = ghidra_program_path(info, name)
     kind = str(info.get("kind") or "")
-    if loc and name:
+    if loc and name and include_inventory:
         from agentdecompile_recovery.corpus.dashboard.workbench import _list_functions_from_store
 
         stored = _list_functions_from_store(loc, name)
-        if stored.get("results") or stored.get("opened"):
+        if (stored.get("results") or stored.get("opened")) and not require_live:
             stored["ensured"] = True
             stored["steps"] = [{"tool": "ghidra-store", "ok": True, "error": stored.get("error")}]
             if stored.get("results"):
@@ -273,7 +385,7 @@ def ensure_program(locator: str, program: str = "", inspected: dict[str, Any] | 
                 with _LOCK:
                     _OPENED[key] = "ready"
             return stored
-        if kind == "shared-fs":
+        if kind == "shared-fs" and not require_live:
             return {
                 "ok": True,
                 "ensured": True,
@@ -290,13 +402,25 @@ def ensure_program(locator: str, program: str = "", inspected: dict[str, Any] | 
                 ),
             }
     path = ghidra_program_path(info, name) if name else ""
-    resolved, _available = _resolve_open_program(name)
-    if resolved:
-        path = resolved
+    if include_inventory:
+        resolved, _available = _resolve_open_program(name)
+        if resolved:
+            path = resolved
     key = f"{loc}\0{path or name}"
     with _LOCK:
         cached = _OPENED.get(key)
-    if cached == "ready":
+    if cached == "ready" and not exclusive:
+        if not include_inventory:
+            return {
+                "ok": True,
+                "ensured": True,
+                "cached": True,
+                "program": name,
+                "program_path": path or name,
+                "results": [],
+                "total": 0,
+                "source": "ghidra-mcp",
+            }
         listed = list_functions(name, program_path=path or name)
         listed["ensured"] = True
         listed["cached"] = True
@@ -307,6 +431,7 @@ def ensure_program(locator: str, program: str = "", inspected: dict[str, Any] | 
     if not open_args and loc and kind not in {"shared-fs", ""}:
         open_args = {"path": loc, "analyze_after_import": False, "open_all_programs": False}
     _apply_server_auth(open_args)
+    shared_checked_out = False
     if kind == "binary" and loc:
         opened = call_tool(
             "import-binary",
@@ -318,6 +443,31 @@ def ensure_program(locator: str, program: str = "", inspected: dict[str, Any] | 
             timeout=180.0,
         )
         steps.append({"tool": "import-binary", "ok": opened.get("ok"), "error": opened.get("error")})
+    elif kind == "shared-project":
+        opened = ensure_project(loc)
+        steps.append({"tool": "connect-shared-project", "ok": opened.get("ok"), "error": opened.get("error")})
+        if not opened.get("ok"):
+            return {"ok": False, "ensured": False, "program_path": path or name, "steps": steps, "error": opened.get("error") or opened.get("text")}
+        shared_args = {
+            "serverHost": open_args["server_host"],
+            "serverPort": open_args["server_port"],
+            "repositoryName": opened.get("sharedRepository") or open_args["repository_name"],
+            "path": path or name,
+            # A shared repository inspection is intentionally immutable.  A
+            # recovery mutation must instead bind the same program through a
+            # versioned exclusive checkout before the live tool runs.
+            "exclusive": exclusive,
+        }
+        _apply_server_auth(shared_args)
+        checked = call_tool("connect-shared-project", shared_args, timeout=180.0)
+        steps.append({"tool": "shared-checkout", "ok": checked.get("ok"), "error": checked.get("error")})
+        if not checked.get("ok"):
+            return {"ok": False, "ensured": False, "program_path": path or name, "steps": steps, "error": checked.get("error") or checked.get("text")}
+        shared_checked_out = True
+    elif kind == "shared-fs" and loc == _ACTIVE_LOCATOR:
+        # ``ensure_project`` already opened the owned native checkout. Do not
+        # re-materialize it; checkout below makes the requested program live.
+        steps.append({"tool": "open", "ok": True, "reused": True})
     elif open_args:
         opened = call_tool("open", open_args, timeout=180.0)
         steps.append({"tool": "open", "ok": opened.get("ok"), "error": opened.get("error")})
@@ -336,13 +486,35 @@ def ensure_program(locator: str, program: str = "", inspected: dict[str, Any] | 
             steps.append({"tool": "open-url", "ok": retry.get("ok"), "error": retry.get("error")})
             opened = retry
 
-    if path or name:
+    if (path or name) and not shared_checked_out:
         checked = call_tool(
             "checkout-program",
             {"program_path": path or name, "exclusive": False, "responseFormat": "json"},
             timeout=90.0,
         )
         steps.append({"tool": "checkout-program", "ok": checked.get("ok"), "error": checked.get("error")})
+        if not checked.get("ok"):
+            return {
+                "ok": False,
+                "ensured": False,
+                "program_path": path or name,
+                "steps": steps,
+                "error": checked.get("error") or checked.get("text") or f"Could not open {path or name} in the selected project.",
+            }
+
+    if not include_inventory:
+        with _LOCK:
+            _OPENED[key] = "ready"
+        return {
+            "ok": True,
+            "ensured": True,
+            "program": name,
+            "program_path": path or name,
+            "results": [],
+            "total": 0,
+            "source": "ghidra-mcp",
+            "steps": steps,
+        }
 
     listed = list_functions(name, program_path=path or name)
     listed["ensured"] = True

@@ -1,7 +1,162 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { type Data, type SurfaceProps } from "./contracts";
 import { ErrorLine, RecordView } from "./ui";
 import { useTool } from "./CodeBrowser";
+import {
+  ensureWorkspaceState,
+  patchWorkspaceState,
+  workspaceKey,
+} from "./workspaceState";
+
+function storageErrors(pieces: Data[], registers: Data[]) {
+  if (!pieces.length) return ["Add at least one storage piece."];
+  const available = new Map(
+    registers.map((register) => [String(register.name), Number(register.size)]),
+  );
+  return pieces.flatMap((piece, index) => {
+    const errors: string[] = [];
+    const label = `Piece ${index + 1}`;
+    if (!Number.isInteger(piece.size) || piece.size <= 0)
+      errors.push(`${label}: bytes must be a positive integer.`);
+    if (piece.register !== undefined) {
+      const width = available.get(String(piece.register));
+      if (width === undefined)
+        errors.push(`${label}: select a register advertised by the server.`);
+      else if (Number.isInteger(piece.size) && piece.size > width)
+        errors.push(`${label}: ${piece.register} is only ${width} bytes wide.`);
+    } else if (!Number.isInteger(piece.stackOffset)) {
+      errors.push(`${label}: stack offset must be an integer.`);
+    }
+    return errors;
+  });
+}
+
+function StorageEditor({
+  pieces,
+  registers,
+  label,
+  onChange,
+}: {
+  pieces: Data[];
+  registers: Data[];
+  label: string;
+  onChange: (next: Data[] | ((rows: Data[]) => Data[])) => void;
+}) {
+  const update = (index: number, piece: Data) =>
+    onChange((rows) => rows.map((row, rowIndex) => (rowIndex === index ? piece : row)));
+  return (
+    <>
+      <table>
+        <thead>
+          <tr>
+            <th>Location</th>
+            <th>Register or stack offset</th>
+            <th>Bytes</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {pieces.map((piece, index) => (
+            <tr key={index}>
+              <td>
+                <select
+                  aria-label={`${label} location ${index + 1}`}
+                  value={piece.register !== undefined ? "register" : "stack"}
+                  onChange={(event) =>
+                    update(index, {
+                      size: piece.size,
+                      ...(event.target.value === "register"
+                        ? { register: registers[0]?.name || "" }
+                        : { stackOffset: 0 }),
+                    })
+                  }
+                >
+                  <option value="register">Register</option>
+                  <option value="stack">Stack</option>
+                </select>
+              </td>
+              <td>
+                {piece.register !== undefined ? (
+                  <select
+                    aria-label={`${label} register ${index + 1}`}
+                    value={piece.register}
+                    onChange={(event) =>
+                      update(index, { ...piece, register: event.target.value })
+                    }
+                  >
+                    {!registers.some((register) => register.name === piece.register) && (
+                      <option value={piece.register || ""}>
+                        {piece.register || "Select a register"}
+                      </option>
+                    )}
+                    {registers.map((register) => (
+                      <option key={register.name} value={register.name}>
+                        {register.name} ({register.size} bytes)
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    aria-label={`${label} stack offset ${index + 1}`}
+                    type="number"
+                    step="1"
+                    value={piece.stackOffset ?? ""}
+                    onChange={(event) =>
+                      update(index, {
+                        ...piece,
+                        stackOffset:
+                          event.target.value === "" ? "" : Number(event.target.value),
+                      })
+                    }
+                  />
+                )}
+              </td>
+              <td>
+                <input
+                  aria-label={`${label} bytes ${index + 1}`}
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={piece.size ?? ""}
+                  onChange={(event) =>
+                    update(index, {
+                      ...piece,
+                      size: event.target.value === "" ? "" : Number(event.target.value),
+                    })
+                  }
+                />
+              </td>
+              <td>
+                <button type="button" onClick={() => onChange((rows) => rows.filter((_, i) => i !== index))}>
+                  Remove piece
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button
+        type="button"
+        onClick={() =>
+          onChange((rows) => [
+            ...rows,
+            registers.length
+              ? { register: registers[0].name, size: 1 }
+              : { register: "", size: 1 },
+          ])
+        }
+      >
+        Add storage piece
+      </button>
+    </>
+  );
+}
+
+const actionStorage = (pieces: Data[]) =>
+  pieces.map(({ register, stackOffset, size }) =>
+    register !== undefined ? { register, size } : { stackOffset, size },
+  );
+
 export function FunctionEditor({
   props,
   address,
@@ -12,7 +167,8 @@ export function FunctionEditor({
   const [open, setOpen] = useState(false),
     [draft, setDraft] = useState<Data>({}),
     [storage, setStorage] = useState<Data[]>([]),
-    [returnType, setReturnType] = useState("");
+    [returnType, setReturnType] = useState(""),
+    [parameterDraft, setParameterDraft] = useState<Data | null>(null);
   const selected = {
     ...props,
     selection: { ...props.selection, addr: address },
@@ -23,23 +179,27 @@ export function FunctionEditor({
     selected,
     open && Boolean(address),
   );
-  const targetKey = JSON.stringify([
+  const storageKey = workspaceKey(
+    "function",
     props.selection.locator,
     props.selection.program,
     address,
-  ]);
+  );
   const [baseline, setBaseline] = useState<{
     target: string;
     data: Data;
   } | null>(null);
+  const targetKey = storageKey;
   const [pending, setPending] = useState<Data | null>(null);
   const [dirty, setDirty] = useState(false);
+  const restoredDraftRef = useRef(false);
   const value = baseline?.target === targetKey ? baseline.data : {};
   function adopt(data: Data) {
     setBaseline({ target: targetKey, data });
     setDraft({ ...data });
     setStorage((data.returnStorage || []).map((row: Data) => ({ ...row })));
     setReturnType(data.returnType || "");
+    setParameterDraft(null);
     setDirty(false);
     setPending(null);
   }
@@ -49,8 +209,40 @@ export function FunctionEditor({
     setDraft({});
     setStorage([]);
     setReturnType("");
+    setParameterDraft(null);
     setDirty(false);
+    restoredDraftRef.current = false;
   }, [targetKey]);
+  useEffect(() => {
+    if (!open || !address) return;
+    let alive = true;
+    void ensureWorkspaceState().then((state) => {
+      const saved = state.drafts?.[storageKey];
+      if (!alive || !saved || typeof saved !== "object" || !saved.draft) return;
+      setDraft(saved.draft as Data);
+      setStorage((saved.storage as Data[]) || []);
+      setReturnType(String(saved.returnType || ""));
+      setParameterDraft((saved.parameterDraft as Data) || null);
+      setDirty(true);
+      restoredDraftRef.current = true;
+    });
+    return () => {
+      alive = false;
+    };
+  }, [storageKey, open, address]);
+  useEffect(() => {
+    if (!dirty || !open) return;
+    const timer = setTimeout(() => {
+      patchWorkspaceState("drafts", storageKey, {
+        draft,
+        storage,
+        returnType,
+        parameterDraft,
+        updatedAt: Date.now(),
+      });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [storageKey, draft, storage, returnType, parameterDraft, dirty, open]);
   useEffect(() => {
     if (
       info.status !== "loaded" ||
@@ -59,6 +251,11 @@ export function FunctionEditor({
     )
       return;
     const incoming = info.data.properties || info.data;
+    if (restoredDraftRef.current && !baseline) {
+      setBaseline({ target: targetKey, data: incoming });
+      restoredDraftRef.current = false;
+      return;
+    }
     if (dirty && baseline?.target === targetKey) {
       if (JSON.stringify(incoming) !== JSON.stringify(baseline.data))
         setPending(incoming);
@@ -76,6 +273,25 @@ export function FunctionEditor({
     setDirty(true);
     setReturnType(next);
   };
+  const changeParameterStorage = (
+    next: Data[] | ((rows: Data[]) => Data[]),
+  ) => {
+    setDirty(true);
+    setParameterDraft((current) =>
+      current
+        ? {
+            ...current,
+            storage:
+              typeof next === "function" ? next(current.storage || []) : next,
+          }
+        : current,
+    );
+  };
+  const registers = (value.availableRegisters || []) as Data[];
+  const returnErrors = storageErrors(storage, registers);
+  const parameterErrors = parameterDraft
+    ? storageErrors(parameterDraft.storage || [], registers)
+    : [];
   const save = () => {
     const changed = Object.fromEntries(
       ["namespace", "inline", "noReturn", "varArgs", "callFixup", "thunkTarget"]
@@ -217,126 +433,10 @@ export function FunctionEditor({
               onChange={(e) => changeReturnType(e.target.value)}
             />
           </label>
-          <table>
-            <thead>
-              <tr>
-                <th>Location</th>
-                <th>Register or stack offset</th>
-                <th>Bytes</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {storage.map((piece, i) => (
-                <tr key={i}>
-                  <td>
-                    <select
-                      aria-label={`Storage location ${i + 1}`}
-                      value={piece.register ? "register" : "stack"}
-                      onChange={(e) =>
-                        changeStorage((rows) =>
-                          rows.map((r, j) =>
-                            j === i
-                              ? {
-                                  size: r.size,
-                                  ...(e.target.value === "register"
-                                    ? {
-                                        register:
-                                          value.availableRegisters?.[0]?.name ||
-                                          "",
-                                      }
-                                    : { stackOffset: 0 }),
-                                }
-                              : r,
-                          ),
-                        )
-                      }
-                    >
-                      <option value="register">Register</option>
-                      <option value="stack">Stack</option>
-                    </select>
-                  </td>
-                  <td>
-                    {piece.register !== undefined ? (
-                      <select
-                        aria-label={`Storage register ${i + 1}`}
-                        value={piece.register}
-                        onChange={(e) =>
-                          changeStorage((rows) =>
-                            rows.map((r, j) =>
-                              j === i ? { ...r, register: e.target.value } : r,
-                            ),
-                          )
-                        }
-                      >
-                        {(value.availableRegisters || []).map((r: Data) => (
-                          <option key={r.name} value={r.name}>
-                            {r.name} ({r.size} bytes)
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        aria-label={`Stack offset ${i + 1}`}
-                        type="number"
-                        value={piece.stackOffset}
-                        onChange={(e) =>
-                          changeStorage((rows) =>
-                            rows.map((r, j) =>
-                              j === i
-                                ? { ...r, stackOffset: Number(e.target.value) }
-                                : r,
-                            ),
-                          )
-                        }
-                      />
-                    )}
-                  </td>
-                  <td>
-                    <input
-                      aria-label={`Storage bytes ${i + 1}`}
-                      type="number"
-                      min="1"
-                      value={piece.size}
-                      onChange={(e) =>
-                        changeStorage((rows) =>
-                          rows.map((r, j) =>
-                            j === i
-                              ? { ...r, size: Number(e.target.value) }
-                              : r,
-                          ),
-                        )
-                      }
-                    />
-                  </td>
-                  <td>
-                    <button
-                      onClick={() =>
-                        changeStorage((rows) => rows.filter((_, j) => j !== i))
-                      }
-                    >
-                      Remove piece
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <StorageEditor pieces={storage} registers={registers} label="Return storage" onChange={changeStorage} />
+          {returnErrors.map((error) => <p role="alert" key={error}>{error}</p>)}
           <button
-            onClick={() =>
-              changeStorage((rows) => [
-                ...rows,
-                {
-                  register: value.availableRegisters?.[0]?.name || "",
-                  size: 1,
-                },
-              ])
-            }
-          >
-            Add storage piece
-          </button>
-          <button
-            disabled={!storage.length || !returnType}
+            disabled={Boolean(returnErrors.length) || !returnType.trim()}
             onClick={() =>
               props.onAction(
                 "mcp.manage-function",
@@ -344,10 +444,7 @@ export function FunctionEditor({
                   mode: "set_storage",
                   customStorage: true,
                   returnType,
-                  returnStorage: storage.map(
-                    ({ register, stackOffset, size }) =>
-                      register ? { register, size } : { stackOffset, size },
-                  ),
+                  returnStorage: actionStorage(storage),
                 },
                 [{ ...props.selection, addr: address }],
               )
@@ -380,28 +477,16 @@ export function FunctionEditor({
                   </td>
                   <td>
                     <button
-                      onClick={() =>
-                        props.onAction(
-                          "mcp.manage-function",
-                          {
-                            mode: "set_storage",
-                            customStorage: true,
-                            parameterStorage: [
-                              {
-                                ordinal: p.ordinal,
-                                dataType: p.dataType,
-                                storage: (p.storage || []).map(
-                                  ({ register, stackOffset, size }: Data) =>
-                                    register
-                                      ? { register, size }
-                                      : { stackOffset, size },
-                                ),
-                              },
-                            ],
-                          },
-                          [{ ...props.selection, addr: address }],
-                        )
-                      }
+                      type="button"
+                      onClick={() => {
+                        setDirty(true);
+                        setParameterDraft({
+                          ordinal: p.ordinal,
+                          name: p.name,
+                          dataType: p.dataType,
+                          storage: (p.storage || []).map((piece: Data) => ({ ...piece })),
+                        });
+                      }}
                     >
                       Edit parameter storage
                     </button>
@@ -410,6 +495,48 @@ export function FunctionEditor({
               ))}
             </tbody>
           </table>
+          {parameterDraft && (
+            <section aria-label={`Edit storage for parameter ${parameterDraft.name}`}>
+              <h5>
+                Edit {parameterDraft.name} (ordinal {parameterDraft.ordinal})
+              </h5>
+              <p>
+                Type: <code>{parameterDraft.dataType}</code>. Piece order determines
+                the composite value; size is in bytes.
+              </p>
+              <StorageEditor
+                pieces={parameterDraft.storage || []}
+                registers={registers}
+                label={`${parameterDraft.name} storage`}
+                onChange={changeParameterStorage}
+              />
+              {parameterErrors.map((error) => <p role="alert" key={error}>{error}</p>)}
+              <button
+                type="button"
+                disabled={Boolean(parameterErrors.length)}
+                onClick={() =>
+                  props.onAction(
+                    "mcp.manage-function",
+                    {
+                      mode: "set_storage",
+                      customStorage: true,
+                      parameterStorage: [{
+                        ordinal: parameterDraft.ordinal,
+                        dataType: parameterDraft.dataType,
+                        storage: actionStorage(parameterDraft.storage || []),
+                      }],
+                    },
+                    [{ ...props.selection, addr: address }],
+                  )
+                }
+              >
+                Review parameter storage
+              </button>{" "}
+              <button type="button" onClick={() => setParameterDraft(null)}>
+                Close parameter editor
+              </button>
+            </section>
+          )}
         </>
       ) : (
         <p>{info.status || "Open to read the current function properties."}</p>

@@ -37,6 +37,8 @@ import time
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
+from agentdecompile_recovery.corpus.contract import PIPELINE_STAGE_ACTIONS
+
 from agentdecompile_recovery.corpus.dashboard.panels.common import (  # noqa: E402
     DRM_EXCLUDED,
     KNOWLEDGE_DB,
@@ -92,18 +94,6 @@ STEP_PROCESS_MARKERS = {
     "apply-cross-build": ("kx/propagate.py", "cross_place"),
     "leftover-recover": ("permuter", "genproject", "reconstruct"),
     "verify-byte-accuracy": ("objdiff-check", "verify_built.py"),
-}
-
-# Catalog action ids bound to each pipeline gate (see introspect / corpus.cli).
-STEP_ACTION_DEFAULTS = {
-    "extract": "corpus.extract-stabs",
-    "identify": "corpus.match-pair",
-    "calibrate-global": "corpus.calibrate-global",
-    "assembly-floor": "corpus.workspace",
-    "recover-source": "corpus.ghidra-bulk",
-    "apply-cross-build": "corpus.cross-place",
-    "leftover-recover": "corpus.genproject",
-    "verify-byte-accuracy": "corpus.objdiff-check",
 }
 
 # Anchor of the per-binary list inside this panel. Roll-up counts that name a
@@ -194,7 +184,7 @@ def _pick_corpus_action(base: str, step: dict, f: dict) -> tuple[str | None, boo
     """Return (catalog action id, enabled) for one corpus roll-up gate."""
     state = step.get("state", "")
     if state == "done":
-        return STEP_ACTION_DEFAULTS.get(base), False
+        return PIPELINE_STAGE_ACTIONS.get(base), False
 
     bins = f["binaries"]
     total_bins = len(bins)
@@ -240,7 +230,7 @@ def _pick_binary_action(base: str, step: dict, f: dict, b: dict) -> tuple[str | 
     """Return (catalog action id, enabled) for one build's gate."""
     state = step.get("state", "")
     if state == "done":
-        return STEP_ACTION_DEFAULTS.get(base), False
+        return PIPELINE_STAGE_ACTIONS.get(base), False
 
     bid = b["id"]
     total = b["func_count"]

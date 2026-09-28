@@ -216,15 +216,21 @@ class PyGhidraContext:
     def close(self, save: bool = True):
         """Saves changes to all open programs and closes the project."""
         logger.debug("diag.enter %s", "context.py:PyGhidraContext.close")
-        for _program_name, program_info in self.programs.items():
-            program: GhidraProgram = program_info.program
-            self.project.close(program)
-
         if self.executor is not None:
             self.executor.shutdown(wait=True)
 
         if self.import_executor is not None:
             self.import_executor.shutdown(wait=True)
+
+        # GhidraProject.save owns the outer transaction handle. Save all
+        # programs before releasing any, so a save failure keeps them open.
+        if save:
+            for program_info in self.programs.values():
+                self.project.save(program_info.program)
+
+        for _program_name, program_info in self.programs.items():
+            program: GhidraProgram = program_info.program
+            self.project.close(program)
 
         self.project.close()
         logger.info(f"Project {self.project_name} closed.")
@@ -556,6 +562,14 @@ class PyGhidraContext:
         #     return None
 
         logger.debug("diag.enter %s", "context.py:PyGhidraContext._detect_binary_format")
+        if path.suffix.lower() == ".nds":
+            try:
+                from agentdecompile_recovery.containers import is_nds_binary
+
+                if is_nds_binary(path):
+                    return "NDS"
+            except Exception:
+                pass
         magic_table: dict[bytes, str] = {
             b"\x7fELF": "ELF",
             b"MZ": "PE",
@@ -1047,9 +1061,20 @@ class PyGhidraContext:
                     GhidraProgramUtilities.markProgramAnalyzed(program)
                 else:
                     raise Exception("Missing set analyzed flag method!")
+            except Exception as exc:
+                if "active transaction" in str(exc).lower() and not GhidraProgramUtilities.shouldAskToAnalyze(program):
+                    logger.warning("analysis_save_transaction_reconciled program=%s", program.getName())
+                else:
+                    raise
             finally:
                 GhidraScriptUtil.releaseBundleHostReference()
-                self.project.save(program)
+                try:
+                    self.project.save(program)
+                except Exception as exc:
+                    if "active transaction" in str(exc).lower() and not GhidraProgramUtilities.shouldAskToAnalyze(program):
+                        logger.warning("analysis_project_save_reconciled program=%s", program.getName())
+                    else:
+                        raise
         else:
             logger.info("Analysis already complete.. skipping %s!", program)
 

@@ -10,8 +10,8 @@ from typing import Any
 import pytest
 
 from agentdecompile_recovery import rewrite_queue
-from agentdecompile_recovery.autonomy_budget import AutonomyBudget
 from agentdecompile_recovery.autonomous_policy import choose_next_action
+from agentdecompile_recovery.autonomy_budget import AutonomyBudget
 from agentdecompile_recovery.mismatch_classify import CLASS_OPERAND
 from agentdecompile_recovery.plugin_pipeline import AUTONOMY_STOP_ACTIONS
 from agentdecompile_recovery.source_parity_synthesize import (
@@ -182,6 +182,33 @@ def test_pending_rewrite_variant_rejects_include_content() -> None:
     assert pending_rewrite_variant({"name": "sub_1000"}, _candidate(), result) is None
 
 
+@pytest.mark.parametrize(
+    "directive",
+    [
+        "%:include <stdio.h>",
+        "%:  include <stdio.h>",
+        "%:\\\ninclude <stdio.h>",
+        "??=include <stdio.h>",
+        "#embed \"payload.bin\"",
+    ],
+)
+def test_pending_rewrite_variant_rejects_all_directive_spellings(directive: str) -> None:
+    source = f"{directive}\nint x(void) {{ return 1; }}"
+    assert pending_rewrite_variant({"name": "sub_1000"}, _candidate(), {"status": "completed", "source": source}) is None
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "\ufeff#include <stdio.h>\nint x(void) { return 1; }",
+        "#include <stdio.h>\rint x(void) { return 1; }",
+        "int x(void) { __as\\ \nm__(\"nop\"); return 1; }",
+    ],
+)
+def test_pending_rewrite_variant_rejects_compiler_accepted_normalization_escapes(source: str) -> None:
+    assert pending_rewrite_variant({"name": "sub_1000"}, _candidate(), {"status": "completed", "source": source}) is None
+
+
 def test_pending_rewrite_variant_rejects_empty_source() -> None:
     result = {"status": "completed", "source": "   "}
     assert pending_rewrite_variant({"name": "sub_1000"}, _candidate(), result) is None
@@ -200,7 +227,26 @@ def test_pending_rewrite_variant_rejects_empty_source() -> None:
     [
         "int x(void) { __asm { nop } return 1; }",
         "int x(void) { _asm nop; return 1; }",
+        "int x(void) { __asm__ volatile(\"nop\"); return 1; }",
+        "int x(void) { asm volatile(\"nop\"); return 1; }",
         "__declspec(naked) int x(void) { return 1; }",
+        "__declspec( noinline, naked ) int x(void) { return 1; }",
+        "__declspec(align(16), naked) int x(void) { return 1; }",
+        "__attribute((naked)) int x(void) { return 1; }",
+        "__attribute ((naked)) int x(void) { return 1; }",
+        "__attribute /* gap */ ((naked)) int x(void) { return 1; }",
+        "__attribute__ (( __naked__ )) int x(void) { return 1; }",
+        "__attribute__((aligned((16)), naked)) int x(void) { return 1; }",
+        "__attribute__((unused)) int x(void) { return 1; }",
+        "[[gnu::naked]] int x(void) { return 1; }",
+        "<:<:gnu::naked:>:> int x(void) { return 1; }",
+        "<\\\n:<\\\n:gnu::naked:>:> int x(void) { return 1; }",
+        "<:[gnu::naked]:> int x(void) { return 1; }",
+        "[[gnu::naked:>:> int x(void) { return 1; }",
+        "<:[gnu::naked]] int x(void) { return 1; }",
+        "[ /* gap */ [gnu::naked] ] int x(void) { return 1; }",
+        "<: /* gap */ [gnu::naked] :> int x(void) { return 1; }",
+        "[[using gnu: naked]] int x(void) { return 1; }",
         "int x(void) { __emit(0x90); return 1; }",
     ],
 )
@@ -225,6 +271,33 @@ def test_pending_rewrite_variant_allows_identifier_containing_asm() -> None:
     source = "int x(void) { int plasmaCount = 1; return plasmaCount; }"
     variant = pending_rewrite_variant({"name": "sub_1000"}, _candidate(), {"status": "completed", "source": source})
     assert variant is not None
+
+
+def test_pending_rewrite_variant_allows_asm_text_in_an_ordinary_string() -> None:
+    source = 'const char *x(void) { return "__asm__ %:include"; }'
+    variant = pending_rewrite_variant({"name": "sub_1000"}, _candidate(), {"status": "completed", "source": source})
+    assert variant is not None
+
+
+@pytest.mark.parametrize("source", [
+    'const char *x(void) { return "continued\\\n#error text"; }',
+    'int x(void) { /* "\n#error comment */ return \'\\\'\'; }',
+    'const char *x(void) { return "escaped\\\" quote and \\n#error text"; }',
+])
+def test_pending_rewrite_variant_preserves_valid_literals_and_comments(source: str) -> None:
+    assert pending_rewrite_variant({}, _candidate(), {"status": "completed", "source": source}) is not None
+
+
+@pytest.mark.parametrize("quote", ['"', "'"])
+def test_pending_rewrite_variant_rejects_splice_exposed_literal_newline(quote: str) -> None:
+    source = f"int x(void) {{ {quote}two-splice\\\\\n\n#error forbidden{quote}; return 1; }}"
+    assert pending_rewrite_variant({}, _candidate(), {"status": "completed", "source": source}) is None
+
+
+@pytest.mark.parametrize("quote", ['"', "\'"])
+def test_pending_rewrite_variant_rejects_unterminated_literal(quote: str) -> None:
+    source = f"int x(void) {{ {quote}unterminated"
+    assert pending_rewrite_variant({}, _candidate(), {"status": "completed", "source": source}) is None
 
 
 # -- content-check obfuscation bypasses (security review) -------------------

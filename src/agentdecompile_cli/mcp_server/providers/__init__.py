@@ -1,8 +1,8 @@
 """MCP tool providers – Python implementations of MCP tools.
 
 Each provider registers HANDLERS (normalized tool name → method) and list_tools();
-ToolProviderManager dispatches tools/call to the appropriate provider. Import
-order here does not affect registration; all are collected by the manager.
+``PROVIDER_CLASSES`` is the single ordered enrollment list consumed by
+ToolProviderManager, which dispatches tools/call to the selected provider.
 """
 
 from .decompiler import DecompilerToolProvider
@@ -37,36 +37,38 @@ from .recovery import RecoveryToolProvider
 from .workflow import WorkflowToolProvider
 from .context_substrate import ContextSubstrateToolProvider
 
-__all__ = [
-    "BookmarkToolProvider",
-    "BatchAnalysisToolProvider",
-    "CallGraphToolProvider",
-    "CommentToolProvider",
-    "ConflictResolutionToolProvider",
-    "ConstantSearchToolProvider",
-    "ContextSubstrateToolProvider",
-    "CrossReferencesToolProvider",
-    "DataFlowToolProvider",
-    "DataToolProvider",
-    "DataTypeToolProvider",
-    "DecompMatchToolProvider",
-    "DecompilerToolProvider",
-    "FunctionToolProvider",
-    "GetFunctionAioToolProvider",
-    "GetFunctionToolProvider",
-    "ImportExportToolProvider",
-    "MemoryToolProvider",
-    "ProjectToolProvider",
-    "ScriptToolProvider",
-    "StaticAnalysisToolProvider",
-    "RecoveryToolProvider",
-    "WorkflowToolProvider",
-    "PromptToolProvider",
-    "SearchEverythingToolProvider",
-    "StringToolProvider",
-    "StructureToolProvider",
-    "EnumToolProvider",
-    "SuggestionToolProvider",
-    "SymbolToolProvider",
-    "VtableToolProvider",
-]
+PROVIDER_CLASSES = (
+    BookmarkToolProvider,
+    BatchAnalysisToolProvider,
+    DecompMatchToolProvider,
+    CallGraphToolProvider,
+    CommentToolProvider,
+    ConflictResolutionToolProvider,
+    ConstantSearchToolProvider,
+    ContextSubstrateToolProvider,
+    CrossReferencesToolProvider,
+    DataFlowToolProvider,
+    DataToolProvider,
+    DataTypeToolProvider,
+    DecompilerToolProvider,
+    EnumToolProvider,
+    GetFunctionAioToolProvider,
+    FunctionToolProvider,
+    GetFunctionToolProvider,
+    ImportExportToolProvider,
+    MemoryToolProvider,
+    ProjectToolProvider,
+    PromptToolProvider,
+    ScriptToolProvider,
+    StaticAnalysisToolProvider,
+    RecoveryToolProvider,
+    WorkflowToolProvider,
+    SearchEverythingToolProvider,
+    StringToolProvider,
+    StructureToolProvider,
+    SuggestionToolProvider,
+    SymbolToolProvider,
+    VtableToolProvider,
+)
+
+__all__ = [provider.__name__ for provider in PROVIDER_CLASSES]

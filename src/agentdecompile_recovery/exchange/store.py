@@ -42,6 +42,7 @@ one event loop.
 from __future__ import annotations
 
 import asyncio
+import errno
 import hashlib
 import json
 import logging
@@ -50,11 +51,13 @@ import re
 import secrets
 import threading
 import time
+
 from collections import deque
+from collections.abc import Awaitable, Callable, Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any
 
 try:  # pragma: no cover - platform dependent
     import fcntl
@@ -96,6 +99,9 @@ FAILURE_VERDICTS = frozenset({"failed", "error", "abandoned", "unsupported"})
 
 DEFAULT_LEASE_SECONDS = 300
 THROUGHPUT_WINDOW_SECONDS = 300.0
+# The HTTP model enforces this too, but direct in-process callers must not be
+# able to bypass the same snapshot-growth bound.
+MAX_ARTIFACT_BYTES = 64 * 1024
 
 # An absolute path in a payload is R1's failure mode: the unit stops being a
 # value and becomes a reference into the coordinator's filesystem. Match only
@@ -136,6 +142,12 @@ class RateLimited(ExchangeError):
 class CapacityExceeded(ExchangeError):
     status = 503
     code = "capacity-exceeded"
+
+
+class InvalidSubmission(ExchangeError):
+    """A result that cannot enter the coordinator's verification queue."""
+
+    code = "invalid-submission"
 
 
 def default_state_path() -> Path:
@@ -196,13 +208,109 @@ def _file_lock(path: Path) -> Iterator[None]:
     if fcntl is None:
         yield
         return
-    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a+") as fh:
         fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
         try:
             yield
         finally:
             fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+
+
+def _sync_directory(path: Path, *, required: bool = False) -> bool:
+    """Persist directory entries where the platform/filesystem supports it."""
+
+    if os.name == "nt":  # Windows cannot open directories for os.fsync.
+        if required:
+            raise OSError(errno.ENOTSUP, "exchange forwarding requires directory fsync")
+        return False
+    unsupported = {errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP}
+    try:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    except OSError as exc:
+        if exc.errno in unsupported and not required:
+            return False
+        raise
+    try:
+        try:
+            os.fsync(descriptor)
+        except OSError as exc:
+            if exc.errno in unsupported and not required:
+                return False
+            raise
+    finally:
+        os.close(descriptor)
+    return True
+
+
+def _initialization_marker(prefix: str, target: Path) -> str:
+    return prefix + hashlib.sha256(os.fsencode(target.absolute())).hexdigest() + ".pending"
+
+
+def _rewrite_marker_names(directory: Path) -> tuple[str, ...]:
+    """Exact rewrite markers whose mkdir obligations contain ``directory``."""
+
+    directory = directory.absolute()
+    return tuple(
+        _initialization_marker(".rewrite-queue-init-", target)
+        for target in (directory, *directory.parents)
+    )
+
+
+def _prepare_directory(
+    directory: Path,
+    *,
+    marker_names: Iterable[str],
+    create_marker_name: str | None = None,
+    sync_directory: Callable[..., bool | None] = _sync_directory,
+) -> bool:
+    """Recover exact mkdir markers, syncing through the outermost obligation.
+
+    Rewrite-queue markers are retained when an ordinary queue writer cannot
+    fsync directories. An exchange caller adopting one is a strict forwarding
+    path, so unsupported directory fsync must fail before that marker is
+    removed. Marker names are supplied explicitly; no ancestor is scanned.
+    """
+
+    directory = directory.absolute()
+    ancestors = (directory, *directory.parents)
+    initial_anchor = next(parent for parent in ancestors if parent.is_dir())
+    names = tuple(dict.fromkeys(marker_names))
+    markers = [parent / name for parent in ancestors for name in names if (parent / name).exists()]
+    if not markers:
+        if create_marker_name is None:
+            return False
+        if initial_anchor == directory:
+            return False
+        markers = [initial_anchor / create_marker_name]
+
+    required = any(marker.name.startswith(".rewrite-queue-init-") for marker in markers)
+
+    def sync(path: Path) -> None:
+        if required:
+            sync_directory(path, required=True)
+        else:
+            sync_directory(path)
+
+    marker_parents = tuple(dict.fromkeys(marker.parent for marker in markers))
+    for marker in markers:
+        with marker.open("a", encoding="utf-8") as handle:
+            handle.flush()
+            os.fsync(handle.fileno())
+    for parent in marker_parents:
+        sync(parent)
+
+    directory.mkdir(parents=True, exist_ok=True)
+    outermost = max(marker_parents, key=ancestors.index)
+    for parent in ancestors:
+        sync(parent)
+        if parent == outermost:
+            break
+
+    for marker in markers:
+        marker.unlink(missing_ok=True)
+    for parent in marker_parents:
+        sync(parent)
+    return True
 
 
 @dataclass(slots=True)
@@ -219,10 +327,8 @@ class WorkUnit:
     lease_expires_at: float | None = None
     submission: dict[str, Any] | None = None
     # Set only on the pending -> {failed, awaiting-verification} transition in
-    # submit(). This is what _prune_terminal keys on: without it, max_units is
-    # a lifetime cap rather than a concurrency bound, because nothing else
-    # marks a unit as safe to drop once the coordinator has had a chance to
-    # see its outcome.
+    # submit(). Only failed units use it for retention: an awaiting proposal
+    # must survive forwarding until a coordinator proves or rejects it.
     resolved_at: float | None = None
 
     def offer_view(self) -> dict[str, Any]:
@@ -300,11 +406,9 @@ class ExchangeStore:
         self.lease_seconds = int(lease_seconds)
         self.max_workers = int(max_workers)
         self.max_units = int(max_units)
-        # Without pruning, a terminal unit (failed or awaiting-verification)
-        # sits in _units forever -- nothing else ever removes one -- so
-        # max_units caps units ever offered, not units concurrently pending.
-        # An hour gives the coordinator a generous window to read a
-        # submission's outcome via roster()/unit_state() before it is dropped.
+        # Failed work can be retried or inspected for a bounded interval.
+        # Awaiting-verification proposals are deliberately retained until a
+        # future coordinator acknowledgement/resolution path exists.
         self.terminal_retention_seconds = float(terminal_retention_seconds)
         self.rate_limit_calls = int(rate_limit_calls)
         self.rate_limit_window = float(rate_limit_window)
@@ -315,6 +419,8 @@ class ExchangeStore:
         self.quarantined_path: Path | None = None
         self.read_only = False
         self._lock = asyncio.Lock()
+        self._maintenance_task: asyncio.Task[None] | None = None
+        self._next_maintenance_at = 0.0
         self._loaded = False
         self._units: dict[str, WorkUnit] = {}
         self._workers: dict[str, Worker] = {}
@@ -325,6 +431,8 @@ class ExchangeStore:
         # is built, not at the moment it reaches the disk.
         self._generation = 0
         self._committed_generation = 0
+        self._pending_directory_sync: list[Path] = []
+        self._directory_ready = False
         # _write_snapshot runs off the event loop via asyncio.to_thread, so
         # concurrent mutations reach it on separate OS threads of the default
         # executor. fcntl.flock (see _file_lock) only keeps a second *process*
@@ -369,6 +477,10 @@ class ExchangeStore:
         # shape rewrite_queue itself writes -- is enough to trigger it.
         try:
             fence = int(raw.get("fence") or 0)
+            sync_depth = raw.get("pendingDirectorySyncDepth", 0)
+            if type(sync_depth) is not int or not 0 <= sync_depth < len(path.parents):
+                raise ValueError("invalid pending directory sync depth")
+            pending_directory_sync = list(reversed(path.parents[1 : sync_depth + 1]))
             receipts = {str(key): value for key, value in (raw.get("receipts") or {}).items() if isinstance(value, dict)}
             workers: dict[str, Worker] = {}
             for worker_id, row in raw["workers"].items():
@@ -415,6 +527,7 @@ class ExchangeStore:
         self._receipts = receipts
         self._workers = workers
         self._units = units
+        self._pending_directory_sync = pending_directory_sync
         # Fence every restored lease out, now that the counter is authoritative.
         for unit in restored:
             unit.fence = self._next_fence()
@@ -456,9 +569,33 @@ class ExchangeStore:
         self._generation += 1
         return json.dumps(state, indent=2, sort_keys=True, default=str) + "\n"
 
+    def _prepare_state_directory(self) -> None:
+        """Anchor automatic mkdir before snapshots, recovering interrupted setup.
+
+        An existing, unmarked hierarchy is operator-provisioned. For directories
+        we create, persist an intent in the nearest existing ancestor *before*
+        mkdir: a process can die before it ever writes a snapshot. Exact-name
+        probes recover that intent without opening unrelated ancestors for sync.
+        """
+
+        if self._directory_ready:
+            return
+        directory = self.state_path.absolute().parent
+        marker_name = _initialization_marker(".exchange-init-", self.state_path)
+        # The pipeline can create the sibling spool hierarchy first. Its marker
+        # has the same parent-anchoring obligation as ours; recognize it before
+        # treating a merely visible state directory as operator-provisioned.
+        spool_marker_name = _initialization_marker(".exchange-spool-init-", directory / "exchange-spool")
+        _prepare_directory(
+            directory,
+            marker_names=(marker_name, spool_marker_name, *_rewrite_marker_names(directory)),
+            create_marker_name=marker_name,
+            sync_directory=_sync_directory,
+        )
+        self._directory_ready = True
+
     def _write_snapshot(self, text: str, generation: int) -> None:
         path = self.state_path
-        path.parent.mkdir(parents=True, exist_ok=True)
         # Unique tmp name per writer, as in state.atomic_write_json: concurrent
         # writers must not replace each other's in-progress temporary file.
         tmp = path.with_name(f"{path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp")
@@ -472,6 +609,7 @@ class ExchangeStore:
         # adding a needless cross-process hold time for no benefit, since only
         # one thread here can be inside _file_lock at a time either way.
         with self._write_lock:
+            self._prepare_state_directory()
             with _file_lock(path.with_name(f"{path.name}.lock")):
                 # Snapshot text is built under the asyncio lock but written
                 # outside it, so two mutations can reach this point in either
@@ -488,13 +626,38 @@ class ExchangeStore:
                 # hypothetical second process on the same host.
                 if generation <= self._committed_generation:
                     return
-                tmp.write_text(text, encoding="utf-8")
-                tmp.replace(path)
+                if self._pending_directory_sync:
+                    # The replacement can survive a process restart even when
+                    # an ancestor fsync fails. Carry that retry obligation in
+                    # the snapshot; the next successful write drops it. Store
+                    # a bounded depth instead of trusting paths from disk.
+                    state = json.loads(text)
+                    state["pendingDirectorySyncDepth"] = max(path.parents.index(directory) for directory in self._pending_directory_sync)
+                    text = json.dumps(state, indent=2, sort_keys=True) + "\n"
+                try:
+                    with tmp.open("w", encoding="utf-8") as handle:
+                        handle.write(text)
+                        handle.flush()
+                        os.fsync(handle.fileno())
+                    tmp.replace(path)
+                    _sync_directory(path.parent)
+                    for directory in reversed(self._pending_directory_sync):
+                        _sync_directory(directory)
+                    self._pending_directory_sync.clear()
+                finally:
+                    # A failed file sync leaves an uncommitted temporary file.
+                    # Cleanup must not mask the original persistence error.
+                    try:
+                        tmp.unlink(missing_ok=True)
+                    except OSError:
+                        logger.warning("exchange: could not remove temporary snapshot %s", tmp, exc_info=True)
                 self._committed_generation = generation
 
     async def _persist(self, text: str | None, generation: int | None = None) -> None:
-        if text is None or self.read_only:
+        if text is None:
             return
+        if self.read_only:
+            raise OSError("exchange store is read-only; snapshot not persisted")
         if generation is None:
             self._generation += 1
             generation = self._generation
@@ -508,7 +671,7 @@ class ExchangeStore:
 
     def _reap(self, now: float) -> bool:
         """Return expired leases to `pending`, fencing the vanished holder out,
-        and prune terminal units past their retention window.
+        and prune failed units past their retention window.
 
         Called at the top of every mutating path, not just `claim`: a submit
         arriving after its lease expired must be rejected even when nobody
@@ -518,8 +681,9 @@ class ExchangeStore:
         mutating path already runs this unconditionally. Without it, nothing
         ever removes a unit from self._units -- max_units would cap units
         ever offered for the life of the state file, not units concurrently
-        pending, and a corpus-wide campaign that offers thousands of rewrite
-        candidates would eventually make every future offer() fail permanently.
+        pending. Awaiting-verification proposals intentionally remain until a
+        future coordinator acknowledgement/resolution path can retain their
+        artifacts elsewhere.
         """
 
         changed = False
@@ -536,13 +700,19 @@ class ExchangeStore:
                 changed = True
                 continue
             if (
-                unit.status in (STATUS_FAILED, STATUS_AWAITING_VERIFICATION)
+                unit.status == STATUS_FAILED
                 and unit.resolved_at is not None
                 and now - unit.resolved_at >= self.terminal_retention_seconds
             ):
                 stale_units.append(unit_id)
         for unit_id in stale_units:
             del self._units[unit_id]
+            # Receipts are tied to the unit they accepted. Retaining one after
+            # pruning a failed unit would turn a stale delivery into a false
+            # acknowledgement with no surviving proposal behind it.
+            for receipt_id, receipt in list(self._receipts.items()):
+                if isinstance(receipt, dict) and receipt.get("unitId") == unit_id:
+                    del self._receipts[receipt_id]
             changed = True
         return changed
 
@@ -574,21 +744,24 @@ class ExchangeStore:
             self._load()
             now = self.clock()
             self._reap(now)
-            if unit_id in self._units:
-                return unit_id
-            if len(self._units) >= self.max_units:
-                raise CapacityExceeded(f"exchange already holds its cap of {self.max_units} units")
-            self._units[unit_id] = WorkUnit(
-                unit_id=unit_id,
-                lane=lane,
-                payload=payload,
-                required_capabilities=required_capabilities_for(lane, required_capabilities),
-                offered_at=now,
-            )
+            if unit_id not in self._units:
+                if len(self._units) >= self.max_units:
+                    raise CapacityExceeded(f"exchange already holds its cap of {self.max_units} units")
+                self._units[unit_id] = WorkUnit(
+                    unit_id=unit_id,
+                    lane=lane,
+                    payload=payload,
+                    required_capabilities=required_capabilities_for(lane, required_capabilities),
+                    offered_at=now,
+                )
             text = self._snapshot_text()
             generation = self._generation
-        await self._persist(text, generation)
-        return unit_id
+            # An initial write can fail after it mutates memory. Do not let a
+            # content-addressed replay acknowledge the offer until it makes
+            # the current state durable; keeping the lock prevents a later
+            # mutation from overtaking this snapshot.
+            await self._persist(text, generation)
+            return unit_id
 
     async def unit_state(self, unit_id: str) -> dict[str, Any] | None:
         """Coordinator-side read of one unit, including any proposal against it."""
@@ -598,6 +771,34 @@ class ExchangeStore:
             self._reap(self.clock())
             unit = self._units.get(unit_id)
             return unit.state_view() if unit is not None else None
+
+    async def acknowledge_forwarded(self, unit_id: str, *, fingerprint: str, destination: str) -> bool:
+        """Record durable queue delivery; this never asserts verification.
+
+        Keep the proposal awaiting verification even after every current
+        destination is forwarded: future producers may add another destination.
+        """
+
+        async with self._lock:
+            self._load()
+            unit = self._units.get(unit_id)
+            if unit is None or unit.status != STATUS_AWAITING_VERIFICATION or unit.lane != "rewrite":
+                return False
+            submission = unit.submission
+            if submission is None or submission.get("fingerprint") != fingerprint:
+                return False
+            forwarded = submission.setdefault("forwarded", {})
+            if destination in forwarded:
+                return True
+            forwarded[destination] = {"state": "forwarded", "forwardedAt": self.clock()}
+            try:
+                await self._persist(self._snapshot_text(), self._generation)
+            except BaseException:
+                # A failed acknowledgement must remain retryable in this
+                # process too. The queue receipt makes redelivery harmless.
+                del forwarded[destination]
+                raise
+            return True
 
     async def roster(self) -> dict[str, Any]:
         async with self._lock:
@@ -679,7 +880,9 @@ class ExchangeStore:
         for worker_id in stale:
             del self._workers[worker_id]
 
-    async def claim(self, *, worker_id: str, lanes: Any = None) -> dict[str, Any] | None:
+    async def claim(
+        self, *, worker_id: str, lanes: Any = None, prepare: Callable[[], Awaitable[None]] | None = None
+    ) -> dict[str, Any] | None:
         """Lease the oldest pending unit this worker is actually able to run.
 
         Returns `None` (the router's 204) rather than waiting for work: one
@@ -692,6 +895,14 @@ class ExchangeStore:
             self._load()
             now = self.clock()
             worker = self._require_worker(worker_id, now)
+        # Request-triggered ingestion must follow admission and must not hold
+        # the snapshot lock while it offers units or forwards submissions.
+        if prepare is not None:
+            await prepare()
+        async with self._lock:
+            if self._workers.get(worker_id) is not worker:
+                raise UnknownWorker("enroll before claiming work")
+            now = self.clock()
             changed = self._reap(now)
             candidate: WorkUnit | None = None
             for unit in self._units.values():
@@ -715,6 +926,7 @@ class ExchangeStore:
                     "leaseToken": candidate.lease_token,
                     "fence": candidate.fence,
                     "leaseExpiresAt": candidate.lease_expires_at,
+                    "leaseSeconds": self.lease_seconds,
                 }
             # An empty claim is the common case for a polling worker; only a
             # real state change is worth a disk write.
@@ -733,7 +945,7 @@ class ExchangeStore:
             if unit is None:
                 raise LeaseRejected("lease expired or superseded; claim again")
             unit.lease_expires_at = now + self.lease_seconds
-            result = {"unitId": unit.unit_id, "fence": unit.fence, "leaseExpiresAt": unit.lease_expires_at}
+            result = {"unitId": unit.unit_id, "fence": unit.fence, "leaseExpiresAt": unit.lease_expires_at, "leaseSeconds": self.lease_seconds}
             # Heartbeats are the hottest endpoint and a lease deadline does not
             # survive a restart anyway (a reloaded claim is re-offered), so only
             # a reclaim is worth persisting here.
@@ -748,6 +960,59 @@ class ExchangeStore:
                 return unit
         return None
 
+    @staticmethod
+    def _receipt_id(worker_id: str, idempotency_key: str) -> str:
+        """A v2 receipt key that cannot collide across workers.
+
+        v1 stored receipts directly under a client-selected idempotency key.
+        Keep those rows loadable, but never look them up as replay receipts:
+        they do not bind a worker or lease safely enough to acknowledge work.
+        """
+
+        identity = json.dumps([worker_id, idempotency_key], separators=(",", ":"))
+        return "v2:" + hashlib.sha256(identity.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _valid_receipt(receipt: Any, *, worker_id: str, idempotency_key: str) -> bool:
+        """Whether a persisted v2 receipt can safely answer a replay."""
+
+        return (
+            isinstance(receipt, dict)
+            and receipt.get("workerId") == worker_id
+            and receipt.get("idempotencyKey") == idempotency_key
+            and isinstance(receipt.get("unitId"), str)
+            and isinstance(receipt.get("leaseToken"), str)
+            and isinstance(receipt.get("fence"), int)
+            and isinstance(receipt.get("fingerprint"), str)
+            and isinstance(receipt.get("response"), dict)
+            and receipt["response"].get("unitId") == receipt["unitId"]
+        )
+
+    @staticmethod
+    def _validate_submission(unit: WorkUnit, artifact: Any, verdict: str) -> None:
+        """Reject unusable lane-specific proposals before retiring a lease."""
+
+        if not isinstance(artifact, dict):
+            raise InvalidSubmission("submission artifact must be an object")
+        try:
+            artifact_size = len(json.dumps(artifact).encode("utf-8"))
+        except (TypeError, ValueError, UnicodeEncodeError) as exc:
+            raise InvalidSubmission("submission artifact must be portable JSON") from exc
+        if artifact_size > MAX_ARTIFACT_BYTES:
+            raise InvalidSubmission(f"artifact exceeds {MAX_ARTIFACT_BYTES} bytes when serialized")
+        if unit.lane != "rewrite" or verdict in FAILURE_VERDICTS:
+            return
+        source = artifact.get("source")
+        if not isinstance(source, str) or not source.strip() or "\x00" in source:
+            raise InvalidSubmission("rewrite completion requires a non-empty source artifact")
+        try:
+            source.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            # JSON's default escaping accepts lone surrogates, but the local
+            # queue writer later needs real UTF-8. Reject before retiring the
+            # lease so the contributor can correct the proposal.
+            raise InvalidSubmission("rewrite source must be valid UTF-8") from exc
+
     async def submit(
         self,
         *,
@@ -761,12 +1026,11 @@ class ExchangeStore:
         """Record a proposal against a leased unit. Commits nothing.
 
         Idempotency copies `react_api.submit_batch`: the client chooses the key,
-        the server derives the fingerprint from the content. Replaying a key
-        with the same content is a no-op success -- duplicate delivery is
-        expected under lease reissue and must be harmless -- while reusing it
-        for different content is a conflict. The receipt is consulted *before*
-        the lease is validated, so a retry that outlived its lease still
-        reports its original outcome instead of a confusing 410.
+        the server derives the fingerprint from the content. A receipt is scoped
+        to that worker and bound to its original lease/unit, so duplicate
+        delivery is harmless but key reuse cannot acknowledge different work.
+        The receipt is consulted before the active lease is validated, so an
+        exact retry that outlived its lease reports its original outcome.
         """
 
         fingerprint = hashlib.sha256(json.dumps({"artifact": artifact, "verdict": verdict}, sort_keys=True, default=str).encode("utf-8")).hexdigest()
@@ -774,15 +1038,30 @@ class ExchangeStore:
             self._load()
             now = self.clock()
             worker = self._require_worker(worker_id, now)
-            receipt = self._receipts.get(idempotency_key)
+            self._reap(now)
+            receipt = self._receipts.get(self._receipt_id(worker_id, idempotency_key))
+            if receipt is not None:
+                if not self._valid_receipt(receipt, worker_id=worker_id, idempotency_key=idempotency_key):
+                    # v1 rows are intentionally not idempotent: their global,
+                    # key-only identity cannot prove which lease created them.
+                    receipt = None
             if receipt is not None:
                 if receipt.get("fingerprint") != fingerprint:
                     raise IdempotencyConflict("submission key already belongs to different work")
+                if receipt["leaseToken"] != lease_token or receipt["fence"] != int(fence):
+                    raise IdempotencyConflict("submission key already belongs to a different lease")
+                # The initial write may have failed after mutating memory. A
+                # replay must make the current state durable before confirming
+                # success, while holding the lock so no later mutation races
+                # this submission's snapshot.
+                text = self._snapshot_text()
+                generation = self._generation
+                await self._persist(text, generation)
                 return dict(receipt["response"])
-            self._reap(now)
             unit = self._unit_for_lease(worker_id, lease_token)
             if unit is None or unit.fence != int(fence):
                 raise LeaseRejected("lease expired or fenced out by a newer claim; the result was discarded")
+            self._validate_submission(unit, artifact, str(verdict))
             unit.status = STATUS_FAILED if str(verdict) in FAILURE_VERDICTS else STATUS_AWAITING_VERIFICATION
             unit.resolved_at = now
             unit.submission = {
@@ -802,8 +1081,19 @@ class ExchangeStore:
             worker.submissions += 1
             self._recent.append((now, unit.lane))
             response = {"accepted": True, "state": unit.status, "unitId": unit.unit_id, "verdict": str(verdict)}
-            self._receipts[idempotency_key] = {"fingerprint": fingerprint, "response": response}
+            self._receipts[self._receipt_id(worker_id, idempotency_key)] = {
+                "workerId": worker_id,
+                "idempotencyKey": idempotency_key,
+                "unitId": unit.unit_id,
+                "leaseToken": lease_token,
+                "fence": int(fence),
+                "fingerprint": fingerprint,
+                "response": response,
+            }
             text = self._snapshot_text()
             generation = self._generation
-        await self._persist(text, generation)
-        return dict(response)
+            # Submission success is an external acknowledgement. Do not return
+            # it until this exact snapshot reaches disk; lock scope also keeps
+            # another mutation from overtaking it while the write runs off-loop.
+            await self._persist(text, generation)
+            return dict(response)

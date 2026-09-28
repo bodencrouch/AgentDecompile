@@ -7,12 +7,29 @@ metadata:
   version: "1.0"
 ---
 
-# tiered-re-analysis
+# Tiered RE analysis
 
-Default ladder: Tier 0 shell/static tools → Tier 1 batch `ghidrecomp`, BSim, or
-native snapshot replay for JVM-free option sweeps and engine-regression checks →
-Tier 2 MCP read-only inspection → Tier 3 decompile/mutation tools.
+Read [AGENTS](../../../AGENTS.md) before operations and [STRATEGY](../../../STRATEGY.md)
+for matcher order and acceptance. Use existing 8080 catalog actions for recovery.
 
-Use native snapshot replay only for exported savefile snapshots whose manifest
-engine matches the native SDK. It is not a replacement for import, analysis, or
-first decompile: producing the snapshot still requires Ghidra/Java once.
+| Tier | Use |
+|---|---|
+| 0 | Existing metadata, file triage, strings and static witnesses |
+| 1 | Stored batch decompilation, BSim and export evidence |
+| 2 | Read-only queries against existing analyzed Ghidra state |
+| 3 | Missing deep analysis or authorized mutations after ownership checks |
+
+At Tier 1, native snapshot replay can support JVM-free option sweeps and
+engine-regression checks, alongside batch `ghidrecomp` and BSim. Use it only
+for exported savefile snapshots whose manifest engine matches the native SDK.
+It cannot replace import, analysis, or the first Ghidra/Java decompile needed
+to produce the snapshot.
+
+Choose the cheapest sufficient evidence. First resolve program bindings and
+stored analysis; an empty view or a false session flag alone does not justify
+reanalysis. Reuse valid receipts, retain conflicts, and serialize shared writers.
+These tiers classify tools; they do not reorder the corpus matcher or prove
+recovery. Tool availability comes from the current advertised catalog.
+
+Historical [routing research](../../../docs/solutions/architecture-patterns/tiered-re-analysis-knowledgebase.md)
+is reference-only where its storage, confidence or operating rules differ.

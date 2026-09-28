@@ -22,6 +22,8 @@ from agentdecompile_cli.mcp_server.tool_providers import (
 from agentdecompile_cli.registry import Tool
 
 if TYPE_CHECKING:
+    from types import SimpleNamespace
+
     from ghidra.program.model.address import Address as GhidraAddress  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]  # noqa: F401
     from ghidra.program.model.data import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]  # noqa: F401
         Category as GhidraCategory,
@@ -35,6 +37,8 @@ if TYPE_CHECKING:
         Program as GhidraProgram,
     )
     from ghidra.program.model.mem import Memory as GhidraMemory  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]  # noqa: F401
+
+    from agentdecompile_cli.launcher import ProgramInfo
 
 logger = logging.getLogger(__name__)
 
@@ -100,7 +104,7 @@ class MemoryToolProvider(ToolProvider):
             ),
         ]
 
-    async def _handle_read_bytes(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_read_bytes(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Normalize read-bytes params (binaryName→programPath, address→addressOrSymbol, size→length) and delegate to inspect-memory mode=read."""
         logger.debug("diag.enter %s", "mcp_server/providers/memory.py:MemoryToolProvider._handle_read_bytes")
         forwarded: dict[str, Any] = dict(args)
@@ -111,16 +115,16 @@ class MemoryToolProvider(ToolProvider):
         if forwarded.get("length") is None and forwarded.get("size") is not None:
             forwarded["length"] = forwarded.get("size")
 
-        return await self._handle(forwarded)
+        return await self._handle(forwarded, program_info=program_info)
 
-    async def _handle(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Dispatch to blocks/read/data_at/data_items handler; segments is an alias for blocks."""
         logger.debug("diag.enter %s", "mcp_server/providers/memory.py:MemoryToolProvider._handle")
-        self._require_program()
+        self._require_program(program_info=program_info)
         mode: str = self._get_str(args, "mode", default="blocks")
-        assert self.program_info is not None, "program_info should be set after _require_program()"
-        program: GhidraProgram | None = self.program_info.program
-        memory: GhidraMemory | None = self._get_memory(program)
+        assert program_info is not None, "program_info should be set after _require_program()"
+        program: GhidraProgram | None = program_info.program
+        memory: GhidraMemory | None = self._get_memory(program, program_info=program_info)
         assert program is not None and memory is not None, "program and memory should be set after _require_program()"
 
         return await self._dispatch_handler(
@@ -138,18 +142,19 @@ class MemoryToolProvider(ToolProvider):
             },
             program=program,
             memory=memory,
+            program_info=program_info,
         )
 
-    async def _handle_instruction(self, args, program, memory):
-        address = self._resolve_address(self._require_address_or_symbol(args), program=program)
+    async def _handle_instruction(self, args, program, memory, *, program_info: ProgramInfo | SimpleNamespace | None):
+        address = self._resolve_address(self._require_address_or_symbol(args), program=program, program_info=program_info)
         instruction = program.getListing().getInstructionContaining(address)
         if instruction is None:
             return create_success_response({"mode": "instruction", "address": str(address), "instruction": None})
         return create_success_response({"mode": "instruction", "address": str(instruction.getAddress()), "bytes": " ".join(f"{int(b) & 255:02x}" for b in instruction.getBytes()), "mnemonic": str(instruction.getMnemonicString()), "length": int(instruction.getLength()), "operands": [{"index": i, "text": str(instruction.getDefaultOperandRepresentation(i)), "type": int(instruction.getOperandType(i)), "objects": [str(obj) for obj in instruction.getOpObjects(i)]} for i in range(instruction.getNumOperands())], "flows": [str(a) for a in instruction.getFlows()], "fallThrough": str(instruction.getFallThrough()) if instruction.getFallThrough() else None})
 
-    async def _handle_navigate(self, args, program, memory):
+    async def _handle_navigate(self, args, program, memory, *, program_info: ProgramInfo | SimpleNamespace | None):
         from ghidra.util.task import TaskMonitor
-        address = self._resolve_address(self._require_address_or_symbol(args), program=program)
+        address = self._resolve_address(self._require_address_or_symbol(args), program=program, program_info=program_info)
         direction = self._get_str(args, "direction", default="next")
         kind = self._get_str(args, "kind", default="instruction")
         if direction not in {"next", "previous"}:
@@ -200,7 +205,7 @@ class MemoryToolProvider(ToolProvider):
             )
         return create_success_response({"mode": "blocks", "blocks": blocks, "count": len(blocks)})
 
-    async def _handle_read(self, args: dict[str, Any], program: GhidraProgram, memory: GhidraMemory) -> list[types.TextContent]:
+    async def _handle_read(self, args: dict[str, Any], program: GhidraProgram, memory: GhidraMemory, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Read raw bytes at address; return hex dump and ASCII view. Cap length at 10000 to avoid huge responses."""
         logger.debug("diag.enter %s", "mcp_server/providers/memory.py:MemoryToolProvider._handle_read")
         addr_str: str | None = self._require_address_or_symbol(args)
@@ -208,7 +213,7 @@ class MemoryToolProvider(ToolProvider):
         length: int | None = self._get_int(args, "length", "size", "len", default=256)
         assert length is not None, "length should be set after _require_address_or_symbol()"
         length = min(length, 10000)
-        addr: GhidraAddress | None = self._resolve_address(addr_str, program=program)
+        addr: GhidraAddress | None = self._resolve_address(addr_str, program=program, program_info=program_info)
         if addr is None:
             return create_error_response(
                 ActionableError(
@@ -256,12 +261,12 @@ class MemoryToolProvider(ToolProvider):
             },
         )
 
-    async def _handle_data_at(self, args: dict[str, Any], program: GhidraProgram, memory: GhidraMemory) -> list[types.TextContent]:
+    async def _handle_data_at(self, args: dict[str, Any], program: GhidraProgram, memory: GhidraMemory, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Return the defined data at this address: type, length, value, label. Exact address first, then containing."""
         logger.debug("diag.enter %s", "mcp_server/providers/memory.py:MemoryToolProvider._handle_data_at")
         addr_str: str | None = self._require_address_or_symbol(args)
         assert addr_str is not None, "addr_str should be set after _require_address_or_symbol()"
-        addr: GhidraAddress | None = self._resolve_address(addr_str, program=program)
+        addr: GhidraAddress | None = self._resolve_address(addr_str, program=program, program_info=program_info)
         if addr is None:
             return create_error_response(
                 ActionableError(
@@ -275,7 +280,7 @@ class MemoryToolProvider(ToolProvider):
                 ),
             )
 
-        listing: GhidraListing | None = self._get_listing(program)
+        listing: GhidraListing | None = self._get_listing(program, program_info=program_info)
         assert listing is not None, "listing should be set after _get_listing()"
         data: GhidraData | None = listing.getDataAt(addr)
         if data is None:
@@ -283,11 +288,13 @@ class MemoryToolProvider(ToolProvider):
             data = listing.getDataContaining(addr)
 
         if data is not None:
+            from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
+
             return create_success_response(
                 {
                     "mode": "data_at",
                     "address": str(addr),
-                    "dataType": str(data.getDataType()),
+                    "dataType": data_type_label(data.getDataType()),
                     "length": data.getLength(),
                     "value": str(data.getValue()) if data.getValue() else None,
                     "label": str(data.getLabel()) if hasattr(data, "getLabel") and data.getLabel() else None,
@@ -301,7 +308,7 @@ class MemoryToolProvider(ToolProvider):
             },
         )
 
-    async def _handle_data_items(self, args: dict[str, Any], program: GhidraProgram, memory: GhidraMemory) -> list[types.TextContent]:
+    async def _handle_data_items(self, args: dict[str, Any], program: GhidraProgram, memory: GhidraMemory, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """List all memory locations that have a data type applied (getDefinedData), paginated.
 
         getDefinedData(True) walks the listing forward; each item has address, dataType, length, label.
@@ -312,8 +319,10 @@ class MemoryToolProvider(ToolProvider):
         offset, max_results = self._get_pagination_params(args, default_limit=100)
         assert offset is not None and max_results is not None, "offset and max_results should be set after _get_pagination_params()"
 
-        listing: GhidraListing | None = self._get_listing(program)
+        listing: GhidraListing | None = self._get_listing(program, program_info=program_info)
         assert listing is not None, "listing should be set after _get_listing()"
+        from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
+
         all_items: list[dict[str, Any]] = []
         data: GhidraData | None
         for data in listing.getDefinedData(True):
@@ -321,7 +330,7 @@ class MemoryToolProvider(ToolProvider):
             all_items.append(
                 {
                     "address": str(data.getAddress()),  # pyright: ignore[reportCallIssue]
-                    "dataType": str(data.getDataType()),
+                    "dataType": data_type_label(data.getDataType()),
                     "length": data.getLength(),
                     "label": str(data.getLabel()) if hasattr(data, "getLabel") and data.getLabel() else None,
                 },

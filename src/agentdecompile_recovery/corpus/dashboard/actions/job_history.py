@@ -5,12 +5,20 @@ import os
 import re
 import socket
 import threading
+import time
 from pathlib import Path
 from ..common import live_root
 
 _CACHE: dict[str, tuple[tuple[int, int], list[dict]]] = {}
 _LOCK = threading.Lock()
 _ID = re.compile(r'^[a-f0-9]{12,32}$')
+# The workbench asks for a compact activity snapshot frequently.  Rebuilding an
+# index of every retained workflow receipt for each individual job lookup made
+# a busy project appear disconnected even though its coordinator was running.
+# Keep a very short-lived index: live jobs still come from JobStore memory, and
+# a persisted receipt becomes visible on the following refresh.
+_RECORDS_CACHE: tuple[float, dict[str, dict]] | None = None
+_RECORDS_TTL_SECONDS = 0.35
 
 def directory() -> Path | None:
     root = live_root()
@@ -84,12 +92,16 @@ def _legacy(path: Path, data: dict) -> list[dict]:
     return output
 
 def records() -> dict[str, dict]:
+    global _RECORDS_CACHE
     root = live_root()
     if root is None:
         return {}
+    now = time.monotonic()
     result: dict[str, dict] = {}
-    paths = [p for folder in ('preparations', 'workbench-batches', 'workbench-jobs') for p in (root / folder).glob('*.json') if not p.is_symlink()]
     with _LOCK:
+        if _RECORDS_CACHE is not None and now - _RECORDS_CACHE[0] < _RECORDS_TTL_SECONDS:
+            return dict(_RECORDS_CACHE[1])
+        paths = [p for folder in ('preparations', 'workbench-batches', 'workbench-jobs') for p in (root / folder).glob('*.json') if not p.is_symlink()]
         for path in paths:
             try:
                 stat = path.stat()
@@ -97,6 +109,22 @@ def records() -> dict[str, dict]:
                 cached = _CACHE.get(str(path))
                 if cached is None or cached[0] != signature:
                     data = json.loads(path.read_text(encoding='utf-8'))
+                    # Reconcile durable jobs owned by a process that is no
+                    # longer present.  A receipt from a previous server must
+                    # not remain ``running`` forever, while a live owner is
+                    # never touched.  This is intentionally limited to the
+                    # explicit owner-death signal; long-running Ghidra jobs
+                    # are not inferred stale from age alone.
+                    if path.parent.name == 'workbench-jobs' and data.get('status') in {'queued', 'running', 'cancelling'}:
+                        from ..preparation import _owner_alive
+                        if not _owner_alive(data):
+                            data['status'] = 'interrupted'
+                            data['finishedAt'] = data.get('finishedAt') or time.time()
+                            data['error'] = data.get('error') or 'The owning process stopped before recording completion; retained output is available for reconciliation.'
+                            try:
+                                write(data)
+                            except OSError:
+                                pass
                     rows = [data] if path.parent.name == 'workbench-jobs' else _legacy(path, data)
                     _CACHE[str(path)] = (signature, rows)
                 else:
@@ -111,7 +139,8 @@ def records() -> dict[str, dict]:
                         result[row['id']] = row
             except (OSError, ValueError, TypeError):
                 continue
-    return result
+        _RECORDS_CACHE = (now, result)
+    return dict(result)
 
 def historical(job_id: str) -> dict | None:
     if not _ID.fullmatch(job_id):

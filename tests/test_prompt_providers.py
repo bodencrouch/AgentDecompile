@@ -14,6 +14,19 @@ def _patch_session(monkeypatch: pytest.MonkeyPatch, fake_session: SimpleNamespac
 
 
 @pytest.mark.unit
+def test_get_prompt_renders_recovery_source_language_from_registry() -> None:
+    result = prompt_providers.get_prompt(
+        "re-diver-deep-dive",
+        {"analysis_target": "combat system"},
+    )
+
+    text = result.messages[0].content.text
+    assert "Recover readable C++ for functions" in text
+    assert "{recovery_source_language}" not in text
+    assert "Recover readable C/C++" not in text
+
+
+@pytest.mark.unit
 def test_get_prompt_renders_analysis_target() -> None:
     result = prompt_providers.get_prompt(
         "re-scout-broad-sweep",

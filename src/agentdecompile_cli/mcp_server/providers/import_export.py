@@ -1,7 +1,7 @@
 """Import/Export Tool Provider - import-binary, export, analyze-program, checkin/checkout, etc.
 
   - import-binary: Load a file or folder into the project (language/compiler optional; analyzeAfterImport, enableVersionControl).
-  - export: Write C/C++/gzf/sarif/xml/html from the project (createHeader, includeTypes, includeGlobals, tags filter).
+  - export: Ghidra exporter output (c/cpp CppExporter, gzf/sarif/xml/html/ascii); recovery source language is separate (recoveryLanguage).
   - analyze-program: Run or re-run Ghidra auto-analysis on an already-imported program.
   - changeprocessor / listprocessors: Processor/language and compiler-spec management.
   - checkin-program / checkout-program / checkout-status: Version-control operations for shared projects.
@@ -21,19 +21,24 @@ import sys
 import tempfile
 import time
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 from itertools import islice
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, Any
 
 from mcp import types
-
-from agentdecompile_cli.mcp_utils.async_native import native_call as _native_call
 
 from agentdecompile_cli.app_logger import basename_hint, redact_session_id
 from agentdecompile_cli.context import ProgramInfo
 from agentdecompile_cli.mcp_server.providers._collectors import iter_items
-from agentdecompile_cli.mcp_server.providers.project import ProjectToolProvider
+from agentdecompile_cli.mcp_server.providers.project import (
+    ProjectToolProvider,
+    domain_file_sha256s,
+    file_sha256,
+    record_source_sha256,
+)
 from agentdecompile_cli.mcp_server.repository_adapter_listing import list_repository_adapter_items
 from agentdecompile_cli.mcp_server.session_context import (
     SESSION_CONTEXTS,
@@ -46,7 +51,14 @@ from agentdecompile_cli.mcp_server.tool_providers import (
     create_error_response,
     create_success_response,
 )
+from agentdecompile_cli.mcp_utils.async_native import native_call as _native_call
 from agentdecompile_cli.registry import Tool
+from agentdecompile_recovery.languages import (
+    SourceLanguage,
+    default_source_language,
+    language_spec,
+    parse_source_language,
+)
 
 if TYPE_CHECKING:
     from ghidra.app.decompiler import DecompInterface as GhidraDecompInterface  # pyright: ignore[reportMissingModuleSource, reportMissingImports]
@@ -102,8 +114,10 @@ def _jpype_enum_equal(java_val: Any, py_const: Any) -> bool:
 
 def _sym_is_user_defined_label(sym: Any) -> bool:
     """True if ``sym`` is a USER_DEFINED LABEL (snapshot / reapply; tolerant of JPype enum proxies)."""
-    from ghidra.program.model.symbol import SourceType as GhidraSourceType  # pyright: ignore[reportMissingImports]
-    from ghidra.program.model.symbol import SymbolType as GhidraSymbolType  # pyright: ignore[reportMissingImports]
+    from ghidra.program.model.symbol import (
+        SourceType as GhidraSourceType,  # pyright: ignore[reportMissingImports]
+        SymbolType as GhidraSymbolType,  # pyright: ignore[reportMissingImports]
+    )
 
     try:
         src = sym.getSource()
@@ -228,7 +242,7 @@ def _ghidra_project_open_program_for_domain_file_save(ghidra_project: GhidraProj
 def _normalize_import_destination_folder(args: dict[str, Any]) -> str:
     """Ghidra folder pathname for saveAs (e.g. '/' or '/bin')."""
     logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:_normalize_import_destination_folder")
-    raw = ToolProvider._get_str(args, "destinationfolder", "destination_folder", default="/")
+    raw = ToolProvider._get_str(args, "destinationfolder", default="/")
     s = (raw or "/").strip().replace("\\", "/")
     if not s:
         s = "/"
@@ -432,8 +446,22 @@ class ImportExportToolProvider(ToolProvider):
         except Exception:
             return False
 
+    @staticmethod
+    def _resolve_recovery_language(args: dict[str, Any]) -> SourceLanguage:
+        raw = ToolProvider._get_str(args, "recoverylanguage", "sourcelanguage")
+        return parse_source_language(raw or None, default=default_source_language())
+
+    @staticmethod
+    def _recovery_language_fields(language: SourceLanguage) -> dict[str, str]:
+        spec = language_spec(language)
+        return {
+            "recoveryLanguage": language.value,
+            "recoveryLanguageDisplayName": spec.display_name,
+        }
+
     def list_tools(self) -> list[types.Tool]:
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider.list_tools")
+        default_recovery = language_spec(default_source_language())
         return [
             types.Tool(
                 name=Tool.IMPORT_BINARY.value,
@@ -470,7 +498,12 @@ class ImportExportToolProvider(ToolProvider):
             ),
             types.Tool(
                 name=Tool.EXPORT.value,
-                description="Export your reverse engineering work directly out of the project. This allows you to generate C code files, HTML summaries, or binary save files (like `.gzf`) from your modified data.",
+                description=(
+                    "Export reverse-engineering artifacts from the project using Ghidra exporters "
+                    f"(CppExporter pseudocode, GZF, SARIF, XML, HTML). The `format` parameter selects "
+                    f"the Ghidra exporter only; recovery source language defaults to "
+                    f"{default_recovery.display_name} and is configured separately via recoveryLanguage."
+                ),
                 inputSchema={
                     "type": "object",
                     "properties": {
@@ -480,12 +513,31 @@ class ImportExportToolProvider(ToolProvider):
                             "type": "string",
                             "enum": ["c", "cpp", "cxx", "gzf", "sarif", "xml", "html", "ascii"],
                             "default": "cpp",
-                            "description": "What type of file to export. 'c'/'cpp' creates a single massive header/pseudocode file. 'gzf' creates a packed Ghidra Zip File archive.",
+                            "description": (
+                                "Ghidra exporter format (not recovery source language). "
+                                "'c'/'cpp'/'cxx' use CppExporter for a single pseudocode/header file; "
+                                "'gzf' packs the program; other values select SARIF, XML, HTML, or ASCII exporters."
+                            ),
+                        },
+                        "recoveryLanguage": {
+                            "type": "string",
+                            "description": (
+                                f"Recovery pipeline source language (registry aliases such as c, cpp, cxx, rust, go; "
+                                f"default {default_recovery.display_name}). Separate from Ghidra exporter `format`."
+                            ),
+                        },
+                        "recovery_language": {
+                            "type": "string",
+                            "description": "snake_case alias for recoveryLanguage.",
+                        },
+                        "sourceLanguage": {
+                            "type": "string",
+                            "description": "camelCase alias for recoveryLanguage.",
                         },
                         "createHeader": {
                             "type": "boolean",
                             "default": True,
-                            "description": "Whether to build a standard C/C++ header block at the top containing environment types.",
+                            "description": "When format is c/cpp/cxx: include a Ghidra C/C++ environment header block.",
                         },
                         "includeTypes": {"type": "boolean", "default": True, "description": "Whether to inject custom struct and typedef definitions."},
                         "includeGlobals": {"type": "boolean", "default": True, "description": "Whether to output discovered global variables."},
@@ -633,6 +685,7 @@ class ImportExportToolProvider(ToolProvider):
         analyze_after_import: bool,
         *,
         program_file_name: str | None = None,
+        program_info: ProgramInfo | SimpleNamespace | None,
     ) -> dict[str, Any]:
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_shared_import")
         session_id = get_current_mcp_session_id()
@@ -902,7 +955,7 @@ class ImportExportToolProvider(ToolProvider):
                                     if bump_prog is not None:
                                         try:
                                             self._bump_versioned_checkout_dirty_bookmark(bump_prog)
-                                            self._persist_open_program_for_versioned_checkin(bump_prog)
+                                            self._persist_open_program_for_versioned_checkin(bump_prog, program_info=program_info)
                                             self._notify_domain_file_changed_for_versioned_checkin(
                                                 df_publish,
                                                 bump_prog,
@@ -1081,6 +1134,7 @@ class ImportExportToolProvider(ToolProvider):
                         "repository": repository_name,
                         "programs": binaries,
                         "method": "pyghidra_api",
+                        "_sharedImportIdentity": (server_host, server_port, repository_name),
                     }
                 except Exception:
                     if not transient_program_released:
@@ -1334,6 +1388,7 @@ class ImportExportToolProvider(ToolProvider):
             "repository": repository_name,
             "programs": binaries,
             "stdout": stdout or None,
+            "_sharedImportIdentity": (server_host, server_port, repository_name),
         }
         if not analyze_after_import:
             result["inSessionAnalysisPending"] = True
@@ -1358,7 +1413,55 @@ class ImportExportToolProvider(ToolProvider):
         by_key[key] = {"name": program_name, "path": key, "type": "Program"}
         SESSION_CONTEXTS.set_project_binaries(session_id, list(by_key.values()))
 
-    async def _handle_import(self, args: dict[str, Any]) -> list[types.TextContent]:
+    def _program_info_for_shared_import_result(
+        self,
+        result: dict[str, Any],
+        shared_identity: tuple[str, int, str] | None,
+    ) -> SimpleNamespace | None:
+        """Bind a versioned/shared _handle_shared_import success to the program it just created.
+
+        Mirrors the later non-versioned import loop's `program_info = _pi` reassignment, which
+        rebinds the response to the last-imported program instead of whatever program_info the
+        manager dispatched with. Without this, a successful
+        enableVersionControl=True import would call create_success_response with the manager's
+        original (often None) program_info, and the restored call-scoped injection contract
+        (tool_providers.py ToolProvider.call_tool) would then attach no projectContext at all.
+
+        Shared/versioned imports never have a local GhidraProject-backed DomainFile object to
+        hand to attach_project_context_to_payload — the PyGhidra branch releases its program
+        handle before returning, and the analyzeHeadless fallback runs import in a separate JVM
+        subprocess. So this builds the minimal duck-typed object collect_target_project_context
+        (program_metadata.py) needs: a `.domain_file` with getPathname/getSharedProjectURL/
+        getProjectLocator, using the repository identity captured by _handle_shared_import for
+        this operation. The resulting projectContext takes the shared-mode shape (mode,
+        serverHost, serverPort, repository, programUrl) — it does not set `projectPath`, which
+        collect_target_project_context only sets for the local-gpr branch.
+        """
+        if not result.get("success"):
+            return None
+        imported = result.get("importedPrograms") or []
+        if not imported:
+            return None
+        # Last entry wins, matching the default path's loop-reassignment behavior.
+        last = imported[-1] or {}
+        program_name = str(last.get("programName") or "").strip()
+        if not program_name:
+            return None
+        if shared_identity is None:
+            return None
+        server_host, server_port, repository_name = shared_identity
+        if not server_host or not repository_name:
+            return None
+        program_path = f"/{program_name}"
+        shared_url = f"ghidra://{server_host}:{server_port}/{repository_name}/{program_name}"
+        domain_file = SimpleNamespace(
+            getPathname=lambda: program_path,
+            getSharedProjectURL=lambda _ref=None, _url=shared_url: _url,
+            getProjectLocator=lambda: None,
+        )
+        return SimpleNamespace(domain_file=domain_file, name=program_name)
+
+    async def _handle_import(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_import")
         file_path: str = self._get_str(args, "path", "filepath", "file", "binarypath", "binary", default="")
 
@@ -1373,7 +1476,8 @@ class ImportExportToolProvider(ToolProvider):
                     "openPrograms": open_keys,
                     "projectBinaries": project_binaries,
                     "note": "No path provided. Pass path= to import a binary file into the project.",
-                }
+                },
+                program_info=program_info,
             )
         prog_name: str = self._get_str(args, "programname", "name")
         language: str = self._get_str(args, "language", "lang", "processor")
@@ -1397,17 +1501,21 @@ class ImportExportToolProvider(ToolProvider):
             raise ValueError(f"File not found: {source}")
 
         if enable_version_control and source.is_file():
-            from agentdecompile_recovery.corpus.dashboard.protection import prepare_protected_binary
+            from agentdecompile_recovery.corpus.dashboard.protection import prepare_analysis_binary
             from agentdecompile_recovery.corpus.dashboard.common import live_root
-            protection = await _native_call(prepare_protected_binary, source, live_root() or Path(tempfile.gettempdir()) / 'agentdecompile')
+            protection = await _native_call(prepare_analysis_binary, source, live_root() or Path(tempfile.gettempdir()) / 'agentdecompile')
             if protection.get('handling') == 'blocked':
                 return create_error_response(f"protection-unavailable: {protection.get('reason')}")
             original_source = source
             source = Path(protection['analysisPath'])
-            result = await _native_call(self._handle_shared_import, source, recursive, analyze_after_import, program_file_name=repo_program_name or original_source.name)
+            result = await _native_call(self._handle_shared_import, source, recursive, analyze_after_import, program_file_name=repo_program_name or original_source.name, program_info=program_info)
+            shared_identity = result.pop("_sharedImportIdentity", None)
             result['protection'] = protection
             result['originalSourcePath'] = str(original_source)
-            return create_success_response(result)
+            return create_success_response(
+                result,
+                program_info=self._program_info_for_shared_import_result(result, shared_identity) or program_info,
+            )
 
         if enable_version_control:
             # Shared folder imports must not bypass the per-image protection gate.
@@ -1416,13 +1524,17 @@ class ImportExportToolProvider(ToolProvider):
                 protection = await _native_call(inspect_protection, candidate)
                 if protection.get('status') == 'detected':
                     return create_error_response(f"protection-unavailable: import {candidate.name} individually so a derived image can be prepared before shared import.")
+            shared_result = self._handle_shared_import(
+                source,
+                recursive,
+                analyze_after_import,
+                program_file_name=repo_program_name,
+                program_info=program_info,
+            )
+            shared_result.pop("_sharedImportIdentity", None)
             return create_success_response(
-                self._handle_shared_import(
-                    source,
-                    recursive,
-                    analyze_after_import,
-                    program_file_name=repo_program_name,
-                ),
+                shared_result,
+                program_info=program_info,
             )
 
         imported_programs: list[dict[str, Any]] = []
@@ -1449,7 +1561,7 @@ class ImportExportToolProvider(ToolProvider):
                                 "import-binary: ghidra_project is None, attempting to open project from %s",
                                 project_path_str,
                             )
-                            await project_tool._handle_open_project({"path": project_path_str})
+                            await project_tool._handle_open_project({"path": project_path_str}, program_info=program_info)
                             # Re-check ghidra_project after opening
                             ghidra_project = getattr(self._manager, "ghidra_project", None)
                             if ghidra_project is None:
@@ -1479,14 +1591,22 @@ class ImportExportToolProvider(ToolProvider):
                 discovered_count += 1
                 name = (prog_name or item.name or "").strip() or item.name
                 try:
-                    from agentdecompile_recovery.corpus.dashboard.protection import prepare_protected_binary
+                    from agentdecompile_recovery.corpus.dashboard.protection import prepare_analysis_binary
                     from agentdecompile_recovery.corpus.dashboard.common import live_root
-                    protection = await _native_call(prepare_protected_binary, item, live_root() or Path(tempfile.gettempdir()) / 'agentdecompile')
+
+                    work_root = live_root() or Path(tempfile.gettempdir()) / 'agentdecompile'
+                    protection = await _native_call(prepare_analysis_binary, item, work_root)
                     if protection.get('handling') == 'blocked':
                         raise ValueError(f"protection-unavailable: {protection.get('reason')}")
                     analysis_item = Path(protection['analysisPath'])
-                    from agentdecompile_recovery.corpus.dashboard.library_identity import binary_sha256
-                    digest = await _native_call(binary_sha256, str(analysis_item))
+                    # Reuse is keyed on the raw file the caller named, the same bytes
+                    # _import_file hashes.  ``digest`` (bytes Ghidra loads) still
+                    # matches files imported before the source hash was recorded.
+                    source_digest = await _native_call(file_sha256, item)
+                    if analysis_item.resolve() == Path(item).resolve():
+                        digest = source_digest
+                    else:
+                        digest = await _native_call(file_sha256, analysis_item)
                     def existing_content():
                         root = ghidra_project.getProject().getProjectData().getRootFolder()
                         pending = [root]
@@ -1495,9 +1615,8 @@ class ImportExportToolProvider(ToolProvider):
                             folder = pending.pop()
                             pending.extend(list(folder.getFolders()))
                             for domain_file in folder.getFiles():
-                                metadata = domain_file.getMetadata()
-                                prior = str(metadata.get("Executable SHA256") or metadata.get("SHA256") or "").lower()
-                                if digest and prior == digest:
+                                known = domain_file_sha256s(domain_file)
+                                if (source_digest and source_digest in known) or (digest and digest in known):
                                     return str(domain_file.getPathname()), str(domain_file.getName())
                                 if str(domain_file.getName()) == name and str(folder.getPathname()).rstrip("/") == dest_folder.rstrip("/"):
                                     collision = True
@@ -1515,17 +1634,69 @@ class ImportExportToolProvider(ToolProvider):
                             raise RuntimeError("Existing program could not be opened")
                         final_name = reused[1]
                     else:
-                        program = await _native_call(ghidra_project.importProgram, File(str(analysis_item)))
+                        if protection.get("handling") == "container-extract":
+                            from agentdecompile_cli.mcp_utils.container_import import import_raw_binary_slice
+
+                            container_info = protection.get("container") if isinstance(protection.get("container"), dict) else {}
+                            primary_info = container_info.get("primary") if isinstance(container_info.get("primary"), dict) else {}
+                            role = str(primary_info.get("role") or "arm9")
+                            language_id = str(protection.get("languageId") or primary_info.get("languageId") or "").strip()
+                            if not language_id:
+                                raise ValueError("container-extract import missing languageId")
+                            load_address = protection.get("loadAddress", primary_info.get("loadAddress"))
+                            if load_address is None:
+                                raise ValueError("container-extract import missing loadAddress")
+                            if isinstance(load_address, str):
+                                load_address = int(load_address, 0)
+                            entry_point = protection.get("entryPoint", primary_info.get("entryPoint"))
+                            if isinstance(entry_point, str):
+                                entry_point = int(entry_point, 0)
+
+                            program = await _native_call(
+                                import_raw_binary_slice,
+                                ghidra_project,
+                                analysis_item,
+                                language_id=language_id,
+                                base_address=int(load_address),
+                                block_name=role,
+                                program_name=name,
+                                dest_folder_path=dest_folder,
+                                entry_point=int(entry_point) if entry_point else None,
+                            )
+                            overlay_payload = protection.get("overlays")
+                            if isinstance(overlay_payload, list) and overlay_payload:
+                                from agentdecompile_cli.mcp_utils.container_import import apply_extracted_overlays
+
+                                applied_overlays = await _native_call(
+                                    apply_extracted_overlays,
+                                    program,
+                                    overlay_payload,
+                                )
+                                protection["appliedOverlays"] = applied_overlays
+                        else:
+                            program = await _native_call(ghidra_project.importProgram, File(str(analysis_item)))
                         if program is None:
                             raise RuntimeError("importProgram returned None")
                         try:
                             if hasattr(program, "setName"):
                                 program.setName(name)
                             elif hasattr(program, "name"):
-                                setattr(program, "name", name)
+                                program.name = name
                         except Exception:
                             pass
-                        await _native_call(ghidra_project.saveAs, program, dest_folder, name, True)
+                        # Saved into the file metadata by saveAs / the save below.
+                        await _native_call(record_source_sha256, program, source_digest)
+                        needs_save_as = protection.get("handling") != "container-extract"
+                        if not needs_save_as:
+                            def _domain_file_missing() -> bool:
+                                try:
+                                    return program.getDomainFile() is None
+                                except Exception:
+                                    return True
+
+                            needs_save_as = await _native_call(_domain_file_missing)
+                        if needs_save_as:
+                            await _native_call(ghidra_project.saveAs, program, dest_folder, name, True)
                         final_name = name
                     path_in_project = ""
                     try:
@@ -1536,17 +1707,23 @@ class ImportExportToolProvider(ToolProvider):
                         pass
                     if not path_in_project:
                         path_in_project = f"/{final_name}" if dest_folder in ("/", "") else f"{dest_folder}/{final_name}"
-                    imported_programs.append(
-                        {
-                            "sourcePath": str(item),
-                            "analysisPath": str(analysis_item),
-                            "reused": bool(reused),
-                            "sha256": digest,
-                            "protection": protection,
-                            "programName": final_name,
-                            "programPath": path_in_project,
-                        },
-                    )
+                    import_entry: dict[str, Any] = {
+                        "sourcePath": str(item),
+                        "analysisPath": str(analysis_item),
+                        "reused": bool(reused),
+                        "sha256": digest,
+                        "sourceSha256": source_digest,
+                        "protection": protection,
+                        "programName": final_name,
+                        "programPath": path_in_project,
+                    }
+                    if isinstance(protection, dict):
+                        if protection.get("container"):
+                            import_entry["container"] = protection["container"]
+                        overlays = protection.get("overlays")
+                        if overlays:
+                            import_entry["containerOverlays"] = overlays
+                    imported_programs.append(import_entry)
                     self._merge_imported_program_into_session_binaries(
                         session_id,
                         program_name=final_name,
@@ -1554,7 +1731,10 @@ class ImportExportToolProvider(ToolProvider):
                     )
                     from agentdecompile_cli.launcher import ProgramInfo as _ProgramInfo
                     from agentdecompile_cli.mcp_utils.decompiler_util import open_decompiler_for_program
-                    from agentdecompile_cli.mcp_utils.program_analysis import blocking_ensure_analyzed
+                    from agentdecompile_cli.mcp_utils.program_analysis import (
+                        blocking_ensure_analyzed,
+                        clear_analysis_failure,
+                    )
 
                     _dec = None
                     try:
@@ -1571,7 +1751,11 @@ class ImportExportToolProvider(ToolProvider):
                         file_path=item,
                         load_time=time.time(),
                     )
+                    # Imported or reused, the program now sits at its final path; a
+                    # failure recorded earlier for that path must not suppress analysis.
+                    clear_analysis_failure(program, path_in_project)
                     SESSION_CONTEXTS.set_active_program_info(session_id, path_in_project, _pi)
+                    program_info = _pi
                     if analyze_after_import:
                         await _native_call(blocking_ensure_analyzed, program, _pi, program_path=path_in_project, force=False)
                     # Persist the analysis performed after the initial import;
@@ -1597,6 +1781,7 @@ class ImportExportToolProvider(ToolProvider):
                     "success": False,
                     "error": str(exc),
                 },
+                program_info=program_info,
             )
 
         return create_success_response(
@@ -1615,12 +1800,18 @@ class ImportExportToolProvider(ToolProvider):
                 "success": len(imported_programs) > 0 and not errors,
                 "errors": errors,
             },
+            program_info=program_info,
         )
 
-    async def _handle_export(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_export(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_export")
-        self._require_program()
-        assert self.program_info is not None
+        self._require_program(program_info=program_info)
+        assert program_info is not None
+        recovery_fields = self._recovery_language_fields(self._resolve_recovery_language(args))
+
+        def _export_payload(payload: dict[str, Any]) -> dict[str, Any]:
+            return {**recovery_fields, **payload}
+
         output_path = self._get_str(args, "outputpath", "output", "file", "path")
         fmt = self._get_str(args, "format", default="cpp")
         fmt = (fmt or "cpp").strip().lower()
@@ -1628,18 +1819,20 @@ class ImportExportToolProvider(ToolProvider):
         supported_formats: list[str] = ["c", "cpp", "cxx", "gzf", "sarif", "xml", "html", "ascii"]
         if fmt not in supported_formats:
             return create_success_response(
-                {
-                    "action": "export",
-                    "success": False,
-                    "error": f"Unsupported format: {fmt}",
-                    "supportedFormats": supported_formats,
-                },
+                _export_payload(
+                    {
+                        "action": "export",
+                        "success": False,
+                        "error": f"Unsupported format: {fmt}",
+                        "supportedFormats": supported_formats,
+                    },
+                ),
             )
 
         if output_path:
             out = Path(output_path).expanduser().resolve()
             out.parent.mkdir(parents=True, exist_ok=True)
-            program: GhidraProgram | None = self.program_info.program
+            program: GhidraProgram | None = program_info.program
 
             if fmt == "gzf":
                 if out.suffix.lower() != ".gzf":
@@ -1647,38 +1840,44 @@ class ImportExportToolProvider(ToolProvider):
                 project = getattr(self._manager, "ghidra_project", None) if self._manager is not None else None
                 if project is None:
                     return create_success_response(
-                        {
-                            "action": "export",
-                            "format": fmt,
-                            "outputPath": str(out),
-                            "success": False,
-                            "error": "No Ghidra project is active for GZF export",
-                            "apiClass": "ghidra.app.util.exporter.GzfExporter",
-                        },
+                        _export_payload(
+                            {
+                                "action": "export",
+                                "format": fmt,
+                                "outputPath": str(out),
+                                "success": False,
+                                "error": "No Ghidra project is active for GZF export",
+                                "apiClass": "ghidra.app.util.exporter.GzfExporter",
+                            },
+                        ),
                     )
                 try:
                     from java.io import File as JavaFile  # pyright: ignore[reportMissingImports]
 
                     project.saveAsPackedFile(program, JavaFile(str(out)), True)
                     return create_success_response(
-                        {
-                            "action": "export",
-                            "format": fmt,
-                            "outputPath": str(out),
-                            "success": True,
-                            "apiClass": "ghidra.app.util.exporter.GzfExporter",
-                        },
+                        _export_payload(
+                            {
+                                "action": "export",
+                                "format": fmt,
+                                "outputPath": str(out),
+                                "success": True,
+                                "apiClass": "ghidra.app.util.exporter.GzfExporter",
+                            },
+                        ),
                     )
                 except Exception as exc:
                     return create_success_response(
-                        {
-                            "action": "export",
-                            "format": fmt,
-                            "outputPath": str(out),
-                            "success": False,
-                            "error": str(exc),
-                            "apiClass": "ghidra.app.util.exporter.GzfExporter",
-                        },
+                        _export_payload(
+                            {
+                                "action": "export",
+                                "format": fmt,
+                                "outputPath": str(out),
+                                "success": False,
+                                "error": str(exc),
+                                "apiClass": "ghidra.app.util.exporter.GzfExporter",
+                            },
+                        ),
                     )
 
             if fmt in {"c", "cpp", "cxx"}:
@@ -1708,24 +1907,28 @@ class ImportExportToolProvider(ToolProvider):
                     # transaction around this read-only operation.
                     await _native_call(_run_cpp_export)
                     return create_success_response(
-                        {
-                            "action": "export",
-                            "format": fmt,
-                            "outputPath": str(out),
-                            "success": True,
-                            "apiClass": "ghidra.app.util.exporter.CppExporter",
-                        },
+                        _export_payload(
+                            {
+                                "action": "export",
+                                "format": fmt,
+                                "outputPath": str(out),
+                                "success": True,
+                                "apiClass": "ghidra.app.util.exporter.CppExporter",
+                            },
+                        ),
                     )
                 except Exception as exc:
                     return create_success_response(
-                        {
-                            "action": "export",
-                            "format": fmt,
-                            "outputPath": str(out),
-                            "success": False,
-                            "error": str(exc),
-                            "apiClass": "ghidra.app.util.exporter.CppExporter",
-                        },
+                        _export_payload(
+                            {
+                                "action": "export",
+                                "format": fmt,
+                                "outputPath": str(out),
+                                "success": False,
+                                "error": str(exc),
+                                "apiClass": "ghidra.app.util.exporter.CppExporter",
+                            },
+                        ),
                     )
 
             if fmt == "sarif":
@@ -1801,7 +2004,7 @@ class ImportExportToolProvider(ToolProvider):
 
                     # Collect analysis warnings (thunk/external functions)
                     try:
-                        func_mgr: GhidraFunctionManager = self._get_function_manager(program)
+                        func_mgr: GhidraFunctionManager = self._get_function_manager(program, program_info=program_info)
                         for i, func in enumerate(func_mgr.getFunctions(True)):
                             if i > 50:
                                 break
@@ -1896,26 +2099,30 @@ class ImportExportToolProvider(ToolProvider):
                     }
                     out.write_text(json.dumps(sarif_doc, indent=2), encoding="utf-8")
                     return create_success_response(
-                        {
-                            "action": "export",
-                            "format": fmt,
-                            "outputPath": str(out),
-                            "success": True,
-                            "resultsCollected": len(results),
-                            "apiClass": "SARIF 2.1.0",
-                        },
+                        _export_payload(
+                            {
+                                "action": "export",
+                                "format": fmt,
+                                "outputPath": str(out),
+                                "success": True,
+                                "resultsCollected": len(results),
+                                "apiClass": "SARIF 2.1.0",
+                            },
+                        ),
                     )
                 except Exception as exc:
                     logger.error("Error generating SARIF report: %s", exc)
                     return create_success_response(
-                        {
-                            "action": "export",
-                            "format": fmt,
-                            "outputPath": str(out),
-                            "success": False,
-                            "error": str(exc),
-                            "apiClass": "SARIF 2.1.0",
-                        },
+                        _export_payload(
+                            {
+                                "action": "export",
+                                "format": fmt,
+                                "outputPath": str(out),
+                                "success": False,
+                                "error": str(exc),
+                                "apiClass": "SARIF 2.1.0",
+                            },
+                        ),
                     )
 
             if fmt == "ascii":
@@ -1948,13 +2155,15 @@ class ImportExportToolProvider(ToolProvider):
                     ascii_content = _generate_program_ascii_fallback(program, self._get_function_manager)
                     out.write_text(ascii_content, encoding="utf-8")
                 return create_success_response(
-                    {
-                        "action": "export",
-                        "format": fmt,
-                        "outputPath": str(out),
-                        "success": True,
-                        "apiClass": "ghidra.app.util.exporter.AsciiExporter or fallback",
-                    },
+                    _export_payload(
+                        {
+                            "action": "export",
+                            "format": fmt,
+                            "outputPath": str(out),
+                            "success": True,
+                            "apiClass": "ghidra.app.util.exporter.AsciiExporter or fallback",
+                        },
+                    ),
                 )
 
             if fmt == "xml":
@@ -1987,13 +2196,15 @@ class ImportExportToolProvider(ToolProvider):
                     xml_content = _generate_program_xml(program, self._get_function_manager)
                     out.write_text(xml_content, encoding="utf-8")
                 return create_success_response(
-                    {
-                        "action": "export",
-                        "format": fmt,
-                        "outputPath": str(out),
-                        "success": True,
-                        "apiClass": "ghidra.app.util.exporter.XmlExporter or fallback",
-                    },
+                    _export_payload(
+                        {
+                            "action": "export",
+                            "format": fmt,
+                            "outputPath": str(out),
+                            "success": True,
+                            "apiClass": "ghidra.app.util.exporter.XmlExporter or fallback",
+                        },
+                    ),
                 )
 
             if fmt == "html":
@@ -2026,13 +2237,15 @@ class ImportExportToolProvider(ToolProvider):
                     html_content = _generate_program_html(program, self._get_function_manager)
                     out.write_text(html_content, encoding="utf-8")
                 return create_success_response(
-                    {
-                        "action": "export",
-                        "format": fmt,
-                        "outputPath": str(out),
-                        "success": True,
-                        "apiClass": "ghidra.app.util.exporter.HtmlExporter or generated report",
-                    },
+                    _export_payload(
+                        {
+                            "action": "export",
+                            "format": fmt,
+                            "outputPath": str(out),
+                            "success": True,
+                            "apiClass": "ghidra.app.util.exporter.HtmlExporter or generated report",
+                        },
+                    ),
                 )
 
             payload: dict[str, Any] = {
@@ -2040,29 +2253,31 @@ class ImportExportToolProvider(ToolProvider):
                 "address": str(program.getImageBase() if program is not None else "(none)"),
                 "language": str(program.getLanguage().getLanguageID() if program is not None else "(none)"),
                 "compiler": str(program.getCompilerSpec().getCompilerSpecID() if program is not None else "(none)"),
-                "functionCount": self._get_function_manager(program).getFunctionCount() if program is not None else 0,
+                "functionCount": self._get_function_manager(program, program_info=program_info).getFunctionCount() if program is not None else 0,
                 "format": fmt,
             }
             out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-            return create_success_response({"action": "export", "format": fmt, "outputPath": str(out), "success": True})
+            return create_success_response(_export_payload({"action": "export", "format": fmt, "outputPath": str(out), "success": True}))
 
         return create_success_response(
-            {
-                "action": "export",
-                "format": fmt,
-                "outputPath": output_path or "(stdout)",
-                "note": "No output path provided; returning metadata only",
-                "supportedFormats": supported_formats,
-            },
+            _export_payload(
+                {
+                    "action": "export",
+                    "format": fmt,
+                    "outputPath": output_path or "(stdout)",
+                    "note": "No output path provided; returning metadata only",
+                    "supportedFormats": supported_formats,
+                },
+            ),
         )
 
-    async def _handle_analyze(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_analyze(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_analyze")
-        self._require_program()
-        assert self.program_info is not None
+        self._require_program(program_info=program_info)
+        assert program_info is not None
         analyzers: list[str] | None = self._get_list(args, "analyzers")
         force: bool = self._get_bool(args, "force", "forceanalysis", default=False)
-        program: GhidraProgram | None = self.program_info.program
+        program: GhidraProgram | None = program_info.program
 
         try:
             from agentdecompile_cli.mcp_utils.program_analysis import program_needs_analysis
@@ -2095,12 +2310,23 @@ class ImportExportToolProvider(ToolProvider):
             def _run_auto_analysis() -> None:
                 blocking_ensure_analyzed(
                     program,
-                    self.program_info,
+                    program_info,
                     program_path=program_path_hint or None,
                     force=force,
+                    analyzers=analyzers,
                 )
 
-            await _native_call(self._run_program_transaction, program, "auto-analysis", _run_auto_analysis)
+            # A prior tool call (import's batch transaction, or a leftover from a
+            # different native thread) can leave the program mid-transaction; a
+            # fresh startTransaction() here then fails with "Unable to lock due to
+            # active transaction" even though nothing is currently mutating the
+            # program. Drain any open transaction first, same as the version-control
+            # save/checkin paths already do.
+            await _native_call(self._end_all_open_transactions_on_program, program)
+            # ``FlatProgramAPI.analyzeAll`` opens no transaction of its own;
+            # ``program_analysis._run_auto_analysis`` owns it (see the comment
+            # there).  Do not add a second one around this call.
+            analysis_result = await _native_call(_run_auto_analysis)
             project = getattr(self._manager, "ghidra_project", None) if self._manager else None
             if project is not None:
                 await _native_call(project.save, program)
@@ -2110,6 +2336,7 @@ class ImportExportToolProvider(ToolProvider):
                     "action": "analyze",
                     "programName": program.getName() if program is not None else "(none)",
                     "analyzers": analyzers or "all",
+                    "deferredAnalyzers": (analysis_result or {}).get("deferredAnalyzers", []),
                     "force": force,
                     "success": True,
                 },
@@ -2125,15 +2352,15 @@ class ImportExportToolProvider(ToolProvider):
         except Exception as e:
             return create_success_response({"action": "analyze", "force": force, "success": False, "error": str(e)})
 
-    async def _handle_change_processor(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_change_processor(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_change_processor")
-        self._require_program()
-        assert self.program_info is not None
+        self._require_program(program_info=program_info)
+        assert program_info is not None
         language: str = self._get_str(args, "language", "lang", "processor", "languageid", default="")
 
         if not language:
             # Resource / no-args mode: return current processor info
-            program: GhidraProgram | None = self.program_info.program
+            program: GhidraProgram | None = program_info.program
             assert program is not None, "Program is required to get processor info"
             try:
                 lang_id: str = str(program.getLanguage().getLanguageID())
@@ -2150,7 +2377,7 @@ class ImportExportToolProvider(ToolProvider):
                 return create_success_response({"action": "get_processor", "success": False, "error": str(exc)})
         compiler: str | None = self._get_str(args, "compiler", "compilerspec", "compilerspecid")
 
-        program = self.program_info.program
+        program = program_info.program
         try:
             from ghidra.program.model.lang import (  # pyright: ignore[reportMissingModuleSource, reportMissingImports]
                 CompilerSpecID as GhidraCompilerSpecID,
@@ -2484,22 +2711,17 @@ class ImportExportToolProvider(ToolProvider):
             logger.warning("_local_save_via_reflection failed: %s", exc)
             return None
 
-    def _end_open_transactions_on_all_session_programs(self, session_id: str) -> None:
+    def _end_open_transactions_on_all_session_programs(self, session_id: str, *, program_info: ProgramInfo | SimpleNamespace | None) -> None:
         """Drain nested Ghidra transactions on every open Program (preserves GhidraProject batch txs)."""
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._end_open_transactions_on_all_session_programs")
         try:
-            if self.program_info and self.program_info.program:
-                self._end_nested_non_batch_transactions_on_program(self.program_info.program)
+            if program_info and program_info.program:
+                self._end_nested_non_batch_transactions_on_program(program_info.program)
             session: SessionContext = SESSION_CONTEXTS.get_or_create(session_id)
             for _k, info in list((session.open_programs or {}).items()):
                 prog = getattr(info, "program", None) or getattr(info, "current_program", None)
                 if prog is not None:
                     self._end_nested_non_batch_transactions_on_program(prog)
-            if self._manager is not None:
-                for pr in getattr(self._manager, "providers", None) or []:
-                    opi = getattr(pr, "program_info", None)
-                    if opi is not None and getattr(opi, "program", None) is not None:
-                        self._end_nested_non_batch_transactions_on_program(opi.program)
         except Exception as exc:
             logger.debug("Could not end transactions on session programs: %s", exc)
 
@@ -2554,6 +2776,7 @@ class ImportExportToolProvider(ToolProvider):
         *,
         program_path: str,
         program_display_name: str,
+        program_info: ProgramInfo | SimpleNamespace | None,
     ) -> GhidraProgram | None:
         """Best-effort: Program handle open in this session for the given GhidraDomainFile (for tx end / release)."""
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._resolve_program_for_domain_file")
@@ -2577,9 +2800,9 @@ class ImportExportToolProvider(ToolProvider):
                         program_obj = candidate
         except Exception:
             pass
-        if program_obj is None and self.program_info and self.program_info.program:
+        if program_obj is None and program_info and program_info.program:
             try:
-                adf: GhidraDomainFile | None = self.program_info.program.getDomainFile()
+                adf: GhidraDomainFile | None = program_info.program.getDomainFile()
                 if adf is not None and (
                     self._ghidra_paths_equal(
                         str(adf.getPathname() or ""),
@@ -2587,7 +2810,7 @@ class ImportExportToolProvider(ToolProvider):
                     )
                     or self._domain_files_align_for_checkin(adf, domain_file)
                 ):
-                    program_obj = self.program_info.program
+                    program_obj = program_info.program
             except Exception:
                 pass
         if program_obj is None:
@@ -2608,7 +2831,7 @@ class ImportExportToolProvider(ToolProvider):
                 pass
         return program_obj
 
-    def _end_open_transactions_for_one_open_program(self, session_id: str, program: GhidraProgram) -> None:
+    def _end_open_transactions_for_one_open_program(self, session_id: str, program: GhidraProgram, *, program_info: ProgramInfo | SimpleNamespace | None) -> None:
         """End Ghidra transactions only on session/provider handles that reference this Program instance."""
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._end_open_transactions_for_one_open_program")
         if program is None:
@@ -2623,19 +2846,10 @@ class ImportExportToolProvider(ToolProvider):
         except Exception as exc:
             logger.debug("end transactions on session program handle: %s", exc)
         try:
-            if self.program_info is not None and self.program_info.program is program:
+            if program_info is not None and program_info.program is program:
                 self._end_open_transaction_on_program(program)
         except Exception as exc:
             logger.debug("end transaction on provider program_info: %s", exc)
-        if self._manager is not None:
-            try:
-                for pr in getattr(self._manager, "providers", None) or []:
-                    pi = getattr(pr, "program_info", None)
-                    if pi is not None and getattr(pi, "program", None) is program:
-                        self._end_open_transaction_on_program(program)
-                        break
-            except Exception as exc:
-                logger.debug("end transaction on manager provider program: %s", exc)
 
     def _ensure_versioned_file_ready_for_checkin(
         self,
@@ -2644,6 +2858,7 @@ class ImportExportToolProvider(ToolProvider):
         *,
         end_transactions_on_all_open_programs: bool = True,
         end_domain_file_consumer_transactions: bool = True,
+        program_info: ProgramInfo | SimpleNamespace | None,
     ) -> None:
         """End open transactions; reclaim checkout only when the holder is not this JVM user.
 
@@ -2670,7 +2885,7 @@ class ImportExportToolProvider(ToolProvider):
         session_id = get_current_mcp_session_id()
         if end_transactions_on_all_open_programs:
             # checkin-all and unknown program: end every open Program tx, then GhidraDomainFile consumers.
-            self._end_open_transactions_on_all_session_programs(session_id)
+            self._end_open_transactions_on_all_session_programs(session_id, program_info=program_info)
         # Targeted checkin-program: do not end this Program's transactions here — _persist_open_program_for_versioned_checkin
         # ends all nested txs (including GhidraProject batch) immediately before program.save; doing it earlier breaks
         # modifiedSinceCheckout() for shared server check-ins.
@@ -2760,7 +2975,7 @@ class ImportExportToolProvider(ToolProvider):
         except Exception as exc:
             logger.debug("force domain object changed before versioned check-in: %s", exc)
 
-    def _persist_open_program_for_versioned_checkin(self, program: GhidraProgram) -> None:
+    def _persist_open_program_for_versioned_checkin(self, program: GhidraProgram, *, program_info: ProgramInfo | SimpleNamespace | None) -> None:
         """Flush program changes to its GhidraDomainFile.
 
         ``GhidraProject.openProgram`` registers an outer \"Batch Processing\" transaction id in
@@ -3090,7 +3305,7 @@ class ImportExportToolProvider(ToolProvider):
             deduped.append((addr_s, n))
         return deduped
 
-    def _reapply_user_defined_primary_labels(self, program: Any, snapshots: list[tuple[str, str]]) -> None:
+    def _reapply_user_defined_primary_labels(self, program: Any, snapshots: list[tuple[str, str]], *, program_info: ProgramInfo | SimpleNamespace | None) -> None:
         """Recreate USER_DEFINED labels on a freshly opened Program (versioned check-in reopen path)."""
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._reapply_user_defined_primary_labels")
         if program is None or not snapshots:
@@ -3120,7 +3335,7 @@ class ImportExportToolProvider(ToolProvider):
                 if not nm or nm in applied_names:
                     continue
                 try:
-                    addr = self._resolve_address(str(addr_s).strip(), program=program)
+                    addr = self._resolve_address(str(addr_s).strip(), program=program, program_info=program_info)
                     if _already_has_user_label_at(addr, nm):
                         applied_names.add(nm)
                         continue
@@ -3216,7 +3431,7 @@ class ImportExportToolProvider(ToolProvider):
                             pass
                 raise save_exc
 
-    def _dispose_decompilers_for_domain_file(self, session_id: str, domain_file: GhidraDomainFile) -> None:
+    def _dispose_decompilers_for_domain_file(self, session_id: str, domain_file: GhidraDomainFile, *, program_info: ProgramInfo | SimpleNamespace | None) -> None:
         """Release DecompInterface handles that can keep the Program locked for GhidraFile.save (headless MCP)."""
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._dispose_decompilers_for_domain_file")
         if domain_file is None:
@@ -3256,21 +3471,17 @@ class ImportExportToolProvider(ToolProvider):
         except Exception as exc:
             logger.debug("dispose decompilers (session) for domain file: %s", exc)
         try:
-            _dispose_pi(self.program_info)
+            _dispose_pi(program_info)
         except Exception as exc:
             logger.debug("dispose decompiler (provider program_info): %s", exc)
-        if self._manager is not None:
-            try:
-                for pr in getattr(self._manager, "providers", None) or []:
-                    _dispose_pi(getattr(pr, "program_info", None))
-            except Exception as exc:
-                logger.debug("dispose decompilers (manager providers): %s", exc)
 
     def _save_domain_file_before_versioned_checkin_sync_body(
         self,
         domain_file: GhidraDomainFile,
         program: GhidraProgram | None,
         session_id: str,
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None,
     ) -> None:
         """Run flush and transaction drain on the **current** thread (must be Swing EDT).
 
@@ -3294,7 +3505,7 @@ class ImportExportToolProvider(ToolProvider):
                             continue
                         if not self._domain_files_align_for_checkin(df, domain_file):
                             continue
-                        self._persist_open_program_for_versioned_checkin(prog)
+                        self._persist_open_program_for_versioned_checkin(prog, program_info=program_info)
                         self._notify_domain_file_changed_for_versioned_checkin(domain_file, prog)
                     except Exception as inner_exc:
                         logger.debug("session program save before versioned check-in: %s", inner_exc)
@@ -3302,11 +3513,11 @@ class ImportExportToolProvider(ToolProvider):
                 logger.debug("iterate session programs for pre-checkin save: %s", loop_exc)
 
         if program is not None:
-            self._persist_open_program_for_versioned_checkin(program)
+            self._persist_open_program_for_versioned_checkin(program, program_info=program_info)
             self._notify_domain_file_changed_for_versioned_checkin(domain_file, program)
         else:
             self._notify_domain_file_changed_for_versioned_checkin(domain_file, None)
-        self._dispose_decompilers_for_domain_file(session_id, domain_file)
+        self._dispose_decompilers_for_domain_file(session_id, domain_file, program_info=program_info)
         self._end_open_transactions_on_domain_file_consumers(domain_file)
         gp_pre: GhidraProject | None = self._manager.ghidra_project if self._manager is not None else None
         jp_pre: GhidraProject | None = None
@@ -3322,7 +3533,7 @@ class ImportExportToolProvider(ToolProvider):
                         self._end_nested_non_batch_transactions_on_program(cand)
                     except Exception as gp_exc:
                         logger.debug("end transactions on GhidraProject after pre-checkin flush: %s", gp_exc)
-        self._end_open_transactions_on_all_session_programs(session_id)
+        self._end_open_transactions_on_all_session_programs(session_id, program_info=program_info)
         self._end_open_transactions_on_domain_file_consumers(domain_file)
         if gp_pre is not None:
             for cand in (gp_pre, jp_pre):
@@ -3331,7 +3542,7 @@ class ImportExportToolProvider(ToolProvider):
                         self._end_nested_non_batch_transactions_on_program(cand)
                     except Exception as gp_exc2:
                         logger.debug("end transactions on GhidraProject (second pass): %s", gp_exc2)
-        self._end_open_transactions_on_all_session_programs(session_id)
+        self._end_open_transactions_on_all_session_programs(session_id, program_info=program_info)
         # Final project-level flush, then optional GhidraFile.save when modifiedSinceCheckout() is still false.
         if gp_pre is not None and program is not None:
             try:
@@ -3340,7 +3551,7 @@ class ImportExportToolProvider(ToolProvider):
                 logger.debug("final ghidra_project.save before versioned check-in: %s", gp_save_final_exc)
             self._end_nested_non_batch_transactions_on_program(program)
             self._end_open_transactions_on_domain_file_consumers(domain_file)
-        self._dispose_decompilers_for_domain_file(session_id, domain_file)
+        self._dispose_decompilers_for_domain_file(session_id, domain_file, program_info=program_info)
         self._end_open_transactions_on_domain_file_consumers(domain_file)
         if program is not None:
             self._end_nested_non_batch_transactions_on_program(program)
@@ -3382,7 +3593,7 @@ class ImportExportToolProvider(ToolProvider):
                     pass
                 self._end_nested_non_batch_transactions_on_program(program)
                 self._end_open_transactions_on_domain_file_consumers(domain_file)
-            self._dispose_decompilers_for_domain_file(session_id, domain_file)
+            self._dispose_decompilers_for_domain_file(session_id, domain_file, program_info=program_info)
             self._end_open_transactions_on_domain_file_consumers(domain_file)
             if program is not None:
                 self._end_nested_non_batch_transactions_on_program(program)
@@ -3404,7 +3615,7 @@ class ImportExportToolProvider(ToolProvider):
                 except Exception as save_opt_exc:
                     logger.debug("optional GhidraFile.save candidate failed: %s", save_opt_exc)
 
-    def _save_domain_file_before_versioned_checkin(self, domain_file: GhidraDomainFile, program: GhidraProgram | None = None) -> None:
+    def _save_domain_file_before_versioned_checkin(self, domain_file: GhidraDomainFile, program: GhidraProgram | None = None, *, program_info: ProgramInfo | SimpleNamespace | None) -> None:
         """Flush open Program state, end transactions, then notify versioned checkout metadata.
 
         Runs on the **Swing EDT** (``invokeAndWait``) so Ghidra's domain lock checks align with headless PyGhidra.
@@ -3420,7 +3631,7 @@ class ImportExportToolProvider(ToolProvider):
             from jpype import JImplements as JavaJImplements, JOverride as JavaJOverride  # type: ignore[import-untyped]
 
             if JavaEventQueue.isDispatchThread():
-                self._save_domain_file_before_versioned_checkin_sync_body(domain_file, program, session_id)
+                self._save_domain_file_before_versioned_checkin_sync_body(domain_file, program, session_id, program_info=program_info)
                 return
 
             err_holder: list[BaseException | None] = [None]
@@ -3431,7 +3642,7 @@ class ImportExportToolProvider(ToolProvider):
                 @JavaJOverride
                 def run(self) -> None:
                     try:
-                        provider._save_domain_file_before_versioned_checkin_sync_body(domain_file, program, session_id)
+                        provider._save_domain_file_before_versioned_checkin_sync_body(domain_file, program, session_id, program_info=program_info)
                     except Exception as inner:
                         err_holder[0] = inner
 
@@ -3441,14 +3652,14 @@ class ImportExportToolProvider(ToolProvider):
         except Exception as edt_exc:
             logger.debug("EDT pre-checkin flush failed, falling back to caller-thread save: %s", edt_exc)
             try:
-                self._save_domain_file_before_versioned_checkin_sync_body(domain_file, program, session_id)
+                self._save_domain_file_before_versioned_checkin_sync_body(domain_file, program, session_id, program_info=program_info)
             except Exception:
                 logger.warning(
                     "pre-checkin flush for versioned check-in failed (check-in may error); if the message mentions an active transaction, end open Ghidra transactions or close other consumers of this program before checkin-program",
                     exc_info=True,
                 )
 
-    def _domain_object_consumers_for_program(self, session_id: str, program: GhidraProgram) -> list[GhidraProgram]:
+    def _domain_object_consumers_for_program(self, session_id: str, program: GhidraProgram, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[GhidraProgram]:
         """Consumers passed to ProgramDB/getDomainObject; required for Program.release when ghidra_project is absent/wrong."""
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._domain_object_consumers_for_program")
         out: list[GhidraProgram] = []
@@ -3471,14 +3682,9 @@ class ImportExportToolProvider(ToolProvider):
                 add(info.domain_object_consumer)
         except Exception:
             pass
-        pi: ProgramInfo | None = self.program_info
+        pi: ProgramInfo | None = program_info
         if pi is not None and pi.program is program:
             add(pi.domain_object_consumer)
-        if self._manager is not None:
-            for pr in self._manager.providers or []:
-                opi: ProgramInfo | None = pr.program_info
-                if opi is not None and opi.program is program:
-                    add(opi.domain_object_consumer)
         return out
 
     @staticmethod
@@ -3550,6 +3756,7 @@ class ImportExportToolProvider(ToolProvider):
         program_path_key: str | None,
         program: GhidraProgram | None,
         domain_file: GhidraDomainFile | None = None,
+        program_info: ProgramInfo | SimpleNamespace | None,
     ) -> bool:
         """Close the Ghidra Program consumer so ``GhidraDomainFile.checkin`` does not throw FileInUseException.
 
@@ -3581,16 +3788,12 @@ class ImportExportToolProvider(ToolProvider):
                 _dispose_decompiler_for_pi(info)
         except Exception as exc:
             logger.debug("decompiler dispose (session) before check-in: %s", exc)
-        if self.program_info is not None:
-            _dispose_decompiler_for_pi(self.program_info)
-        if self._manager is not None:
-            for pr in getattr(self._manager, "providers", None) or []:
-                if pr is not None and getattr(pr, "program_info", None) is not None:
-                    _dispose_decompiler_for_pi(pr.program_info)
+        if program_info is not None:
+            _dispose_decompiler_for_pi(program_info)
 
         self._end_all_open_transactions_on_program(program)
         released = False
-        extra_consumers: list[GhidraProgram] = self._domain_object_consumers_for_program(session_id, program)
+        extra_consumers: list[GhidraProgram] = self._domain_object_consumers_for_program(session_id, program, program_info=program_info)
         proj_cons: list[GhidraProject] = self._ghidra_release_consumer_candidates(ghidra_project) if ghidra_project is not None else []
         for consumer in (*extra_consumers, None, *proj_cons):
             try:
@@ -3647,9 +3850,9 @@ class ImportExportToolProvider(ToolProvider):
             logger.debug("Session cleanup after program release: %s", exc)
         return True
 
-    async def _handle_checkin(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_checkin(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_checkin")
-        program_path = self._get_str(args, "programpath", "program_path", "path", default="").strip()
+        program_path = self._get_str(args, "programpath", "path", default="").strip()
         comment = self._get_str(args, "comment", "message", default="AgentDecompile checkin")
         keep_checked_out = self._get_bool(args, "keepcheckedout", default=False)
         auto_checkin_flow = self._get_bool(args, "__auto_checkin_invocation", default=False)
@@ -3715,24 +3918,27 @@ class ImportExportToolProvider(ToolProvider):
                                 repaired = await self._repair_shared_working_copy_for_checkin(
                                     program_path=repair_path,
                                     exclusive=True,
+                                    program_info=program_info,
                                 )
                                 if repaired is not None:
-                                    domain_file, repaired_name = repaired
+                                    domain_file, repaired_name, program_info = repaired
                                     repaired_prog = self._resolve_program_for_domain_file(
                                         domain_file,
                                         program_path=repair_path,
                                         program_display_name=repaired_name,
+                                        program_info=program_info,
                                     )
                                     if repaired_prog is not None:
                                         prog = repaired_prog
                         if domain_file.isVersioned() and domain_file.canCheckin():
-                            self._ensure_versioned_file_ready_for_checkin(domain_file, prog)
-                            self._save_domain_file_before_versioned_checkin(domain_file, prog)
+                            self._ensure_versioned_file_ready_for_checkin(domain_file, prog, program_info=program_info)
+                            self._save_domain_file_before_versioned_checkin(domain_file, prog, program_info=program_info)
                             if not self._release_open_program_before_versioned_checkin(
                                 session_id=session_id,
                                 program_path_key=path_key,
                                 program=prog,
                                 domain_file=domain_file,
+                                program_info=program_info,
                             ):
                                 results.append(
                                     {
@@ -3771,8 +3977,8 @@ class ImportExportToolProvider(ToolProvider):
                         else:
                             # Local (non-versioned): use gp.save(program) FIRST so GhidraProject ends batch tx
                             # and flushes, then drain residual txs, then release, then fallback save.
-                            self._ensure_versioned_file_ready_for_checkin(domain_file, prog)
-                            self._dispose_decompilers_for_domain_file(session_id, domain_file)
+                            self._ensure_versioned_file_ready_for_checkin(domain_file, prog, program_info=program_info)
+                            self._dispose_decompilers_for_domain_file(session_id, domain_file, program_info=program_info)
                             self._end_open_transactions_on_domain_file_consumers(domain_file)
                             gp_all = getattr(self._manager, "ghidra_project", None) if self._manager else None
                             saved_all_ok = False
@@ -3783,7 +3989,7 @@ class ImportExportToolProvider(ToolProvider):
                                     saved_all_ok = True
                                 except Exception as gp_exc_all:
                                     logger.debug("checkin-all local: gp.save (primary): %s", gp_exc_all)
-                            self._end_open_transactions_on_all_session_programs(session_id)
+                            self._end_open_transactions_on_all_session_programs(session_id, program_info=program_info)
                             self._end_open_transactions_on_domain_file_consumers(domain_file)
                             if not saved_all_ok and prog is not None and hasattr(prog, "save"):
                                 try:
@@ -3796,6 +4002,7 @@ class ImportExportToolProvider(ToolProvider):
                                 program_path_key=path_key,
                                 program=prog,
                                 domain_file=domain_file,
+                                program_info=program_info,
                             ):
                                 results.append(
                                     {
@@ -3848,6 +4055,7 @@ class ImportExportToolProvider(ToolProvider):
                         "error": str(e),
                         "results": [],
                     },
+                    program_info=program_info,
                 )
             ok_n = sum(1 for r in results if r.get("success"))
             blocked_n = sum(1 for r in results if r.get("mode") == "checkin_blocked")
@@ -3877,6 +4085,7 @@ class ImportExportToolProvider(ToolProvider):
                     "results": results,
                     "count": len(results),
                 },
+                program_info=program_info,
             )
 
         # Align with checkout-program keys (canonical repo path from session listing).
@@ -3886,11 +4095,11 @@ class ImportExportToolProvider(ToolProvider):
         domain_file = None
         program_display_name = program_path or ""
         if program_path:
-            resolved = self._resolve_domain_file_for_checkout_status(program_path)
+            resolved = self._resolve_domain_file_for_checkout_status(program_path, program_info=program_info)
             if resolved is not None:
                 domain_file, program_display_name = resolved
             elif program_path.startswith("/") or "/" in program_path:
-                if not self.program_info:
+                if not program_info:
                     return create_success_response(
                         {
                             "action": "checkin",
@@ -3905,6 +4114,7 @@ class ImportExportToolProvider(ToolProvider):
                                 "Then retry `checkin-program` with the same program_path.",
                             ],
                         },
+                        program_info=program_info,
                     )
             if domain_file is None and program_path:
                 return create_success_response(
@@ -3916,12 +4126,13 @@ class ImportExportToolProvider(ToolProvider):
                         "success": False,
                         "error": f"Program path '{program_path}' could not be resolved. Call open and checkout-program first, then retry checkin-program with the same program_path.",
                     },
+                    program_info=program_info,
                 )
 
         if domain_file is None:
-            self._require_program()
-            assert self.program_info is not None, "Program info should be available after _require_program()"
-            program = self.program_info.program
+            self._require_program(program_info=program_info)
+            assert program_info is not None, "Program info should be available after _require_program()"
+            program = program_info.program
             domain_file = program.getDomainFile()
             program_display_name = program.getName()
 
@@ -3939,6 +4150,7 @@ class ImportExportToolProvider(ToolProvider):
                 domain_file,
                 program_path=program_path or "",
                 program_display_name=program_display_name,
+                program_info=program_info,
             )
             if program_for_ops is None and program_path:
                 sid_fb = get_current_mcp_session_id()
@@ -3969,6 +4181,7 @@ class ImportExportToolProvider(ToolProvider):
                 program_for_ops,
                 end_transactions_on_all_open_programs=(program_for_ops is None),
                 end_domain_file_consumer_transactions=False,
+                program_info=program_info,
             )
 
             try:
@@ -3992,14 +4205,16 @@ class ImportExportToolProvider(ToolProvider):
                 repaired = await self._repair_shared_working_copy_for_checkin(
                     program_path=(program_path or eff_path).strip(),
                     exclusive=True,
+                    program_info=program_info,
                 )
                 if repaired is not None:
-                    domain_file, program_display_name = repaired
+                    domain_file, program_display_name, program_info = repaired
                     program_for_ops = (
                         self._resolve_program_for_domain_file(
                             domain_file,
                             program_path=(program_path or eff_path).strip(),
                             program_display_name=program_display_name,
+                            program_info=program_info,
                         )
                         or program_for_ops
                     )
@@ -4008,6 +4223,7 @@ class ImportExportToolProvider(ToolProvider):
                         program_for_ops,
                         end_transactions_on_all_open_programs=(program_for_ops is None),
                         end_domain_file_consumer_transactions=False,
+                        program_info=program_info,
                     )
                     try:
                         versioned = bool(domain_file.isVersioned())
@@ -4039,6 +4255,7 @@ class ImportExportToolProvider(ToolProvider):
                                 "Retry checkin-program with the same program_path.",
                             ],
                         },
+                        program_info=program_info,
                     )
                 else:
                     # Not version-controlled — persist to local disk.
@@ -4057,7 +4274,7 @@ class ImportExportToolProvider(ToolProvider):
                     # sequence, eliminating the race entirely.
                     sid_loc = get_current_mcp_session_id()
                     save_comment = (comment or "").strip() or "AgentDecompile local save"
-                    self._dispose_decompilers_for_domain_file(sid_loc, domain_file)
+                    self._dispose_decompilers_for_domain_file(sid_loc, domain_file, program_info=program_info)
                     # Brief analysis wait — analysis creates nested txs that can delay save.
                     if program_for_ops is not None:
                         from agentdecompile_cli.mcp_utils.program_analysis import wait_for_program_analysis_idle
@@ -4113,12 +4330,13 @@ class ImportExportToolProvider(ToolProvider):
                                 "success": True,
                                 "note": "File is not versioned; saved locally.",
                             },
+                            program_info=program_info,
                         )
                     # --- Fallback: drain all transactions then direct saves ---
                     if not saved_ok:
                         if program_for_ops is not None:
                             self._end_all_open_transactions_on_program(program_for_ops)
-                        self._end_open_transactions_on_all_session_programs(sid_loc)
+                        self._end_open_transactions_on_all_session_programs(sid_loc, program_info=program_info)
                         self._end_open_transactions_on_domain_file_consumers(domain_file)
                         if program_for_ops is not None and hasattr(program_for_ops, "save"):
                             try:
@@ -4131,6 +4349,7 @@ class ImportExportToolProvider(ToolProvider):
                         program_path_key=program_path or None,
                         program=program_for_ops,
                         domain_file=domain_file,
+                        program_info=program_info,
                     ):
                         return create_success_response(
                             {
@@ -4141,6 +4360,7 @@ class ImportExportToolProvider(ToolProvider):
                                 "success": False,
                                 "error": "Could not release program before local save (still in use).",
                             },
+                            program_info=program_info,
                         )
                     if not saved_ok:
                         try:
@@ -4157,6 +4377,7 @@ class ImportExportToolProvider(ToolProvider):
                                     "success": False,
                                     "error": str(save_exc),
                                 },
+                                program_info=program_info,
                             )
                     return create_success_response(
                         {
@@ -4167,6 +4388,7 @@ class ImportExportToolProvider(ToolProvider):
                             "success": True,
                             "note": "File is not versioned; saved locally.",
                         },
+                        program_info=program_info,
                     )
 
             if not checked_out:
@@ -4214,7 +4436,7 @@ class ImportExportToolProvider(ToolProvider):
             except Exception:
                 pass
 
-            self._save_domain_file_before_versioned_checkin(checkin_target, program_for_ops)
+            self._save_domain_file_before_versioned_checkin(checkin_target, program_for_ops, program_info=program_info)
             self._end_open_transactions_on_domain_file_consumers(checkin_target)
             if eff_domain_file is not checkin_target:
                 self._end_open_transactions_on_domain_file_consumers(eff_domain_file)
@@ -4238,8 +4460,8 @@ class ImportExportToolProvider(ToolProvider):
                         )
                 if bump_prog is not None:
                     self._bump_versioned_checkout_dirty_bookmark(bump_prog)
-                    self._persist_open_program_for_versioned_checkin(bump_prog)
-                    self._save_domain_file_before_versioned_checkin(checkin_target, bump_prog)
+                    self._persist_open_program_for_versioned_checkin(bump_prog, program_info=program_info)
+                    self._save_domain_file_before_versioned_checkin(checkin_target, bump_prog, program_info=program_info)
                     self._notify_domain_file_changed_for_versioned_checkin(checkin_target, bump_prog)
                     self._try_mark_versioned_checkout_dirty(eff_domain_file)
                     self._notify_domain_file_changed_for_versioned_checkin(eff_domain_file, bump_prog)
@@ -4255,6 +4477,7 @@ class ImportExportToolProvider(ToolProvider):
                             program_path_key=None,
                             program=bump_prog,
                             domain_file=eff_domain_file,
+                            program_info=program_info,
                         )
 
             # Shared import uses _end_all_open_transactions + GhidraDomainFile.save so LocalFolderItem's
@@ -4300,6 +4523,7 @@ class ImportExportToolProvider(ToolProvider):
                     program_path_key=program_path or None,
                     program=program_for_ops,
                     domain_file=eff_domain_file,
+                    program_info=program_info,
                 )
 
             def _release_session_eff_best_effort() -> None:
@@ -4311,6 +4535,7 @@ class ImportExportToolProvider(ToolProvider):
                             pp._release_session_programs_for_domain_file(
                                 session_id=session_id_vc,
                                 domain_file=eff_domain_file,
+                                program_info=program_info,
                             )
                 except Exception as exc:
                     logger.debug("release_session_programs_for_domain_file (versioned checkin): %s", exc)
@@ -4366,14 +4591,14 @@ class ImportExportToolProvider(ToolProvider):
                             program_display_name,
                         )
                 if label_snapshot:
-                    self._reapply_user_defined_primary_labels(prog_retry, label_snapshot)
+                    self._reapply_user_defined_primary_labels(prog_retry, label_snapshot, program_info=program_info)
                 self._bump_versioned_checkout_dirty_bookmark(prog_retry)
-                self._persist_open_program_for_versioned_checkin(prog_retry)
-                self._save_domain_file_before_versioned_checkin(ci_df, prog_retry)
+                self._persist_open_program_for_versioned_checkin(prog_retry, program_info=program_info)
+                self._save_domain_file_before_versioned_checkin(ci_df, prog_retry, program_info=program_info)
                 self._try_mark_versioned_checkout_dirty(ci_df)
                 self._notify_domain_file_changed_for_versioned_checkin(ci_df, prog_retry)
                 if retry_df is not ci_df:
-                    self._save_domain_file_before_versioned_checkin(retry_df, prog_retry)
+                    self._save_domain_file_before_versioned_checkin(retry_df, prog_retry, program_info=program_info)
                     self._try_mark_versioned_checkout_dirty(retry_df)
                     self._notify_domain_file_changed_for_versioned_checkin(retry_df, prog_retry)
                 if eff_domain_file is not ci_df and eff_domain_file is not retry_df:
@@ -4387,6 +4612,7 @@ class ImportExportToolProvider(ToolProvider):
                     program_path_key=program_path or None,
                     program=prog_retry,
                     domain_file=ci_df,
+                    program_info=program_info,
                 ):
                     raise exc_chain
                 try:
@@ -4397,6 +4623,7 @@ class ImportExportToolProvider(ToolProvider):
                             project_provider_r._release_session_programs_for_domain_file(
                                 session_id=session_id_vc,
                                 domain_file=ci_df,
+                                program_info=program_info,
                             )
                 except Exception as rel_sess_exc:
                     logger.debug("release_session_programs_for_domain_file (checkin reopen path): %s", rel_sess_exc)
@@ -4456,6 +4683,7 @@ class ImportExportToolProvider(ToolProvider):
                                     "Could not release program before check-in (still in use). If another AgentDecompile or Ghidra instance uses the same shared temp project, stop it or retry after it exits."
                                 ),
                             },
+                            program_info=program_info,
                         )
                     _release_session_eff_best_effort()
                     handler_in = GhidraDefaultCheckinHandler(comment, _keep, False)
@@ -4474,8 +4702,8 @@ class ImportExportToolProvider(ToolProvider):
                             open_ok = True
                     if open_ok and po is not None:
                         self._bump_versioned_checkout_dirty_bookmark(po)
-                        self._persist_open_program_for_versioned_checkin(po)
-                        self._save_domain_file_before_versioned_checkin(checkin_target, po)
+                        self._persist_open_program_for_versioned_checkin(po, program_info=program_info)
+                        self._save_domain_file_before_versioned_checkin(checkin_target, po, program_info=program_info)
                         self._try_mark_versioned_checkout_dirty(checkin_target)
                         self._notify_domain_file_changed_for_versioned_checkin(checkin_target, po)
                         if eff_domain_file is not checkin_target:
@@ -4501,7 +4729,7 @@ class ImportExportToolProvider(ToolProvider):
                                     pdf_align = po.getDomainFile()  # type: ignore[union-attr]
                                 except Exception:
                                     pdf_align = None
-                                self._persist_open_program_for_versioned_checkin(po)  # type: ignore[arg-type]
+                                self._persist_open_program_for_versioned_checkin(po, program_info=program_info)  # type: ignore[arg-type]
                                 for df_extra in (pdf_align, checkin_target, eff_domain_file):
                                     if df_extra is None:
                                         continue
@@ -4569,6 +4797,7 @@ class ImportExportToolProvider(ToolProvider):
                             "Could not release program before check-in (still in use). If another AgentDecompile or Ghidra instance uses the same shared temp project, stop it or retry after it exits."
                         ),
                     },
+                    program_info=program_info,
                 )
             _release_session_eff_best_effort()
             # Do not clear pending_versioned_labels here: reopen reapply can fail silently for one label
@@ -4612,6 +4841,7 @@ class ImportExportToolProvider(ToolProvider):
                             ),
                             "reason": "server-tip-not-advanced",
                         },
+                        program_info=program_info,
                     )
             return create_success_response(
                 {
@@ -4629,6 +4859,7 @@ class ImportExportToolProvider(ToolProvider):
                     ),
                     "success": True,
                 },
+                program_info=program_info,
             )
         except Exception as exc:
             return create_success_response(
@@ -4640,12 +4871,13 @@ class ImportExportToolProvider(ToolProvider):
                     "success": False,
                     "error": str(exc),
                 },
+                program_info=program_info,
             )
 
-    async def _handle_checkout(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_checkout(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_checkout")
         exclusive: bool = self._get_bool(args, "exclusive", default=False)
-        program_path: str = self._get_str(args, "programpath", "program_path", "path").strip()
+        program_path: str = self._get_str(args, "programpath", "path").strip()
         if program_path:
             program_path = self._canonical_program_path_for_session(program_path)
 
@@ -4695,15 +4927,16 @@ class ImportExportToolProvider(ToolProvider):
                 try:
                     logger.info("[_handle_checkout] Calling _checkout_shared_program for %s", program_path)
                     # Use repository adapter checkout directly for shared files
-                    await project_provider._checkout_shared_program(
+                    program_info = await project_provider._checkout_shared_program(
                         repo_adapter,
                         program_path,
                         session_id,
                         exclusive=exclusive,
+                        program_info=program_info,
                     )
                     logger.info("[_handle_checkout] _checkout_shared_program succeeded, re-resolving GhidraDomainFile")
                     # After checkout, re-resolve to get the versioned GhidraDomainFile
-                    resolved = self._resolve_domain_file_for_checkout_status(program_path)
+                    resolved = self._resolve_domain_file_for_checkout_status(program_path, program_info=program_info)
                     if resolved is not None:
                         domain_file, program_display_name = resolved
                         logger.info("[_handle_checkout] GhidraDomainFile resolved after checkout: %s", program_display_name)
@@ -4731,6 +4964,7 @@ class ImportExportToolProvider(ToolProvider):
                                     ),
                                     "note": "Checked out via shared repository adapter.",
                                 },
+                                program_info=program_info,
                             )
                         return create_success_response(
                             {
@@ -4742,6 +4976,7 @@ class ImportExportToolProvider(ToolProvider):
                                 "is_versioned": True,
                                 "note": "Checked out via shared repository adapter.",
                             },
+                            program_info=program_info,
                         )
                     # Checkout succeeded but GhidraDomainFile not yet available - return success
                     logger.info("[_handle_checkout] Checkout succeeded but GhidraDomainFile not yet available")
@@ -4753,12 +4988,13 @@ class ImportExportToolProvider(ToolProvider):
                             "success": True,
                             "note": "File checked out via repository adapter. GhidraDomainFile resolution pending.",
                         },
+                        program_info=program_info,
                     )
                 except Exception as exc:
                     logger.warning("[_handle_checkout] _checkout_shared_program failed: %s", exc)
                     # Check if file is already checked out (might be from session or previous checkout)
                     try:
-                        resolved = self._resolve_domain_file_for_checkout_status(program_path)
+                        resolved = self._resolve_domain_file_for_checkout_status(program_path, program_info=program_info)
                         if resolved is not None:
                             domain_file_check, _ = resolved
                             if domain_file_check is not None and domain_file_check.isCheckedOut():
@@ -4771,6 +5007,7 @@ class ImportExportToolProvider(ToolProvider):
                                         "success": True,
                                         "note": "File was already checked out",
                                     },
+                                    program_info=program_info,
                                 )
                     except Exception:
                         pass
@@ -4783,6 +5020,7 @@ class ImportExportToolProvider(ToolProvider):
                             "reason": "repository-checkout-failed",
                             "error": str(exc),
                         },
+                        program_info=program_info,
                     )
             else:
                 logger.warning(
@@ -4792,7 +5030,7 @@ class ImportExportToolProvider(ToolProvider):
         # When program_path is provided, resolve GhidraDomainFile by path (shared or session) so checkout
         # works for shared repo paths even when that program is not the active one.
         if program_path and not is_shared_repo_file:
-            resolved = self._resolve_domain_file_for_checkout_status(program_path)
+            resolved = self._resolve_domain_file_for_checkout_status(program_path, program_info=program_info)
             if resolved is not None:
                 domain_file, program_display_name = resolved
             elif program_path.startswith("/") or "/" in program_path:
@@ -4807,13 +5045,14 @@ class ImportExportToolProvider(ToolProvider):
                     project_provider = self._manager._get_project_provider()
                 if isinstance(project_provider, ProjectToolProvider) and repo_adapter is not None and handle is not None and is_shared_server_handle(handle):
                     try:
-                        await project_provider._checkout_shared_program(
+                        program_info = await project_provider._checkout_shared_program(
                             repo_adapter,
                             program_path,
                             session_id,
                             exclusive=exclusive,
+                            program_info=program_info,
                         )
-                        resolved = self._resolve_domain_file_for_checkout_status(program_path)
+                        resolved = self._resolve_domain_file_for_checkout_status(program_path, program_info=program_info)
                         if resolved is not None:
                             domain_file, program_display_name = resolved
                     except Exception as exc:
@@ -4826,6 +5065,7 @@ class ImportExportToolProvider(ToolProvider):
                                 "reason": "shared-checkout-failed",
                                 "error": str(exc),
                             },
+                            program_info=program_info,
                         )
                 if domain_file is None:
                     return create_success_response(
@@ -4841,13 +5081,14 @@ class ImportExportToolProvider(ToolProvider):
                                 'Or use tool-seq: `tool-seq \'[{"name": "open", "arguments": {"path": "Odyssey"}}, {"name": "checkout-program", "arguments": {"programPath": "/K1/k1_win_gog_swkotor.exe"}}]\'` with server URL and ghidra-server-* options.',
                             ],
                         },
+                        program_info=program_info,
                     )
 
         # If we didn't resolve by path, use active program
         if domain_file is None:
-            self._require_program()
-            assert self.program_info is not None
-            program = self.program_info.program
+            self._require_program(program_info=program_info)
+            assert program_info is not None
+            program = program_info.program
             try:
                 domain_file = program.getDomainFile()
                 program_display_name = program.getName()
@@ -4862,6 +5103,7 @@ class ImportExportToolProvider(ToolProvider):
                         "success": False,
                         "error": "No domain file associated with active program.",
                     },
+                    program_info=program_info,
                 )
 
         try:
@@ -4902,14 +5144,15 @@ class ImportExportToolProvider(ToolProvider):
                 if isinstance(project_provider, ProjectToolProvider) and repo_adapter is not None:
                     try:
                         # Use repository adapter checkout directly for shared files
-                        await project_provider._checkout_shared_program(
+                        program_info = await project_provider._checkout_shared_program(
                             repo_adapter,
                             program_path,
                             session_id,
                             exclusive=exclusive,
+                            program_info=program_info,
                         )
                         # After checkout, re-resolve to get the versioned GhidraDomainFile
-                        resolved = self._resolve_domain_file_for_checkout_status(program_path)
+                        resolved = self._resolve_domain_file_for_checkout_status(program_path, program_info=program_info)
                         if resolved is not None:
                             domain_file, program_display_name = resolved
                         else:
@@ -4922,6 +5165,7 @@ class ImportExportToolProvider(ToolProvider):
                                     "success": True,
                                     "note": "File checked out via repository adapter. GhidraDomainFile resolution pending.",
                                 },
+                                program_info=program_info,
                             )
                     except Exception as exc:
                         return create_success_response(
@@ -4933,6 +5177,7 @@ class ImportExportToolProvider(ToolProvider):
                                 "reason": "repository-checkout-failed",
                                 "error": str(exc),
                             },
+                            program_info=program_info,
                         )
 
             # Only check isVersioned() for non-repository files
@@ -4950,6 +5195,7 @@ class ImportExportToolProvider(ToolProvider):
                         "versionControlEnabled": False,
                         "note": "Local project file (not version-controlled); no repository checkout required.",
                     },
+                    program_info=program_info,
                 )
 
             from ghidra.util.task import TaskMonitor as GhidraTaskMonitor  # pyright: ignore[reportMissingModuleSource, reportMissingImports]
@@ -4964,6 +5210,7 @@ class ImportExportToolProvider(ToolProvider):
                         "exclusive": domain_file.isCheckedOutExclusive(),
                         "note": "File is already checked out.",
                     },
+                    program_info=program_info,
                 )
 
             if domain_file is not None and not bool(domain_file.canCheckout()):
@@ -4981,6 +5228,7 @@ class ImportExportToolProvider(ToolProvider):
                     "is_checked_out": False if domain_file is None else bool(domain_file.isCheckedOut()),
                     "note": None if success else "Exclusive checkout was not available; others have it checked out.",
                 },
+                program_info=program_info,
             )
         except Exception as exc:
             return create_success_response(
@@ -4991,6 +5239,7 @@ class ImportExportToolProvider(ToolProvider):
                     "success": False,
                     "error": str(exc),
                 },
+                program_info=program_info,
             )
 
     def _shared_repository_has_program_path(self, program_path: str) -> bool:
@@ -5040,7 +5289,7 @@ class ImportExportToolProvider(ToolProvider):
             logger.debug("shared repository item version lookup failed for %s: %s", pp, exc)
         return None
 
-    def _resolve_domain_file_for_checkout_status(self, program_path: str) -> tuple[Any, str] | None:
+    def _resolve_domain_file_for_checkout_status(self, program_path: str, *, program_info: ProgramInfo | SimpleNamespace | None) -> tuple[Any, str] | None:
         """Resolve GhidraDomainFile and display name for the given program path. Returns (domain_file, display_name) or None."""
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._resolve_domain_file_for_checkout_status")
         if not program_path:
@@ -5105,9 +5354,9 @@ class ImportExportToolProvider(ToolProvider):
                 project_data = self._manager._resolve_project_data()
             except Exception:
                 project_data = None
-        if project_data is None and self.program_info is not None and self.program_info.program is not None:
+        if project_data is None and program_info is not None and program_info.program is not None:
             try:
-                active_df = self.program_info.program.getDomainFile()
+                active_df = program_info.program.getDomainFile()
                 if active_df is not None:
                     project_data = active_df.getProjectData()
             except Exception:
@@ -5150,7 +5399,8 @@ class ImportExportToolProvider(ToolProvider):
         *,
         program_path: str,
         exclusive: bool = True,
-    ) -> tuple[Any, str] | None:
+        program_info: ProgramInfo | SimpleNamespace | None,
+    ) -> tuple[Any, str, ProgramInfo | None] | None:
         """Best-effort: turn a shared repo path into a versioned, checked-out working copy for check-in."""
         normalized = self._canonical_program_path_for_session((program_path or "").strip())
         if not normalized or not (normalized.startswith("/") or "/" in normalized):
@@ -5171,11 +5421,12 @@ class ImportExportToolProvider(ToolProvider):
             return None
 
         try:
-            await project_provider._checkout_shared_program(
+            program_info = await project_provider._checkout_shared_program(
                 repo_adapter,
                 normalized,
                 session_id,
                 exclusive=exclusive,
+                program_info=program_info,
             )
         except Exception as exc:
             logger.warning(
@@ -5184,7 +5435,7 @@ class ImportExportToolProvider(ToolProvider):
                 type(exc).__name__,
             )
 
-        resolved = self._resolve_domain_file_for_checkout_status(normalized)
+        resolved = self._resolve_domain_file_for_checkout_status(normalized, program_info=program_info)
         if resolved is None:
             return None
 
@@ -5192,7 +5443,7 @@ class ImportExportToolProvider(ToolProvider):
         try:
             ensure_vc = getattr(project_provider, "_ensure_shared_domain_file_registered_for_version_control", None)
             if callable(ensure_vc):
-                ensure_vc(domain_file, normalized)
+                ensure_vc(domain_file, normalized, program_info=program_info)
         except Exception as exc:
             logger.debug("shared checkin repair: ensure version-control registration failed: %s", exc)
 
@@ -5204,11 +5455,11 @@ class ImportExportToolProvider(ToolProvider):
         except Exception as exc:
             logger.debug("shared checkin repair: final domain_file.checkout failed: %s", exc)
 
-        return (domain_file, display_name)
+        return (domain_file, display_name, program_info)
 
-    async def _handle_checkout_status(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_checkout_status(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_checkout_status")
-        program_path = self._get_str(args, "programpath", "program_path", "path").strip()
+        program_path = self._get_str(args, "programpath", "path").strip()
         if program_path:
             program_path = self._canonical_program_path_for_session(program_path)
 
@@ -5216,7 +5467,7 @@ class ImportExportToolProvider(ToolProvider):
         domain_file = None
         program_display_name = program_path or ""
         if program_path:
-            resolved = self._resolve_domain_file_for_checkout_status(program_path)
+            resolved = self._resolve_domain_file_for_checkout_status(program_path, program_info=program_info)
             if resolved is not None:
                 domain_file, program_display_name = resolved
             elif program_path.startswith("/") or "/" in program_path:
@@ -5231,18 +5482,19 @@ class ImportExportToolProvider(ToolProvider):
                 if isinstance(project_provider, ProjectToolProvider) and repo_adapter is not None and handle is not None and is_shared_server_handle(handle):
                     try:
                         # Non-exclusive implicit checkout so status resolution does not steal exclusive locks
-                        await project_provider._checkout_shared_program(
+                        program_info = await project_provider._checkout_shared_program(
                             repo_adapter,
                             program_path,
                             session_id,
                             exclusive=False,
+                            program_info=program_info,
                         )
-                        resolved = self._resolve_domain_file_for_checkout_status(program_path)
+                        resolved = self._resolve_domain_file_for_checkout_status(program_path, program_info=program_info)
                         if resolved is not None:
                             domain_file, program_display_name = resolved
                     except Exception:
                         pass
-            if domain_file is None and (program_path.startswith("/") or "/" in program_path) and not self.program_info:
+            if domain_file is None and (program_path.startswith("/") or "/" in program_path) and not program_info:
                 return create_success_response(
                     {
                         "action": "checkout_status",
@@ -5260,11 +5512,12 @@ class ImportExportToolProvider(ToolProvider):
                             "Retry `checkout-status` after opening the shared repository.",
                         ],
                     },
+                    program_info=program_info,
                 )
 
         # If we didn't resolve by path, use active program only when path was not provided or path matches active
         if domain_file is None:
-            if not self.program_info or self.program_info.program is None:
+            if not program_info or program_info.program is None:
                 return create_success_response(
                     {
                         "action": "checkout_status",
@@ -5274,8 +5527,9 @@ class ImportExportToolProvider(ToolProvider):
                         if program_path
                         else "No program loaded. Call open or import-binary first.",
                     },
+                    program_info=program_info,
                 )
-            program = self.program_info.program
+            program = program_info.program
             try:
                 domain_file = program.getDomainFile()
                 if domain_file is None:
@@ -5294,6 +5548,7 @@ class ImportExportToolProvider(ToolProvider):
                                 "activeProgram": program_display_name,
                                 "activePath": df_path,
                             },
+                            program_info=program_info,
                         )
             except Exception as exc:
                 return create_success_response(
@@ -5303,6 +5558,7 @@ class ImportExportToolProvider(ToolProvider):
                         "success": False,
                         "error": str(exc),
                     },
+                    program_info=program_info,
                 )
 
         if domain_file is None:
@@ -5313,6 +5569,7 @@ class ImportExportToolProvider(ToolProvider):
                     "success": False,
                     "error": f"Program path '{program_path}' could not be resolved from the current project or session. Call open or list-project-files first.",
                 },
+                program_info=program_info,
             )
 
         try:
@@ -5370,6 +5627,7 @@ class ImportExportToolProvider(ToolProvider):
                     "versionControlEnabled": is_versioned,
                     "note": None if is_versioned else "Program is local-only. Shared checkout/checkin is unavailable until the program exists in a shared Ghidra repository.",
                 },
+                program_info=program_info,
             )
         except Exception as exc:
             return create_success_response(
@@ -5379,44 +5637,70 @@ class ImportExportToolProvider(ToolProvider):
                     "success": False,
                     "error": str(exc),
                 },
+                program_info=program_info,
             )
 
-    async def _handle_list_processors(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_list_processors(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        """List non-deprecated Ghidra languages from the language service, filtered case-insensitively."""
         logger.debug("diag.enter %s", "mcp_server/providers/import_export.py:ImportExportToolProvider._handle_list_processors")
         filter_str = self._get_str(args, "filter", "query", "search")
+        needle = filter_str.strip().lower()
 
         try:
-            from ghidra.framework.main import AppInfo as GhidraAppInfo  # pyright: ignore[reportMissingModuleSource, reportMissingImports]
-
-            GhidraAppInfo.getActiveProject().getProjectData()
-            # This needs proper language service access
-            return create_success_response(
-                {
-                    "action": "list_processors",
-                    "note": "Processor listing requires Ghidra LanguageService",
-                    "filter": filter_str,
-                },
-            )
-        except Exception:
-            # Common processors
+            from ghidra.program.util import DefaultLanguageService as GhidraDefaultLanguageService  # pyright: ignore[reportMissingModuleSource, reportMissingImports]
+        except ImportError:
+            # Outside a Ghidra JVM there is no language service; say so instead of
+            # passing a hardcoded list off as the installed languages.
             common = [
                 "x86:LE:32:default",
                 "x86:LE:64:default",
                 "ARM:LE:32:v8",
-                "ARM:LE:64:v8A",
                 "AARCH64:LE:64:v8A",
                 "MIPS:BE:32:default",
                 "MIPS:LE:32:default",
                 "PowerPC:BE:32:default",
                 "PowerPC:BE:64:default",
             ]
-            if filter_str:
-                common = [p for p in common if filter_str.lower() in p.lower()]
+            if needle:
+                common = [p for p in common if needle in p.lower()]
             return create_success_response(
                 {
                     "action": "list_processors",
+                    "filter": filter_str,
                     "processors": common,
-                    "note": "Showing common processors; full list requires Ghidra environment",
                     "count": len(common),
+                    "source": "fallback",
+                    "note": "Ghidra language service unavailable; showing a fixed list of common language IDs",
                 },
             )
+
+        languages: list[dict[str, Any]] = []
+        for desc in list(GhidraDefaultLanguageService.getLanguageService().getLanguageDescriptions(False)):
+            if desc is None:
+                continue
+            language_id = str(desc.getLanguageID())
+            processor = str(desc.getProcessor())
+            description = str(desc.getDescription() or "")
+            if needle and needle not in f"{language_id}\n{processor}\n{description}".lower():
+                continue
+            languages.append(
+                {
+                    "languageId": language_id,
+                    "processor": processor,
+                    "endian": str(desc.getEndian()),
+                    "size": int(desc.getSize()),
+                    "variant": str(desc.getVariant()),
+                    "description": description,
+                },
+            )
+        languages.sort(key=lambda row: row["languageId"].lower())
+        return create_success_response(
+            {
+                "action": "list_processors",
+                "filter": filter_str,
+                "processors": [row["languageId"] for row in languages],
+                "languages": languages,
+                "count": len(languages),
+                "source": "language-service",
+            },
+        )

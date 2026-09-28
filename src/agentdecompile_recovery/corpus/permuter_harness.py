@@ -38,9 +38,9 @@ import sys
 import tempfile
 import time
 
-from . import store
+from . import corpus_env, store
 
-EXTERNAL_ROOT = pathlib.Path(os.environ.get("AGENT_DECOMPILE_EXTERNAL_RECOVERY_ROOT") or ".")
+EXTERNAL_ROOT = corpus_env.external_recovery_root()
 CONTEXT_CACHE: dict[str, str] = {}
 
 # Types ctx.h defines, plus C primitives. Anything else in a global declaration
@@ -204,8 +204,17 @@ def per_function_json_c(repo_path: str) -> dict[str, str]:
     not yet ingested — correct, just slow.
     """
     program = knowledge_dir(repo_path)
-    if program is not None and KNOWLEDGE_CACHE.exists():
-        program_name = program.parent.name
+    # The knowledge cache is keyed by program name, not by the legacy
+    # per-function JSON directory. That directory (EXTERNAL_ROOT/binaries/
+    # <name>/ghidra_knowledge) is routinely absent -- it was the one-time
+    # ingest input and gets wiped once the cache DB exists -- so gating the
+    # cache read on `program is not None` silently ignored a fully-populated
+    # 2.7 GB cache and reported "0 ghidra C functions" for every binary. The
+    # cache program key is the repo_path leaf (matching what ingest wrote), so
+    # derive it directly and consult the cache regardless of the directory.
+    program_name = (program.parent.name if program is not None
+                    else repo_path.rstrip("/").split("/")[-1])
+    if program_name and KNOWLEDGE_CACHE.exists():
         con = sqlite3.connect(f"file:{KNOWLEDGE_CACHE}?mode=ro", uri=True)
         try:
             rows = con.execute(
@@ -273,7 +282,7 @@ def ghidra_c_for(repo_path: str) -> dict[str, str]:
         except sqlite3.Error:
             rows = []
         con.close()
-        main = store.connect(pathlib.Path(os.environ['AGENT_DECOMPILE_CORPUS_DB']))
+        main = store.connect(corpus_env.corpus_db_path())
         b = main.execute("SELECT id FROM binary WHERE repo_path=?",
                          (repo_path,)).fetchone()
         if b:
@@ -520,8 +529,14 @@ def build_case(repo_path: str, addr: int, size: int, name: str, base_c: str,
 
     name = defined_name(base_c, name)
 
+    # mkobj.py takes a file slice (--binary/--offset/--size), not raw hex; the
+    # old --bytes flag was dropped when the tool was reconstructed 2026-08-22.
+    # target_bytes.bin already holds exactly this function's bytes, so slice it
+    # whole. Passing the removed flag silently produced no object and surfaced
+    # as a misleading "no_target_bytes" for every function.
     r = subprocess.run(
-        [sys.executable, str(MKOBJ), "--bytes", data.hex(), "--name", name,
+        [sys.executable, str(MKOBJ), "--binary", str(d / "target_bytes.bin"),
+         "--offset", "0", "--size", str(len(data)), "--name", name,
          "--symbol-prefix", "_", "--format", "coff-i386",
          "-o", str(d / "target.o")], capture_output=True, text=True)
     if not (d / "target.o").exists():
@@ -663,7 +678,7 @@ def run_from_ghidra_bulk(args) -> int:
     from . import genproject as gp
 
     program = args.from_ghidra_bulk
-    con = store.connect(pathlib.Path(os.environ['AGENT_DECOMPILE_CORPUS_DB']))
+    con = store.connect(corpus_env.corpus_db_path())
     repo = args.repo if getattr(args, "repo", None) else program
     src_dir = GHIDRA_SRC / program
     files = sorted(p for p in src_dir.glob("*.c") if not p.name.startswith("_"))
@@ -728,7 +743,8 @@ def run_from_ghidra_bulk(args) -> int:
         (d / "function.txt").write_text(sym + "\n")
         prefix = sym[:1] if sym[:1] in "@_" else "_"
         r = subprocess.run(
-            [sys.executable, str(MKOBJ), "--bytes", target.hex(),
+            [sys.executable, str(MKOBJ), "--binary", str(d / "target_bytes.bin"),
+             "--offset", "0", "--size", str(len(target)),
              "--name", sym_name, "--symbol-prefix", prefix,
              "--format", "coff-i386", "-o", str(d / "target.o")],
             capture_output=True, text=True)

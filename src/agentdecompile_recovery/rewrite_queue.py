@@ -31,14 +31,19 @@ applies.
 from __future__ import annotations
 
 import ast
+import errno
 import fcntl
 import hashlib
+import json
+import os
+
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
-from .state import atomic_write_json, now, read_json
+from .state import now, read_json
 
 SCHEMA = "agentdecompile.rewrite-queue.v1"
 CLAIM_BOUNDARY = (
@@ -54,6 +59,77 @@ STATUS_FAILED = "failed"
 DEFAULT_CLAIM_STALENESS_SECONDS = 1800
 
 
+def _sync_directory(directory: Path, *, required: bool = False) -> bool:
+    if os.name == "nt":
+        if required:
+            raise OSError(errno.ENOTSUP, "rewrite forwarding requires directory fsync")
+        return False
+    try:
+        descriptor = os.open(directory, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    except OSError as exc:
+        if required or exc.errno not in {errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP}:
+            raise
+        return False
+    return True
+
+
+def _prepare_state_directory(directory: Path, *, required: bool = False) -> None:
+    """Anchor mkdir before delivery, preserving its intent across failed syncs.
+
+    As with exchange spool setup, the marker lives in the nearest existing
+    parent before mkdir. A restart must finish that same chain even if the
+    directory is already visible. Unsupported ordinary writers retain the
+    marker so strict forwarding cannot mistake visibility for durability.
+    """
+
+    directory = directory.absolute()
+    marker_name = ".rewrite-queue-init-" + hashlib.sha256(os.fsencode(directory)).hexdigest() + ".pending"
+    ancestors = (directory, *directory.parents)
+    anchor = next((parent for parent in ancestors if (parent / marker_name).exists()), None)
+    if anchor is None:
+        anchor = next(parent for parent in ancestors if parent.is_dir())
+        if anchor == directory:
+            return
+    marker = anchor / marker_name
+    with marker.open("a", encoding="utf-8") as stream:
+        stream.flush()
+        os.fsync(stream.fileno())
+    synced = _sync_directory(anchor, required=required)
+    directory.mkdir(parents=True, exist_ok=True)
+    for parent in ancestors:
+        synced = _sync_directory(parent, required=required) and synced
+        if parent == anchor:
+            break
+    if synced:
+        marker.unlink(missing_ok=True)
+        _sync_directory(anchor, required=required)
+
+
+def atomic_write_json(path: Path, data: dict[str, Any], *, require_directory_sync: bool = False) -> None:
+    """Preserve acknowledged proposals across every later queue replacement.
+
+    Callers hold the queue lock. Sync the replacement before publishing it:
+    syncing only after replace can discard the previous durable queue on a
+    crash. Forwarding requires directory sync; ordinary queue writers retain
+    compatibility with platforms that do not support directory fsync.
+    """
+
+    tmp = path.with_suffix(f"{path.suffix}.{os.getpid()}.{os.urandom(4).hex()}.tmp")
+    try:
+        with tmp.open("x", encoding="utf-8") as stream:
+            stream.write(json.dumps(data, indent=2, sort_keys=True) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        tmp.replace(path)
+        _sync_directory(path.parent, required=require_directory_sync)
+    finally:
+        tmp.unlink(missing_ok=True)
+
+
 def queue_path(work_dir: Path) -> Path:
     return work_dir / "state" / "rewrite-queue.json"
 
@@ -63,7 +139,7 @@ def _lock_path(work_dir: Path) -> Path:
 
 
 @contextmanager
-def _locked(work_dir: Path) -> Iterator[None]:
+def _locked(work_dir: Path, *, require_directory_sync: bool = False) -> Iterator[None]:
     """Exclusive cross-process lock spanning a full read-check-write cycle.
 
     Blocking (not try-lock): a losing writer waits for the winner to finish
@@ -73,7 +149,7 @@ def _locked(work_dir: Path) -> Iterator[None]:
     """
 
     lock_path = _lock_path(work_dir)
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    _prepare_state_directory(lock_path.parent, required=require_directory_sync)
     with lock_path.open("a+") as fh:
         fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
         try:
@@ -88,7 +164,7 @@ def derive_request_id(function_name: str, candidate_source: str) -> str:
 
 
 def _empty_queue() -> dict[str, Any]:
-    return {"schema": SCHEMA, "claimBoundary": CLAIM_BOUNDARY, "entries": {}, "requestCounts": {}}
+    return {"schema": SCHEMA, "claimBoundary": CLAIM_BOUNDARY, "entries": {}, "requestCounts": {}, "consumedExchangeReceipts": {}}
 
 
 def read_rewrite_queue(work_dir: Path) -> dict[str, Any]:
@@ -103,6 +179,26 @@ def read_rewrite_queue(work_dir: Path) -> dict[str, Any]:
         return _empty_queue()
     if not isinstance(data.get("requestCounts"), dict):
         data["requestCounts"] = {}
+    if "consumedExchangeReceipts" not in data:
+        data["consumedExchangeReceipts"] = {}
+    return data
+
+
+def _read_queue_for_mutation(work_dir: Path) -> dict[str, Any]:
+    """Only a missing file is empty; unreadable state must never be replaced."""
+
+    try:
+        data = read_json(queue_path(work_dir))
+    except FileNotFoundError:
+        return _empty_queue()
+    if (
+        not isinstance(data, dict)
+        or data.get("schema") != SCHEMA
+        or not isinstance(data.get("entries"), dict)
+        or not isinstance(data.get("requestCounts"), dict)
+        or ("consumedExchangeReceipts" in data and not isinstance(data["consumedExchangeReceipts"], dict))
+    ):
+        raise ValueError("invalid rewrite queue structure")
     return data
 
 
@@ -170,7 +266,7 @@ def write_rewrite_request(
 
     request_id = derive_request_id(function_name, candidate_source)
     with _locked(work_dir):
-        queue = read_rewrite_queue(work_dir)
+        queue = _read_queue_for_mutation(work_dir)
         if request_id in queue["entries"]:
             return request_id
         queue["entries"][request_id] = {
@@ -200,7 +296,7 @@ def claim_pending_entry(
     """Claim a pending (or stale-claimed) entry. Returns whether the claim succeeded."""
 
     with _locked(work_dir):
-        queue = read_rewrite_queue(work_dir)
+        queue = _read_queue_for_mutation(work_dir)
         entry = queue["entries"].get(request_id)
         if not isinstance(entry, dict):
             return False
@@ -228,7 +324,7 @@ def release_claim(work_dir: Path, request_id: str, *, claimant: str) -> bool:
     """
 
     with _locked(work_dir):
-        queue = read_rewrite_queue(work_dir)
+        queue = _read_queue_for_mutation(work_dir)
         entry = queue["entries"].get(request_id)
         if not isinstance(entry, dict):
             return False
@@ -268,7 +364,7 @@ def write_claimed_result(
     if status not in (STATUS_COMPLETED, STATUS_FAILED):
         raise ValueError("status must be completed or failed")
     with _locked(work_dir):
-        queue = read_rewrite_queue(work_dir)
+        queue = _read_queue_for_mutation(work_dir)
         entry = queue["entries"].get(request_id)
         if not isinstance(entry, dict):
             return False
@@ -295,12 +391,55 @@ def prune_consumed_entries(work_dir: Path, request_ids: list[str]) -> None:
     if not request_ids:
         return
     with _locked(work_dir):
-        queue = read_rewrite_queue(work_dir)
+        queue = _read_queue_for_mutation(work_dir)
         changed = False
+        retired_exchange_receipt = False
         for request_id in request_ids:
             entry = queue["entries"].get(request_id)
             if isinstance(entry, dict) and entry.get("status") in (STATUS_COMPLETED, STATUS_FAILED):
+                receipt = entry.get("exchangeReceipt")
+                if isinstance(receipt, str) and receipt:
+                    queue.setdefault("consumedExchangeReceipts", {})[receipt] = now()
+                    retired_exchange_receipt = True
                 del queue["entries"][request_id]
                 changed = True
         if changed:
-            atomic_write_json(queue_path(work_dir), queue)
+            atomic_write_json(
+                queue_path(work_dir), queue,
+                require_directory_sync=retired_exchange_receipt,
+            )
+
+
+def import_exchange_result(
+    work_dir: Path, request_id: str, *, payload: dict[str, Any], source: str, receipt: str
+) -> bool:
+    """Import a proposal only into its original, still-pending request.
+
+    The receipt makes retry after an exchange acknowledgement failure harmless.
+    A competing local claimant/result wins; callers retain the proposal for a
+    later retry. Reading must fail closed here: a corrupt queue is never empty.
+    """
+
+    path = queue_path(work_dir)
+    if not path.is_file():
+        return False
+    with _locked(work_dir, require_directory_sync=True):
+        queue = _read_queue_for_mutation(work_dir)
+        if receipt in queue.get("consumedExchangeReceipts", {}):
+            return False
+        entry = queue["entries"].get(request_id)
+        if not isinstance(entry, dict) or entry.get("requestId") != request_id:
+            return False
+        fields = ("functionName", "entry", "candidateSource", "mismatchClass", "mismatchHistogram", "alignedDiff", "compilerProfile")
+        if any(entry.get(key) != payload.get(key) for key in fields):
+            return False
+        if entry.get("exchangeReceipt") == receipt:
+            if entry.get("status") != STATUS_COMPLETED or entry.get("source") != source:
+                return False
+        elif entry.get("status") == STATUS_PENDING:
+            entry.update(status=STATUS_COMPLETED, source=source, resolvedAt=now(), exchangeReceipt=receipt)
+        else:
+            return False
+        # Receipt replay must also retry a previously failed directory sync.
+        atomic_write_json(path, queue, require_directory_sync=True)
+        return True

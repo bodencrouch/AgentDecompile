@@ -1,4 +1,6 @@
 import {PreparationProgress,selectPreparation} from './PreparationActivity';
+import {PreparationFeedProvider,usePreparationFeed} from './preparationFeed';
+import {matchingStageSummary,stageDisplayProgress,stageProgressDetail,stageProgressLabel} from './preparationProgress';
 import {SourceEditor,sourceWitness,sourceExtent,useFunctionEvidence} from './SourceEditor';
 import { AtlasAnalysis } from "./AtlasAnalysis";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
@@ -11,6 +13,7 @@ import {
   useData,
   usePref,
 } from "./ui";
+import { useWorkspacePref, workspaceKey } from "./workspaceState";
 import "./surfaces.css";
 function useNear(id: string) {
   const [near, setNear] = useState(false);
@@ -47,6 +50,24 @@ const addr = (value: any) =>
   typeof value === "number"
     ? "0x" + value.toString(16).padStart(8, "0")
     : String(value || "");
+const normalizedLocator = (value: unknown) => String(value || "").replace(/\/+$/, "");
+const normalizedProgram = (value: unknown) => String(value || "").replace(/^\/+/, "");
+function projectBinding(row: Data, locator = "") {
+  const bindings: Data[] = row.projectBindings || row.project_bindings || [];
+  return bindings.find(item =>
+    normalizedLocator(item.locator) === normalizedLocator(locator),
+  ) || bindings[0] || {};
+}
+function buildKey(row: Data, locator = "") {
+  if (row.kind !== "shared-program") return `binary:${row.slug}`;
+  const binding = projectBinding(row, locator);
+  return `program:${normalizedLocator(binding.locator || row.locator || locator).toLowerCase()}\u001f${normalizedProgram(binding.program || row.program).toLowerCase()}`;
+}
+const asBuild = (row: Data): Data => ({
+  ...row,
+  func_count: row.func_count ?? row.funcs,
+  named_count: row.named_count ?? row.named,
+});
 function Messages({ data }: { data: Data }) {
   return (
     <>
@@ -170,30 +191,37 @@ function Overview({
       : null,
     props.revision,
   );
-  const library = useData(`${API}/binaries`, props.revision);
-  const buildsBySlug = new Map<string, Data>((data.ladder?.binaries || []).map((row: Data) => [row.slug, row]));
+  const library = useData(`${API}/binaries?locator=${encodeURIComponent(props.selection.locator)}`, props.revision);
+  const buildsByKey = new Map<string, Data>((data.ladder?.binaries || []).map((row: Data) => [buildKey(row, props.selection.locator), row]));
   for (const binary of library.data.binaries || []) {
-    if (binary.kind !== "binary") continue;
-    for (const alias of binary.aliasSlugs || []) if (alias !== binary.slug) buildsBySlug.delete(alias);
-    buildsBySlug.set(binary.slug, { ...buildsBySlug.get(binary.slug), ...binary,
-      func_count: binary.funcs, named_count: binary.named });
+    if (!['binary', 'shared-program'].includes(binary.kind)) continue;
+    for (const alias of binary.aliasSlugs || []) if (alias !== binary.slug) buildsByKey.delete(`binary:${alias}`);
+    const key = buildKey(binary, props.selection.locator);
+    buildsByKey.set(key, asBuild({ ...buildsByKey.get(key), ...binary }));
   }
-  const builds = [...buildsBySlug.values()];
-  const programName = (value: string) => String(value || "").replace(/^\/+/, "");
+  const builds = [...buildsByKey.values()];
+  const programName = normalizedProgram;
   const projectPrograms = (project.data.programs || []).map((item: any) =>
     programName(typeof item === "string" ? item : item.name || item.path || item.program),
   );
   const selectedBuilds = builds.filter(row =>
     row.slug === props.selection.slug || row.aliasSlugs?.includes(props.selection.slug) ||
     row.slug === programName(props.selection.program) ||
+    row.projectBindings?.some((binding: Data) =>
+      normalizedLocator(binding.locator) === normalizedLocator(props.selection.locator) &&
+      (!props.selection.program || normalizedProgram(binding.program) === normalizedProgram(props.selection.program))) ||
     (!props.selection.program && (projectPrograms.includes(row.slug) ||
       row.projectBindings?.some((binding: Data) => binding.locator === props.selection.locator))),
   );
   const visible = scope === "all" ? builds : selectedBuilds;
   const browse = (props as BrowsableProps).onBrowseFunctions;
+  const countBinding = visible.length === 1 ? projectBinding(visible[0], props.selection.locator) : {};
+  const countTarget = visible.length === 1 && visible[0].kind === 'shared-program'
+    ? `locator=${encodeURIComponent(countBinding.locator || visible[0].locator || props.selection.locator)}&program=${encodeURIComponent(countBinding.program || visible[0].program)}`
+    : visible.length === 1 ? `slug=${encodeURIComponent(visible[0].slug)}` : '';
   const countUrl =
     visible.length === 1
-      ? `${API}/functions?slug=${encodeURIComponent(visible[0].slug)}&limit=1&filter=`
+      ? `${API}/functions?${countTarget}&limit=1&filter=`
       : null;
   const allCount = useData(countUrl ? countUrl + "all" : null, props.revision);
   const namedCount = useData(
@@ -428,7 +456,7 @@ function Listing({
       >
         <article>
           <h3>Source candidate</h3>
-          <SourceEditor selection={props.selection} value={text} loading={loading} extent={sourceExtent(detail)}/>
+          <SourceEditor selection={props.selection} value={text} sourcePath={detail.decompile?.path || detail.sourcePath || ''} loading={loading} extent={sourceExtent(detail)}/>
           <p className="source-path">
             {detail.decompile?.path ||
               detail.sourcePath ||
@@ -1041,6 +1069,78 @@ function Types({ props, catalog }: { props: SurfaceProps; catalog: Data[] }) {
   );
 }
 
+type ProofMeasure = {
+  key: string;
+  title: string;
+  status: string;
+  measured: string;
+  detail: string;
+  receipt: string;
+};
+
+function proofStageLabel(status: unknown) {
+  switch (String(status || "queued")) {
+    case "completed": return "Recorded";
+    case "running": return "Measuring now";
+    case "partial": return "Partial results recorded";
+    case "failed": return "Measurement ended";
+    case "blocked": return "Waiting for prerequisites";
+    case "paused": return "Paused";
+    default: return "Queued";
+  }
+}
+
+function proofMeasures(recovery: Data, run?: Data): ProofMeasure[] {
+  const stages: Data[] = run?.stages || [];
+  const stage = (key: string) => stages.find(item => item.key === key) || {};
+  const counter = (item: Data) => {
+    const progress = stageDisplayProgress(item).primary;
+    return progress ? stageProgressLabel(progress) : stageProgressDetail(item);
+  };
+  const source = recovery.sourceAvailability || {};
+  const sourceWitnesses = recovery.totals?.sourceWitnesses;
+  const calibration = stage("calibrate-global");
+  const compile = stage("recover-source");
+  const audit = stage("verify-byte-accuracy");
+  return [
+    {
+      key: "witnesses", title: "Source witnesses", status: "Recorded evidence",
+      measured: sourceWitnesses != null ? `${Number(sourceWitnesses).toLocaleString()} Ghidra C witnesses` : "Witness inventory is being read",
+      detail: source.count != null ? `${Number(source.count).toLocaleString()} assembly-free source records are catalogued separately; neither count claims compilation.` : String(source.reason || "The workflow will write source witnesses after extraction."),
+      receipt: "Required for proof: a candidate source file tied to its target function.",
+    },
+    {
+      key: "profile", title: "Compiler profile", status: proofStageLabel(calibration.status),
+      measured: counter(calibration),
+      detail: String(calibration.reason || "The pipeline is measuring target compiler, flags, ABI, and layout before compiling candidates."),
+      receipt: calibration.receipt ? `Receipt: ${calibration.receipt}` : "Required for compilation: a target-bound profile with zero-diff compiler probes.",
+    },
+    {
+      key: "compile", title: "Candidate compilation", status: proofStageLabel(compile.status),
+      measured: counter(compile),
+      detail: String(compile.reason || recovery.compilation?.reason || "Candidates compile only after a target-bound profile and source witness are present."),
+      receipt: compile.receipt ? `Receipt: ${compile.receipt}` : "Required for byte audit: an object produced from the recorded candidate source.",
+    },
+    {
+      key: "objdiff", title: "Native objdiff audit", status: proofStageLabel(audit.status),
+      measured: audit.verifiedFunctions != null ? `${Number(audit.verifiedFunctions).toLocaleString()} receipt-backed functions` : counter(audit),
+      detail: String(audit.reason || recovery.verification?.reason || "The audit compares compiled output with the original target using the native objdiff path."),
+      receipt: audit.receipt ? `Receipt: ${audit.receipt}` : "Required for byte-accurate source: a native objdiff receipt with zero differences.",
+    },
+  ];
+}
+
+function ProofMeasurementGrid({recovery,run}:{recovery:Data;run?:Data}) {
+  return <section className="proof-measurements" aria-label="Recovery proof measurements">
+    {proofMeasures(recovery,run).map(measure => <article key={measure.key} className={`proof-measurement proof-${measure.key}`}>
+      <header><span>{measure.title}</span><strong>{measure.status}</strong></header>
+      <p className="proof-measurement-count">{measure.measured}</p>
+      <p>{measure.detail}</p>
+      <small>{measure.receipt}</small>
+    </article>)}
+  </section>;
+}
+
 export function RecoveryWorkspace({props,catalog=[],liveRun}:{props:SurfaceProps;catalog?:Data[];liveRun?:Data}) {
   const [scope,setScope]=useState('selection'),[tick,setTick]=useState(0),[advanced,setAdvanced]=useState(false);
   useEffect(()=>{const timer=setInterval(()=>{if(!document.hidden)setTick(n=>n+1);},5000);return()=>clearInterval(timer);},[]);
@@ -1048,12 +1148,17 @@ export function RecoveryWorkspace({props,catalog=[],liveRun}:{props:SurfaceProps
   const data=useData(`${API}/corpus-status?${scoped?query(props.selection):'scope=all'}`,props.revision+tick);
   const actionCatalog=useData(!catalog.length?'/dashboard/api/actions':null);
   const availableActions=catalog.length?catalog:actionCatalog.data.actions||[];
-  const library=useData(`${API}/binaries`,props.revision);
+  const library=useData(`${API}/binaries?locator=${encodeURIComponent(props.selection.locator)}`,props.revision);
   const workflow=data.data.workflow||{};
   const runs:Data[]=workflow.runs||[];
   const run=scoped?(liveRun||workflow.run||selectPreparation(runs,props.selection)):undefined;
   const scopeConfirmed=!scoped||Boolean(data.data.scope&&data.data.scope.kind!=='all');
-  const builds:Data[]=scopeConfirmed?data.data.ladder?.binaries||[]:[];
+  const buildsByKey=new Map<string,Data>((scopeConfirmed?data.data.ladder?.binaries||[]:[]).map((row:Data)=>[buildKey(row,props.selection.locator),row]));
+  for(const row of library.data.binaries||[])if(row.kind==='shared-program'){
+    const key=buildKey(row,props.selection.locator);
+    buildsByKey.set(key,asBuild({...buildsByKey.get(key),...row}));
+  }
+  const builds=[...buildsByKey.values()];
   const report=scopeConfirmed?data.data.report||{}:{};
   const evidence=data.data.evidenceSources||[];
   const match=data.data.recovery?.matching||{};
@@ -1066,14 +1171,21 @@ export function RecoveryWorkspace({props,catalog=[],liveRun}:{props:SurfaceProps
     <p className="recovery-target">{scoped?props.selection.locator||props.selection.program||props.selection.slug||'Select a project or binary':'All registered corpora'}</p>
     <ErrorLine error={data.error}/>
     {!scopeConfirmed&&!data.loading&&<p role="status">This server has not supplied project-scoped recovery evidence. Global reports are not substituted for the selected project.</p>}
-    {scoped&&<PreparationProgress run={run} selection={props.selection} notify={props.notify} error={data.error} loading={data.loading&&!run} />}
+    {scoped && run && <p className="recovery-workflow-link" role="status">Automatic workflow · {matchingStageSummary(run) || run.status} · <button type="button" onClick={() => document.getElementById("preparation")?.scrollIntoView({ behavior: "smooth" })}>Open preparation panel</button></p>}
+    {scoped && !run && <PreparationProgress run={run} selection={props.selection} notify={props.notify} error={data.error} loading={data.loading} compact />}
     {!scoped&&<p>This view combines registered corpora. Return to the current project to follow its automatic workflow.</p>}
-    <p>Function inventory, readable source, compilation and byte verification are separate properties. Completed analysis and similarity indexing do not establish recovered source or byte parity.</p>
+    <p>Each lane below reports its own live evidence. Analysis and similarity indexing feed recovery, while compilation and native objdiff receipts establish separate facts.</p>
     <h3>{scoped?'Project binary evidence':'Registered binary evidence'}</h3>
     <Table rows={builds} columns={[["slug","Binary"],["func_count","Recorded functions"],["named_count","Recorded names"],["bound","Identity bindings"],["real_c","Real-C records"]]} onRow={inspectBuild}/>
     {!builds.length&&<p>{data.loading?'Reading project inventory…':data.data.scope?.reason||'No binary inventory is recorded for this scope yet. Current workflow status remains available above.'}</p>}
-    <h3>Cross-match observations</h3><p>{match.reason||'Comparison outcomes are advisory observations. They do not establish byte verification.'}</p><Table rows={Object.entries(match.byStatus||{}).map(([status,count])=>({status:matchLabels[status]||status,count}))} columns={[["status","Match category"],["count",match.unit||"Recorded observations"]]}/>
-    <dl className="facts"><div><dt>Recorded assembly-free source</dt><dd>{data.data.recovery?.sourceAvailability?.count!=null?`${data.data.recovery.sourceAvailability.count} functions${data.data.recovery.sourceAvailability.total!=null?` of ${data.data.recovery.sourceAvailability.total}`:''} · source witness, not proof`:(liveRun?.stages||[]).find((stage:Data)=>stage.key==='recover-source')?.reason||'Source recovery is queued behind the current workflow stage.'}{data.data.recovery?.sourceAvailability?.reason&&<><br/><small>{data.data.recovery.sourceAvailability.reason}</small></>}</dd></div><div><dt>Compilation</dt><dd>{data.data.recovery?.compilation?.summary||data.data.recovery?.compilation?.reason||(liveRun?.stages||[]).find((stage:Data)=>stage.key==='recover-source')?.reason||'Compilation starts after a source candidate is produced.'}</dd></div><div><dt>Byte verification</dt><dd>{data.data.recovery?.verification?.summary||data.data.recovery?.verification?.reason||(liveRun?.stages||[]).find((stage:Data)=>stage.key==='verify-byte-accuracy')?.reason||'Byte audit is queued: compiled output will be compared with the original binary and an independent receipt will be stored.'}</dd></div></dl>
+    <h3>Cross-match observations</h3>
+    {run && (() => {
+      const matching = run.stages?.find((stage: Data) => stage.key === "matching");
+      const { primary } = stageDisplayProgress(matching);
+      return primary ? <p className="recovery-match-progress" role="status">Workflow comparisons · {stageProgressLabel(primary)}</p> : null;
+    })()}
+    <p>{match.reason||'Comparison outcomes are advisory observations. They do not establish byte verification.'}</p><Table rows={Object.entries(match.byStatus||{}).map(([status,count])=>({status:matchLabels[status]||status,count}))} columns={[["status","Match category"],["count",match.unit||"Recorded observations"]]}/>
+    <ProofMeasurementGrid recovery={data.data.recovery||{}} run={run}/>
     {(report.by_build||[]).length>0&&<><h3>Recorded source outputs</h3><Table rows={report.by_build} columns={[["slug","Binary"],["artifacts","Artifacts"],["logical","Logical functions"],["concrete","Concrete instances"]]}/></>}
     <details><summary>Historical reports and evidence availability</summary><p>These optional reports describe the run that produced them. Their absence does not mean the current project has stopped, and their presence does not prove current byte parity.</p>{evidence.length?<Table rows={evidence} columns={[["path","Evidence source"],["status","Availability"],["reason","Meaning"]]}/>:<p>No historical report availability records were supplied.</p>}<Messages data={data.data}/><Messages data={report}/><Messages data={data.data.ladder||{}}/></details>
     <details open={advanced} onToggle={event=>setAdvanced(event.currentTarget.open)}><summary>Independent recovery tools</summary><p>The admitted workflow advances automatically. These controls are for deliberate targeted operations with explicit parameters.</p>{advanced&&<div className="surface-action-list">{recoveryTools.map(([id,label])=><button key={id} disabled={!availableActions.some((action:Data)=>action.id===id)} onClick={()=>props.onAction(id)}>{label}</button>)}</div>}</details>
@@ -1368,7 +1480,13 @@ function Context({
   detail: Data;
   catalog: Data[];
 }) {
-  const [note, setNote] = usePref("context-notes", "");
+  const noteKey = workspaceKey(
+    "context",
+    props.selection.locator,
+    props.selection.program,
+    props.selection.addr,
+  );
+  const [note, setNote] = useWorkspacePref("notes", noteKey, "");
   const [copied, setCopied] = useState(false);
   const near = useNear("context");
   const context = useData(
@@ -1465,7 +1583,15 @@ export function BinaryEvidenceWorkspace(props:SurfaceProps) {
   return <div className="binary-evidence-workspace"><Logical props={props} catalog={actions}/><Review props={props} data={corpus.data} catalog={actions}/><Graph props={props} detail={detail.data} catalog={actions}/><Types props={props} catalog={actions}/><Knowledge props={props} catalog={actions}/><Context props={props} detail={detail.data} catalog={actions}/></div>;
 }
 
-export function WorkbenchSurfaces(props: SurfaceProps & { inspectTools?: ReactNode; preparationTools?: ReactNode }) {
+function DeferredSurface({ id, label, children }: { id: string; label: string; children: ReactNode }) {
+  const near = useNear(id);
+  return <div id={id} className="work-surface-group" tabIndex={-1} role="region" aria-labelledby={`${id}-heading`}>
+    <h2 id={`${id}-heading`}>{label}</h2>
+    {near ? children : <p className="surface-deferred" role="status">Open this section to load its recorded evidence.</p>}
+  </div>;
+}
+
+function WorkbenchSurfacesBody(props: SurfaceProps & { inspectTools?: ReactNode; preparationTools?: ReactNode }) {
   const near = useNear("overview");
   const corpus = useData(near ? `${API}/corpus-status?${query(props.selection)}` : null, props.revision);
   const catalog = useData("/dashboard/api/actions", props.revision);
@@ -1477,6 +1603,8 @@ export function WorkbenchSurfaces(props: SurfaceProps & { inspectTools?: ReactNo
     ? { ...detail.data, ...detail.data.listing, function: detail.data.selected }
     : detail.data;
   const actions = catalog.data.actions || [];
+  const { runs } = usePreparationFeed();
+  const liveRun = selectPreparation(runs, props.selection);
   return (
     <>
       <div id="compare-builds" className="work-surface-group" tabIndex={-1} role="region" aria-labelledby="compare-builds-heading">
@@ -1487,8 +1615,7 @@ export function WorkbenchSurfaces(props: SurfaceProps & { inspectTools?: ReactNo
         <Logical props={props} catalog={actions} />
         <Review props={props} data={corpus.data} catalog={actions} />
       </div>
-      <div id="inspect-work" className="work-surface-group" tabIndex={-1} role="region" aria-labelledby="inspect-work-heading">
-        <h2 id="inspect-work-heading">Inspect binary</h2>
+      <DeferredSurface id="inspect-work" label="Inspect binary">
         <Listing props={props} detail={normalized} loading={detail.loading} error={detail.error} catalog={actions} />
         {props.inspectTools}
         <Graph props={props} detail={normalized} catalog={actions} />
@@ -1497,12 +1624,19 @@ export function WorkbenchSurfaces(props: SurfaceProps & { inspectTools?: ReactNo
           <Knowledge props={props} catalog={actions} />
           <Context props={props} detail={normalized} catalog={actions} />
         </div>
-      </div>
-      <div id="recover-verify" className="work-surface-group" tabIndex={-1} role="region" aria-labelledby="recover-verify-heading">
-        <h2 id="recover-verify-heading">Recover and verify</h2>
-        <RecoveryWorkspace props={props} catalog={actions} />
-      </div>
+      </DeferredSurface>
+      <DeferredSurface id="recover-verify" label="Recover and verify">
+        <RecoveryWorkspace props={props} catalog={actions} liveRun={liveRun} />
+      </DeferredSurface>
     </>
+  );
+}
+
+export function WorkbenchSurfaces(props: SurfaceProps & { inspectTools?: ReactNode; preparationTools?: ReactNode }) {
+  return (
+    <PreparationFeedProvider>
+      <WorkbenchSurfacesBody {...props} />
+    </PreparationFeedProvider>
   );
 }
 

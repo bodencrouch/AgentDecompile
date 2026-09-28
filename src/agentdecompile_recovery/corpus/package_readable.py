@@ -1,4 +1,4 @@
-"""Emit a readable C tree grouped by source_file. Authority is per-function."""
+"""Emit a readable high-level source tree grouped by source_file. Authority is per-function."""
 
 from __future__ import annotations
 
@@ -7,25 +7,38 @@ import re
 from collections import defaultdict
 from pathlib import Path
 
-from .source_claims import is_real_c, is_recovered_source
+from agentdecompile_recovery.languages import (
+    SourceLanguage,
+    default_source_language,
+    language_from_path,
+    language_spec,
+)
+from .source_claims import is_readable_source, is_real_c
 
 EH_FRAGMENT_RE = re.compile(r"^(Unwind[_@]|Catch[_@]|FrameHandler[_@])", re.I)
 from .workspace import rel_source
 
 
-def safe_relpath(source_file: str | None, fallback: str) -> str:
-    """Turn a recovered source path into a safe project-relative .c path."""
+def safe_relpath(
+    source_file: str | None,
+    fallback: str,
+    *,
+    language: SourceLanguage | None = None,
+) -> str:
+    """Turn a recovered source path into a safe project-relative path."""
+    lang = language or default_source_language()
+    spec = language_spec(lang)
+    default_ext = spec.default_export_extension
     if not source_file:
-        return f"_unattributed/{fallback}.cpp"
+        return f"_unattributed/{fallback}{default_ext}"
     s = source_file.replace("\\", "/").lstrip("/")
     s = re.sub(r"[^A-Za-z0-9_./-]", "_", s)
     parts = [p for p in s.split("/") if p not in ("", ".", "..")]
     if not parts:
-        return f"_unattributed/{fallback}.cpp"
-    if not parts[-1].endswith((".c", ".cpp", ".cc")):
-        parts[-1] += ".cpp"
-    if parts[-1].endswith(".c"):
-        parts[-1] += "pp"
+        return f"_unattributed/{fallback}{default_ext}"
+    suffixes = spec.file_extensions
+    if not any(parts[-1].endswith(ext) for ext in suffixes):
+        parts[-1] += default_ext
     return "/".join(parts)
 
 
@@ -116,7 +129,11 @@ def package_from_store(con, repo_path: str, out_dir: Path, *,
         if not is_real_c(base_c):
             stats["ghidra_shim"] += 1
             continue
-        rel = safe_relpath(f["source_file"], f"{slug}_{f['addr'] >> 16:04x}")
+        rel = safe_relpath(
+            f["source_file"],
+            f"{slug}_{f['addr'] >> 16:04x}",
+            language=language_from_path(f["source_file"] or ""),
+        )
         by_file[rel].append(function_block(f, base_c))
         stats[f["authority"]] += 1
         manifest.append({
@@ -142,14 +159,17 @@ def package_readable(functions: list[dict], out_dir: Path, *, binary_id: str) ->
     records = []
     for row in functions:
         body = row.get("source") or row.get("body") or ""
-        rel = rel_source(row.get("source_file") or row.get("sourceFile") or "") or "_unattributed/unattributed.c"
+        lang = language_from_path(row.get("source_file") or row.get("sourceFile") or "")
+        rel = rel_source(row.get("source_file") or row.get("sourceFile") or "") or safe_relpath(
+            None, "unattributed", language=lang
+        )
         grouped[rel].append(row)
         records.append(
             {
                 "id": row.get("id"),
                 "name": row.get("name"),
                 "source_file": rel,
-                "authority": "advisory-ghidra" if is_recovered_source(body) else "not-source",
+                "authority": "advisory-ghidra" if is_readable_source(body, lang) else "not-source",
             }
         )
     for rel, rows in grouped.items():

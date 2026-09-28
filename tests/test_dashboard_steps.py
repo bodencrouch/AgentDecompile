@@ -31,12 +31,13 @@ def test_steps_compact_skips_sql_errors_for_missing_optional_tables(
     assert "logical_name" in html or "not populated yet" in html
     assert "nwmain-linux-4" not in html  # per-build ladders collapsed away
     assert "Extract every function" in html
-    assert steps.STEP_ACTION_DEFAULTS["apply-cross-build"] == "corpus.cross-place"
-    assert steps.STEP_ACTION_DEFAULTS["verify-byte-accuracy"] == "corpus.objdiff-check"
-    assert steps.STEP_ACTION_DEFAULTS["apply-cross-build"] == "corpus.cross-place"
-    assert steps.STEP_ACTION_DEFAULTS["calibrate-global"] == "corpus.calibrate-global"
-    assert "reconstruct.one-shot" not in steps.STEP_ACTION_DEFAULTS.values()
-    assert "corpus.propagate-corpus" not in steps.STEP_ACTION_DEFAULTS.values()
+    # Step actions derive from the pipeline contract rather than a panel-local table.
+    actions = steps.PIPELINE_STAGE_ACTIONS
+    assert actions["apply-cross-build"] == "corpus.cross-place"
+    assert actions["verify-byte-accuracy"] == "corpus.objdiff-check"
+    assert actions["calibrate-global"] == "corpus.calibrate-global"
+    assert "reconstruct.one-shot" not in actions.values()
+    assert "corpus.propagate-corpus" not in actions.values()
     src = Path("src/agentdecompile_recovery/corpus/dashboard/panels/steps.py").read_text(
         encoding="utf-8"
     )

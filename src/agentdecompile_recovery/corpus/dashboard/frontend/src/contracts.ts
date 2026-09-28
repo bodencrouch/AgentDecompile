@@ -1,10 +1,53 @@
 export type Data = Record<string, any>;
+export {
+  ANALYSIS_SCHEMA_VERSION,
+  unsupportedCapability,
+  type Address,
+  type ActionDescriptor,
+  type AnalysisJob,
+  type ActionParityMatrix,
+  type ArtifactFormat,
+  type ArtifactRecord,
+  type BasicBlockRecord,
+  type BinaryRecord,
+  type CapabilityStatus,
+  type ClaimBoundary,
+  type DecompilerResult,
+  type EvidenceRecord,
+  type FindingRecord,
+  type Freshness,
+  type FreshnessState,
+  type FunctionRecord,
+  type InstructionRecord,
+  type NormalizedAnalysisModel,
+  type Pagination,
+  type JobCheckpoint,
+  type ProviderCapability,
+  type ProviderResult,
+  type ProviderResultStatus,
+  type Region,
+  type Revision,
+  type RevisionConflict,
+  type SharedContext,
+  type StructuredFailure,
+  type XrefRecord,
+  actionParityIssues,
+} from "./analysis/contracts";
 export interface Selection {
   slug: string;
   program: string;
   addr: string;
   logicalId: string;
+  /** Opaque database-file identity; not a content revision or equivalence proof. */
+  corpusIdentity?: string;
   locator: string;
+  projectId?: string;
+  binaryHash?: string;
+  functionId?: string;
+  /** Last explicitly inspected function; data-address navigation leaves it intact. */
+  lastFunctionAddr?: string;
+  region?: import("./analysis/contracts").Region;
+  evidenceIds?: string[];
 }
 export const emptySelection: Selection = {
   slug: "",
@@ -64,8 +107,23 @@ export async function request<T = Data>(
       ...init.headers,
     },
   });
-  const data = await response.json();
-  if (!response.ok || data.ok === false) {
+  const raw = await response.text();
+  const accepted = response.ok || response.status === 202;
+  let data: Data = {};
+  if (raw.trim()) {
+    try {
+      data = JSON.parse(raw) as Data;
+    } catch {
+      throw new Error(
+        raw.trim().length < 80
+          ? `Incomplete JSON from server (${response.status})`
+          : `Invalid JSON from server (${response.status})`,
+      );
+    }
+  } else if (!accepted) {
+    throw new Error(`Request failed (${response.status})`);
+  }
+  if (!accepted || data.ok === false) {
     const detail = Array.isArray(data.detail)
       ? data.detail
           .map((item: Data) => `${(item.loc || []).join(".")}: ${item.msg}`)
@@ -87,7 +145,7 @@ export function query(
   const params = new URLSearchParams();
   Object.entries({ ...selection, ...extras }).forEach(([key, value]) => {
     if (value !== "" && value !== undefined && value !== null)
-      params.set(key === "logicalId" ? "logical_id" : key, String(value));
+      params.set(key === "logicalId" ? "logical_id" : key === "corpusIdentity" ? "corpus_identity" : key, String(value));
   });
   return params.toString();
 }
@@ -96,7 +154,13 @@ export function functionKey(selection: Selection): string {
     selection.locator,
     selection.slug,
     selection.program,
+    selection.binaryHash,
+    selection.functionId,
     selection.addr,
+    selection.logicalId,
+    selection.corpusIdentity,
+    selection.region?.start.offset,
+    selection.region?.end?.offset,
   ].join("\u001f");
 }
 

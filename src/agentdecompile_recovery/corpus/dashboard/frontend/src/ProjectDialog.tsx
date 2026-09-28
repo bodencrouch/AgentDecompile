@@ -114,19 +114,10 @@ export function ProjectDialog({
   }
   async function open(value: string, inspected?: Data) {
     const data = inspected || (await inspect(value));
-    const remote = /^(?:ghidra|https?):\/\//i.test(value);
-    const registration = await post(`${API}/binaries`, {
-      path: remote ? "" : value,
-      url: remote ? value : "",
-      slug: data.slug,
-      role: "member",
-    });
     const selected = {
       locator: data.locator || value,
-      slug: registration.binary?.slug || data.slug || "",
+      slug: data.slug || "",
       program: data.program_paths?.[programName(data.programs?.[0])] || programName(data.programs?.[0]),
-      addr: "",
-      logicalId: "",
     };
     projectRef.current = { locator: selected.locator, slug: selected.slug };
     onSelect(selected);
@@ -149,22 +140,42 @@ export function ProjectDialog({
     await open(projectRef.current.locator, created);
     return projectRef.current;
   }
-  async function importPath(path: string, fileName: string) {
-    const project = await ensureProject();
-    const data = await post(`${API}/programs`, {
-      locator: project.locator,
-      path,
-      name: fileName,
-      analyze: false,
+  async function uploadMemberBinary(file: File) {
+    const body = new FormData();
+    body.append("file", file, file.name);
+    body.append("role", "member");
+    const uploaded = await request(`${API}/binaries`, {
+      method: "POST",
+      body,
     });
-    onSelect({
-      ...project,
-      program: data.program || fileName,
-      addr: "",
-      logicalId: "",
+    const path = uploaded.binary?.locator || uploaded.binary?.repo;
+    if (!path) throw new Error("Upload returned no server path.");
+    return path;
+  }
+  async function queueImportBatch(
+    project: { locator: string; slug: string },
+    targets: { path: string; name: string }[],
+  ) {
+    if (!targets.length) return null;
+    const result = await request("/api/v1/batches", {
+      method: "POST",
+      body: JSON.stringify({
+        key: crypto.randomUUID(),
+        action: "mcp.import-binary",
+        params: { analyzeAfterImport: false },
+        confirm: true,
+        targets: targets.map((target) => ({
+          locator: project.locator,
+          params: {
+            file_path: target.path,
+            programName: target.name,
+            analyzeAfterImport: false,
+          },
+        })),
+      }),
     });
-    onRefresh();
-    return data;
+    window.dispatchEvent(new Event("library-import-submitted"));
+    return result;
   }
   async function receiveFiles(items: FileItem[]) {
     uploadedPaths.current.clear();
@@ -173,19 +184,19 @@ export function ProjectDialog({
     setOutcomes([]);
     setError("");
   }
-  async function runImport() {
+  async function runImport(): Promise<{ message: string; details?: Data }> {
     if (!files.length) {
       if (!locator.trim())
         throw new Error("Choose files or enter a server path.");
-      await importPath(
-        locator.trim(),
-        locator.trim().split(/[/\\]/).pop() || "binary",
-      );
-      setResult({
-        message:
-          "Imported the binary into the project. Analysis has not been started.",
-      });
-      return;
+      const project = await ensureProject();
+      const path = locator.trim();
+      const batch = await queueImportBatch(project, [
+        { path, name: path.split(/[/\\]/).pop() || "binary" },
+      ]);
+      return {
+        message: "Queued 1 binary import. Track progress in Activity and Imports.",
+        details: { batchId: batch?.batch?.id, target: project.locator },
+      };
     }
     const paths = files.map((item) => item.path);
     const isProject = paths.some((path) =>
@@ -218,58 +229,69 @@ export function ProjectDialog({
             ? "Several projects were found. Open the project you want using its server path."
             : "The staged files did not resolve to a project.",
         );
-      await open(resolved.locator);
-      setResult({
-        message: "Opened the staged project. Existing analysis is preserved.",
+      const selected = {
+        locator: resolved.locator,
+        slug: resolved.slug || "",
+        program: programName(resolved.programs?.[0]) || "",
+      };
+      await open(resolved.locator, resolved);
+      void request(API + "/prepare", {
+        method: "POST",
+        body: JSON.stringify({ locator: selected.locator }),
       });
-      return;
+      return {
+        message:
+          "Staged project registered. Preparation will continue in the background.",
+        details: { locator: selected.locator },
+      };
     }
-    await ensureProject();
-    const rows: Data[] = [];
-    for (const item of files) {
-      try {
-        let path = uploadedPaths.current.get(item.path);
-        if (!path) {
-          const body = new FormData();
-          body.append("file", item.file, item.file.name);
-          body.append("role", "member");
-          const uploaded = await request(`${API}/binaries`, {
-            method: "POST",
-            body,
+    const project = await ensureProject();
+    const targets: { path: string; name: string }[] = [];
+    const failed: Data[] = [];
+    await Promise.all(
+      files.map(async (item) => {
+        try {
+          const stored = uploadedPaths.current.get(item.path);
+          const path = stored ?? (await uploadMemberBinary(item.file));
+          if (!stored) uploadedPaths.current.set(item.path, path);
+          targets.push({ path, name: item.file.name });
+        } catch (e) {
+          failed.push({
+            name: item.file.name,
+            status: "Failed",
+            error: e instanceof Error ? e.message : String(e),
+            path: item.path,
           });
-          path = uploaded.binary?.locator || uploaded.binary?.repo;
-          if (!path) throw new Error("Upload returned no server path.");
-          uploadedPaths.current.set(item.path, path);
         }
-        await importPath(path, item.file.name);
-        rows.push({ name: item.file.name, status: "Imported" });
-      } catch (e) {
-        rows.push({
-          name: item.file.name,
-          status: "Failed",
-          error: e instanceof Error ? e.message : String(e),
-          path: item.path,
-        });
-      }
-      setOutcomes([...rows]);
-    }
-    const failed = rows.filter((row) => row.status === "Failed");
-    setResult({
-      message: `Imported ${rows.length - failed.length} of ${rows.length} binaries. Analysis has not been started.`,
-    });
-    if (failed.length)
+      }),
+    );
+    if (failed.length) setOutcomes(failed);
+    if (!targets.length)
+      throw new Error(
+        failed[0]?.error || "No binaries could be uploaded for import.",
+      );
+    const batch = await queueImportBatch(project, targets);
+    if (failed.length) {
       setFiles(
         files.filter((item) => failed.some((row) => row.path === item.path)),
       );
-    else setFiles([]);
+    }
+    return {
+      message: `Queued ${targets.length} binary import${targets.length === 1 ? "" : "s"}${failed.length ? `; ${failed.length} upload${failed.length === 1 ? "" : "s"} failed` : ""}. Track progress in Activity and Imports.`,
+      details: { batchId: batch?.batch?.id, target: project.locator },
+    };
   }
   async function submit() {
     if (busy) return;
     setBusy(true);
     setError("");
     try {
-      if (mode === "import") await runImport();
-      else if (mode === "open") {
+      if (mode === "import") {
+        const summary = await runImport();
+        notify(summary.message, "info", summary.details);
+        onRefresh();
+        onClose();
+      } else if (mode === "open") {
         if (!locator.trim()) throw new Error("Enter a project path or URL.");
         await open(
           locator.trim(),
@@ -531,8 +553,8 @@ export function ProjectDialog({
             {files.length > 0 && <p>{files.length} files selected</p>}
             <p>
               Imports reuse this project. A blank session creates one project
-              for all files. Import does not run analysis or claim source
-              recovery.
+              for all files. Ghidra import runs as a background job; the dialog
+              closes as soon as the upload and queue step finishes.
             </p>
           </>
         )}
@@ -599,7 +621,9 @@ export function ProjectDialog({
         {(!result || (mode === "import" && files.length > 0)) && (
           <button disabled={busy} onClick={submit}>
             {busy
-              ? "Working…"
+              ? mode === "import"
+                ? "Uploading…"
+                : "Working…"
               : result && files.length
                 ? "Retry failed files"
                 : mode === "open"

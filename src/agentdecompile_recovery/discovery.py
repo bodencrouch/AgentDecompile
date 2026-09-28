@@ -15,6 +15,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from agentdecompile_recovery.languages import source_file_suffixes
+from agentdecompile_recovery.languages.registry import source_dump_kind_label
+
 # --- kind constants ---------------------------------------------------------
 
 KIND_BINARY = "binary"
@@ -28,9 +31,8 @@ KIND_JSON = "json"
 KIND_DIRECTORY = "directory"
 KIND_UNKNOWN = "unknown"
 
-_SOURCE_SUFFIXES = {".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".hh", ".hxx"}
 _NOTE_SUFFIXES = {".md", ".txt", ".log", ".yaml", ".yml", ".rst", ".org"}
-_BINARY_SUFFIXES = {".exe", ".dll", ".sys", ".xbe", ".elf", ".so", ".o", ".obj", ".bin", ".dol", ".rel"}
+_BINARY_SUFFIXES = {".exe", ".dll", ".sys", ".xbe", ".elf", ".so", ".o", ".obj", ".bin", ".dol", ".rel", ".nds"}
 _GHIDRA_PROJECT_SUFFIXES = {".gpr", ".rep"}
 _GHIDRA_ARCHIVE_SUFFIXES = {".gzf"}
 
@@ -169,8 +171,8 @@ def sniff_path(path: Path) -> SniffResult:
     if suffix == ".jsonl" and _is_jsonl_facts(resolved):
         return SniffResult(resolved, KIND_FACTS_JSONL, "JSONL fact stream", adapter="context-pack")
 
-    if suffix in _SOURCE_SUFFIXES:
-        return SniffResult(resolved, KIND_SOURCE_DUMP, "C/C++ source dump", adapter="context-pack")
+    if suffix in source_file_suffixes():
+        return SniffResult(resolved, KIND_SOURCE_DUMP, source_dump_kind_label(), adapter="context-pack")
 
     if suffix in _NOTE_SUFFIXES:
         return SniffResult(resolved, KIND_NOTES, "unstructured/structured notes", adapter="context-pack")
@@ -180,7 +182,20 @@ def sniff_path(path: Path) -> SniffResult:
 
     head = _read_head(resolved)
     if suffix in _BINARY_SUFFIXES or _looks_binary(head):
-        return SniffResult(resolved, KIND_BINARY, "binary image", adapter="ghidra", detail={"suffix": suffix})
+        detail: dict[str, Any] = {"suffix": suffix}
+        from agentdecompile_recovery.containers import detect_container, resolve_container
+
+        container = detect_container(resolved, head=head)
+        if container:
+            detail["containerFormat"] = container
+            if container == "nds":
+                resolution = resolve_container(resolved)
+                if resolution is not None:
+                    detail["overlayCount"] = resolution.detail.get(
+                        "overlayCount",
+                        sum(1 for image in resolution.images if image.overlay_id is not None),
+                    )
+        return SniffResult(resolved, KIND_BINARY, "binary image", adapter="ghidra", detail=detail)
 
     # Fallback: readable text with no known suffix is treated as notes.
     if head and b"\x00" not in head:

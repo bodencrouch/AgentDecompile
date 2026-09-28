@@ -1,11 +1,28 @@
 # MCP Configuration Security Guide
 
+Current operations follow [AGENTS](../AGENTS.md): attach to existing 8080; do not
+start another JVM/dashboard or alter global Codex MCP defaults (Hugging Face and
+Zapier). The project plugin connects directly with `type: http` and
+`url: http://127.0.0.1:8080/mcp`, spawning no process. Native HTTP plugin
+configuration is supported by the [official plugin integration reference](https://github.com/anthropics/claude-plugins-official/blob/main/plugins/plugin-dev/skills/mcp-integration/SKILL.md).
+For stdio-only clients, the existing `agentdecompile-proxy` compatibility option
+requires `AGENT_DECOMPILE_WEBUI_ENABLED=false` to suppress its web UI sidecar.
+This is configuration/source inspection, not a live connection claim.
+
+The remaining client-specific configuration examples are reference material.
+Recovery actions still use the 8080 dashboard/catalog; MCP attachment is not a
+direct recovery bypass. Confirm the client's input-substitution syntax; it is not
+part of the MCP protocol itself.
+
 ## Bind and MCP HTTP auth
 
 The MCP HTTP listener defaults to `127.0.0.1`. That is localhost only.
 
 - Do not set `AGENT_DECOMPILE_HOST=0.0.0.0` unless `AGENT_DECOMPILE_AUTH_ENABLED` is on **and** you have a firewall (and TLS when the listener leaves the host).
-- `AGENT_DECOMPILE_GHIDRA_SERVER_*` and `X-Agent-Server-*` authenticate **Ghidra Server**, not the MCP listener.
+- `AGENT_DECOMPILE_AUTH_ENABLED` (or `--require-auth`) only works with credentials. Set `AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME` and `AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD` too. Clients then send that pair as HTTP Basic auth on every request except `/health`. The server and proxy refuse to start when auth is on and either value is missing.
+- `--no-require-auth` does not switch the env var off. Unset `AGENT_DECOMPILE_AUTH_ENABLED` to run without auth.
+- Auth applies to HTTP transports only. stdio never checks credentials.
+- With auth off, `AGENT_DECOMPILE_GHIDRA_SERVER_*` and `X-Agent-Server-*` authenticate **Ghidra Server** only, not the MCP listener.
 - Session IDs are not authentication. See [session-handling.md](./session-handling.md).
 
 Full env-var catalog: [USAGE.md](../USAGE.md). Vulnerability reports: [SECURITY.md](../SECURITY.md).
@@ -24,14 +41,14 @@ Instead, use dynamic input prompts that request credentials at runtime.
 
 ### Using Input Prompts (Recommended)
 
-MCP supports dynamic input prompts using the `{input:input-id}` syntax. This allows you to:
+Clients that support dynamic input prompts can keep secrets out of configuration. This allows you to:
 - Keep credentials out of configuration files
 - Prompt users securely at connection time
 - Mark password inputs as sensitive
 
 ### Example: Secure Configuration
 
-See [`mcp.example.json`](./mcp.example.json) for a complete secure configuration template.
+See [`mcp.example.json`](./mcp.example.json) for one project-local connection to existing 8080. Add shared-server headers only when needed, using the client-specific examples below.
 
 #### Key Features:
 
@@ -90,13 +107,11 @@ See [`mcp.example.json`](./mcp.example.json) for a complete secure configuration
 
 ## Setup Instructions
 
-### 1. Copy Example Configuration
+### 1. Inspect the project-local example
 
-```bash
-cp docs/mcp.example.json ~/.config/mcp/mcp.json
-```
-
-*(Adjust path based on your MCP client location)*
+The example contains one native HTTP connection. Shared-server authentication
+can be added to that connection; do not configure duplicate server aliases. Do not copy it over global
+configuration. Preserve the existing 8080 server and client settings.
 
 ### 2. Customize Defaults (Optional)
 
@@ -126,7 +141,7 @@ export AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME="your-username"
 export AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD="your-password"
 export AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY="your-repo"
 
-agentdecompile-server --transport stdio
+AGENT_DECOMPILE_WEBUI_ENABLED=false agentdecompile-proxy --transport stdio --backend-url http://127.0.0.1:8080/mcp
 ```
 
 See [USAGE.md](../USAGE.md) for complete CLI documentation.

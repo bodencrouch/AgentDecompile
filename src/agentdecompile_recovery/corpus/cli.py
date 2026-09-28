@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -11,6 +13,63 @@ from .archive import check_extraction, list_archive, summarize_entries
 from .contract import STAGE_ALIASES, stages_catalog, resolve_stage
 from .pipeline import run_corpus_pipeline, write_calibrate_global_receipt
 from .registry import add_binary, load_corpus, new_corpus, save_corpus
+
+
+def _hashed(slug: object) -> str:
+    """A build name for a message: ``sha256(slug)[:12]``, never the slug."""
+    return hashlib.sha256(str(slug).encode("utf-8")).hexdigest()[:12]
+
+
+def _refusal_line(exc: BaseException) -> str | None:
+    """One named line for a keyed verb's refusal, or None when *exc* is not one.
+
+    The three refusal classes the keyed verbs (``export-hookpack``,
+    ``verify-determinism``, ``logical-build``, ``backfill``) share:
+
+    * ``BasisError`` -- the store cannot declare one basis.
+    * ``ContentHashError`` -- a build the cascade keys on has no usable
+      ``content_sha256``. Its message names slugs; only the count and the
+      hashed names are printed.
+    * ``sqlite3.OperationalError`` for a lock/busy/read-only condition --
+      the write lock was held past ``busy_timeout``; reported as ``locked``
+      rather than as a traceback. Any other operational error is a real
+      failure and propagates.
+    """
+    from .determinism_basis import BasisError
+    from .logical import BACKFILL_HINT, ContentHashError
+    from .store import _is_lock_or_readonly
+
+    if isinstance(exc, ContentHashError):
+        names = ", ".join(_hashed(slug) for slug in exc.slugs)
+        detail = "shared by" if exc.kind == "duplicate" else "missing for"
+        return (
+            f"error: ContentHashError: content_sha256 {detail} {len(exc.slugs)} build(s) [{names}]; "
+            f"{BACKFILL_HINT}"
+        )
+    if isinstance(exc, BasisError):
+        return f"error: {exc}"
+    if isinstance(exc, sqlite3.OperationalError) and _is_lock_or_readonly(exc):
+        return f"error: locked: {exc} (write lock held past busy_timeout)"
+    return None
+
+
+#: Returned by :func:`_run_keyed_verb` when the verb refused; the caller exits 2.
+REFUSED = object()
+
+
+def _run_keyed_verb(action):
+    """Run *action*; on a refusal print one named line to stderr and return ``REFUSED``."""
+    from .determinism_basis import BasisError
+    from .logical import ContentHashError
+
+    try:
+        return action()
+    except (BasisError, ContentHashError, sqlite3.OperationalError) as exc:
+        line = _refusal_line(exc)
+        if line is None:
+            raise
+        print(line, file=sys.stderr)
+        return REFUSED
 
 
 def run_list_archive_command(args: argparse.Namespace) -> int:
@@ -190,9 +249,12 @@ def run_decompile_batch_command(args: argparse.Namespace) -> int:
     return 0
 
 
-def build_parser() -> argparse.ArgumentParser:
+DEFAULT_PROG = "agentdecompile-corpus"
+
+
+def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agentdecompile-corpus",
+        prog=prog or DEFAULT_PROG,
         description=(
             "Corpus-wide semantic decompilation. First priority is linking one "
             "STABS/DWARF donor project to a complete executable. Adding a binary "
@@ -202,6 +264,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     init = sub.add_parser("init", help="Create an empty corpus file")
+    init.danger = init.mutating = True
     init.add_argument("--id", required=True, dest="corpus_id")
     init.add_argument("--out", type=Path, required=True)
 
@@ -223,16 +286,20 @@ def build_parser() -> argparse.ArgumentParser:
         "remove-binary",
         help="Delete one binary and its per-binary rows from a store",
     )
+    rmbin.danger = rmbin.mutating = True
+    rmbin.identity_scope = "database"
     rmbin.add_argument("--db", type=Path, required=True)
     rmbin.add_argument("--repo", dest="repo_path")
     rmbin.add_argument("--slug")
 
     stabs = sub.add_parser("extract-stabs", help="Read Mach-O STABS into a functions snapshot")
+    stabs.long_running = True
     stabs.add_argument("--binary", type=Path, required=True)
     stabs.add_argument("--id", required=True, dest="binary_id")
     stabs.add_argument("--out-dir", type=Path, required=True)
 
     run = sub.add_parser("run", help="Run pipeline stages in contract order")
+    run.long_running = True
     run.add_argument("--corpus", type=Path, required=True)
     run.add_argument("--work-dir", type=Path, required=True)
     run.add_argument("--snapshot-dir", type=Path, required=True, help="Directory of {id}.functions.json extracts")
@@ -281,11 +348,14 @@ def build_parser() -> argparse.ArgumentParser:
     write_snap.add_argument("--out-dir", type=Path, required=True)
 
     apply_stabs = sub.add_parser("apply-stabs", help="Apply a reviewed STABS manifest to a store")
+    apply_stabs.long_running = True
+    apply_stabs.identity_scope = "database"
     apply_stabs.add_argument("--db", type=Path, required=True)
     apply_stabs.add_argument("--binary-id", type=int, required=True)
     apply_stabs.add_argument("--manifest", type=Path, required=True)
 
     prop = sub.add_parser("propagate-source", help="Carry source_file across logical identities")
+    prop.identity_scope = "database"
     prop.add_argument("--db", type=Path, required=True)
 
     ev = sub.add_parser("evaluate-pair", help="Measure matcher vs unique-name ground truth")
@@ -306,14 +376,56 @@ def build_parser() -> argparse.ArgumentParser:
     hookpack.add_argument("--db", type=Path, required=True)
     hookpack.add_argument("--out", type=Path, required=True)
 
+    verify_det = sub.add_parser(
+        "verify-determinism",
+        help="Export the hook pack from two temp copies of a store and byte-diff the results",
+    )
+    verify_det.add_argument("--db", type=Path, required=True)
+
+    rebaseline = sub.add_parser(
+        "rebaseline",
+        help="Record a package-basis change as a supersession and re-stamp every binary row",
+    )
+    rebaseline.add_argument("--db", type=Path, required=True)
+    rebaseline.add_argument(
+        "--receipts", type=Path, required=True,
+        help="Receipts directory. The receipt lands under rebaseline/ inside it.",
+    )
+    rebaseline.add_argument("--reason", default=None, help="Why the basis changed. Stored with the supersession.")
+    rebaseline.add_argument(
+        "--export-out", type=Path, default=None,
+        help="Write a hook pack under the new basis into this directory.",
+    )
+    rebaseline.add_argument(
+        "--prior-pack", type=Path, default=None,
+        help="Diff the new pack against this pack. The prior pack is not changed.",
+    )
+    rebaseline.add_argument("--dry-run", action="store_true", help="Show the supersession. Write nothing.")
+    rebaseline.add_argument(
+        "--deadline-s", type=float, default=None,
+        help="Stop between phases after this many seconds. Exit 4.",
+    )
+
+    backfill = sub.add_parser(
+        "backfill",
+        help="Re-derive binary columns from raw images; one receipt per (pass, binary) makes it resumable",
+    )
+    backfill.add_argument("--db", type=Path, required=True)
+    backfill.add_argument("--pass", dest="passes", action="append", required=True, metavar="NAME")
+    backfill.add_argument("--receipts", type=Path, required=True)
+    backfill.add_argument("--no-resume", dest="resume", action="store_false")
+
     match_pair = sub.add_parser("match-pair", help="Run the store matcher on one directed pair")
+    match_pair.identity_scope = "pair"
     match_pair.add_argument("--db", type=Path, required=True)
     match_pair.add_argument("--src", required=True)
     match_pair.add_argument("--dst", required=True)
     match_pair.add_argument("--run", default="v1")
     match_pair.add_argument("--note", default="")
+    match_pair.add_argument("--progress-json", action="store_true", help="Emit matcher progress JSONL while scoring")
 
     logical_build = sub.add_parser("logical-build", help="Rebuild name-first logical identities")
+    logical_build.identity_scope = "database"
     logical_build.add_argument("--db", type=Path, required=True)
 
     pkg = sub.add_parser("package", help="Copy a workspace tree to an output directory")
@@ -328,12 +440,15 @@ def build_parser() -> argparse.ArgumentParser:
         "calibrate-global",
         help="Write compiler/ABI/types calibration receipt (not matcher score sweep)",
     )
+    calg.long_running = True
     calg.add_argument("--work-dir", type=Path, required=True)
     calg.add_argument("--db", type=Path)
     calg.add_argument("--types-header", type=Path)
     calg.add_argument("--compiler-profile", type=Path)
 
     merge_parts = sub.add_parser("merge-parts", help="Merge per-program part databases into one store")
+    merge_parts.danger = merge_parts.mutating = True
+    merge_parts.identity_scope = "database"
     merge_parts.add_argument("--parts-dir", type=Path, required=True)
     merge_parts.add_argument("--db", type=Path, required=True)
 
@@ -342,6 +457,7 @@ def build_parser() -> argparse.ArgumentParser:
     stabs_rep.add_argument("--out", type=Path, required=True)
 
     genp = sub.add_parser("genproject", help="Write a prompt project from the logical-function queue")
+    genp.long_running = True
     genp.add_argument("--queue", type=Path, required=True)
     genp.add_argument("--out", type=Path, required=True)
     genp.add_argument("--db", type=Path, required=True)
@@ -358,7 +474,23 @@ def build_parser() -> argparse.ArgumentParser:
     genp.add_argument("--leftover-only", action="store_true", default=True)
     genp.add_argument("--all-queue", dest="leftover_only", action="store_false")
 
+    image_roundtrip = sub.add_parser(
+        "roundtrip",
+        help="Reassemble one binary as a byte-identical assembly file image",
+    )
+    image_roundtrip.add_argument("--repo-path", required=True)
+    image_roundtrip.add_argument("--db", type=Path, required=True)
+    image_roundtrip.add_argument("--raw", type=Path, required=True)
+    image_roundtrip.add_argument("--out-dir", type=Path, required=True)
+    image_roundtrip.add_argument(
+        "--no-assemble",
+        dest="assemble",
+        action="store_false",
+        default=True,
+    )
+
     ingest_rec = sub.add_parser("ingest-recovered", help="Bind recovered C to existing identities")
+    ingest_rec.long_running = True
     ingest_rec.add_argument("--db", type=Path, required=True)
     ingest_rec.add_argument("--recovered-dir", type=Path, required=True)
     ingest_rec.add_argument("--coverage-dir", type=Path, required=True)
@@ -376,6 +508,8 @@ def build_parser() -> argparse.ArgumentParser:
     gurl.add_argument("path")
 
     apply_ann = sub.add_parser("apply-annotations", help="Apply jsonl names to a Ghidra program (dry-run default)")
+    apply_ann.danger = apply_ann.mutating = True
+    apply_ann.ghidra_exclusive = True
     apply_ann.add_argument("jsonl", type=Path)
     apply_ann.add_argument("--program", required=True)
     apply_ann.add_argument("--min-confidence", type=float, default=0.95)
@@ -384,6 +518,7 @@ def build_parser() -> argparse.ArgumentParser:
     apply_ann.add_argument("--no-comments", action="store_true")
 
     bulk = sub.add_parser("ghidra-bulk", help="Normalize + compile Ghidra decompiled C")
+    bulk.long_running = True
     bulk.add_argument("--program", required=True)
     bulk.add_argument("--repo", required=True)
     bulk.add_argument("--db", type=Path, required=True)
@@ -392,6 +527,7 @@ def build_parser() -> argparse.ArgumentParser:
     bulk.add_argument("--mode", choices=("compile-only", "semantic"), default="compile-only")
     bulk.add_argument("--compiler", type=Path)
     bulk.add_argument("--sample", type=int)
+    bulk.add_argument("--resume-failures-sha256", help="Continue identical inputs using the exact current failure receipt")
     bulk.add_argument("--workers", type=int, default=2)
     bulk.add_argument("--write", action="store_true", default=True)
     bulk.add_argument("--no-write", dest="write", action="store_false")
@@ -409,6 +545,7 @@ def build_parser() -> argparse.ArgumentParser:
         "workspace",
         help="Write STABS folders and fill each compiling function as its own TU",
     )
+    workspace.long_running = True
     workspace.add_argument("--db", type=Path, required=True)
     workspace.add_argument("--donor-slug", required=True)
     workspace.add_argument("--out", type=Path, required=True)
@@ -419,21 +556,205 @@ def build_parser() -> argparse.ArgumentParser:
         "compile-link",
         help="Compile workspace units and link one executable (not byte-accuracy)",
     )
+    clink.long_running = True
     clink.add_argument("--src-dir", type=Path, required=True)
     clink.add_argument("--out", type=Path, required=True)
     clink.add_argument("--compiler", type=Path)
     clink.add_argument("--sample", type=int)
     clink.add_argument("--obj-dir", type=Path)
     clink.add_argument("--workers", type=int, default=2)
+    clink.add_argument("--vcroot", type=Path,
+                       help="VC7 toolchain root for a direct MSVC/Wine link")
+    clink.add_argument("--wineprefix", type=Path,
+                       help="Wine prefix for a direct MSVC/Wine link")
     clink.add_argument("--no-entrypoint", dest="entrypoint", action="store_false")
 
     xplace = sub.add_parser("cross-place", help="Copy compiling C onto bound sibling binaries")
+    xplace.long_running = True
     xplace.add_argument("--from", dest="program", required=True)
     xplace.add_argument("--db", type=Path, required=True)
     xplace.add_argument("--out-dir", type=Path, required=True)
     xplace.add_argument("--repo", required=True)
     xplace.add_argument("--watch", action="store_true")
     xplace.add_argument("--interval", type=float, default=8.0)
+    xplace.add_argument("--no-compile-gate", action="store_true")
+    xplace.add_argument("--byteexact-receipt", type=Path,
+                        help="completed verify-byteexact receipt; copy only individually exact C")
+
+    vbx = sub.add_parser(
+        "verify-byteexact",
+        help="Relocation-aware objdiff-0 check: which recovered C compiles to "
+             "the shipped bytes (asm-floor shims excluded from the count)",
+    )
+    vbx.add_argument("--verified-dir", type=Path, required=True)
+    vbx.add_argument("--raw", type=Path, required=True)
+    vbx.add_argument("--db", type=Path, required=True)
+    vbx.add_argument("--binary-id", type=int, required=True)
+    vbx.add_argument("--out", type=Path, required=True)
+    vbx.add_argument("--maxc-bin-dir", type=Path, help="emit slot-fitting compiled "
+                     "bytes for ANY compiling function (byte-exact or not) for the max-C image")
+    vbx.add_argument("--bin-dir", type=Path, help="emit <addr>.bin substitution "
+                     "inputs for reloc-free byte-exact real-C functions")
+    vbx.add_argument("--compiler", type=Path)
+    vbx.add_argument("--workers", type=int, default=3)
+    vbx.add_argument("--limit", type=int, default=None)
+    vbx.add_argument("--no-incremental", action="store_true",
+                     help="ignore the mtime/size cache and recompile every file "
+                          "(use after a transient-failure spike to purge bad cached results)")
+
+    vpd = sub.add_parser(
+        "verify-periodic",
+        help="Self-healing verify-byteexact wrapper: runs incremental most of the "
+             "time, but every Nth invocation forces a --no-incremental full pass "
+             "to purge any cache contamination from a transient compile failure "
+             "-- no human needs to notice a plateau and intervene.",
+    )
+    vpd.add_argument("--verified-dir", type=Path, required=True)
+    vpd.add_argument("--raw", type=Path, required=True)
+    vpd.add_argument("--db", type=Path, required=True)
+    vpd.add_argument("--binary-id", type=int, required=True)
+    vpd.add_argument("--out", type=Path, required=True)
+    vpd.add_argument("--maxc-bin-dir", type=Path)
+    vpd.add_argument("--bin-dir", type=Path)
+    vpd.add_argument("--compiler", type=Path)
+    vpd.add_argument("--workers", type=int, default=3)
+    vpd.add_argument("--limit", type=int, default=None)
+    vpd.add_argument("--full-every", type=int, default=6)
+
+    vfi = sub.add_parser(
+        "verify-full-image-receipt",
+        help="Run one full build and require fresh objdiff evidence plus whole-file equality",
+    )
+    vfi.add_argument("--target", type=Path, required=True)
+    vfi.add_argument("--candidate", type=Path, required=True)
+    vfi.add_argument("--objdiff-receipt", type=Path, required=True)
+    vfi.add_argument("--out", type=Path, required=True)
+    vfi.add_argument("--cwd", type=Path, default=Path.cwd())
+    vfi.add_argument("--timeout", type=int, default=7200)
+    vfi.add_argument("--build-command", nargs=argparse.REMAINDER, required=True)
+
+    vdfi = sub.add_parser(
+        "verify-direct-full-image",
+        help="Fresh direct VC7 compile/link, function objdiff receipt, and whole-file comparison",
+    )
+    vdfi.add_argument("--target", type=Path, required=True)
+    vdfi.add_argument("--src-dir", type=Path, required=True)
+    vdfi.add_argument("--raw", type=Path, required=True)
+    vdfi.add_argument("--db", type=Path, required=True)
+    vdfi.add_argument("--binary-id", type=int, required=True)
+    vdfi.add_argument("--compiler", type=Path, required=True)
+    vdfi.add_argument("--vcroot", type=Path, required=True)
+    vdfi.add_argument("--wineprefix", type=Path, required=True)
+    vdfi.add_argument("--work-dir", type=Path, required=True)
+    vdfi.add_argument("--workers", type=int, default=1)
+
+    wir = sub.add_parser(
+        "whole-image-relink",
+        help="Emit an exact-placement diagnostic using asm-floor original bytes "
+             "where no verified C exists and verified-C bytes where it does; "
+             "not a compiler-produced whole-image gate.",
+    )
+    wir.add_argument("--target", type=Path, required=True)
+    wir.add_argument("--db", type=Path, required=True)
+    wir.add_argument("--binary-id", type=int, required=True)
+    wir.add_argument("--out", type=Path, required=True)
+    wir.add_argument("--func-bytes", type=Path, help="dir of <addr>.bin verified-C "
+                     "bytes to substitute; absent -> pure asm floor")
+
+    mst = sub.add_parser(
+        "matching-status",
+        help="Honest matching-decomp ledger: recovered (real-C byte-exact) vs "
+             "asm floor vs not-yet, plus an exact-placement diagnostic image",
+    )
+    mst.add_argument("--target", type=Path, required=True)
+    mst.add_argument("--db", type=Path, required=True)
+    mst.add_argument("--binary-id", type=int, required=True)
+    mst.add_argument("--src-dir", type=Path, required=True)
+    mst.add_argument("--receipts", type=Path, help="verify-byteexact --out JSON")
+    mst.add_argument("--out-exe", type=Path)
+    mst.add_argument("--out-manifest", type=Path)
+    mst.add_argument("--out-report", type=Path)
+    mst.add_argument("--byte-exact-floor", type=Path)
+
+    mwatch = sub.add_parser(
+        "matching-watch",
+        help="Autonomous loop: emit the exact-placement diagnostic + refresh the "
+             "honest ledger from the current verified-C set (asm floor elsewhere)",
+    )
+    mwatch.add_argument("--target", type=Path, required=True)
+    mwatch.add_argument("--db", type=Path, required=True)
+    mwatch.add_argument("--binary-id", type=int, required=True)
+    mwatch.add_argument("--src-dir", type=Path, required=True)
+    mwatch.add_argument("--receipts", type=Path)
+    mwatch.add_argument("--func-bytes", type=Path)
+    mwatch.add_argument("--out-exe", type=Path)
+    mwatch.add_argument("--out-manifest", type=Path)
+    mwatch.add_argument("--out-report", type=Path)
+    mwatch.add_argument("--byte-exact-floor", type=Path)
+    mwatch.add_argument("--watch", action="store_true")
+    mwatch.add_argument("--interval", type=float, default=60.0)
+
+    cnm = sub.add_parser("close-near-misses",
+        help="LLM-edit small-diff mismatches to byte-exact (grows the byte-accurate build)")
+    cnm.add_argument("--verified-dir", type=Path, required=True)
+    cnm.add_argument("--raw", type=Path, required=True)
+    cnm.add_argument("--receipts", type=Path, required=True)
+    cnm.add_argument("--compiler", type=Path)
+    cnm.add_argument("--db", type=Path)
+    cnm.add_argument("--binary-id", type=int)
+    cnm.add_argument("--bin-dir", type=Path)
+    cnm.add_argument("--max-diff", type=int, default=8)
+    cnm.add_argument("--limit", type=int, default=200)
+    cnm.add_argument("--workers", type=int, default=2)
+    cnm.add_argument("--model")
+    cnm.add_argument("--state", type=Path)
+
+    unp = sub.add_parser(
+        "unpack",
+        help="Detect packing/DRM (entropy + signatures) and unpack when possible "
+             "(UPX / emulation); gate ciphertext so recovery never emits garbage",
+    )
+    unp.add_argument("--binary", type=Path, required=True)
+    unp.add_argument("--out", type=Path)
+    unp.add_argument("--detect-only", action="store_true")
+    unp.add_argument("--allow-run", action="store_true")
+    unp.add_argument("--wineprefix")
+    unp.add_argument("--run-timeout", type=int, default=120)
+
+    cons = sub.add_parser(
+        "consolidate-corpus",
+        help="Pick best-C-per-function across all corpora (MizuchiRE semantic, "
+             "verified_c, historical, live) and upgrade the live tree in place",
+    )
+    cons.add_argument("--program", required=True)
+    cons.add_argument("--live-dir", type=Path, required=True)
+    cons.add_argument("--source", action="append", default=[],
+                      help="repeatable 'rank:semantic:PATH'; lower rank wins")
+    cons.add_argument("--dry-run", action="store_true")
+
+    orch = sub.add_parser(
+        "recovery-orchestrator",
+        help="Autonomous supervisor: keep cascade + permuter + verify + "
+             "matching-watch + cross-place all running, relaunch any that exit",
+    )
+    orch.add_argument("--program", required=True)
+    orch.add_argument("--repo", required=True)
+    orch.add_argument("--db", required=True)
+    orch.add_argument("--out-dir", required=True)
+    orch.add_argument("--kb", required=True)
+    orch.add_argument("--raw", required=True)
+    orch.add_argument("--binary-id", type=int, required=True)
+    orch.add_argument("--compiler")
+    orch.add_argument("--extract-raw")
+    orch.add_argument("--cascade-workers", type=int, default=2)
+    orch.add_argument("--verify-workers", type=int, default=2)
+    orch.add_argument("--no-cascade", dest="cascade", action="store_false", default=True)
+    orch.add_argument("--no-verify", dest="verify", action="store_false", default=True)
+    orch.add_argument("--no-nearmiss", dest="nearmiss", action="store_false", default=True)
+    orch.add_argument("--no-permuter", dest="permuter", action="store_false", default=True)
+    orch.add_argument("--no-cross-place", dest="cross_place", action="store_false", default=True)
+    orch.add_argument("--poll", type=float, default=20.0)
+    orch.add_argument("--log-dir", default="/tmp")
 
     dbatch = sub.add_parser(
         "decompile-batch",
@@ -465,8 +786,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
+def main(argv: list[str] | None = None, prog: str | None = None) -> int:
+    parser = build_parser(prog)
     args = parser.parse_args(argv)
     if args.cmd == "init":
         save_corpus(args.out, new_corpus(args.corpus_id))
@@ -609,7 +930,20 @@ def main(argv: list[str] | None = None) -> int:
         from .evaluate import evaluate
         from .store import connect
 
-        print(json.dumps(evaluate(connect(args.db), args.src, args.dst, mode=args.mode), indent=2))
+        con = connect(args.db)
+        try:
+            result = evaluate(con, args.src, args.dst, mode=args.mode)
+        except KeyError:
+            missing = [
+                path
+                for path in (args.src, args.dst)
+                if con.execute("SELECT 1 FROM binary WHERE repo_path=?", (path,)).fetchone() is None
+            ]
+            if not missing:
+                raise
+            print(f"error: not in database: {', '.join(missing)}", file=sys.stderr)
+            return 2
+        print(json.dumps(result, indent=2))
         return 0
     if args.cmd == "export-siblings":
         from .sibling_conflicts import export_sibling_conflicts
@@ -621,19 +955,99 @@ def main(argv: list[str] | None = None) -> int:
         from .export_hookpack import export_hookpack
         from .store import connect
 
-        print(json.dumps(export_hookpack(connect(args.db), args.out)))
+        # A refusal (basis, content hash, lock) is exit 2 with one named
+        # line; the basis check runs before the site loop so it costs
+        # milliseconds, not the loop's minutes. Nothing was written.
+        summary = _run_keyed_verb(lambda: export_hookpack(connect(args.db), args.out))
+        if summary is REFUSED:
+            return 2
+        print(json.dumps(summary))
+        return 0
+    if args.cmd == "verify-determinism":
+        from .determinism_basis import verify_export
+        from .export_hookpack import export_hookpack
+
+        result = _run_keyed_verb(lambda: verify_export(args.db, export_hookpack))
+        if result is REFUSED:
+            return 2
+        print(json.dumps(result))
+        return 0 if result["identical"] else 1
+    if args.cmd == "rebaseline":
+        from .determinism_basis import BasisError
+        from .logical import ContentHashError
+        from .rebaseline import rebaseline as run_rebaseline
+        from .store import connect
+
+        def run_it():
+            try:
+                return run_rebaseline(
+                    connect(args.db),
+                    receipts_dir=args.receipts,
+                    reason=args.reason,
+                    export_out=args.export_out,
+                    prior_pack=args.prior_pack,
+                    dry_run=args.dry_run,
+                    deadline_s=args.deadline_s,
+                )
+            except (BasisError, ContentHashError):
+                raise
+            except ValueError as exc:
+                raise SystemExit(f"error: {exc}") from exc
+
+        # Refusals (basis, content hash, lock) are exit 2 with one named
+        # line and nothing written. A deadline is exit 4: the re-stamp is
+        # one transaction, so it either landed whole or not at all; the
+        # summary says which. An export that refused after the re-stamp
+        # landed keeps exit 0: the supersession stands, and the refusal is
+        # recorded under run.export and named once on stderr.
+        result = _run_keyed_verb(run_it)
+        if result is REFUSED:
+            return 2
+        print(json.dumps(result, sort_keys=True, indent=2))
+        if result["status"] == "deadline":
+            return 4
+        export = (result.get("run") or {}).get("export") or {}
+        if export.get("status") == "refused":
+            print(f"error: export refused after re-stamp: {export.get('error')}", file=sys.stderr)
+        return 0
+    if args.cmd == "backfill":
+        from .backfill import run as run_backfill
+        from .logical import ContentHashError
+        from .store import connect
+
+        def run_it():
+            try:
+                return run_backfill(connect(args.db), args.passes, receipts_dir=args.receipts, resume=args.resume)
+            except ContentHashError:
+                raise
+            except ValueError as exc:
+                raise SystemExit(f"error: {exc}") from exc
+
+        result = _run_keyed_verb(run_it)
+        if result is REFUSED:
+            return 2
+        print(json.dumps(result, sort_keys=True))
         return 0
     if args.cmd == "match-pair":
         from .propagate import run_pair
         from .store import connect
 
-        print(json.dumps(run_pair(connect(args.db), args.src, args.dst, args.note, args.run), indent=2))
+        def emit_progress(event: dict) -> None:
+            print(json.dumps({"event": "match-pair-progress", **event}), flush=True)
+
+        print(json.dumps(run_pair(
+            connect(args.db), args.src, args.dst, args.note, args.run,
+            progress=emit_progress if args.progress_json else None,
+        ), indent=2))
         return 0
     if args.cmd == "logical-build":
         from .logical import build
         from .store import connect
 
-        print(json.dumps(build(connect(args.db))))
+        result = _run_keyed_verb(lambda: build(connect(args.db)))
+        if result is REFUSED:
+            return 2
+        print(json.dumps(result))
         return 0
     if args.cmd == "package":
         from .package_project import package_project
@@ -689,6 +1103,21 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
+    if args.cmd == "roundtrip":
+        from .roundtrip import roundtrip, write_results
+        from .store import connect
+
+        result = roundtrip(
+            args.repo_path,
+            connect(args.db),
+            raw_path=args.raw,
+            out_dir=args.out_dir,
+            assemble=args.assemble,
+        )
+        receipt = write_results(args.out_dir, [result])
+        result["receipt"] = str(receipt)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("identical") is True else 1
     if args.cmd == "ingest-recovered":
         from .ingest_recovered import ensure_recovered_schema, ingest, print_summary
         from .store import connect
@@ -758,6 +1187,8 @@ def main(argv: list[str] | None = None) -> int:
             bulk_argv += ["--compiler", str(args.compiler)]
         if args.sample is not None:
             bulk_argv += ["--sample", str(args.sample)]
+        if args.resume_failures_sha256:
+            bulk_argv += ["--resume-failures-sha256", args.resume_failures_sha256]
         if not args.write:
             bulk_argv.append("--no-write")
         if not args.skip_existing:
@@ -801,6 +1232,8 @@ def main(argv: list[str] | None = None) -> int:
             obj_dir=args.obj_dir,
             workers=args.workers,
             entrypoint=getattr(args, "entrypoint", True),
+            vcroot=args.vcroot,
+            wineprefix=str(args.wineprefix) if args.wineprefix else None,
         )
         print(json.dumps(result, indent=2))
         return 0 if result.get("ok") else 1
@@ -816,9 +1249,161 @@ def main(argv: list[str] | None = None) -> int:
         if args.watch:
             argv.append("--watch")
             argv += ["--interval", str(args.interval)]
+        if getattr(args, 'no_compile_gate', False):
+            argv.append("--no-compile-gate")
+        if args.byteexact_receipt:
+            argv += ["--byteexact-receipt", str(args.byteexact_receipt)]
         return cross_main(argv)
     if args.cmd == "decompile-batch":
         return run_decompile_batch_command(args)
+    if args.cmd == "verify-byteexact":
+        from .verify_recovered_byteexact import main as vbx_main
+        argv = ["--verified-dir", str(args.verified_dir), "--raw", str(args.raw),
+                "--db", str(args.db), "--binary-id", str(args.binary_id),
+                "--out", str(args.out), "--workers", str(args.workers)]
+        if args.compiler:
+            argv += ["--compiler", str(args.compiler)]
+        else:
+            from .ghidra_bulk import _find_compiler
+            argv += ["--compiler", str(_find_compiler(args.out.parent, args.db))]
+        if args.bin_dir:
+            argv += ["--bin-dir", str(args.bin_dir)]
+        if getattr(args, "maxc_bin_dir", None):
+            argv += ["--maxc-bin-dir", str(args.maxc_bin_dir)]
+        if args.limit is not None:
+            argv += ["--limit", str(args.limit)]
+        if getattr(args, "no_incremental", False):
+            argv += ["--no-incremental"]
+        return vbx_main(argv)
+    if args.cmd == "verify-periodic":
+        from .verify_periodic import main as vpd_main
+        argv = ["--verified-dir", str(args.verified_dir), "--raw", str(args.raw),
+                "--db", str(args.db), "--binary-id", str(args.binary_id),
+                "--out", str(args.out), "--workers", str(args.workers),
+                "--full-every", str(args.full_every)]
+        if args.compiler:
+            argv += ["--compiler", str(args.compiler)]
+        else:
+            from .ghidra_bulk import _find_compiler
+            argv += ["--compiler", str(_find_compiler(args.out.parent, args.db))]
+        if args.bin_dir:
+            argv += ["--bin-dir", str(args.bin_dir)]
+        if getattr(args, "maxc_bin_dir", None):
+            argv += ["--maxc-bin-dir", str(args.maxc_bin_dir)]
+        if args.limit is not None:
+            argv += ["--limit", str(args.limit)]
+        return vpd_main(argv)
+    if args.cmd == "verify-full-image-receipt":
+        from .verify_full_image_receipt import main as vfi_main
+        argv = ["--target", str(args.target), "--candidate", str(args.candidate),
+                "--objdiff-receipt", str(args.objdiff_receipt), "--out", str(args.out),
+                "--cwd", str(args.cwd), "--timeout", str(args.timeout),
+                "--build-command", *args.build_command]
+        return vfi_main(argv)
+    if args.cmd == "verify-direct-full-image":
+        from .verify_direct_full_image import main as vdfi_main
+
+        return vdfi_main([
+            "--target", str(args.target), "--src-dir", str(args.src_dir),
+            "--raw", str(args.raw), "--db", str(args.db), "--binary-id", str(args.binary_id),
+            "--compiler", str(args.compiler), "--vcroot", str(args.vcroot),
+            "--wineprefix", str(args.wineprefix), "--work-dir", str(args.work_dir),
+            "--workers", str(args.workers),
+        ])
+    if args.cmd == "whole-image-relink":
+        from .whole_image_relink import main as wir_main
+        argv = ["--target", str(args.target), "--db", str(args.db),
+                "--binary-id", str(args.binary_id), "--out", str(args.out)]
+        if args.func_bytes:
+            argv += ["--func-bytes", str(args.func_bytes)]
+        return wir_main(argv)
+    if args.cmd == "matching-status":
+        from .matching_status import main as mst_main
+        argv = ["--target", str(args.target), "--db", str(args.db),
+                "--binary-id", str(args.binary_id), "--src-dir", str(args.src_dir)]
+        if args.receipts:
+            argv += ["--receipts", str(args.receipts)]
+        if args.out_exe:
+            argv += ["--out-exe", str(args.out_exe)]
+        if args.out_manifest:
+            argv += ["--out-manifest", str(args.out_manifest)]
+        if args.out_report:
+            argv += ["--out-report", str(args.out_report)]
+        if args.byte_exact_floor:
+            argv += ["--byte-exact-floor", str(args.byte_exact_floor)]
+        return mst_main(argv)
+    if args.cmd == "matching-watch":
+        from .matching_watch import main as mw_main
+        argv = ["--target", str(args.target), "--db", str(args.db),
+                "--binary-id", str(args.binary_id), "--src-dir", str(args.src_dir)]
+        for opt, val in (("--receipts", args.receipts), ("--func-bytes", args.func_bytes),
+                         ("--out-exe", args.out_exe), ("--out-manifest", args.out_manifest),
+                         ("--out-report", args.out_report), ("--byte-exact-floor", args.byte_exact_floor)):
+            if val:
+                argv += [opt, str(val)]
+        if args.watch:
+            argv += ["--watch", "--interval", str(args.interval)]
+        return mw_main(argv)
+    if args.cmd == "close-near-misses":
+        from .close_near_misses import main as cnm_main
+        argv=["--verified-dir",str(args.verified_dir),"--raw",str(args.raw),
+              "--receipts",str(args.receipts),"--max-diff",str(args.max_diff),
+              "--limit",str(args.limit),"--workers",str(args.workers)]
+        if args.compiler: argv+=["--compiler",str(args.compiler)]
+        else:
+            from .ghidra_bulk import _find_compiler
+            argv+=["--compiler",str(_find_compiler(args.raw.parent,args.db) if args.db else _find_compiler(args.raw.parent))]
+        if args.db: argv+=["--db",str(args.db)]
+        if args.binary_id is not None: argv+=["--binary-id",str(args.binary_id)]
+        if args.bin_dir: argv+=["--bin-dir",str(args.bin_dir)]
+        if args.model: argv+=["--model",str(args.model)]
+        if args.state: argv+=["--state",str(args.state)]
+        return cnm_main(argv)
+    if args.cmd == "unpack":
+        from .unpack import main as unpack_main
+        argv = ["--binary", str(args.binary)]
+        if args.out:
+            argv += ["--out", str(args.out)]
+        if args.detect_only:
+            argv.append("--detect-only")
+        if getattr(args, "allow_run", False):
+            argv.append("--allow-run")
+        if getattr(args, "wineprefix", None):
+            argv += ["--wineprefix", str(args.wineprefix)]
+        if getattr(args, "run_timeout", None):
+            argv += ["--run-timeout", str(args.run_timeout)]
+        return unpack_main(argv)
+    if args.cmd == "consolidate-corpus":
+        from .consolidate_corpus import main as cons_main
+        argv = ["--program", args.program, "--live-dir", str(args.live_dir)]
+        for s in args.source:
+            argv += ["--source", s]
+        if args.dry_run:
+            argv.append("--dry-run")
+        return cons_main(argv)
+    if args.cmd == "recovery-orchestrator":
+        from .recovery_orchestrator import main as orch_main
+        argv = ["--program", args.program, "--repo", args.repo, "--db", str(args.db),
+                "--out-dir", str(args.out_dir), "--kb", str(args.kb),
+                "--raw", str(args.raw), "--binary-id", str(args.binary_id),
+                "--cascade-workers", str(args.cascade_workers),
+                "--verify-workers", str(args.verify_workers),
+                "--poll", str(args.poll), "--log-dir", str(args.log_dir)]
+        if args.compiler:
+            argv += ["--compiler", str(args.compiler)]
+        if args.extract_raw:
+            argv += ["--extract-raw", str(args.extract_raw)]
+        if not args.permuter:
+            argv.append("--no-permuter")
+        if not args.cross_place:
+            argv.append("--no-cross-place")
+        if not args.cascade:
+            argv.append("--no-cascade")
+        if not args.verify:
+            argv.append("--no-verify")
+        if not args.nearmiss:
+            argv.append("--no-nearmiss")
+        return orch_main(argv)
     from . import kx_cli
 
     code = kx_cli.dispatch(args)

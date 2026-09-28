@@ -201,7 +201,10 @@ def test_overview_has_run_work_and_no_actions_page() -> None:
     assert "AgentDecompile" in home.text
     react_entry = ASSETS / "index.html"
     if react_entry.is_file():
-        assert 'id="root"' in home.text
+        assert 'id="wb-sessions"' in home.text or "workbench-app.js" in home.text
+        atlas = client.get("/dashboard?mode=atlas")
+        assert atlas.status_code == 200
+        assert 'id="root"' in atlas.text
     else:
         assert 'id="wb-sessions"' in home.text
     assert "action-catalog" not in home.text
@@ -213,17 +216,14 @@ def test_overview_has_run_work_and_no_actions_page() -> None:
     workbench = client.get("/dashboard")
     assert workbench.status_code == 200
     assert "AgentDecompile" in workbench.text
-    if react_entry.is_file():
-        assert 'id="root"' in workbench.text
-    else:
-        assert 'id="wb-sessions"' in workbench.text
+    assert 'id="wb-sessions"' in workbench.text or "workbench-app.js" in workbench.text
+    if not react_entry.is_file():
         assert 'role="tablist"' in workbench.text
         assert "wb-strip" not in workbench.text
-    assert "/docs" in workbench.text or react_entry.is_file()
+    assert "/docs" in workbench.text or "workbench-app.js" in workbench.text
     assert "CommandPalette" in Path(
         "src/agentdecompile_recovery/corpus/dashboard/static/workbench-app.js"
     ).read_text(encoding="utf-8")
-
 
 def test_browse_surfaces_are_workbench_windows_not_a_second_page() -> None:
     """Functions, logical identities, review, graph and builds share one page."""
@@ -240,10 +240,7 @@ def test_browse_surfaces_are_workbench_windows_not_a_second_page() -> None:
         "src/agentdecompile_recovery/corpus/dashboard/static/workbench-app.js"
     ).read_text(encoding="utf-8")
     for surface in ("wb-fnbrowse", "wb-logical", "wb-review", "wb-graph", "wb-corpus"):
-        if react_entry.is_file():
-            assert f'id="{surface}"' in js or f'id={surface}' in js
-        else:
-            assert f'id="{surface}"' in workbench.text
+        assert f'id="{surface}"' in js or f"id={surface}" in js or f'id=\\"{surface}\\"' in js
     # The old five-block browse page must not be nested inside the workbench.
     assert "workspace-nav" not in workbench.text
     for block in ("logical", "review", "graph", "builds"):
@@ -272,7 +269,7 @@ def test_identity_writers_serialize_per_db(tmp_path: Path, monkeypatch: pytest.M
     monkeypatch.setattr(
         jobs,
         "_mcp_executor",
-        lambda action, params, cancel: (0, "ok"),
+        lambda action, params, cancel, **_facts: (0, "ok"),
     )
     monkeypatch.setenv("AGENT_DECOMPILE_CORPUS_DB", str(db_a))
     first, status = jobs.start_job(
@@ -313,11 +310,15 @@ def test_identity_writers_serialize_per_db(tmp_path: Path, monkeypatch: pytest.M
     assert jobs.get_job(second["job"]["id"]).status in {"cancelled", "cancelling", "ok"}
 
 
-def test_identity_writer_without_db_is_400(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_identity_writer_without_db_targets_the_default_corpus(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Corpus paths are optional: with no --db and no environment override the
+    # writer still takes an identity lock, keyed on the default corpus database.
     monkeypatch.delenv("AGENT_DECOMPILE_CORPUS_DB", raising=False)
+    monkeypatch.setattr(jobs.STORE, "executor", lambda argv, cwd, cancel: (0, "ok"))
+    assert jobs.identity_lock_key({}) == str(Path("agentdecompile_projects/corpus.db").resolve())
     payload, status = jobs.start_job("corpus.logical-build", {}, confirm=True)
-    assert status == 400
-    assert "db" in payload["error"]
+    assert status == 202
+    assert payload["ok"] is True
 
 
 def test_objdiff_job_env_drops_wine() -> None:

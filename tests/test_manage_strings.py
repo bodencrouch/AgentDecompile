@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+
 from types import SimpleNamespace
 
 import pytest
@@ -15,6 +16,7 @@ from agentdecompile_cli.mcp_server.providers.strings import (
 from agentdecompile_cli.mcp_server.tool_providers import n
 from agentdecompile_cli.mcp_utils.address_util import AddressUtil
 from agentdecompile_cli.registry import Tool
+
 from tests.helpers import create_test_program, ghidra_install_available
 
 _INTEGRATION_SKIP = pytest.mark.skipif(
@@ -100,6 +102,7 @@ async def test_manage_strings_create_persists_in_program(ghidra_initialized, str
             n("addressOrSymbol"): AddressUtil.format_address(target),
             n("value"): "CreatedByTest",
         },
+        program_info=provider.program_info,
     )
     payload = json.loads(result[0].text)
     assert payload["success"] is True

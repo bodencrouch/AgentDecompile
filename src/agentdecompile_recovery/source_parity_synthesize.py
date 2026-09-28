@@ -14,16 +14,62 @@ import hashlib
 import json
 import os
 import re
-import signal
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
-from .package_verify import build_shim, compile_with_msvc
+from agentdecompile_recovery.languages import SourceLanguage, compiler_lane_for, parse_source_language
+
+from .objdiff_verification import is_objdiff_match
+from .package_verify import build_shim, compile_with_msvc, resolve_msvc_root
+from .decode_x86 import (
+    X86_64_SIGNED_COMPARE_SETCC,
+    X86_64_UNSIGNED_COMPARE_SETCC,
+    decode_x86_64_arg64_bitmask_bool,
+    decode_x86_64_arg64_rotate,
+    decode_x86_64_arg_bitmask_bool,
+    decode_x86_64_arg_bswap32,
+    decode_x86_64_arg_bswap64,
+    decode_x86_64_arg_const_min_max,
+    decode_x86_64_arg_imm32_binary_op64,
+    decode_x86_64_arg_imm8_binary_op,
+    decode_x86_64_arg_imm8_compare,
+    decode_x86_64_arg_mask,
+    decode_x86_64_arg_narrow_imm8_compare,
+    decode_x86_64_arg_narrow_movzx_imm8_compare,
+    decode_x86_64_arg_nonzero_cmov_const_select,
+    decode_x86_64_arg_nonzero_const_select,
+    decode_x86_64_arg_rotate,
+    decode_x86_64_arg_sdiv_magic,
+    decode_x86_64_arg_sdiv_pow2,
+    decode_x86_64_arg_signed_zero_compare,
+    decode_x86_64_arg_srem_magic,
+    decode_x86_64_arg_srem_pow2,
+    decode_x86_64_arg_udiv_magic,
+    decode_x86_64_arg_udiv_pow2,
+    decode_x86_64_arg_urem_magic,
+    decode_x86_64_arg_urem_pow2,
+    decode_x86_64_three_args_arithmetic,
+    decode_x86_64_three_args_arithmetic64,
+    decode_x86_64_three_args_bitwise,
+    decode_x86_64_three_args_bitwise64,
+    decode_x86_64_three_args_select,
+    decode_x86_64_three_args_select64,
+    decode_x86_64_two_args_affine_lea,
+    decode_x86_64_two_args_affine_lea64,
+    decode_x86_64_two_args_compare,
+    decode_x86_64_two_args_compare64,
+    normalize_x86_64_arg_imm8_compare_operator,
+    strip_alignment_padding,
+)
+from .tools import inspect_tool
 
 ROOT = Path.cwd()
 DEFAULT_VC_ROOT: Path | None = None
@@ -123,6 +169,13 @@ def detect_compiler_lane(row: dict[str, Any], source: str | None = None) -> str:
 
     Member-function / class-qualified names and C++ tokens select cxx.
     """
+    raw_source_language = row.get("sourceLanguage") or row.get("source_language")
+    if raw_source_language is not None and str(raw_source_language).strip():
+        parsed = parse_source_language(raw_source_language, default=None)
+        if parsed is not SourceLanguage.UNKNOWN:
+            lane = compiler_lane_for(parsed)
+            if lane:
+                return lane
     explicit = str(row.get("compilerLane") or row.get("language") or "").lower()
     if explicit in {"c", "cxx", "c++", "cpp"}:
         return "cxx" if explicit in {"cxx", "c++", "cpp"} else "c"
@@ -387,7 +440,7 @@ def source_task_to_queue_row(task: dict[str, Any]) -> dict[str, Any] | None:
             if key not in {"bytesHex"}
         },
         "tags": source_task_tags(task),
-        "sourceOrigin": "converted from recovery source-generation task",
+        "sourceOrigin": task.get("sourceOrigin") or "converted from recovery source-generation task",
     }
     return row
 
@@ -542,13 +595,6 @@ def rel32_call_target(row: dict[str, Any], *, call_offset: int, rel32: int) -> i
     if address is None:
         return None
     return address + call_offset + 5 + rel32
-
-
-def strip_alignment_padding(data: bytes) -> bytes:
-    end = len(data)
-    while end > 0 and data[end - 1] in {0x90, 0xCC}:
-        end -= 1
-    return data[:end]
 
 
 def is_tail_fragment(data: bytes) -> bool:
@@ -1491,26 +1537,6 @@ def x86_64_add_two_args(row: dict[str, Any], c_name: str, data: bytes) -> list[G
     ]
 
 
-X86_64_THREE_ARGS_ARITHMETIC_PATTERNS: dict[bytes, tuple[str, str, str]] = {
-    b"\x8d\x04\x37\x01\xd0\xc3": ("add-add", "a + b + c", "lea-eax-rdi-rsi-add-eax-edx-ret"),
-    b"\x29\xf7\x8d\x04\x17\xc3": ("sub-add", "a - b + c", "sub-edi-esi-lea-eax-rdi-rdx-ret"),
-    b"\x89\xf8\x01\xd6\x29\xf0\xc3": ("sub-sum", "a - b - c", "mov-eax-edi-add-esi-edx-sub-eax-esi-ret"),
-    b"\x89\xd0\x01\xf7\x29\xf8\xc3": ("sub-sum-reversed", "c - (a + b)", "mov-eax-edx-add-edi-esi-sub-eax-edi-ret"),
-    b"\x0f\xaf\xfe\x8d\x04\x17\xc3": ("mul-add", "a * b + c", "imul-edi-esi-lea-eax-rdi-rdx-ret"),
-    b"\x89\xf8\x0f\xaf\xc6\x29\xd0\xc3": ("mul-sub", "a * b - c", "mov-eax-edi-imul-eax-esi-sub-eax-edx-ret"),
-    b"\x89\xd0\x0f\xaf\xfe\x29\xf8\xc3": ("sub-mul", "c - a * b", "mov-eax-edx-imul-edi-esi-sub-eax-edi-ret"),
-}
-
-
-def decode_x86_64_three_args_arithmetic(data: bytes) -> dict[str, str] | None:
-    body = strip_alignment_padding(data)
-    decoded = X86_64_THREE_ARGS_ARITHMETIC_PATTERNS.get(body)
-    if decoded is None:
-        return None
-    suffix, expression, pattern = decoded
-    return {"suffix": suffix, "expression": expression, "pattern": pattern}
-
-
 def x86_64_three_args_arithmetic(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -1546,29 +1572,6 @@ def x86_64_three_args_arithmetic(row: dict[str, Any], c_name: str, data: bytes) 
     ]
 
 
-X86_64_THREE_ARGS_BITWISE_OPS: dict[int, tuple[str, str]] = {
-    0x21: ("and", "&"),
-    0x09: ("or", "|"),
-    0x31: ("xor", "^"),
-}
-
-
-def decode_x86_64_three_args_bitwise(data: bytes) -> dict[str, str] | None:
-    body = strip_alignment_padding(data)
-    if len(body) != 7 or body[:2] != b"\x89\xf8" or body[3] != 0xF0 or body[5:] != b"\xd0\xc3":
-        return None
-    first = X86_64_THREE_ARGS_BITWISE_OPS.get(body[2])
-    second = X86_64_THREE_ARGS_BITWISE_OPS.get(body[4])
-    if first is None or second is None:
-        return None
-    expression = f"(a {first[1]} b) {second[1]} c"
-    return {
-        "suffix": f"{first[0]}-{second[0]}",
-        "expression": expression,
-        "pattern": f"mov-eax-edi-{first[0]}-eax-esi-{second[0]}-eax-edx-ret",
-    }
-
-
 def x86_64_three_args_bitwise(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -1602,33 +1605,6 @@ def x86_64_three_args_bitwise(row: dict[str, Any], c_name: str, data: bytes) -> 
             },
         )
     ]
-
-
-X86_64_THREE_ARGS_SELECT_OPS: dict[bytes, tuple[str, str, str, str, str]] = {
-    b"\x89\xd0\x39\xf7\x0f\x42\xc7\xc3": ("uint-select-lt", "unsigned int", "a < b ? a : c", "cmovb", "mov-eax-edx-cmp-edi-esi-cmovb-eax-edi-ret"),
-    b"\x89\xd0\x39\xf7\x0f\x43\xc7\xc3": ("uint-select-ge", "unsigned int", "a < b ? c : a", "cmovae", "mov-eax-edx-cmp-edi-esi-cmovae-eax-edi-ret"),
-    b"\x89\xd0\x39\xf7\x0f\x47\xc7\xc3": ("uint-select-gt", "unsigned int", "a > b ? a : c", "cmova", "mov-eax-edx-cmp-edi-esi-cmova-eax-edi-ret"),
-    b"\x89\xd0\x39\xf7\x0f\x46\xc7\xc3": ("uint-select-le", "unsigned int", "a > b ? c : a", "cmovbe", "mov-eax-edx-cmp-edi-esi-cmovbe-eax-edi-ret"),
-    b"\x89\xd0\x39\xf7\x0f\x4c\xc7\xc3": ("int-select-lt", "int", "a < b ? a : c", "cmovl", "mov-eax-edx-cmp-edi-esi-cmovl-eax-edi-ret"),
-    b"\x89\xd0\x39\xf7\x0f\x4d\xc7\xc3": ("int-select-ge", "int", "a < b ? c : a", "cmovge", "mov-eax-edx-cmp-edi-esi-cmovge-eax-edi-ret"),
-    b"\x89\xd0\x39\xf7\x0f\x4f\xc7\xc3": ("int-select-gt", "int", "a > b ? a : c", "cmovg", "mov-eax-edx-cmp-edi-esi-cmovg-eax-edi-ret"),
-    b"\x89\xd0\x39\xf7\x0f\x4e\xc7\xc3": ("int-select-le", "int", "a > b ? c : a", "cmovle", "mov-eax-edx-cmp-edi-esi-cmovle-eax-edi-ret"),
-}
-
-
-def decode_x86_64_three_args_select(data: bytes) -> dict[str, str] | None:
-    body = strip_alignment_padding(data)
-    decoded = X86_64_THREE_ARGS_SELECT_OPS.get(body)
-    if decoded is None:
-        return None
-    suffix, value_type, expression, cmov, pattern = decoded
-    return {
-        "suffix": suffix,
-        "valueType": value_type,
-        "expression": expression,
-        "cmov": cmov,
-        "pattern": pattern,
-    }
 
 
 def x86_64_three_args_select(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
@@ -1669,26 +1645,6 @@ def x86_64_three_args_select(row: dict[str, Any], c_name: str, data: bytes) -> l
     ]
 
 
-X86_64_THREE_ARGS_ARITHMETIC64_PATTERNS: dict[bytes, tuple[str, str, str]] = {
-    b"\x48\x8d\x04\x37\x48\x01\xd0\xc3": ("add-add64", "a + b + c", "lea-rax-rdi-rsi-add-rax-rdx-ret"),
-    b"\x48\x29\xf7\x48\x8d\x04\x17\xc3": ("sub-add64", "a - b + c", "sub-rdi-rsi-lea-rax-rdi-rdx-ret"),
-    b"\x48\x89\xf8\x48\x01\xd6\x48\x29\xf0\xc3": ("sub-sum64", "a - b - c", "mov-rax-rdi-add-rsi-rdx-sub-rax-rsi-ret"),
-    b"\x48\x89\xd0\x48\x01\xf7\x48\x29\xf8\xc3": ("sub-sum-reversed64", "c - (a + b)", "mov-rax-rdx-add-rdi-rsi-sub-rax-rdi-ret"),
-    b"\x48\x0f\xaf\xfe\x48\x8d\x04\x17\xc3": ("mul-add64", "a * b + c", "imul-rdi-rsi-lea-rax-rdi-rdx-ret"),
-    b"\x48\x89\xf8\x48\x0f\xaf\xc6\x48\x29\xd0\xc3": ("mul-sub64", "a * b - c", "mov-rax-rdi-imul-rax-rsi-sub-rax-rdx-ret"),
-    b"\x48\x89\xd0\x48\x0f\xaf\xfe\x48\x29\xf8\xc3": ("sub-mul64", "c - a * b", "mov-rax-rdx-imul-rdi-rsi-sub-rax-rdi-ret"),
-}
-
-
-def decode_x86_64_three_args_arithmetic64(data: bytes) -> dict[str, str] | None:
-    body = strip_alignment_padding(data)
-    decoded = X86_64_THREE_ARGS_ARITHMETIC64_PATTERNS.get(body)
-    if decoded is None:
-        return None
-    suffix, expression, pattern = decoded
-    return {"suffix": suffix, "expression": expression, "pattern": pattern}
-
-
 def x86_64_three_args_arithmetic64(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -1724,35 +1680,6 @@ def x86_64_three_args_arithmetic64(row: dict[str, Any], c_name: str, data: bytes
     ]
 
 
-X86_64_THREE_ARGS_BITWISE64_OPS: dict[bytes, tuple[str, str]] = {
-    b"\x48\x21\xf0": ("and", "&"),
-    b"\x48\x09\xf0": ("or", "|"),
-    b"\x48\x31\xf0": ("xor", "^"),
-}
-
-X86_64_THREE_ARGS_BITWISE64_OPS_SECOND: dict[bytes, tuple[str, str]] = {
-    b"\x48\x21\xd0": ("and", "&"),
-    b"\x48\x09\xd0": ("or", "|"),
-    b"\x48\x31\xd0": ("xor", "^"),
-}
-
-
-def decode_x86_64_three_args_bitwise64(data: bytes) -> dict[str, str] | None:
-    body = strip_alignment_padding(data)
-    if len(body) != 10 or body[:3] != b"\x48\x89\xf8" or body[9:] != b"\xc3":
-        return None
-    first = X86_64_THREE_ARGS_BITWISE64_OPS.get(body[3:6])
-    second = X86_64_THREE_ARGS_BITWISE64_OPS_SECOND.get(body[6:9])
-    if first is None or second is None:
-        return None
-    expression = f"(a {first[1]} b) {second[1]} c"
-    return {
-        "suffix": f"{first[0]}-{second[0]}64",
-        "expression": expression,
-        "pattern": f"mov-rax-rdi-{first[0]}-rax-rsi-{second[0]}-rax-rdx-ret",
-    }
-
-
 def x86_64_three_args_bitwise64(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -1786,33 +1713,6 @@ def x86_64_three_args_bitwise64(row: dict[str, Any], c_name: str, data: bytes) -
             },
         )
     ]
-
-
-X86_64_THREE_ARGS_SELECT64_OPS: dict[bytes, tuple[str, str, str, str, str]] = {
-    b"\x48\x89\xd0\x48\x39\xf7\x48\x0f\x42\xc7\xc3": ("uint64-select-lt", "unsigned long long", "a < b ? a : c", "cmovb", "mov-rax-rdx-cmp-rdi-rsi-cmovb-rax-rdi-ret"),
-    b"\x48\x89\xd0\x48\x39\xf7\x48\x0f\x43\xc7\xc3": ("uint64-select-ge", "unsigned long long", "a < b ? c : a", "cmovae", "mov-rax-rdx-cmp-rdi-rsi-cmovae-rax-rdi-ret"),
-    b"\x48\x89\xd0\x48\x39\xf7\x48\x0f\x47\xc7\xc3": ("uint64-select-gt", "unsigned long long", "a > b ? a : c", "cmova", "mov-rax-rdx-cmp-rdi-rsi-cmova-rax-rdi-ret"),
-    b"\x48\x89\xd0\x48\x39\xf7\x48\x0f\x46\xc7\xc3": ("uint64-select-le", "unsigned long long", "a > b ? c : a", "cmovbe", "mov-rax-rdx-cmp-rdi-rsi-cmovbe-rax-rdi-ret"),
-    b"\x48\x89\xd0\x48\x39\xf7\x48\x0f\x4c\xc7\xc3": ("int64-select-lt", "long long", "a < b ? a : c", "cmovl", "mov-rax-rdx-cmp-rdi-rsi-cmovl-rax-rdi-ret"),
-    b"\x48\x89\xd0\x48\x39\xf7\x48\x0f\x4d\xc7\xc3": ("int64-select-ge", "long long", "a < b ? c : a", "cmovge", "mov-rax-rdx-cmp-rdi-rsi-cmovge-rax-rdi-ret"),
-    b"\x48\x89\xd0\x48\x39\xf7\x48\x0f\x4f\xc7\xc3": ("int64-select-gt", "long long", "a > b ? a : c", "cmovg", "mov-rax-rdx-cmp-rdi-rsi-cmovg-rax-rdi-ret"),
-    b"\x48\x89\xd0\x48\x39\xf7\x48\x0f\x4e\xc7\xc3": ("int64-select-le", "long long", "a > b ? c : a", "cmovle", "mov-rax-rdx-cmp-rdi-rsi-cmovle-rax-rdi-ret"),
-}
-
-
-def decode_x86_64_three_args_select64(data: bytes) -> dict[str, str] | None:
-    body = strip_alignment_padding(data)
-    decoded = X86_64_THREE_ARGS_SELECT64_OPS.get(body)
-    if decoded is None:
-        return None
-    suffix, value_type, expression, cmov, pattern = decoded
-    return {
-        "suffix": suffix,
-        "valueType": value_type,
-        "expression": expression,
-        "cmov": cmov,
-        "pattern": pattern,
-    }
 
 
 def x86_64_three_args_select64(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
@@ -1853,65 +1753,6 @@ def x86_64_three_args_select64(row: dict[str, Any], c_name: str, data: bytes) ->
     ]
 
 
-def format_x86_64_two_args_affine_expression(coeff_a: int, coeff_b: int, immediate: int) -> str:
-    terms: list[str] = []
-    if coeff_a == 1:
-        terms.append("a")
-    elif coeff_a > 1:
-        terms.append(f"{coeff_a}u * a")
-    if coeff_b == 1:
-        terms.append("b")
-    elif coeff_b > 1:
-        terms.append(f"{coeff_b}u * b")
-    if immediate:
-        terms.append(f"0x{immediate:02x}u")
-    return " + ".join(terms)
-
-
-def decode_x86_64_two_args_affine_lea(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) < 4 or body[:2] != b"\x8d\x04":
-        return None
-    sib = body[2]
-    scale = 1 << ((sib >> 6) & 0x03)
-    index = (sib >> 3) & 0x07
-    base = sib & 0x07
-    register_names = {0x07: "a", 0x06: "b"}
-    if base not in register_names or index not in register_names:
-        return None
-    coeffs = {"a": 0, "b": 0}
-    coeffs[register_names[base]] += 1
-    coeffs[register_names[index]] += scale
-    immediate = 0
-    suffix = "scaled"
-    if len(body) == 4 and body[3] == 0xC3:
-        pass
-    elif len(body) == 6 and body[3:6] == b"\x01\xf8\xc3":
-        coeffs["a"] += 1
-        suffix = "scaled-add-a"
-    elif len(body) == 7 and body[3:5] == b"\x83\xc0" and body[6] == 0xC3:
-        immediate = body[5]
-        if immediate == 0:
-            return None
-        suffix = "scaled-add-imm8"
-    else:
-        return None
-    coeff_a = coeffs["a"]
-    coeff_b = coeffs["b"]
-    if coeff_a == 1 and coeff_b == 1 and immediate == 0:
-        return None
-    if coeff_a == 0 or coeff_b == 0:
-        return None
-    return {
-        "suffix": suffix,
-        "coeffA": coeff_a,
-        "coeffB": coeff_b,
-        "immediate": immediate,
-        "expression": format_x86_64_two_args_affine_expression(coeff_a, coeff_b, immediate),
-        "pattern": f"lea-eax-sib-0x{sib:02x}{'-add-eax-edi' if suffix == 'scaled-add-a' else '-add-eax-imm8' if suffix == 'scaled-add-imm8' else ''}-ret",
-    }
-
-
 def x86_64_two_args_affine_lea(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -1949,65 +1790,6 @@ def x86_64_two_args_affine_lea(row: dict[str, Any], c_name: str, data: bytes) ->
             },
         )
     ]
-
-
-def format_x86_64_two_args_affine_expression64(coeff_a: int, coeff_b: int, immediate: int) -> str:
-    terms: list[str] = []
-    if coeff_a == 1:
-        terms.append("a")
-    elif coeff_a > 1:
-        terms.append(f"{coeff_a}ull * a")
-    if coeff_b == 1:
-        terms.append("b")
-    elif coeff_b > 1:
-        terms.append(f"{coeff_b}ull * b")
-    if immediate:
-        terms.append(f"0x{immediate:02x}ull")
-    return " + ".join(terms)
-
-
-def decode_x86_64_two_args_affine_lea64(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) < 5 or body[:3] != b"\x48\x8d\x04":
-        return None
-    sib = body[3]
-    scale = 1 << ((sib >> 6) & 0x03)
-    index = (sib >> 3) & 0x07
-    base = sib & 0x07
-    register_names = {0x07: "a", 0x06: "b"}
-    if base not in register_names or index not in register_names:
-        return None
-    coeffs = {"a": 0, "b": 0}
-    coeffs[register_names[base]] += 1
-    coeffs[register_names[index]] += scale
-    immediate = 0
-    suffix = "scaled64"
-    if len(body) == 5 and body[4] == 0xC3:
-        pass
-    elif len(body) == 8 and body[4:8] == b"\x48\x01\xf8\xc3":
-        coeffs["a"] += 1
-        suffix = "scaled-add-a64"
-    elif len(body) == 9 and body[4:7] == b"\x48\x83\xc0" and body[8] == 0xC3:
-        immediate = body[7]
-        if immediate == 0:
-            return None
-        suffix = "scaled-add-imm8-64"
-    else:
-        return None
-    coeff_a = coeffs["a"]
-    coeff_b = coeffs["b"]
-    if coeff_a == 1 and coeff_b == 1 and immediate == 0:
-        return None
-    if coeff_a == 0 or coeff_b == 0:
-        return None
-    return {
-        "suffix": suffix,
-        "coeffA": coeff_a,
-        "coeffB": coeff_b,
-        "immediate": immediate,
-        "expression": format_x86_64_two_args_affine_expression64(coeff_a, coeff_b, immediate),
-        "pattern": f"lea-rax-sib-0x{sib:02x}{'-add-rax-rdi' if suffix == 'scaled-add-a64' else '-add-rax-imm8' if suffix == 'scaled-add-imm8-64' else ''}-ret",
-    }
 
 
 def x86_64_two_args_affine_lea64(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
@@ -2448,46 +2230,6 @@ def x86_64_arg64_lea_multiply(row: dict[str, Any], c_name: str, data: bytes) -> 
     ]
 
 
-X86_64_ARG_CONST_MIN_MAX_CMOV: dict[int, tuple[str, str, str, str, bool]] = {
-    0x42: ("uint-min", "<", "unsigned int", "cmovb", False),
-    0x43: ("uint-max", ">", "unsigned int", "cmovae", True),
-    0x4C: ("int-min", "<", "int", "cmovl", False),
-    0x4D: ("int-max", ">", "int", "cmovge", True),
-}
-
-
-def decode_x86_64_arg_const_min_max(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) != 12 or body[:2] != b"\x83\xff" or body[3] != 0xB8 or body[8] != 0x0F or body[10:12] != b"\xc7\xc3":
-        return None
-    decoded = X86_64_ARG_CONST_MIN_MAX_CMOV.get(body[9])
-    if decoded is None:
-        return None
-    suffix, operator, value_type, cmov, compare_is_exclusive_upper = decoded
-    compare_immediate = body[2]
-    constant = int.from_bytes(body[4:8], "little", signed=False)
-    if compare_is_exclusive_upper:
-        if compare_immediate == 0:
-            return None
-        expected_constant = compare_immediate - 1
-    else:
-        expected_constant = compare_immediate
-    if constant != expected_constant:
-        return None
-    if value_type == "int" and constant > 0x7F:
-        return None
-    return {
-        "suffix": suffix,
-        "operator": operator,
-        "valueType": value_type,
-        "returnType": value_type,
-        "constant": constant,
-        "compareImmediate": compare_immediate,
-        "cmov": cmov,
-        "pattern": f"cmp-edi-imm8-mov-eax-imm32-{cmov}-eax-edi-ret",
-    }
-
-
 def x86_64_arg_const_min_max(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -2662,81 +2404,6 @@ def x86_64_arg_sign_mask(row: dict[str, Any], c_name: str, data: bytes) -> list[
     ]
 
 
-def decode_x86_64_arg_bitmask_bool(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if body == b"\x89\xf8\x83\xe0\x01\xc3":
-        return {
-            "predicate": "nonzero",
-            "operator": "!=",
-            "mask": 0x00000001,
-            "pattern": "mov-eax-edi-and-eax-1-ret",
-        }
-    if body == b"\x89\xf8\xf7\xd0\x83\xe0\x01\xc3":
-        return {
-            "predicate": "zero",
-            "operator": "==",
-            "mask": 0x00000001,
-            "pattern": "mov-eax-edi-not-eax-and-eax-1-ret",
-        }
-    if len(body) == 9 and body[:3] == b"\x89\xf8\xc1" and body[3] == 0xE8 and body[5:8] == b"\x83\xe0\x01" and body[8] == 0xC3:
-        shift = body[4]
-        if not 1 <= shift <= 31:
-            return None
-        return {
-            "predicate": "nonzero",
-            "operator": "!=",
-            "mask": 1 << shift,
-            "shift": shift,
-            "pattern": "mov-eax-edi-shr-eax-imm8-and-eax-1-ret",
-        }
-    if len(body) == 10 and body[:3] == b"\x31\xc0\x40" and body[3] == 0xF6 and body[4] == 0xC7 and body[6] == 0x0F and body[8:] == b"\xc0\xc3":
-        mask = body[5]
-        setcc_opcode = body[7]
-        if mask == 0:
-            return None
-        if setcc_opcode == 0x94:
-            predicate = "zero"
-            operator = "=="
-            setcc = "sete"
-        elif setcc_opcode == 0x95:
-            predicate = "nonzero"
-            operator = "!="
-            setcc = "setne"
-        else:
-            return None
-        return {
-            "predicate": predicate,
-            "operator": operator,
-            "mask": mask,
-            "byteMask": mask,
-            "setcc": setcc,
-            "pattern": f"xor-eax-test-dil-imm8-{setcc}-al-ret",
-        }
-    if len(body) == 12 and body[:2] == b"\x31\xc0" and body[2:4] == b"\xf7\xc7" and body[8] == 0x0F and body[10:] == b"\xc0\xc3":
-        mask = int.from_bytes(body[4:8], "little", signed=False)
-        setcc_opcode = body[9]
-        if mask == 0:
-            return None
-        if setcc_opcode == 0x94:
-            predicate = "zero"
-            operator = "=="
-            setcc = "sete"
-        elif setcc_opcode == 0x95:
-            predicate = "nonzero"
-            operator = "!="
-            setcc = "setne"
-        else:
-            return None
-        return {
-            "predicate": predicate,
-            "operator": operator,
-            "mask": mask,
-            "setcc": setcc,
-            "pattern": f"xor-eax-test-edi-imm32-{setcc}-al-ret",
-        }
-    return None
-
-
 def x86_64_arg_bitmask_bool(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -2791,87 +2458,6 @@ def x86_64_prefers_arg64_value(row: dict[str, Any]) -> bool:
     )
 
 
-def decode_x86_64_arg64_bitmask_bool(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if body == b"\x48\x89\xf8\x83\xe0\x01\xc3":
-        return {
-            "predicate": "nonzero",
-            "operator": "!=",
-            "mask": 0x0000000000000001,
-            "pattern": "mov-rax-rdi-and-eax-1-ret",
-        }
-    if len(body) == 10 and body[:3] == b"\x48\x89\xf8" and body[3:5] == b"\xc1\xe8" and body[6:9] == b"\x83\xe0\x01" and body[9] == 0xC3:
-        shift = body[5]
-        if not 1 <= shift <= 31:
-            return None
-        return {
-            "predicate": "nonzero",
-            "operator": "!=",
-            "mask": 1 << shift,
-            "shift": shift,
-            "pattern": "mov-rax-rdi-shr-eax-imm8-and-eax-1-ret",
-        }
-    if len(body) == 11 and body[:3] == b"\x48\x89\xf8" and body[3:6] == b"\x48\xc1\xe8" and body[7:10] == b"\x83\xe0\x01" and body[10] == 0xC3:
-        shift = body[6]
-        if not 32 <= shift <= 63:
-            return None
-        return {
-            "predicate": "nonzero",
-            "operator": "!=",
-            "mask": 1 << shift,
-            "shift": shift,
-            "pattern": "mov-rax-rdi-shr-rax-imm8-and-eax-1-ret",
-        }
-    if len(body) == 10 and body[:3] == b"\x31\xc0\x40" and body[3] == 0xF6 and body[4] == 0xC7 and body[6] == 0x0F and body[8:] == b"\xc0\xc3":
-        mask = body[5]
-        setcc_opcode = body[7]
-        if mask == 0:
-            return None
-        if setcc_opcode == 0x94:
-            predicate = "zero"
-            operator = "=="
-            setcc = "sete"
-        elif setcc_opcode == 0x95:
-            predicate = "nonzero"
-            operator = "!="
-            setcc = "setne"
-        else:
-            return None
-        return {
-            "predicate": predicate,
-            "operator": operator,
-            "mask": mask,
-            "byteMask": mask,
-            "requiresWidthHint": True,
-            "setcc": setcc,
-            "pattern": f"xor-eax-test-dil-imm8-{setcc}-al-ret",
-        }
-    if len(body) == 12 and body[:2] == b"\x31\xc0" and body[2:4] == b"\xf7\xc7" and body[8] == 0x0F and body[10:] == b"\xc0\xc3":
-        mask = int.from_bytes(body[4:8], "little", signed=False)
-        setcc_opcode = body[9]
-        if mask == 0:
-            return None
-        if setcc_opcode == 0x94:
-            predicate = "zero"
-            operator = "=="
-            setcc = "sete"
-        elif setcc_opcode == 0x95:
-            predicate = "nonzero"
-            operator = "!="
-            setcc = "setne"
-        else:
-            return None
-        return {
-            "predicate": predicate,
-            "operator": operator,
-            "mask": mask,
-            "requiresWidthHint": True,
-            "setcc": setcc,
-            "pattern": f"xor-eax-test-edi-imm32-{setcc}-al-ret",
-        }
-    return None
-
-
 def x86_64_arg64_bitmask_bool(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -2916,18 +2502,6 @@ def x86_64_arg64_bitmask_bool(row: dict[str, Any], c_name: str, data: bytes) -> 
     ]
 
 
-def decode_x86_64_arg_udiv_pow2(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) == 5 and body == b"\x89\xf8\xd1\xe8\xc3":
-        return {"shift": 1, "divisor": 2, "pattern": "mov-eax-edi-shr-eax-one-ret"}
-    if len(body) == 6 and body[:3] == b"\x89\xf8\xc1" and body[3] == 0xE8 and body[5] == 0xC3:
-        shift = body[4]
-        if not 2 <= shift <= 31:
-            return None
-        return {"shift": shift, "divisor": 1 << shift, "pattern": "mov-eax-edi-shr-eax-imm8-ret"}
-    return None
-
-
 def x86_64_arg_udiv_pow2(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -2964,24 +2538,6 @@ def x86_64_arg_udiv_pow2(row: dict[str, Any], c_name: str, data: bytes) -> list[
             },
         )
     ]
-
-
-def decode_x86_64_arg_urem_pow2(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) != 6 or body[:3] != b"\x89\xf8\x83" or body[3] != 0xE0 or body[5] != 0xC3:
-        return None
-    mask = body[4]
-    if mask <= 1:
-        return None
-    divisor = mask + 1
-    if divisor & (divisor - 1):
-        return None
-    return {
-        "shift": divisor.bit_length() - 1,
-        "divisor": divisor,
-        "mask": mask,
-        "pattern": "mov-eax-edi-and-eax-pow2-minus-one-ret",
-    }
 
 
 def x86_64_arg_urem_pow2(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
@@ -3024,26 +2580,6 @@ def x86_64_arg_urem_pow2(row: dict[str, Any], c_name: str, data: bytes) -> list[
     ]
 
 
-X86_64_ARG_UDIV_MAGIC_OPS: dict[tuple[int, int], tuple[int, str]] = {
-    (0xAAAAAAAB, 0x21): (3, "mov-ecx-edi-mov-eax-magic-imul-rax-rcx-shr-rax-33-ret"),
-    (0xCCCCCCCD, 0x22): (5, "mov-ecx-edi-mov-eax-magic-imul-rax-rcx-shr-rax-34-ret"),
-    (0xCCCCCCCD, 0x23): (10, "mov-ecx-edi-mov-eax-magic-imul-rax-rcx-shr-rax-35-ret"),
-}
-
-
-def decode_x86_64_arg_udiv_magic(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) != 16 or body[:2] != b"\x89\xf9" or body[2] != 0xB8 or body[7:11] != b"\x48\x0f\xaf\xc1" or body[11:14] != b"\x48\xc1\xe8" or body[15] != 0xC3:
-        return None
-    multiplier = int.from_bytes(body[3:7], "little", signed=False)
-    shift = body[14]
-    decoded = X86_64_ARG_UDIV_MAGIC_OPS.get((multiplier, shift))
-    if decoded is None:
-        return None
-    divisor, pattern = decoded
-    return {"divisor": divisor, "multiplier": multiplier, "shift": shift, "pattern": pattern}
-
-
 def x86_64_arg_udiv_magic(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -3081,27 +2617,6 @@ def x86_64_arg_udiv_magic(row: dict[str, Any], c_name: str, data: bytes) -> list
             },
         )
     ]
-
-
-X86_64_ARG_UREM_MAGIC_OPS: dict[bytes, tuple[int, str, int, str]] = {
-    bytes.fromhex("89f889f9baabaaaaaa480fafd148c1ea218d0c5229c8c3"): (3, "0xaaaaaaab", 33, "mov-eax-edi-mov-ecx-edi-mov-edx-magic-imul-rdx-rcx-shr-rdx-33-lea-ecx-rdx-rdx2-sub-eax-ecx-ret"),
-    bytes.fromhex("89f889f9bacdcccccc480fafd148c1ea228d0c9229c8c3"): (5, "0xcccccccd", 34, "mov-eax-edi-mov-ecx-edi-mov-edx-magic-imul-rdx-rcx-shr-rdx-34-lea-ecx-rdx-rdx4-sub-eax-ecx-ret"),
-    bytes.fromhex("89f889f9bacdcccccc480fafd148c1ea2301d28d0c9229c8c3"): (10, "0xcccccccd", 35, "mov-eax-edi-mov-ecx-edi-mov-edx-magic-imul-rdx-rcx-shr-rdx-35-add-edx-edx-lea-ecx-rdx-rdx4-sub-eax-ecx-ret"),
-}
-
-
-def decode_x86_64_arg_urem_magic(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    decoded = X86_64_ARG_UREM_MAGIC_OPS.get(body)
-    if decoded is None:
-        return None
-    divisor, multiplier, shift, pattern = decoded
-    return {
-        "divisor": divisor,
-        "multiplier": multiplier,
-        "shift": shift,
-        "pattern": pattern,
-    }
 
 
 def x86_64_arg_urem_magic(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
@@ -3143,31 +2658,6 @@ def x86_64_arg_urem_magic(row: dict[str, Any], c_name: str, data: bytes) -> list
     ]
 
 
-def decode_x86_64_arg_sdiv_pow2(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if body == b"\x89\xf8\xc1\xe8\x1f\x01\xf8\xd1\xf8\xc3":
-        return {
-            "shift": 1,
-            "divisor": 2,
-            "bias": 1,
-            "pattern": "mov-eax-edi-shr-eax-31-add-eax-edi-sar-eax-one-ret",
-        }
-    if len(body) == 12 and body[:2] == b"\x8d\x47" and body[3:8] == b"\x85\xff\x0f\x49\xc7" and body[8:10] == b"\xc1\xf8" and body[11] == 0xC3:
-        bias = body[2]
-        shift = body[10]
-        if not 2 <= shift <= 7:
-            return None
-        if bias != (1 << shift) - 1:
-            return None
-        return {
-            "shift": shift,
-            "divisor": 1 << shift,
-            "bias": bias,
-            "pattern": "lea-eax-rdi-bias-test-edi-edi-cmovns-eax-edi-sar-eax-imm8-ret",
-        }
-    return None
-
-
 def x86_64_arg_sdiv_pow2(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -3205,39 +2695,6 @@ def x86_64_arg_sdiv_pow2(row: dict[str, Any], c_name: str, data: bytes) -> list[
             },
         )
     ]
-
-
-def decode_x86_64_arg_srem_pow2(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if body == b"\x89\xf8\x89\xf9\xc1\xe9\x1f\x01\xf9\x83\xe1\xfe\x29\xc8\xc3":
-        return {
-            "shift": 1,
-            "divisor": 2,
-            "bias": 1,
-            "mask": "0xfffffffe",
-            "pattern": "mov-eax-edi-mov-ecx-edi-shr-ecx-31-add-ecx-edi-and-ecx-neg2-sub-eax-ecx-ret",
-        }
-    if len(body) == 16 and body[:2] == b"\x89\xf8" and body[2:4] == b"\x8d\x48" and body[5:10] == b"\x85\xff\x0f\x49\xcf" and body[10:12] == b"\x83\xe1" and body[13:] == b"\x29\xc8\xc3":
-        bias = body[4]
-        mask_byte = body[12]
-        if bias == 0:
-            return None
-        divisor = bias + 1
-        if divisor & (divisor - 1):
-            return None
-        shift = divisor.bit_length() - 1
-        if not 2 <= shift <= 7:
-            return None
-        if mask_byte != ((256 - divisor) & 0xFF):
-            return None
-        return {
-            "shift": shift,
-            "divisor": divisor,
-            "bias": bias,
-            "mask": f"0xffffff{mask_byte:02x}",
-            "pattern": "mov-eax-edi-lea-ecx-rax-bias-test-edi-edi-cmovns-ecx-edi-and-ecx-negdivisor-sub-eax-ecx-ret",
-        }
-    return None
 
 
 def x86_64_arg_srem_pow2(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
@@ -3280,27 +2737,6 @@ def x86_64_arg_srem_pow2(row: dict[str, Any], c_name: str, data: bytes) -> list[
     ]
 
 
-X86_64_ARG_SDIV_MAGIC_OPS: dict[bytes, tuple[int, str, int, str]] = {
-    bytes.fromhex("4863c74869c0565555554889c148c1e93f48c1e82001c8c3"): (3, "0x55555556", 32, "movsxd-rax-edi-imul-rax-rax-magic-mov-rcx-rax-shr-rcx-63-shr-rax-32-add-eax-ecx-ret"),
-    bytes.fromhex("4863c74869c0676666664889c148c1e93f48c1f82101c8c3"): (5, "0x66666667", 33, "movsxd-rax-edi-imul-rax-rax-magic-mov-rcx-rax-shr-rcx-63-sar-rax-33-add-eax-ecx-ret"),
-    bytes.fromhex("4863c74869c0676666664889c148c1e93f48c1f82201c8c3"): (10, "0x66666667", 34, "movsxd-rax-edi-imul-rax-rax-magic-mov-rcx-rax-shr-rcx-63-sar-rax-34-add-eax-ecx-ret"),
-}
-
-
-def decode_x86_64_arg_sdiv_magic(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    decoded = X86_64_ARG_SDIV_MAGIC_OPS.get(body)
-    if decoded is None:
-        return None
-    divisor, multiplier, shift, pattern = decoded
-    return {
-        "divisor": divisor,
-        "multiplier": multiplier,
-        "shift": shift,
-        "pattern": pattern,
-    }
-
-
 def x86_64_arg_sdiv_magic(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -3338,27 +2774,6 @@ def x86_64_arg_sdiv_magic(row: dict[str, Any], c_name: str, data: bytes) -> list
             },
         )
     ]
-
-
-X86_64_ARG_SREM_MAGIC_OPS: dict[bytes, tuple[int, str, int, str]] = {
-    bytes.fromhex("4863c74869c8565555554889ca48c1ea3f48c1e92001d18d0c4929c8c3"): (3, "0x55555556", 32, "movsxd-rax-edi-imul-rcx-rax-magic-mov-rdx-rcx-shr-rdx-63-shr-rcx-32-add-ecx-edx-lea-ecx-rcx-rcx2-sub-eax-ecx-ret"),
-    bytes.fromhex("4863c74869c8676666664889ca48c1ea3f48c1f92101d18d0c8929c8c3"): (5, "0x66666667", 33, "movsxd-rax-edi-imul-rcx-rax-magic-mov-rdx-rcx-shr-rdx-63-sar-rcx-33-add-ecx-edx-lea-ecx-rcx-rcx4-sub-eax-ecx-ret"),
-    bytes.fromhex("4863c74869c8676666664889ca48c1ea3f48c1f92201d101c98d0c8929c8c3"): (10, "0x66666667", 34, "movsxd-rax-edi-imul-rcx-rax-magic-mov-rdx-rcx-shr-rdx-63-sar-rcx-34-add-ecx-edx-add-ecx-ecx-lea-ecx-rcx-rcx4-sub-eax-ecx-ret"),
-}
-
-
-def decode_x86_64_arg_srem_magic(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    decoded = X86_64_ARG_SREM_MAGIC_OPS.get(body)
-    if decoded is None:
-        return None
-    divisor, multiplier, shift, pattern = decoded
-    return {
-        "divisor": divisor,
-        "multiplier": multiplier,
-        "shift": shift,
-        "pattern": pattern,
-    }
 
 
 def x86_64_arg_srem_magic(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
@@ -3400,13 +2815,6 @@ def x86_64_arg_srem_magic(row: dict[str, Any], c_name: str, data: bytes) -> list
     ]
 
 
-def decode_x86_64_arg_bswap32(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if body == b"\x89\xf8\x0f\xc8\xc3":
-        return {"pattern": "mov-eax-edi-bswap-eax-ret"}
-    return None
-
-
 def x86_64_arg_bswap32(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -3443,13 +2851,6 @@ def x86_64_arg_bswap32(row: dict[str, Any], c_name: str, data: bytes) -> list[Ge
     ]
 
 
-def decode_x86_64_arg_bswap64(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if body == b"\x48\x89\xf8\x48\x0f\xc8\xc3":
-        return {"pattern": "mov-rax-rdi-bswap-rax-ret"}
-    return None
-
-
 def x86_64_arg_bswap64(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -3484,23 +2885,6 @@ def x86_64_arg_bswap64(row: dict[str, Any], c_name: str, data: bytes) -> list[Ge
             },
         )
     ]
-
-
-def decode_x86_64_arg_rotate(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) == 5 and body[:2] == b"\x89\xf8" and body[2] == 0xD1 and body[4] == 0xC3:
-        if body[3] == 0xC0:
-            return {"direction": "left", "count": 1, "encoding": "rol", "pattern": "mov-eax-edi-rol-eax-one-ret"}
-        if body[3] == 0xC8:
-            return {"direction": "right", "count": 1, "encoding": "ror", "pattern": "mov-eax-edi-ror-eax-one-ret"}
-    if len(body) == 6 and body[:2] == b"\x89\xf8" and body[2] == 0xC1 and body[3] == 0xC0 and body[5] == 0xC3:
-        count = body[4]
-        if not 1 <= count <= 31:
-            return None
-        if count > 16:
-            return {"direction": "right", "count": 32 - count, "encoding": "rol", "encodedCount": count, "pattern": "mov-eax-edi-rol-eax-imm8-ret"}
-        return {"direction": "left", "count": count, "encoding": "rol", "encodedCount": count, "pattern": "mov-eax-edi-rol-eax-imm8-ret"}
-    return None
 
 
 def x86_64_arg_rotate(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
@@ -3545,23 +2929,6 @@ def x86_64_arg_rotate(row: dict[str, Any], c_name: str, data: bytes) -> list[Gen
             },
         )
     ]
-
-
-def decode_x86_64_arg64_rotate(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) == 7 and body[:3] == b"\x48\x89\xf8" and body[3:5] == b"\x48\xd1" and body[6] == 0xC3:
-        if body[5] == 0xC0:
-            return {"direction": "left", "count": 1, "encoding": "rol", "pattern": "mov-rax-rdi-rol-rax-one-ret"}
-        if body[5] == 0xC8:
-            return {"direction": "right", "count": 1, "encoding": "ror", "pattern": "mov-rax-rdi-ror-rax-one-ret"}
-    if len(body) == 8 and body[:3] == b"\x48\x89\xf8" and body[3:6] == b"\x48\xc1\xc0" and body[7] == 0xC3:
-        count = body[6]
-        if not 1 <= count <= 63:
-            return None
-        if count > 32:
-            return {"direction": "right", "count": 64 - count, "encoding": "rol", "encodedCount": count, "pattern": "mov-rax-rdi-rol-rax-imm8-ret"}
-        return {"direction": "left", "count": count, "encoding": "rol", "encodedCount": count, "pattern": "mov-rax-rdi-rol-rax-imm8-ret"}
-    return None
 
 
 def x86_64_arg64_rotate(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
@@ -3738,91 +3105,6 @@ def x86_64_arg64_shift_imm8(row: dict[str, Any], c_name: str, data: bytes) -> li
     ]
 
 
-X86_64_ARG_IMM8_BINARY_OPS: dict[int, tuple[str, str]] = {
-    0xE0: ("and", "&"),
-    0xC8: ("or", "|"),
-    0xF0: ("xor", "^"),
-}
-
-
-X86_64_ARG_ACCUM_IMM32_BINARY_OPS: dict[int, tuple[str, str]] = {
-    0x25: ("and", "&"),
-    0x0D: ("or", "|"),
-    0x35: ("xor", "^"),
-}
-
-
-def decode_x86_64_arg_imm8_binary_op(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) == 4 and body[:2] == b"\x8d\x47" and body[3] == 0xC3:
-        raw_immediate = body[2]
-        signed_immediate = raw_immediate if raw_immediate < 0x80 else raw_immediate - 0x100
-        if signed_immediate == 0:
-            return None
-        suffix = "add" if signed_immediate > 0 else "sub"
-        operator = "+" if signed_immediate > 0 else "-"
-        return {
-            "suffix": suffix,
-            "operator": operator,
-            "immediate": abs(signed_immediate),
-            "rawImmediate": raw_immediate,
-            "signedImmediate": signed_immediate,
-            "immediateBits": 8,
-            "pattern": "lea-eax-rdi-disp8-ret",
-        }
-    if len(body) == 7 and body[:2] == b"\x8d\x87" and body[6] == 0xC3:
-        raw_immediate = int.from_bytes(body[2:6], "little", signed=False)
-        signed_immediate = int.from_bytes(body[2:6], "little", signed=True)
-        if signed_immediate == 0:
-            return None
-        suffix = "add" if signed_immediate > 0 else "sub"
-        operator = "+" if signed_immediate > 0 else "-"
-        return {
-            "suffix": suffix,
-            "operator": operator,
-            "immediate": abs(signed_immediate),
-            "rawImmediate": raw_immediate,
-            "signedImmediate": signed_immediate,
-            "immediateBits": 32,
-            "pattern": "lea-eax-rdi-disp32-ret",
-        }
-    if len(body) == 6 and body[:3] == b"\x89\xf8\x83" and body[5] == 0xC3:
-        decoded = X86_64_ARG_IMM8_BINARY_OPS.get(body[3])
-        if decoded is None:
-            return None
-        raw_immediate = body[4]
-        if raw_immediate > 0x7F:
-            return None
-        suffix, operator = decoded
-        return {
-            "suffix": suffix,
-            "operator": operator,
-            "immediate": raw_immediate,
-            "rawImmediate": raw_immediate,
-            "signedImmediate": raw_immediate,
-            "immediateBits": 8,
-            "pattern": "mov-eax-edi-op-eax-imm8-ret",
-        }
-    if len(body) == 8 and body[:2] == b"\x89\xf8" and body[7] == 0xC3:
-        decoded = X86_64_ARG_ACCUM_IMM32_BINARY_OPS.get(body[2])
-        if decoded is None:
-            return None
-        raw_immediate = int.from_bytes(body[3:7], "little", signed=False)
-        if raw_immediate == 0 and decoded[0] in {"or", "xor"}:
-            return None
-        suffix, operator = decoded
-        return {
-            "suffix": suffix,
-            "operator": operator,
-            "immediate": raw_immediate,
-            "rawImmediate": raw_immediate,
-            "signedImmediate": int.from_bytes(body[3:7], "little", signed=True),
-            "immediateBits": 32,
-            "pattern": "mov-eax-edi-accum-op-eax-imm32-ret",
-        }
-    return None
-
-
 def x86_64_arg_imm8_binary_op(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -3865,82 +3147,6 @@ def x86_64_arg_imm8_binary_op(row: dict[str, Any], c_name: str, data: bytes) -> 
             },
         )
     ]
-
-
-X86_64_ARG_IMM32_BINARY64_OPS: dict[int, tuple[str, str]] = {
-    0x25: ("and", "&"),
-    0x0D: ("or", "|"),
-    0x35: ("xor", "^"),
-}
-
-
-def decode_x86_64_arg_imm32_binary_op64(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) == 5 and body[:3] == b"\x48\x8d\x47" and body[4] == 0xC3:
-        raw_immediate = body[3]
-        signed_immediate = int.from_bytes(body[3:4], "little", signed=True)
-        if signed_immediate == 0:
-            return None
-        suffix = "add" if signed_immediate > 0 else "sub"
-        operator = "+" if signed_immediate > 0 else "-"
-        return {
-            "suffix": suffix,
-            "operator": operator,
-            "immediate": abs(signed_immediate),
-            "rawImmediate": raw_immediate,
-            "signedImmediate": signed_immediate,
-            "immediateBits": 8,
-            "pattern": "lea-rax-rdi-disp8-ret",
-        }
-    if len(body) == 8 and body[:3] == b"\x48\x8d\x87" and body[7] == 0xC3:
-        raw_immediate = int.from_bytes(body[3:7], "little", signed=False)
-        signed_immediate = int.from_bytes(body[3:7], "little", signed=True)
-        if signed_immediate == 0:
-            return None
-        suffix = "add" if signed_immediate > 0 else "sub"
-        operator = "+" if signed_immediate > 0 else "-"
-        return {
-            "suffix": suffix,
-            "operator": operator,
-            "immediate": abs(signed_immediate),
-            "rawImmediate": raw_immediate,
-            "signedImmediate": signed_immediate,
-            "immediateBits": 32,
-            "pattern": "lea-rax-rdi-disp32-ret",
-        }
-    if len(body) == 10 and body[:3] == b"\x48\x89\xf8" and body[3] == 0x48 and body[9] == 0xC3:
-        decoded = X86_64_ARG_IMM32_BINARY64_OPS.get(body[4])
-        if decoded is None or decoded[0] == "and":
-            return None
-        raw_immediate = int.from_bytes(body[5:9], "little", signed=False)
-        if raw_immediate == 0:
-            return None
-        suffix, operator = decoded
-        return {
-            "suffix": suffix,
-            "operator": operator,
-            "immediate": raw_immediate,
-            "rawImmediate": raw_immediate,
-            "signedImmediate": int.from_bytes(body[5:9], "little", signed=True),
-            "immediateBits": 32,
-            "pattern": "mov-rax-rdi-rex-accum-op-rax-imm32-ret",
-        }
-    if len(body) == 9 and body[:3] == b"\x48\x89\xf8" and body[8] == 0xC3:
-        decoded = X86_64_ARG_IMM32_BINARY64_OPS.get(body[3])
-        if decoded is None or decoded[0] != "and":
-            return None
-        raw_immediate = int.from_bytes(body[4:8], "little", signed=False)
-        suffix, operator = decoded
-        return {
-            "suffix": suffix,
-            "operator": operator,
-            "immediate": raw_immediate,
-            "rawImmediate": raw_immediate,
-            "signedImmediate": int.from_bytes(body[4:8], "little", signed=True),
-            "immediateBits": 32,
-            "pattern": "mov-rax-rdi-and-eax-imm32-ret",
-        }
-    return None
 
 
 def x86_64_arg_imm32_binary_op64(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
@@ -4258,48 +3464,6 @@ def x86_64_arg64_sign_extend(row: dict[str, Any], c_name: str, data: bytes) -> l
     ]
 
 
-def decode_x86_64_arg_narrow_imm8_compare(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) == 10 and body[:3] == b"\x31\xc0\x40" and body[3] == 0x80 and body[4] == 0xFF and body[6] == 0x0F and body[8:] == b"\xc0\xc3":
-        width = 8
-        immediate = body[5]
-        setcc_opcode = body[7]
-    elif len(body) == 10 and body[:3] == b"\x31\xc0\x66" and body[3] == 0x83 and body[4] == 0xFF and body[6] == 0x0F and body[8:] == b"\xc0\xc3":
-        width = 16
-        immediate = body[5]
-        setcc_opcode = body[7]
-    else:
-        return None
-    if setcc_opcode in X86_64_UNSIGNED_COMPARE_SETCC:
-        suffix, operator, setcc = X86_64_UNSIGNED_COMPARE_SETCC[setcc_opcode]
-        signed = False
-    elif setcc_opcode in X86_64_SIGNED_COMPARE_SETCC:
-        suffix, operator, setcc = X86_64_SIGNED_COMPARE_SETCC[setcc_opcode]
-        signed = True
-    else:
-        return None
-    cast_type = {
-        (8, False): "unsigned char",
-        (8, True): "signed char",
-        (16, False): "unsigned short",
-        (16, True): "short",
-    }[(width, signed)]
-    value_type = "int" if signed else "unsigned int"
-    expression_immediate = immediate if not signed or immediate < 0x80 else immediate - 0x100
-    return {
-        "suffix": suffix,
-        "operator": operator,
-        "setcc": setcc,
-        "width": width,
-        "signed": signed,
-        "castType": cast_type,
-        "valueType": value_type,
-        "immediate": expression_immediate,
-        "rawImmediate": immediate,
-        "pattern": f"xor-eax-cmp-{'dil' if width == 8 else 'di'}-imm8-setcc-al-ret",
-    }
-
-
 def x86_64_arg_narrow_imm8_compare(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -4350,39 +3514,6 @@ def x86_64_arg_narrow_imm8_compare(row: dict[str, Any], c_name: str, data: bytes
     ]
 
 
-def decode_x86_64_arg_narrow_movzx_imm8_compare(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) == 13 and body[:8] == b"\x40\x0f\xb6\xcf\x31\xc0\x83\xf9" and body[9] == 0x0F and body[11:] == b"\xc0\xc3":
-        width = 8
-        immediate = body[8]
-        setcc_opcode = body[10]
-        movzx = "movzx-ecx-dil"
-    elif len(body) == 12 and body[:7] == b"\x0f\xb7\xcf\x31\xc0\x83\xf9" and body[8] == 0x0F and body[10:] == b"\xc0\xc3":
-        width = 16
-        immediate = body[7]
-        setcc_opcode = body[9]
-        movzx = "movzx-ecx-di"
-    else:
-        return None
-    decoded = X86_64_UNSIGNED_COMPARE_SETCC.get(setcc_opcode)
-    if decoded is None:
-        return None
-    suffix, operator, setcc = decoded
-    if suffix not in {"lt", "ge"}:
-        return None
-    cast_type = "unsigned char" if width == 8 else "unsigned short"
-    return {
-        "suffix": suffix,
-        "operator": operator,
-        "setcc": setcc,
-        "width": width,
-        "castType": cast_type,
-        "valueType": "unsigned int",
-        "rawImmediate": immediate,
-        "pattern": f"{movzx}-xor-eax-cmp-ecx-imm8-setcc-al-ret",
-    }
-
-
 def x86_64_arg_narrow_movzx_imm8_compare(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -4430,63 +3561,6 @@ def x86_64_arg_narrow_movzx_imm8_compare(row: dict[str, Any], c_name: str, data:
             },
         )
     ]
-
-
-def decode_x86_64_arg_imm8_compare(data: bytes, *, signed: bool) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    immediate_bits = 0
-    raw_immediate = 0
-    immediate = 0
-    setcc_offset = 0
-    if len(body) == 9 and body[:4] == b"\x31\xc0\x83\xff" and body[5] == 0x0F and body[7:] == b"\xc0\xc3":
-        immediate_bits = 8
-        raw_immediate = body[4]
-        immediate = raw_immediate if raw_immediate < 0x80 else (raw_immediate - 0x100 if signed else raw_immediate | 0xFFFFFF00)
-        setcc_offset = 6
-        pattern = "xor-eax-cmp-edi-imm8-setcc-al-ret"
-    elif len(body) == 12 and body[:4] == b"\x31\xc0\x81\xff" and body[8] == 0x0F and body[10:] == b"\xc0\xc3":
-        immediate_bits = 32
-        raw_immediate = int.from_bytes(body[4:8], "little", signed=False)
-        immediate = int.from_bytes(body[4:8], "little", signed=signed)
-        setcc_offset = 9
-        pattern = "xor-eax-cmp-edi-imm32-setcc-al-ret"
-    else:
-        return None
-    rules = X86_64_SIGNED_COMPARE_SETCC if signed else X86_64_UNSIGNED_COMPARE_SETCC
-    decoded = rules.get(body[setcc_offset])
-    if decoded is None:
-        return None
-    suffix, operator, setcc = decoded
-    return {
-        "suffix": suffix,
-        "operator": operator,
-        "setcc": setcc,
-        "immediate": immediate,
-        "rawImmediate": raw_immediate,
-        "immediateBits": immediate_bits,
-        "pattern": pattern,
-    }
-
-
-def normalize_x86_64_arg_imm8_compare_operator(
-    operator: str,
-    immediate: int,
-    *,
-    signed: bool,
-) -> tuple[str, int]:
-    if operator not in {"<=", ">"}:
-        return operator, immediate
-
-    overflow_limit = 0x7FFFFFFF if signed else 0xFFFFFFFF
-    if immediate >= overflow_limit:
-        return operator, immediate
-
-    next_immediate = immediate + 1
-    if operator == "<=" and immediate < overflow_limit:
-        return "<", next_immediate
-    if operator == ">" and immediate < overflow_limit:
-        return ">=", next_immediate
-    return operator, immediate
 
 
 def x86_64_arg_unsigned_imm8_compare(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
@@ -4577,39 +3651,6 @@ def x86_64_arg_signed_imm8_compare(row: dict[str, Any], c_name: str, data: bytes
     ]
 
 
-X86_64_UNSIGNED_COMPARE_SETCC: dict[int, tuple[str, str, str]] = {
-    0x92: ("lt", "<", "setb"),
-    0x93: ("ge", ">=", "setae"),
-    0x94: ("eq", "==", "sete"),
-    0x95: ("ne", "!=", "setne"),
-    0x96: ("le", "<=", "setbe"),
-    0x97: ("gt", ">", "seta"),
-}
-
-
-X86_64_SIGNED_COMPARE_SETCC: dict[int, tuple[str, str, str]] = {
-    0x9C: ("lt", "<", "setl"),
-    0x9D: ("ge", ">=", "setge"),
-    0x9E: ("le", "<=", "setle"),
-    0x9F: ("gt", ">", "setg"),
-}
-
-
-def decode_x86_64_two_args_compare(data: bytes, rules: dict[int, tuple[str, str, str]]) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) != 8 or body[:4] != b"\x31\xc0\x39\xf7" or body[4] != 0x0F or body[6:] != b"\xc0\xc3":
-        return None
-    decoded = rules.get(body[5])
-    if decoded is None:
-        return None
-    suffix, operator, setcc = decoded
-    return {
-        "suffix": suffix,
-        "operator": operator,
-        "setcc": setcc,
-    }
-
-
 def x86_64_two_args_unsigned_compare(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -4684,21 +3725,6 @@ def x86_64_two_args_signed_compare(row: dict[str, Any], c_name: str, data: bytes
             },
         )
     ]
-
-
-def decode_x86_64_two_args_compare64(data: bytes, rules: dict[int, tuple[str, str, str]]) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) != 9 or body[:5] != b"\x31\xc0\x48\x39\xf7" or body[5] != 0x0F or body[7:] != b"\xc0\xc3":
-        return None
-    decoded = rules.get(body[6])
-    if decoded is None:
-        return None
-    suffix, operator, setcc = decoded
-    return {
-        "suffix": suffix,
-        "operator": operator,
-        "setcc": setcc,
-    }
 
 
 def x86_64_two_args_unsigned_compare64(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
@@ -4777,28 +3803,6 @@ def x86_64_two_args_signed_compare64(row: dict[str, Any], c_name: str, data: byt
     ]
 
 
-X86_64_SIGNED_ZERO_COMPARE_SETCC: dict[int, tuple[str, str, str]] = {
-    0x9E: ("le", "<=", "setle"),
-    0x9F: ("gt", ">", "setg"),
-}
-
-
-def decode_x86_64_arg_signed_zero_compare(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) != 8 or body[:4] != b"\x31\xc0\x85\xff" or body[4] != 0x0F or body[6:] != b"\xc0\xc3":
-        return None
-    decoded = X86_64_SIGNED_ZERO_COMPARE_SETCC.get(body[5])
-    if decoded is None:
-        return None
-    suffix, operator, setcc = decoded
-    return {
-        "suffix": suffix,
-        "operator": operator,
-        "setcc": setcc,
-        "pattern": "xor-eax-test-edi-edi-setcc-al-ret",
-    }
-
-
 def x86_64_arg_signed_zero_compare(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -4836,39 +3840,6 @@ def x86_64_arg_signed_zero_compare(row: dict[str, Any], c_name: str, data: bytes
             },
         )
     ]
-
-
-def decode_x86_64_arg_nonzero_const_select(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) != 15 or body[:4] != b"\x31\xc0\x85\xff" or body[4] != 0x0F or body[6:9] != b"\xc0\x8d\x04" or body[14] != 0xC3:
-        return None
-    setcc_opcode = body[5]
-    if setcc_opcode not in {0x94, 0x95}:
-        return None
-    sib = body[9]
-    if sib & 0x07 != 0x05 or ((sib >> 3) & 0x07) != 0x00:
-        return None
-    scale = 1 << ((sib >> 6) & 0x03)
-    if scale not in {2, 4, 8}:
-        return None
-    base_value = int.from_bytes(body[10:14], "little", signed=False)
-    scaled_value = base_value + scale
-    if setcc_opcode == 0x95:
-        false_value = base_value
-        true_value = scaled_value
-        setcc = "setne"
-    else:
-        false_value = scaled_value
-        true_value = base_value
-        setcc = "sete"
-    return {
-        "trueValue": true_value,
-        "falseValue": false_value,
-        "baseValue": base_value,
-        "scale": scale,
-        "setcc": setcc,
-        "pattern": f"xor-eax-test-edi-edi-{setcc}-al-lea-eax-rax{scale}-disp32-ret",
-    }
 
 
 def x86_64_arg_nonzero_const_select(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
@@ -4912,33 +3883,6 @@ def x86_64_arg_nonzero_const_select(row: dict[str, Any], c_name: str, data: byte
     ]
 
 
-def decode_x86_64_arg_nonzero_cmov_const_select(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if len(body) == 11 and body[:2] == b"\x85\xff" and body[2] == 0xB8 and body[7:10] == b"\x0f\x44\xc7" and body[10] == 0xC3:
-        immediate = int.from_bytes(body[3:7], "little", signed=False)
-        if immediate == 0:
-            return None
-        return {
-            "trueValue": immediate,
-            "falseValue": 0,
-            "immediate": immediate,
-            "cmov": "cmove",
-            "pattern": "test-edi-edi-mov-eax-imm32-cmove-eax-edi-ret",
-        }
-    if len(body) == 13 and body[:4] == b"\x31\xc9\x85\xff" and body[4] == 0xB8 and body[9:12] == b"\x0f\x45\xc1" and body[12] == 0xC3:
-        immediate = int.from_bytes(body[5:9], "little", signed=False)
-        if immediate == 0:
-            return None
-        return {
-            "trueValue": 0,
-            "falseValue": immediate,
-            "immediate": immediate,
-            "cmov": "cmovne",
-            "pattern": "xor-ecx-ecx-test-edi-edi-mov-eax-imm32-cmovne-eax-ecx-ret",
-        }
-    return None
-
-
 def x86_64_arg_nonzero_cmov_const_select(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
     if not is_x86_64_row(row):
         return []
@@ -4977,85 +3921,6 @@ def x86_64_arg_nonzero_cmov_const_select(row: dict[str, Any], c_name: str, data:
             },
         )
     ]
-
-
-def decode_x86_64_arg_mask(data: bytes) -> dict[str, Any] | None:
-    body = strip_alignment_padding(data)
-    if body == b"\x31\xc0\xf7\xdf\x19\xc0\xc3":
-        return {
-            "suffix": "nonzero",
-            "operator": "!=",
-            "immediate": 0,
-            "expression": "value != 0",
-            "valueType": "unsigned int",
-            "returnType": "unsigned int",
-            "trueLiteral": "0xffffffffu",
-            "falseLiteral": "0u",
-            "pattern": "xor-eax-neg-edi-sbb-eax-eax-ret",
-        }
-    if len(body) == 8 and body[:4] == b"\x31\xc0\x83\xff" and body[6:] == b"\xc0\xc3":
-        immediate = body[4]
-        opcode = body[5]
-        if opcode == 0x19:
-            return {
-                "suffix": "uint-lt-imm8",
-                "operator": "<",
-                "immediate": immediate,
-                "expression": f"value < 0x{immediate:02x}u",
-                "valueType": "unsigned int",
-                "returnType": "unsigned int",
-                "trueLiteral": "0xffffffffu",
-                "falseLiteral": "0u",
-                "pattern": "xor-eax-cmp-edi-imm8-sbb-eax-eax-ret",
-            }
-    if len(body) == 9 and body[:4] == b"\x31\xc0\x83\xff" and body[5:8] == b"\x83\xd0\xff" and body[8] == 0xC3:
-        immediate = body[4]
-        return {
-            "suffix": "uint-ge-imm8",
-            "operator": ">=",
-            "immediate": immediate,
-            "expression": f"value >= 0x{immediate:02x}u",
-            "valueType": "unsigned int",
-            "returnType": "unsigned int",
-            "trueLiteral": "0xffffffffu",
-            "falseLiteral": "0u",
-            "pattern": "xor-eax-cmp-edi-imm8-adc-eax-minus-one-ret",
-        }
-    if len(body) == 11 and body[:4] == b"\x31\xc0\x83\xff" and body[5] == 0x0F and body[7:] == b"\xc0\xf7\xd8\xc3":
-        raw_immediate = body[4]
-        setcc_opcode = body[6]
-        if setcc_opcode in {0x94, 0x95}:
-            suffix, operator, setcc = X86_64_UNSIGNED_COMPARE_SETCC[setcc_opcode]
-            return {
-                "suffix": f"uint-{suffix}-imm8",
-                "operator": operator,
-                "immediate": raw_immediate,
-                "expression": f"value {operator} 0x{raw_immediate:02x}u",
-                "valueType": "unsigned int",
-                "returnType": "unsigned int",
-                "trueLiteral": "0xffffffffu",
-                "falseLiteral": "0u",
-                "setcc": setcc,
-                "pattern": f"xor-eax-cmp-edi-imm8-{setcc}-al-neg-eax-ret",
-            }
-        decoded_signed = X86_64_SIGNED_COMPARE_SETCC.get(setcc_opcode)
-        if decoded_signed is not None:
-            suffix, operator, setcc = decoded_signed
-            signed_immediate = raw_immediate if raw_immediate < 0x80 else raw_immediate - 0x100
-            return {
-                "suffix": f"int-{suffix}-imm8",
-                "operator": operator,
-                "immediate": signed_immediate,
-                "rawImmediate": raw_immediate,
-                "expression": f"value {operator} {signed_immediate}",
-                "valueType": "int",
-                "returnType": "int",
-                "trueLiteral": "-1",
-                "falseLiteral": "0",
-                "setcc": setcc,
-                "pattern": f"xor-eax-cmp-edi-imm8-{setcc}-al-neg-eax-ret",
-            }
-    return None
 
 
 def x86_64_arg_mask(row: dict[str, Any], c_name: str, data: bytes) -> list[GeneratedCandidate]:
@@ -19460,6 +18325,10 @@ def prioritize_candidates(candidates: list[GeneratedCandidate]) -> list[Generate
         for _, candidate in sorted(
         enumerate(candidates),
         key=lambda item: (
+            0
+            if item[1].variant == "packaged-source"
+            and str(item[1].evidence.get("sourceOrigin") or "").startswith("acquired source context from ")
+            else 1,
             quality_rank.get(generated_candidate_source_quality(item[1]), 4),
             1 if item[1].variant == "packaged-source" else 0,
             item[0],
@@ -19559,6 +18428,7 @@ def attempt_candidate(
 
     base_record = {
         "schema": "agentdecompile.source-parity-synthesis-attempt.v1",
+        "candidateCompileInvoked": False,
         "name": row.get("name"),
         "entry": row.get("entry"),
         "section": row.get("section"),
@@ -19574,7 +18444,8 @@ def attempt_candidate(
         "outDir": str(case_dir),
         "generationEvidence": candidate.evidence,
         "sourceOrigin": (
-            "packaged source file from source-generation task; verification compares that artifact to target-slice bytes"
+            candidate.evidence.get("sourceOrigin")
+            or "packaged source file from source-generation task; verification compares that artifact to target-slice bytes"
             if candidate.evidence.get("packagedSource")
             else "generated from instruction bytes by source-parity-synthesize.py; not manually authored"
         ),
@@ -19691,6 +18562,7 @@ def attempt_candidate(
         record = {
             **base_record,
             "attemptDir": str(attempt_dir),
+            "candidateCompileInvoked": compile_result.get("compilerInvoked") is True,
             "compilerProfileName": profile_name,
             "compilerProfileArgs": merged_flags,
             "compilerProfiles": [name for name, _ in resolved_profiles],
@@ -19717,6 +18589,9 @@ def attempt_candidate(
                 "differences": differences,
                 "message": message,
                 "verifyReport": str(verify_json),
+                "objdiffExit": report.get("objdiffExit"),
+                "fallback": report.get("fallback"),
+                "diagnosticFallback": report.get("diagnosticFallback"),
             }
         )
         if status == "matched" and differences == 0:
@@ -19776,6 +18651,7 @@ def attempt_candidate_with_clang_slice_objdiff(
             **base_record,
             "attemptDir": str(attempt_dir),
             "compiler": "clang",
+            "candidateCompileInvoked": candidate_compile.get("compilerInvoked") is True,
             "compilerProfileName": profile_name,
             "compilerProfileArgs": merged_flags,
             "compilerProfiles": [name for name, _ in resolved_profiles],
@@ -19808,7 +18684,7 @@ def attempt_candidate_with_clang_slice_objdiff(
             )
             continue
         report = run_objdiff(target_obj, candidate_obj, attempt_dir, timeout=timeout)
-        status = "code-slice-matched" if report.get("status") == "matched" and int(report.get("differences", -1)) == 0 else str(report.get("status"))
+        status = "code-slice-matched" if is_objdiff_match(report) else str(report.get("status"))
         attempts.append(
             {
                 **record,
@@ -19816,6 +18692,9 @@ def attempt_candidate_with_clang_slice_objdiff(
                 "differences": int(report.get("differences", -1)),
                 "message": report.get("message"),
                 "verifyReport": str(attempt_dir / "verify.json"),
+                "objdiffExit": report.get("objdiffExit"),
+                "fallback": report.get("fallback"),
+                "diagnosticFallback": report.get("diagnosticFallback"),
                 "targetCompile": target_compile,
                 "candidateCompile": candidate_compile,
             }
@@ -19856,6 +18735,16 @@ def attempt_candidate_with_msvc_synthetic_slice(
     resolved_profiles = resolve_profiles(row, compiler_profiles, "msvc", source_shape_search=source_shape_search)
     seen_merged_flags: set[tuple[str, ...]] = set()
     attempt_timeout = min(timeout, 30)
+    # Compiler diagnostics repeat across profile variants and resumed runs.
+    # Cache only the result metadata; successful objects are always rebuilt so
+    # objdiff paths remain local to this attempt.
+    from .compile_cache import diagnostic_key, diagnostic_lookup, diagnostic_store
+    diagnostic_root = case_dir.parent.parent / "compile-cache"
+    try:
+        vc_stat = (vc_root / "bin" / "cl.exe").stat() if vc_root else None
+        toolchain = f"{vc_stat.st_size}:{vc_stat.st_mtime_ns}" if vc_stat else "unknown"
+    except OSError:
+        toolchain = "unavailable"
     for profile_index, (profile_name, profile_args) in enumerate(resolved_profiles):
         merged_flags = normalize_profile_flags(profile_args, list(candidate.extra_flags))
         merged_key = tuple(merged_flags)
@@ -19876,21 +18765,55 @@ def attempt_candidate_with_msvc_synthetic_slice(
             object_path=target_obj,
             timeout=attempt_timeout,
         )
-        candidate_compile = compile_with_msvc(
-            source=candidate_source,
-            object_path=candidate_obj,
-            out_dir=attempt_dir,
-            stem="candidate",
-            args=merged_flags,
-            timeout=attempt_timeout,
-            msvc_root=vc_root,
-            wine=wine,
-            wineprefix=wineprefix,
+        diagnostic_cache_key = diagnostic_key(
+            source_sha=hashlib.sha256(candidate.source.encode("utf-8")).hexdigest(),
+            compiler="msvc",
+            flags=merged_flags,
+            toolchain=toolchain,
+        )
+        diagnostic_hit = diagnostic_lookup(diagnostic_root, diagnostic_cache_key)
+        candidate_compile = (diagnostic_hit or {}).get("result") if diagnostic_hit else None
+        if not isinstance(candidate_compile, dict) or candidate_compile.get("status") == "ok":
+            candidate_compile = compile_with_msvc(
+                source=candidate_source,
+                object_path=candidate_obj,
+                out_dir=attempt_dir,
+                stem="candidate",
+                args=merged_flags,
+                timeout=attempt_timeout,
+                msvc_root=vc_root,
+                wine=wine,
+                wineprefix=wineprefix,
+            )
+            if candidate_compile.get("status") != "ok":
+                diagnostic_store(diagnostic_root, diagnostic_cache_key, candidate_compile)
+        elif diagnostic_hit:
+            (attempt_dir / "compile.cache.json").write_text(json.dumps(diagnostic_hit, sort_keys=True) + "\n", encoding="utf-8")
+        stdout_path = candidate_compile.get("stdout") if isinstance(candidate_compile, dict) else None
+        diagnostic_text = str(candidate_compile.get("stderrTail") or "") if isinstance(candidate_compile, dict) else ""
+        if stdout_path:
+            try:
+                diagnostic_text += Path(stdout_path).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                pass
+        # MSVC writes diagnostics to the object wrapper's stdout path.
+        object_stdout = candidate_compile.get("objectStdout") if isinstance(candidate_compile, dict) else None
+        if object_stdout and object_stdout != stdout_path:
+            try:
+                diagnostic_text += Path(object_stdout).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                pass
+        profile_independent_failure = (
+            isinstance(candidate_compile, dict)
+            and candidate_compile.get("status") != "ok"
+            and candidate_compile.get("returnCode") not in (None, 0)
+            and "error C" in diagnostic_text
         )
         record = {
             **base_record,
             "attemptDir": str(attempt_dir),
             "compiler": "msvc",
+            "candidateCompileInvoked": candidate_compile.get("compilerInvoked") is True,
             "compilerProfileName": profile_name,
             "compilerProfileArgs": merged_flags,
             "compilerProfiles": [name for name, _ in resolved_profiles],
@@ -19922,9 +18845,11 @@ def attempt_candidate_with_msvc_synthetic_slice(
                     "candidateCompile": candidate_compile,
                 }
             )
+            if profile_independent_failure:
+                break
             continue
         report = run_objdiff(target_obj, candidate_obj, attempt_dir, timeout=timeout)
-        status = "code-slice-matched" if report.get("status") == "matched" and int(report.get("differences", -1)) == 0 else str(report.get("status"))
+        status = "code-slice-matched" if is_objdiff_match(report) else str(report.get("status"))
         attempts.append(
             {
                 **record,
@@ -19932,6 +18857,9 @@ def attempt_candidate_with_msvc_synthetic_slice(
                 "differences": int(report.get("differences", -1)),
                 "message": report.get("message"),
                 "verifyReport": str(attempt_dir / "verify.json"),
+                "objdiffExit": report.get("objdiffExit"),
+                "fallback": report.get("fallback"),
+                "diagnosticFallback": report.get("diagnosticFallback"),
                 "targetCompile": target_compile,
                 "candidateCompile": candidate_compile,
             }
@@ -19966,6 +18894,7 @@ def attempt_candidate_with_msvc_synthetic_slice(
             candidate,
             case_dir,
             data=strip_alignment_padding(data),
+            target_obj=target_obj,
             compiler_profiles=resolved_profiles,
             vc_root=vc_root,
             wine=wine,
@@ -20037,6 +18966,7 @@ def attempt_candidate_with_clangcl_slice_objdiff(
             **base_record,
             "attemptDir": str(attempt_dir),
             "compiler": "clang-cl",
+            "candidateCompileInvoked": candidate_compile.get("compilerInvoked") is True,
             "compilerProfileName": profile_name,
             "compilerProfileArgs": profile_args,
             "compilerProfiles": [name for name, _ in resolved_profiles],
@@ -20069,7 +18999,7 @@ def attempt_candidate_with_clangcl_slice_objdiff(
             )
             continue
         report = run_objdiff(target_obj, candidate_obj, attempt_dir, timeout=timeout)
-        status = "code-slice-matched" if report.get("status") == "matched" and int(report.get("differences", -1)) == 0 else str(report.get("status"))
+        status = "code-slice-matched" if is_objdiff_match(report) else str(report.get("status"))
         attempts.append(
             {
                 **record,
@@ -20077,6 +19007,9 @@ def attempt_candidate_with_clangcl_slice_objdiff(
                 "differences": int(report.get("differences", -1)),
                 "message": report.get("message"),
                 "verifyReport": str(attempt_dir / "verify.json"),
+                "objdiffExit": report.get("objdiffExit"),
+                "fallback": report.get("fallback"),
+                "diagnosticFallback": report.get("diagnosticFallback"),
                 "targetCompile": target_compile,
                 "candidateCompile": candidate_compile,
             }
@@ -20089,6 +19022,7 @@ def attempt_candidate_with_clangcl_slice_objdiff(
             candidate,
             case_dir,
             data=strip_alignment_padding(data),
+            target_obj=target_obj,
             clang_cl=clang_cl,
             timeout=timeout,
         )
@@ -20146,6 +19080,9 @@ def compile_with_clang(*, clang: str, source: Path, object_path: Path, args: lis
     stdout_path.write_text(proc.stdout, encoding="utf-8")
     stderr_path.write_text(proc.stderr, encoding="utf-8")
     return {
+        "compilerInvoked": object_path.is_file() or bool(re.search(
+            r"(?m)^.*:\d+:\d+:\s*(?:fatal\s+)?error:", proc.stdout + "\n" + proc.stderr,
+        )),
         "status": "ok" if proc.returncode == 0 and object_path.exists() else "failed",
         "returnCode": proc.returncode,
         "command": command,
@@ -20204,6 +19141,9 @@ def compile_with_clangcl(*, clang_cl: str, source: Path, object_path: Path, args
     stdout_path.write_text(proc.stdout, encoding="utf-8")
     stderr_path.write_text(proc.stderr, encoding="utf-8")
     return {
+        "compilerInvoked": object_path.is_file() or bool(re.search(
+            r"(?m)^.*(?:\(\d+,\d+\)|:\d+:\d+):\s*(?:fatal\s+)?error:", proc.stdout + "\n" + proc.stderr,
+        )),
         "status": "ok" if proc.returncode == 0 and object_path.exists() else "failed",
         "returnCode": proc.returncode,
         "command": command,
@@ -20220,6 +19160,7 @@ def run_source_shape_search(
     case_dir: Path,
     *,
     data: bytes,
+    target_obj: Path,
     clang_cl: str,
     timeout: int,
 ) -> dict[str, Any] | None:
@@ -20245,6 +19186,7 @@ def run_source_shape_search(
         )
         candidate_bytes = object_text_bytes(object_path, timeout=timeout) if compile_result.get("status") == "ok" else b""
         matched = candidate_bytes == data
+        verification = run_objdiff(target_obj, object_path, variant_dir, timeout=timeout) if matched else {}
         attempts.append(
             {
                 "name": variant["name"],
@@ -20256,15 +19198,17 @@ def run_source_shape_search(
                 "candidateBytesHexPrefix": candidate_bytes[:48].hex(),
                 "targetBytesHexPrefix": data[:48].hex(),
                 "byteIdentical": matched,
+                "objdiff": verification,
+                "verifyReport": str(variant_dir / "verify.json") if verification else None,
                 "commonPrefixBytes": common_prefix_len(data, candidate_bytes),
                 "candidateSize": len(candidate_bytes),
                 "targetSize": len(data),
             }
         )
-    best = max(attempts, key=lambda item: (bool(item.get("byteIdentical")), int(item.get("commonPrefixBytes") or 0)), default=None)
+    best = max(attempts, key=lambda item: (is_objdiff_match(item.get("objdiff") or {}), bool(item.get("byteIdentical")), int(item.get("commonPrefixBytes") or 0)), default=None)
     report = {
         "schema": "agentdecompile.source-shape-search.v1",
-        "status": "matched" if best and best.get("byteIdentical") else "no-match",
+        "status": "matched" if best and is_objdiff_match(best.get("objdiff") or {}) else "no-match",
         "rule": candidate.rule,
         "variant": candidate.variant,
         "name": row.get("name"),
@@ -20302,6 +19246,7 @@ def run_msvc_source_shape_search(
     case_dir: Path,
     *,
     data: bytes,
+    target_obj: Path,
     compiler_profiles: list[tuple[str, list[str]]],
     vc_root: Path | None,
     wine: str,
@@ -20324,7 +19269,7 @@ def run_msvc_source_shape_search(
     attempts: list[dict[str, Any]] = []
     for variant_index, variant in enumerate(variants[:8]):
         for profile_index, (profile_name, profile_args) in enumerate(profiles[:4]):
-            variant_key = hashlib.sha1(f"{variant.get('name')}|{profile_name}".encode("utf-8")).hexdigest()[:8]
+            variant_key = hashlib.sha1(f"{variant.get('name')}|{profile_name}".encode()).hexdigest()[:8]
             variant_dir = search_dir / f"v{variant_index:02d}_p{profile_index:02d}_{variant_key}"
             variant_dir.mkdir(parents=True, exist_ok=True)
             source_path = variant_dir / "candidate.c"
@@ -20349,6 +19294,7 @@ def run_msvc_source_shape_search(
             )
             candidate_bytes = object_text_bytes(object_path, timeout=attempt_timeout) if compile_result.get("status") == "ok" else b""
             matched = candidate_bytes == compare_data
+            verification = run_objdiff(target_obj, object_path, variant_dir, timeout=attempt_timeout) if matched else {}
             attempts.append(
                 {
                     "name": variant["name"],
@@ -20363,19 +19309,21 @@ def run_msvc_source_shape_search(
                     "targetBytesHexPrefix": compare_data[:48].hex(),
                     "targetBytesNormalizedForRelocations": compare_data != data,
                     "byteIdentical": matched,
+                    "objdiff": verification,
+                    "verifyReport": str(variant_dir / "verify.json") if verification else None,
                     "commonPrefixBytes": common_prefix_len(compare_data, candidate_bytes),
                     "candidateSize": len(candidate_bytes),
                     "targetSize": len(compare_data),
                 }
             )
-            if matched:
+            if is_objdiff_match(verification):
                 break
-        if attempts and attempts[-1].get("byteIdentical"):
+        if attempts and is_objdiff_match(attempts[-1].get("objdiff") or {}):
             break
-    best = max(attempts, key=lambda item: (bool(item.get("byteIdentical")), int(item.get("commonPrefixBytes") or 0)), default=None)
+    best = max(attempts, key=lambda item: (is_objdiff_match(item.get("objdiff") or {}), bool(item.get("byteIdentical")), int(item.get("commonPrefixBytes") or 0)), default=None)
     report = {
         "schema": "agentdecompile.source-shape-search.v1",
-        "status": "matched" if best and best.get("byteIdentical") else "no-match",
+        "status": "matched" if best and is_objdiff_match(best.get("objdiff") or {}) else "no-match",
         "rule": candidate.rule,
         "variant": candidate.variant,
         "name": row.get("name"),
@@ -20502,30 +19450,105 @@ def byte_field_guard_return_self_variants(row: dict[str, Any], candidate: Genera
 # gate while destroying the readable-C output the pipeline exists to produce.
 # An unconstrained rewrite lane converges on them immediately -- the only
 # completed mechanism-3 result before this clause existed was
-# `__asm { inc dword ptr [DAT_00830540] }`. Word boundaries keep ordinary
-# identifiers that merely contain these letters (plasmaCount) from matching.
+# `__asm { inc dword ptr [DAT_00830540] }`. The source is normalized before
+# checking so comments and strings cannot make a harmless C string look like a
+# compiler escape (or hide a directive by splitting it over physical lines).
 _REWRITE_CONTENT_DISALLOWED_RE = re.compile(
-    r"^\s*#\s*(pragma|include|import|define|undef|ifdef|ifndef|if|elif|else|endif|error|line)\b|_Pragma\s*\("
-    r"|\b__asm\b|\b_asm\b|\basm\s*\(|__declspec\s*\(\s*naked|\b__emit\b|\.incbin\b",
+    r"^[^\S\r\n]*(?:#|%:|\?\?=)"
+    r"|(?<![A-Za-z0-9_])(?:_Pragma|__pragma)\s*\("
+    r"|(?<![A-Za-z0-9_])(?:__asm__|__asm|_asm|asm)(?![A-Za-z0-9_])"
+    r"|(?<![A-Za-z0-9_])(?:__emit|_emit)(?![A-Za-z0-9_])"
+    # Compiler attribute grammars permit arbitrary nesting. Do not attempt to
+    # parse them at this untrusted boundary: reject compiler-specific forms
+    # wholesale rather than letting a nested naked/assembler attribute evade a
+    # shallow regular expression.
+    r"|(?<![A-Za-z0-9_])__declspec(?![A-Za-z0-9_])\s*\("
+    # Clang accepts both GNU spellings: __attribute((...)) and
+    # __attribute__((...)). Keep token boundaries so an ordinary identifier
+    # such as __attribute_helper is not treated as an attribute.
+    r"|(?<![A-Za-z0-9_])__attribute(?:__)?(?![A-Za-z0-9_])\s*\("
+    r"|\[\s*\["
+    r"|\.incbin\b",
     re.MULTILINE,
 )
-_REWRITE_LINE_CONTINUATION_RE = re.compile(r"\\\r?\n")
-_REWRITE_BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
-_REWRITE_LINE_COMMENT_RE = re.compile(r"//[^\n]*")
+# Clang accepts whitespace between a continuation backslash and newline as an
+# extension. Treat that extension as a splice too: a contributor must not hide
+# a forbidden token behind a diagnostic we do not promote.
+_REWRITE_LINE_CONTINUATION_RE = re.compile(r"\\[ \t\f\v]*\r?\n")
 
 
 def _normalize_rewrite_source_for_content_check(source: str) -> str:
-    """Undo the cheap ways a preprocessor directive could be split or hidden
-    before a plain denylist regex ever sees it: backslash-newline
-    continuations and comments. Not a real preprocessor -- just enough to
-    keep the directive check from being trivially defeated by
-    ``#/**/pragma`` or a line-continuation split across ``#\\\\npragma``.
+    """Expose compiler escapes without treating comments or literals as code.
+
+    This deliberately is not a C parser.  It implements only the translation
+    phases relevant to a bounded denylist: trigraph ``??=`` for ``#``, line
+    splicing, and masking comments/string and character literals while
+    preserving newlines.  That catches directive digraphs (``%:include``) and
+    extension spellings without rejecting ordinary strings such as ``"asm"``.
     """
 
-    normalized = _REWRITE_LINE_CONTINUATION_RE.sub("", source)
-    normalized = _REWRITE_BLOCK_COMMENT_RE.sub(" ", normalized)
-    normalized = _REWRITE_LINE_COMMENT_RE.sub("", normalized)
-    return normalized
+    # A UTF-8 BOM is accepted by common compilers before a directive. Normalize
+    # it away, and normalize old-Mac CR line endings so MULTILINE directive
+    # anchors retain their meaning.
+    source = source.removeprefix("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
+    # Trigraph replacement precedes splicing in C/C++ translation.  In
+    # particular, `??=` can become a directive introducer before a preceding
+    # line continuation is removed.
+    source = source.replace("??=", "#")
+    source = _REWRITE_LINE_CONTINUATION_RE.sub("", source)
+    # Digraphs are recognized after line splicing.  Do this second so source
+    # such as `<\\\n:<\\\n:gnu::naked:>:>` cannot assemble into
+    # `[[gnu::naked]]` only after the prior replacement pass has finished.
+    source = source.replace("<:", "[").replace(":>", "]")
+    normalized: list[str] = []
+    index = 0
+    while index < len(source):
+        char = source[index]
+        following = source[index + 1] if index + 1 < len(source) else ""
+        if char == "/" and following == "*":
+            normalized.extend((" ", " "))
+            index += 2
+            while index < len(source):
+                if source[index] == "*" and index + 1 < len(source) and source[index + 1] == "/":
+                    normalized.extend((" ", " "))
+                    index += 2
+                    break
+                normalized.append("\n" if source[index] == "\n" else " ")
+                index += 1
+            continue
+        if char == "/" and following == "/":
+            normalized.extend((" ", " "))
+            index += 2
+            while index < len(source) and source[index] not in "\r\n":
+                normalized.append(" ")
+                index += 1
+            continue
+        if char in {'"', "'"}:
+            quote = char
+            normalized.append(" ")
+            index += 1
+            while index < len(source):
+                literal_char = source[index]
+                if literal_char == "\n":
+                    raise ValueError("unescaped newline in rewrite literal")
+                normalized.append(" ")
+                index += 1
+                if literal_char == "\\" and index < len(source):
+                    # All legal line continuations were removed above. A
+                    # remaining physical newline after an escape is malformed
+                    # too, and must not hide a following preprocessor line.
+                    if source[index] == "\n":
+                        raise ValueError("unescaped newline in rewrite literal")
+                    normalized.append(" ")
+                    index += 1
+                elif literal_char == quote:
+                    break
+            else:
+                raise ValueError("unterminated rewrite literal")
+            continue
+        normalized.append(char)
+        index += 1
+    return "".join(normalized)
 
 
 def pending_rewrite_variant(
@@ -20557,7 +19580,11 @@ def pending_rewrite_variant(
     source = queue_result.get("source")
     if not isinstance(source, str) or not source.strip():
         return None
-    if _REWRITE_CONTENT_DISALLOWED_RE.search(_normalize_rewrite_source_for_content_check(source)):
+    try:
+        normalized = _normalize_rewrite_source_for_content_check(source)
+    except ValueError:
+        return None
+    if _REWRITE_CONTENT_DISALLOWED_RE.search(normalized):
         return None
     return {"name": "rewrite-request", "source": source, "semanticEquivalent": True}
 
@@ -21974,8 +21001,12 @@ def run_objdiff(target_obj: Path, candidate_obj: Path, case_dir: Path, *, timeou
         }
         write_json(report_path, report)
         return report
+    # HTTP workers intentionally run with a small PATH.  Capability discovery
+    # already knows how to locate Cargo-installed tools, so use that resolved
+    # executable here instead of assuming ``objdiff`` is on the worker PATH.
+    objdiff = str(inspect_tool("objdiff").get("path") or "objdiff")
     proc = run(
-        ["objdiff", "diff", "-1", str(target_obj), "-2", str(candidate_obj), "-o", "-", "--format", "json-pretty"],
+        [objdiff, "diff", "-1", str(target_obj), "-2", str(candidate_obj), "-o", "-", "--format", "json-pretty"],
         timeout=timeout,
     )
     stdout_path.write_text(proc.stdout, encoding="utf-8")
@@ -21984,10 +21015,10 @@ def run_objdiff(target_obj: Path, candidate_obj: Path, case_dir: Path, *, timeou
     # Parse stdout only — empty stdout must fail closed (never substitute stderr).
     report = parse_objdiff_report(proc.returncode, proc.stdout)
     if report["status"] == "error":
-        # Diagnostic fallback only: carries fallback=… so is_proven_zero rejects it.
+        # Preserve verifier failure as the outcome; byte fallback is diagnostic.
         fallback = compare_objdump_code_bytes(target_obj, candidate_obj, case_dir, timeout=timeout)
         if fallback is not None:
-            report = fallback
+            report["diagnosticFallback"] = fallback
     write_json(report_path, report)
     return report
 
@@ -22323,13 +21354,16 @@ def matched_source_shape_record(record: dict[str, Any], search_path: str) -> dic
     attempts = report.get("attempts")
     if not isinstance(attempts, list):
         return None
-    matched = next((attempt for attempt in attempts if isinstance(attempt, dict) and attempt.get("byteIdentical") is True), None)
+    matched = next((attempt for attempt in attempts if isinstance(attempt, dict) and is_objdiff_match(attempt.get("objdiff") or {})), None)
     if matched is None:
         return None
     compile_info = matched.get("compile") if isinstance(matched.get("compile"), dict) else {}
     return record_with_source_text({
         "schema": "agentdecompile.source-shape-code-slice-match.v1",
         "status": "source-shape-code-slice-matched",
+        "differences": 0,
+        "objdiffExit": 0,
+        "verifyReport": matched.get("verifyReport"),
         "name": record.get("name"),
         "entry": record.get("entry"),
         "rule": report.get("rule") or record.get("rule"),
@@ -22660,14 +21694,37 @@ def main(argv: list[str] | None = None) -> int:
         if item.strip()
     } or None
     compiler_profiles = [parse_profile_flag_set(value) for value in args.compiler_profile if value.strip()]
+    # Profiles are corpus-wide for a synthesis run; resolve the fallback once
+    # instead of rebuilding the default set inside every candidate worker.
+    default_profiles = default_profile_set(args.compiler) if not compiler_profiles else []
+    default_profile_name = (compiler_profiles or default_profiles or [("default", {})])[0][0]
+    if args.compiler == "msvc":
+        compiler_path = resolve_msvc_root(args.vc_root).expanduser().resolve() / "bin" / "cl.exe"
+    else:
+        compiler_path = Path(shutil.which(args.clang) or args.clang).expanduser().resolve()
+    try:
+        compiler_stat = compiler_path.stat()
+        compiler_file_identity = {
+            "path": str(compiler_path),
+            "size": compiler_stat.st_size,
+            "mtimeNs": compiler_stat.st_mtime_ns,
+        }
+    except OSError:
+        compiler_file_identity = {"path": str(compiler_path), "unavailable": True}
+    toolchain_identity = json.dumps(
+        {
+            "compiler": args.compiler,
+            "compilerFile": compiler_file_identity,
+            "wine": args.wine if args.compiler == "msvc" else None,
+            "wineprefix": str(args.wineprefix.expanduser().resolve()) if args.wineprefix else None,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     strategy_by_name = load_strategy(args.remaining_features)
     retrieval_by_name = load_retrieval(args.retrieval)
     matched = load_matched(args.matched_summary)
-    from .compile_cache import cache_dir as compile_cache_dir
-    from .compile_cache import cache_key as compile_cache_key
-    from .compile_cache import lookup as compile_cache_lookup
-    from .compile_cache import store as compile_cache_store
-    from .compile_cache import target_slice_sha256
+    from .compile_cache import cache_dir as compile_cache_dir, cache_key as compile_cache_key, lookup as compile_cache_lookup, store as compile_cache_store, target_slice_sha256
     from .match_cache import MatchCache, source_sha256
     from .verify_pool import get_worker_index, map_parallel, resolve_workers
 
@@ -22749,6 +21806,7 @@ def main(argv: list[str] | None = None) -> int:
     for source_tasks in args.source_tasks:
         input_rows.extend(iter_source_task_rows(source_tasks))
     if args.source_tasks:
+        input_rows = deduplicate_synthesis_rows(input_rows)
         input_rows.sort(key=synthesis_row_priority)
 
     for row in input_rows:
@@ -22886,16 +21944,13 @@ def main(argv: list[str] | None = None) -> int:
             pending_candidates.append(candidate)
 
         def _run_one(candidate: GeneratedCandidate) -> list[dict[str, Any]]:
-            profile_name = (
-                compiler_profiles[0][0]
-                if compiler_profiles
-                else (default_profile_set(args.compiler)[0][0] if default_profile_set(args.compiler) else "default")
-            )
             cache_key_value = compile_cache_key(
                 target_slice_sha=target_slice_sha256(row),
                 source_sha=source_sha256(candidate.source),
-                compiler_profile=profile_name,
+                compiler_profile=default_profile_name,
                 compiler_lane="cxx" if candidate.source_suffix.lower() in {".cpp", ".cc", ".cxx"} else "c",
+                flags=json.dumps(compiler_profiles, sort_keys=True, separators=(",", ":")),
+                toolchain_identity=toolchain_identity,
             )
             if not args.force_rematch:
                 hit = compile_cache_lookup(compile_cache_root, cache_key_value)
@@ -23155,7 +22210,7 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def synthesis_row_priority(row: dict[str, Any]) -> tuple[int, int, int, str]:
+def synthesis_row_priority(row: dict[str, Any]) -> tuple[int, int, int, int, str]:
     generator = row.get("automaticGenerator")
     rule = str(generator.get("rule") or "") if isinstance(generator, dict) else ""
     target_slice = row.get("targetSlice") if isinstance(row.get("targetSlice"), dict) else {}
@@ -23164,12 +22219,64 @@ def synthesis_row_priority(row: dict[str, Any]) -> tuple[int, int, int, str]:
     is_bootstrap = rule == "target-slice-asm-bootstrap"
     is_suspect = boundary_quality.get("status") == "suspect"
     body_bytes = int(row.get("bodyBytes") or 0)
+    # Previous near misses are the highest-value repair targets: they already
+    # established a valid source shape and only need a focused correction.
+    near_miss = row_has_near_miss(row)
     return (
+        0 if str(row.get("sourceOrigin") or "").startswith("acquired source context from ") else 1,
+        0 if near_miss else 1,
         0 if is_semantic else 1,
         1 if is_suspect and not is_semantic else 0,
         1 if is_bootstrap else 0,
         f"{body_bytes:08d}:{row.get('entry')}:{row.get('name')}",
     )
+
+
+def row_has_near_miss(row: dict[str, Any]) -> bool:
+    """Recognize prior objdiff evidence without requiring one historical schema."""
+    for key in ("nearMiss", "near_miss", "priorNearMiss", "previousNearMiss"):
+        if row.get(key) is True:
+            return True
+    for key in ("priorDifferences", "previousDifferences", "nearestDifference"):
+        try:
+            if 0 <= int(row.get(key)):
+                return True
+        except (TypeError, ValueError):
+            pass
+    text = " ".join(str(row.get(key) or "") for key in ("sourceOrigin", "sourceRecoveryScope", "sourceOriginDetail")).lower()
+    return "near-miss" in text or "near miss" in text
+
+
+def synthesis_row_key(row: dict[str, Any]) -> tuple[str, str, str, str]:
+    logical = str(row.get("logicalId") or row.get("logical_id") or "")
+    address = str(row.get("entry") or row.get("address") or "")
+    target = str(row.get("targetSha256") or row.get("analysisBinarySha256") or "")
+    source = str(row.get("sourceSha256") or "")
+    if not source and row.get("source"):
+        source = hashlib.sha256(str(row["source"]).encode("utf-8")).hexdigest()
+    return logical, address, target, source
+
+
+def deduplicate_synthesis_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse repeated imports while retaining the strongest evidence row."""
+    chosen: dict[tuple[str, str, str, str], dict[str, Any]] = {}
+
+    def rank(row: dict[str, Any]) -> tuple[int, int, int, int, int]:
+        quality = str(row.get("sourceQuality") or "")
+        return (
+            0 if row_has_near_miss(row) else 1,
+            0 if row.get("semanticSource") is True else 1,
+            0 if quality == "high-level-c" else 1,
+            0 if str(row.get("sourceOrigin") or "").startswith("acquired source context from ") else 1,
+            -int(row.get("bodyBytes") or 0),
+        )
+
+    for row in rows:
+        key = synthesis_row_key(row)
+        prior = chosen.get(key)
+        if prior is None or rank(row) < rank(prior):
+            chosen[key] = row
+    return list(chosen.values())
 
 
 if __name__ == "__main__":

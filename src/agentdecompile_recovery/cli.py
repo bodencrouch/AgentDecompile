@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ from .context_export import ExportConfig, export_context
 # run_acquire never validates a project that was not asked for. A function-local
 # import (frontdoor.py's pattern) would bypass the patch.
 from .ghidra_context import project_input_error
+from .inventory import build_binary_inventory
 from .package_sweep import sweep_recovered_source_package
 from .package_verify import resolve_vc_root_option, verify_recovered_source_package
 from .pipeline import RecoveryConfig, RecoveryRunner
@@ -30,7 +32,6 @@ from .source_plugin_runner import (
     parse_profile_values,
     run_source_plugin_pipeline,
 )
-from .inventory import build_binary_inventory
 from .targets import identify_binary
 from .windows import run_recovery_windows
 
@@ -91,8 +92,11 @@ def unity_config_kwargs(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="agentdecompile-recover", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+DEFAULT_PROG = "agentdecompile-recover"
+
+
+def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog=prog or DEFAULT_PROG, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     sub = parser.add_subparsers(dest="command")
 
     inspect = sub.add_parser("inspect", help="Resolve and identify the target binary.")
@@ -157,6 +161,7 @@ def build_parser() -> argparse.ArgumentParser:
     export.add_argument("--max-index-text-chars", type=int, default=2_000, help="Maximum text copied into the consolidated LLM_CONTEXT index per file.")
 
     batch = sub.add_parser("export-context-batch", help="Find EXEs/installers/archives under a tree and export each into LLM-readable context.")
+    batch.long_running = True
     batch.add_argument("input", type=Path, help="File or directory tree to batch-export.")
     batch.add_argument("--out-dir", type=Path, required=True, help="Output directory for aggregate and per-item manifests.")
     batch.add_argument("--format", choices=["json", "md"], default="json", help="Per-file surrogate format.")
@@ -177,6 +182,7 @@ def build_parser() -> argparse.ArgumentParser:
     batch.add_argument("--max-index-text-chars", type=int, default=2_000, help="Maximum text copied into each consolidated LLM_CONTEXT index per file.")
 
     recover = sub.add_parser("recover", help="Run the resumable recovery orchestration pipeline.")
+    recover.long_running = True
     recover.add_argument("input", type=Path, help="Folder or binary path.")
     recover.add_argument("--preferred-name", help="Preferred executable basename when input is a folder.")
     recover.add_argument("--work-dir", type=Path, help="Run/state directory. Defaults to target/agentdecompile-recover/<stable-target-id>.")
@@ -202,6 +208,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     recover.add_argument("--context-pack", type=Path, help="Previously generated context-pack or acquisition-bundle directory.")
     recover.add_argument("--acquisition-bundle", type=Path, help="Explicit acquisition-bundle directory.")
+    recover.add_argument(
+        "--project",
+        type=Path,
+        help="Existing analyzed local Ghidra project (.gpr or .rep) to decompile without re-importing the raw binary.",
+    )
+    recover.add_argument(
+        "--project-program",
+        help="Program name/path within --project (required when the project holds more than one program).",
+    )
     recover.add_argument("--source-task-limit", type=int, default=500, help="Maximum function candidates to queue for automatic source generation.")
     recover.add_argument("--source-task-offset", type=int, default=0, help="Skip this many eligible function candidates before analysis/source generation.")
     recover.add_argument("--source-synthesis-engine", choices=["legacy", "plugin"], default="legacy", help="Source synthesis orchestration engine. plugin uses the upstream-style plugin lifecycle.")
@@ -232,6 +247,7 @@ def build_parser() -> argparse.ArgumentParser:
     recover.add_argument("--context-include-low-signal-members", action="store_true", help="Also export low-signal extracted members such as cursor/icon resources during recover context export.")
 
     windows = sub.add_parser("recover-windows", help="Run recovery across deterministic function-candidate windows.")
+    windows.long_running = True
     windows.add_argument("input", type=Path, help="Folder or binary path.")
     windows.add_argument("--preferred-name", help="Preferred executable basename when input is a folder.")
     windows.add_argument("--work-dir", type=Path, help="Window run/state directory. Defaults to target/agentdecompile-recover/<stable-target-id>-windows.")
@@ -306,14 +322,17 @@ def build_parser() -> argparse.ArgumentParser:
     verify.add_argument("--code-compare", action="store_true", help="Also compare candidate object .text bytes against packaged target slices.")
 
     match = sub.add_parser("match-package", help="Compile candidates and compare code bytes against packaged target slices.")
+    match.long_running = True
     add_package_verify_args(match)
 
     sweep = sub.add_parser("sweep-package", help="Generate source-shape/compiler variants and compare each against packaged target slices.")
+    sweep.long_running = True
     add_package_verify_args(sweep)
     sweep.add_argument("--max-variants-per-function", type=int, default=8, help="Maximum generated source variants per function.")
     sweep.add_argument("--compiler-profile", "--clang-profile", dest="compiler_profile", action="append", default=[], help="Comma-separated compiler args for one profile, for example --compiler-profile=-O2 or --compiler-profile=/O2,/GS-,/Oy. Repeat for multiple profiles.")
 
     profile = sub.add_parser("compiler-profile-corpus", help="Select and sweep a compiler-profile corpus from verified matched examples.")
+    profile.long_running = True
     profile.add_argument("--matched-examples", type=Path, default=Path("target/source-parity-index/default/matched-examples.jsonl"))
     profile.add_argument("--out-dir", type=Path, default=Path("target/source-parity-profile/default"))
     profile.add_argument("--max-cases", type=int, default=6)
@@ -326,6 +345,7 @@ def build_parser() -> argparse.ArgumentParser:
     profile.add_argument("--clean", action="store_true")
 
     synth = sub.add_parser("source-parity-synthesize", help="Generate and objdiff-gate source candidates from a recovery queue.")
+    synth.long_running = True
     synth.add_argument("--queue", type=Path, default=Path("target/recovery-queue/queue.jsonl"))
     synth.add_argument("--source-tasks", type=Path, action="append", default=[], help="source-generation/tasks.jsonl emitted by recover/recover-windows. Repeat for multiple task files.")
     synth.add_argument("--source-tasks-only", action="store_true", help="Only inspect rows converted from --source-tasks; do not prepend the default recovery queue.")
@@ -368,6 +388,7 @@ def build_parser() -> argparse.ArgumentParser:
     synth.add_argument("--progress-every", type=int, default=0)
 
     plugin_synth = sub.add_parser("source-plugin-pipeline", help="Run source generation and objdiff through the upstream-style plugin lifecycle.")
+    plugin_synth.long_running = True
     plugin_synth.add_argument("--queue", type=Path, default=Path("target/recovery-queue/queue.jsonl"))
     plugin_synth.add_argument("--source-tasks", type=Path, action="append", default=[], help="source-generation/tasks.jsonl emitted by recover/recover-windows. Repeat for multiple task files.")
     plugin_synth.add_argument("--source-tasks-only", action="store_true", help="Only inspect rows converted from --source-tasks; do not prepend the default recovery queue.")
@@ -387,11 +408,16 @@ def build_parser() -> argparse.ArgumentParser:
     plugin_synth.add_argument("--skip-boundary-suspect", action="store_true")
     plugin_synth.add_argument("--source-shape-search", action="store_true")
     plugin_synth.add_argument("--clean", action="store_true")
+    plugin_synth.add_argument("--resume", action="store_true", help="Reuse terminal attempts whose target slice, candidate source, compiler/toolchain, and configuration key still match exactly.")
     plugin_synth.add_argument("--vc-root", type=Path)
     plugin_synth.add_argument("--wine", default="wine")
     plugin_synth.add_argument("--wineprefix", type=Path)
     plugin_synth.add_argument("--timeout", type=int, default=120)
     plugin_synth.add_argument("--progress-every", type=int, default=0)
+    plugin_synth.add_argument(
+        "--target-sha",
+        help="Analysis binary SHA-256 stamped onto generated proof records.",
+    )
 
     cleanup = sub.add_parser("source-cleanup", help="Propose proof-preserving cleanup for a recovered source file.")
     cleanup.add_argument("--source", type=Path, required=True, help="Candidate source file to clean.")
@@ -568,7 +594,19 @@ def run_name_census(args: argparse.Namespace) -> int:
     from .ghidra_db.project import list_programs, open_project_program
 
     if args.db is not None:
-        program = open_program(args.db)
+        try:
+            program = open_program(args.db)
+        except FileNotFoundError as exc:
+            if exc.filename is None or Path(exc.filename).resolve() != Path(args.db).resolve():
+                raise
+            print(
+                json.dumps(
+                    {"error": f"no such file: {args.db}", "hint": "pass an existing db.N.gbf, or use --project instead"},
+                    indent=2,
+                ),
+                file=sys.stderr,
+            )
+            return 1
     else:
         if args.project_program:
             program = open_project_program(args.project, args.project_program)
@@ -595,6 +633,16 @@ def run_name_census(args: argparse.Namespace) -> int:
 def run_recover(args: argparse.Namespace) -> int:
     if args.force and args.resume:
         raise SystemExit("--force and --resume are mutually exclusive")
+    project = getattr(args, "project", None)
+    project_program = getattr(args, "project_program", None)
+    if project is not None:
+        from .reconstruct_enrich import resolve_existing_project_source
+
+        try:
+            resolve_existing_project_source(project, project_program)
+        except (OSError, ValueError) as exc:
+            print(f"{getattr(args, '_prog', DEFAULT_PROG)}: --project error: {exc}", file=sys.stderr)
+            return 2
     work_dir = args.work_dir or default_work_dir(args.input)
     config = RecoveryConfig(
         input_path=args.input,
@@ -648,6 +696,9 @@ def run_recover(args: argparse.Namespace) -> int:
         context_extract_containers=not args.no_context_extract_containers,
         context_include_low_signal_members=args.context_include_low_signal_members,
         skip_enrichment=bool(getattr(args, "skip_enrichment", False)),
+        project=project,
+        project_program=project_program,
+        display_prog=getattr(args, "_prog", None) or DEFAULT_PROG,
         **unity_config_kwargs(args),
     )
     return RecoveryRunner(config).run()
@@ -678,6 +729,7 @@ def run_recover_windows(args: argparse.Namespace) -> int:
         context_max_index_text_chars=args.context_max_index_text_chars,
         context_extract_containers=not args.no_context_extract_containers,
         context_include_low_signal_members=args.context_include_low_signal_members,
+        display_prog=getattr(args, "_prog", None) or DEFAULT_PROG,
     )
     summary = run_recovery_windows(
         base_config=config,
@@ -949,6 +1001,8 @@ def run_source_plugin_pipeline_command(args: argparse.Namespace) -> int:
             wineprefix=args.wineprefix.resolve() if args.wineprefix else None,
             timeout=args.timeout,
             progress_every=args.progress_every,
+            target_sha=args.target_sha,
+            resume=args.resume,
         )
     )
     print(json.dumps(report, indent=2, sort_keys=True))
@@ -1001,7 +1055,7 @@ def run_acquire(args: argparse.Namespace) -> int:
     if project is not None:
         problem = project_input_error(project)
         if problem:
-            print(f"agentdecompile-recovery: --project error: {problem}", file=sys.stderr)
+            print(f"{getattr(args, '_prog', DEFAULT_PROG)}: --project error: {problem}", file=sys.stderr)
             return 2
 
     receipt = acquire_context(
@@ -1331,9 +1385,13 @@ def run_survey_project(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
+def main(argv: list[str] | None = None, prog: str | None = None) -> int:
+    parser = build_parser(prog)
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
+    # Not an argparse action/default: the 8080 catalog introspects parser
+    # actions, and adding one here would leak into that surface. This is
+    # purely for diagnostics printed by the run_* handlers below.
+    args._prog = parser.prog
     if args.command == "inspect":
         return run_inspect(args)
     if args.command == "headers":

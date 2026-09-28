@@ -41,6 +41,7 @@ def _toolchains_dir() -> Path:
 
 def register(sub: argparse._SubParsersAction) -> None:
     cs = sub.add_parser("collect-source", help="Collect byte-exact C from Mizuchi run-results")
+    cs.long_running = True
     cs.add_argument("--projects-dir", type=Path, required=True)
     cs.add_argument("--coverage-dir", type=Path, required=True)
     cs.add_argument("--out-dir", type=Path, required=True)
@@ -52,6 +53,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     cr.add_argument("--json", action="store_true", dest="output_json")
 
     rl = sub.add_parser("rebuild-ledger", help="Rebuild a program coverage ledger from run-results")
+    rl.long_running = True
     rl.add_argument("program")
     rl.add_argument("--projects-dir", type=Path, required=True)
     rl.add_argument("--coverage-dir", type=Path, required=True)
@@ -75,6 +77,7 @@ def register(sub: argparse._SubParsersAction) -> None:
     od.add_argument("--script", type=Path)
 
     cu = sub.add_parser("compile-unit", help="Compile one C file with a recovery toolchain script")
+    cu.long_running = True
     cu.add_argument("--family", required=True, choices=sorted(TOOLCHAIN_SCRIPTS))
     cu.add_argument("--source", type=Path, required=True)
     cu.add_argument("--object", type=Path, required=True)

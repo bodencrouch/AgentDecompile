@@ -1,0 +1,506 @@
+[
+  {
+    "path": ".agents/skills/agentdecompile-rewrite-worker/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "12fa09456eadeb3af7402e51171f0120dfbf8480433961779c60cfe114f304b4",
+    "expectedCanonicalSHA256": "12fa09456eadeb3af7402e51171f0120dfbf8480433961779c60cfe114f304b4",
+    "finalSHA256": "7df278babf25a9511798b3cfe13db77ebd51e7a08d5b47ed1675308bb9714539"
+  },
+  {
+    "path": ".agents/skills/agentdecompile-server-env/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "0d4e3f271929d35dac2ec1b773935377d61f1b654897a6234b1ac3cefc0be10c",
+    "expectedCanonicalSHA256": "0d4e3f271929d35dac2ec1b773935377d61f1b654897a6234b1ac3cefc0be10c",
+    "finalSHA256": "248309e930c31ed585822a5323c154b9b898a7fd802f571e2c38225935598067"
+  },
+  {
+    "path": ".agents/skills/bsim-corpus/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "41124923cfe118e13252309e91e3b68fa54575bbbc7429d2c1ebc9699df5f696",
+    "expectedCanonicalSHA256": "41124923cfe118e13252309e91e3b68fa54575bbbc7429d2c1ebc9699df5f696",
+    "finalSHA256": "fcb928a7e674c47c26cf8a53c4dea5e22658c9f678f8c802bbdc8ff0586508b9"
+  },
+  {
+    "path": ".agents/skills/lfg/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "56340ae102103becbae73259dbdc34daabf3d9d8072f220584611a2e8482bb84",
+    "expectedCanonicalSHA256": "56340ae102103becbae73259dbdc34daabf3d9d8072f220584611a2e8482bb84",
+    "finalSHA256": "a5b096b47d17ff5e79eb302606ca55239d2d47d6c6b5929fc313b85abc1f711d"
+  },
+  {
+    "path": ".agents/skills/mcp-debugging/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "6f58d0bf4921514fe3055943b124290d5de78180eb72945afe8d0ad982f3d6f6",
+    "expectedCanonicalSHA256": "6f58d0bf4921514fe3055943b124290d5de78180eb72945afe8d0ad982f3d6f6",
+    "finalSHA256": "192fac94f8edfeb1c2d375295e41dd99c5127c35b465ce2abdf22283e45a8c25"
+  },
+  {
+    "path": ".agents/skills/mcp-debugging/references/CLAUDE_MCP_DEBUG.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "750e429e98d60079e2c4df6e8930ef8c27dff2c8ddedca8c43de793ee96aec68",
+    "expectedCanonicalSHA256": "750e429e98d60079e2c4df6e8930ef8c27dff2c8ddedca8c43de793ee96aec68",
+    "finalSHA256": "fa98130d76eea367824b97ff889e3b8ddc7698b5a16c15b01ffcb9ae87e87bb7"
+  },
+  {
+    "path": ".agents/skills/mcp-debugging/references/CLIS_AND_META_DEBUG.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "d57ed5d3fe973e625361409cf3f81d4f4f803e77a2b70eb16d937cffe97b4080",
+    "expectedCanonicalSHA256": "d57ed5d3fe973e625361409cf3f81d4f4f803e77a2b70eb16d937cffe97b4080",
+    "finalSHA256": "fa98130d76eea367824b97ff889e3b8ddc7698b5a16c15b01ffcb9ae87e87bb7"
+  },
+  {
+    "path": ".agents/skills/mcp-debugging/references/WORKFLOWS.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "62581f89dee7b02e2c71b2456a8fa24e8fbe51710b6678629465592b44d9f542",
+    "expectedCanonicalSHA256": "62581f89dee7b02e2c71b2456a8fa24e8fbe51710b6678629465592b44d9f542",
+    "finalSHA256": "fa98130d76eea367824b97ff889e3b8ddc7698b5a16c15b01ffcb9ae87e87bb7"
+  },
+  {
+    "path": ".agents/skills/re-aggregator/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "4a30a9d5d827eabed53ea2aea1f6a092d49ace4f14528f040e1759054f208c29",
+    "expectedCanonicalSHA256": "4a30a9d5d827eabed53ea2aea1f6a092d49ace4f14528f040e1759054f208c29",
+    "finalSHA256": "fd7eb58aacb837ef530d84d2e3897f450de8b4781c275affd39f7174bfc32f44"
+  },
+  {
+    "path": ".agents/skills/re-critic/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "5e9e62a5270e02e127991ef0bf9f2e16af9ca987242f9ca19fa8394712a36067",
+    "expectedCanonicalSHA256": "5e9e62a5270e02e127991ef0bf9f2e16af9ca987242f9ca19fa8394712a36067",
+    "finalSHA256": "265a4676590d42d20d918c54b6ddc970d642a977619b190388f285bf228942f2"
+  },
+  {
+    "path": ".agents/skills/re-planner/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "e74014ef992f43079df0d91e8a33917cc0e6c6d0e97bef3d7a04ccbfe12ec07c",
+    "expectedCanonicalSHA256": "e74014ef992f43079df0d91e8a33917cc0e6c6d0e97bef3d7a04ccbfe12ec07c",
+    "finalSHA256": "3d4828e18cc7996fd46ebe56dd0546aaf2023bc99939174528d82b2e14c9fb46"
+  },
+  {
+    "path": ".agents/skills/re-worker/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "1197f8375f629c9bab3af1a9fa6d12fb3f1d7a8054a18ebbc581b7ae421d5623",
+    "expectedCanonicalSHA256": "1197f8375f629c9bab3af1a9fa6d12fb3f1d7a8054a18ebbc581b7ae421d5623",
+    "finalSHA256": "2881d51bb64c4d7ee0c7fe60bb76c2191045c35e0ebc1f57251f7b1f599a321f"
+  },
+  {
+    "path": ".agents/skills/skill-authoring/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "82323c5715fffb32214b7b00017127cc19ae4b019800930951ac7e770c0316f7",
+    "expectedCanonicalSHA256": "82323c5715fffb32214b7b00017127cc19ae4b019800930951ac7e770c0316f7",
+    "finalSHA256": "3a4e0ddf97312eefb3efd5b8dcae7843e27938f6fabfb926850dca85d4a49809"
+  },
+  {
+    "path": ".agents/skills/source-command-capabilities/SKILL.md",
+    "baselineCommit": "d074563",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "a5b4d58c50dc3fe9d84c32a191058c952d8aa7e31cc057705bbc4b73a2923c44",
+    "expectedCanonicalSHA256": "a5b4d58c50dc3fe9d84c32a191058c952d8aa7e31cc057705bbc4b73a2923c44",
+    "finalSHA256": "7b65d14af4d6d86c1c4646341097bbcf7dfce4185e80de6c891229b320708f8f"
+  },
+  {
+    "path": ".agents/skills/source-command-help/SKILL.md",
+    "baselineCommit": "d074563",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "c3368e134daddb9830eba569a8cc3242c429f247fdec80500bc5da411d241ea4",
+    "expectedCanonicalSHA256": "c3368e134daddb9830eba569a8cc3242c429f247fdec80500bc5da411d241ea4",
+    "finalSHA256": "786e82ac05f0985587665e0ea957afac94388e1185f07154d36182eb480bcf91"
+  },
+  {
+    "path": ".agents/skills/source-command-lfg/SKILL.md",
+    "baselineCommit": "d074563",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "d53614c635e3c47bd2255c4e92767a8718f0fee1c7ea8be56a2268ce8bbc9da2",
+    "expectedCanonicalSHA256": "d53614c635e3c47bd2255c4e92767a8718f0fee1c7ea8be56a2268ce8bbc9da2",
+    "finalSHA256": "9da2d7a3d63b89111c20b05a60960ecd7949da554f250ca762d41a43cc09bd01"
+  },
+  {
+    "path": ".agents/skills/tiered-re-analysis/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "1d172319a670caa0fb96c789fc80bc20aaf0c8cd1cb050f62ca15c6072daea94",
+    "expectedCanonicalSHA256": "1d172319a670caa0fb96c789fc80bc20aaf0c8cd1cb050f62ca15c6072daea94",
+    "finalSHA256": "3c2e38c45bef758901c7a8df9a8b78126ec3e9724d8a31e282781f85b84502a0"
+  },
+  {
+    "path": ".claude-plugin/plugin.json",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "ddb9bf604c929121c7d3620430aa547537387f4c2bdbfc26a4e84f5286c8d3e3",
+    "expectedCanonicalSHA256": "ddb9bf604c929121c7d3620430aa547537387f4c2bdbfc26a4e84f5286c8d3e3",
+    "finalSHA256": "e0c0ca52eea50e9622a35032551fc7cc22dfdbb9a985f8712be018122e369da2"
+  },
+  {
+    "path": ".claude/skills/mcp-debugging/references/CLAUDE_MCP_DEBUG.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "750e429e98d60079e2c4df6e8930ef8c27dff2c8ddedca8c43de793ee96aec68",
+    "expectedCanonicalSHA256": "750e429e98d60079e2c4df6e8930ef8c27dff2c8ddedca8c43de793ee96aec68",
+    "finalSHA256": "fa98130d76eea367824b97ff889e3b8ddc7698b5a16c15b01ffcb9ae87e87bb7"
+  },
+  {
+    "path": ".claude/skills/mcp-debugging/references/CLIS_AND_META_DEBUG.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "d57ed5d3fe973e625361409cf3f81d4f4f803e77a2b70eb16d937cffe97b4080",
+    "expectedCanonicalSHA256": "d57ed5d3fe973e625361409cf3f81d4f4f803e77a2b70eb16d937cffe97b4080",
+    "finalSHA256": "fa98130d76eea367824b97ff889e3b8ddc7698b5a16c15b01ffcb9ae87e87bb7"
+  },
+  {
+    "path": ".claude/skills/mcp-debugging/references/WORKFLOWS.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "62581f89dee7b02e2c71b2456a8fa24e8fbe51710b6678629465592b44d9f542",
+    "expectedCanonicalSHA256": "62581f89dee7b02e2c71b2456a8fa24e8fbe51710b6678629465592b44d9f542",
+    "finalSHA256": "fa98130d76eea367824b97ff889e3b8ddc7698b5a16c15b01ffcb9ae87e87bb7"
+  },
+  {
+    "path": ".cursor/commands/capabilities.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "95390f2e7619a52499986d1d8327045ee80ba99b28092b0b229d3e7c255454c8",
+    "expectedCanonicalSHA256": "95390f2e7619a52499986d1d8327045ee80ba99b28092b0b229d3e7c255454c8",
+    "finalSHA256": "570b001d48950e09a607dcbe187c5eaf091d8b6a9c4b9d0ab4e79fed71a85c00"
+  },
+  {
+    "path": ".cursor/commands/help.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "c05256783c0b603a132e9a1b51834d9854499e07c0ec9761da7ca9dbe37032fb",
+    "expectedCanonicalSHA256": "c05256783c0b603a132e9a1b51834d9854499e07c0ec9761da7ca9dbe37032fb",
+    "finalSHA256": "7689be39282756957e719038dbf8c9848a84de7663aab478a800d358a8d144c5"
+  },
+  {
+    "path": ".cursor/commands/lfg.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "d352600bec147f6b8f0b9540b5e5dd2dc9b98b26490ae30069efae40f3798046",
+    "expectedCanonicalSHA256": "d352600bec147f6b8f0b9540b5e5dd2dc9b98b26490ae30069efae40f3798046",
+    "finalSHA256": "ea5bf29de0929567955d34c3fa60c13edf005b7d236375b50a52fd995d328a30"
+  },
+  {
+    "path": ".cursor/prompts/ralphy-archive.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "a46c18cbf1ced32282bcd3c3fd2e912357b6c5b42b5b0c3b80421332a6d8c2ae",
+    "expectedCanonicalSHA256": "a46c18cbf1ced32282bcd3c3fd2e912357b6c5b42b5b0c3b80421332a6d8c2ae",
+    "finalSHA256": "930ca09da4e6f6db228406ffa0423dfa841596bf8f4626a9e0401bfd3f7edc3b"
+  },
+  {
+    "path": ".cursor/prompts/ralphy-implement.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "af67c3657a0227fed8b927676ead1faac1ed7e350eefd2fab5993717d227f908",
+    "expectedCanonicalSHA256": "af67c3657a0227fed8b927676ead1faac1ed7e350eefd2fab5993717d227f908",
+    "finalSHA256": "55e7867dd19b3b06f7e50bd416586c5034dae09260eb8f363b8b90d46adf56c7"
+  },
+  {
+    "path": ".cursor/prompts/ralphy-plan.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "30e835c42b87f1ab53830375ceceed068dae7a71330bcf8b6fdcbe16eae745cf",
+    "expectedCanonicalSHA256": "30e835c42b87f1ab53830375ceceed068dae7a71330bcf8b6fdcbe16eae745cf",
+    "finalSHA256": "4aaa21e5577e85281365f30c6d4df22af87cd6bea1cd9712af5ebc5cfeabe740"
+  },
+  {
+    "path": ".cursor/prompts/ralphy-validate.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "b2f1562b618480852e14159245693ea052b7d055c93acc15ce34e9d99f92abe4",
+    "expectedCanonicalSHA256": "b2f1562b618480852e14159245693ea052b7d055c93acc15ce34e9d99f92abe4",
+    "finalSHA256": "584d77afc01ec77d3e9a4e2232aa65c7af2cb7893ec0c1eceb5bce1654df8eba"
+  },
+  {
+    "path": ".cursor/skills/mcp-debugging/references/CLAUDE_MCP_DEBUG.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "750e429e98d60079e2c4df6e8930ef8c27dff2c8ddedca8c43de793ee96aec68",
+    "expectedCanonicalSHA256": "750e429e98d60079e2c4df6e8930ef8c27dff2c8ddedca8c43de793ee96aec68",
+    "finalSHA256": "fa98130d76eea367824b97ff889e3b8ddc7698b5a16c15b01ffcb9ae87e87bb7"
+  },
+  {
+    "path": ".cursor/skills/mcp-debugging/references/CLIS_AND_META_DEBUG.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "d57ed5d3fe973e625361409cf3f81d4f4f803e77a2b70eb16d937cffe97b4080",
+    "expectedCanonicalSHA256": "d57ed5d3fe973e625361409cf3f81d4f4f803e77a2b70eb16d937cffe97b4080",
+    "finalSHA256": "fa98130d76eea367824b97ff889e3b8ddc7698b5a16c15b01ffcb9ae87e87bb7"
+  },
+  {
+    "path": ".cursor/skills/mcp-debugging/references/WORKFLOWS.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "62581f89dee7b02e2c71b2456a8fa24e8fbe51710b6678629465592b44d9f542",
+    "expectedCanonicalSHA256": "62581f89dee7b02e2c71b2456a8fa24e8fbe51710b6678629465592b44d9f542",
+    "finalSHA256": "fa98130d76eea367824b97ff889e3b8ddc7698b5a16c15b01ffcb9ae87e87bb7"
+  },
+  {
+    "path": ".github/agents/README.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "e75c579c038c95cf1baed133ed9a27f27bc150e22b994506b5e1d6a764142953",
+    "expectedCanonicalSHA256": "e75c579c038c95cf1baed133ed9a27f27bc150e22b994506b5e1d6a764142953",
+    "finalSHA256": "6ee670018b357930f2ce2c07165514042656cfe5d4629a364b4321d7a38bb1ce"
+  },
+  {
+    "path": ".kilocode/rules/memory-service.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "273a887deb74151529011e06b48bc84a58e4310dd83c5e82225124c96be875ad",
+    "expectedCanonicalSHA256": "273a887deb74151529011e06b48bc84a58e4310dd83c5e82225124c96be875ad",
+    "finalSHA256": "15d1ecc0432de5290a70c5530267e0c038ca94f54d1632507b97e5d1bd4bf970"
+  },
+  {
+    "path": ".mission/assumptions.md",
+    "baselineCommit": "387a2e5",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "28c5fe6f28562b3a55713c2cc2eb9b92a1b17019149d4287e463ca1d3bfe8b00",
+    "expectedCanonicalSHA256": "28c5fe6f28562b3a55713c2cc2eb9b92a1b17019149d4287e463ca1d3bfe8b00",
+    "finalSHA256": "0b83142fe7a291d9638551a96b7c1b3e87a7b79b21f630e6fbc2d469427d4eda"
+  },
+  {
+    "path": ".mission/mission.md",
+    "baselineCommit": "387a2e5",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "485e119d479d5c6ddd6405931a8fb25bab05590cf732711fbb35f02c9d640bcb",
+    "expectedCanonicalSHA256": "485e119d479d5c6ddd6405931a8fb25bab05590cf732711fbb35f02c9d640bcb",
+    "finalSHA256": "eac1182cc1490049b318d7e062271ad24d8e14f146b0852a2db132bf781920f4"
+  },
+  {
+    "path": ".mission/queue.md",
+    "baselineCommit": "387a2e5",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "e274dc95e1d91bf69fa2c46db3b46a0981eb5861f70cece951377086741e11fb",
+    "expectedCanonicalSHA256": "e274dc95e1d91bf69fa2c46db3b46a0981eb5861f70cece951377086741e11fb",
+    "finalSHA256": "e7ff962977cd4e6e5f00552c600134c1447a4427d16c754244ecf340b3a57b1f"
+  },
+  {
+    "path": ".mission/roles.md",
+    "baselineCommit": "387a2e5",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "67016e0d00cc617a404b0407f2c9db9b9420f271c763abc0849a470db333aa68",
+    "expectedCanonicalSHA256": "67016e0d00cc617a404b0407f2c9db9b9420f271c763abc0849a470db333aa68",
+    "finalSHA256": "83cda2956bfe57cb0ffd6c3c6f80ed9f8c2bd9a7c165ed7074c8e384e0c29732"
+  },
+  {
+    "path": ".mission/state.md",
+    "baselineCommit": "387a2e5",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "0a61e50a37f2653ce97fb1021c5660f00fbce0811745810838ff460b839885d4",
+    "expectedCanonicalSHA256": "0a61e50a37f2653ce97fb1021c5660f00fbce0811745810838ff460b839885d4",
+    "finalSHA256": "b0fa84ae4c78c1363b4791cfc4b31a09fecde16b3329054f56210ca0d9887a11"
+  },
+  {
+    "path": ".roo/rules/memory-service.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "c13ce7c144d07314393cc4a9bc4e43e07f41cd7499cca6b36b3b0ba19ac42717",
+    "expectedCanonicalSHA256": "c13ce7c144d07314393cc4a9bc4e43e07f41cd7499cca6b36b3b0ba19ac42717",
+    "finalSHA256": "15d1ecc0432de5290a70c5530267e0c038ca94f54d1632507b97e5d1bd4bf970"
+  },
+  {
+    "path": "AGENTS.md",
+    "baselineCommit": "2fca6bb",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "d0d7afc09822d85cb94dacde20e1815192c1b280714271abdf1eec26c85b2700",
+    "expectedCanonicalSHA256": "d0d7afc09822d85cb94dacde20e1815192c1b280714271abdf1eec26c85b2700",
+    "finalSHA256": "f86b9b85d2527dc8d23be0f9448259ee52a8910e6186bb95ac6d6aa4a822fca1"
+  },
+  {
+    "path": "METHODOLOGY.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "748431f57309cb241cb28c4b7590807035c83744ab5420fda4e5b373873e708f",
+    "expectedCanonicalSHA256": "748431f57309cb241cb28c4b7590807035c83744ab5420fda4e5b373873e708f",
+    "finalSHA256": "f5208a23b12e90746fdaf6b34f0effac7aeabdd67a3bbdd88fd8776632147c27"
+  },
+  {
+    "path": "STRATEGY.md",
+    "baselineCommit": "2fca6bb",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "fbc1227e68e3fa4b1fd661537a0efd6b683a49b7f9a9f3851d33f86bcdfb050e",
+    "expectedCanonicalSHA256": "fbc1227e68e3fa4b1fd661537a0efd6b683a49b7f9a9f3851d33f86bcdfb050e",
+    "finalSHA256": "3db2a25f13b3a164d2d683fc0691731ab79d93311433c312c901a88e044a2764"
+  },
+  {
+    "path": "docs/CONTEXT_FUSION.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "18bc0ad72e4a575730cb131a636fbc82147521c53fd1e3de44d2cf6db9e60878",
+    "expectedCanonicalSHA256": "18bc0ad72e4a575730cb131a636fbc82147521c53fd1e3de44d2cf6db9e60878",
+    "finalSHA256": "b39583056c234492e62a4bf0f13dd17567631cc9deca06b25c5def1287f0e418"
+  },
+  {
+    "path": "docs/INDEX.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "b344011af4f6f949986760c2c35da275debe2c1e38cbfc4ffd61d4e5df2c7412",
+    "expectedCanonicalSHA256": "b344011af4f6f949986760c2c35da275debe2c1e38cbfc4ffd61d4e5df2c7412",
+    "finalSHA256": "449783d61fad8766634a32e623e5bb20ff6ee0450371285f71a0bfc451519271"
+  },
+  {
+    "path": "docs/MCP_CONFIGURATION_SECURITY.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "7b85003dc8be9aab5dab19285d3ec86a9a7c6c6e6ecbb40184fdbfaccc6a6f08",
+    "expectedCanonicalSHA256": "7b85003dc8be9aab5dab19285d3ec86a9a7c6c6e6ecbb40184fdbfaccc6a6f08",
+    "finalSHA256": "22bcdc4bdc3b9a58c76944f3d3658fcbb7c745c27bc7b4e270e13b9d9920e730"
+  },
+  {
+    "path": "docs/mcp.example.json",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "f9ef8c9d1d022820e98041ad847ea15a82b9cc6be47cb2b7a537b5be04715214",
+    "expectedCanonicalSHA256": "f9ef8c9d1d022820e98041ad847ea15a82b9cc6be47cb2b7a537b5be04715214",
+    "finalSHA256": "bbf91a10ae64ffb9bb647a0944bd802c94195836bb43368c7f4ceba1f9223688"
+  },
+  {
+    "path": "docs/prototypes/README.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "88e88e1750e2ddc8959fa998f890c0a2e14b594a902761fb497e7d3eb110aba8",
+    "expectedCanonicalSHA256": "88e88e1750e2ddc8959fa998f890c0a2e14b594a902761fb497e7d3eb110aba8",
+    "finalSHA256": "a51d07b695a00761960e7bc1e1d5dbf7e9c64a4f45d90451c5f93c043827c990"
+  },
+  {
+    "path": "skills/README.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "89dcf0064d87d262355c55d776cb70587e677684c2dd9cb281c2c3d09454f231",
+    "expectedCanonicalSHA256": "89dcf0064d87d262355c55d776cb70587e677684c2dd9cb281c2c3d09454f231",
+    "finalSHA256": "66e233f22e10268aa45a2550271474370c3a151282f26a6cdfeadbf5f4086281"
+  },
+  {
+    "path": "skills/bsim-corpus/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "41124923cfe118e13252309e91e3b68fa54575bbbc7429d2c1ebc9699df5f696",
+    "expectedCanonicalSHA256": "41124923cfe118e13252309e91e3b68fa54575bbbc7429d2c1ebc9699df5f696",
+    "finalSHA256": "fea11c4c56941e8a01441c3341db4128d7a1ba1ab987202a783a177208d2d75a"
+  },
+  {
+    "path": "skills/lfg/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "56340ae102103becbae73259dbdc34daabf3d9d8072f220584611a2e8482bb84",
+    "expectedCanonicalSHA256": "56340ae102103becbae73259dbdc34daabf3d9d8072f220584611a2e8482bb84",
+    "finalSHA256": "ce5eea752a1ab9ede77a5cadaf8ab1391d39f6320b29ff5c9156fead0bfbeb05"
+  },
+  {
+    "path": "skills/mcp-debugging/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "6f58d0bf4921514fe3055943b124290d5de78180eb72945afe8d0ad982f3d6f6",
+    "expectedCanonicalSHA256": "6f58d0bf4921514fe3055943b124290d5de78180eb72945afe8d0ad982f3d6f6",
+    "finalSHA256": "8942a1861c0a6ef8b01c3326011185db5a61696e633f3a9e7fcd2f2119e60418"
+  },
+  {
+    "path": "skills/mcp-debugging/references/CLAUDE_MCP_DEBUG.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "750e429e98d60079e2c4df6e8930ef8c27dff2c8ddedca8c43de793ee96aec68",
+    "expectedCanonicalSHA256": "750e429e98d60079e2c4df6e8930ef8c27dff2c8ddedca8c43de793ee96aec68",
+    "finalSHA256": "0746476dbae6777558a529e9f8bcd7f84404c7de4b0dde7c6b53df37ec8f8bf9"
+  },
+  {
+    "path": "skills/mcp-debugging/references/CLIS_AND_META_DEBUG.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "d57ed5d3fe973e625361409cf3f81d4f4f803e77a2b70eb16d937cffe97b4080",
+    "expectedCanonicalSHA256": "d57ed5d3fe973e625361409cf3f81d4f4f803e77a2b70eb16d937cffe97b4080",
+    "finalSHA256": "0746476dbae6777558a529e9f8bcd7f84404c7de4b0dde7c6b53df37ec8f8bf9"
+  },
+  {
+    "path": "skills/mcp-debugging/references/WORKFLOWS.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "62581f89dee7b02e2c71b2456a8fa24e8fbe51710b6678629465592b44d9f542",
+    "expectedCanonicalSHA256": "62581f89dee7b02e2c71b2456a8fa24e8fbe51710b6678629465592b44d9f542",
+    "finalSHA256": "0746476dbae6777558a529e9f8bcd7f84404c7de4b0dde7c6b53df37ec8f8bf9"
+  },
+  {
+    "path": "skills/re-aggregator/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "4a30a9d5d827eabed53ea2aea1f6a092d49ace4f14528f040e1759054f208c29",
+    "expectedCanonicalSHA256": "4a30a9d5d827eabed53ea2aea1f6a092d49ace4f14528f040e1759054f208c29",
+    "finalSHA256": "c81248067442d8391acaa335ddb965cd9444dc46a5649db7ff1155be3b5c1c7b"
+  },
+  {
+    "path": "skills/re-critic/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "5e9e62a5270e02e127991ef0bf9f2e16af9ca987242f9ca19fa8394712a36067",
+    "expectedCanonicalSHA256": "5e9e62a5270e02e127991ef0bf9f2e16af9ca987242f9ca19fa8394712a36067",
+    "finalSHA256": "0f42e20100e1dcd8815000ab5048dc21786b3475e026efcbd5a17caf864683d8"
+  },
+  {
+    "path": "skills/re-planner/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "e74014ef992f43079df0d91e8a33917cc0e6c6d0e97bef3d7a04ccbfe12ec07c",
+    "expectedCanonicalSHA256": "e74014ef992f43079df0d91e8a33917cc0e6c6d0e97bef3d7a04ccbfe12ec07c",
+    "finalSHA256": "199747dea6a2ef2ea976a9da28ab9c06120b33b6632f51df9e0266550cd02919"
+  },
+  {
+    "path": "skills/re-worker/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "1197f8375f629c9bab3af1a9fa6d12fb3f1d7a8054a18ebbc581b7ae421d5623",
+    "expectedCanonicalSHA256": "1197f8375f629c9bab3af1a9fa6d12fb3f1d7a8054a18ebbc581b7ae421d5623",
+    "finalSHA256": "13370b49955cbf1e6498d5a5a2db8a2af30ef8b144601b311381e9d22162965c"
+  },
+  {
+    "path": "skills/skill-authoring/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "82323c5715fffb32214b7b00017127cc19ae4b019800930951ac7e770c0316f7",
+    "expectedCanonicalSHA256": "82323c5715fffb32214b7b00017127cc19ae4b019800930951ac7e770c0316f7",
+    "finalSHA256": "5a894f7280fa6d6fbad265ca5dbf47d3e0cf22d87b8bb6c1aabf26dab2527cda"
+  },
+  {
+    "path": "skills/tiered-re-analysis/SKILL.md",
+    "baselineCommit": "9a38358",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "1d172319a670caa0fb96c789fc80bc20aaf0c8cd1cb050f62ca15c6072daea94",
+    "expectedCanonicalSHA256": "1d172319a670caa0fb96c789fc80bc20aaf0c8cd1cb050f62ca15c6072daea94",
+    "finalSHA256": "329df163576bdfd1547cbafb00dec5f73086f7745ea50493f986e11f93fdb8a6"
+  },
+  {
+    "path": "docs/PROTOTYPE_OUTCOMES.md",
+    "baselineCommit": null,
+    "canonicalOriginallyPresent": false,
+    "canonicalSha256": null,
+    "expectedCanonicalSHA256": null,
+    "finalSHA256": "d8a4341348268d38a5370878e8186aa07bbc83431696663cccc07ffe6c0994b7"
+  },
+  {
+    "path": ".claude/skills/lfg/SKILL.md",
+    "baselineCommit": "3e9811f",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "56340ae102103becbae73259dbdc34daabf3d9d8072f220584611a2e8482bb84",
+    "expectedCanonicalSHA256": "56340ae102103becbae73259dbdc34daabf3d9d8072f220584611a2e8482bb84",
+    "finalSHA256": "56f21c04a18ef48283164f224464c92f6292e857d9bf9402f5ddeae5b12cecf6"
+  },
+  {
+    "path": ".cursor/skills/lfg/SKILL.md",
+    "baselineCommit": "3e9811f",
+    "canonicalOriginallyPresent": true,
+    "canonicalSha256": "7044659fa32fe1369a46d4e68af56365380803c9318662d59d83d885822d04c1",
+    "expectedCanonicalSHA256": "7044659fa32fe1369a46d4e68af56365380803c9318662d59d83d885822d04c1",
+    "finalSHA256": "56f21c04a18ef48283164f224464c92f6292e857d9bf9402f5ddeae5b12cecf6"
+  }
+]

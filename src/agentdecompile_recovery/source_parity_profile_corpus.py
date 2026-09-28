@@ -8,8 +8,10 @@ requires each promoted function to pass its own objdiff gate.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import shlex
 import shutil
 import subprocess
 from collections import Counter, defaultdict
@@ -30,6 +32,135 @@ DEFAULT_FLAGS = [
     ("o2_oyminus_gsminus", ["/O2", "/Oy-", "/GS-"]),
     ("o2_oy_gsminus", ["/O2", "/Oy", "/GS-"]),
 ]
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def admit_measured_profile(
+    *,
+    matched_examples: Path | None,
+    out_dir: Path,
+    profile_path: Path,
+    program_fingerprint: str,
+    architecture: str,
+    timeout: int = 120,
+    max_cases: int = 6,
+) -> dict[str, Any]:
+    """Create a target-bound compiler profile only from zero-diff probes.
+
+    The profile corpus is x86/MSVC-specific.  An absent or unsuitable corpus
+    writes an explicit admission receipt and deliberately leaves the target
+    without a compiler profile.
+    """
+    receipt_path = out_dir / "compiler-profile-admission.json"
+    base = {
+        "schema": "agentdecompile.measured-compiler-profile-admission.v1",
+        "programFingerprint": program_fingerprint,
+        "architecture": architecture,
+        "profilePath": str(profile_path),
+        "claimBoundary": "A measured compiler profile guides compilation; it is not a source or byte-identity claim.",
+    }
+    if not program_fingerprint:
+        result = {**base, "state": "awaiting-program-fingerprint", "reason": "The analyzed program has no stable fingerprint for compiler-profile binding."}
+        write_json(receipt_path, result)
+        return result
+    if architecture.upper() not in {"X86", "I386", "X86_32"}:
+        result = {**base, "state": "not-applicable", "reason": "No x86/MSVC profile sweep is defined for this architecture."}
+        write_json(receipt_path, result)
+        return result
+    if matched_examples is None or not matched_examples.is_file():
+        result = {**base, "state": "awaiting-known-source-evidence", "reason": "No verified candidate-source and target-object probe corpus is available for this program."}
+        write_json(receipt_path, result)
+        return result
+
+    profile_out = out_dir / "profile-corpus"
+    exit_code = main([
+        "--matched-examples", str(matched_examples),
+        "--out-dir", str(profile_out),
+        "--max-cases", str(max_cases),
+        "--timeout", str(timeout),
+        "--clean",
+    ])
+    summary_path = profile_out / "summary.json"
+    try:
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        summary = {}
+    selected = int(summary.get("selectedCases") or 0)
+    rows = list(iter_jsonl(Path(str(summary.get("summaryJsonl") or profile_out / "runs/summary.jsonl"))))
+    # `run_objdiff()` records an objdump comparison only as diagnostic fallback
+    # when objdiff itself fails.  A calibration profile must be grounded in the
+    # native objdiff receipt, because later promotion relies on that same gate.
+    exact = [
+        row for row in rows
+        if (
+            row.get("status") == "matched"
+            and row.get("differences") is not None
+            and int(row["differences"]) == 0
+            and int(row.get("objdiffExit", -1)) == 0
+        )
+    ]
+    groups: Counter[tuple[str, str]] = Counter(
+        (str(row.get("profile") or ""), str(row.get("flagSet") or "")) for row in exact
+    )
+    winner, winner_count = groups.most_common(1)[0] if groups else (("", ""), 0)
+    if exit_code or not selected:
+        reason = "The profile corpus did not select any usable known-source probes." if not selected else "Compiler profile probing did not complete."
+        result = {**base, "state": "insufficient-evidence", "reason": reason, "summary": str(summary_path), "selectedCases": selected}
+        write_json(receipt_path, result)
+        return result
+    if winner_count != selected or not all(row.get("profile") == winner[0] and row.get("flagSet") == winner[1] for row in exact):
+        result = {
+            **base, "state": "insufficient-evidence",
+            "reason": "No single compiler and flag set produced zero-diff output for every selected probe.",
+            "summary": str(summary_path), "selectedCases": selected, "zeroDiffByProfile": {f"{key[0]} {key[1]}": value for key, value in groups.items()},
+        }
+        write_json(receipt_path, result)
+        return result
+
+    roots = {str(row.get("name")): str(row.get("root")) for row in summary.get("compilerProfiles") or []}
+    flag_sets = {str(row.get("name")): list(row.get("args") or []) for row in summary.get("flagSets") or []}
+    compiler_root = Path(roots.get(winner[0], ""))
+    flags = flag_sets.get(winner[1])
+    compile_helper = Path(__file__).resolve().parents[2] / "scripts" / "cl-compile.sh"
+    if not compiler_root.is_dir() or not flags or not compile_helper.is_file():
+        result = {**base, "state": "insufficient-evidence", "reason": "The zero-diff probe result lacks a reusable compiler root, flags, or compile helper.", "summary": str(summary_path)}
+        write_json(receipt_path, result)
+        return result
+    wrapper = out_dir / "compiler-profile-compile.sh"
+    wrapper.write_text(
+        "#!/usr/bin/env bash\nset -euo pipefail\n"
+        f"export VC_ROOT={shlex.quote(str(compiler_root))}\n"
+        f"export CL_OPT={shlex.quote(flags[0])}\n"
+        f"exec {shlex.quote(str(compile_helper))} \"$@\" {' '.join(shlex.quote(flag) for flag in flags[1:])}\n",
+        encoding="utf-8",
+    )
+    wrapper.chmod(0o755)
+    profile = {
+        "schema": "agentdecompile.measured-compiler-profile.v1",
+        "programFingerprint": program_fingerprint,
+        "architecture": architecture,
+        "compilerScript": str(wrapper),
+        "compilerRoot": str(compiler_root),
+        "profile": winner[0],
+        "flagSet": winner[1],
+        "compilerArgs": flags,
+        "profileCorpusSummary": str(summary_path),
+        "profileCorpusSummarySha256": _sha256(summary_path),
+        "zeroDiffProbeCount": winner_count,
+        "selectedProbeCount": selected,
+        "claimBoundary": "This configuration won actual zero-diff calibration probes. Each recovered function still requires its own objdiff receipt.",
+    }
+    write_json(profile_path, profile)
+    result = {**base, "state": "admitted", "summary": str(summary_path), "compilerProfile": str(profile_path), "zeroDiffProbes": winner_count}
+    write_json(receipt_path, result)
+    return result
 
 
 def iter_jsonl(path: Path) -> Iterable[dict[str, Any]]:

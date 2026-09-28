@@ -342,6 +342,9 @@ vendor/*
 !vendor/ghidra
 volumes/
 agentdecompile*/
+# Tracked grid source is part of the consolidated CLI.
+!src/agentdecompile_grid/
+!src/agentdecompile_grid/**
 !src/agentdecompile_cli/
 !src/agentdecompile_cli/**
 !src/agentdecompile_recovery/
@@ -380,3 +383,6 @@ codex-session-*.md
 node_modules/
 /package.json
 /package-lock.json
+
+# Claude Code worktrees live beside the checkout; never track them as gitlinks.
+.claude/worktrees/

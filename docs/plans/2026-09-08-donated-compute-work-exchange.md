@@ -195,16 +195,24 @@ idempotency key plus a content `fingerprint`, returning 409 when the same key is
 reused for different work.
 
 ```
-POST /dashboard/api/exchange/enroll    {capabilities, agent} -> {workerId}
-POST /dashboard/api/exchange/claim     {workerId, lanes} -> 204 | {unit, leaseToken, leaseExpiresAt}
-POST /dashboard/api/exchange/heartbeat {leaseToken} -> {leaseExpiresAt}
-POST /dashboard/api/exchange/submit    {leaseToken, artifact, verdict} -> {accepted, verdict}
-GET  /dashboard/api/exchange/roster    -> contributors, throughput, wins
+POST /dashboard/api/exchange/enroll    {capabilities?, agent?} -> {workerId}
+POST /dashboard/api/exchange/claim     {workerId, lanes?} -> 204 | {unit, leaseToken, fence, leaseExpiresAt}
+POST /dashboard/api/exchange/heartbeat {workerId, leaseToken} -> {fence, leaseExpiresAt}
+POST /dashboard/api/exchange/submit    {workerId, leaseToken, fence, idempotencyKey, artifact, verdict} -> {accepted, verdict}
+GET  /dashboard/api/exchange/roster    -> contributors, throughput
 ```
 
 Outbound-only, so contributors behind NAT work. No inbound ports. Enrollment is
 open per the project's stated posture; rate-limit by worker id so a broken
 client cannot drain the queue.
+
+`workerId` and `leaseToken` are mandatory for both lease mutations. `fence` and
+the client-chosen `idempotencyKey` are mandatory for submit: the former rejects
+a late result from an expired or superseded lease, and the latter makes a retry
+safe. Every exchange validation failure and store refusal has the same JSON
+envelope, `{ "error": string, "code": string }`; validation failures use HTTP
+422 and `code: "validation-error"`. This envelope applies only to the exchange
+routes, leaving FastAPI's normal validation responses unchanged elsewhere.
 
 The browser lane is the same protocol from `fetch()` in a Web Worker.
 Cross-origin isolation, if ever needed for wasm threads, costs two response
@@ -226,6 +234,23 @@ State these plainly rather than discovering them in month two.
   Contribution must be opt-in, visibly attributed, and one click to stop.
 
 ## 9. Open questions
+
+### Measured note (2026-09-10): native verifier startup floor
+
+The native `objdiff` CLI is available on the coordinator host. A deliberately
+small, temporary i386 COFF pair (613 bytes, compiled locally from a trivial C
+function and compared against an identical copy) completed one
+`objdiff diff -1 base.obj -2 candidate.obj -o - --format json-pretty` process
+in **0.06 s elapsed** (0.01 s user, 0.01 s system, 8 MiB max RSS). The JSON
+receipt was 16,441 bytes. This is a startup/parse floor only, not a recovery
+candidate benchmark: it uses neither an era-exact compiler nor a real target
+object, and it does not measure browser `objdiff-wasm`.
+
+It nevertheless confirms the design risk that a fresh coordinator verifier
+process can be a meaningful fixed cost per small check. Do not use this single
+sample to claim the lane pays off; obtain a real target/candidate pair before
+deciding between batched coordinator verification, a persistent verifier, or no
+`objdiff` lane.
 
 - **O1 (gating).** Wall-clock per stage on a representative binary. Decides
   whether any of this is worth building.

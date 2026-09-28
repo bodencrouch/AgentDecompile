@@ -23,7 +23,7 @@ from .craft_prompt import strip_trailing_asm_lines
 from .decomp_function_corpus import DecompFunctionCorpus
 from .decomp_indexer import load_existing_index
 from .map_file import parse_map_file, resolve_object_path
-from .prompt_builder import create_decompile_prompt
+from .prompt_builder import create_decompile_prompt, resolve_craft_platform
 
 
 @dataclass
@@ -32,6 +32,7 @@ class AtlasServerState:
     prompts_dir: Path
     platform: str
     map_file_path: Path | None = None
+    target_format: str | None = None
     corpus: DecompFunctionCorpus | None = field(default=None, repr=False)
     symbol_map: dict[str, str] | None = field(default=None, repr=False)
 
@@ -44,7 +45,7 @@ def handle_load_project(state: AtlasServerState) -> tuple[dict[str, Any], int]:
 
     state.corpus = DecompFunctionCorpus.from_dump(dump)
     if not state.platform or state.platform == "unknown":
-        state.platform = dump.platform
+        state.platform = resolve_craft_platform(dump.platform, target_format=state.target_format)
 
     if state.map_file_path is not None:
         try:
@@ -83,6 +84,7 @@ def handle_build_prompt(state: AtlasServerState, function_id: str) -> tuple[dict
             function_id=function_id,
             platform=state.platform,
             project_root=state.project_root,
+            target_format=state.target_format,
         )
     except ValueError as exc:
         return {"error": str(exc)}, 400

@@ -10,15 +10,16 @@ single monolithic recovery loop.
 from __future__ import annotations
 
 import time
+
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Protocol
+from typing import Any, Protocol
 
+from . import rewrite_queue
 from .autonomous_policy import choose_next_action
 from .background_task_coordinator import BackgroundSpawnContext, BackgroundTaskCoordinator
 from .dual_agent_advisory import evaluate_checker_gate
-from . import rewrite_queue
-
 
 PluginStatus = str
 PipelineEventHandler = Callable[[dict[str, Any]], None]
@@ -161,23 +162,23 @@ class PluginPipeline:
         self.plugins: list[Plugin] = []
         self.post_match_plugins: list[Plugin] = []
 
-    def register(self, *plugins: Plugin) -> "PluginPipeline":
+    def register(self, *plugins: Plugin) -> PluginPipeline:
         self.plugins.extend(plugins)
         self._emit_registered(plugins)
         return self
 
-    def register_setup_phase(self, *plugins: Plugin) -> "PluginPipeline":
+    def register_setup_phase(self, *plugins: Plugin) -> PluginPipeline:
         self.setup_phase_plugins.extend(plugins)
         self._emit_registered(plugins)
         return self
 
-    def register_programmatic_phase(self, *stages: list[Plugin]) -> "PluginPipeline":
+    def register_programmatic_phase(self, *stages: list[Plugin]) -> PluginPipeline:
         self.programmatic_phase_stages.extend(stages)
         for stage in stages:
             self._emit_registered(stage)
         return self
 
-    def register_post_match_phase(self, *plugins: Plugin) -> "PluginPipeline":
+    def register_post_match_phase(self, *plugins: Plugin) -> PluginPipeline:
         self.post_match_plugins.extend(plugins)
         self._emit_registered(plugins)
         return self

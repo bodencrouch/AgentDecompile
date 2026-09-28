@@ -17,13 +17,19 @@ with many spectators will contend for the same executor they already saturate.
 
 from __future__ import annotations
 
+import asyncio
 import json
-from typing import Any
+import time
 
-from fastapi import APIRouter, Response
+from typing import Annotated, Any
+
+from fastapi import APIRouter, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field, field_validator
 
+from .consumers import RewriteConsumer
 from .producers import drain_spool
 from .store import ExchangeError, ExchangeStore, default_state_path
 
@@ -34,16 +40,26 @@ from .store import ExchangeError, ExchangeStore, default_state_path
 # verdict and small enough that a flood of submissions cannot grow the
 # snapshot unboundedly.
 MAX_ARTIFACT_BYTES = 64 * 1024
+# Capability labels are persisted in every worker snapshot. Existing labels
+# (for example ``matcher-input-v1``) are short; leave room for versioned
+# protocol names without admitting arbitrarily large strings from this open
+# endpoint. Lanes are the fixed, short scheduler vocabulary.
+MAX_CAPABILITY_LENGTH = 64
+MAX_LANE_LENGTH = 16
+MAINTENANCE_INTERVAL_SECONDS = 1.0
+
+CapabilityName = Annotated[str, Field(max_length=MAX_CAPABILITY_LENGTH)]
+LaneName = Annotated[str, Field(max_length=MAX_LANE_LENGTH)]
 
 
 class EnrollBody(BaseModel):
-    capabilities: list[str] = Field(default_factory=list, max_length=64)
+    capabilities: list[CapabilityName] = Field(default_factory=list, max_length=64)
     agent: str = Field(default="anonymous", max_length=200)
 
 
 class ClaimBody(BaseModel):
     workerId: str = Field(min_length=1, max_length=128)
-    lanes: list[str] | None = Field(default=None, max_length=16)
+    lanes: list[LaneName] | None = Field(default=None, max_length=16)
 
 
 class HeartbeatBody(BaseModel):
@@ -83,17 +99,61 @@ def _refusal(exc: ExchangeError) -> JSONResponse:
     return JSONResponse({"error": str(exc), "code": exc.code}, status_code=exc.status)
 
 
+class ExchangeRoute(APIRoute):
+    """Keep exchange validation errors in its small public error contract."""
+
+    def get_route_handler(self):
+        handler = super().get_route_handler()
+
+        async def exchange_handler(request: Request) -> Response:
+            try:
+                return await handler(request)
+            except RequestValidationError:
+                return JSONResponse(
+                    {"error": "request validation failed", "code": "validation-error"},
+                    status_code=422,
+                )
+
+        return exchange_handler
+
+
 def create_exchange_router(store: ExchangeStore | None = None) -> APIRouter:
     """Build the exchange router. Creating it touches no disk; the store loads lazily."""
 
-    router = APIRouter()
+    router = APIRouter(route_class=ExchangeRoute)
     resolved = store
+    consumer: RewriteConsumer | None = None
 
     def _store() -> ExchangeStore:
         nonlocal resolved
         if resolved is None:
             resolved = ExchangeStore(default_state_path())
         return resolved
+
+    async def maintenance() -> None:
+        current = _store()
+        # Share the bound across claim, roster, and routers using this store.
+        # Concurrent observers use the current snapshot without queuing drains.
+        if current._maintenance_task is not None and not current._maintenance_task.done():
+            return
+        if time.monotonic() < current._next_maintenance_at:
+            return
+
+        async def drain() -> None:
+            nonlocal consumer
+            try:
+                if consumer is None:
+                    consumer = RewriteConsumer(current)
+                await drain_spool(current)
+                await consumer.drain()
+            finally:
+                current._next_maintenance_at = time.monotonic() + MAINTENANCE_INTERVAL_SECONDS
+
+        current._maintenance_task = asyncio.create_task(drain())
+        # A disconnected observer must not release the bound while its disk
+        # thread is still running. Consume errors even if that observer leaves.
+        current._maintenance_task.add_done_callback(lambda task: None if task.cancelled() else task.exception())
+        await asyncio.shield(current._maintenance_task)
 
     @router.post("/dashboard/api/exchange/enroll")
     async def enroll(body: EnrollBody):
@@ -107,9 +167,8 @@ def create_exchange_router(store: ExchangeStore | None = None) -> APIRouter:
         # Pipeline stages are subprocesses and cannot touch the snapshot, so
         # they spool units instead. Ingesting on claim is what makes a
         # producer's work visible without a background sweeper.
-        await drain_spool(_store())
         try:
-            lease = await _store().claim(worker_id=body.workerId, lanes=body.lanes)
+            lease = await _store().claim(worker_id=body.workerId, lanes=body.lanes, prepare=maintenance)
         except ExchangeError as exc:
             return _refusal(exc)
         # No work this worker can run. 204 carries no body by definition.
@@ -140,7 +199,7 @@ def create_exchange_router(store: ExchangeStore | None = None) -> APIRouter:
     async def roster():
         # Drain here too, so the roster reports queued work the pipeline has
         # produced even when no contributor has claimed anything yet.
-        await drain_spool(_store())
+        await maintenance()
         return await _store().roster()
 
     return router

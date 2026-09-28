@@ -15,7 +15,13 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from agentdecompile_recovery.corpus.dashboard.common import KNOWLEDGE_DB, live_db, live_root
+from agentdecompile_recovery.corpus.dashboard.common import (
+    KNOWLEDGE_DB,
+    live_db,
+    query_db,
+    runtime_project_root,
+    runtime_work_dir,
+)
 
 PROGRAM_KEYS = frozenset({"programPath", "program", "binary", "path", "repo"})
 ADDR_KEYS = frozenset({
@@ -86,6 +92,8 @@ class ActionSpec:
     danger: bool = False
     mutating: bool = False
     long_running: bool = False
+    identity_scope: str = ""
+    ghidra_exclusive: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -108,7 +116,7 @@ def list_actions() -> list[ActionSpec]:
             fields=tuple(FieldSpec(name, from_context=name) for name in ("locator", "program", "slug")) + (FieldSpec("resume", kind="bool", default=False),),
         ), ActionSpec(
             id="workbench.merge-evidence", title="Bind compared knowledge", group="workbench",
-            backend="merge-evidence", command="merge-evidence", mutating=True,
+            backend="merge-evidence", command="merge-evidence", mutating=True, identity_scope="database",
             summary="Bind accepted matches without rebuilding existing identities. Fill missing source attribution while retaining human metadata.",
             fields=(FieldSpec("db", required=True, from_context="db"), FieldSpec("run", required=True)),
         ), ActionSpec(
@@ -131,6 +139,17 @@ def list_actions() -> list[ActionSpec]:
             backend="bsim-cli", command="commitsigs", mutating=True, danger=True, long_running=True,
             summary="Import generated BSim signature XML without opening a Ghidra project.",
             fields=(FieldSpec("bsimUrl", required=True), FieldSpec("signatureDirectory", kind="path", required=True)),
+        ), ActionSpec(
+            id="workbench.match-candidate", title="Compile and verify candidate", group="workbench",
+            backend="matching", command="match-candidate", danger=True, long_running=True,
+            summary="Compile one source draft with an operator-owned preset and compare its object with objdiff. Job completion or compile success alone is not byte proof.",
+            fields=(
+                FieldSpec("artifactHash", required=True, from_context="artifactHash"),
+                FieldSpec("targetRevision", required=True),
+                FieldSpec("function", required=True, from_context="name"),
+                FieldSpec("candidateSource", required=True, schema={"maxLength": 2 * 1024 * 1024}),
+                FieldSpec("compilerPreset", required=True),
+            ),
         )]
     return _ACTIONS
 
@@ -144,14 +163,19 @@ def action_by_id(action_id: str) -> ActionSpec | None:
 
 def env_defaults() -> dict[str, str]:
     db = live_db()
-    root = live_root()
+    project_root = runtime_project_root()
+    work_dir = runtime_work_dir()
     kb = KNOWLEDGE_DB
+    if db is not None:
+        sibling_knowledge = db.parent / "ghidra_knowledge.sqlite"
+        if sibling_knowledge.is_file():
+            kb = sibling_knowledge
     if kb is None:
         ghidra_kb = os.environ.get("AGENT_DECOMPILE_GHIDRA_KNOWLEDGE_DB", "").strip()
         if ghidra_kb:
             kb = Path(ghidra_kb).expanduser()
-        elif root is not None:
-            kb = root / "ghidra_knowledge.sqlite"
+        elif project_root is not None:
+            kb = project_root / "ghidra_knowledge.sqlite"
         else:
             kb = Path("ghidra_knowledge.sqlite")
     mcp = (
@@ -162,8 +186,8 @@ def env_defaults() -> dict[str, str]:
     )
     return {
         "db": str(db) if db else "",
-        "work_dir": str(root) if root else "",
-        "report_file": str(root / "recovery-report.json") if root else "",
+        "work_dir": str(work_dir) if work_dir else "",
+        "report_file": str(project_root / "recovery-report.json") if project_root else "",
         "kb": str(kb) if kb else "",
         "mcp_url": mcp,
     }
@@ -186,6 +210,17 @@ def apply_defaults(action: ActionSpec, params: dict[str, Any], context: dict[str
         for key, value in context.items():
             if value not in (None, ""):
                 ctx[key] = value
+    # A slug is a display identifier, not a pipeline program path. Resolve it
+    # from the active corpus before filling action fields, so every dashboard
+    # entry point receives the same target instead of guessing from UI state.
+    if ctx.get("slug") and not (ctx.get("program") or ctx.get("repo")):
+        rows, _ = query_db(
+            "SELECT repo_path FROM binary WHERE slug=? LIMIT 1", (str(ctx["slug"]),),
+            ignore_missing=True,
+        )
+        if rows and rows[0][0]:
+            ctx["program"] = str(rows[0][0])
+            ctx["repo"] = str(rows[0][0])
     alias = {
         "program": ctx.get("program") or ctx.get("slug") or ctx.get("repo") or "",
         "slug": ctx.get("slug") or "",
@@ -381,7 +416,7 @@ def build_command(action: ActionSpec, params: dict[str, Any]) -> list[str]:
         if launcher is None:
             raise ValueError("Ghidra support/bsim not found; configure GHIDRA_INSTALL_DIR")
         return [str(launcher), "commitsigs", str(params["bsimUrl"]), str(params["signatureDirectory"])]
-    if action.backend in {"workflow-control", "activity-snapshot", "merge-evidence", "source-archive"}:
+    if action.backend in {"workflow-control", "activity-snapshot", "merge-evidence", "source-archive", "matching"}:
         return [action.id]
     if action.backend == "preparation":
         return ["workbench.prepare"]
@@ -391,15 +426,10 @@ def build_command(action: ActionSpec, params: dict[str, Any]) -> list[str]:
             for spec in action.fields
             if spec.name in params and params[spec.name] not in (None, "")
         }
-        mcp_url = env_defaults()["mcp_url"]
-        return [
-            *_cli_entry("agentdecompile-cli", "agentdecompile_cli.cli:cli_entry_point"),
-            "--mcp-server-url",
-            mcp_url,
-            "tool",
-            action.command,
-            json.dumps(arguments, separators=(",", ":")),
-        ]
+        # Dashboard jobs use jobs._mcp_executor, which calls the live MCP
+        # handler directly.  Keep the durable receipt truthful without
+        # advertising a CLI wrapper that the runner never executes.
+        return ["mcp", action.command, json.dumps(arguments, separators=(",", ":"))]
 
     if action.backend == "corpus-cli":
         argv = [*_module_launcher("agentdecompile_recovery.corpus.cli"), action.command]
@@ -427,9 +457,24 @@ def build_command(action: ActionSpec, params: dict[str, Any]) -> list[str]:
         if spec.kind == "bool":
             if value in (True, "true", "1", "yes", "on"):
                 argv.append(spec.flag or f"--{spec.name}")
+            elif spec.default is True:
+                # argparse.BooleanOptionalAction options defaulting to true
+                # need their explicit negative spelling.  Omitting the option
+                # would silently leave them enabled, while serializing False
+                # as a value lets argparse consume it as a positional argument.
+                positive_flag = spec.flag or f"--{spec.name}"
+                if positive_flag.startswith("--"):
+                    argv.append(f"--no-{positive_flag[2:]}")
             continue
         if spec.positional:
-            argv.append(str(value))
+            if spec.kind == "array":
+                argv.extend(str(item) for item in value)
+            else:
+                argv.append(str(value))
+            continue
+        if spec.kind == "array":
+            for item in value:
+                argv.extend([spec.flag or f"--{spec.name}", str(item)])
             continue
         argv.extend([spec.flag or f"--{spec.name}", str(value)])
     argv.extend(extra)

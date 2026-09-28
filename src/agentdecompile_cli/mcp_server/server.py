@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import socket
+import sys
 import threading
 import time
 
@@ -334,7 +335,6 @@ def _auth_context_from_scope_headers(
         repository=repository or None,
     )
 
-
 class ServerConfig(BaseModel):
     """Configuration for the MCP server."""
 
@@ -424,8 +424,10 @@ class PythonMcpServer:
             (any case/separator variant accepted) before dispatch.  The MCP SDK's
             jsonschema validation would reject valid aliased params.
             """
+            # No rendering default here: `format` belongs to tools such as get-data,
+            # export and inspect-memory (format->mode), and the manager already
+            # renders markdown unless responseFormat=json.
             call_args: dict[str, Any] = dict(arguments or {})
-            call_args.setdefault("format", "markdown")
             # Don't pass the server's program_info here.  server.set_program_info()
             # already cascades to the manager at startup.  Passing a stale copy on
             # every call would revert updates made by tools (e.g. checkout from a
@@ -534,13 +536,21 @@ class PythonMcpServer:
 
         @self.app.get("/health", tags=["meta"])
         async def health_check() -> dict[str, Any]:
-            """Health check endpoint."""
+            """Health check endpoint with in-process source update observations."""
+            runtime: dict[str, Any] = {
+                "pid": os.getpid(),
+                "revision": os.environ.get("AGENT_DECOMPILE_RUNTIME_REVISION", ""),
+            }
+            reloader = sys.modules.get("inplace_hotreload")
+            runtime["reload"] = reloader.status() if reloader else {"enabled": False}
             return {
                 "status": "healthy" if self._running else "starting",
                 "server": self.config.name,
                 "version": self.config.version,
                 "programs": (1 if self.program_info and self.program_info.program else 0),
                 "sessions": SESSION_CONTEXTS.stats(),
+                "runtime": runtime,
+                "reloadPolicy": "Compatible Python updates retain the running process; rejected edits never trigger a restart.",
             }
 
         @self.app.get("/.well-known/oauth-authorization-server", tags=["meta"], include_in_schema=False)

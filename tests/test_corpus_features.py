@@ -4,8 +4,42 @@ from agentdecompile_recovery.corpus.calibrate import sweep
 from agentdecompile_recovery.corpus.decompile_shape import features, normalize
 from agentdecompile_recovery.corpus.evaluate import ground_truth
 from agentdecompile_recovery.corpus.extract import write_snapshot
-from agentdecompile_recovery.corpus.features import mnemonic_class, mnemonic_profile
+from agentdecompile_recovery.corpus.extract import persist_functions
+from agentdecompile_recovery.corpus.features import (
+    block_mnemonic_hash,
+    mnemonic_class,
+    mnemonic_profile,
+)
+from agentdecompile_recovery.corpus.match_store import Binary
 from agentdecompile_recovery.corpus.store import SCHEMA, connect
+
+
+def test_block_mnemonic_hash_is_classed_and_order_sensitive() -> None:
+    assert block_mnemonic_hash(["mov", "xor", "ret"]) == block_mnemonic_hash(["movl", "eor", "ret"])
+    assert block_mnemonic_hash(["mov", "xor"]) != block_mnemonic_hash(["xor", "mov"])
+    assert block_mnemonic_hash([]) != block_mnemonic_hash(["nop"])
+
+
+def test_persist_and_load_block_hashes(tmp_path) -> None:
+    con = connect(tmp_path / "store.sqlite")
+    con.execute("INSERT INTO binary(id, repo_path, slug) VALUES (1,'/a','a')")
+    persist_functions(
+        con,
+        1,
+        [
+            {
+                "addr": 0x10,
+                "name": "Foo",
+                "is_thunk": False,
+                "n_instr": 8,
+                "n_blocks": 2,
+                "mnem": {"MOV": 4},
+                "block_hashes": ["aaa", "bbb"],
+            }
+        ],
+    )
+    loaded = Binary(con, 1).funcs[0x10]
+    assert loaded["block_hashes"] == ["aaa", "bbb"]
 
 
 def test_mnemonic_class_collapses_architectures() -> None:

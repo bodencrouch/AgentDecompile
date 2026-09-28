@@ -85,7 +85,14 @@ def read(locator: str, program: str, address: str) -> dict[str, Any] | None:
         "evidencePath": str(path),
         "byte_exact": None,
         "evidenceRevision": receipt.get('revision'),
-        "evidenceComplete": bool(views.get('decompile') and views.get('disassemble')),
+        # ``get-function`` returns its current all-in-one result flat, while
+        # older servers returned the same sections under ``views``.  Treat
+        # either complete shape as a cacheable observation; otherwise each UI
+        # poll re-submits a read whose successful receipt it cannot recognize.
+        "evidenceComplete": bool(
+            (views.get('decompile') and views.get('disassemble'))
+            or ('decompilation' in payload and 'disassembly' in payload)
+        ),
     }
 
 
@@ -126,14 +133,27 @@ def ensure_observation(locator: str, program: str, address: str) -> dict[str, An
     """Admit one shared read per bound function revision, across browser polls."""
     from .actions import jobs
     from .preparation import _lock_lease
+    from agentdecompile_recovery.corpus.ghidra_project import ghidra_program_path, inspect_locator
+
+    if locator and program:
+        # Keep the evidence key and request aligned to the project inventory,
+        # rather than retaining a persisted local ``.gpr/program`` transport key.
+        program = ghidra_program_path(inspect_locator(locator), program)
     locator, program = _context(locator, program)
     path = evidence_path(locator, program, address)
     if not locator or not program or path is None:
         return {'status': 'blocked', 'reason': 'Select the exact Ghidra project and program to load function evidence.'}
     revision = _revision(locator, program, address)
     observed = read(locator, program, address)
-    if observed and observed.get('evidenceComplete') and observed.get('evidenceRevision') == revision:
-        return {'status': 'available', 'reason': (observed.get('decompile') or {}).get('reason', ''), 'revision': revision}
+    if observed and observed.get('evidenceComplete'):
+        recorded_revision = observed.get('evidenceRevision')
+        if recorded_revision == revision or not recorded_revision:
+            return {
+                'status': 'available',
+                'reason': (observed.get('decompile') or {}).get('reason', ''),
+                'revision': revision,
+                'recordedRevision': recorded_revision or '',
+            }
     request_path = path.with_suffix('.request.json')
     path.parent.mkdir(parents=True, exist_ok=True)
     with _LOCK, path.with_suffix('.request.lock').open('a+') as lease:
@@ -152,15 +172,36 @@ def ensure_observation(locator: str, program: str, address: str) -> dict[str, An
             if job:
                 state = job.status
                 reason = job.error or ('Ghidra function evidence is queued.' if state == 'queued' else 'Reading source, assembly, and references from Ghidra.' if state in {'running', 'cancelling'} else 'Ghidra returned no complete function witness; inspect the recorded job output.')
-                return {**request, 'status': state, 'reason': reason}
+                return {
+                    **request,
+                    'status': state,
+                    'reason': reason,
+                    'job': {
+                        'id': job.id,
+                        'status': job.status,
+                        'error': job.error,
+                        'finishedAt': job.finished_at,
+                    },
+                }
             return {**request, 'status': 'interrupted' if request.get('jobId') else request.get('status', 'blocked'), 'reason': request.get('reason') or 'The accepted function read is unavailable; its recorded request is retained to avoid duplicate work.'}
         request = {'status': 'submitting', 'revision': revision, 'requestedAt': time.time(), 'locator': locator, 'program': program, 'address': address}
         _write_request(request_path, request)
-        response, status = jobs.start_job('mcp.get-function', {'locator': locator, 'programPath': '/' + program, 'functionIdentifier': address, 'mode': 'all', 'limit': 1000000, 'timeout': 60, '_functionEvidence': True, '_evidenceRevision': revision})
+        response, status = jobs.start_job('mcp.get-function', {'locator': locator, 'programPath': program, 'functionIdentifier': address, 'mode': 'all', 'limit': 1000000, 'timeout': 60, '_functionEvidence': True, '_evidenceRevision': revision})
         if status >= 400:
             request.update(status='blocked', reason=response.get('error', 'Function evidence could not be admitted.'))
         else:
-            request.update(status=response['job']['status'], jobId=response['job']['id'], reason='Reading the selected function through get-function.')
+            job = response['job']
+            request.update(
+                status=job['status'],
+                jobId=job['id'],
+                reason='Reading the selected function through get-function.',
+                job={
+                    'id': job['id'],
+                    'status': job['status'],
+                    'error': job.get('error', ''),
+                    'finishedAt': job.get('finishedAt'),
+                },
+            )
         _write_request(request_path, request)
         return request
 

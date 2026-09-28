@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import json
 import re
+
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterator, Protocol
+from typing import Any, Protocol
 
-from .reference_corpus import ReferenceCorpus, CorpusClass
+from .reference_corpus import CorpusClass, ReferenceCorpus
 from .rtti_recover import RttiClass, demangle_typeinfo_name
-
 
 SCHEMA = "agentdecompile.pyghidra-enrich-facts.v1"
 
@@ -85,14 +86,26 @@ class FakeEnrichProgram:
 
 
 class PyGhidraEnrichProgram:
-    """Thin adapter over one live ``FlatProgramAPI`` and one decompiler."""
+    """Thin adapter over one live ``FlatProgramAPI`` and one decompiler.
 
-    def __init__(self, flat_api: Any, *, decompile_timeout: int = 60) -> None:
+    ``mutate=False`` is used for an operator's existing analyzed project.  In
+    that mode the adapter reads and decompiles the program exactly as opened;
+    it does not create functions or replace names, types, or prototypes.
+    """
+
+    def __init__(
+        self,
+        flat_api: Any,
+        *,
+        decompile_timeout: int = 60,
+        mutate: bool = True,
+    ) -> None:
         from ghidra.app.decompiler import DecompInterface, DecompileOptions
 
         self.api = flat_api
         self.program = flat_api.getCurrentProgram()
         self.decompile_timeout = max(1, int(decompile_timeout))
+        self.mutate = bool(mutate)
         self.decompiler = DecompInterface()
         self.decompiler.setOptions(DecompileOptions())
         if not self.decompiler.openProgram(self.program):
@@ -106,11 +119,15 @@ class PyGhidraEnrichProgram:
         manager = self.program.getFunctionManager()
         if manager.getFunctionAt(address) is not None:
             return
+        if not self.mutate:
+            return
         # FDE ranges are authoritative inventory boundaries. Creating the entry
         # here lets Ghidra discover its body from existing instructions.
         self.api.createFunction(address, None)
 
     def apply_name(self, entry: int, name: str, provenance: str) -> None:
+        if not self.mutate:
+            return
         from ghidra.program.model.symbol import SourceType
 
         function = self.program.getFunctionManager().getFunctionAt(self._address(entry))
@@ -122,11 +139,13 @@ class PyGhidraEnrichProgram:
         function.setName(symbol_name, SourceType.USER_DEFINED)
 
     def apply_struct(self, class_name: str, fields: list[dict[str, str]]) -> None:
+        if not self.mutate:
+            return
         from ghidra.program.model.data import (
             ByteDataType,
             CategoryPath,
-            DataTypeConflictHandler,
             DWordDataType,
+            DataTypeConflictHandler,
             PointerDataType,
             StructureDataType,
             WordDataType,
@@ -205,9 +224,13 @@ class PyGhidraEnrichProgram:
         over thousands of functions.
         """
 
+        if not self.mutate:
+            return False
+
         from ghidra.program.model.data import Undefined4DataType
         from ghidra.program.model.listing import Function, ParameterImpl, ReturnParameterImpl
         from ghidra.program.model.symbol import SourceType
+
         # `updateFunction`'s two overloads take `List` or `Variable[]`; a Python
         # list matches neither, so JPype raises "no matching overloads" and the
         # prototype silently never lands.

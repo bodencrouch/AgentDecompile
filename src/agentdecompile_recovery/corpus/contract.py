@@ -8,6 +8,8 @@ are.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 SCHEMA = "agentdecompile.corpus-pipeline.v1"
 
 # Two different "cross-match" jobs. Mixing them copies trash.
@@ -21,26 +23,47 @@ SCHEMA = "agentdecompile.corpus-pipeline.v1"
 #
 # Operator path: extract → logical_id → calibrate-global → assembly floor →
 # compiling Ghidra C → cross-place → leftover AI → objdiff last.
-PIPELINE_STAGES = (
-    "extract",
-    "identify",
-    "calibrate-global",
-    "assembly-floor",
-    "recover-source",
-    "apply-cross-build",
-    "leftover-recover",
-    "verify-byte-accuracy",
+@dataclass(frozen=True)
+class PipelineStage:
+    token: str
+    action_id: str
+    label: str
+    aliases: tuple[str, ...] = ()
+    needs_project: bool = False
+    mutating: bool = False
+
+
+PIPELINE_STAGE_METADATA = (
+    PipelineStage("extract", "corpus.extract-stabs", "Extract", needs_project=True),
+    PipelineStage("identify", "corpus.match-pair", "Match", aliases=("merge-knowledge",), needs_project=True, mutating=True),
+    PipelineStage("calibrate-global", "corpus.calibrate-global", "Calibrate global", mutating=True),
+    PipelineStage("assembly-floor", "corpus.workspace", "Link floor", aliases=("generate-projects",), mutating=True),
+    PipelineStage("recover-source", "corpus.ghidra-bulk", "Ghidra bulk", aliases=("compile", "preparse"), mutating=True),
+    PipelineStage("apply-cross-build", "corpus.cross-place", "Cross-place"),
+    PipelineStage("leftover-recover", "corpus.genproject", "Leftover", aliases=("llm-cleanup",)),
+    PipelineStage("verify-byte-accuracy", "corpus.objdiff-check", "Objdiff audit", mutating=True),
 )
+
+PIPELINE_STAGES = tuple(stage.token for stage in PIPELINE_STAGE_METADATA)
 
 # One release of old --stop-after tokens. compile means Ghidra C compiled,
 # not the assembly-floor link.
-STAGE_ALIASES = {
-    "compile": "recover-source",
-    "preparse": "recover-source",
-    "generate-projects": "assembly-floor",
-    "merge-knowledge": "identify",
-    "llm-cleanup": "leftover-recover",
-}
+STAGE_ALIASES = {alias: stage.token for stage in PIPELINE_STAGE_METADATA for alias in stage.aliases}
+PIPELINE_STAGE_ACTIONS = {stage.token: stage.action_id for stage in PIPELINE_STAGE_METADATA}
+
+
+def pipeline_stage_presentation() -> tuple[dict[str, object], ...]:
+    """Serialize immutable stage presentation for dashboard adapters."""
+    return tuple(
+        {
+            "token": stage.token,
+            "actionId": stage.action_id,
+            "label": f"{index} {stage.label}",
+            "needsProject": stage.needs_project,
+            "mutating": stage.mutating,
+        }
+        for index, stage in enumerate(PIPELINE_STAGE_METADATA, 1)
+    )
 
 # Operator priority. A complete linked executable is first even though
 # verify-byte-accuracy is last in the stage list.

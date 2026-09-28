@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+import time
 from pathlib import Path
 from typing import Any, Callable
 
 from agentdecompile_cli.mcp_utils.batch_decompile import build_ghidrecomp_namespace
+from agentdecompile_cli.mcp_utils.ghidrecomp_runner import run_ghidrecomp
 
 try:
     from ghidrecomp.decompile import decompile as ghidrecomp_decompile
@@ -25,6 +27,82 @@ _DEFAULT_PROJECT_PATH = "ghidra_projects"
 _SAST_SUBDIR = "sast"
 _KNOWN_SARIF_NAMES = ("semgrep.sarif", "codeql.sarif")
 _SUMMARY_FILENAME = "sast_summary.json"
+_SEMGREP_EXIT_FILENAME = "semgrep.exit"
+_SEMGREP_STDERR_LOG = "logs/semgrep.stderr.log"
+# semgrep runs with --error, so 1 means "findings reported", not failure.
+_SEMGREP_OK_EXIT_CODES = frozenset({0, 1})
+
+MISSING_SEMGREP_RULES_MESSAGE = (
+    "semgrepRules is required. AgentDecompile ships no local Semgrep rules, and "
+    "ghidrecomp's fallback is the registry pack p/c, which needs network access to semgrep.dev "
+    "(a live run hung for 600 s and timed out). Pass a local rule file or directory, "
+    "for example semgrepRules=['/path/to/c-rules.yml']. A registry pack name such as 'p/c' "
+    "still works if you pass it explicitly and the host can reach semgrep.dev."
+)
+
+
+class SemgrepScanFailed(RuntimeError):
+    """ghidrecomp ran Semgrep but the scan timed out, crashed, or never ran."""
+
+    def __init__(self, message: str, context: dict[str, Any]) -> None:
+        super().__init__(message)
+        self.context = context
+
+
+def _tail(text: str, limit: int = 2000) -> str:
+    text = (text or "").strip()
+    return text if len(text) <= limit else "…" + text[-limit:]
+
+
+def check_semgrep_outcome(sast_directory: Path, started_at: float) -> dict[str, Any]:
+    """Read what ghidrecomp recorded about this run's Semgrep scan.
+
+    ghidrecomp swallows Semgrep failures: on timeout it writes ``semgrep.exit``
+    = -1 and an empty SARIF, then returns normally. Files older than
+    ``started_at`` belong to an earlier run and are ignored.
+    """
+
+    def fresh(path: Path) -> bool:
+        try:
+            return path.is_file() and path.stat().st_mtime >= started_at
+        except OSError:
+            return False
+
+    exit_file = sast_directory / _SEMGREP_EXIT_FILENAME
+    stderr_log = sast_directory / _SEMGREP_STDERR_LOG
+    sarif = sast_directory / "semgrep.sarif"
+    stderr_text = ""
+    if fresh(stderr_log):
+        try:
+            stderr_text = stderr_log.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            stderr_text = ""
+    if fresh(exit_file):
+        raw = exit_file.read_text(encoding="utf-8", errors="replace").strip()
+        try:
+            code: int | None = int(raw)
+        except ValueError:
+            code = None
+        ok = code in _SEMGREP_OK_EXIT_CODES
+        return {"ok": ok, "ran": True, "exitCode": code, "stderrTail": _tail(stderr_text)}
+    if fresh(sarif):
+        return {"ok": True, "ran": True, "exitCode": None, "stderrTail": _tail(stderr_text)}
+    return {
+        "ok": False,
+        "ran": False,
+        "exitCode": None,
+        "stderrTail": _tail(stderr_text),
+        "reason": "ghidrecomp wrote no semgrep.exit or semgrep.sarif for this run; Semgrep did not run",
+    }
+
+
+def semgrep_failure_message(outcome: dict[str, Any]) -> str:
+    if not outcome.get("ran"):
+        return f"Semgrep scan failed: {outcome.get('reason')}."
+    detail = outcome.get("stderrTail") or "no stderr"
+    if "timed out" in detail:
+        return f"Semgrep scan timed out: {detail}"
+    return f"Semgrep scan failed with exit code {outcome.get('exitCode')}: {detail}"
 
 
 def _normalize_semgrep_rules(rules: list[str] | None) -> list[str] | None:
@@ -152,6 +230,10 @@ def build_batch_sast_payload(
             ),
         }
 
+    if not normalized_semgrep_rules:
+        # Fail before the (long) decompile, not after a 600 s network timeout.
+        raise ValueError(MISSING_SEMGREP_RULES_MESSAGE)
+
     args = build_ghidrecomp_namespace(
         path,
         output_path=output_root,
@@ -169,7 +251,8 @@ def build_batch_sast_payload(
             raise RuntimeError("ghidrecomp is not installed")
         runner = ghidrecomp_decompile
 
-    runner(args)
+    started_at = time.time() - 1.0  # tolerate coarse filesystem mtimes
+    run_ghidrecomp(args, runner)
 
     if gen_proj_bin_name_from_path is None or get_bin_output_path is None:
         raise RuntimeError("ghidrecomp is not installed")
@@ -179,6 +262,18 @@ def build_batch_sast_payload(
     sast_directory = _resolve_sast_directory(output_root, path)
     sarif_files = _collect_sarif_files(sast_directory)
     summary = _load_summary(sast_directory)
+    outcome = check_semgrep_outcome(sast_directory, started_at)
+    if not outcome["ok"]:
+        raise SemgrepScanFailed(
+            semgrep_failure_message(outcome),
+            {
+                "action": "run-batch-sast-scan",
+                "state": "semgrep-failed",
+                "sastPath": str(sast_directory.resolve()),
+                "semgrepRules": normalized_semgrep_rules,
+                **outcome,
+            },
+        )
 
     payload: dict[str, Any] = {
         "action": "run-batch-sast-scan",
@@ -189,7 +284,7 @@ def build_batch_sast_payload(
         "sastPath": str(sast_directory.resolve()),
         "semgrepRules": normalized_semgrep_rules or [],
         "codeqlRules": normalized_codeql_rules,
-        "sast": {"available": True},
+        "sast": {"available": True, "exitCode": outcome.get("exitCode")},
         "sarifFiles": sarif_files,
         "counts": {"sarifFiles": len(sarif_files)},
         "suggestedTierEscalation": _suggest_tier_escalation(

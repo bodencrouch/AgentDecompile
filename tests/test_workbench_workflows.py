@@ -110,7 +110,7 @@ WORKFLOW_CASES = [
     "edit_binary_role",
     "list_binaries_after_register",
     "session_revision_increments",
-    "empty_put_resets_draft",
+    "empty_put_keeps_loaded_tab",
     "new_tab_adds_session",
     "classify_local_gpr",
     "inspect_created_project",
@@ -126,7 +126,7 @@ WORKFLOW_CASES = [
     "upload_assigns_slug",
     "project_save_as_endpoint_exists",
     "resolve_drop_missing_staging",
-    "register_duplicate_path_updates_slug",
+    "register_duplicate_path_reuses_identity",
     "session_active_preserved_on_put",
     "browse_skips_dotfiles",
     "classify_pe_as_binary",
@@ -138,8 +138,11 @@ def test_workbench_workflow_matrix(
     case: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client = _client(monkeypatch, tmp_path)
-    pe = _write_pe(tmp_path, "witcher-6.exe")
-    pe2 = _write_pe(tmp_path, "addon.dll")
+    # Browsing is confined to corpus and project roots; the work dir is one.
+    work = tmp_path / "work"
+    work.mkdir(exist_ok=True)
+    pe = _write_pe(work, "witcher-6.exe")
+    pe2 = _write_pe(work, "addon.dll")
 
     if case == "register_pe_by_path":
         slug = _register_pe(client, pe)
@@ -155,7 +158,7 @@ def test_workbench_workflow_matrix(
         return
 
     if case == "browse_folder_lists_pe":
-        listed = client.get("/dashboard/api/workbench/browse", params={"path": str(tmp_path)})
+        listed = client.get("/dashboard/api/workbench/browse", params={"path": str(work)})
         names = {row["name"] for row in listed.json()["entries"]}
         assert "witcher-6.exe" in names
         return
@@ -222,10 +225,12 @@ def test_workbench_workflow_matrix(
 
     if case == "remove_project_clears_tab":
         project = _create_project(client, "gone")
-        client.post(
+        # Project locators are never binary rows, so nothing is registered here.
+        rejected = client.post(
             "/dashboard/api/workbench/binaries",
             json={"path": project["locator"], "slug": project["slug"]},
         )
+        assert rejected.status_code == 400
         tab_id = _sessions(client)["active"]
         _put_sessions(
             client,
@@ -248,7 +253,9 @@ def test_workbench_workflow_matrix(
             f"/dashboard/api/workbench/binaries/{project['slug']}",
             json={"confirm": True},
         )
-        assert removed.status_code == 200
+        # There is no binary row to delete; the project tab is untouched.
+        assert removed.status_code in {400, 404}
+        assert _sessions(client)["sessions"][0]["kind"] == "ghidra-project"
         return
 
     if case == "stage_drop_gpr":
@@ -280,7 +287,10 @@ def test_workbench_workflow_matrix(
             "/dashboard/api/workbench/binaries",
             json={"path": str(gpr), "slug": "Prog"},
         )
-        assert "Game.exe" in res.json()["binary"]["programs"]
+        assert res.status_code == 400
+        assert "project locator" in res.json()["error"]
+        inspected = client.get("/dashboard/api/workbench/inspect", params={"locator": str(gpr)})
+        assert "Game.exe" in inspected.json()["programs"]
         return
 
     if case == "register_project_folder":
@@ -291,7 +301,9 @@ def test_workbench_workflow_matrix(
             "/dashboard/api/workbench/binaries",
             json={"path": str(folder)},
         )
-        assert res.json()["binary"]["kind"] == "ghidra-project"
+        assert res.status_code == 400
+        inspected = client.get("/dashboard/api/workbench/inspect", params={"locator": str(folder)})
+        assert inspected.json()["kind"] == "ghidra-project"
         return
 
     if case == "register_ghidra_url":
@@ -299,7 +311,12 @@ def test_workbench_workflow_matrix(
             "/dashboard/api/workbench/binaries",
             json={"url": "ghidra://127.0.0.1:13300/Odyssey/k1.exe", "slug": "odyssey"},
         )
-        assert res.json()["binary"]["kind"] == "shared-project"
+        assert res.status_code == 400
+        inspected = client.get(
+            "/dashboard/api/workbench/inspect",
+            params={"locator": "ghidra://127.0.0.1:13300/Odyssey/k1.exe"},
+        )
+        assert inspected.json()["kind"] == "shared-project"
         return
 
     if case == "register_http_url":
@@ -307,7 +324,12 @@ def test_workbench_workflow_matrix(
             "/dashboard/api/workbench/binaries",
             json={"url": "http://127.0.0.1:13100/Repo", "slug": "http-repo"},
         )
-        assert res.json()["binary"]["repo"].startswith("http://")
+        assert res.status_code == 400
+        inspected = client.get(
+            "/dashboard/api/workbench/inspect",
+            params={"locator": "http://127.0.0.1:13100/Repo"},
+        )
+        assert inspected.json()["kind"] == "shared-project"
         return
 
     if case == "edit_binary_role":
@@ -332,7 +354,7 @@ def test_workbench_workflow_matrix(
         assert body["revision"] == rev + 1
         return
 
-    if case == "empty_put_resets_draft":
+    if case == "empty_put_keeps_loaded_tab":
         base = _sessions(client)
         tab_id = base["active"]
         _put_sessions(
@@ -351,8 +373,10 @@ def test_workbench_workflow_matrix(
                 ],
             },
         )
+        # An empty list never wipes a loaded tab; the server reports it ignored.
         body = _put_sessions(client, {"active": tab_id, "sessions": []})
-        assert body["sessions"][0]["kind"] == "draft"
+        assert body.get("ignored") is True
+        assert body["sessions"][0]["kind"] == "ghidra-project"
         return
 
     if case == "new_tab_adds_session":
@@ -430,7 +454,9 @@ def test_workbench_workflow_matrix(
             "/dashboard/api/workbench/binaries",
             json={"path": str(shared)},
         )
-        assert res.json()["binary"]["kind"] == "shared-fs"
+        assert res.status_code == 400
+        inspected = client.get("/dashboard/api/workbench/inspect", params={"locator": str(shared)})
+        assert inspected.json()["kind"] == "shared-fs"
         return
 
     if case == "merge_conflict_preserves_tabs":
@@ -522,15 +548,18 @@ def test_workbench_workflow_matrix(
         assert res.json()["ok"] is False
         return
 
-    if case == "register_duplicate_path_updates_slug":
+    if case == "register_duplicate_path_reuses_identity":
+        # Identical bytes keep their first identity so recorded evidence stays bound.
         _register_pe(client, pe, slug="first")
         second = client.post(
             "/dashboard/api/workbench/binaries",
             json={"path": str(pe), "slug": "second-name"},
         )
         assert second.json()["ok"] is True
+        assert second.json()["reused"] is True
+        assert second.json()["binary"]["slug"] == "first"
         slugs = [row["slug"] for row in client.get("/dashboard/api/workbench/binaries").json()["binaries"]]
-        assert "second-name" in slugs
+        assert "first" in slugs and "second-name" not in slugs
         return
 
     if case == "session_active_preserved_on_put":
@@ -544,10 +573,10 @@ def test_workbench_workflow_matrix(
         return
 
     if case == "browse_skips_dotfiles":
-        hidden = tmp_path / ".hidden.exe"
+        hidden = work / ".hidden.exe"
         hidden.write_bytes(b"MZ")
-        visible = _write_pe(tmp_path, "visible.exe")
-        listed = client.get("/dashboard/api/workbench/browse", params={"path": str(tmp_path)})
+        visible = _write_pe(work, "visible.exe")
+        listed = client.get("/dashboard/api/workbench/browse", params={"path": str(work)})
         names = {row["name"] for row in listed.json()["entries"]}
         assert "visible.exe" in names
         assert ".hidden.exe" not in names

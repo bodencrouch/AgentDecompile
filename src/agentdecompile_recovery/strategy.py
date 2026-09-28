@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from .targets import TargetIdentity
@@ -22,6 +23,16 @@ def build_strategy(
     functions = functions or {}
     source_generation = source_generation or {}
     source_synthesis = source_synthesis or {}
+    assembly_floor_available = bool(local.get("assemblyFloorRoundtrip")) or (
+        Path(__file__).resolve().parent / "corpus" / "roundtrip.py"
+    ).is_file()
+    byte_authority_provider = (
+        "one-shot-source"
+        if local.get("oneShotSource")
+        else "corpus.roundtrip"
+        if assembly_floor_available
+        else None
+    )
     inventory_summary = inventory.get("summary", {})
     function_summary = functions.get("summary", {})
     required_semantic_inputs = [
@@ -38,7 +49,7 @@ def build_strategy(
         blockers.append("objdiff unavailable: cannot make matching-decompilation acceptance claims")
     if target.format == "pe" and "wine" not in available:
         blockers.append("wine unavailable: Windows compiler/toolchain probing may be unavailable")
-    if not local.get("oneShotSource"):
+    if not byte_authority_provider:
         blockers.append("generic byte-authority package generator missing")
     if inventory.get("status") != "complete":
         blockers.append("binary inventory incomplete: cannot derive code/data/import layout")
@@ -165,8 +176,13 @@ def build_strategy(
     lanes = [
         {
             "name": "byte-authority",
-            "status": "available" if local.get("oneShotSource") else "missing",
-            "claim": "byte-exact source/emitter package, not semantic recovery",
+            "status": "available" if byte_authority_provider else "missing",
+            "provider": byte_authority_provider,
+            "claim": (
+                "complete byte-identical assembly floor, not semantic recovery"
+                if byte_authority_provider == "corpus.roundtrip"
+                else "byte-exact source/emitter package, not semantic recovery"
+            ),
             "appliesTo": ["unknown", "pe", "elf", "macho"],
         },
         {

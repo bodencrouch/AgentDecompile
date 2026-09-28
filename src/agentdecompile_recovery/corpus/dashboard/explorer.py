@@ -63,7 +63,7 @@ def explorer_snapshot(locator: str = "", slug: str = "", program: str = "") -> d
     try:
         from agentdecompile_recovery.corpus.dashboard.workbench import list_binaries
 
-        library = list_binaries()
+        library = list_binaries(selection["locator"])
         binaries = list(library.get("binaries") or [])
         unresolved = list(library.get("unresolvedBinaries") or [])
         library_error = str(library.get("error") or "")

@@ -297,7 +297,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `maxEntries` (integer, optional): Maximum vtable entries to analyze (default: 200).
   - Synonyms: `maxEntries`, `maxe`.
 - `maxResults` (integer, optional): Maximum results for `callers` or `containing` (default: 100).
-  - Synonyms: `analysisMode`, `vtable`, `function`, `max_entries`, `max_results`, `maxr`.
+  - Synonyms: `maxResults`, `maxr`.
 **Overloads**:
 - `analyze-vtable(programPath, vtableAddress, maxEntries)` → forwards to `analyze-vtables`.
 - `find-vtable-callers(programPath, functionAddress, vtableAddress, maxResults)` → forwards to `analyze-vtables`.
@@ -334,7 +334,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `dataTypeString` (string, required): String representation of the data type (e.g., "uint8_t[256]").
   - Synonyms: `dataTypeString`, `datats`.
 - `archiveName` (string, optional): Name of the data type archive to use.
-  - Synonyms: `address`, `symbol`, `dataType`, `type`, `archive`, `archiveName`, `archiven`.
+  - Synonyms: `archive`, `archiveName`, `archiven`.
 **Overloads**:
 - `apply-data-type(programPath, addressOrSymbol, dataTypeString, archiveName)` → forwards to `apply-data-type`.
 
@@ -399,9 +399,9 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `programPath` (string, optional): Path to the program in the project.
   - Synonyms: `programPath`, `programp`, `program`, `path`, `binaryPath`, `filePath`, `targetProgram`.
 - `comment` (string, optional): Check-in comment describing changes.
-  - Synonyms: `comment`
+  - Synonyms: `comment`, `message`
 - `keepCheckedOut` (boolean, optional): Keep the program checked out after commit (default: false).
-  - Synonyms: `path`, `message`, `keepOpen`, `keepCheckedOut`, `keepco`.
+  - Synonyms: `keepOpen`, `keepCheckedOut`, `keepco`.
 **Overloads**:
 - `checkin-program(programPath, message, keepCheckedOut)` → forwards to `checkin-program`.
 
@@ -481,7 +481,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `includeIncomingReferences` (boolean, optional): Include references (default: true).
   - Synonyms: `includeIncomingReferences`, `includeir`.
 - `includeReferenceContext` (boolean, optional): Include context snippets (default: true).
-  - Synonyms: `function`, `identifier`, `startLine`, `lineCount`, `comments`, `refs`, `context`, `includeReferenceContext`
+  - Synonyms: `refs`, `context`, `includeReferenceContext`
 - `includeDisassembly` (boolean, optional): Include disassembly alongside decompilation (default: false).
   - Synonyms: `includeDisassembly`, `includedisasm`.
 - `includeCallers` (boolean, optional): Include caller context (default: false).
@@ -511,7 +511,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `programPath` (string, required): Path to the binary to delete.
   - Synonyms: `programPath`, `programp`, `program`, `path`, `binaryPath`, `filePath`, `targetProgram`, `binary_name`
 - `confirm` (boolean, optional): Confirm deletion (default: false).
-  - Synonyms: `binaryPath`, `force`, `confirm`
+  - Synonyms: `force`, `confirm`
 **Overloads**:
 - `delete_project_binary(binary_name)` → forwards to `delete-project-binary`.
 
@@ -556,7 +556,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `programPath` (string, optional): Program path (optional in GUI mode if active program is set).
   - Synonyms: `programPath`, `program`, `path`, `binaryPath`, `filePath`, `targetProgram`.
 - `outputPath` (string, required): Output file path.
-  - Synonyms: `outputPath`, `output`, `file`, `path`.
+  - Synonyms: `outputPath`, `output`, `file`.
 - `format` (string, optional): Export format (`gzf`, `c`, `cpp`, `cxx`, `sarif`, `xml`, `html`, `ascii`; default: `cpp`).
   - Synonyms: `format`, `exportType`.
 - `createHeader` (boolean, optional): Emit header output for C/C++ export when supported (default: true).
@@ -681,7 +681,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `includeCallContext` (boolean, optional): Include call-site context (default: true).
   - Synonyms: `includeCallContext`, `includecc`.
 - `functionAddresses` (string, optional): Comma-separated addresses for `common_callers`.
-  - Synonyms: `function`, `analysisMode`, `level`, `dir`, `max_depth`, `offset`, `limit`, `context`, `functions`, `functionAddresses`
+  - Synonyms: `functionAddresses`, `functions`.
 **Overloads**:
 - `find-common-callers(programPath, functionAddresses)` → forwards to `get-call-graph`.
 - `get-call-graph(programPath, functionAddress, depth)` → forwards to `get-call-graph`.
@@ -761,7 +761,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `addressOrSymbol` (string, required): Target address or symbol.
   - Synonyms: `addressOrSymbol`, `addressos`, `address`, `symbol`, `target`, `nameOrAddress`, `addrOrSym`.
 - `view` (string, optional): Data view (`hex`, `ascii`, `structured`, default: hex).
-  - Synonyms: `address`, `symbol`, `format`, `view`
+  - Synonyms: `view`, `format`
 **Overloads**:
 - `get-data(programPath, addressOrSymbol)` → forwards to `get-data`.
 
@@ -806,7 +806,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `programPath` (string or array, optional): Source program path(s).
   - Synonyms: `programPath`, `programp`, `program`, `path`, `binaryPath`, `filePath`, `targetProgram`.
 - `identifier` (string or array, optional): Function identifier(s) (omit for all).
-  - Synonyms: `identifier`, `overrideMaxFunctionsLimit`, `address`.
+  - Synonyms: `identifier`, `address`.
 - `view` (string, optional): View (`decompile`, `disassemble`, `info`, `calls`, default: decompile).
   - Synonyms: `view`
 - `offset` (integer, optional): Decompile line start (1-based, default: 1).
@@ -814,15 +814,15 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `limit` (integer, optional): Decompile line count (default: 50).
   - Synonyms: `limit`, `maxResults`, `maxCount`, `count`, `size`, `max`, `take`, `cap`, `pageSize`.
 - `includeCallers` (boolean, optional): Include callers (default: false).
-  - Synonyms: `includeCallers`, `includec`.
+  - Synonyms: `includeCallers`.
 - `includeCallees` (boolean, optional): Include callees (default: false).
-  - Synonyms: `includeCallees`, `includec`.
+  - Synonyms: `includeCallees`.
 - `includeComments` (boolean, optional): Include comments (default: false).
-  - Synonyms: `includeComments`, `includec`.
+  - Synonyms: `includeComments`.
 - `includeIncomingReferences` (boolean, optional): Include incoming references (default: true).
   - Synonyms: `includeIncomingReferences`, `includeir`.
 - `includeReferenceContext` (boolean, optional): Include context (default: true).
-  - Synonyms: `identifiers`, `functionIdentifier`, `mode`, `startIndex`, `maxLines`, `callers`, `callees`, `comments`, `refs`, `context`, `includeReferenceContext`
+  - Synonyms: `includeReferenceContext`, `context`.
 - `filterDefaultNames` (boolean, optional): Filter out default-named functions (default: false).
   - Synonyms: `filterDefaultNames`, `filterdn`.
 - `filterByTag` (string, optional): Filter functions by tag.
@@ -867,7 +867,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `includeRefContext` (boolean, optional): Include context (default: true).
   - Synonyms: `includeRefContext`, `includerc`, `includeContext`.
 - `includeDataRefs` (boolean, optional): Include data refs (default: true).
-  - Synonyms: `addressOrSymbol`, `type`, `dir`, `start`, `count`, `max`, `library`, `index`, `max_refs`, `context`, `dataRefs`, `includeDataRefs`, `includeData`.
+  - Synonyms: `includeDataRefs`, `dataRefs`, `includeData`.
 - `contextLines` (integer, optional): Number of context lines to include (default: 3).
   - Synonyms: `contextLines`, `contextSize`.
 - `importName` (string, optional): Import function name to find references for.
@@ -909,7 +909,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `mirrorFs` (boolean, optional): Mirror filesystem structure (default: false).
   - Synonyms: `mirrorFs`, `mirrorf`.
 - `enableVersionControl` (boolean, optional): Request import into shared-project version control (default: false). Local-only imports cannot satisfy this request and fail explicitly.
-  - Synonyms: `filePath`, `destFolder`, `recurse`, `depth`, `autoAnalyze`, `stripPath`, `stripContainer`, `mirror`, `versioning`, `enableVersionControl`
+  - Synonyms: `versioning`, `enableVersionControl`
 **Overloads**:
 - `import_binary(binary_path)` → forwards to `import-binary`.
 - `import-file(path, destinationFolder, recursive, maxDepth, analyzeAfterImport, stripLeadingPath, stripAllContainerPath, mirrorFs, enableVersionControl)` → forwards to `import-binary`.
@@ -929,7 +929,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `programPath` (string, optional): Path to the program in the project.
   - Synonyms: `programPath`, `programp`, `program`, `path`, `binaryPath`, `filePath`, `targetProgram`.
 - `mode` (string, required): Inspection mode (`bytes`, `disasm`, `data`).
-  - Synonyms: `mode`, `analysisMode`, `action`, `view`, `operation`, `type`, `kind`, `strategy`, `behaviorMode`, `format`.
+  - Synonyms: `mode`, `analysisMode`, `action`, `view`, `operation`, `type`, `kind`, `strategy`, `behaviorMode`.
 - `address` (string, required): Starting address.
   - Synonyms: `address`, `addr`, `startAddress`, `targetAddress`, `location`, `offsetAddress`, `addressValue`, `memAddress`, `va`, `addressOrSymbol`, `symbol`, `target`, `nameOrAddress`, `addrOrSym`.
 - `length` (integer, optional): Bytes to inspect (default: 256).
@@ -937,12 +937,12 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `offset` (integer, optional): Result offset.
   - Synonyms: `offset`, `startIndex`, `start`, `index`, `from`, `skip`, `cursor`, `begin`, `position`.
 - `limit` (integer, optional): Max results.
-  - Synonyms: `view`, `start`, `size`, `startIndex`, `max`, `limit`, `maxResults`, `maxCount`, `count`, `take`, `cap`.
+  - Synonyms: `limit`, `maxResults`, `maxCount`, `count`, `take`, `cap`.
 **Overloads**:
 - `list_data_items(offset, limit)` → forwards to `inspect-memory`.
 - `list_segments(offset, limit)` → forwards to `inspect-memory`.
 - `get-memory-blocks(programPath)` → forwards to `inspect-memory`.
-- `read-memory(programPath, addressOrSymbol, length, format)` → forwards to `inspect-memory`.
+- `read-memory(programPath, addressOrSymbol, length)` → forwards to `inspect-memory`.
 
 **Synonyms**: `inspect-memory`, `tool_inspect_memory`, `inspect_memory_tool`, `cmd_inspect_memory`, `run_inspect_memory`, `do_inspect_memory`, `api_inspect_memory`, `mcp_inspect_memory`, `ghidra_inspect_memory`, `agentdecompile_inspect_memory`, `inspect_memory_command`, `inspect_memory_action`, `inspect_memory_op`, `inspect_memory_task`, `execute_inspect_memory`, `list_segments`, `list_data_items`, `get-memory-blocks`, `read-memory`
 
@@ -1006,7 +1006,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `verbose` (boolean, optional): Include details (default: false).
   - Synonyms: `verbose`
 - `identifiers` (array, optional): Specific IDs.
-  - Synonyms: `filter`, `pattern`, `minRefs`, `index`, `max`, `start`, `count`, `defaults`, `tag`, `noTags`, `tagged`, `details`.
+  - Synonyms: `identifiers`, `functions`.
 **Overloads**:
 - `list_functions()` → forwards to `list-functions`.
 - `list_methods(offset, limit)` → forwards to `list-functions`.
@@ -1387,7 +1387,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `maxFunctions` (integer, optional): Max functions.
   - Synonyms: `maxFunctions`, `maxf`.
 - `batchSize` (integer, optional): Batch size.
-  - Synonyms: `sourcePath`, `function`, `targets`, `maxInstr`, `simThreshold`, `propNames`, `propTags`, `propComms`, `defaults`, `tag`, `maxFuncs`, `batch`.
+  - Synonyms: `batch`.
 **Overloads**:
 - `match-function(programPath, functionIdentifier, targetProgramPaths, maxInstructions, minSimilarity, propagateNames, propagateTags, propagateComments, filterDefaultNames, filterByTag, maxFunctions, batchSize)` canonical signature.
 
@@ -1608,7 +1608,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `includeSmallValues` (boolean, optional): Include small in common (default: false).
   - Synonyms: `includeSmallValues`, `includesv`.
 - `topN` (integer, optional): Top N in common (default: 50).
-  - Synonyms: `action`, `val`, `min`, `max`, `limit`, `smallVals`, `top`, `topN`
+  - Synonyms: `topN`, `top`
 **Overloads**:
 - `find-constant-uses(programPath, value, maxResults)` → forwards to `search-constants`.
 - `find-constants-in-range(programPath, minValue, maxValue, maxResults)` → forwards to `search-constants`.
@@ -1723,7 +1723,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `dataType` (string, optional): Type suggestion.
   - Synonyms: `dataType`, `datat`.
 - `variableAddress` (string, optional): Var address.
-  - Synonyms: `type`, `addr`, `func`, `dt`, `varAddr`, `variableAddress`, `variablea`.
+  - Synonyms: `varAddr`, `variableAddress`, `variablea`.
 **Overloads**:
 - `suggest(programPath, suggestionType, address, function, dataType, variableAddress)` canonical signature.
 

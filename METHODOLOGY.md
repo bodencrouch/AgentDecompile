@@ -1,12 +1,16 @@
 ---
 name: AgentDecompile
-last_updated: 2026-09-08
+last_updated: 2026-09-20
 charter: VISION.md
 ---
 
 # AgentDecompile Methodology
 
 Charter: [VISION.md](VISION.md). Near-term investment map: [STRATEGY.md](STRATEGY.md). This file is the durable how — principles that should survive pipeline rewrites, plus the mechanisms we use today.
+
+Operations follow [AGENTS.md](AGENTS.md); mechanisms below describe implementation,
+not permission to bypass the existing 8080 catalog. [Unfinished outcomes](docs/PROTOTYPE_OUTCOMES.md)
+track the wider prototype without introducing another priority policy.
 
 ## Part I — Core principles
 
@@ -139,19 +143,19 @@ Functions carry advisory readability scores. A boolean gate controls entry to th
 
 ### Cross-build logical identity
 
-Related corpora bind concrete functions to shared `logical_id`s via strong names, STABS/debug info, strings/constants/imports, decompiled shape, BSim, and only then a unique byte window. A virtual address is an instance, not the identity. Knowledge moves through the logical entity instead of copying nearby instruction blobs from one exe into another.
+Related corpora bind concrete functions to shared `logical_id`s through the evidence-fusion cascade in STRATEGY. Preserve independent witnesses, uniqueness, ambiguity and field-level propagation gates. A virtual address is a build-specific instance, not corpus identity. Runtime local byte-scan fallback is a separate resolution mechanism; it does not reorder the corpus matcher.
 
-### Corpus recovery ladder (current order)
+### Recovery and original-engine reuse
 
-1. Logical identity (skip `analyze-program` when the program already has analysis)
-2. Global calibration (compiler, flags, ABI, layouts)
-3. Assembly floor (donor link; not byte identity)
-4. Compiling Ghidra C
-5. Cross-place successful C
-6. Expensive semantic recovery for leftovers only
-7. Byte-accuracy audit
+STRATEGY owns the recovery ladder, matcher order, field-level knowledge gates and
+compile-gated source propagation. Reuse provenance-bound receipts; final whole-image
+acceptance requires a fresh compiler/linker run and comparison, separately accounting
+for byte-accurate C+assembly-floor and max-C variants.
 
-Skip a rung when its receipt or Ghidra state already exists. Stages stay conceptually separate; promotion across tiers requires the matching proof bar.
+[Runtime reuse](docs/RUNTIME_REUSE.md) branches after sufficient identity and ABI
+evidence. Export, target resolution, installation, typed calls and observed behavior
+are distinct claims. Original-engine observations feed the corpus through its existing
+evidence gates; successful calls never become source-parity credit.
 
 ### Compiling substrate
 

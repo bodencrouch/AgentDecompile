@@ -143,6 +143,27 @@ def load_compile_ok_ids(out_dir: Path) -> set[str] | None:
     return out
 
 
+def load_byteexact_ok_ids(path: Path) -> set[str] | None:
+    """Fresh verifier receipts admit only individually relocation-masked exact C."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return None
+    rows = data.get("results") if isinstance(data, dict) else None
+    if not isinstance(rows, list) or data.get("total") != len(rows):
+        return None
+    out: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict) or not row.get("ok"):
+            continue
+        addr = str(row.get("addr") or "").strip().lower().removeprefix("0x")
+        try:
+            out.add(f"{int(addr, 16):x}")
+        except ValueError:
+            continue
+    return out or None
+
+
 def _addr_token(addr: int) -> str:
     return f"{addr:x}"
 
@@ -164,7 +185,7 @@ def place_tree(
         }
     index = load_index(con, src_bid)
     placed = skipped = 0
-    for cfile in src_dir.glob("*.c"):
+    for cfile in sorted(src_dir.glob("*.c")):
         if cfile.name.startswith("_"):
             continue
         head = cfile.read_text(errors="replace")[:800]
@@ -191,7 +212,7 @@ def watch(src_dir: Path, src_bid: int, out_root: Path, con, interval: float) -> 
     print(f"cross-place watch {src_dir} -> {len(index)} linked addrs", flush=True)
     while True:
         n = 0
-        for cfile in src_dir.glob("*.c"):
+        for cfile in sorted(src_dir.glob("*.c")):
             if cfile.name.startswith("_"):
                 continue
             try:
@@ -225,6 +246,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--repo", required=True)
     ap.add_argument("--watch", action="store_true")
     ap.add_argument("--interval", type=float, default=8.0)
+    ap.add_argument("--byteexact-receipt", type=Path,
+                    help="completed verify-byteexact receipt; place only its individually exact C")
+    ap.add_argument("--no-compile-gate", action="store_true",
+                    help="place any real-C with an address (skip the source compile-receipt gate); "
+                         "for cross-binary seeding where the shared receipt does not match the source")
     args = ap.parse_args(argv)
     con = connect(args.db)
     brow = con.execute("SELECT id FROM binary WHERE repo_path=?", (args.repo,)).fetchone()
@@ -237,9 +263,10 @@ def main(argv: list[str] | None = None) -> int:
             f"no recovered C under {args.out_dir / args.program} or {dump_tree}. "
             "Recover → Dump source writes C under dump-source, then run Cross-place."
         )
-    compile_ok = load_compile_ok_ids(args.out_dir)
-    if compile_ok is None or not compile_ok:
-        print(f"cross-place {args.program}: {{'placed': 0, 'reason': 'no compile receipt'}}")
+    compile_ok = (load_byteexact_ok_ids(args.byteexact_receipt) if args.byteexact_receipt
+                  else None if args.no_compile_gate else load_compile_ok_ids(args.out_dir))
+    if not args.no_compile_gate and (compile_ok is None or not compile_ok):
+        print(f"cross-place {args.program}: {{'placed': 0, 'reason': 'no usable exact receipt'}}")
         return 0
     if args.watch:
         watch(src_dir, int(brow["id"]), args.out_dir, con, args.interval)

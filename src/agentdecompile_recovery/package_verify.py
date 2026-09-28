@@ -2,19 +2,21 @@
 
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 import os
 import re
 import shutil
 import signal
 import subprocess
 import tempfile
+
 from pathlib import Path
 from typing import Any
 
-from .state import atomic_write_json
+from agentdecompile_recovery.languages import language_from_metadata, verify_language_id
 
+from .state import atomic_write_json
 
 TYPE_SHIM = """
 typedef unsigned char byte;
@@ -37,6 +39,37 @@ typedef char *LPSTR;
 #define NULL ((void*)0)
 #endif
 """.strip()
+
+# Name -> single TYPE_SHIM typedef line. ~98% of the K1 corpus's packaged
+# candidate sources already embed their own Ghidra-style typedef preamble
+# (gen-project.py's ctx.h), which redefines most of these names with
+# different underlying types (e.g. `code` as `typedef int code();` here vs.
+# `typedef unsigned char code;` there). MSVC rejects that as C2373
+# redefinition before objdiff ever runs. When the candidate source already
+# typedefs a given name itself, drop just that TYPE_SHIM line instead of the
+# whole shim, so sources that still rely on TYPE_SHIM (no embedded preamble,
+# or using only a subset of these names) keep working.
+_TYPE_SHIM_LINES: list[tuple[str, str]] = [
+    (name, line)
+    for line in TYPE_SHIM.splitlines()
+    for name in [
+        (line.split()[-1].strip(";()*") if line.startswith("typedef ") else "")
+    ]
+    if name
+]
+_TYPE_SHIM_OTHER_LINES = [
+    line for line in TYPE_SHIM.splitlines() if not line.startswith("typedef ")
+]
+
+
+def _source_already_typedefs(source: str, name: str) -> bool:
+    pattern = re.compile(r"typedef\b[^;]*?\b" + re.escape(name) + r"\s*;")
+    return bool(pattern.search(source))
+
+
+def _type_shim_for(source: str) -> str:
+    kept = [line for name, line in _TYPE_SHIM_LINES if not _source_already_typedefs(source, name)]
+    return "\n".join(kept + _TYPE_SHIM_OTHER_LINES)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -427,11 +460,10 @@ def clang_command(clang: str, source: Path, clang_target: str | None, clang_args
 
 
 def source_language_for(source: Path, meta: dict[str, Any]) -> str:
-    language = str(meta.get("sourceLanguage") or "").lower()
-    if language in {"c++", "cpp", "cxx"}:
-        return "c++"
-    if source.suffix.lower() in {".cc", ".cpp", ".cxx"}:
-        return "c++"
+    language = language_from_metadata(meta, source)
+    verify_id = verify_language_id(language)
+    if verify_id in {"c", "c++"}:
+        return verify_id
     return "c"
 
 
@@ -498,7 +530,7 @@ def compile_with_msvc(
         message = f"cl.exe not found at {cl_exe}; pass --msvc-root or set VC_ROOT"
         stdout_path.write_text("", encoding="utf-8")
         stderr_path.write_text(message, encoding="utf-8")
-        return {"status": "failed", "returnCode": 3, "reason": message, "stdout": str(stdout_path), "stderr": str(stderr_path), "stderrTail": message}
+        return {"status": "failed", "compilerInvoked": False, "returnCode": 3, "reason": message, "stdout": str(stdout_path), "stderr": str(stderr_path), "stderrTail": message}
 
     source_suffix = source.suffix.lower()
     is_assembler = source_suffix == ".asm"
@@ -506,7 +538,7 @@ def compile_with_msvc(
         message = f"ml.exe not found at {ml_exe}; pass --msvc-root or set VC_ROOT"
         stdout_path.write_text("", encoding="utf-8")
         stderr_path.write_text(message, encoding="utf-8")
-        return {"status": "failed", "returnCode": 3, "reason": message, "stdout": str(stdout_path), "stderr": str(stderr_path), "stderrTail": message}
+        return {"status": "failed", "compilerInvoked": False, "returnCode": 3, "reason": message, "stdout": str(stdout_path), "stderr": str(stderr_path), "stderrTail": message}
 
     source_text = source.read_text(encoding="utf-8", errors="replace")
     source_name = "in.asm" if is_assembler else "in.c"
@@ -515,7 +547,12 @@ def compile_with_msvc(
     if is_assembler:
         command = [wine, str(ml_exe), "/nologo", "/c", f"/Fo{out_name}", source_name]
     else:
-        command = [wine, str(cl_exe), "/nologo", "/c", *args, f"/Fo{out_name}", source_name]
+        # VC Toolkit 2003 accepts stack-cookie enablement but does not accept
+        # the later ``/GS-`` spelling; it truncates that token to ``/G-`` and
+        # fails the compile.  The profile's other flags remain explicit, while
+        # this unsupported disable token is omitted for this legacy compiler.
+        msvc_args = [flag for flag in args if flag.upper() != "/GS-"]
+        command = [wine, str(cl_exe), "/nologo", "/c", *msvc_args, f"/Fo{out_name}", source_name]
     env = msvc_environment(root, wineprefix)
     with tempfile.TemporaryDirectory(prefix=f"recovery-msvc-{stem}-") as tmp:
         work_dir = Path(tmp)
@@ -523,6 +560,12 @@ def compile_with_msvc(
         local_source.write_text(source_text, encoding="utf-8")
         proc = run_command(command, cwd=work_dir, env=env, timeout=timeout)
         produced = work_dir / out_name
+        # Wine can start and fail before loading the compiler. Only compiler
+        # output or a source diagnostic proves that the candidate was attempted.
+        compiler_invoked = produced.is_file() or bool(re.search(
+            r"(?m)^.*\(\d+(?:,\d+)?\)\s*:\s*(?:fatal\s+)?error\s+[CA]\d{4}\s*:",
+            proc.stdout + "\n" + proc.stderr,
+        ))
         if produced.exists():
             shutil.copy2(produced, artifact_work_dir / out_name)
         if proc.returncode == 0 and produced.exists():
@@ -538,6 +581,7 @@ def compile_with_msvc(
         "stderr": str(stderr_path),
         "stderrTail": proc.stderr[-2000:],
         "compilerRoot": str(root),
+        "compilerInvoked": compiler_invoked,
         "wineprefix": env.get("WINEPREFIX"),
         "artifactWorkDir": str(artifact_work_dir),
     }
@@ -570,6 +614,13 @@ def resolve_msvc_root(msvc_root: Path | None) -> Path:
 
 def msvc_environment(msvc_root: Path, wineprefix: Path | None) -> dict[str, str]:
     env = dict(os.environ)
+    # ``CL`` and ``_CL_`` are implicit command-line fragments consumed by
+    # cl.exe.  They leak from developer shells/CI and can silently change the
+    # compiler profile (for example adding the unsupported ``/G-`` flag), so
+    # every isolated recovery compile must start with only explicit flags.
+    for key in tuple(env):
+        if key.upper() in {"CL", "_CL_"}:
+            env.pop(key, None)
     prefix = wineprefix or Path(env.get("WINEPREFIX") or "target/toolchain-acquire/vctoolkit2003/wineprefix")
     env["WINEPREFIX"] = str(prefix.expanduser().resolve())
     env["WINEDEBUG"] = env.get("WINEDEBUG", "-all")
@@ -896,7 +947,7 @@ def build_shim(source: str) -> str:
             declarations.append(f"extern int {name};")
     for name in sorted(set(STACK_SYMBOL_RE.findall(source))):
         declarations.append(f"extern undefined4 {name};")
-    return TYPE_SHIM + ("\n" + "\n".join(declarations) if declarations else "")
+    return _type_shim_for(source) + ("\n" + "\n".join(declarations) if declarations else "")
 
 
 def resolve_manifest_path(package: Path) -> Path:

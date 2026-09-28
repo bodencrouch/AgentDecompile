@@ -120,6 +120,7 @@ def acquire_context(
     register: bool = True,
     max_files: int = 500,
     merge_prior: bool = True,
+    reuse_ghidra_acquisition: bool = True,
 ) -> dict[str, Any]:
     """Sniff, extract, bundle, and register in one call.
 
@@ -137,6 +138,17 @@ def acquire_context(
     When ``merge_prior`` is true (default), a previously registered bundle for the
     same target fingerprint is merged into a new immutable snapshot. This never
     deletes ``verified/`` or other sibling run artifacts under the work directory.
+
+    ``reuse_ghidra_acquisition`` (default True) skips re-inserting
+    ``target_input`` into the Ghidra extraction set -- and so skips a fresh,
+    many-minutes ``analyzeHeadless`` pass over the raw binary -- whenever
+    ``merge_prior`` already found a same-fingerprint prior bundle carrying a
+    usable ``function-facts.jsonl``; the merged prior facts stand in for a
+    fresh import. Full auto-analysis is the most expensive step in
+    acquisition, and re-running it when nothing about the target changed
+    since the prior run is pure waste. Pass ``reuse_ghidra_acquisition=False``
+    to force a fresh Ghidra import even when a matching prior bundle exists
+    (e.g. after a Ghidra/script upgrade that should be reflected in facts).
     """
 
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -159,12 +171,20 @@ def acquire_context(
             prior_paths = prior_context_inputs(prior_bundle)
 
     inputs: list[Path] = list(context_paths or [])
+    has_prior_ghidra_facts = reuse_ghidra_acquisition and any(
+        path.name == "function-facts.jsonl" and path.is_file() for path in prior_paths
+    )
     if target_input is not None:
         try:
             sniffed = sniff_path(target_input)
         except (OSError, ValueError):
             sniffed = None
-        if sniffed is not None and sniffed.adapter == "ghidra" and target_input not in inputs:
+        if (
+            sniffed is not None
+            and sniffed.adapter == "ghidra"
+            and target_input not in inputs
+            and not has_prior_ghidra_facts
+        ):
             inputs.insert(0, target_input)
 
     merged_inputs = _dedupe_paths([*prior_paths, *inputs])

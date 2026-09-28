@@ -1,0 +1,380 @@
+{
+ "build": "amazon",
+ "cacheName": "FUN_00412b50",
+ "cacheSize": 82,
+ "capstoneBanner": "capstone 5.0.7 ",
+ "capstoneRows": [
+  {
+   "hex": "55",
+   "text": "push ebp",
+   "va": 4270928
+  },
+  {
+   "hex": "8bec",
+   "text": "mov ebp, esp",
+   "va": 4270929
+  },
+  {
+   "hex": "56",
+   "text": "push esi",
+   "va": 4270931
+  },
+  {
+   "hex": "57",
+   "text": "push edi",
+   "va": 4270932
+  },
+  {
+   "hex": "8d7910",
+   "text": "lea edi, [ecx + 0x10]",
+   "va": 4270933
+  },
+  {
+   "hex": "8b0f",
+   "text": "mov ecx, dword ptr [edi]",
+   "va": 4270936
+  },
+  {
+   "hex": "85c9",
+   "text": "test ecx, ecx",
+   "va": 4270938
+  },
+  {
+   "hex": "7409",
+   "text": "je 0x412b67",
+   "va": 4270940
+  },
+  {
+   "hex": "57",
+   "text": "push edi",
+   "va": 4270942
+  },
+  {
+   "hex": "83c104",
+   "text": "add ecx, 4",
+   "va": 4270943
+  },
+  {
+   "hex": "e8a9fdffff",
+   "text": "call 0x412910",
+   "va": 4270946
+  },
+  {
+   "hex": "8b7508",
+   "text": "mov esi, dword ptr [ebp + 8]",
+   "va": 4270951
+  },
+  {
+   "hex": "8937",
+   "text": "mov dword ptr [edi], esi",
+   "va": 4270954
+  },
+  {
+   "hex": "85f6",
+   "text": "test esi, esi",
+   "va": 4270956
+  },
+  {
+   "hex": "742c",
+   "text": "je 0x412b9c",
+   "va": 4270958
+  },
+  {
+   "hex": "8b4e08",
+   "text": "mov ecx, dword ptr [esi + 8]",
+   "va": 4270960
+  },
+  {
+   "hex": "8b460c",
+   "text": "mov eax, dword ptr [esi + 0xc]",
+   "va": 4270963
+  },
+  {
+   "hex": "3bc8",
+   "text": "cmp ecx, eax",
+   "va": 4270966
+  },
+  {
+   "hex": "7519",
+   "text": "jne 0x412b93",
+   "va": 4270968
+  },
+  {
+   "hex": "85c0",
+   "text": "test eax, eax",
+   "va": 4270970
+  },
+  {
+   "hex": "7404",
+   "text": "je 0x412b82",
+   "va": 4270972
+  },
+  {
+   "hex": "03c0",
+   "text": "add eax, eax",
+   "va": 4270974
+  },
+  {
+   "hex": "eb05",
+   "text": "jmp 0x412b87",
+   "va": 4270976
+  },
+  {
+   "hex": "b808000000",
+   "text": "mov eax, 8",
+   "va": 4270978
+  },
+  {
+   "hex": "50",
+   "text": "push eax",
+   "va": 4270983
+  },
+  {
+   "hex": "8d4e04",
+   "text": "lea ecx, [esi + 4]",
+   "va": 4270984
+  },
+  {
+   "hex": "e870030000",
+   "text": "call 0x412f00",
+   "va": 4270987
+  },
+  {
+   "hex": "8b4e08",
+   "text": "mov ecx, dword ptr [esi + 8]",
+   "va": 4270992
+  },
+  {
+   "hex": "8b4604",
+   "text": "mov eax, dword ptr [esi + 4]",
+   "va": 4270995
+  },
+  {
+   "hex": "893c88",
+   "text": "mov dword ptr [eax + ecx*4], edi",
+   "va": 4270998
+  },
+  {
+   "hex": "ff4608",
+   "text": "inc dword ptr [esi + 8]",
+   "va": 4271001
+  },
+  {
+   "hex": "5f",
+   "text": "pop edi",
+   "va": 4271004
+  },
+  {
+   "hex": "5e",
+   "text": "pop esi",
+   "va": 4271005
+  },
+  {
+   "hex": "5d",
+   "text": "pop ebp",
+   "va": 4271006
+  },
+  {
+   "hex": "c20400",
+   "text": "ret 4",
+   "va": 4271007
+  }
+ ],
+ "effectTable": {
+  "callees": "Amazon 0x412910, 0x412f00",
+  "eaxAtRet": "not written",
+  "nListBase": "N+4 (@0x412b88)",
+  "receiver": "C; forms M = C+0x10 (lea edi,[ecx+0x10] @0x412b55)",
+  "removeThisOffset": "O+4 (@0x412b5f)",
+  "retImm": "ret 4"
+ },
+ "image": {
+  "fileOffset": 73552,
+  "imageSha256": "0b6a2a7f8b4880a4986aecfe758a94b7b8fefec1cba4dac6fd06dda3ae0e7f3e"
+ },
+ "instructions": [
+  {
+   "hex": "55",
+   "text": "PUSH EBP",
+   "va": 4270928
+  },
+  {
+   "hex": "8bec",
+   "text": "MOV EBP,ESP",
+   "va": 4270929
+  },
+  {
+   "hex": "56",
+   "text": "PUSH ESI",
+   "va": 4270931
+  },
+  {
+   "hex": "57",
+   "text": "PUSH EDI",
+   "va": 4270932
+  },
+  {
+   "hex": "8d7910",
+   "text": "LEA EDI,[ECX + 0x10]",
+   "va": 4270933
+  },
+  {
+   "hex": "8b0f",
+   "text": "MOV ECX,dword ptr [EDI]",
+   "va": 4270936
+  },
+  {
+   "hex": "85c9",
+   "text": "TEST ECX,ECX",
+   "va": 4270938
+  },
+  {
+   "hex": "7409",
+   "text": "JZ LAB_00412b67  ; -> LAB_00412b67 (00412b67)",
+   "va": 4270940
+  },
+  {
+   "hex": "57",
+   "text": "PUSH EDI",
+   "va": 4270942
+  },
+  {
+   "hex": "83c104",
+   "text": "ADD ECX,0x4",
+   "va": 4270943
+  },
+  {
+   "hex": "e8a9fdffff",
+   "text": "CALL FUN_00412910  ; -> FUN_00412910 (00412910)",
+   "va": 4270946
+  },
+  {
+   "hex": "8b7508",
+   "text": "MOV ESI,dword ptr [EBP + param_1]",
+   "va": 4270951
+  },
+  {
+   "hex": "8937",
+   "text": "MOV dword ptr [EDI],ESI",
+   "va": 4270954
+  },
+  {
+   "hex": "85f6",
+   "text": "TEST ESI,ESI",
+   "va": 4270956
+  },
+  {
+   "hex": "742c",
+   "text": "JZ LAB_00412b9c  ; -> LAB_00412b9c (00412b9c)",
+   "va": 4270958
+  },
+  {
+   "hex": "8b4e08",
+   "text": "MOV ECX,dword ptr [ESI + 0x8]",
+   "va": 4270960
+  },
+  {
+   "hex": "8b460c",
+   "text": "MOV EAX,dword ptr [ESI + 0xc]",
+   "va": 4270963
+  },
+  {
+   "hex": "3bc8",
+   "text": "CMP ECX,EAX",
+   "va": 4270966
+  },
+  {
+   "hex": "7519",
+   "text": "JNZ LAB_00412b93  ; -> LAB_00412b93 (00412b93)",
+   "va": 4270968
+  },
+  {
+   "hex": "85c0",
+   "text": "TEST EAX,EAX",
+   "va": 4270970
+  },
+  {
+   "hex": "7404",
+   "text": "JZ LAB_00412b82  ; -> LAB_00412b82 (00412b82)",
+   "va": 4270972
+  },
+  {
+   "hex": "03c0",
+   "text": "ADD EAX,EAX",
+   "va": 4270974
+  },
+  {
+   "hex": "eb05",
+   "text": "JMP LAB_00412b87  ; -> LAB_00412b87 (00412b87)",
+   "va": 4270976
+  },
+  {
+   "hex": "b808000000",
+   "text": "MOV EAX,0x8",
+   "va": 4270978
+  },
+  {
+   "hex": "50",
+   "text": "PUSH EAX",
+   "va": 4270983
+  },
+  {
+   "hex": "8d4e04",
+   "text": "LEA ECX,[ESI + 0x4]",
+   "va": 4270984
+  },
+  {
+   "hex": "e870030000",
+   "text": "CALL FUN_00412f00  ; -> FUN_00412f00 (00412f00)",
+   "va": 4270987
+  },
+  {
+   "hex": "8b4e08",
+   "text": "MOV ECX,dword ptr [ESI + 0x8]",
+   "va": 4270992
+  },
+  {
+   "hex": "8b4604",
+   "text": "MOV EAX,dword ptr [ESI + 0x4]",
+   "va": 4270995
+  },
+  {
+   "hex": "893c88",
+   "text": "MOV dword ptr [EAX + ECX*0x4],EDI",
+   "va": 4270998
+  },
+  {
+   "hex": "ff4608",
+   "text": "INC dword ptr [ESI + 0x8]",
+   "va": 4271001
+  },
+  {
+   "hex": "5f",
+   "text": "POP EDI",
+   "va": 4271004
+  },
+  {
+   "hex": "5e",
+   "text": "POP ESI",
+   "va": 4271005
+  },
+  {
+   "hex": "5d",
+   "text": "POP EBP",
+   "va": 4271006
+  },
+  {
+   "hex": "c20400",
+   "text": "RET 0x4",
+   "va": 4271007
+  }
+ ],
+ "source": {
+  "evidence": "/home/brunner56/agentdecompile-deliverables/2026-09-27-contract-pairing/evidence.json",
+  "evidenceSha256": "0d9974efa803a3d9156e2897d68f9d3b8cee85850e3c15ea73846b45dbbb530c",
+  "jsonPath": "bodies.b"
+ },
+ "spanHex": "558bec56578d79108b0f85c974095783c104e8a9fdffff8b7508893785f6742c8b4e088b460c3bc8751985c0740403c0eb05b808000000508d4e04e8700300008b4e088b4604893c88ff46085f5e5dc20400",
+ "spanSha256": "7c03fbe9c27a414b414c4d69588d2c5c24ed819bfb4057084abd530f43e4ae96",
+ "va": 4270928
+}

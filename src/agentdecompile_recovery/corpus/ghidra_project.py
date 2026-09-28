@@ -708,6 +708,21 @@ def inspect_locator(raw: str) -> dict[str, object]:
         out["program_count"] = len(out.get("programs") or [])
     if kind == "ghidra-project":
         out["access"] = "local"
+        # Programs in a local project live in folders. Map each bare name to its
+        # folder path, so a pipeline probe asks Ghidra for the path it will
+        # report back.
+        if out.get("gpr") and not out.get("program_paths"):
+            try:
+                from agentdecompile_recovery.ghidra_db.store import list_store_programs
+
+                paths: dict[str, str] = {}
+                for entry in list_store_programs(str(out["gpr"])):
+                    paths.setdefault(entry.name, entry.project_path)
+                    paths[entry.project_path] = entry.project_path
+                if paths:
+                    out["program_paths"] = paths
+            except Exception:
+                pass
     if kind in ("binary", "packed-program"):
         loc = Path(str(out.get("locator") or raw))
         out["access"] = "local"

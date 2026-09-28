@@ -1,6 +1,6 @@
 <!--SEC:Canvas-->
-<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1460" viewBox="0 0 1800 1460">
-<rect x="0" y="0" width="1800" height="1460" rx="8" fill="#16181c" stroke="#16181c"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1700" viewBox="0 0 1800 1700">
+<rect x="0" y="0" width="1800" height="1700" rx="8" fill="#16181c" stroke="#16181c"/>
 <text x="35" y="43" font-family="DejaVu Sans, sans-serif" font-size="32" fill="#f2f4f7" font-weight="bold">Prevention, containment and recovery</text>
 <text x="35" y="78" font-family="DejaVu Sans, sans-serif" font-size="18" fill="#f0c060" font-weight="normal">DESIGN ONLY · future failure-injection checks NOT RUN · implement locally first using existing task/corpus contracts</text>
 <text x="35" y="109" font-family="DejaVu Sans, sans-serif" font-size="18" fill="#d8dbe0" font-weight="normal">One durable decision owner. Recover the affected dependency; retain the objective, evidence and independent work.</text>
@@ -100,13 +100,21 @@
 <text x="1231" y="983" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Reassess active attempts under their recorded policy</text>
 <text x="1231" y="1009" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Accept only with pinned/current policy compatibility</text>
 <text x="1231" y="1035" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Wake: accepted policy version or corrected evidence</text>
+<!--SEC:Distributed compute failure classes-->
+<rect x="35" y="1115" width="1730" height="210" rx="8" fill="#20232a" stroke="#495364"/>
+<text x="51" y="1145" font-family="DejaVu Sans, sans-serif" font-size="21" fill="#8cbaff" font-weight="bold">Distributed compute · failure classes and their containment</text>
+<text x="51" y="1178" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Hot key starves the shared object store → split heads, batch records, full-jitter backoff, rotate after 8 failures (H7)</text>
+<text x="51" y="1204" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Verification funnel livelocks → cap 4 proposals per task; verify before generating more (H8)</text>
+<text x="51" y="1230" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Analysis slice never converges → per-binary slice cap; mark task-poison and pin the last packed program (H10)</text>
+<text x="51" y="1256" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">View applier lags → named view-stale state with an age bound; readers use pinned objects past it (H11)</text>
+<text x="51" y="1282" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Operator liveness → fleet keys sign invites, extend revocation, mirror objects, run appliers; no single laptop on a liveness path (H13)</text>
 <!--SEC:Worked interruption and evidence boundary-->
-<rect x="35" y="1115" width="1730" height="285" rx="8" fill="#20232a" stroke="#495364"/>
-<text x="52" y="1150" font-family="DejaVu Sans, sans-serif" font-size="23" fill="#f2f4f7" font-weight="bold">Worked interruption · the command was sent, then the decision store disappeared</text>
-<text x="52" y="1189" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">Observe: command ID C may have changed the game; the connection closed before its result was durably recorded.</text>
-<text x="52" y="1224" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">Contain: pause new managed mutations in this scope; preserve read-only status and existing evidence; do not replay C.</text>
-<text x="52" y="1259" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">Recover: reconcile C against observed engine state and ownership. Resume only after durable authority and state agree.</text>
-<text x="52" y="1294" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">Future proof: inject disconnect; show no blind duplicate dispatch, retained unknown outcome, reconciliation and scoped resumption.</text>
-<text x="52" y="1329" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">If the effect cannot be determined, keep the affected operation waiting and expose the exact required observation.</text>
-<text x="52" y="1371" font-family="DejaVu Sans, sans-serif" font-size="18" fill="#f0c060" font-weight="normal">NOT RUN · design acceptance is artifact consistency; runtime recovery needs the future measurements specified in the plan.</text>
+<rect x="35" y="1355" width="1730" height="285" rx="8" fill="#20232a" stroke="#495364"/>
+<text x="52" y="1390" font-family="DejaVu Sans, sans-serif" font-size="23" fill="#f2f4f7" font-weight="bold">Worked interruption · the command was sent, then the decision store disappeared</text>
+<text x="52" y="1429" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">Observe: command ID C may have changed the game; the connection closed before its result was durably recorded.</text>
+<text x="52" y="1464" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">Contain: pause new managed mutations in this scope; preserve read-only status and existing evidence; do not replay C.</text>
+<text x="52" y="1499" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">Recover: reconcile C against observed engine state and ownership. Resume only after durable authority and state agree.</text>
+<text x="52" y="1534" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">Future proof: inject disconnect; show no blind duplicate dispatch, retained unknown outcome, reconciliation and scoped resumption.</text>
+<text x="52" y="1569" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">If the effect cannot be determined, keep the affected operation waiting and expose the exact required observation.</text>
+<text x="52" y="1611" font-family="DejaVu Sans, sans-serif" font-size="18" fill="#f0c060" font-weight="normal">NOT RUN · design acceptance is artifact consistency; runtime recovery needs the future measurements specified in the plan.</text>
 </svg>

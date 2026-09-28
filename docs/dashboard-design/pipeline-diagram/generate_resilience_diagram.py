@@ -2,7 +2,7 @@
 """Generate a design-only resilience companion. No product operations."""
 from pathlib import Path
 from html import escape
-W,H=1800,1460
+W,H=1800,1700
 out=['<!--SEC:Canvas-->',f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">']
 def rect(x,y,w,h,fill='#20232a',stroke='#495364'):
  out.append(f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="8" fill="{fill}" stroke="{stroke}"/>')
@@ -99,14 +99,21 @@ box(1215,790,550,285,'POLICY / CANARY · Bound the change',[
 'Reassess active attempts under their recorded policy',
 'Accept only with pinned/current policy compatibility',
 'Wake: accepted policy version or corrected evidence'], '#f0c060')
+out.append('<!--SEC:Distributed compute failure classes-->')
+box(35,1115,1730,210,'Distributed compute · failure classes and their containment',[
+'Hot key starves the shared object store → split heads, batch records, full-jitter backoff, rotate after 8 failures (H7)',
+'Verification funnel livelocks → cap 4 proposals per task; verify before generating more (H8)',
+'Analysis slice never converges → per-binary slice cap; mark task-poison and pin the last packed program (H10)',
+'View applier lags → named view-stale state with an age bound; readers use pinned objects past it (H11)',
+'Operator liveness → fleet keys sign invites, extend revocation, mirror objects, run appliers; no single laptop on a liveness path (H13)'], '#8cbaff')
 out.append('<!--SEC:Worked interruption and evidence boundary-->')
-rect(35,1115,1730,285)
-text(52,1150,'Worked interruption · the command was sent, then the decision store disappeared',23,'#f2f4f7',True)
-text(52,1189,'Observe: command ID C may have changed the game; the connection closed before its result was durably recorded.',19)
-text(52,1224,'Contain: pause new managed mutations in this scope; preserve read-only status and existing evidence; do not replay C.',19)
-text(52,1259,'Recover: reconcile C against observed engine state and ownership. Resume only after durable authority and state agree.',19)
-text(52,1294,'Future proof: inject disconnect; show no blind duplicate dispatch, retained unknown outcome, reconciliation and scoped resumption.',19)
-text(52,1329,'If the effect cannot be determined, keep the affected operation waiting and expose the exact required observation.',19)
-text(52,1371,'NOT RUN · design acceptance is artifact consistency; runtime recovery needs the future measurements specified in the plan.',18,'#f0c060')
+rect(35,1355,1730,285)
+text(52,1390,'Worked interruption · the command was sent, then the decision store disappeared',23,'#f2f4f7',True)
+text(52,1429,'Observe: command ID C may have changed the game; the connection closed before its result was durably recorded.',19)
+text(52,1464,'Contain: pause new managed mutations in this scope; preserve read-only status and existing evidence; do not replay C.',19)
+text(52,1499,'Recover: reconcile C against observed engine state and ownership. Resume only after durable authority and state agree.',19)
+text(52,1534,'Future proof: inject disconnect; show no blind duplicate dispatch, retained unknown outcome, reconciliation and scoped resumption.',19)
+text(52,1569,'If the effect cannot be determined, keep the affected operation waiting and expose the exact required observation.',19)
+text(52,1611,'NOT RUN · design acceptance is artifact consistency; runtime recovery needs the future measurements specified in the plan.',18,'#f0c060')
 out.append('</svg>')
 Path(__file__).with_name('resilience-contracts.svg').write_text('\n'.join(out)+'\n')

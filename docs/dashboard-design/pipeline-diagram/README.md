@@ -167,11 +167,20 @@ below for what would need to change if this work merges. Full detail is in the
 ### Diagram regeneration pending — 2026-09-27
 
 None of the four facts above changes any diagram topology today, because the
-matcher veto and the four new modules are unmerged and have no wired consumer,
+matcher veto merged as source on 2026-09-27 (commit d14949e) but has no wired
+production consumer, the four new modules have no wired consumer either,
 `.18` is a packaging artifact, and the DB/8080-ownership facts are host state,
 not pipeline design. If the matcher veto merges, the recovery-overview diagram's
-identity-fusion lane (Lane A) would need a new decision node for a vetoed tie
-inside the score-margin window; that edit is not made here.
+identity-fusion lane (Lane A) will need a new decision node for a vetoed tie
+inside the score-margin window once a production caller uses the veto; that
+edit is not made here.
+
+## Regenerated — 2026-09-28
+
+- The overview's stage 6 card now states the trust boundary: binary-derived text is evidence, never instructions.
+- The resilience companion has a new band for distributed compute failure classes (H7, H8, H10, H11, H13).
+- The SVG, draw.io and PNG for both were regenerated from their generators. A rerun gives byte-identical SVGs.
+- The Documents overview copy was synced to the new overview SVG.
 
 ## Supplied originals reconciled — 2026-09-28
 

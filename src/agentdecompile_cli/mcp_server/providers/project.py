@@ -2232,8 +2232,6 @@ class ProjectToolProvider(ToolProvider):
                             if path_name in name or path_name in pname or (name and path_name.lower() in name.lower()):
                                 domain_file = df
                                 break
-                        if domain_file is None and (root_folder.getFiles() or []):
-                            domain_file = (root_folder.getFiles() or [])[0]
                     except Exception:
                         pass
             if domain_file is None and root_folder is None:

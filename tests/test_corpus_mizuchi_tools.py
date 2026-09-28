@@ -71,8 +71,10 @@ def test_collect_source_and_coverage_report_offline(tmp_path: Path) -> None:
         out_dir=out,
         recovery_root=tmp_path,
     )
-    assert result["byte_exact"] == 1
-    assert (out / "demo" / "addOne.c").is_file()
+    assert result["byte_exact"] == 0
+    assert result["unverified"] == 1
+    assert (out / "demo" / "unverified" / "addOne.c").is_file()
+    assert not (out / "demo" / "addOne.c").exists()
 
     summary = coverage_report.summarize(cov)
     text = coverage_report.format_report(summary)

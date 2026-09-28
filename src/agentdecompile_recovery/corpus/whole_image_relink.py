@@ -1,20 +1,8 @@
-"""Exact-placement assembly-floor diagnostic (STRATEGY.md tier 8).
+"""Exact-placement diagnostics and a typed source-contribution writer.
 
-Per-function objdiff-0 is not the terminal deliverable; it needs a fresh,
-compiler-produced whole-image build and whole-file comparison. This module does
-not build that image: it starts from the shipped PE, keeps its headers and
-non-code sections, and places per-function bytes at their original offsets.
-When it uses the assembly floor, the output is byte-identical by construction.
-That establishes only the placement diagnostic and recovered-C coverage; it is
-never a compiler/relink receipt.
-
-For swkotor.exe the PE has file_align == section_align == 0x1000, so a section's
-file offset equals its RVA and placement is direct: a function at VA `a` lives at
-file offset `a - image_base`.
-
-    python3 -m agentdecompile_recovery.corpus.whole_image_relink \\
-        --target <shipped.exe> --db <corpus.sqlite> --binary-id N \\
-        --func-bytes <dir-or-none> --out <rebuilt.exe>
+Legacy directory bytes are unverified diagnostics with zero accepted credit.
+The typed ``reconstruct`` path owns real object-derived writes and independently
+checked contribution. Both preserve a floor; neither is a compiler-linked image.
 """
 from __future__ import annotations
 
@@ -24,6 +12,9 @@ import sqlite3
 import struct
 from pathlib import Path
 
+from .source_contribution import reconstruct, evaluate_reconstruction
+from .verify_recovered_byteexact import file_region_offset
+
 
 def parse_pe(blob: bytes) -> dict:
     e_lfanew = struct.unpack_from("<I", blob, 0x3C)[0]
@@ -32,7 +23,13 @@ def parse_pe(blob: bytes) -> dict:
     nsec = struct.unpack_from("<H", blob, e_lfanew + 6)[0]
     opt_sz = struct.unpack_from("<H", blob, e_lfanew + 20)[0]
     opt = e_lfanew + 24
-    image_base = struct.unpack_from("<I", blob, opt + 28)[0]
+    magic = struct.unpack_from("<H", blob, opt)[0]
+    if magic == 0x10b:
+        image_base = struct.unpack_from("<I", blob, opt + 28)[0]
+    elif magic == 0x20b:
+        image_base = struct.unpack_from("<Q", blob, opt + 24)[0]
+    else:
+        raise ValueError("unsupported PE optional header")
     sect = opt + opt_sz
     sections = []
     for i in range(nsec):
@@ -54,13 +51,7 @@ def text_section(pe: dict) -> dict:
 
 
 def func_byte_source(func_bytes_dir: str | None):
-    """Return f(addr, size) -> recovered compiled bytes, or None to keep original.
-
-    A directory holds `<addr_hex>.bin` files (a function's fresh objdiff-0
-    compiled bytes). Absent file -> None -> the original bytes stay (assembly
-    floor). This keeps the rebuild byte-identical while substituting real C
-    only where it is proven byte-exact.
-    """
+    """Unverified diagnostic directory bytes; never accepted C evidence."""
     if not func_bytes_dir:
         return lambda addr, size: None
     root = Path(func_bytes_dir)
@@ -95,8 +86,8 @@ def rebuild(target: bytes, db: str | None, binary_id: int | None,
         con.close()
 
     for addr, size in funcs:
-        off = (addr - base)  # file_align == section_align: RVA == file offset
-        if not (t_lo <= off < t_hi and off + size <= t_hi):
+        off = file_region_offset(target, addr, size)
+        if off is None or not (t_lo <= off < t_hi and off + size <= t_hi):
             out_of_range += 1
             continue
         rc = src(addr, size)
@@ -112,7 +103,10 @@ def rebuild(target: bytes, db: str | None, binary_id: int | None,
             image[off:off + size] = rc  # apply, but flag: this breaks identity
             mismatch += 1
 
-    stats = {"functions": len(funcs), "substituted_byte_equal": substituted,
+    stats = {"functions": len(funcs), "substituted_byte_equal": 0,
+             "diagnostic_equal_artifacts": substituted,
+             "placedCompiledRegions": 0, "placedCompiledBytes": 0,
+             "wholeFileByteIdentical": bytes(image) == target,
              "kept_original": kept, "out_of_text_range": out_of_range,
              "substituted_mismatch": mismatch}
     return bytes(image), stats

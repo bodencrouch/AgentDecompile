@@ -106,7 +106,7 @@ class StructureToolProvider(ToolProvider):
                         "fields": {"type": "array", "items": {"type": "object"}, "description": "An array of multiple field definitions to apply at once."},
                         "addressOrSymbol": {"type": "string", "description": "The memory address where you want to drop/apply the struct template."},
                         "isUnion": {"type": "boolean", "default": False, "description": "If true, treats the object as a C-union (all fields overlap at offset 0)."},
-                        "type": {"type": "string", "enum": ["structure", "struct", "union"], "description": "Create a struct or a union. \"union\" is the same as isUnion=true."},
+                        "type": {"type": "string", "description": "create: struct|union kind (\"union\" is the same as isUnion=true); add_field/modify_field: fallback for fieldType."},
                         "nameFilter": {"type": "string", "description": "Case-insensitive text to filter the struct list by."},
                         "query": {"type": "string", "description": "Alternative parameter for nameFilter."},
                         "filter": {"type": "string", "description": "Alternative parameter for nameFilter."},

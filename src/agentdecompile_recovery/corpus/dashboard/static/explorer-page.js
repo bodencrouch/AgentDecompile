@@ -995,6 +995,7 @@
   }
 
   function controlWorkflow(operation) {
+    if (["pause", "resume", "stop"].indexOf(operation) === -1) return;
     if (!state.run || state.workflowBusy) return;
     if (operation === "stop") state.stoppedKey = selectionKey();
     state.workflowBusy = operation;

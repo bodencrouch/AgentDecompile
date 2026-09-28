@@ -1666,6 +1666,70 @@ def get_tool_metadata(tool_name: Tool | str) -> ToolMetadata | None:
     )
 
 
+# Routine UI policy is deliberately separate from danger/writes_state. Opening a
+# project and editing a name write state but remain operator actions (R5), while
+# matching and reconstruction belong to the pipeline even when a mode only reads.
+_PIPELINE_TOOLS: frozenset[Tool] = frozenset({
+    Tool.ANALYZE_PROGRAM, Tool.MATCH_FUNCTION, Tool.RECONSTRUCT,
+    Tool.RUN_DECOMP_MATCH, Tool.RUN_BATCH_DECOMPILE, Tool.RUN_BATCH_BSIM_SIGNATURES,
+    Tool.RUN_BATCH_SAST_SCAN, Tool.RUN_EXTERNAL_RE_SCAN,
+    Tool.BSIM_CREATEDATABASE, Tool.BSIM_INGEST, Tool.MIGRATE_METADATA,
+})
+_OPERATOR_EDIT_TOOLS: frozenset[Tool] = frozenset({
+    Tool.OPEN, Tool.IMPORT_BINARY, Tool.CHECKIN_PROGRAM, Tool.CHECKOUT_PROGRAM,
+    Tool.CREATE_LABEL, Tool.APPLY_DATA_TYPE, Tool.MANAGE_BOOKMARKS,
+    Tool.MANAGE_COMMENTS, Tool.MANAGE_DATA_TYPES, Tool.MANAGE_ENUMS,
+    Tool.MANAGE_FUNCTION, Tool.MANAGE_FUNCTION_TAGS, Tool.MANAGE_STRINGS,
+    Tool.MANAGE_STRUCTURES, Tool.MANAGE_SYMBOLS, Tool.RESOLVE_MODIFICATION_CONFLICT,
+    Tool.REMOVE_PROGRAM_BINARY, Tool.DELETE_PROJECT_BINARY,
+})
+# These are action semantics, not surface-specific suppression exceptions. Unknown
+# corpus commands fail closed; adding a command requires choosing its ownership.
+_STATIC_READ_ACTIONS = frozenset({
+    "recover.inspect", "corpus.stages", "corpus.bsim-report", "review.list",
+    "corpus.coverage-report", "corpus.export-run-report", "corpus.export-atlas-db",
+    "corpus.program-inventory", "corpus.stabs-manifest",
+})
+_STATIC_EDIT_ACTIONS = frozenset({
+    "corpus.init", "corpus.init-store", "corpus.add-binary", "corpus.edit-binary",
+    "corpus.remove-binary", "review.decide",
+})
+
+
+def classify_static_action(action_id: str, params: dict[str, Any] | None = None) -> str:
+    """Classify a routine static action, preserving the unrestricted expert surface.
+
+    Returns read, operator-edit, workflow-control, pipeline, or expert-only.
+    Missing/unknown modes on mixed workflow tools fail closed. This policy does
+    not deny an agent/expert catalog call; it checks what routine UI may offer.
+    """
+    args = {normalize_identifier(str(key)): value for key, value in (params or {}).items()}
+    mode = normalize_identifier(str(args.get("operation", args.get("mode", args.get("action", "")))))
+    if action_id == "workbench.workflow-control":
+        # Other modes (budgets/priority) belong in the expert catalog.
+        return "workflow-control" if mode in {"pause", "resume", "stop"} else "expert-only"
+    if action_id in _STATIC_READ_ACTIONS:
+        return "read"
+    if action_id in _STATIC_EDIT_ACTIONS:
+        return "operator-edit"
+    if not action_id.startswith("mcp."):
+        return "pipeline" if action_id.startswith(("corpus.", "recover.")) else "expert-only"
+    tool = _resolve_canonical_tool_identity(action_id[4:])
+    if tool is None:
+        return "expert-only"
+    if tool == Tool.MANAGE_WORKFLOW:
+        if mode in {"snapshot", "exportstatus"}:
+            return "read"
+        return "workflow-control" if mode in {"pause", "resume", "stop"} else "pipeline"
+    if tool in _PIPELINE_TOOLS:
+        return "pipeline"
+    if tool in _OPERATOR_EDIT_TOOLS:
+        return "operator-edit"
+    if tool in _STATE_WRITING_TOOLS:
+        return "expert-only"
+    return "read"
+
+
 def get_tool_profiles(tool_name: Tool | str) -> list[str]:
     """Return the advertised profiles a canonical tool belongs to."""
     logger.debug("diag.enter %s", "registry.py:get_tool_profiles")

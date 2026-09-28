@@ -10,6 +10,7 @@ Used by:
 from __future__ import annotations
 
 import logging
+import re
 import time
 
 from typing import TYPE_CHECKING, Any
@@ -22,7 +23,7 @@ from agentdecompile_cli.mcp_server.session_context import (
     SessionContext,
     is_shared_server_handle,
 )
-from agentdecompile_cli.registry import normalize_identifier
+from agentdecompile_cli.registry import classify_static_action, normalize_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -711,3 +712,153 @@ def attach_auto_checkin_to_payload(
             parent_payload["guiHint"] = f"{existing} {hint}"
         else:
             parent_payload["guiHint"] = str(hint)
+
+
+# This source check covers declarative action inventories and literal call sites.
+# Dynamic catalog dispatch is the expert surface, not an inferred routine action.
+# It deliberately does not claim whole-program JavaScript/data-flow verification.
+def _static_js_tokens(source: str) -> list[tuple[int, int, str]]:
+    """Lex strings/comments, descending into interpolated template expressions."""
+    tokens: list[tuple[int, int, str]] = []
+
+    def scan(index: int, interpolation: bool = False) -> int:
+        depth = 0
+        while index < len(source):
+            start = index
+            ch = source[index]
+            if source.startswith("//", index):
+                end = source.find("\n", index)
+                index = len(source) if end < 0 else end
+                tokens.append((start, index, "comment"))
+            elif source.startswith("/*", index):
+                end = source.find("*/", index + 2)
+                index = len(source) if end < 0 else end + 2
+                tokens.append((start, index, "comment"))
+            elif ch in "\"'":
+                index += 1
+                while index < len(source):
+                    if source[index] == "\\":
+                        index += 2
+                    elif source[index] == ch:
+                        index += 1
+                        break
+                    else:
+                        index += 1
+                tokens.append((start, index, "string"))
+            elif ch == "`":
+                index += 1
+                interpolated = False
+                while index < len(source):
+                    if source[index] == "\\":
+                        index += 2
+                    elif source[index] == "`":
+                        index += 1
+                        if not interpolated:
+                            tokens.append((start, index, "string"))
+                        break
+                    elif source.startswith("${", index):
+                        interpolated = True
+                        index = scan(index + 2, True)
+                    else:
+                        index += 1
+            elif ch == "/" and source[:index].rstrip()[-1:] in "(=,:!&|?[{":
+                # Regex literal contents are not JS strings or comments.
+                index += 1
+                in_class = False
+                while index < len(source):
+                    current = source[index]
+                    index += 1
+                    if current == "\\":
+                        index += 1
+                    elif current == "[":
+                        in_class = True
+                    elif current == "]":
+                        in_class = False
+                    elif current == "/" and not in_class:
+                        break
+            else:
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    if interpolation and depth == 0:
+                        return index + 1
+                    depth -= 1
+                index += 1
+        return index
+
+    scan(0)
+    return sorted(tokens)
+
+
+_STATIC_ACTION_ID = re.compile(r"(?:mcp|corpus|recover|workbench|review)\.[a-z][a-z0-9-]*\Z")
+_STATIC_MODE = re.compile(r"(?:operation|mode|action)\s*:\s*['\"]([^'\"]+)['\"]")
+_WORKFLOW_CONTROL_GUARD = re.compile(
+    r'if\s*\(\s*\[\s*"pause"\s*,\s*"resume"\s*,\s*"stop"\s*\]'
+    r'\.indexOf\(operation\)\s*===\s*-1\s*\)\s*return(?:\s+Promise\.resolve\(null\))?\s*;'
+)
+
+
+def static_surface_action_violations(source: str) -> list[dict[str, Any]]:
+    """Find routine pipeline controls using backend action/mode ownership (R7).
+
+    History-label object keys and equality comparisons describe actions; they do
+    not offer actions. Other action literals are checked regardless of widget or
+    handler names. No per-file or per-action suppression exceptions are accepted.
+    Comments are erased before checking; dynamic workflow modes require a local
+    finite guard. Runtime catalog rows remain available only in the expert dock.
+    """
+    tokens = _static_js_tokens(source)
+    clean = list(source)
+    for start, end, kind in tokens:
+        if kind == "comment":
+            clean[start:end] = ["\n" if ch == "\n" else " " for ch in source[start:end]]
+    code = "".join(clean)
+    violations: list[dict[str, Any]] = []
+    for start, end, kind in tokens:
+        if kind != "string":
+            continue
+        action_id = source[start + 1:end - 1]
+        if not _STATIC_ACTION_ID.fullmatch(action_id):
+            continue
+        before, after = code[:start].rstrip(), code[end:].lstrip()
+        if before.endswith(("===", "!==", "==", "!=")) or after.startswith(("===", "!==", "==", "!=")):
+            continue
+        if before.endswith("+") or after.startswith("+"):
+            continue  # String/path fragments are not complete action IDs.
+        if after.startswith(":"):
+            continue  # Object key: historical labels, not action values.
+        # Literal argument object, when present. Missing mode fails closed for
+        # mixed tools such as manage-workflow; it is not assumed to be read-only.
+        params: dict[str, Any] = {}
+        if after.startswith(","):
+            argument = after[1:].lstrip()
+            if argument.startswith("{"):
+                found = _STATIC_MODE.search(argument.split("}", 1)[0])
+                if found:
+                    params["operation"] = found.group(1)
+        if action_id == "workbench.workflow-control" and not params:
+            # Only a guard in the enclosing helper may prove a dynamic mode.
+            # Find the nearest function declaration, not another file's guard.
+            functions = list(re.finditer(r"\bfunction\s+\w+\s*\([^)]*\)\s*\{", before))
+            body = before[functions[-1].end():] if functions else ""
+            if _WORKFLOW_CONTROL_GUARD.search(body):
+                params["operation"] = "pause"  # representative of the finite set
+        ownership = classify_static_action(action_id, params)
+        if ownership in {"pipeline", "expert-only"}:
+            violations.append({
+                "line": source.count("\n", 0, start) + 1,
+                "action": action_id,
+                "classification": ownership,
+                "message": "Routine controls cannot offer this action/mode; use the expert catalog.",
+            })
+    # A catalog fallback bypasses the explicit routine inventory. Keeping this
+    # check structural avoids an allowlist of today's catalog contents.
+    preferred = re.search(r"function\s+preferredActions\([^)]*\)\s*\{([\s\S]*?)\n  \}", code)
+    if preferred and re.search(r"return\s+catalog\s*(?:\.|;)", preferred.group(1)):
+        violations.append({
+            "line": code.count("\n", 0, preferred.start()) + 1,
+            "action": "catalog fallback",
+            "classification": "expert-only",
+            "message": "Routine actions must use their explicit inventory, not the full catalog.",
+        })
+    return violations

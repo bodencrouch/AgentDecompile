@@ -5090,6 +5090,7 @@
        same workbench.workflow-control action explorer-page.js already uses,
        scoped to the run in view via preparation_id. */
     function controlPreparation(preparationId, operation) {
+      if (["pause", "resume", "stop"].indexOf(operation) === -1) return Promise.resolve(null);
       if (!preparationId || !operation) return Promise.resolve(null);
       return executeAction("workbench.workflow-control", {
         preparation_id: preparationId,

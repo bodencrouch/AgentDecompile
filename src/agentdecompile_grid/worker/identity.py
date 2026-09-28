@@ -379,9 +379,12 @@ def split_fabric_url(url: str) -> tuple[str, str]:
 
 
 def parse_invite_url(url: str, *, now: float, verifier: NodeSigner | None = None, keyring: Keyring | None = None, max_lifetime_s: float = 365 * 24 * 3600) -> Invite:
-    """Parse and validate.  Structural checks always run; the signature is checked when a verifier is
-    given (the issuer's public material is taken from the token itself for asymmetric algorithms and
-    added to the keyring, so a joiner can verify a fresh invite with no prior contact)."""
+    """Parse and validate an invite without creating trust from its own token.
+
+    When ``verifier`` is supplied, its keyring (or the explicit identity keyring) must already
+    contain the issuer.  The token's ``issuer_public`` is descriptive material only: accepting it
+    as a trust root would make every self-signed invite valid.
+    """
     fragment = urlsplit(url).fragment
     if not fragment:
         raise InviteError("invite url has no '#<token>' fragment")
@@ -414,18 +417,26 @@ def parse_invite_url(url: str, *, now: float, verifier: NodeSigner | None = None
     if invite.expires_at - invite.issued_at > max_lifetime_s:
         raise InviteError("invite lifetime exceeds the maximum")
     if verifier is not None:
-        ring = keyring or verifier.keyring
-        if invite.issuer_key not in ring and invite.issuer_algorithm and invite.issuer_public:
-            try:
-                public = bytes.fromhex(invite.issuer_public)
-            except ValueError as exc:
-                raise InviteError("invite carries malformed issuer public material") from exc
-            if key_id_for(invite.issuer_algorithm, public) != invite.issuer_key:
-                raise InviteError("invite issuer public material does not hash to the issuer key id")
-            ring.add(invite.issuer_key, invite.issuer_algorithm, public)
         if not verifier.verify(invite.issuer_key, invite.signed_bytes(), invite.signature):
-            raise InviteError(f"invite signature by {invite.issuer_key} does not verify (unknown issuer key or tampered token)")
+            raise InviteError(f"invite signature by unknown issuer {invite.issuer_key} does not verify")
     return invite
+
+
+def verify_invite(invite: Invite, keyring: Any) -> None:
+    """Verify an invite against the fabric's pinned signing keyring.
+
+    The issuer must already be trusted, its configured role must match ``issuer_role``, and the
+    token signature must verify.  Nothing carried by the token adds a key to the trust root.
+    """
+    if not keyring.knows(invite.issuer_key):
+        raise InviteError(f"invite issuer {invite.issuer_key} is not in the trusted keyring")
+    trusted_role = keyring.role_of(invite.issuer_key)
+    if trusted_role != invite.issuer_role:
+        raise InviteError(
+            f"invite issuer role {invite.issuer_role!r} does not match trusted role {trusted_role!r}"
+        )
+    if not keyring.verify(invite.issuer_key, invite.signed_bytes(), invite.signature):
+        raise InviteError(f"invite signature by {invite.issuer_key} does not verify")
 
 
 def lineage_for_joiner(invite: Invite) -> tuple[str, ...]:
@@ -497,5 +508,5 @@ __all__ = [
     "DEFAULT_INVITE_LIFETIME_S", "DEFAULT_KEY_LIFETIME_S", "Ed25519Algorithm", "HashTokenAlgorithm", "INVITE_VERSION", "IdentityError",
     "Invite", "InviteError", "KEY_ALGORITHMS", "KeyAlgorithm", "Keyring", "NodeKey", "NodeKeyStore", "NodeSigner", "ROLES", "ROLE_MAY_SIGN",
     "ROLE_MAY_VERIFY", "assert_two_lineages", "bind_identity", "independent", "independent_identities", "key_id_for", "lineage_for_joiner",
-    "lineage_set", "make_invite", "parse_invite_url", "split_fabric_url",
+    "lineage_set", "make_invite", "parse_invite_url", "split_fabric_url", "verify_invite",
 ]

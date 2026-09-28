@@ -17,6 +17,10 @@ Three ``core.Signer`` implementations, all registered in ``core.SIGNERS``:
 
 ``Keyring`` holds public material for many key ids and is the ``verifier`` that ``records.verify_chain``
 takes.  ``verify_record(record, keyring)`` raises ``UnknownSigner`` or ``BadSignature`` by name.
+``authorize_record`` adds the role rule (a TASK or CHECKPOINT needs an operator key) and is what
+every reader calls before it folds, indexes or applies a record; ``refusal_reason`` is its
+non-raising form for readers that skip and report.  The trust root is the keyring a reader builds
+from ``GridConfig.keyring_locator()``: nothing in a record body or an invite token adds a key.
 
 Acceptance tests (named here, written in the verification phase):
   signing-roundtrip: for each signer, a sealed record verifies through a keyring holding only the
@@ -28,16 +32,18 @@ Acceptance tests (named here, written in the verification phase):
 """
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
+import json
 import os
 import re
 from pathlib import Path
 from typing import Any
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 
-from agentdecompile_grid.core import SIGNERS, GridError, NotConfigured, Record, Registry, Signer, digest
-from agentdecompile_grid.log.records import BadSignature, UnknownSigner, unsigned_bytes
+from agentdecompile_grid.core import SIGNERS, GridError, NotConfigured, Record, RecordType, Registry, Signer, digest
+from agentdecompile_grid.log.records import BadSignature, SignerNotAuthorized, UnknownSigner, unsigned_bytes
 
 try:
     from cryptography.exceptions import InvalidSignature as _InvalidSignature
@@ -291,24 +297,68 @@ class Ed25519Signer:
 
 
 # --------------------------------------------------------------------------- keyring
+OPERATOR_ROLE = "operator"
+OPERATOR_ONLY_TYPES: frozenset[RecordType] = frozenset({RecordType.TASK, RecordType.CHECKPOINT})
+"""Record types only an operator key may sign: a TASK decides what every worker runs, and a
+CHECKPOINT summary is folded by readers in place of the records it covers."""
+
+NODE_KEY_ROLE = "node"
+"""Role of a trusted node key whose trust file names no role.  Not an operator."""
+
+
+def _node_algorithms() -> tuple[Any, Any]:
+    """``worker.identity``'s key-algorithm registry and ``key_id_for``, imported on use (the worker
+    package imports the log package; the reverse import at module load would be a cycle)."""
+    from agentdecompile_grid.worker.identity import KEY_ALGORITHMS, key_id_for
+
+    return KEY_ALGORITHMS, key_id_for
+
+
+def _b64url_decode(text: str) -> bytes:
+    return base64.urlsafe_b64decode((text + "=" * (-len(text) % 4)).encode("ascii"))
+
+
 class Keyring:
     """Public material for many key ids; the ``verifier`` for ``records.verify_chain``.
 
-    Holds raw ed25519 public keys by key id, any number of HMAC secrets (a key id is accepted when
-    one of them derives it) and a policy bit for null signatures.
+    Holds raw ed25519 public keys by key id (operator signers, ``Ed25519Signer`` format), node
+    keys (``worker.identity.NodeKey`` format: 32-hex key id, base64url signatures), any number of
+    HMAC secrets (a key id is accepted when one of them derives it) and a policy bit for null
+    signatures.  Each trusted key has a role: ``*.pub`` keys and HMAC keys are operator keys, a
+    null key is an operator key only while ``allow_null`` is on, and a node key has the role its
+    trust file names (``node`` when it names none).  ``authorize_record`` uses the role.
     """
 
     def __init__(self, *, allow_null: bool = False) -> None:
         self.allow_null = allow_null
         self._ed25519: dict[str, bytes] = {}
         self._hmac_secrets: list[bytes] = []
+        self._node: dict[str, tuple[str, bytes]] = {}
+        self._roles: dict[str, str] = {}
+        self._lineage: dict[str, tuple[str, ...]] = {}
+
+    @classmethod
+    def from_locator(cls, locator: Mapping[str, Any]) -> Keyring:
+        """``GridConfig.keyring_locator()`` -> a keyring.  A missing ``key_dir`` is an empty keyring,
+        not an error; ``trust_local_nodes`` also trusts every node key under ``nodes_dir``."""
+        ring = cls(allow_null=bool(locator.get("allow_null", False)))
+        if locator.get("key_dir"):
+            ring.load_dir(str(locator["key_dir"]), missing_ok=True)
+        if locator.get("trust_local_nodes") and locator.get("nodes_dir"):
+            ring.load_local_nodes(str(locator["nodes_dir"]))
+        return ring
 
     # -- population
-    def add_ed25519_public(self, public_bytes: bytes) -> str:
+    def _set_meta(self, key_id: str, role: str, lineage: Iterable[str]) -> None:
+        self._roles[key_id] = str(role)
+        self._lineage[key_id] = tuple(str(k) for k in lineage)
+
+    def add_ed25519_public(self, public_bytes: bytes, *, role: str = OPERATOR_ROLE) -> str:
         if len(public_bytes) != 32:
             raise KeyMaterialError("ed25519 public key must be 32 raw bytes")
         key_id = ed25519_key_id(public_bytes)
         self._ed25519[key_id] = bytes(public_bytes)
+        self._roles[key_id] = role
         return key_id
 
     def add_hmac_secret(self, secret: bytes) -> None:
@@ -316,6 +366,46 @@ class Keyring:
             raise KeyMaterialError("HMAC secret must be at least 16 bytes")
         if bytes(secret) not in self._hmac_secrets:
             self._hmac_secrets.append(bytes(secret))
+
+    def add_node_public(self, key_id: str, algorithm: str, public: bytes, *, role: str = NODE_KEY_ROLE,
+                        lineage: Iterable[str] = ()) -> str:
+        """Trust a node key by its public material; the key id must be its content address."""
+        algorithms, key_id_for = _node_algorithms()
+        if algorithm not in algorithms:
+            raise KeyMaterialError(f"node key {key_id!r}: unknown key algorithm {algorithm!r}; known: {algorithms.names()}")
+        if algorithm == "hash-token":
+            raise KeyMaterialError(f"node key {key_id!r} is hash-token: its public part is a commitment that verifies "
+                                   "nothing; trust it with add_node_key on the host that holds the secret")
+        if key_id_for(algorithm, bytes(public)) != key_id:
+            raise KeyMaterialError(f"node key id {key_id!r} is not the content address of its {algorithm} public material")
+        self._node[key_id] = (algorithm, bytes(public))
+        self._set_meta(key_id, role, lineage)
+        return key_id
+
+    def add_node_key(self, key: Any, *, role: str = NODE_KEY_ROLE, lineage: Iterable[str] = ()) -> str:
+        """Trust a ``worker.identity.NodeKey`` held in this process (a hash-token key verifies with its secret)."""
+        _, key_id_for = _node_algorithms()
+        if key_id_for(key.algorithm, key.public) != key.key_id:
+            raise KeyMaterialError(f"node key id {key.key_id!r} is not the content address of its public material")
+        material = key.secret if key.algorithm == "hash-token" else key.public
+        self._node[key.key_id] = (key.algorithm, bytes(material))
+        self._set_meta(key.key_id, role, lineage)
+        return key.key_id
+
+    def add_node_record(self, record: Mapping[str, Any], *, source: str = "node key record") -> str:
+        """Trust a node key from its public record (``NodeKey.public_record()``: ``key_id``,
+        ``algorithm``, hex ``public``), plus the optional ``role`` and ``lineage`` the operator
+        wrote into the trust file."""
+        try:
+            key_id, algorithm = str(record["key_id"]), str(record["algorithm"])
+            public = bytes.fromhex(str(record["public"]))
+            lineage = [str(k) for k in record.get("lineage", ())]
+        except (KeyError, TypeError, ValueError, AttributeError) as exc:
+            raise KeyMaterialError(f"{source}: needs key_id, algorithm and a hex public key ({type(exc).__name__})") from exc
+        try:
+            return self.add_node_public(key_id, algorithm, public, role=str(record.get("role", NODE_KEY_ROLE)), lineage=lineage)
+        except KeyMaterialError as exc:
+            raise KeyMaterialError(f"{source}: {exc}") from exc
 
     def add_signer(self, signer: Signer) -> str:
         """Trust a signer's *public* part; for HMAC that is the shared secret, for null the policy bit."""
@@ -329,30 +419,88 @@ class Keyring:
             return signer.key_id
         raise KeyMaterialError(f"cannot extract public material from signer {type(signer).__name__}")
 
-    def load_dir(self, key_dir: str | os.PathLike[str]) -> list[str]:
-        """Load every ``*.pub`` (raw ed25519 public key) under ``key_dir``; returns the key ids."""
+    def load_dir(self, key_dir: str | os.PathLike[str], *, missing_ok: bool = False) -> list[str]:
+        """Load every ``*.pub`` (raw ed25519 operator public key) and ``*.json`` (node key public
+        record) under ``key_dir``; returns the key ids.  A bad file is refused naming its path."""
         directory = Path(key_dir)
         if not directory.is_dir():
+            if missing_ok:
+                return []
             raise KeyMaterialMissing(f"keyring directory {directory} does not exist")
         loaded = []
         for path in sorted(directory.glob("*.pub")):
-            loaded.append(self.add_ed25519_public(path.read_bytes()))
+            try:
+                loaded.append(self.add_ed25519_public(path.read_bytes()))
+            except KeyMaterialError as exc:
+                raise KeyMaterialError(f"{path}: {exc}") from exc
+        for path in sorted(directory.glob("*.json")):
+            try:
+                record = json.loads(path.read_text("utf-8"))
+            except (OSError, ValueError) as exc:
+                raise KeyMaterialError(f"{path}: not a readable JSON node key record ({type(exc).__name__})") from exc
+            if not isinstance(record, Mapping):
+                raise KeyMaterialError(f"{path}: a node key record must be a JSON object")
+            loaded.append(self.add_node_record(record, source=str(path)))
+        return loaded
+
+    def load_local_nodes(self, nodes_dir: str | os.PathLike[str]) -> list[str]:
+        """Trust every node key under ``<nodes_dir>/<name>/keys`` (explicit opt-in for a one-host
+        grid: ``keyring.trust_local_nodes``).  Hash-token keys are read with their secret."""
+        loaded = []
+        for public_path in sorted(Path(nodes_dir).glob("*/keys/node.json")):
+            try:
+                record = json.loads(public_path.read_text("utf-8"))
+                if record.get("algorithm") == "hash-token":
+                    secret = bytes.fromhex((public_path.parent / "node.secret").read_text("utf-8").strip())
+                    key = _LocalNodeKey(str(record["key_id"]), "hash-token", bytes.fromhex(str(record["public"])), secret)
+                    loaded.append(self.add_node_key(key))
+                else:
+                    loaded.append(self.add_node_record(record, source=str(public_path)))
+            except (OSError, ValueError, KeyError, TypeError) as exc:
+                raise KeyMaterialError(f"{public_path}: unreadable node key ({type(exc).__name__})") from exc
         return loaded
 
     # -- queries
+    def _hmac_knows(self, key_id: str) -> bool:
+        match = _HMAC_KEY_ID.match(key_id)
+        if not match:
+            return False
+        label = match.group(1)
+        return any(_hmac_key_id(_hmac_derive(s, label), label) == key_id for s in self._hmac_secrets)
+
     def knows(self, key_id: str) -> bool:
         if is_null_key(key_id):
             return self.allow_null
-        if key_id in self._ed25519:
-            return True
-        match = _HMAC_KEY_ID.match(key_id)
-        if match:
-            label = match.group(1)
-            return any(_hmac_key_id(_hmac_derive(s, label), label) == key_id for s in self._hmac_secrets)
-        return False
+        return key_id in self._ed25519 or key_id in self._node or self._hmac_knows(key_id)
+
+    def role_of(self, key_id: str) -> str | None:
+        """The trusted role of ``key_id``, or ``None`` when the keyring does not know it."""
+        if is_null_key(key_id):
+            return OPERATOR_ROLE if self.allow_null else None
+        if key_id in self._ed25519 or key_id in self._node:
+            return self._roles.get(key_id, NODE_KEY_ROLE)
+        return OPERATOR_ROLE if self._hmac_knows(key_id) else None
+
+    def lineage_of(self, key_id: str) -> tuple[str, ...] | None:
+        """Invite lineage the operator recorded for a node key; ``None`` when none was recorded."""
+        return self._lineage.get(key_id) if key_id in self._node else None
+
+    def independent(self, producer_key: str, verifier_key: str) -> bool:
+        """Whether two trusted keys have disjoint recorded invite ancestry.
+
+        Missing lineage metadata means an explicitly trusted self-rooted key, not permission to
+        trust an unknown key: both keys must already be present in this keyring.  This is the same
+        disjoint-lineage rule used by ``worker.identity.independent`` without importing the worker
+        package at module load time.
+        """
+        if producer_key == verifier_key or not self.knows(producer_key) or not self.knows(verifier_key):
+            return False
+        producer_lineage = frozenset((producer_key, *(self.lineage_of(producer_key) or ())))
+        verifier_lineage = frozenset((verifier_key, *(self.lineage_of(verifier_key) or ())))
+        return producer_lineage.isdisjoint(verifier_lineage)
 
     def key_ids(self) -> Iterator[str]:
-        return iter(sorted(self._ed25519))
+        return iter(sorted(set(self._ed25519) | set(self._node)))
 
     def verify(self, key_id: str, data: bytes, signature: str) -> bool:
         if is_null_key(key_id):
@@ -360,7 +508,23 @@ class Keyring:
         public = self._ed25519.get(key_id)
         if public is not None:
             return _ed25519_verify_bytes(public, data, signature)
+        node = self._node.get(key_id)
+        if node is not None:
+            algorithm_name, material = node
+            algorithms, _ = _node_algorithms()
+            try:
+                raw = _b64url_decode(signature)
+            except (ValueError, UnicodeEncodeError):
+                return False
+            return bool(algorithms.get(algorithm_name).verify(material, data, raw))
         return any(_hmac_verify_with(s, key_id, data, signature) for s in self._hmac_secrets)
+
+
+class _LocalNodeKey:
+    """The four ``NodeKey`` fields ``Keyring.add_node_key`` reads, for keys loaded from disk."""
+
+    def __init__(self, key_id: str, algorithm: str, public: bytes, secret: bytes) -> None:
+        self.key_id, self.algorithm, self.public, self.secret = key_id, algorithm, public, secret
 
 
 def verify_record(record: Record, keyring: Keyring) -> None:
@@ -369,6 +533,33 @@ def verify_record(record: Record, keyring: Keyring) -> None:
         raise UnknownSigner(f"record {record.partition!r}#{record.seq}: keyring has no key {record.signer_key!r}")
     if not keyring.verify(record.signer_key, unsigned_bytes(record), record.signature):
         raise BadSignature(f"record {record.partition!r}#{record.seq}: signature does not verify under {record.signer_key!r}")
+
+
+def authorize_record(record: Record, keyring: Keyring) -> None:
+    """``verify_record`` plus the role rule every reader applies before it trusts a record: a TASK
+    or CHECKPOINT must be signed by an operator key.  Raises ``SignerNotAuthorized`` by name."""
+    verify_record(record, keyring)
+    if record.type in OPERATOR_ONLY_TYPES:
+        role = keyring.role_of(record.signer_key)
+        if role != OPERATOR_ROLE:
+            raise SignerNotAuthorized(f"record {record.partition!r}#{record.seq}: a {record.type.value} record must be "
+                                      f"signed by an operator key; {record.signer_key!r} has role {role!r}")
+
+
+REFUSAL_REASONS: Mapping[type, str] = {
+    UnknownSigner: "unknown-signer", BadSignature: "bad-signature", SignerNotAuthorized: "signer-not-authorized",
+}
+
+
+def refusal_reason(record: Record, keyring: Keyring | None) -> str | None:
+    """``None`` when ``authorize_record`` accepts the record, else the refusal's short name
+    (``unknown-signer`` / ``bad-signature`` / ``signer-not-authorized``).  ``keyring=None`` is an
+    empty keyring: every record is refused (fail closed)."""
+    try:
+        authorize_record(record, keyring if keyring is not None else Keyring())
+    except (UnknownSigner, BadSignature, SignerNotAuthorized) as exc:
+        return REFUSAL_REASONS[type(exc)]
+    return None
 
 
 # --------------------------------------------------------------------------- config
@@ -388,6 +579,7 @@ def register_signers(registry: Registry = SIGNERS) -> None:
 
 __all__ = [
     "Ed25519Signer", "HAVE_CRYPTOGRAPHY", "HMACSigner", "KeyMaterialError", "KeyMaterialMissing", "Keyring",
-    "NullSigner", "SIGNER_REGISTRY", "SignerRegistry", "ed25519_key_id", "is_null_key", "register_signers",
+    "NODE_KEY_ROLE", "NullSigner", "OPERATOR_ONLY_TYPES", "OPERATOR_ROLE", "REFUSAL_REASONS", "SIGNER_REGISTRY",
+    "SignerRegistry", "authorize_record", "ed25519_key_id", "is_null_key", "refusal_reason", "register_signers",
     "signer_from_config", "verify_record",
 ]

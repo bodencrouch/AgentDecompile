@@ -315,10 +315,16 @@ class SigningConfig:
 class KeyringConfig:
     """Whose records a reader trusts."""
 
-    allow_null: bool = field(default=True, metadata=_doc(
-        "Accept null-signed records (key_id null or null:<label>): hash chain only, no authorship. "
-        "Also the worker's trust_unsigned_records: null-signed RESULT bodies count as proposals."))
-    key_dir: str = field(default="", metadata=_doc("Directory of *.pub ed25519 public keys to trust. Empty = paths.keys/trusted."))
+    allow_null: bool = field(default=False, metadata=_doc(
+        "Accept null-signed records (key_id null or null:<label>): hash chain only, no authorship, so anyone "
+        "who can append to the log can write them. Off by default; turn it on only for a one-host dev grid "
+        "(a null key then counts as an operator key). Also the worker's trust_unsigned_records."))
+    key_dir: str = field(default="", metadata=_doc(
+        "The trust root: *.pub raw ed25519 operator public keys and *.json node key public records "
+        "(keys/node.json of each trusted node, optionally with role and lineage). Empty = paths.keys/trusted. "
+        "Readers refuse, by name, every record whose signer is not here."))
+    trust_local_nodes: bool = field(default=False, metadata=_doc(
+        "Also trust every node key under <root>/nodes/*/keys (one-host dev grid only; explicit opt-in)."))
 
 
 @dataclass(frozen=True)
@@ -514,7 +520,8 @@ class GridConfig:
 
     def keyring_locator(self) -> dict[str, Any]:
         paths = self.resolved_paths()
-        return {"allow_null": self.keyring.allow_null, "key_dir": self.keyring.key_dir or os.path.join(paths.keys, "trusted")}
+        return {"allow_null": self.keyring.allow_null, "key_dir": self.keyring.key_dir or os.path.join(paths.keys, "trusted"),
+                "trust_local_nodes": self.keyring.trust_local_nodes, "nodes_dir": os.path.join(paths.root, "nodes")}
 
     def to_mapping(self, section: str) -> dict[str, Any]:
         """One section as the plain mapping the log layer's ``*.from_config`` take (``backoff.max_attempts``

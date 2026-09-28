@@ -48,7 +48,7 @@ from ..core import TASK_KINDS, VERIFIERS, Frontier, LogStore, NodeIdentity, Reco
 from ..worker.identity import ROLE_MAY_VERIFY
 from ..worker.loop import Candidate, Slot, StepEvent, StepMachine, WorkerConfig
 from ..worker.outbox import PendingRecord
-from ..worker.records import Proposal, read_results, task_result_from_record, verification_body, verification_from_record
+from ..worker.records import Proposal, read_results, read_verdicts, task_result_from_record, verification_body, verification_from_record
 from ..worker.sandbox import DEFAULT_LIMITS, JobOutcome, SandboxJob, deadline_for
 from ..tasks.results import verification_name, verification_to_record
 from .policy import DEFAULT_INDEPENDENCE_POLICY, PenaltyLedger, RevocationList, check_independence
@@ -105,12 +105,17 @@ class VerifierLoop(StepMachine):
         def partition_view(partition: str) -> tuple[dict[str, list[Proposal]], dict[str, set[str]]]:
             if partition not in partition_cache:            # one pass over the partition per pull, however many tasks await
                 by_task: dict[str, list[Proposal]] = {}
-                for proposal in read_results(self.log, partition, trust_unsigned=self.config.trust_unsigned_records, lineage_lookup=self.lineage_lookup):
+                for proposal in read_results(
+                    self.log, partition, trust_unsigned=self.config.trust_unsigned_records,
+                    lineage_lookup=self.lineage_lookup, keyring=self.keyring,
+                ):
                     by_task.setdefault(proposal.task_id, []).append(proposal)
                 decided_by_task: dict[str, set[str]] = {}
-                for rec in self.log.read(partition, 0):
-                    if rec.type in (RecordType.VERIFIED, RecordType.REFUTED):
-                        decided_by_task.setdefault(str(rec.body.get("task_id")), set()).add(str(rec.body.get("result_ref")))
+                for body in read_verdicts(
+                    self.log, partition, task_id=None, keyring=self.keyring,
+                    trust_unsigned=self.config.trust_unsigned_records,
+                ):
+                    decided_by_task.setdefault(str(body.get("task_id")), set()).add(str(body.get("result_ref")))
                 partition_cache[partition] = (by_task, decided_by_task)
             return partition_cache[partition]
 

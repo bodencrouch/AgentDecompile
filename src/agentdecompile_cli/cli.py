@@ -72,12 +72,15 @@ from agentdecompile_cli.registry import (
     RESOURCE_URI_DEBUG_INFO,
     RESOURCE_URI_PROGRAMS,
     RESOURCE_URI_STATIC_ANALYSIS,
+    RESPONSE_FORMAT_PARAM,
+    RESPONSE_FORMAT_VALUES,
     TOOL_PARAM_ALIASES,
     TOOLS,
     Tool,
     get_tool_params,
     normalize_identifier,
     to_snake_case,
+    tool_owns_format_param,
     tool_registry,
 )
 
@@ -95,6 +98,16 @@ _CLI_STATE_FILE = "cli_state.json"
 _CLI_INJECTED_PROGRAM_KEY = "cli_injected_cached_program"
 _PROGRAM_OPENING_TOOLS = frozenset({"open", "open_project", "import_binary"})
 _DEFAULT_OUTPUT_FORMAT = "text"
+# -f/--format values. text, shell and markdown print the server's markdown
+# rendering as-is. json prints the tool's JSON data; xml and table render that
+# same data. Anything else is a usage error.
+_OUTPUT_FORMATS: tuple[str, ...] = ("text", "shell", "markdown", "json", "xml", "table")
+_DATA_OUTPUT_FORMATS: frozenset[str] = frozenset({"json", "xml", "table"})
+_OUTPUT_FORMAT_TYPE = click.Choice(_OUTPUT_FORMATS, case_sensitive=False)
+_OUTPUT_FORMAT_HELP = (
+    "Output format (default: text). text, shell and markdown print the server's markdown; "
+    "json prints the tool's JSON data; xml and table render that data."
+)
 _LOCAL_SERVER_STATE_KEY = "local_server"
 _LOCAL_SERVER_MANAGED_MARKER = "agentdecompile-cli"
 _LOCAL_SERVER_READY_TIMEOUT_S = 45.0
@@ -659,6 +672,55 @@ def _fmt(ctx: click.Context) -> str:
     """
     logger.debug("diag.enter %s", "cli.py:_fmt")
     return _get_opts(ctx).get("format", _DEFAULT_OUTPUT_FORMAT)
+
+
+def _wants_tool_data(ctx: click.Context) -> bool:
+    """True when the output format renders the tool's JSON data, not server markdown."""
+    return str(_fmt(ctx) or "").strip().lower() in _DATA_OUTPUT_FORMATS
+
+
+def _apply_response_format(ctx: click.Context, tool_name: str, payload: dict[str, Any]) -> None:
+    """Ask the server for markdown or JSON under ``responseFormat``, never ``format``.
+
+    ``format`` is a tool argument (get-data, export, export-context, manage-files,
+    gen-callgraph, inspect-memory's format->mode alias) and is left untouched. An
+    explicit responseFormat wins. On tools without a ``format`` of their own, an
+    explicit ``format`` of markdown/json (``tool NAME '{"format":"json"}'``) was a
+    rendering request and is honoured as one.
+    """
+    logger.debug("diag.enter %s", "cli.py:_apply_response_format")
+    keys = {normalize_identifier(key): key for key in payload}
+    if normalize_identifier(RESPONSE_FORMAT_PARAM) in keys:
+        return
+    if "format" in keys and not tool_owns_format_param(tool_name):
+        legacy = payload[keys["format"]]
+        if isinstance(legacy, str) and legacy.strip().lower() in RESPONSE_FORMAT_VALUES:
+            payload[RESPONSE_FORMAT_PARAM] = legacy.strip().lower()
+            return
+    payload[RESPONSE_FORMAT_PARAM] = "json" if _wants_tool_data(ctx) else "markdown"
+
+
+def _tool_data(result: Any) -> Any:
+    """Unwrap an MCP envelope whose text is JSON into that JSON; else return it unchanged."""
+    if not isinstance(result, dict):
+        return result
+    content = result.get("content")
+    if not isinstance(content, list):
+        return result
+    for item in content:
+        text = item.get("text") if isinstance(item, dict) else getattr(item, "text", None)
+        parsed = _safe_json_loads(text)
+        if isinstance(parsed, (dict, list)):
+            return parsed
+    return result
+
+
+def _render_result(ctx: click.Context, result: Any) -> str:
+    """Render a tool result in the selected output format."""
+    fmt = _fmt(ctx)
+    if _wants_tool_data(ctx):
+        result = _tool_data(result)
+    return format_output(result, fmt)
 
 
 def _extract_text(result: Any) -> str | None:
@@ -1245,7 +1307,7 @@ async def _call(ctx: click.Context, tool: str | Tool, /, **kwargs: Any) -> None:
     if tool == "list_project_files":
         result = _ensure_count_in_project_file_results(result)
 
-    click.echo(format_output(result, _fmt(ctx)))
+    click.echo(_render_result(ctx, result))
 
 
 async def _call_raw(
@@ -1272,9 +1334,10 @@ async def _call_raw(
     logger.debug("diag.enter %s", "cli.py:_call_raw")
     call_tool_name, safe_payload = _resolve_tool_call_target(tool, payload)
 
-    # No `format` is added here. `format` belongs to tools (get-data hex/ascii/both,
-    # export c/cpp/sarif, export-context json/md, inspect-memory's format->mode
-    # alias), and the server already renders markdown when nothing is requested.
+    # Rendering travels as responseFormat (markdown, or json for -f json/xml/table).
+    # `format` belongs to tools (get-data hex/ascii/both, export c/cpp/sarif,
+    # export-context json/md, inspect-memory's format->mode alias): never added here.
+    _apply_response_format(ctx, call_tool_name, safe_payload)
 
     prepared_payload, _ = _prepare_tool_payload_with_program_fallback(ctx, call_tool_name, dict(safe_payload))
 
@@ -1538,13 +1601,13 @@ async def _migrate_metadata_then_checkin(ctx: click.Context, match_payload: dict
     from agentdecompile_cli.bridge import ServerNotRunningError  # noqa: PLC0415
 
     match_payload = dict(match_payload)
-    match_payload.setdefault("format", "markdown")
+    match_payload.setdefault(RESPONSE_FORMAT_PARAM, "json" if _wants_tool_data(ctx) else "markdown")
     call_name, safe_match = _resolve_tool_call_target(Tool.MATCH_FUNCTION.value, match_payload)
     if tool_registry.is_valid_tool(call_name):
         call_name = tool_registry.get_display_name(tool_registry.canonicalize_tool_name(call_name))
         safe_match = tool_registry.parse_arguments(safe_match, call_name)
     call_name = to_snake_case(call_name)
-    checkin_payload: dict[str, Any] = {"comment": "migrate-metadata checkin", "format": "markdown"}
+    checkin_payload: dict[str, Any] = {"comment": "migrate-metadata checkin", RESPONSE_FORMAT_PARAM: "json" if _wants_tool_data(ctx) else "markdown"}
     call_name2, safe_checkin = _resolve_tool_call_target(Tool.CHECKIN_PROGRAM.value, checkin_payload)
     if tool_registry.is_valid_tool(call_name2):
         call_name2 = tool_registry.get_display_name(tool_registry.canonicalize_tool_name(call_name2))
@@ -1558,19 +1621,19 @@ async def _migrate_metadata_then_checkin(ctx: click.Context, match_payload: dict
             if err1 is not None:
                 click.echo(err1, err=True)
                 sys.exit(1)
-            click.echo(format_output(result1, _fmt(ctx)))
+            click.echo(_render_result(ctx, result1))
             result2 = await _execute_tool_call(ctx, call_name2, safe_checkin, client_override=client)
             err2 = _get_error_result_message(result2)
             if err2 is not None:
                 click.echo(err2, err=True)
                 sys.exit(1)
-            click.echo(format_output(result2, _fmt(ctx)))
+            click.echo(_render_result(ctx, result2))
             # Verify: call checkout-status for each target so user sees state
             target_paths = safe_match.get("targetProgramPaths") or safe_match.get("target_program_paths")
             if isinstance(target_paths, str):
                 target_paths = [target_paths]
             if isinstance(target_paths, list) and target_paths:
-                status_name, status_payload_base = _resolve_tool_call_target(Tool.CHECKOUT_STATUS.value, {"format": "markdown"})
+                status_name, status_payload_base = _resolve_tool_call_target(Tool.CHECKOUT_STATUS.value, {RESPONSE_FORMAT_PARAM: "json" if _wants_tool_data(ctx) else "markdown"})
                 if tool_registry.is_valid_tool(status_name):
                     status_name = to_snake_case(tool_registry.get_display_name(tool_registry.canonicalize_tool_name(status_name)))
                 for tpath in target_paths:
@@ -1580,7 +1643,7 @@ async def _migrate_metadata_then_checkin(ctx: click.Context, match_payload: dict
                     status_payload = tool_registry.parse_arguments(status_payload, Tool.CHECKOUT_STATUS.value)
                     try:
                         status_result = await _execute_tool_call(ctx, status_name, status_payload, client_override=client)
-                        click.echo(format_output(status_result, _fmt(ctx)))
+                        click.echo(_render_result(ctx, status_result))
                     except Exception:
                         pass
     except ServerNotRunningError as exc:
@@ -2070,11 +2133,11 @@ def _add_global_options(cmd: click.Command | FunctionType) -> click.Command | Fu
     if _declares_format_param(cmd):
         cmd = click.option(
             "-f",
-            type=str,
+            type=_OUTPUT_FORMAT_TYPE,
             default=None,
             expose_value=False,
             callback=_set_output_format_option,
-            help="Output format (default: text). This command's --format is its own parameter.",
+            help=_OUTPUT_FORMAT_HELP + " This command's --format is its own parameter.",
         )(cmd)
     else:
         # Same handling as the top-level -f/--format: it updates the root render
@@ -2083,11 +2146,11 @@ def _add_global_options(cmd: click.Command | FunctionType) -> click.Command | Fu
         cmd = click.option(
             "-f",
             "--format",
-            type=str,
+            type=_OUTPUT_FORMAT_TYPE,
             default=None,
             expose_value=False,
             callback=_set_output_format_option,
-            help=("Output format (default: text). Use -f/--format json only when you strictly need machine-readable output; text/markdown is recommended."),
+            help=_OUTPUT_FORMAT_HELP,
         )(cmd)
     return cmd
 
@@ -2155,11 +2218,11 @@ def _register_output_format_option_on_all_commands(root: click.Command) -> None:
             command.params.append(
                 click.Option(
                     ["-f", "--format"],
-                    type=str,
+                    type=_OUTPUT_FORMAT_TYPE,
                     default=None,
                     expose_value=False,
                     callback=_set_output_format_option,
-                    help=("Output format (default: text). Use -f/--format json only when you strictly need machine-readable output; text/markdown is recommended."),
+                    help=_OUTPUT_FORMAT_HELP,
                 ),
             )
 
@@ -2584,9 +2647,9 @@ class ForgivingCliGroup(click.Group):
 @click.option(
     "-f",
     "--format",
-    type=str,
+    type=_OUTPUT_FORMAT_TYPE,
     default=_DEFAULT_OUTPUT_FORMAT,
-    help=("Output format (default: text). Use -f/--format json only when you strictly need machine-readable output; text/markdown is recommended."),
+    help=_OUTPUT_FORMAT_HELP,
 )
 @click.option(
     "--local",
@@ -2922,7 +2985,7 @@ def list_grp() -> None:
     "-f",
     "--format",
     "local_format",
-    type=str,
+    type=_OUTPUT_FORMAT_TYPE,
     default=None,
     help=("Output format override (default: inherited text output). Use -f/--format json only when you strictly need machine-readable output; text/markdown is recommended."),
 )
@@ -3021,10 +3084,20 @@ def data_grp() -> None:
 @data_grp.command("get", help="Get data/code unit at address (get-data)")
 @click.option("-b", "--binary", "program_path")
 @click.argument("address_or_symbol")
+@click.option(
+    "--view",
+    type=click.Choice(["hex", "ascii", "both"], case_sensitive=False),
+    default=None,
+    # providers/data.py reads `format` (enum hex/ascii/both, default both);
+    # TOOLS_LIST.md names it `view`. -f/--format stays the output format here.
+    help="Byte view: hex, ascii or both. Omit to use the server default (both).",
+)
 @click.pass_context
-def data_get(ctx: click.Context, program_path: str | None, address_or_symbol: str) -> None:
+def data_get(ctx: click.Context, program_path: str | None, address_or_symbol: str, view: str | None) -> None:
     logger.debug("diag.enter %s", "cli.py:data_get")
     kwargs: dict[str, Any] = {"addressOrSymbol": address_or_symbol}
+    if view is not None:
+        kwargs["format"] = view
     if program_path is not None and program_path.strip():
         kwargs["programPath"] = program_path
     _run_async(_call(ctx, "get-data", **kwargs))

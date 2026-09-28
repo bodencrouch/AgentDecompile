@@ -1393,8 +1393,9 @@ class AgentDecompileStdioBridge:
 
         logger.info("stdio bridge forwarding call_tool name=%s", backend_name)
         try:
+            # Forward arguments untouched: `format` belongs to tools (get-data, export,
+            # inspect-memory), and the backend renders markdown unless responseFormat=json.
             call_args: dict[str, Any] = dict(arguments or {})
-            call_args.setdefault("format", "markdown")
             raw_result: dict[str, Any] = await self._backend_request("call_tool", backend_name, call_args)
             # raw_result is the JSON-RPC "result" value which should be
             # a CallToolResult-shaped dict: {content: [...], isError: bool}

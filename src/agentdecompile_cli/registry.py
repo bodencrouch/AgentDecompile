@@ -1128,6 +1128,30 @@ def _add_builtin_param_aliases() -> None:
 
 _add_builtin_param_aliases()
 
+
+# Key that selects how a tool result is rendered (markdown or json). No tool
+# reads it: ToolProviderManager does, and advertises it on every tool schema.
+RESPONSE_FORMAT_PARAM = "responseFormat"
+RESPONSE_FORMAT_VALUES: frozenset[str] = frozenset({"markdown", "json"})
+
+
+def tool_owns_format_param(tool_name: str) -> bool:
+    """True when ``format`` is one of the tool's own arguments.
+
+    That holds when the tool declares ``format`` (export, export-context,
+    gen-callgraph, manage-files) or when TOOL_PARAM_ALIASES maps ``format`` onto
+    another of its params (get-data -> view, inspect-memory -> mode). For those
+    tools ``format`` must never be read or written as a rendering choice.
+    """
+    logger.debug("diag.enter %s", "registry.py:tool_owns_format_param")
+    tool = Tool.from_string(tool_name)
+    tool_norm = normalize_identifier(tool.value if tool is not None else tool_name)
+    if "format" in TOOL_PARAM_ALIASES.get(tool_norm, {}):
+        return True
+    if tool is None:
+        return False
+    return any(normalize_identifier(param) == "format" for param in TOOL_PARAMS.get(tool, []))
+
 # Default advertised surface (MCP + CLI) is blacklist-driven.
 # All tools remain accepted via normalize/resolve/dispatch regardless of advertisement.
 # New tools are auto-advertised unless added to this hidden set.

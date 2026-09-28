@@ -64,6 +64,8 @@ from agentdecompile_cli.mcp_utils.program_analysis import (
 )
 from agentdecompile_cli.registry import (  # pyright: ignore[reportMissingImports]
     ADVERTISED_TOOL_PARAMS,
+    RESPONSE_FORMAT_PARAM,
+    RESPONSE_FORMAT_VALUES,
     TOOL_ALIASES,
     TOOL_PARAM_ALIASES,
     Tool,
@@ -75,6 +77,7 @@ from agentdecompile_cli.registry import (  # pyright: ignore[reportMissingImport
     normalize_identifier,
     resolve_tool_name,
     to_snake_case,
+    tool_owns_format_param,
 )
 
 if TYPE_CHECKING:
@@ -3052,11 +3055,14 @@ class ToolProviderManager:
                             )
                             result[0] = types.TextContent(type="text", text=_json.dumps(parent_parsed))
 
-        # Convert JSON response to rich markdown via response_formatter unless responseFormat/format=json.
+        # Convert JSON response to rich markdown via response_formatter unless responseFormat=json.
         # Argument keys are normalized earlier, so responseFormat and response_format both map to responseformat.
+        # A legacy `format` of markdown/json is honoured only on tools that do not own a `format`
+        # argument: export-context's format=json is its surrogate format, not a rendering request.
+        legacy_fmt: Any = None if tool_owns_format_param(norm_name) else norm_args.get("format")
         response_fmt: str = str(
-            norm_args.get(n("responseFormat"))
-            or (norm_args.get("format") if norm_args.get("format") in ("markdown", "json") else "markdown")
+            norm_args.get(n(RESPONSE_FORMAT_PARAM))
+            or (legacy_fmt if legacy_fmt in RESPONSE_FORMAT_VALUES else "markdown")
         )
         if not norm_args.get("autoprereqinvocation") and response_fmt != "json" and result and isinstance(result[0], types.TextContent):
             try:

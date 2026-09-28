@@ -103,7 +103,8 @@ class DataToolProvider(ToolProvider):
         self._require_program(program_info=program_info)
         addr_str = self._require_address_or_symbol(args)
         length = self._get_int(args, "length", "size", "len", default=16)
-        fmt = self._get_str(args, "format", default="both")
+        # TOOLS_LIST.md documents this selector as `view` (synonym `format`); accept both.
+        fmt = self._get_str(args, "format", "view", default="both")
 
         program = program_info.program
         addr = self._resolve_address(addr_str, program=program, program_info=program_info)

@@ -170,8 +170,9 @@ def resolve_backend_url(
 def format_output(data: Any, fmt: str, verbose: bool = False) -> str:
     """Format data for human-readable output.
 
-    fmt: 'shell' (default) | 'json' | 'markdown' | 'xml' | legacy aliases ('text', 'table').
-    Used by CLI commands to present tool results in the requested format.
+    fmt: 'text'/'shell'/'markdown' print an MCP result's text as-is (the server's
+    markdown); 'json' dumps ``data``; 'xml' and 'table' render ``data``. The CLI
+    unwraps the MCP envelope to the tool's JSON data before json/xml/table.
     """
     logger.debug("diag.enter %s", "executor.py:format_output")
     normalized: str = (fmt or "shell").strip().lower()
@@ -182,10 +183,10 @@ def format_output(data: Any, fmt: str, verbose: bool = False) -> str:
         content = data.get("content")
         if isinstance(content, list) and content and isinstance(content[0], dict) and content[0].get("text") is not None:
             text = content[0]["text"]
-            if isinstance(text, str):
-                text = text.replace("\\n", "\n")
-                if normalized in ("markdown", "shell", "text"):
-                    return text
+            # Print the text verbatim: it is already a decoded str. Rewriting "\\n"
+            # turned C escapes like printf("%d\\n") into real line breaks.
+            if isinstance(text, str) and normalized in ("markdown", "shell", "text"):
+                return text
 
     if normalized == "json":
         return _json.dumps(data, indent=2)
@@ -227,6 +228,8 @@ def format_output(data: Any, fmt: str, verbose: bool = False) -> str:
         return _to_xml(data, "result")
 
     if normalized == "table":
+        if isinstance(data, dict):
+            return "\n".join(["key | value", "-" * 20, *(f"{k} | {v}" for k, v in data.items())])
         if isinstance(data, list) and data and isinstance(data[0], dict):
             headers = list(data[0].keys())
             lines = [" | ".join(headers), "-" * (len(headers) * 10)]

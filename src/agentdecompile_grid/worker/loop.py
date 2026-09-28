@@ -388,7 +388,19 @@ class StepMachine:
         self._skipped = {}
         self._eligible = self._candidates(frontier, now)
         self._bump("pulls")
-        return StepEvent("pulled", {"ready": len(frontier.ready), "awaiting_verification": len(frontier.awaiting_verification), "poisoned": len(frontier.poisoned), "eligible": len(self._eligible), "skipped": dict(self._skipped)})
+        untrusted = getattr(frontier, "untrusted", ())
+        detail = {"ready": len(frontier.ready), "awaiting_verification": len(frontier.awaiting_verification), "poisoned": len(frontier.poisoned), "eligible": len(self._eligible), "skipped": dict(self._skipped)}
+        if untrusted:
+            # A record the frontier folded past without trusting it (signer not in the keyring, bad
+            # signature, or a TASK/CHECKPOINT signed by a non-operator key -- see
+            # log.signing.refusal_reason).  ready/eligible can be 0 forever with a healthy log if
+            # every TASK record is untrusted, so this is surfaced rather than left for the operator
+            # to rediscover by reading records by hand (the grid-of-one regression this closes: a
+            # null-signed TASK published under the laptop-grid default signer is invisible to a
+            # keyring that does not set keyring.allow_null / keyring.trust_local_nodes).
+            detail["untrusted"] = len(untrusted)
+            detail["untrusted_sample"] = [{"partition": p, "seq": s, "reason": r} for p, s, r in list(untrusted)[:5]]
+        return StepEvent("pulled", detail)
 
     def _launch(self, now: float) -> StepEvent | None:
         if self.stopping or len(self.slots) >= self.cores or not self._eligible:

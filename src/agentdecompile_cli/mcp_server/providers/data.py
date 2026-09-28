@@ -7,6 +7,8 @@
 """
 
 from __future__ import annotations
+from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
+
 
 import logging
 import uuid
@@ -123,7 +125,7 @@ class DataToolProvider(ToolProvider):
         listing = self._get_listing(program, program_info=program_info)
         data = listing.getDataAt(addr)
         if data is not None:
-            result["definedType"] = str(data.getDataType())
+            result["definedType"] = data_type_label(data.getDataType())
             # "length" is the number of bytes read; the defined unit can be longer or shorter.
             try:
                 result["definedLength"] = int(data.getLength())

@@ -257,7 +257,7 @@ def _collect_variable_accesses(
         total_accesses += len(accesses)
         entry: dict[str, Any] = {
             "name": str(sym.getName() or ""),
-            "dataType": str(sym.getDataType()),
+            "dataType": data_type_label(sym.getDataType()),
             "storage": str(sym.getStorage()),
             "size": int(sym.getSize()),
             "isParameter": bool(sym.isParameter()),
@@ -608,7 +608,7 @@ def collect_functions(program: GhidraProgram, *, limit: int | None = None, inclu
             params.append(
                 {
                     "name": str(p.getName() or ""),
-                    "type": str(p.getDataType() or ""),
+                    "type": data_type_label(p.getDataType()),
                     "ordinal": int(p.getOrdinal()),
                 },
             )
@@ -622,7 +622,7 @@ def collect_functions(program: GhidraProgram, *, limit: int | None = None, inclu
             "isThunk": bool(func.isThunk()),  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
             "parameterCount": int(func.getParameterCount()),  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
             "parameters": params,
-            "returnType": str(func.getReturnType()),  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+            "returnType": data_type_label(func.getReturnType()),  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
             "callingConvention": str(func.getCallingConventionName() or ""),  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
             "isInline": bool(func.isInline()),
             "hasVarArgs": bool(func.hasVarArgs()),  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
@@ -1071,7 +1071,7 @@ def collect_structure_fields(structure: GhidraStructure) -> list[dict[str, Any]]
             {
                 "offset": int(component.getOffset()),
                 "name": str(component.getFieldName() or ""),
-                "type": str(component.getDataType() or ""),
+                "type": data_type_label(component.getDataType()),
                 "length": int(component.getLength()) if hasattr(component, "getLength") else 0,
                 "comment": str(component.getComment() or ""),
             },

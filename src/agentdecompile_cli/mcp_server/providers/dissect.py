@@ -7,6 +7,8 @@ in a single MCP tool call. MCP tool name is get-function; this module implements
 """
 
 from __future__ import annotations
+from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
+
 
 import logging
 
@@ -664,13 +666,13 @@ class GetFunctionAioToolProvider(ToolProvider):
             "parameters": [
                 {
                     "name": str(p.getName()),
-                    "type": str(p.getDataType()),
+                    "type": data_type_label(p.getDataType()),
                     "ordinal": int(p.getOrdinal()),
                     "storage": str(p.getVariableStorage()) if hasattr(p, "getVariableStorage") else "",
                 }
                 for p in func.getParameters()
             ],
-            "returnType": str(func.getReturnType()),
+            "returnType": data_type_label(func.getReturnType()),
             "callingConvention": str(func.getCallingConventionName() or ""),
             "hasVarArgs": bool(func.hasVarArgs()),
             "hasCustomStorage": bool(func.hasCustomVariableStorage()) if hasattr(func, "hasCustomVariableStorage") else False,
@@ -913,7 +915,7 @@ class GetFunctionAioToolProvider(ToolProvider):
                     "name": str(var.getName()),
                     "offset": int(var.getStackOffset()),
                     "size": int(var.getLength()),
-                    "dataType": str(var.getDataType()),
+                    "dataType": data_type_label(var.getDataType()),
                     "comment": str(var.getComment() or ""),
                     "isParameter": var.getStackOffset() >= 0,  # heuristic: positive offsets = params on many ABIs
                 },

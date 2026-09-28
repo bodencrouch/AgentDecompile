@@ -445,6 +445,22 @@ def iter_program_entries(
     root = resolve_project_root(path)
 
     for base in item_storage_roots(root):
+        # An indexed root files items in storage shards (00/, 03/, ...) that are
+        # not project folders; the folder lives in ~index.dat or the item's
+        # PARENT state. Never derive a folder from a shard directory name.
+        indexed = is_item_filesystem_root(base)
+        index_folders: dict[str, str] = {}
+        if indexed:
+            current_folder = "/"
+            try:
+                index_lines = (base / INDEX_FILE).read_text(encoding="utf-8", errors="replace").splitlines()
+            except OSError:
+                index_lines = []
+            for index_line in index_lines:
+                if index_line.startswith("/"):
+                    current_folder = index_line.rstrip() or "/"
+                elif index_line.startswith("  ") and ":" in index_line:
+                    index_folders[index_line.strip().split(":", 1)[0]] = current_folder
         # IndexedV1 files as 00/00000000.prp. LocalFileSystem import writes
         # idata/nwn.exe.prp next to ~nwn.exe.db — one glob misses the other.
         property_files = [
@@ -469,7 +485,10 @@ def iter_program_entries(
 
             yield ProgramEntry(
                 name=states.get("NAME", _demangle_storage_name(storage_name)),
-                folder_path=states.get("PARENT", "/" + "/".join(_demangle_storage_name(part) for part in property_file.parent.relative_to(base).parts)),
+                folder_path=states.get("PARENT") or (
+                    index_folders.get(storage_name, "/") if indexed
+                    else "/" + "/".join(_demangle_storage_name(part) for part in property_file.parent.relative_to(base).parts)
+                ),
                 file_id=states.get("FILE_ID") or None,
                 content_type=item_type,
                 storage_name=storage_name,

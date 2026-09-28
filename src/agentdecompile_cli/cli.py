@@ -5147,6 +5147,55 @@ def delete_cmd(program_path: str | None) -> None:
 # ---------------------------------------------------------------------------
 
 
+@main.command(
+    "save-as",
+    help="Convert or copy a project: offline shared repos <-> local .gpr, or link a ghidra:// server. Filesystem only; no Ghidra server needed.",
+)
+@click.argument("locator")
+@click.option(
+    "--target",
+    type=click.Choice(["ghidra-project", "shared-fs", "shared-project"]),
+    required=True,
+    help="ghidra-project = local .gpr; shared-fs = offline server-shaped repository; shared-project = ghidra:// link",
+)
+@click.option("--name", default="", help="Name for the new project or repository")
+@click.option("--dest", default="", help="Destination path (must be inside the work directory or a known project root)")
+@click.option("--url", default="", help="ghidra:// or http(s) URL for --target shared-project")
+@click.option(
+    "--work-dir",
+    type=click.Path(file_okay=False),
+    default=None,
+    help="Corpus work directory (default: $AGENT_DECOMPILE_CORPUS_WORK_DIR, else the current directory)",
+)
+def save_as_cmd(locator: str, target: str, name: str, dest: str, url: str, work_dir: str | None) -> None:
+    from agentdecompile_recovery.corpus.ghidra_project import save_project_as
+
+    root = Path(work_dir or os.environ.get("AGENT_DECOMPILE_CORPUS_WORK_DIR") or os.getcwd())
+    # The group's forgiving-input normalizer strips separators from choices.
+    target = {"ghidraproject": "ghidra-project", "sharedfs": "shared-fs", "sharedproject": "shared-project"}.get(
+        target.replace("-", "").replace("_", "").lower(), target
+    )
+    result = save_project_as(locator, target=target, name=name, dest=dest, url=url, work_dir=root)
+    click.echo(json.dumps(result, indent=2, default=str))
+    if not result.get("ok"):
+        click.echo(f"error: {result.get('error') or 'Save As failed'}", err=True)
+        raise SystemExit(1)
+
+
+@main.command("save", help="Record the project's origin metadata in place (the dashboard's Save). Filesystem only.")
+@click.argument("locator")
+@click.option("--work-dir", type=click.Path(file_okay=False), default=None, help="Corpus work directory (default: $AGENT_DECOMPILE_CORPUS_WORK_DIR, else the current directory)")
+def save_cmd(locator: str, work_dir: str | None) -> None:
+    from agentdecompile_recovery.corpus.ghidra_project import save_project
+
+    root = Path(work_dir or os.environ.get("AGENT_DECOMPILE_CORPUS_WORK_DIR") or os.getcwd())
+    result = save_project(locator, work_dir=root)
+    click.echo(json.dumps(result, indent=2, default=str))
+    if not result.get("ok"):
+        click.echo(f"error: {result.get('error') or 'Save failed'}", err=True)
+        raise SystemExit(1)
+
+
 @main.command("import", help="Import a binary into the project (open with path)")
 @click.argument("path", type=click.Path(exists=False))
 @click.option("--no-analyze", is_flag=True, help="Skip analysis after import")

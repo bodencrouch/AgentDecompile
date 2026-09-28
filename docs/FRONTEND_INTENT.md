@@ -45,6 +45,13 @@ must not disagree on selected target identity, saved work, actual jobs or proof.
 Do not confuse “static web assets” with “frozen screenshot,” or “Vite” with a second
 analysis service. Both can render graphs, editors and live events in the browser.
 
+**2026-09-28 (user, Claude session):** “vite frontend should be fundamentally
+different from the static dashboard on 8080.” Static 8080 is the conventional RE
+GUI and follows the Ghidra reversing guide's CodeBrowser arrangement (§7). Vite is the
+real-time AIO workstation built from the browser-RE references (§7), not a
+restyled copy of the static layout. Shared backend identity, jobs, receipts and
+claim semantics are unchanged.
+
 Earlier instructions to operate recovery exclusively through 8080 remain relevant
 to protecting live work. They are **not** a permanent ban on designing the optional
 5174 application: the latest user explicitly reconfirms it. This document does not
@@ -422,6 +429,7 @@ simplification after accepting diminishing returns. [D2:35561–36106]
 | Multiple old dashboard ports; later “8080 only / don't touch 5174” | Preserve live-operation safety; the user now explicitly reconfirms optional Vite5174 and static8080 alternatives. Do not resurrect 3000/5173/8791 as separate products. |
 | Vite merely a development server | Incorrect reduction, corrected by current user and Sep8 source. Optional application is required. |
 | “None… static, all React” | Refined by explicit dual-surface request. Static-served HTML/JS can still be interactive/reactive. |
+| Convergence of 8080 and Vite onto one shell/route (2026-09-09 plan P3, AE8) | 2026-09-28: the two surfaces must be fundamentally different presentations over one backend; static follows the Ghidra-guide CodeBrowser, Vite is the real-time reference-inspired workstation. |
 | Every input automatically starts everything | New imports admit authorized missing work; reopening/selection reuses and inspects existing state. One workflow owner, no duplicate analysis. |
 | One context-aware start/pause/resume control (2026-09-16) | 2026-09-21: no Start button. Open / add / resume admits eligible work by itself; the one control is pause/resume + scope. Per-stage buttons stay banned; admission still gates only mutation. |
 | Review lane as a gate before propagation or export | 2026-09-21: review is an override applied afterwards; ambiguous/contested entities export with evidence and refuse at use time. Nothing waits on a person. |

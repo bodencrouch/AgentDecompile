@@ -449,9 +449,20 @@ def _register_path_binary(
         existing = con.execute("SELECT slug FROM binary WHERE repo_path=?", (repo,)).fetchone()
         collision = next((item for item in candidates if item[0] == name and item[1] != repo), None)
         if collision:
-            prior_digest = binary_sha256(collision[1] or "")
-            if not prior_digest:
-                return {"ok": False, "error": "An entry with this name has unavailable bytes. Resolve its identity or choose an explicit distinct name before importing."}
+            # A same-basename historical row may have unavailable bytes (moved,
+            # deleted, or otherwise unreadable source). That must not block
+            # importing different, available bytes under this name: give the
+            # new entry a distinct, hash-qualified identity instead of erroring.
+            # binary_sha256(collision path) can legitimately be empty here.
+            recorded = con.execute("SELECT content_sha256 FROM binary WHERE slug=?", (name,)).fetchone()
+            if recorded and str(recorded[0] or "").lower() == digest:
+                # The historical row records these exact bytes: reuse its
+                # identity instead of splitting it into a second row.
+                con.execute("CREATE TABLE IF NOT EXISTS binary_source_alias (source_path TEXT PRIMARY KEY, binary_slug TEXT NOT NULL, sha256 TEXT NOT NULL)")
+                con.execute("INSERT INTO binary_source_alias VALUES(?,?,?) ON CONFLICT(source_path) DO UPDATE SET binary_slug=excluded.binary_slug,sha256=excluded.sha256", (repo, name, digest))
+                con.commit()
+                _CACHE.clear()
+                return {"ok": True, "binary": _binary_row(name), "reused": True, "sha256": digest}
             name = f"{name}-{digest}"
         if existing is None:
             name = _unique_binary_slug(con, name)
@@ -496,21 +507,50 @@ def save_upload_binary(
         return {"ok": False, "error": "AGENT_DECOMPILE_CORPUS_WORK_DIR is unset"}
     dest_dir = root / "imports"
     dest_dir.mkdir(parents=True, exist_ok=True)
-    base = Path(filename or slug or "upload.bin").name or "upload.bin"
+    base = Path(filename or slug or "upload.bin").name
+    if base in ("", ".", ".."):
+        base = "upload.bin"
     if Path(base).suffix.lower() == ".gpr":
         return {
             "ok": False,
             "error": "A Ghidra project is Name.gpr plus a sibling Name.rep. Register the project path; do not upload the .gpr file.",
         }
-    dest_dir = dest_dir / hashlib.sha256(data).hexdigest()
+    digest = hashlib.sha256(data).hexdigest()
+    dest_dir = dest_dir / digest
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / base
-    try:
-        with dest.open("xb") as handle:
-            handle.write(data)
-    except FileExistsError:
-        pass
-    return register_path_binary(str(dest), slug=slug or dest.name, role=role, label=label)
+    if dest.exists() and (not dest.is_file() or hashlib.sha256(dest.read_bytes()).hexdigest() != digest):
+        # A partial or foreign file under this content-addressed name would block
+        # these bytes forever. Keep it beside the name for inspection.
+        os.replace(dest, dest_dir / f"{base}.invalid-{os.urandom(4).hex()}")
+    if not dest.exists():
+        staging = dest_dir / f".{base}.{os.getpid()}.{os.urandom(4).hex()}.part"
+        try:
+            with staging.open("xb") as handle:
+                handle.write(data)
+                handle.flush()
+                os.fsync(handle.fileno())
+            try:
+                os.link(staging, dest)  # atomic create-if-absent; readers never see a partial file
+            except FileExistsError:
+                pass
+        finally:
+            staging.unlink(missing_ok=True)
+        if hashlib.sha256(dest.read_bytes()).hexdigest() != digest:
+            return {"ok": False, "error": "The staged upload does not match its content hash. It was left in place for inspection."}
+    payload = register_path_binary(str(dest), slug=slug or dest.name, role=role, label=label)
+    # The staged file is the importable source even when the corpus reuses a
+    # virtual (Ghidra-only) row or cannot register it; callers import from here.
+    # A reused row whose own source file holds these exact bytes stays the
+    # source, so the imported program keeps its corpus binding.
+    source = str(dest)
+    reused_repo = str(((payload.get("binary") or {}).get("repo")) or "") if payload.get("reused") else ""
+    if reused_repo and Path(reused_repo).is_file():
+        from .library_identity import binary_sha256
+        if binary_sha256(reused_repo) == digest:
+            source = reused_repo
+    payload["source_path"] = source
+    return payload
 
 
 def remove_registered_binary(slug: str, *, confirm: bool) -> dict[str, Any]:

@@ -3990,7 +3990,8 @@
         setDossier(data);
         setPreview(data);
       }
-      showToast("Saved as " + kindTitle(data.kind || saveAsTarget), "success");
+      showToast("Saved as " + kindTitle(data.kind || saveAsTarget) + (data.origin_note ? ". " + data.origin_note : ""), "success");
+      if (data.origin_note) setIngestNote(data.origin_note);
       return data;
     }
 
@@ -4825,16 +4826,16 @@
         body.append("role", role || "member");
         const res = await fetch(API.binaries, { method: "POST", body: body });
         const data = await res.json();
-        if (!data.ok || !data.binary) {
+        // source_path is the immutable staged upload. binary.repo can be a
+        // reused virtual Ghidra row and binary.locator a project locator;
+        // neither is a file the project import can read.
+        const staged = data.source_path || "";
+        if (!staged) {
           setIngestNote(data.error || "upload failed");
           showToast(data.error || "Could not stage " + file.name, "error");
           continue;
         }
-        const staged = data.binary.locator || data.binary.repo || "";
-        if (!staged) {
-          showToast("Upload landed but has no path to import.", "error");
-          continue;
-        }
+        if (!data.ok) showToast("Staged " + file.name + ", but the corpus did not record it: " + (data.error || "unknown reason"), "error");
         await importPathIntoProject(staged, file.name);
       }
     }
@@ -5966,7 +5967,9 @@
             <input value=${saveAsDest} placeholder="defaults to work directory"
               onInput=${function (ev) { setSaveAsDest(ev.target.value); }} />
           </label>`}
-          <p className="wb-hint">Save writes project metadata on disk. Ghidra databases are not copied.</p>
+          <p className="wb-hint">${saveAsTarget === "shared-project"
+            ? "Links a Ghidra Server URL. Program databases stay on the server and are not downloaded."
+            : "Copies the program databases and their version history that the source holds. Nothing is written to the source."}</p>
         </form>
       </${Modal}>
 

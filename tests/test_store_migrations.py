@@ -423,8 +423,9 @@ def test_migration_2_on_a_legacy_store_matches_the_fresh_shape_and_keeps_rows(tm
     assert not (IDENTITY_COLUMNS & _binary_columns(raw))
     raw.close()
 
-    con = store.connect(legacy)
-    assert _pragma(con, "user_version") == migrations.SCHEMA_VERSION
+    con = sqlite3.connect(legacy)
+    migrations.apply_pending(con, target=2)
+    assert _pragma(con, "user_version") == 2
     assert IDENTITY_COLUMNS <= _binary_columns(con)
     row = con.execute(
         "SELECT slug, analyzer_version, processor_spec_hash, basis_hash, basis_source FROM binary"

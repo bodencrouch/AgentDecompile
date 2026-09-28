@@ -9,8 +9,6 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any
 
-from ghidrecomp.utility import analyze_program as run_analysis
-
 if TYPE_CHECKING:
     from ghidra.program.model.listing import Program as GhidraProgram  # pyright: ignore[reportMissingModuleSource]
 
@@ -332,12 +330,32 @@ def _safe_program_name(program: GhidraProgram) -> str:
         return "?"
 
 
+def _run_ghidra_analysis(program: GhidraProgram) -> None:
+    """Run Ghidra analysis without writing progress to structured stdout."""
+    from ghidra.app.script import GhidraScriptUtil  # pyright: ignore[reportMissingImports, reportMissingModuleSource]
+    from ghidra.program.flatapi import FlatProgramAPI  # pyright: ignore[reportMissingImports, reportMissingModuleSource]
+    from ghidra.program.util import GhidraProgramUtilities  # pyright: ignore[reportMissingImports, reportMissingModuleSource]
+
+    flat_api = FlatProgramAPI(program)
+    logger.info("program_analysis_analyzers_start program=%s", _safe_program_name(program))
+    GhidraScriptUtil.acquireBundleHostReference()
+    try:
+        flat_api.analyzeAll(program)
+        if hasattr(GhidraProgramUtilities, "setAnalyzedFlag"):
+            GhidraProgramUtilities.setAnalyzedFlag(program, True)
+        elif hasattr(GhidraProgramUtilities, "markProgramAnalyzed"):
+            GhidraProgramUtilities.markProgramAnalyzed(program)
+        else:
+            raise Exception("Missing set analyzed flag method!")  # noqa: TRY002
+    finally:
+        GhidraScriptUtil.releaseBundleHostReference()
+
+
 def _run_auto_analysis(program: GhidraProgram, *, analyzers: list[str] | None = None) -> list[str]:
     # Callers reach this only after ``program_needs_analysis`` said analysis is
-    # needed, so the run is always forced.  ghidrecomp's own gate consults only
-    # ``shouldAskToAnalyze``; a freshly imported program can have that flag off
-    # while ``isAnalyzed`` is still false, and ghidrecomp would then skip the run
-    # ("already analyzed... skipping") and leave our gate failing.
+    # needed, so the direct helper intentionally applies no second
+    # ``shouldAskToAnalyze`` gate. A freshly imported program can have that flag
+    # off while ``isAnalyzed`` is still false.
     #
     # The caller must own the transaction.  FlatProgramAPI.analyzeAll only calls
     # AutoAnalysisManager.reAnalyzeAll + startAnalysis, and headless startAnalysis
@@ -358,12 +376,12 @@ def _run_auto_analysis(program: GhidraProgram, *, analyzers: list[str] | None = 
     start_transaction = getattr(program, "startTransaction", None)
     if not callable(start_transaction):
         deferred = _defer_expensive_default_analyzers(program, analyzers)
-        run_analysis(program, force_analysis=True)
+        _run_ghidra_analysis(program)
     else:
         tx_id = start_transaction("AgentDecompile auto-analysis")
         try:
             deferred = _defer_expensive_default_analyzers(program, analyzers)
-            run_analysis(program, force_analysis=True)
+            _run_ghidra_analysis(program)
         except BaseException:
             # Commit what ran, as HeadlessAnalyzer does, even when an analyzer raised.
             # endTransaction can itself throw (IllegalStateException when the entry

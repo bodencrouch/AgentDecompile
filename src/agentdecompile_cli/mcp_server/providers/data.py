@@ -7,16 +7,15 @@
 """
 
 from __future__ import annotations
-from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
-
 
 import logging
 import uuid
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from mcp import types
 
+from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
 from agentdecompile_cli.mcp_server.tool_providers import (
     FORCE_APPLY_CONFLICT_ID_KEY,
     ToolProvider,
@@ -112,14 +111,18 @@ class DataToolProvider(ToolProvider):
         addr = self._resolve_address(addr_str, program=program, program_info=program_info)
 
         memory = self._get_memory(program, program_info=program_info)
-        buf = bytearray(min(length, 10000))
+        read_length = min(length, 10000)
+        import jpype  # noqa: PLC0415
+
+        buf: Any = cast(Any, jpype.JArray(jpype.JByte))(read_length)
         actual = memory.getBytes(addr, buf)
+        unsigned = [int(b) & 0xFF for b in buf[:actual]]
 
         result: dict[str, Any] = {"address": str(addr), "length": actual}
         if fmt in ("hex", "both"):
-            result["hex"] = " ".join(f"{b:02x}" for b in buf[:actual])
+            result["hex"] = " ".join(f"{b:02x}" for b in unsigned)
         if fmt in ("ascii", "both"):
-            result["ascii"] = "".join(chr(b) if 32 <= b < 127 else "." for b in buf[:actual])
+            result["ascii"] = "".join(chr(b) if 32 <= b < 127 else "." for b in unsigned)
 
         # If Ghidra has already defined data at this address, include type and value in the response
         listing = self._get_listing(program, program_info=program_info)

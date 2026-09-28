@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sys
+
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -96,7 +98,7 @@ def test_blocking_ensure_skips_stub_without_analysis_state(
             return "stub"
 
     run_mock = MagicMock()
-    monkeypatch.setattr(pa, "run_analysis", run_mock)
+    monkeypatch.setattr(pa, "_run_ghidra_analysis", run_mock)
     info = SimpleNamespace(ghidra_analysis_complete=False, analysis_complete=False)
     result = pa.blocking_ensure_analyzed(_StubProgram(), info)  # type: ignore[arg-type]
 
@@ -135,7 +137,7 @@ def test_blocking_ensure_skips_when_already_analyzed(monkeypatch: pytest.MonkeyP
     state.isDone.return_value = True
     program.getAnalysisState.return_value = state
     run_mock = MagicMock()
-    monkeypatch.setattr(pa, "run_analysis", run_mock)
+    monkeypatch.setattr(pa, "_run_ghidra_analysis", run_mock)
 
     info = SimpleNamespace(ghidra_analysis_complete=False, analysis_complete=False)
     result = pa.blocking_ensure_analyzed(program, info, program_path="/bin.exe")
@@ -158,13 +160,15 @@ def test_blocking_ensure_runs_analysis_when_needed(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(pa, "wait_for_program_analysis_idle", lambda *_a, **_k: None)
     with patch.object(pa, "program_needs_analysis", side_effect=[True, False]):
         run_mock = MagicMock()
-        monkeypatch.setattr(pa, "run_analysis", run_mock)
+        monkeypatch.setattr(pa, "_run_ghidra_analysis", run_mock)
         info = SimpleNamespace(ghidra_analysis_complete=False, analysis_complete=False)
         result = pa.blocking_ensure_analyzed(program, info, program_path="/bin.exe")
 
     assert result.get("ran") is True
-    # The gate already decided analysis is needed; ghidrecomp must not veto it.
-    run_mock.assert_called_once_with(program, force_analysis=True)
+    # The gate already decided analysis is needed; the direct helper must run.
+    run_mock.assert_called_once_with(program)
+    program.startTransaction.assert_called_once_with("AgentDecompile auto-analysis")
+    program.endTransaction.assert_called_once_with(program.startTransaction.return_value, True)
     assert info.ghidra_analysis_complete is True
 
 
@@ -201,7 +205,7 @@ def test_blocking_ensure_raises_when_still_needs_after_run(
         pytest.raises(pa.ProgramAnalysisTimeout, match="did not complete"),
     ):
         run_mock = MagicMock()
-        monkeypatch.setattr(pa, "run_analysis", run_mock)
+        monkeypatch.setattr(pa, "_run_ghidra_analysis", run_mock)
         info = SimpleNamespace(ghidra_analysis_complete=False, analysis_complete=False)
         pa.blocking_ensure_analyzed(program, info, program_path="/bin.exe")
 
@@ -280,11 +284,13 @@ def test_blocking_ensure_releases_lock_on_analysis_failure(monkeypatch: pytest.M
     def _boom(*_a, **_k):
         raise RuntimeError("analysis failed")
 
-    monkeypatch.setattr(pa, "run_analysis", _boom)
+    monkeypatch.setattr(pa, "_run_ghidra_analysis", _boom)
     with patch.object(pa, "program_needs_analysis", return_value=True):
         with pytest.raises(RuntimeError, match="analysis failed"):
             pa.blocking_ensure_analyzed(program, info, program_path="/release-on-error.exe")
 
+    program.startTransaction.assert_called_once_with("AgentDecompile auto-analysis")
+    program.endTransaction.assert_called_once_with(program.startTransaction.return_value, True)
     assert "/release-on-error.exe" not in pa._LOCKS
 
 
@@ -298,7 +304,7 @@ def test_blocking_ensure_releases_lock_after_run(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(pa, "wait_for_program_analysis_idle", lambda *_a, **_k: None)
     with patch.object(pa, "program_needs_analysis", side_effect=[True, False]):
-        monkeypatch.setattr(pa, "run_analysis", MagicMock())
+        monkeypatch.setattr(pa, "_run_ghidra_analysis", MagicMock())
         pa.blocking_ensure_analyzed(program, info, program_path="/release-after-ensure.exe")
 
     assert "/release-after-ensure.exe" not in pa._LOCKS
@@ -390,9 +396,12 @@ def test_release_program_lock_keeps_locked_entry() -> None:
 @pytest.mark.unit
 def test_program_analysis_module_exports_public_api() -> None:
     expected = {
+        "ProgramAnalysisIncomplete",
         "ProgramAnalysisTimeout",
+        "analysis_failure",
         "analysis_gate_exempt_tool",
         "blocking_ensure_analyzed",
+        "clear_analysis_failure",
         "mark_program_analysis_complete",
         "program_needs_analysis",
         "wait_for_program_analysis_idle",
@@ -409,8 +418,8 @@ def test_gate_needed_but_ghidra_not_asking_still_runs_analysis(
 ) -> None:
     """Fresh import: shouldAskToAnalyze is False yet isAnalyzed is False.
 
-    ghidrecomp's analyze_program skips unless shouldAskToAnalyze or
-    force_analysis; our gate says analysis is needed, so the run is forced.
+    The coordinator has already established that analysis is needed, so the
+    direct Ghidra helper must not apply a second shouldAskToAnalyze gate.
     """
     program = MagicMock(spec=["getDomainFile", "getOptions", "getLanguageID", "getName", "hashCode"])
     df = MagicMock()
@@ -418,12 +427,11 @@ def test_gate_needed_but_ghidra_not_asking_still_runs_analysis(
     program.getDomainFile.return_value = df
     flags = {"analyzed": False}
 
-    def fake_ghidrecomp(prog, force_analysis=False):
-        should_ask = False  # the observed state after import
-        if should_ask or force_analysis:
-            flags["analyzed"] = True
+    def fake_direct_analysis(prog):
+        assert prog is program
+        flags["analyzed"] = True
 
-    monkeypatch.setattr(pa, "run_analysis", fake_ghidrecomp)
+    monkeypatch.setattr(pa, "_run_ghidra_analysis", fake_direct_analysis)
     monkeypatch.setattr(pa, "_ghidra_utilities_pending", lambda _p: not flags["analyzed"])
     monkeypatch.setattr(pa, "wait_for_program_analysis_idle", lambda *_a, **_k: None)
     monkeypatch.setattr(pa, "_defer_expensive_default_analyzers", lambda *_a, **_k: [])
@@ -434,3 +442,102 @@ def test_gate_needed_but_ghidra_not_asking_still_runs_analysis(
     assert result.get("ran") is True
     assert flags["analyzed"] is True
     assert info.ghidra_analysis_complete is True
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("flag_method", ["setAnalyzedFlag", "markProgramAnalyzed"])
+def test_direct_analysis_uses_bundle_host_and_keeps_stdout_clean(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    flag_method: str,
+) -> None:
+    events: list[tuple[object, ...]] = []
+    program = SimpleNamespace(getName=lambda: "fixture.bin")
+
+    class FakeScriptUtil:
+        @staticmethod
+        def acquireBundleHostReference() -> None:
+            events.append(("acquire",))
+
+        @staticmethod
+        def releaseBundleHostReference() -> None:
+            events.append(("release",))
+
+    class FakeFlatProgramAPI:
+        def __init__(self, selected_program: object) -> None:
+            events.append(("flat-api", selected_program))
+
+        def analyzeAll(self, selected_program: object) -> None:
+            events.append(("analyze", selected_program))
+
+    class FakeProgramUtilities:
+        pass
+
+    if flag_method == "setAnalyzedFlag":
+        setattr(
+            FakeProgramUtilities,
+            flag_method,
+            staticmethod(lambda selected_program, analyzed: events.append(("flag", selected_program, analyzed))),
+        )
+    else:
+        setattr(
+            FakeProgramUtilities,
+            flag_method,
+            staticmethod(lambda selected_program: events.append(("flag", selected_program, True))),
+        )
+    monkeypatch.setitem(sys.modules, "ghidra.app.script", SimpleNamespace(GhidraScriptUtil=FakeScriptUtil))
+    monkeypatch.setitem(sys.modules, "ghidra.program.flatapi", SimpleNamespace(FlatProgramAPI=FakeFlatProgramAPI))
+    monkeypatch.setitem(
+        sys.modules,
+        "ghidra.program.util",
+        SimpleNamespace(GhidraProgramUtilities=FakeProgramUtilities),
+    )
+
+    pa._run_ghidra_analysis(program)  # type: ignore[arg-type]
+
+    assert capsys.readouterr().out == ""
+    assert events == [
+        ("flat-api", program),
+        ("acquire",),
+        ("analyze", program),
+        ("flag", program, True),
+        ("release",),
+    ]
+
+
+@pytest.mark.unit
+def test_direct_analysis_releases_bundle_host_when_analyzer_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    program = SimpleNamespace(getName=lambda: "fixture.bin")
+
+    class FakeScriptUtil:
+        @staticmethod
+        def acquireBundleHostReference() -> None:
+            events.append("acquire")
+
+        @staticmethod
+        def releaseBundleHostReference() -> None:
+            events.append("release")
+
+    class FakeFlatProgramAPI:
+        def __init__(self, _program: object) -> None:
+            pass
+
+        def analyzeAll(self, _program: object) -> None:
+            events.append("analyze")
+            raise RuntimeError("analyzer failed")
+
+    monkeypatch.setitem(sys.modules, "ghidra.app.script", SimpleNamespace(GhidraScriptUtil=FakeScriptUtil))
+    monkeypatch.setitem(sys.modules, "ghidra.program.flatapi", SimpleNamespace(FlatProgramAPI=FakeFlatProgramAPI))
+    monkeypatch.setitem(
+        sys.modules,
+        "ghidra.program.util",
+        SimpleNamespace(GhidraProgramUtilities=SimpleNamespace(setAnalyzedFlag=lambda *_args: None)),
+    )
+
+    with pytest.raises(RuntimeError, match="analyzer failed"):
+        pa._run_ghidra_analysis(program)  # type: ignore[arg-type]
+
+    assert events == ["acquire", "analyze", "release"]

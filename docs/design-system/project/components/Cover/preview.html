@@ -1,0 +1,36 @@
+<!-- @dsCard height=320 -->
+<style>
+  html, body { margin: 0; background: var(--chassis); }
+  .cv { position: relative; width: 960px; height: 320px; background: var(--chassis); overflow: hidden; }
+  .cv svg { position: absolute; left: 0; top: 0; }
+  .b-id { fill: var(--lane-identity-fill); } .b-rec { fill: var(--lane-recovery-fill); } .b-uni { fill: var(--lane-unify-fill); }
+  .b-ver { fill: var(--lane-verify-fill); } .b-acc { fill: var(--accent); } .b-pane { fill: var(--pane); }
+  .dot { fill: var(--accent); } .rule { stroke: var(--line); stroke-width: 1; }
+  .t { position: absolute; left: 48px; top: 146px; width: 640px; }
+  .t h1 { margin: 0; font: 600 60px/.95 var(--font-sans); letter-spacing: -.01em; color: var(--ink-strong); }
+  .t p { margin: 14px 0 0; font: 400 14px/20px var(--font-sans); color: var(--ink-muted); }
+</style>
+<div class="cv">
+  <svg width="960" height="110" viewBox="0 0 960 110" aria-hidden="true">
+    <!--
+      blocks: lane-identity-fill × navigator-w (288) · lane-recovery-fill × dock-h (200) · lane-unify-fill 120 · lane-verify-fill 80 · accent × space-7 (24) · pane remainder 248; all 110 tall, radius-none
+      arrangement: one flush strip of unequal bands across the top, read left to right like the recovery lanes; the name sits beneath because it is wider than the 440px zone
+      pattern: dot grid, row "precise, technical, mono" — the system is a square, monospace instrument where evidence lines up on a grid
+      steps and radii: dots at space-7 (24px) pitch inset space-5 (12px), r = space-1 (2px); corners radius-none; 1px line rule under the band
+    -->
+    <rect class="b-id" x="0" y="0" width="288" height="110"/>
+    <rect class="b-rec" x="288" y="0" width="200" height="110"/>
+    <rect class="b-uni" x="488" y="0" width="120" height="110"/>
+    <rect class="b-ver" x="608" y="0" width="80" height="110"/>
+    <rect class="b-acc" x="688" y="0" width="24" height="110"/>
+    <rect class="b-pane" x="712" y="0" width="248" height="110"/>
+    <g>
+      <circle class="dot" cx="736" cy="19" r="2"/><circle class="dot" cx="760" cy="19" r="2"/><circle class="dot" cx="784" cy="19" r="2"/><circle class="dot" cx="808" cy="19" r="2"/><circle class="dot" cx="832" cy="19" r="2"/><circle class="dot" cx="856" cy="19" r="2"/><circle class="dot" cx="880" cy="19" r="2"/><circle class="dot" cx="904" cy="19" r="2"/><circle class="dot" cx="928" cy="19" r="2"/>
+      <circle class="dot" cx="736" cy="43" r="2"/><circle class="dot" cx="760" cy="43" r="2"/><circle class="dot" cx="784" cy="43" r="2"/><circle class="dot" cx="808" cy="43" r="2"/><circle class="dot" cx="832" cy="43" r="2"/><circle class="dot" cx="856" cy="43" r="2"/><circle class="dot" cx="880" cy="43" r="2"/><circle class="dot" cx="904" cy="43" r="2"/><circle class="dot" cx="928" cy="43" r="2"/>
+      <circle class="dot" cx="736" cy="67" r="2"/><circle class="dot" cx="760" cy="67" r="2"/><circle class="dot" cx="784" cy="67" r="2"/><circle class="dot" cx="808" cy="67" r="2"/><circle class="dot" cx="832" cy="67" r="2"/><circle class="dot" cx="856" cy="67" r="2"/><circle class="dot" cx="880" cy="67" r="2"/><circle class="dot" cx="904" cy="67" r="2"/><circle class="dot" cx="928" cy="67" r="2"/>
+      <circle class="dot" cx="736" cy="91" r="2"/><circle class="dot" cx="760" cy="91" r="2"/><circle class="dot" cx="784" cy="91" r="2"/><circle class="dot" cx="808" cy="91" r="2"/><circle class="dot" cx="832" cy="91" r="2"/><circle class="dot" cx="856" cy="91" r="2"/><circle class="dot" cx="880" cy="91" r="2"/><circle class="dot" cx="904" cy="91" r="2"/><circle class="dot" cx="928" cy="91" r="2"/>
+    </g>
+    <line class="rule" x1="0" y1="109.5" x2="960" y2="109.5"/>
+  </svg>
+  <div class="t"><h1>AgentDecompile<br>Workstation</h1><p>Real C and a complete executable are separate facts.</p></div>
+</div>

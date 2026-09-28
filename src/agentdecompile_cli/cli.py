@@ -2966,6 +2966,8 @@ def ghidrecomp_command(
 
     if sast and not semgrep_rules:
         raise click.UsageError(batch_sast.MISSING_SEMGREP_RULES_MESSAGE.replace("semgrepRules", "--semgrep-rules"))
+    if not Path(bin).expanduser().is_file():
+        raise click.ClickException(f"bin path does not exist or is not a file: {bin}")
     started_at = time.time() - 1.0
     run_ghidrecomp(args, decompile)
     if sast and shutil.which("semgrep") is not None:

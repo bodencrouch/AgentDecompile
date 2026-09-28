@@ -134,9 +134,12 @@ def run_check_extraction_command(args: argparse.Namespace) -> int:
     return 0 if report.is_complete else 1
 
 
-def build_parser() -> argparse.ArgumentParser:
+DEFAULT_PROG = "agentdecompile-corpus"
+
+
+def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agentdecompile-corpus",
+        prog=prog or DEFAULT_PROG,
         description=(
             "Corpus-wide semantic decompilation. First priority is linking one "
             "STABS/DWARF donor project to a complete executable. Adding a binary "
@@ -647,8 +650,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
+def main(argv: list[str] | None = None, prog: str | None = None) -> int:
+    parser = build_parser(prog)
     args = parser.parse_args(argv)
     if args.cmd == "init":
         save_corpus(args.out, new_corpus(args.corpus_id))
@@ -791,7 +794,20 @@ def main(argv: list[str] | None = None) -> int:
         from .evaluate import evaluate
         from .store import connect
 
-        print(json.dumps(evaluate(connect(args.db), args.src, args.dst, mode=args.mode), indent=2))
+        con = connect(args.db)
+        try:
+            result = evaluate(con, args.src, args.dst, mode=args.mode)
+        except KeyError:
+            missing = [
+                path
+                for path in (args.src, args.dst)
+                if con.execute("SELECT 1 FROM binary WHERE repo_path=?", (path,)).fetchone() is None
+            ]
+            if not missing:
+                raise
+            print(f"error: not in database: {', '.join(missing)}", file=sys.stderr)
+            return 2
+        print(json.dumps(result, indent=2))
         return 0
     if args.cmd == "export-siblings":
         from .sibling_conflicts import export_sibling_conflicts

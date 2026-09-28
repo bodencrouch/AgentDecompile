@@ -664,9 +664,9 @@ def cmd_describe(args: argparse.Namespace) -> int:
 
 
 # --------------------------------------------------------------------------- parser
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="adgrid", description="agentdecompile grid: content-addressed, log-structured distributed compute")
-    parser.add_argument("--version", action="version", version=f"adgrid {__version__}")
+def build_parser(*, prog: str = "adgrid") -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog=prog, description="agentdecompile grid: content-addressed, log-structured distributed compute")
+    parser.add_argument("--version", action="version", version=f"{parser.prog} {__version__}")
     parser.add_argument("--root", help=f"grid root directory (default: ${ROOT_ENV} or GridConfig paths.root)")
     parser.add_argument("--json", action="store_true", help="machine-readable output")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -750,8 +750,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = build_parser()
+def main(argv: Sequence[str] | None = None, *, prog: str = "adgrid") -> int:
+    parser = build_parser(prog=prog)
     args = parser.parse_args(list(argv) if argv is not None else None)
     try:
         load_builtin_kinds()

@@ -36,11 +36,23 @@ pytestmark = pytest.mark.unit
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Argparse CLIs that expose a module-level ``build_parser()``.
+#
+# ``agentdecompile_grid`` ships only on branches that have not been published
+# yet; this checkout may not have ``src/agentdecompile_grid`` even though the
+# editable install's sys.path can still resolve an *unrelated* checkout's copy
+# of the package. Only test "adgrid" when the package actually lives in this
+# checkout's source tree, so this file exercises the CLIs this repo state
+# actually ships rather than failing on a package that belongs to a different,
+# unpublished branch.
 ARGPARSE_CLIS: tuple[tuple[str, str], ...] = (
     ("agentdecompile-recover", "agentdecompile_recovery.cli"),
     ("agentdecompile-corpus", "agentdecompile_recovery.corpus.cli"),
     ("agentdecompile-reconstruct", "agentdecompile_recovery.frontdoor"),
-    ("adgrid", "agentdecompile_grid.cli"),
+    *(
+        (("adgrid", "agentdecompile_grid.cli"),)
+        if (REPO_ROOT / "src" / "agentdecompile_grid").is_dir()
+        else ()
+    ),
 )
 
 # Modules that dispatch corpus subcommands. ``corpus/cli.py`` delegates part of
@@ -161,6 +173,11 @@ def test_click_commands_bind_to_their_callbacks() -> None:
         if command.callback is None:
             continue
         passed = {param.name for param in command.params if param.expose_value}
+        # Argparse bridge leaves bypass Click parsing and populate ``args`` in
+        # _ForwardAllCommand.parse_args. It is a real callback input even
+        # though exposing it as a Click argument would consume forwarded flags.
+        if getattr(command, "BRIDGED", False):
+            passed.add("args")
         signature = callback_signature(command.callback)
         if signature is None:
             continue
@@ -792,16 +809,32 @@ def test_only_generated_commands_escape_the_binding_check() -> None:
     )
 
 
-def test_every_leaf_command_accepts_the_output_format_flag() -> None:
-    """`-f` selects output format on every command.
+def test_every_click_owned_leaf_accepts_the_output_format_flag() -> None:
+    """`-f` selects output format on every Click-owned command.
 
     Four commands own a `format` parameter of their own, so they take `-f` as a
     separate short-only option. Skipping that step once removed `-f` from those
     four and turned `agentdecompile export -f json` into "No such option", which
-    no structural check noticed.
+    no structural check noticed. Argparse bridge leaves are deliberately exempt:
+    their byte-exact parser forwards `-f` to the embedded CLI instead.
     """
-    missing = [path for path, command in _click_leaves() if not any("-f" in param.opts for param in command.params)]
+    missing = [
+        path
+        for path, command in _click_leaves()
+        if not getattr(command, "BRIDGED", False)
+        and not any("-f" in param.opts for param in command.params)
+    ]
     assert not missing, f"commands that do not accept -f: {missing}"
+
+
+def test_argparse_bridge_leaves_forward_output_format_flag_byte_exact() -> None:
+    bridged = [(path, command) for path, command in _click_leaves() if getattr(command, "BRIDGED", False)]
+    assert bridged, "no argparse bridge leaves found"
+    forwarded = ["-f", "json", "--", "--literal"]
+    for path, command in bridged:
+        ctx = click.Context(command, info_name=path.split()[-1])
+        assert command.parse_args(ctx, list(forwarded)) == [], path
+        assert ctx.params["args"] == tuple(forwarded), path
 
 
 def test_output_format_flag_never_reaches_the_request() -> None:
@@ -1016,10 +1049,12 @@ def test_per_command_output_format_matches_top_level(monkeypatch: pytest.MonkeyP
     assert per_command["render"] == top_level["render"] == "json", (
         f"per-command renders {per_command['render']!r}, top-level {top_level['render']!r}"
     )
-    assert per_command["payload"].get("format") == top_level["payload"].get("format") == "markdown"
-    assert plain["payload"].get("format") == "markdown", (
-        f"generated commands must keep the documented markdown default, got {plain['payload'].get('format')!r}"
+    assert per_command["payload"].get("responseFormat") == top_level["payload"].get("responseFormat") == "json"
+    assert plain["payload"].get("responseFormat") == "markdown", (
+        "generated commands must keep the documented markdown default, "
+        f"got {plain['payload'].get('responseFormat')!r}"
     )
+    assert "format" not in per_command["payload"] | top_level["payload"] | plain["payload"]
 
 
 def test_per_command_connection_flag_keeps_preexisting_local_mode(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1063,4 +1098,3 @@ def test_per_command_connection_flag_drops_auto_only_local_mode(monkeypatch: pyt
     assert result["local_mode"] is False, (
         f"per-command flag should have cleared auto-only local_mode: {result['local_mode']!r}"
     )
-

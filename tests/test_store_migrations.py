@@ -432,8 +432,8 @@ def test_migration_2_on_a_legacy_store_matches_the_fresh_shape_and_keeps_rows(tm
     assert tuple(row) == ("one", None, None, None, None)
     legacy_shape = _table_infos(con)["binary"]
     con.close()
-    # Both migrations ran in one connect and each recorded a ledger row.
-    assert _ledger(legacy) == [(1, "baseline"), (2, "analyzer_identity")]
+    # Every current migration ran in one connect and recorded a ledger row.
+    assert _ledger(legacy) == [(m.version, m.name) for m in migrations.MIGRATIONS]
 
     fresh = store.connect(tmp_path / "fresh.sqlite")
     assert _table_infos(fresh)["binary"] == legacy_shape

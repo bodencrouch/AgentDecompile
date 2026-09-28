@@ -244,3 +244,11 @@ class CallGraphResult(BaseModel):
         description="The MermaidJS markdown string for the call graph.",
     )
     mermaid_url: str = Field(..., description="The MermaidJS image url")
+    truncated: bool = Field(
+        default=False,
+        description="True when the walk hit max_run_time and the graph is partial.",
+    )
+    max_run_time: float | None = Field(
+        default=None,
+        description="The time limit in seconds the walk ran under.",
+    )

@@ -19,8 +19,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "ProgramAnalysisIncomplete",
     "ProgramAnalysisTimeout",
+    "analysis_failure",
     "analysis_gate_exempt_tool",
+    "clear_analysis_failure",
     "blocking_ensure_analyzed",
     "mark_program_analysis_complete",
     "program_needs_analysis",
@@ -31,6 +34,15 @@ __all__ = [
 
 class ProgramAnalysisTimeout(TimeoutError):
     """Ghidra auto-analysis did not become idle within the allowed wait."""
+
+
+class ProgramAnalysisIncomplete(ProgramAnalysisTimeout):
+    """Analysis ran to idle but the program still reports it needs analysis.
+
+    Unlike an idle-wait timeout this repeats on every run, so it is recorded in
+    ``_FAILED_ANALYSIS``.  It subclasses ProgramAnalysisTimeout so existing
+    handlers keep returning the analysis-timeout response.
+    """
 
 
 _LOCKS: dict[str, threading.Lock] = {}
@@ -313,11 +325,97 @@ def _defer_expensive_default_analyzers(program: GhidraProgram, analyzers: list[s
         return []
 
 
-def _run_auto_analysis(program: GhidraProgram, *, force: bool, analyzers: list[str] | None = None) -> list[str]:
-    deferred = _defer_expensive_default_analyzers(program, analyzers)
-    run_analysis(program, force_analysis=force)
+def _safe_program_name(program: GhidraProgram) -> str:
+    try:
+        return str(program.getName())
+    except Exception:
+        return "?"
+
+
+def _run_auto_analysis(program: GhidraProgram, *, analyzers: list[str] | None = None) -> list[str]:
+    # Callers reach this only after ``program_needs_analysis`` said analysis is
+    # needed, so the run is always forced.  ghidrecomp's own gate consults only
+    # ``shouldAskToAnalyze``; a freshly imported program can have that flag off
+    # while ``isAnalyzed`` is still false, and ghidrecomp would then skip the run
+    # ("already analyzed... skipping") and leave our gate failing.
+    #
+    # The caller must own the transaction.  FlatProgramAPI.analyzeAll only calls
+    # AutoAnalysisManager.reAnalyzeAll + startAnalysis, and headless startAnalysis
+    # runs analyzers on this thread without opening one (only AnalysisWorkers get
+    # their own); HeadlessAnalyzer.analyzeProgram wraps exactly this sequence in
+    # startTransaction("Analysis").  Programs opened through GhidraProject normally
+    # sit inside its "Batch Processing" transaction, but GhidraProject.save/saveAs
+    # end that transaction first and do not restart it when the save throws, so
+    # after one failed save analysis ran with no transaction at all:
+    # "db.NoTransactionException: Transaction has not been started".  Opening an
+    # entry here is harmless when the batch transaction is alive (it nests) and
+    # its writes are visible to the analyzed-flag check below, which reads the
+    # same database handle.
+    #
+    # Analyzer options are program data too: set them inside the same entry, or
+    # with no batch transaction setBoolean raises NoTransactionException, which
+    # _defer_expensive_default_analyzers swallows and the deferral silently lapses.
+    start_transaction = getattr(program, "startTransaction", None)
+    if not callable(start_transaction):
+        deferred = _defer_expensive_default_analyzers(program, analyzers)
+        run_analysis(program, force_analysis=True)
+    else:
+        tx_id = start_transaction("AgentDecompile auto-analysis")
+        try:
+            deferred = _defer_expensive_default_analyzers(program, analyzers)
+            run_analysis(program, force_analysis=True)
+        except BaseException:
+            # Commit what ran, as HeadlessAnalyzer does, even when an analyzer raised.
+            # endTransaction can itself throw (IllegalStateException when the entry
+            # was already terminated); log that and re-raise the analyzer's error.
+            try:
+                program.endTransaction(tx_id, True)
+            except Exception as end_exc:
+                logger.warning(
+                    "program_analysis_end_transaction_failed program=%s error=%s: %s",
+                    _safe_program_name(program),
+                    type(end_exc).__name__,
+                    end_exc,
+                )
+            raise
+        else:
+            program.endTransaction(tx_id, True)
     wait_for_program_analysis_idle(program)
     return deferred
+
+
+# Programs whose automatic analysis already failed in this process, keyed like
+# the analysis lock (lowercased domain path).  The per-tool gate must not re-run
+# a failed analysis on every call (each rerun failed the same way and blocked
+# unrelated tools); an explicit analyze-program retries and clears the entry on
+# success, and importing or (re)opening a program under the path clears it.
+# An idle-wait ProgramAnalysisTimeout is not recorded: it is transient, so the
+# gate retries.  ProgramAnalysisIncomplete (analysis ran, flag never flipped)
+# repeats on every run and is recorded.
+#
+# The record is per process.  Each ``--local`` CLI invocation starts with an
+# empty dict, so for CLI users this record never stops a repeated failure; the
+# analysis transaction in _run_auto_analysis is what prevents the
+# NoTransactionException wedge there.  The record only matters to a long-lived
+# server process.
+_FAILED_ANALYSIS: dict[str, str] = {}
+
+
+def analysis_failure(program: GhidraProgram, program_path: str | None = None) -> str | None:
+    """Return the recorded auto-analysis failure for this program, if any."""
+    return _FAILED_ANALYSIS.get(_program_lock_key(program, program_path))
+
+
+def clear_analysis_failure(program: GhidraProgram, program_path: str | None = None) -> None:
+    """Forget a recorded failure; call once the program has its final domain path."""
+    key = _program_lock_key(program, program_path)
+    if _FAILED_ANALYSIS.pop(key, None) is not None:
+        logger.info("program_analysis_failure_cleared key=%s", key)
+
+
+def _record_analysis_failure(key: str, exc: BaseException) -> None:
+    _FAILED_ANALYSIS[key] = f"{type(exc).__name__}: {exc}"
+    logger.warning("program_analysis_failed key=%s error=%s", key, _FAILED_ANALYSIS[key])
 
 
 def blocking_ensure_analyzed(
@@ -350,11 +448,20 @@ def blocking_ensure_analyzed(
             result = {"skipped": True, "reason": "already-analyzed", "programKey": key}
         else:
             logger.info("program_analysis_start key=%s force=%s", key, force)
-            deferred = _run_auto_analysis(program, force=force, analyzers=analyzers)
-            if program_needs_analysis(program, program_info=program_info):
-                raise ProgramAnalysisTimeout(
-                    f"Ghidra auto-analysis did not complete for program (key={key})"
-                )
+            try:
+                deferred = _run_auto_analysis(program, analyzers=analyzers)
+                if program_needs_analysis(program, program_info=program_info):
+                    raise ProgramAnalysisIncomplete(
+                        f"Ghidra auto-analysis did not complete for program (key={key})"
+                    )
+            except ProgramAnalysisTimeout as exc:
+                if isinstance(exc, ProgramAnalysisIncomplete):
+                    _record_analysis_failure(key, exc)
+                raise
+            except Exception as exc:
+                _record_analysis_failure(key, exc)
+                raise
+            _FAILED_ANALYSIS.pop(key, None)
             mark_program_analysis_complete(program_info)
             logger.info("program_analysis_done key=%s", key)
             result = {"ran": True, "programKey": key, "force": force, "deferredAnalyzers": deferred}
@@ -381,13 +488,28 @@ def wait_for_program_analysis_ready(
         if not program_needs_analysis(program, program_info=program_info):
             mark_program_analysis_complete(program_info)
             return
+        failure = _FAILED_ANALYSIS.get(key)
+        if failure is not None:
+            # Analysis already failed once here; let the tool run on the listing
+            # as it is instead of re-running (and re-failing) analysis per call.
+            logger.warning("program_analysis_gate_skip_after_failure key=%s error=%s", key, failure)
+            return
         wait_for_program_analysis_idle(program, max_wait_sec=max_wait_sec)
-        if program_needs_analysis(program, program_info=program_info):
-            logger.info("program_analysis_wait_ensure key=%s", key)
-            _run_auto_analysis(program, force=False)
-            wait_for_program_analysis_idle(program, max_wait_sec=max_wait_sec)
-        if program_needs_analysis(program, program_info=program_info):
-            raise ProgramAnalysisTimeout(
-                f"Ghidra auto-analysis did not complete for program (key={key})"
-            )
+        try:
+            if program_needs_analysis(program, program_info=program_info):
+                logger.info("program_analysis_wait_ensure key=%s", key)
+                _run_auto_analysis(program)
+                wait_for_program_analysis_idle(program, max_wait_sec=max_wait_sec)
+            if program_needs_analysis(program, program_info=program_info):
+                raise ProgramAnalysisIncomplete(
+                    f"Ghidra auto-analysis did not complete for program (key={key})"
+                )
+        except ProgramAnalysisTimeout as exc:
+            if isinstance(exc, ProgramAnalysisIncomplete):
+                _record_analysis_failure(key, exc)
+            raise
+        except Exception as exc:
+            _record_analysis_failure(key, exc)
+            raise
+        _FAILED_ANALYSIS.pop(key, None)
         mark_program_analysis_complete(program_info)

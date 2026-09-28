@@ -180,13 +180,21 @@ def connect(path: pathlib.Path | str, *, read_only: bool = False) -> sqlite3.Con
     else:
         dest.parent.mkdir(parents=True, exist_ok=True)
         con = sqlite3.connect(dest, timeout=30)
-    con.execute("PRAGMA busy_timeout=30000")
-    con.row_factory = sqlite3.Row
-    if not read_only:
-        # Cannot run inside a transaction, so it stays out of the migration.
-        con.execute("PRAGMA journal_mode=WAL")
-    migrations.apply_pending(con)
-    backfill_recovery_family(con)
+    try:
+        con.execute("PRAGMA busy_timeout=30000")
+        con.row_factory = sqlite3.Row
+        if not read_only:
+            # Cannot run inside a transaction, so it stays out of the migration.
+            con.execute("PRAGMA journal_mode=WAL")
+        migrations.apply_pending(con)
+        backfill_recovery_family(con)
+    except BaseException:
+        try:
+            if con.in_transaction:
+                con.rollback()
+        finally:
+            con.close()
+        raise
     return con
 
 
@@ -254,12 +262,17 @@ def ensure_match_columns(con: sqlite3.Connection) -> None:
             con.execute(f"ALTER TABLE match ADD COLUMN {col} {decl}")
 
 
+# Primary result codes that mean "cannot write right now", not "broken schema".
+_BACKFILL_SKIP_CODES = frozenset({sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED, sqlite3.SQLITE_READONLY})
+
+
 def ensure_binary_columns(con: sqlite3.Connection) -> None:
     """Additive binary columns, then the recovery_family data backfill.
 
     Idempotent: column adds are guarded by ``PRAGMA table_info`` and the
     backfill is read-checked. Callers that hold a connection not opened via
-    ``connect()`` may call this directly.
+    ``connect()`` may call this directly. It never commits caller work: the
+    backfill owns a transaction only when the caller does not already have one.
     """
     cols = {row[1] for row in con.execute("PRAGMA table_info(binary)")}
     if "content_sha256" not in cols:
@@ -312,8 +325,9 @@ def backfill_recovery_family(con: sqlite3.Connection) -> int:
         # concurrent orchestrator watchers hold WAL read locks) must proceed
         # rather than crash. Whichever connection wins the lock backfills it;
         # the value is a function of each row's own content hash, so the
-        # winner and the visit order cannot change what gets written. Only
-        # the lock/read-only cases are tolerated; any other failure surfaces.
+        # winner and visit order cannot change what gets written. Callers may
+        # pass a connection with pending work, so only undo a transaction this
+        # function opened. Only lock/read-only failures are best-effort.
         owns = not con.in_transaction
         try:
             if owns:
@@ -323,20 +337,25 @@ def backfill_recovery_family(con: sqlite3.Connection) -> int:
                 f"WHERE {stale} AND {has_hash}"
             )
             if owns:
-                con.execute("COMMIT")
+                con.commit()
         except sqlite3.OperationalError as exc:
             if owns and con.in_transaction:
-                con.execute("ROLLBACK")
+                con.rollback()
             if not _is_lock_or_readonly(exc):
                 raise
         except BaseException:
             if owns and con.in_transaction:
-                con.execute("ROLLBACK")
+                con.rollback()
             raise
     return int(unclassifiable[0]) if unclassifiable else 0
 
 
 def _is_lock_or_readonly(exc: sqlite3.OperationalError) -> bool:
+    code = getattr(exc, "sqlite_errorcode", None)
+    if code is not None:
+        return (code & 0xFF) in _BACKFILL_SKIP_CODES
+    # sqlite_errorcode was added after the oldest supported Python. Preserve
+    # the same classification for Python 3.10 without swallowing other errors.
     text = str(exc).lower()
     return "locked" in text or "busy" in text or "readonly" in text or "read-only" in text
 

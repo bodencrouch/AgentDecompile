@@ -20,6 +20,7 @@ from agentdecompile_cli.mcp_server.tool_providers import (
     DEFAULT_PAGE_LIMIT,
     ToolProvider,
     create_success_response,
+    n,
 )
 from agentdecompile_cli.registry import Tool
 
@@ -78,7 +79,10 @@ class VtableToolProvider(ToolProvider):
         logger.debug("diag.enter %s", "mcp_server/providers/vtable.py:VtableToolProvider._handle")
         self._require_program(program_info=program_info)
         mode = self._get_str(args, "mode", default="analyze")
-        addr_str = self._get_address_or_symbol(args)
+        # analyze/callers take the vtable; containing takes the function to look for.
+        # vtableAddress was the documented key but only the generic address keys were read.
+        specific = self._get_str(args, "functionaddress") if n(mode) == "containing" else self._get_str(args, "vtableaddress")
+        addr_str = specific or self._get_address_or_symbol(args)
         logger.info("analyze-vtables mode=%s addressOrSymbol=%s", mode, addr_str or "(none)")
         assert program_info is not None  # for type checker
         # Shared context for all mode handlers: program, listing, memory, fm, address string, pagination
@@ -94,7 +98,7 @@ class VtableToolProvider(ToolProvider):
             listing=self._get_listing(program_info.program, program_info=program_info),
             memory=self._get_memory(program_info.program, program_info=program_info),
             fm=self._get_function_manager(program_info.program, program_info=program_info),
-            addr_str=self._get_address_or_symbol(args),
+            addr_str=addr_str,
             max_entries=self._get_int(args, "maxentries", default=DEFAULT_MAX_ENTRIES),
             offset=self._get_pagination_params(args, default_limit=DEFAULT_PAGE_LIMIT)[0],
             max_results=self._get_pagination_params(args, default_limit=DEFAULT_PAGE_LIMIT)[1],
@@ -112,10 +116,32 @@ class VtableToolProvider(ToolProvider):
         max_entries: int,
         offset: int,
         max_results: int,
+        *, program_info: ProgramInfo | SimpleNamespace | None = None,
     ) -> list[types.TextContent]:
         # Scan all defined data; keep items whose type name suggests a vtable (user- or analyzer-named)
         logger.debug("diag.enter %s", "mcp_server/providers/vtable.py:VtableToolProvider._handle_containing")
         all_results = collect_vtable_candidates(program)
+        if addr_str:
+            # Only the vtables with a slot pointing at this function: the pointer in the
+            # slot is a reference to the function's entry point from inside the vtable.
+            func = self._resolve_function(addr_str, program=program, program_info=program_info)
+            if func is None:
+                raise ValueError(f"Function not found: {addr_str}")
+            entry = func.getEntryPoint()
+            ptr_size = int(program.getDefaultPointerSize()) or 1
+            sources = [ref.getFromAddress() for ref in program.getReferenceManager().getReferencesTo(entry)]
+            factory = program.getAddressFactory()
+            hits: list[dict[str, Any]] = []
+            for row in all_results:
+                start = factory.getAddress(row["address"])
+                for source in sources:
+                    try:
+                        delta = int(source.subtract(start))
+                    except Exception:
+                        continue
+                    if 0 <= delta < int(row["size"]):
+                        hits.append({**row, "slotIndex": delta // ptr_size, "slotAddress": str(source), "function": func.getName(), "functionAddress": str(entry)})
+            all_results = hits
         paginated, _ = self._paginate_results(all_results, offset, max_results)
         return self._create_paginated_response(paginated, offset, max_results, total=len(all_results), mode="containing")
 

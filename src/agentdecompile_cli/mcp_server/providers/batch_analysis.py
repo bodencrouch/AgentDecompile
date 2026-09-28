@@ -16,7 +16,7 @@ from agentdecompile_cli.mcp_server.tool_providers import (
 from agentdecompile_cli.mcp_utils.batch_bsim import build_batch_bsim_payload
 from agentdecompile_cli.mcp_utils.batch_decompile import build_batch_decompile_payload
 from agentdecompile_cli.mcp_utils.batch_gzf import build_batch_gzf_payload
-from agentdecompile_cli.mcp_utils.batch_sast import build_batch_sast_payload
+from agentdecompile_cli.mcp_utils.batch_sast import SemgrepScanFailed, build_batch_sast_payload
 from agentdecompile_cli.registry import Tool
 
 logger = logging.getLogger(__name__)
@@ -174,7 +174,7 @@ class BatchAnalysisToolProvider(ToolProvider):
                 name=Tool.RUN_BATCH_SAST_SCAN.value,
                 description=(
                     "Tier 1 batch SAST scan via ghidrecomp: headless analyze + decompile + "
-                    "Semgrep SARIF under sastPath. Skips gracefully when semgrep is not on PATH. "
+                    "Semgrep SARIF under sastPath. Skips when semgrep is not on PATH; a Semgrep timeout or crash is an error. "
                     "Does not require an open MCP session program."
                 ),
                 inputSchema={
@@ -204,7 +204,8 @@ class BatchAnalysisToolProvider(ToolProvider):
                             "type": "array",
                             "items": {"type": "string"},
                             "description": (
-                                "Optional Semgrep rule paths or pack names (default p/c when omitted)."
+                                "Required when semgrep is on PATH: local Semgrep rule files or directories. "
+                                "No offline rules ship with AgentDecompile. Registry packs such as p/c need network access."
                             ),
                         },
                         "codeqlRules": {
@@ -224,7 +225,14 @@ class BatchAnalysisToolProvider(ToolProvider):
                 inputSchema={
                     "type": "object",
                     "properties": {
-                        "bsimUrl": {"type": "string", "description": "postgresql://host/name or file:/dir/name"},
+                        "bsimUrl": {
+                            "type": "string",
+                            "description": (
+                                "postgresql://host:port/name or file:/dir/name. When omitted: "
+                                "AGENT_DECOMPILE_BSIM_URL, else derived from datadir, else an error. "
+                                "bsim-ingest and bsim-report resolve it the same way."
+                            ),
+                        },
                         "datadir": {"type": "string", "description": "BSimControl PostgreSQL data directory"},
                         "name": {"type": "string", "description": "Database name when deriving the URL from datadir"},
                         "template": {"type": "string", "description": "large_32 | medium_32 | medium_64 | medium_cpool | medium_nosize"},
@@ -412,6 +420,8 @@ class BatchAnalysisToolProvider(ToolProvider):
                 codeql_rules=codeql_rules,
             )
             return create_success_response(payload)
+        except SemgrepScanFailed as exc:
+            return create_error_response(exc, context=exc.context)
         except FileNotFoundError as exc:
             return create_error_response(exc)
         except ValueError as exc:
@@ -422,11 +432,12 @@ class BatchAnalysisToolProvider(ToolProvider):
     async def _handle_bsim_createdatabase(self, args: dict[str, Any]) -> list[types.TextContent]:
         from agentdecompile_recovery.corpus import bsim_ops as bo
 
-        url = self._get_str(args, "bsimUrl") or ""
-        datadir = self._get_str(args, "datadir")
         name = self._get_str(args, "name") or "bsim"
-        if not url:
-            url = bo.default_bsim_url(datadir=datadir, name=name)
+        url = bo.resolve_bsim_url(
+            bsim_url=self._get_str(args, "bsimUrl") or "",
+            datadir=self._get_str(args, "datadir"),
+            name=name,
+        )
         payload = bo.createdatabase(
             url,
             template=self._get_str(args, "template") or bo.DEFAULT_TEMPLATE,

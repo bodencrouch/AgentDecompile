@@ -1765,10 +1765,23 @@ def _drop_cached_program(ctx: click.Context) -> None:
 
 
 def _is_stale_injected_program_error(ctx: click.Context, result: Any) -> str | None:
-    """Return the cached program when *result* says it no longer resolves."""
+    """Return the cached program when *result* says it no longer resolves.
+
+    Prefers the server's structured fields (``state`` /
+    ``requestedProgramPath``, flattened from ``ActionableError.context`` --
+    see tool_providers.py's ActionableError docstring) over prose matching,
+    which only remains as a fallback for older servers that don't send them.
+    """
     injected = _get_root_obj(ctx).get(_CLI_INJECTED_PROGRAM_KEY)
     if not isinstance(injected, str) or not injected:
         return None
+    for payload in _iter_tool_result_dicts(result):
+        if payload.get("state") == "program-resolution-failed":
+            requested = payload.get("requestedProgramPath")
+            if isinstance(requested, str) and requested.strip() == injected.strip():
+                return injected
+            # Structured state present but for a different program: not stale.
+            return None
     err = _get_error_result_message(result) or ""
     if "could not be resolved in this session" in err and f"'{injected}'" in err:
         return injected

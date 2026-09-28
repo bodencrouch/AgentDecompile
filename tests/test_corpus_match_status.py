@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sqlite3
 
+import pytest
+
 from agentdecompile_recovery.corpus.match import status_for
 from agentdecompile_recovery.corpus.propagate import downgrade_named_conflicts, reclassify_existing
 

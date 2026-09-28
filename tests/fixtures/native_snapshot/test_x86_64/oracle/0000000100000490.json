@@ -1,0 +1,13 @@
+{
+  "addr": "0000000100000490",
+  "space": "ram",
+  "name": "_multiply",
+  "load_name": "_multiply",
+  "status": "ok",
+  "error": null,
+  "decompile_ms": 8,
+  "warnings": [],
+  "signature": "int _multiply(int param_1,int param_2);",
+  "c_sha256": "17122d05da13174eb306c466e122960d7fa2f715607407f3d77fe57f8aff9615",
+  "savefile": "functions/0000000100000490.xml"
+}

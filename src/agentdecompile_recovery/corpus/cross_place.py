@@ -215,7 +215,6 @@ def watch(src_dir: Path, src_bid: int, out_root: Path, con, interval: float) -> 
 
 def main(argv: list[str] | None = None) -> int:
     import argparse
-    import sys
 
     from .store import connect
 

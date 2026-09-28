@@ -56,7 +56,6 @@ def _local_dialect_passes(code: str, mode: NormalizeMode) -> str:
 
     Boolean width follows SCRIBE: one byte, not a host ``_Bool``.
     """
-    from .normalize_pipeline import NormalizeMode as NM
 
     text = re.sub(r"\b_Bool\b", "unsigned char", code)
     text = re.sub(r"\bbool\b", "unsigned char", text)

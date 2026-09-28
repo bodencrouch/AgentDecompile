@@ -1,6 +1,6 @@
 ---
 name: AgentDecompile
-last_updated: 2026-09-08
+last_updated: 2026-09-09
 charter: VISION.md
 active_living_plan: docs/plans/2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md
 ---
@@ -57,6 +57,12 @@ _Why it serves the approach:_ Cross-match metadata only works if Ghidra state an
 `corpus.export-hookpack` writes a Phasor-shaped pack: logical site names, the preferred signature family, and per-build addrs only as a cache. KotorPhasor (or a clone for another corpus) resolves by unique `expected_bytes` when the recorded VA is missing or stale. Game names stay in data packs, not the resolver.
 
 _Why it serves the approach:_ The matcher already refuses raw addresses. A hook host that still keys on `0x005D45D0` per exe repeats the hunt the corpus just finished.
+
+### Native decompiler tier (JVM-free replay)
+
+Export a program once from Ghidra as per-function decompiler savefiles with a manifest. Re-decompile those savefiles with Ghidra's own native engine and no JVM. Use that for option sweeps, engine-upgrade regression checks, and consumers that cannot host Java. The export itself still needs one Java decompile per function. Native output is checked against the Java decompile of the same program on the same engine version. A mismatch is a bug, not a tolerance. The priority ladder below is unchanged. This tier feeds step 4 (readable C) and sits at Tier 1 next to `ghidrecomp` in the tiered-re-analysis skill. Living plan: `docs/plans/2026-09-08-2330-feat-ghidra-native-sdk-plan.md`.
+
+_Why it serves the approach:_ Bulk C is the step the corpus repeats most. Decompiling from a saved snapshot lets a worker run without Ghidra and lets an engine change be checked before it touches the corpus.
 
 ## Priority ladder (do not reorder)
 

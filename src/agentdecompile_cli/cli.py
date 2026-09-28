@@ -687,7 +687,7 @@ def _apply_response_format(ctx: click.Context, tool_name: str, payload: dict[str
     """Ask the server for markdown or JSON under ``responseFormat``, never ``format``.
 
     ``format`` is a tool argument (get-data, export, export-context, manage-files,
-    gen-callgraph, inspect-memory's format->mode alias) and is left untouched. An
+    gen-callgraph) and is left untouched. An
     explicit responseFormat wins. On tools without a ``format`` of their own, an
     explicit ``format`` of markdown/json (``tool NAME '{"format":"json"}'``) was a
     rendering request and is honoured as one.
@@ -1325,7 +1325,7 @@ async def _call_raw(
 
     # Rendering travels as responseFormat (markdown, or json for -f json/xml/table).
     # `format` belongs to tools (get-data hex/ascii/both, export c/cpp/sarif,
-    # export-context json/md, inspect-memory's format->mode alias): never added here.
+    # export-context json/md): never added here.
     _apply_response_format(ctx, call_tool_name, safe_payload)
 
     prepared_payload, _ = _prepare_tool_payload_with_program_fallback(ctx, call_tool_name, dict(safe_payload))

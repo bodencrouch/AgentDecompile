@@ -1336,8 +1336,8 @@ def apply_alias_implied_arguments(tool_name: str, arguments: dict[str, Any]) -> 
     ``get-function-count`` forwards to list-functions and means ``mode=count``.
     Nothing is added when the caller already chose: the implied key itself, any
     selector key, or a TOOLS_LIST synonym of the implied key with a value.
-    ``format`` never counts: it is every tool's output format and the CLI always
-    sends it, although TOOLS_LIST lists it as an inspect-memory mode synonym.
+    ``format`` never counts as a mode selector: it may select a tool-specific
+    representation or a legacy rendering format. Rendering uses responseFormat.
     """
     implied = TOOL_ALIAS_IMPLIED_ARGUMENTS.get(normalize_identifier(tool_name))
     if not implied:

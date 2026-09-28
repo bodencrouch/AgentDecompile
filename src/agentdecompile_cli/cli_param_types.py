@@ -25,10 +25,10 @@ from __future__ import annotations
 
 ADVERTISED_PARAM_TYPES: dict[str, dict[str, str]] = {
     "acquisition-query": {
+        "action": "string",
         "address": "string",
         "bundledir": "string",
         "limit": "integer",
-        "mode": "string",
         "query": "string",
     },
     "analyze-data-flow": {
@@ -133,7 +133,7 @@ ADVERTISED_PARAM_TYPES: dict[str, dict[str, str]] = {
         "includecomments": "boolean",
         "includedisassembly": "boolean",
         "includeincomingreferences": "boolean",
-        "includereferencecontext": "string",
+        "includereferencecontext": "boolean",
         "includestrings": "boolean",
         "includexrefs": "boolean",
         "limit": "integer",
@@ -197,7 +197,7 @@ ADVERTISED_PARAM_TYPES: dict[str, dict[str, str]] = {
         "direction": "string",
         "displaytype": "string",
         "function": "string",
-        "functionaddresses": "string",
+        "functionaddresses": "array",
         "functionidentifier": "string",
         "includecallcontext": "boolean",
         "includerefs": "boolean",
@@ -262,7 +262,7 @@ ADVERTISED_PARAM_TYPES: dict[str, dict[str, str]] = {
         "includecallers": "boolean",
         "includecomments": "boolean",
         "includeincomingreferences": "boolean",
-        "includereferencecontext": "string",
+        "includereferencecontext": "boolean",
         "limit": "integer",
         "mode": "string",
         "offset": "integer",
@@ -277,7 +277,7 @@ ADVERTISED_PARAM_TYPES: dict[str, dict[str, str]] = {
         "contextlines": "string",
         "direction": "string",
         "importname": "string",
-        "includedatarefs": "string",
+        "includedatarefs": "boolean",
         "includeflow": "boolean",
         "includerefcontext": "boolean",
         "libraryname": "string",
@@ -347,7 +347,7 @@ ADVERTISED_PARAM_TYPES: dict[str, dict[str, str]] = {
         "filterbytag": "string",
         "filterdefaultnames": "boolean",
         "hastags": "boolean",
-        "identifiers": "string",
+        "identifiers": "array",
         "includeexternals": "boolean",
         "inline": "boolean",
         "limit": "integer",
@@ -414,6 +414,7 @@ ADVERTISED_PARAM_TYPES: dict[str, dict[str, str]] = {
         "removeall": "boolean",
         "removealltoken": "string",
         "searchtext": "string",
+        "type": "string",
         "types": "string",
     },
     "manage-comments": {
@@ -470,6 +471,7 @@ ADVERTISED_PARAM_TYPES: dict[str, dict[str, str]] = {
         "newmembername": "string",
         "programpath": "string",
         "query": "string",
+        "size": "integer",
         "value": "integer",
     },
     "manage-files": {
@@ -603,6 +605,7 @@ ADVERTISED_PARAM_TYPES: dict[str, dict[str, str]] = {
         "query": "string",
         "size": "integer",
         "structurename": "string",
+        "type": "string",
     },
     "manage-symbols": {
         "address": "string",
@@ -635,7 +638,7 @@ ADVERTISED_PARAM_TYPES: dict[str, dict[str, str]] = {
     },
     "match-function": {
         "addressorsymbol": "string",
-        "batchsize": "string",
+        "batchsize": "integer",
         "filterbytag": "string",
         "filterdefaultnames": "boolean",
         "function": "string",
@@ -810,15 +813,15 @@ ADVERTISED_PARAM_TYPES: dict[str, dict[str, str]] = {
         "casesensitive": "boolean",
         "includefullcode": "boolean",
         "limit": "integer",
-        "maxresults": "string",
+        "maxresults": "integer",
         "offset": "integer",
         "overridemaxfunctionslimit": "boolean",
         "pattern": "string",
-        "previewlength": "string",
+        "previewlength": "integer",
         "programpath": "string",
         "query": "string",
         "searchmode": "string",
-        "similaritythreshold": "string",
+        "similaritythreshold": "number",
     },
     "search-constants": {
         "includesmallvalues": "boolean",
@@ -891,7 +894,7 @@ ADVERTISED_PARAM_TYPES: dict[str, dict[str, str]] = {
     },
     "svr-admin": {
         "args": "array",
-        "mode": "string",
+        "command": "string",
         "timeoutseconds": "integer",
     },
     "sync-project": {

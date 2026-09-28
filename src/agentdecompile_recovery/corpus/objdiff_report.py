@@ -29,6 +29,26 @@ def build_report(con, binary_id: int, *, version: str, receipts=(), verify_recei
         raise ValueError('binary_content_identity_required')
     functions = con.execute('SELECT addr,name,size,ranges FROM func WHERE binary_id=? ORDER BY addr', (binary_id,)).fetchall()
     tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    identities = {}
+    if 'identity' in tables:
+        identity_fields = {r[1] for r in con.execute('PRAGMA table_info(identity)')}
+        if {'logical_id', 'binary_id', 'addr'} <= identity_fields:
+            identity_rows = ((logical_id, addr, None) for logical_id, addr in con.execute(
+                'SELECT logical_id,addr FROM identity WHERE binary_id=? ORDER BY addr',
+                (binary_id,)))
+            if 'logical_function' in tables:
+                logical_fields = {r[1] for r in con.execute('PRAGMA table_info(logical_function)')}
+                if {'id', 'canon_key'} <= logical_fields:
+                    identity_rows = con.execute(
+                        'SELECT i.logical_id,i.addr,l.canon_key '
+                        'FROM identity i LEFT JOIN logical_function l ON l.id=i.logical_id '
+                        'WHERE i.binary_id=? ORDER BY i.addr',
+                        (binary_id,))
+            for logical_id, addr, canon_key in identity_rows:
+                identities[addr] = {
+                    'logical_id': logical_id,
+                    'stable_key': canon_key or f'logical:{logical_id}',
+                }
     sources = {}
     if 'recovered_function' in tables:
         fields = {r[1] for r in con.execute('PRAGMA table_info(recovered_function)')}
@@ -69,6 +89,9 @@ def build_report(con, binary_id: int, *, version: str, receipts=(), verify_recei
         tier_bytes[tier] += size if known else 0
         pct = 100 if tier=='verified-byte-exact' else 0
         unit = {'name':member,'display_name':name,'address':hex(addr),'tier':tier,
+                'logical_id':identities.get(addr, {}).get('logical_id'),
+                'stable_key':identities.get(addr, {}).get('stable_key'),
+                'extent_known':known and ranges == 1,
                 'measures':{'total_code':size if known else None,'matched_code':size if known and pct else 0,
                             'matched_percent':pct,'total_functions':1,'matched_functions':int(bool(pct))},
                 'functions':[{'name':name,'size':size if known else None,'fuzzy_match_percent':pct}]}

@@ -85,6 +85,13 @@ def validate_export_set(pack, *, lua_source=None, headers=(), readiness=None,
             for slug, receipt in sorted(by_build.items()):
                 _require(receipt.get("status") == "complete", "cave_discovery_blocked:" + slug + ":" + str(receipt.get("reason", "missing_evidence")))
                 _require(_digest(receipt.get("evidence_sha256")) and receipt.get("image_sha256") == (builds[slug].get("content_sha256") or builds[slug].get("sha256")), "cave_discovery_evidence_required:" + slug)
+                _require(bool(receipt.get("decoder")), "cave_discovery_decoder_required:" + slug)
+                candidate_count = receipt.get("candidate_count")
+                _require(type(candidate_count) is int and candidate_count >= 0,
+                         "cave_discovery_candidate_count_invalid:" + slug)
+                actual_count = sum(cave.get("build") == slug for cave in original.get("caves", []))
+                _require(candidate_count == actual_count,
+                         "cave_discovery_candidate_count_mismatch:" + slug)
             checked.append("cave_discovery_receipt_identity")
         if lua_source is not None:
             from .export_lua_bindings import render_lua_bindings

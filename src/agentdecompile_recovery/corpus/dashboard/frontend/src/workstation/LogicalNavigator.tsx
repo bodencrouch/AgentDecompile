@@ -9,6 +9,7 @@ import {CoverageMatrix} from './coverageMatrix';
 export function LogicalNavigator({selection,binaries,corpus,revision,onSelect,onMember}:{selection:Selection;binaries:Data[];corpus:ReturnType<typeof useData>;revision:number;onSelect:(patch:Partial<Selection>)=>void;onMember:(selection:Selection)=>void}) {
   const [filter,setFilter]=useState(''),[search,setSearch]=useState(''),[pages,setPages]=useState<number[]>([0]);
   const [inspecting,setInspecting]=useState(false),[inspectionError,setInspectionError]=useState('');
+  const [tierReports,setTierReports]=useState<{key:string;reports:Record<string,Data>;loading:boolean}>({key:'',reports:{},loading:false});
   const current=String(corpus.data.corpus?.identity||'');
   const expected=selection.corpusIdentity||current;
   const compatible=Boolean(current&&expected===current&&!corpus.loading&&!corpus.error);
@@ -20,6 +21,18 @@ export function LogicalNavigator({selection,binaries,corpus,revision,onSelect,on
   const members:Data[]=detailReady?detail.data.members||[]:[];
   const generation=useRef(0);
   useEffect(()=>{generation.current++;setInspectionError('');setInspecting(false);return()=>{generation.current++;};},[selection,expected,revision]);
+  const binaryBasis=JSON.stringify(binaries.map(binary=>[String(binary.slug||''),String(binary.content_sha256||binary.contentSha256||binary.sha256||'')]));
+  const tierKey=detailReady?`${expected}:${selection.logicalId}:${revision}:${binaryBasis}`:'';
+  useEffect(()=>{
+    const controller=new AbortController();
+    if(!tierKey){setTierReports({key:'',reports:{},loading:false});return()=>controller.abort();}
+    setTierReports({key:tierKey,reports:{},loading:true});
+    const queue=(JSON.parse(binaryBasis) as [string,string][]).filter(([slug,hash])=>slug&&hash).map(([slug,hash])=>({slug,content_sha256:hash}));
+    let next=0;const reports:Record<string,Data>={};
+    async function worker(){while(next<queue.length&&!controller.signal.aborted){const binary=queue[next++],hash=binary.content_sha256;const params=new URLSearchParams({slug:String(binary.slug),version:hash,corpusIdentity:expected});try{reports[binary.slug]=await request(`${API}/progress-report?${params}`,{signal:AbortSignal.any([controller.signal,AbortSignal.timeout(15000)])});}catch(error){if(!controller.signal.aborted)reports[binary.slug]={error:String(error)};}if(!controller.signal.aborted)setTierReports({key:tierKey,reports:{...reports},loading:true});}}
+    void Promise.all([worker(),worker()]).then(()=>{if(!controller.signal.aborted)setTierReports({key:tierKey,reports:{...reports},loading:false});});
+    return()=>controller.abort();
+  },[tierKey,binaryBasis,expected]);
   async function inspect(member:Data){
     const attempt=++generation.current;
     setInspecting(true);setInspectionError('');
@@ -52,7 +65,7 @@ export function LogicalNavigator({selection,binaries,corpus,revision,onSelect,on
         return <tr key={`${member.slug}:${member.addr}:${index}`}><td><strong>{member.slug}</strong><br/><code>{member.addr||'No address'}</code></td><td>{ambiguous?'Multiple recorded members in this build; relationship ambiguous. ':''}{member.method||'Method not recorded'} · confidence {member.confidence??'not recorded'}<details><summary>Evidence / divergence</summary><RecordView value={member.evidence??{status:'No divergence or acceptance verdict supplied'}}/></details></td><td><button disabled={!target.slug||!target.addr||!detailReady||inspecting||(detail.data.errors||[]).length>0} onClick={()=>void inspect(member)}>Inspect member</button><small>{target.program?`${target.locator} · ${target.program}`:'No unique project binding; corpus browsing only'}</small></td></tr>;
       })}</tbody></table>
       {!detail.loading&&!members.length&&<p>No members returned for this identity.</p>}
-      {detailReady&&<CoverageMatrix members={members} binaries={binaries}/>}
+      {detailReady&&<CoverageMatrix members={members} binaries={binaries} logicalId={selection.logicalId} corpusIdentity={selection.corpusIdentity} tierReportsBySlug={tierReports.key===tierKey?tierReports.reports:{}} loading={tierReports.key===tierKey&&tierReports.loading}/>}
       {missing.length>0&&<details><summary>Builds without a returned member ({missing.length})</summary><p>This does not establish that a build is unmatched; the API supplies no negative-match or divergence verdict.</p><ul>{missing.map((binary,index)=><li key={binary.slug||index}>{binary.name||binary.slug||binary.sha256}</li>)}</ul></details>}
     </section>}
     <TierProgress selection={selection} revision={revision}/>

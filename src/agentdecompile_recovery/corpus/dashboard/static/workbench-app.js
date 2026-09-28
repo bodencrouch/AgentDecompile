@@ -28,6 +28,8 @@
     matchReview: "/dashboard/api/workbench/match-review",
     recoverStatus: "/dashboard/api/workbench/recover-status",
     corpusStatus: "/dashboard/api/workbench/corpus-status",
+    corpusDb: "/dashboard/api/workbench/corpus-db",
+    progressReport: "/dashboard/api/workbench/progress-report",
     preparations: "/dashboard/api/workbench/preparations",
     ghidraDefaults: "/dashboard/api/workbench/ghidra-defaults",
     artifacts: "/dashboard/artifact",
@@ -884,32 +886,35 @@
     return "http://" + window.location.hostname + ":5173/";
   }
 
-  function TierProgress({ slug }) {
-    const [data,setData]=useState(null),[error,setError]=useState("");
+  function TierProgress({ slug, version, corpusIdentity, revision }) {
+    const [result,setResult]=useState({key:"",data:null,error:""});
+    const key=[slug,version,corpusIdentity,revision].join(":");
     useEffect(function () {
-      let alive=true;const controller=new AbortController();setData(null);setError("");
-      if(slug)fetch("/dashboard/api/workbench/progress-report?slug="+encodeURIComponent(slug),{signal:controller.signal,cache:"no-store"})
-        .then(function(r){return r.json();}).then(function(body){if(alive){if(body.ok)setData(body);else setError(body.error||"Progress unavailable");}})
-        .catch(function(e){if(alive)setError(String(e.message||e));});
+      let alive=true;const controller=new AbortController();setResult({key:key,data:null,error:slug&&!version?"Exact content-hash version unavailable for this build.":""});
+      const query=new URLSearchParams({slug:slug||"",version:version||"",corpusIdentity:corpusIdentity||""});
+      if(slug&&version)fetch(API.progressReport+"?"+query,{signal:controller.signal,cache:"no-store"})
+        .then(function(r){return r.json();}).then(function(body){if(alive){const p=body.matrix_projection,b=p&&p.binary;if(body.ok&&p&&p.corpus_identity===corpusIdentity&&b&&b.slug===slug&&b.version===version&&b.content_sha256===version)setResult({key:key,data:body,error:""});else setResult({key:key,data:null,error:body.error||"Progress basis does not match this selection"});}})
+        .catch(function(e){if(alive)setResult({key:key,data:null,error:String(e.message||e)});});
       return function(){alive=false;controller.abort();};
-    },[slug]);
+    },[key]);
     if(!slug)return null;
+    const current=result.key===key?result:{key:key,data:null,error:""},data=current.data,error=current.error;
     const report=data&&data.report||{},tiers=report.tiers||{},total=report.measures&&report.measures.total_functions;
-    const verified=tiers["verified-byte-exact"]&&tiers["verified-byte-exact"].functions,advisory=tiers["advisory-ghidra"]&&tiers["advisory-ghidra"].functions;
-    const valid=[total,verified,advisory].every(function(v){return Number.isSafeInteger(v)&&v>=0;})&&verified+advisory<=total;
+    const verified=tiers["verified-byte-exact"]&&tiers["verified-byte-exact"].functions,advisory=tiers["advisory-ghidra"]&&tiers["advisory-ghidra"].functions,provider=data&&data.matrix_projection&&data.matrix_projection.provider||{};
+    const valid=[total,advisory].every(function(v){return Number.isSafeInteger(v)&&v>=0;})&&advisory<=total,verifiedAvailable=provider.status==="connected"&&Number.isSafeInteger(verified)&&verified>=0&&verified+advisory<=total;
     return html`<section aria-label="Separate verified and advisory progress"><h3>Recorded source coverage</h3>
       ${error?html`<p className="wb-dialog-error">${error}</p>`:!data?html`<p role="status">Reading inventory accounting…</p>`:null}
-      ${valid?html`<div style=${{display:"flex",height:"12px",background:"#333943"}} role="img" aria-label=${verified+" accepted byte-exact receipts; "+advisory+" advisory source records; "+total+" inventory members"}><span style=${{width:(total?verified*100/total:0)+"%",background:"#79bd98"}}></span><span style=${{width:(total?advisory*100/total:0)+"%",background:"repeating-linear-gradient(135deg,#8baee0 0,#8baee0 3px,#343f52 3px,#343f52 7px)"}}></span></div><p>${verified} accepted byte-exact receipts · ${advisory} advisory source records · ${total} inventory members</p>`:data?html`<p>No reconciled tier counts available.</p>`:null}
+      ${valid?html`<div style=${{display:"flex",height:"12px",background:"#333943"}} role="img" aria-label=${(verifiedAvailable?verified+" accepted byte-exact receipts":"Verified count unavailable")+"; "+advisory+" advisory source records; "+total+" inventory members"}>${verifiedAvailable?html`<span style=${{width:(total?verified*100/total:0)+"%",background:"#79bd98"}}></span>`:null}<span style=${{width:(total?advisory*100/total:0)+"%",background:"repeating-linear-gradient(135deg,#8baee0 0,#8baee0 3px,#343f52 3px,#343f52 7px)"}}></span></div><p>${verifiedAvailable?verified+" accepted byte-exact receipts":"Verified unavailable"} · ${advisory} advisory source records · ${total} inventory members</p>`:data?html`<p>No reconciled tier counts available.</p>`:null}
       ${data&&data.acceptance_provider?html`<p className="wb-hint">${data.acceptance_provider.reason}</p>`:null}
       ${report.accounting?html`<p>Member accounting: ${report.accounting.status}. Byte extents: ${report.accounting.byte_accounting}. Function counts do not establish whole-image parity.</p>`:null}
     </section>`;
   }
 
-  function CorpusHeadline({ headline, claim, slug }) {
+  function CorpusHeadline({ headline, claim, slug, version, corpusIdentity, revision }) {
     const h = headline || {};
     return html`<section className="wb-corpus-hero" id="wb-corpus-hero">
       <p className="wb-kicker">Readable C and byte identity stay separate</p>
-      <${TierProgress} slug=${slug}/>
+      <${TierProgress} slug=${slug} version=${version} corpusIdentity=${corpusIdentity} revision=${revision}/>
       <div className="wb-corpus-pair">
         <div>
           <p className="wb-hero-n">${fmtCount(h.real_c)} <span class="of">logical functions with real C</span></p>
@@ -3212,6 +3217,120 @@
     return "…" + value.slice(-53);
   }
 
+  function staticMatrixCell(body, expected) {
+    const p = body && body.matrix_projection, b = p && p.binary;
+    const fail = function (reason) { return { verified: "Unavailable · " + reason, advisory: "Unavailable · " + reason, unclassified: "Unavailable · " + reason }; };
+    if (!expected.logicalId || !expected.corpusIdentity || !expected.slug || !/^[0-9a-f]{64}$/.test(expected.version)) return fail("Exact selection and content-hash version are required.");
+    if (!p) return fail(body && body.error || "Tier report unavailable.");
+    if (p.corpus_identity !== expected.corpusIdentity || !p.freshness || p.freshness.status !== "current") return fail("Stale or different corpus report.");
+    if (!b || b.slug !== expected.slug || b.content_sha256 !== expected.version || b.version !== expected.version || !/^[0-9a-f]{64}$/.test(String(b.report_sha256 || ""))) return fail("Exact build/version basis mismatch.");
+    if (!Array.isArray(p.rows)) return fail("Logical tier rows are malformed.");
+    const row = p.rows.find(function (item) { return String(item.logical_id) === expected.logicalId; });
+    if (!row) return fail("No authoritative row for this identity.");
+    const names = ["verified", "advisory", "unclassified"], all = [];
+    const validKey = function (key) { return typeof key === "string" && key.length > 0; };
+    if (!Array.isArray(row.member_keys) || !row.member_keys.every(validKey) || new Set(row.member_keys).size !== row.member_keys.length || row.member_keys.length !== row.physical_members) return fail("Physical member set mismatch.");
+    const rowKeys = new Set(row.member_keys);
+    for (const name of names) {
+      const tier = row[name];
+      if (!tier || !Array.isArray(tier.member_keys) || !tier.member_keys.every(validKey) || new Set(tier.member_keys).size !== tier.member_keys.length) return fail(name + " member set malformed.");
+      if (tier.member_keys.some(function (key) { return !rowKeys.has(key); })) return fail(name + " tier names members outside this logical identity.");
+      if (name === "verified" && tier.status === "unavailable") { if (tier.functions !== null || tier.bytes !== null) return fail("Unavailable verified tier supplied progress."); }
+      else if (!Number.isSafeInteger(tier.functions) || tier.functions < 0 || tier.member_keys.length !== tier.functions) return fail(name + " count mismatch.");
+      all.push.apply(all, tier.member_keys);
+    }
+    if (new Set(all).size !== all.length || all.length !== row.member_keys.length) return fail("Tier sets overlap or do not reconcile.");
+    if (row.verified.status === "available" && (!p.provider || p.provider.status !== "connected")) return fail("Verified tier conflicts with disconnected acceptance provider.");
+    return { verified: row.verified.status === "available" ? String(row.verified.functions) : "Unavailable · " + ((p.provider && p.provider.reason) || "acceptance provider unavailable"), advisory: String(row.advisory.functions), unclassified: String(row.unclassified.functions), basis: b.report_sha256 };
+  }
+
+  function logicalBrowseUrl(corpusIdentity, search, cursor) {
+    return "/dashboard/browse-block?" + new URLSearchParams({
+      block: "logical", limit: "50", lq: search || "",
+      logical_after: String(cursor || 0), corpus_identity: corpusIdentity || ""
+    });
+  }
+
+  function staticSelectionKey(corpusIdentity, revision, logicalId, binaries) {
+    const basis = (binaries || []).map(function (binary) {
+      return (binary.slug || "") + ":" + (binary.content_sha256 || binary.contentSha256 || binary.sha256 || "");
+    }).join("|");
+    return [corpusIdentity || "", revision, logicalId || "", basis].join(":");
+  }
+
+  function LogicalMatrix({ binaries, corpusIdentity, revision }) {
+    const corpus = corpusIdentity || "";
+    const [list, setList] = useState([]);
+    const [filter, setFilter] = useState("");
+    const [search, setSearch] = useState("");
+    const [pages, setPages] = useState([0]);
+    const [more, setMore] = useState(false);
+    const [chosen, setChosen] = useState("");
+    const [detailState, setDetailState] = useState({ key: "", data: null });
+    const [reportState, setReportState] = useState({ key: "", data: {} });
+    const [state, setState] = useState("Loading logical identities…");
+    useEffect(function () { setChosen(""); setPages([0]); }, [corpus, revision]);
+    useEffect(function () {
+      const c = new AbortController();
+      if (!corpus) { setList([]); setMore(false); setState("Current corpus identity unavailable."); return function () { c.abort(); }; }
+      const cursor = pages[pages.length - 1] || 0;
+      const url = logicalBrowseUrl(corpus, search, cursor);
+      fetch(url, { cache: "no-store", signal: c.signal }).then(function (r) { return r.json(); })
+        .then(function (body) { if (!c.signal.aborted) { if (!body.corpus || body.corpus.identity !== corpus) { setList([]); setMore(false); throw new Error("Logical list lacks the exact current corpus identity."); } setList(body.rows || []); setMore(Boolean(body.more)); setState("Select a logical identity."); } })
+        .catch(function (err) { if (!c.signal.aborted) setState(String(err && err.message || err)); });
+      return function () { c.abort(); };
+    }, [search, corpus, revision, pages]);
+    // Content-derived key: an equal-content binaries refresh (job poll) must not restart the fan-out.
+    // The effect below may read only slug and content hash from binaries; those are exactly what the key covers.
+    const key = staticSelectionKey(corpus, revision, chosen, binaries);
+    useEffect(function () {
+      const c = new AbortController();
+      setDetailState({ key: key, data: null });
+      setReportState({ key: key, data: {} });
+      if(!chosen||!corpus)return function(){c.abort();};
+      setState("Reading logical members and exact tier reports…");
+      fetch("/dashboard/api/workbench/logical/"+encodeURIComponent(chosen)+"?corpus_identity="+encodeURIComponent(corpus),{cache:"no-store",signal:c.signal}).then(function(r){return r.json();}).then(async function(body){
+        if(c.signal.aborted)return;
+        if(!body.corpus||body.corpus.identity!==corpus){setState(body.error||"Logical detail lacks the exact current corpus identity.");return;}
+        setDetailState({ key: key, data: body });
+        const queue=(binaries||[]).filter(function(b){return b.slug&&(b.content_sha256||b.contentSha256||b.sha256);}), found={};let next=0;
+        async function worker(){while(next<queue.length&&!c.signal.aborted){const b=queue[next++],version=String(b.content_sha256||b.contentSha256||b.sha256),q=new URLSearchParams({slug:String(b.slug),version:version,corpusIdentity:corpus});try{found[b.slug]=await fetch(API.progressReport+"?"+q,{cache:"no-store",signal:AbortSignal.any([c.signal,AbortSignal.timeout(15000)])}).then(function(r){return r.json();});}catch(err){if(!c.signal.aborted)found[b.slug]={error:String(err)};}if(!c.signal.aborted)setReportState({key:key,data:Object.assign({},found)});}}
+        await Promise.all([worker(),worker()]);if(!c.signal.aborted){setReportState({ key: key, data: found });setState("");}
+      }).catch(function(err){if(!c.signal.aborted)setState(String(err&&err.message||err));});
+      return function(){c.abort();};
+    }, [key]);
+    const detail = detailState.key === key ? detailState.data : null;
+    const reports = reportState.key === key ? reportState.data : {};
+    const members=detail&&detail.members||[];
+    return html`<section aria-label="Logical entity coverage matrix">
+      <form onSubmit=${function (ev) { ev.preventDefault(); setPages([0]); setSearch(filter); }}><label>Find a logical entity <input value=${filter} onInput=${function (ev) { setFilter(ev.target.value); }}/></label><button type="submit">Search</button></form>
+      <label>Logical entity <select value=${chosen} onChange=${function(ev){setChosen(ev.target.value);}}><option value="">Choose an identity</option>${list.map(function(row){return html`<option key=${row.id} value=${String(row.id)}>${row.name||"Identity "+row.id} · ${row.members==null?"?":row.members} members</option>`;})}</select></label>
+      <div><button type="button" disabled=${pages.length===1} onClick=${function(){setChosen("");setPages(function(old){return old.slice(0,-1);});}}>Previous identities</button><button type="button" disabled=${!more||!list.length} onClick=${function(){setChosen("");setPages(function(old){return old.concat(Number(list[list.length-1].id)||0);});}}>Next identities</button></div>
+      ${state?html`<p role="status">${state}</p>`:null}
+      ${chosen&&detail?html`<table className="wb-fnb-table"><thead><tr><th>Build</th><th>Corpus matches</th><th>Verified</th><th>Advisory</th><th>Unclassified</th></tr></thead><tbody>${(binaries||[]).map(function(b){const version=String(b.content_sha256||b.contentSha256||b.sha256||""),cell=staticMatrixCell(reports[b.slug],{logicalId:chosen,corpusIdentity:corpus,slug:String(b.slug||""),version:version}),count=members.filter(function(m){return m.slug===b.slug||(b.aliasSlugs||[]).includes(m.slug);}).length;return html`<tr key=${b.slug}><td>${b.name||b.slug}</td><td>${count}</td><td>${cell.verified}</td><td>${cell.advisory}</td><td>${cell.unclassified}</td></tr>`;})}</tbody></table>`:null}
+    </section>`;
+  }
+
+  // Corpus status and corpus-db identity settle independently: a failed identity read
+  // must not discard healthy status (it only clears identity), and vice versa.
+  async function readCorpusStatus(fetchImpl, api) {
+    const read = async function (url) {
+      const res = await fetchImpl(url, { cache: "no-store" });
+      let body;
+      try { body = await res.json(); } catch (_err) { throw new Error(url + " returned a non-JSON response (HTTP " + res.status + ")."); }
+      return { ok: Boolean(res.ok), body: body };
+    };
+    const reason = function (err) { return String(err && err.message || err); };
+    const settled = await Promise.allSettled([read(api.corpusStatus), read(api.corpusDb)]);
+    const statusResult = settled[0], dbResult = settled[1];
+    const status = statusResult.status === "fulfilled" && statusResult.value.body && typeof statusResult.value.body === "object"
+      ? statusResult.value.body
+      : { ok: false, error: statusResult.status === "rejected" ? reason(statusResult.reason) : "Corpus status response is malformed." };
+    const db = dbResult.status === "fulfilled" && dbResult.value.ok ? dbResult.value.body : null;
+    const identity = db && db.corpus && typeof db.corpus.identity === "string" ? db.corpus.identity : "";
+    return { status: status, identity: identity };
+  }
+
   function App() {
     const start = params();
     const [binaries, setBinaries] = useState([]);
@@ -3223,6 +3342,8 @@
     const [detail, setDetail] = useState(null);
     const [overview, setOverview] = useState(null);
     const [corpusStatus, setCorpusStatus] = useState(null);
+    const [corpusIdentity, setCorpusIdentity] = useState("");
+    const [corpusRevision, setCorpusRevision] = useState(0);
     const [preparationRuns, setPreparationRuns] = useState([]);
     const [preparationFeed, setPreparationFeed] = useState({ receivedAt: 0, error: "" });
     const [preparationNow, setPreparationNow] = useState(Date.now());
@@ -3366,14 +3487,14 @@
       });
     }, []);
 
+    const corpusStatusSequence = useRef(0);
     const loadCorpusStatus = useCallback(async function () {
-      try {
-        const res = await fetch(API.corpusStatus, { cache: "no-store" });
-        const data = await res.json();
-        setCorpusStatus(data);
-      } catch (err) {
-        setCorpusStatus({ ok: false, error: String(err && err.message || err) });
-      }
+      const sequence = ++corpusStatusSequence.current;
+      const result = await readCorpusStatus(function (url, init) { return fetch(url, init); }, API);
+      if (sequence !== corpusStatusSequence.current) return;
+      setCorpusStatus(result.status);
+      setCorpusIdentity(result.identity);
+      setCorpusRevision(function (value) { return value + 1; });
     }, []);
 
     const loadPreparations = useCallback(async function () {
@@ -5827,7 +5948,7 @@
               showToast("Import " + ((row && row.slug) || ""));
             }} />
           <${HealthStrip} probes=${corpusStatus && corpusStatus.probes} atlasUrl=${atlasHref(corpusStatus)} />
-          <${CorpusHeadline} slug=${slug} headline=${corpusStatus && corpusStatus.headline} claim=${corpusStatus && corpusStatus.claimBoundary} />
+          <${CorpusHeadline} slug=${slug} version=${current.content_sha256||current.contentSha256||current.sha256||""} corpusIdentity=${corpusIdentity} revision=${corpusRevision} headline=${corpusStatus && corpusStatus.headline} claim=${corpusStatus && corpusStatus.claimBoundary} />
           <${StepLadder} title="Corpus ladder" steps=${ladder.corpus_steps} />
           <${BinaryCompareTable} binaries=${ladder.binaries} onOpen=${function (b) {
             if (b && b.slug) { setSlug(b.slug); setCenterTab("wb-pipeline"); }
@@ -5933,7 +6054,7 @@
           return ["calibrate-global", "materialize-target", "assembly-floor", "recover-source", "apply-cross-build", "leftover-recover", "verify-byte-accuracy"].includes(stage.key);
         }) : [];
         return html`<${Surface} id="wb-roundtrip" title="Roundtrip" actions=${panelActions()}>
-          <${CorpusHeadline} slug=${slug} headline=${corpusStatus && corpusStatus.headline} claim="Compile and byte-accuracy stay separate columns." />
+          <${CorpusHeadline} slug=${slug} version=${current.content_sha256||current.contentSha256||current.sha256||""} corpusIdentity=${corpusIdentity} revision=${corpusRevision} headline=${corpusStatus && corpusStatus.headline} claim="Compile and byte-accuracy stay separate columns." />
           <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} onControl=${controlPreparation} />
           ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + (recoveryRun.program || program || slug || recoveryRun.status)} steps=${recoverySteps} />` : null}
           <${StepLadder} title="Compile and verify" steps=${steps} />
@@ -6042,6 +6163,7 @@
       if (tab === "wb-logical") {
         return html`<${Surface} id="wb-logical" title="Logical identities" actions=${panelActions()}>
           <p className="wb-hint">Same function across builds. Bound vs real C is the identity picture.</p>
+          <${LogicalMatrix} binaries=${binaries} corpusIdentity=${corpusIdentity} revision=${corpusRevision}/>
           <${ExportBundles} slug=${slug} locator=${currentLocator()}/>
           <p className="wb-hint">The pipeline builds and propagates identities across builds automatically.</p>
           <${BinaryCompareTable} binaries=${(corpusStatus && corpusStatus.ladder && corpusStatus.ladder.binaries) || []}

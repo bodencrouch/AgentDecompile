@@ -77,7 +77,8 @@ def verify_bundle(directory: Path | str) -> dict:
     return manifest
 
 
-def export_bundle(con, out: Path | str, *, site_policy=None, adapter_map=None, operation_contract=None) -> dict:
+def export_bundle(con, out: Path | str, *, site_policy=None, adapter_map=None,
+                  operation_contract=None, cave_evidence=None) -> dict:
     """Run required exporters in a private staging tree, then publish once.
 
     ``out`` is the export-store root. A SQLite savepoint keeps all store reads on
@@ -96,7 +97,8 @@ def export_bundle(con, out: Path | str, *, site_policy=None, adapter_map=None, o
     try:
         # v1 independently binds operation contracts. The v2 reader currently
         # refuses a v1 binding; never smuggle it into v2 as a qualified operation.
-        pack = build_hookpack_v2(con, site_policy=site_policy, adapter_map=adapter_map)
+        pack = build_hookpack_v2(con, site_policy=site_policy, adapter_map=adapter_map,
+                                 cave_evidence=cave_evidence)
         try:
             validate_export_set(pack, require_caves=True)
         except ValueError as exc:

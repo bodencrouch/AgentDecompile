@@ -8,6 +8,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 from pathlib import Path
 
 from .determinism_basis import basis
@@ -19,6 +20,41 @@ KINDS = frozenset("function patch_point immediate call_site global singleton str
 
 def canonical_bytes(value: dict) -> bytes:
     return (json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False) + "\n").encode()
+
+
+def _require_json_native(value) -> None:
+    """Validate exact JSON types with depth-sized state and cycle detection."""
+    stack = [(None, iter((value,)))]
+    active = set()
+    while stack:
+        marker, children = stack[-1]
+        try:
+            item = next(children)
+        except StopIteration:
+            stack.pop()
+            if marker is not None:
+                active.remove(marker)
+            continue
+        item_type = type(item)
+        if item is None or item_type in (bool, int, str):
+            continue
+        if item_type is float:
+            if not math.isfinite(item):
+                raise ValueError("nonfinite_json_number")
+            continue
+        if item_type not in (list, dict):
+            raise TypeError("non_json_native_value")
+        marker = id(item)
+        if marker in active:
+            raise ValueError("cyclic_json_evidence")
+        if item_type is dict:
+            if any(type(key) is not str for key in item):
+                raise TypeError("json_object_keys_must_be_strings")
+            children = iter(item.values())
+        else:
+            children = iter(item)
+        active.add(marker)
+        stack.append((marker, children))
 
 
 def seal_pack(pack: dict) -> dict:
@@ -46,7 +82,8 @@ def _abi(con, bid, addr):
     return result
 
 
-def build_hookpack_v2(con, *, site_policy=None, adapter_map=None, operation_contract=None) -> dict:
+def build_hookpack_v2(con, *, site_policy=None, adapter_map=None, operation_contract=None,
+                      cave_evidence=None) -> dict:
     from .hookpack_policy import load_site_policy, load_adapter_map, lookup_site, file_sha256
     from .operation_contract import load_operation_contract
     declared = basis(con)
@@ -155,8 +192,50 @@ def build_hookpack_v2(con, *, site_policy=None, adapter_map=None, operation_cont
             "binaries": binaries, "entities": sorted(entities, key=lambda e: e["key"]), "caves": [],
             "limitations": ["Static corpus witnesses do not establish runtime readiness", "Cave qualification requires decode and restoration receipts"],
             "policy_hashes": {"site_policy": file_sha256(site_policy), "adapter_map": file_sha256(adapter_map)}}
-    from .cave_discovery import discovery_blocker
-    pack["cave_discovery"] = [discovery_blocker(slug) for slug in slugs]
+    from .cave_discovery import discover_caves, discovery_blocker
+    if cave_evidence is None:
+        pack["cave_discovery"] = [discovery_blocker(slug) for slug in slugs]
+    else:
+        if not isinstance(cave_evidence, dict):
+            raise ValueError("cave_evidence_build_map_required")
+        if any(not isinstance(key, str) for key in cave_evidence):
+            raise ValueError("cave_evidence_build_keys_must_be_strings")
+        supplied = set(cave_evidence)
+        expected = set(slugs)
+        if supplied != expected:
+            missing = ",".join(sorted(expected - supplied)) or "none"
+            extra = ",".join(sorted(supplied - expected)) or "none"
+            raise ValueError(f"cave_evidence_build_coverage_mismatch:missing={missing}:extra={extra}")
+        from .export_hookpack import _raw_image
+        receipts = []
+        for b in builds:
+            slug = b["slug"]
+            evidence = cave_evidence[slug]
+            if not isinstance(evidence, dict):
+                raise ValueError("cave_evidence_object_required:" + slug)
+            try:
+                _require_json_native(evidence)
+                evidence_bytes = canonical_bytes(evidence)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("cave_evidence_canonical_json_required:" + slug) from exc
+            image = _raw_image(str(b.get("repo_path") or ""))
+            if not isinstance(image, bytes) or not image:
+                raise ValueError("cave_image_bytes_unavailable:" + slug)
+            if not isinstance(b.get("arch"), str) or not b["arch"]:
+                raise ValueError("cave_target_arch_required:" + slug)
+            image_sha256 = hashlib.sha256(image).hexdigest()
+            if image_sha256 != b.get("content_sha256"):
+                raise ValueError("cave_registered_image_hash_mismatch:" + slug)
+            plans = discover_caves(image, build=slug, arch=b.get("arch"), evidence=evidence)
+            pack["caves"].extend(plans)
+            receipts.append({"build": slug, "status": "complete",
+                "image_sha256": image_sha256,
+                "evidence_sha256": hashlib.sha256(evidence_bytes).hexdigest(),
+                "decoder": copy.deepcopy(evidence.get("decoder")),
+                "candidate_count": len(plans)})
+        pack["caves"].sort(key=lambda c: (c["build"], c["anchor"]["key"],
+                                           -c["capacity"], c["offset"], c["id"]))
+        pack["cave_discovery"] = receipts
     return seal_pack(pack)
 
 

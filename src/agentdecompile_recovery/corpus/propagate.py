@@ -286,23 +286,118 @@ def bind_identities(con, run: str, *, commit: bool = True) -> int:
 
 
 def dedupe_identity_addrs(con, *, commit: bool = True) -> int:
+    """Remove legacy duplicate address bindings without inventing a winner.
+
+    Older corpora can predate the unique ``(binary_id, addr)`` constraint.  A
+    unique highest-confidence claim remains authoritative, and duplicate
+    representations of the same top claim can be collapsed.  Equal-confidence
+    top claims with different semantics are ambiguous, however, so every group
+    is preflighted before any row is removed.
+    """
     rows = con.execute(
-        """SELECT binary_id, addr, logical_id, confidence, method, rowid
+        """SELECT binary_id, addr, logical_id, confidence, method, evidence, rowid
              FROM identity
             WHERE (binary_id, addr) IN (
                 SELECT binary_id, addr FROM identity
                  GROUP BY binary_id, addr HAVING COUNT(*) > 1
             )
-            ORDER BY binary_id, addr, confidence DESC, rowid"""
+            ORDER BY binary_id, addr, confidence DESC"""
     ).fetchall()
-    seen: set[tuple[int, int]] = set()
-    drop: list[int] = []
-    for row in rows:
-        key = (row["binary_id"], row["addr"])
-        if key in seen:
-            drop.append(row["rowid"])
+
+    def unique_object(pairs: list[tuple[str, object]]) -> dict:
+        value = {}
+        for key, item in pairs:
+            if key in value:
+                raise ValueError("duplicate JSON object key")
+            value[key] = item
+        return value
+
+    def reject_constant(token: str):
+        raise ValueError(f"non-standard JSON constant: {token}")
+
+    class JsonNumber(str):
+        """A JSON numeric token retained without binary-float conversion."""
+
+    def canonical_json(value):
+        if isinstance(value, JsonNumber):
+            return ["number", str(value)]
+        if value is None:
+            return ["null"]
+        if isinstance(value, bool):
+            return ["boolean", value]
+        if isinstance(value, str):
+            return ["string", value]
+        if isinstance(value, list):
+            return ["array", [canonical_json(item) for item in value]]
+        if isinstance(value, dict):
+            return [
+                "object",
+                [[key, canonical_json(item)] for key, item in sorted(value.items())],
+            ]
+        raise TypeError(f"unsupported decoded JSON value: {type(value).__name__}")
+
+    def evidence_key(value) -> tuple[str, str]:
+        if isinstance(value, str):
+            try:
+                return "json", json.dumps(
+                    canonical_json(
+                        json.loads(
+                            value,
+                            object_pairs_hook=unique_object,
+                            parse_int=JsonNumber,
+                            parse_float=JsonNumber,
+                            parse_constant=reject_constant,
+                        )
+                    ),
+                    separators=(",", ":"), ensure_ascii=False,
+                )
+            except (TypeError, ValueError):
+                return "text", value
+        if isinstance(value, bytes):
+            return "bytes", value.hex()
+        if value is None:
+            return "null", ""
+        return type(value).__name__, repr(value)
+
+    def claim_key(row) -> tuple:
+        return row["logical_id"], row["method"], evidence_key(row["evidence"])
+
+    def preserved_representation_key(row) -> tuple:
+        value = row["evidence"]
+        if isinstance(value, bytes):
+            evidence_representation = ("bytes", value.hex())
         else:
-            seen.add(key)
+            evidence_representation = (type(value).__name__, repr(value))
+        return row["logical_id"], repr(row["method"]), evidence_representation
+
+    groups: dict[tuple[int, int], list] = {}
+    for row in rows:
+        groups.setdefault((row["binary_id"], row["addr"]), []).append(row)
+
+    drop: list[int] = []
+    for (binary_id, addr), group in groups.items():
+        top_confidence = group[0]["confidence"]
+        top = [row for row in group if row["confidence"] == top_confidence]
+        claims = {claim_key(row) for row in top}
+        if len(claims) != 1:
+            details = [
+                {
+                    "logical_id": logical_id,
+                    "method": method,
+                    "evidence": {"kind": evidence[0], "value": evidence[1]},
+                }
+                for logical_id, method, evidence in sorted(
+                    claims, key=lambda item: (repr(item[0]), repr(item[1]), item[2])
+                )
+            ]
+            raise ValueError(
+                "ambiguous_identity_top_claims:"
+                f"binary_id={binary_id}:addr={addr}:confidence={top_confidence!r}:"
+                f"claims={json.dumps(details, sort_keys=True, separators=(',', ':'))}"
+            )
+
+        survivor = min(top, key=preserved_representation_key)
+        drop.extend(row["rowid"] for row in group if row["rowid"] != survivor["rowid"])
     if drop:
         con.executemany("DELETE FROM identity WHERE rowid=?", [(i,) for i in drop])
         if commit:

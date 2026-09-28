@@ -180,7 +180,8 @@ def _binary_entry(b: dict, image_for) -> dict:
     return entry
 
 
-def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None, operation_contract=None, format="v1") -> dict:
+def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None,
+                    operation_contract=None, cave_evidence=None, format="v1") -> dict:
     """Write the pack for *con* to *out*.
 
     *site_policy* and *adapter_map* are optional file paths; see
@@ -192,7 +193,8 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None, opera
     if format in ("v2", FORMAT_V2):
         from .hookpack_v2 import build_hookpack_v2
         pack = build_hookpack_v2(con, site_policy=site_policy, adapter_map=adapter_map,
-                                 operation_contract=operation_contract)
+                                 operation_contract=operation_contract,
+                                 cave_evidence=cave_evidence)
         out = Path(out)
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(pack, indent=2, sort_keys=True) + "\n", encoding="utf-8")

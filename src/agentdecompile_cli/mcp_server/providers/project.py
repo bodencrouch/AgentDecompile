@@ -54,13 +54,18 @@ from agentdecompile_cli.mcp_server.tool_providers import (
     n,
     recommend_tool,
 )
+from agentdecompile_cli.mcp_server.transaction_readiness import (
+    TransactionBusyError,
+    project_batch_handle,
+    require_transaction_readiness,
+    save_project_owned_program,
+)
 from agentdecompile_cli.registry import Tool
 
 if TYPE_CHECKING:
     from ghidra.app.decompiler import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
         DecompInterface as GhidraDecompInterface,
     )
-    from ghidra.app.transaction import TransactionInfo as GhidraTransactionInfo  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
     from ghidra.base.project import GhidraProject  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
     from ghidra.framework.client import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
         RepositoryAdapter as GhidraRepositoryAdapter,
@@ -4280,11 +4285,13 @@ class ProjectToolProvider(ToolProvider):
             df = program.getDomainFile()
             if df is None or not bool(df.isInWritableProject()):
                 return
-            if ghidra_project is not None and hasattr(ghidra_project, "save"):
-                ghidra_project.save(program)
+            batch_handle = project_batch_handle(ghidra_project, program)
+            if batch_handle is not None:
+                save_project_owned_program(ghidra_project, program)
             else:
                 from ghidra.util.task import TaskMonitor as GhidraTaskMonitor  # pyright: ignore[reportMissingModuleSource]
 
+                require_transaction_readiness(program)
                 program.save("AgentDecompile import", GhidraTaskMonitor.DUMMY)
         except Exception as exc:
             logger.warning("import_persist post_analysis_save_failed exc_type=%s exc=%s", type(exc).__name__, exc)
@@ -4366,21 +4373,29 @@ class ProjectToolProvider(ToolProvider):
         )
         return session_id, handle, repository_adapter, repository_name
 
-    @staticmethod
-    def _end_open_transaction_on_program_pull(program: GhidraProgram) -> None:
-        if program is None or not (hasattr(program, "getCurrentTransactionInfo") or hasattr(program, "getCurrentTransaction")):
-            return
-        try:
-            tx: GhidraTransactionInfo | None = program.getCurrentTransactionInfo() if hasattr(program, "getCurrentTransactionInfo") else program.getCurrentTransaction()
-            if tx is not None and hasattr(program, "endTransaction"):
-                tx_id: int = int(tx.getID()) if hasattr(tx, "getID") else int(tx)
-                program.endTransaction(tx_id, True)
-        except Exception as exc:
-            logger.debug("Could not end open transaction before sync pull delete: %s", exc)
+    def _require_program_transaction_ready_pull(
+        self,
+        program: GhidraProgram,
+        *,
+        allow_project_batch: bool,
+        timeout_sec: float = 30.0,
+    ) -> int | None:
+        ghidra_project = None
+        if allow_project_batch and self._manager is not None:
+            ghidra_project = getattr(self._manager, "ghidra_project", None)
+        return require_transaction_readiness(
+            program,
+            ghidra_project=ghidra_project,
+            timeout_sec=timeout_sec,
+        )
 
-    @staticmethod
-    def _end_open_transactions_on_domain_file_pull(domain_file: GhidraDomainFile) -> None:
-        """End Program transactions for Ghidra consumers of this DomainFile (mirrors import_export)."""
+    def _end_open_transaction_on_program_pull(self, program: GhidraProgram) -> None:
+        """Compatibility seam: observe readiness without ending any entry."""
+
+        self._require_program_transaction_ready_pull(program, allow_project_batch=True)
+
+    def _end_open_transactions_on_domain_file_pull(self, domain_file: GhidraDomainFile) -> None:
+        """Require transaction readiness for every Program consumer."""
         if domain_file is None or not hasattr(domain_file, "getConsumers"):
             return
         try:
@@ -4390,16 +4405,12 @@ class ProjectToolProvider(ToolProvider):
             for obj in consumers:
                 if obj is None:
                     continue
-                if (hasattr(obj, "getCurrentTransactionInfo") or hasattr(obj, "getCurrentTransaction")) and hasattr(obj, "endTransaction"):
-                    try:
-                        tx = obj.getCurrentTransactionInfo() if hasattr(obj, "getCurrentTransactionInfo") else obj.getCurrentTransaction()
-                        if tx is not None:
-                            tx_id = int(tx.getID()) if hasattr(tx, "getID") else int(tx)
-                            obj.endTransaction(tx_id, True)
-                    except Exception as inner_exc:
-                        logger.debug("Could not end transaction on domain consumer: %s", inner_exc)
+                if hasattr(obj, "getCurrentTransactionInfo") or hasattr(obj, "getCurrentTransaction"):
+                    self._require_program_transaction_ready_pull(obj, allow_project_batch=True)
+        except TransactionBusyError:
+            raise
         except Exception as exc:
-            logger.debug("Could not iterate DomainFile consumers: %s", exc)
+            raise RuntimeError(f"Could not observe DomainFile consumers: {exc}") from exc
 
     @staticmethod
     def _domain_file_path_key(domain_file: GhidraDomainFile) -> str:
@@ -4501,21 +4512,11 @@ class ProjectToolProvider(ToolProvider):
             except Exception as exc:
                 logger.debug("sync-project push: domain consumer drain id=%s: %s", id(df), exc)
 
-    @staticmethod
-    def _end_all_transactions_on_program_for_sync_push(program: GhidraProgram, *, max_rounds: int = 64) -> None:
-        """Drain nested Ghidra transactions until none remain (tool tx inside GhidraProject batch tx, etc.)."""
-        if program is None or not (hasattr(program, "getCurrentTransactionInfo") or hasattr(program, "getCurrentTransaction")):
-            return
-        for _ in range(max_rounds):
-            try:
-                tx = program.getCurrentTransactionInfo() if hasattr(program, "getCurrentTransactionInfo") else program.getCurrentTransaction()
-                if tx is None:
-                    break
-                if hasattr(program, "endTransaction"):
-                    tx_id = int(tx.getID()) if hasattr(tx, "getID") else int(tx)
-                    program.endTransaction(tx_id, True)
-            except Exception:
-                break
+    def _end_all_transactions_on_program_for_sync_push(self, program: GhidraProgram, *, max_rounds: int = 64) -> None:
+        """Compatibility seam: observe readiness without ending any entry."""
+
+        del max_rounds
+        self._require_program_transaction_ready_pull(program, allow_project_batch=True)
 
     def _release_one_program_info_pull(self, program_info: ProgramInfo, *, ghidra_project: GhidraProject | None) -> None:
         """Dispose decompiler and release program handles (order matters for DomainFile.delete)."""
@@ -4534,7 +4535,19 @@ class ProjectToolProvider(ToolProvider):
                 pass
         if prog is None:
             return
-        self._end_open_transaction_on_program_pull(prog)
+        try:
+            if bool(prog.isClosed()):
+                return
+        except Exception:
+            pass
+        batch_handle = project_batch_handle(ghidra_project, prog)
+        require_transaction_readiness(
+            prog,
+            ghidra_project=ghidra_project if batch_handle is not None else None,
+        )
+        if batch_handle is not None:
+            ghidra_project.close(prog)
+            return
         doc = getattr(program_info, "domain_object_consumer", None)
         consumers_try: list[Any] = []
         if doc is not None:
@@ -4547,12 +4560,6 @@ class ProjectToolProvider(ToolProvider):
                 break
             except Exception as exc:
                 logger.debug("program.release failed consumer=%s: %s", consumer, exc)
-        if ghidra_project is not None:
-            try:
-                if hasattr(prog, "isClosed") and not prog.isClosed():
-                    ghidra_project.close(prog)
-            except Exception as exc:
-                logger.debug("ghidra_project.close after release: %s", exc)
 
     def _release_call_program_info_for_domain_file(self, domain_file: GhidraDomainFile, *, program_info: ProgramInfo | SimpleNamespace | None) -> None:
         """Release this call's handle even if session cleanup already removed it."""
@@ -4577,18 +4584,25 @@ class ProjectToolProvider(ToolProvider):
         for obj in list(consumers):
             if obj is None or not hasattr(obj, "release"):
                 continue
-            self._end_open_transaction_on_program_pull(obj)
+            try:
+                if bool(obj.isClosed()):
+                    continue
+            except Exception:
+                pass
+            batch_handle = project_batch_handle(ghidra_project, obj)
+            require_transaction_readiness(
+                obj,
+                ghidra_project=ghidra_project if batch_handle is not None else None,
+            )
+            if batch_handle is not None:
+                ghidra_project.close(obj)
+                continue
             for consumer in (None, ghidra_project):
                 try:
                     obj.release(consumer)
                     break
                 except Exception:
                     continue
-            if ghidra_project is not None and hasattr(obj, "isClosed") and not obj.isClosed():
-                try:
-                    ghidra_project.close(obj)
-                except Exception:
-                    pass
 
     def _release_versioned_checkout_before_pull_delete(self, domain_file: GhidraDomainFile) -> None:
         """``GhidraFile.delete`` fails while a versioned file is still checked out locally, even with no open Program."""
@@ -4795,14 +4809,7 @@ class ProjectToolProvider(ToolProvider):
                 if existing is not None and force and hasattr(existing, "delete"):
                     logger.info("shared-sync pull deleting existing target due to force target=%s", target_path)
                     self._release_session_programs_for_domain_file(session_id=session_id, domain_file=existing, program_info=program_info)
-                    try:
-                        ex_name = str(existing.getName() or "").strip()
-                    except Exception:
-                        ex_name = ""
-                    if ex_name:
-                        self._release_all_open_handles_matching_program_basename(ex_name, program_info=program_info)
                     self._release_versioned_checkout_before_pull_delete(existing)
-                    self._release_java_consumers_on_domain_file_pull(existing)
                     existing.delete()
 
                 parent_folder: GhidraDomainFolder | GhidraProjectData = self._ensure_project_folder(project_data, target_parent_path)
@@ -4961,48 +4968,6 @@ class ProjectToolProvider(ToolProvider):
         errors: list[dict[str, Any]] = []
         heartbeat_interval = 10
 
-        # Headless: wait for active transactions to end (up to 60s), then drain nested txs so save() can lock.
-        _tx_wait_sec = 60
-        if not dry_run and candidates:
-            try:
-                session_id = get_current_mcp_session_id()
-                session = SESSION_CONTEXTS.get_or_create(session_id)
-                wait_start = time.time()
-                while time.time() - wait_start < _tx_wait_sec:
-                    has_tx = False
-                    for info in (program_info, *(session.open_programs or {}).values()):
-                        prog = getattr(info, "program", None) or getattr(info, "current_program", None)
-                        if prog is None:
-                            continue
-                        tx = (
-                            (prog.getCurrentTransactionInfo() if hasattr(prog, "getCurrentTransactionInfo") else prog.getCurrentTransaction())
-                            if (hasattr(prog, "getCurrentTransactionInfo") or hasattr(prog, "getCurrentTransaction"))
-                            else None
-                        )
-                        if tx is not None:
-                            has_tx = True
-                            break
-                    if not has_tx:
-                        break
-                    time.sleep(1)
-                # After wait: drain GhidraProject/batch + tool nested transactions (single endTransaction is not enough).
-                for info in (program_info, *(session.open_programs or {}).values()):
-                    prog = getattr(info, "program", None) or getattr(info, "current_program", None)
-                    if prog is None:
-                        continue
-                    self._end_all_transactions_on_program_for_sync_push(prog)
-                if mgr is not None:
-                    try:
-                        for pr in getattr(mgr, "providers", None) or []:
-                            drain_all = getattr(pr, "_end_open_transactions_on_all_session_programs", None)
-                            if callable(drain_all):
-                                drain_all(session_id, program_info=program_info)
-                                break
-                    except Exception as drain_all_exc:
-                        logger.debug("sync-project push: session-wide tx drain: %s", drain_all_exc)
-            except Exception as end_all_exc:
-                logger.warning("sync-project push: could not wait/end transactions before save (continuing): %s", end_all_exc)
-
         logger.info("shared-sync push starting transfer loop total_candidates=%s", len(candidates))
         for index, item in enumerate(candidates, start=1):
             source_path: str = self._normalize_repo_path(str(item.get("path") or ""))
@@ -5038,94 +5003,26 @@ class ProjectToolProvider(ToolProvider):
                 if hasattr(source_file, "save"):
                     logger.info("shared-sync push saving source file=%s", source_path)
                     from ghidra.util.task import TaskMonitor  # pyright: ignore[reportMissingModuleSource, reportMissingImports]
-
-                    # DomainFile.save fails with "active transaction" if GhidraProject's openProgram batch tx
-                    # is still open. Match checkin-program: run ImportExport._persist_open_program_for_versioned_checkin
-                    # first (gp.save(program) commits batch correctly), then drain consumers, then save.
+                    # Resolve through the requested DomainFile: session names and paths
+                    # cannot establish identity across folders or projects.
+                    opened_program = source_file.getDomainObject(self, True, False, TaskMonitor.DUMMY)
+                    if opened_program is None:
+                        raise RuntimeError(f"Could not resolve opened domain object for {source_path}")
                     try:
-                        session_id = get_current_mcp_session_id()
-                        session = SESSION_CONTEXTS.get_or_create(session_id)
-                        iep = None
-                        if mgr is not None:
-                            for pr in getattr(mgr, "providers", None) or []:
-                                if hasattr(pr, "_persist_open_program_for_versioned_checkin"):
-                                    iep = pr
-                                    break
-
-                        def _flush_open_program_for_push(prog: GhidraProgram) -> None:
-                            if prog is None or iep is None:
-                                return
-                            try:
-                                df = prog.getDomainFile() if hasattr(prog, "getDomainFile") else None
-                                if df is None or not self._domain_files_same_pull(df, source_file):
-                                    return
-                                iep._persist_open_program_for_versioned_checkin(prog, program_info=program_info)
-                                self._end_all_transactions_on_program_for_sync_push(prog)
-                                logger.debug("shared-sync push flushed open program for %s", source_path)
-                            except Exception as exc:
-                                logger.debug("shared-sync push flush program for %s: %s", source_path, exc)
-
-                        for info in (program_info, *(session.open_programs or {}).values()):
-                            prog = getattr(info, "program", None) or getattr(info, "current_program", None)
-                            if prog is None:
-                                continue
-                            _flush_open_program_for_push(prog)
-                        if program_info is not None:
-                            _flush_open_program_for_push(program_info.program)
-                        # Local project_data.getFile() may return a different DomainFile instance than
-                        # Program.getDomainFile() after shared checkout; basename match can still miss if
-                        # pathnames differ. Flush every open program so GhidraProject batch txs end before save.
-                        if iep is not None:
-                            for info in (program_info, *(session.open_programs or {}).values()):
-                                prog_any = getattr(info, "program", None) or getattr(info, "current_program", None)
-                                if prog_any is None:
-                                    continue
-                                try:
-                                    iep._persist_open_program_for_versioned_checkin(prog_any, program_info=program_info)
-                                    self._end_all_transactions_on_program_for_sync_push(prog_any)
-                                except Exception as exc:
-                                    logger.debug("shared-sync push flush-all open program: %s", exc)
-                            try:
-                                drain_all = getattr(iep, "_end_open_transactions_on_all_session_programs", None)
-                                if callable(drain_all):
-                                    drain_all(session_id, program_info=program_info)
-                            except Exception as exc:
-                                logger.debug("shared-sync push session-wide drain before save: %s", exc)
-                        if iep is None:
-                            drained = False
-                            for info in (program_info, *(session.open_programs or {}).values()):
-                                prog = getattr(info, "program", None) or getattr(info, "current_program", None)
-                                if prog is None:
-                                    continue
-                                df = prog.getDomainFile() if hasattr(prog, "getDomainFile") else None
-                                if df is None or not self._domain_files_same_pull(df, source_file):
-                                    continue
-                                self._end_all_transactions_on_program_for_sync_push(prog)
-                                drained = True
-                                break
-                            if not drained and program_info is not None:
-                                prog_m = program_info.program
-                                if prog_m is not None:
-                                    df_m = prog_m.getDomainFile() if hasattr(prog_m, "getDomainFile") else None
-                                    if df_m is not None and self._domain_files_same_pull(df_m, source_file):
-                                        self._end_all_transactions_on_program_for_sync_push(prog_m)
-                    except Exception as tx_exc:
-                        logger.debug("shared-sync push could not flush/drain for %s (continuing): %s", source_path, tx_exc)
-
-                    self._drain_all_domain_file_handles_for_sync_push(source_file, session_id, program_info=program_info)
-
-                    try:
-                        source_file.save(TaskMonitor.DUMMY)
-                    except Exception as save_exc:
-                        save_msg = str(save_exc).lower()
-                        if "domainobj not open" in save_msg or "cannot save" in save_msg:
-                            logger.info(
-                                "shared-sync push save skipped (domain object already closed/committed) source=%s: %s",
-                                source_path,
-                                save_exc,
-                            )
+                        ghidra_project = getattr(mgr, "ghidra_project", None) if mgr is not None else None
+                        batch_handle = project_batch_handle(ghidra_project, opened_program)
+                        require_transaction_readiness(
+                            opened_program,
+                            ghidra_project=ghidra_project if batch_handle is not None else None,
+                        )
+                        if batch_handle is not None:
+                            save_project_owned_program(ghidra_project, opened_program)
+                        elif hasattr(opened_program, "save"):
+                            opened_program.save("AgentDecompile sync push", TaskMonitor.DUMMY)
                         else:
-                            raise
+                            raise RuntimeError(f"Opened domain object cannot be saved for {source_path}")
+                    finally:
+                        opened_program.release(self)
                 else:
                     logger.info("shared-sync push skip save-not-supported source=%s", source_path)
                     skipped.append({"sourcePath": source_path, "reason": "save-not-supported"})
@@ -5162,8 +5059,8 @@ class ProjectToolProvider(ToolProvider):
             "note": (
                 "Push syncs local project domain files by saving scoped items. For shared-backed files, this persists "
                 "local modifications to the backing shared project workflow. "
-                "If a program had an open Ghidra transaction, sync-project push may end it with commit=true so save() "
-                "can obtain the domain-file lock — pending edits are committed, not rolled back."
+                "If a foreign transaction remains open past the bounded readiness wait, that item is reported as an "
+                "error and is not saved."
             ),
         }
 
@@ -6969,32 +6866,7 @@ class ProjectToolProvider(ToolProvider):
                 except Exception:
                     pass
             if info_program is not None:
-                self._end_open_transaction_on_program_pull(info_program)
-                released: bool = False
-                doc: Any | None = info.domain_object_consumer
-                seen_ids: set[int] = set()
-                ordered: list[Any | None] = []
-                for c in (doc, None, ghidra_project):
-                    cid = id(c) if c is not None else 0
-                    if cid in seen_ids:
-                        continue
-                    seen_ids.add(cid)
-                    ordered.append(c)
-                for consumer in ordered:
-                    try:
-                        info_program.release(consumer)
-                        released = True
-                        break
-                    except Exception:
-                        continue
-                if not released:
-                    logger.debug("program.release failed for both consumers key=%r", basename_hint(key))
-                if ghidra_project is not None:
-                    try:
-                        if not info_program.isClosed():
-                            ghidra_project.close(info_program)
-                    except Exception:
-                        pass
+                self._release_one_program_info_pull(info, ghidra_project=ghidra_project)
 
         for key in stale_keys:
             session_ctx.open_programs.pop(key, None)

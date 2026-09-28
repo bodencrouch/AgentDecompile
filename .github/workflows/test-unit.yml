@@ -34,7 +34,7 @@ jobs:
         run: uv sync --all-extras --dev
 
       - name: Ruff (src and tests)
-        run: uv run ruff check --no-fix src/ tests/
+        run: uv run ruff check --no-fix src/ tests/ native/python/gnsdk
 
       - name: Anonymization gate
         env:

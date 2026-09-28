@@ -15,7 +15,7 @@ for matcher order and acceptance. Use existing 8080 catalog actions for recovery
 | Tier | Use |
 |---|---|
 | 0 | Existing metadata, file triage, strings and static witnesses |
-| 1 | Stored batch decompilation, BSim and export evidence |
+| 1 | Stored batch decompilation, BSim, export evidence and compatible native snapshot replay |
 | 2 | Read-only queries against existing analyzed Ghidra state |
 | 3 | Missing deep analysis or authorized mutations after ownership checks |
 
@@ -27,3 +27,7 @@ recovery. Tool availability comes from the current advertised catalog.
 
 Historical [routing research](../../../docs/solutions/architecture-patterns/tiered-re-analysis-knowledgebase.md)
 is reference-only where its storage, confidence or operating rules differ.
+
+Use native snapshot replay only for exported savefile snapshots whose manifest
+engine matches the native SDK. Producing the snapshot still requires Ghidra and
+Java once, so replay does not replace import, analysis or the first decompile.

@@ -159,6 +159,12 @@ Runtime reuse is a parallel branch after sufficient identity/ABI evidence, not a
 
 [Runtime reuse](docs/RUNTIME_REUSE.md) records source pointers, architecture/ABI limits and missing readiness proof. Keep the core generic with target adapters and build profiles: all BioWare corpus builds remain in scope, with future other-game support requiring adapter work. A resolved address is not a universal C-call interface.
 
+### Native decompiler tier (JVM-free replay)
+
+Export a program once from Ghidra as per-function decompiler savefiles with a manifest. Re-decompile those savefiles with Ghidra's own native engine and no JVM. Use that for option sweeps, engine-upgrade regression checks, and consumers that cannot host Java. The export itself still needs one Java decompile per function. Native output is checked against the Java decompile of the same program on the same engine version. A mismatch is a bug, not a tolerance. The priority ladder below is unchanged. This tier feeds stage 4 (readable C) and sits at Tier 1 next to `ghidrecomp` in the tiered-re-analysis skill. Living plan: `docs/plans/2026-09-08-2330-feat-ghidra-native-sdk-plan.md`.
+
+_Why it serves the approach:_ Bulk C is the step the corpus repeats most. Decompiling from a saved snapshot lets a worker run without Ghidra and lets an engine change be checked before it touches the corpus.
+
 ## Priority ladder (preserve prerequisites; allow feedback)
 
 ### Per-target loop and corpus roll-up

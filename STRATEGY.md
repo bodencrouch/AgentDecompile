@@ -1,6 +1,6 @@
 ---
 name: AgentDecompile
-last_updated: 2026-09-27
+last_updated: 2026-09-28
 charter: VISION.md
 active_living_plan: docs/plans/2026-09-27-implementation-progress-and-live-track.md
 governing_design_scope: docs/plans/2026-09-27-weekend-design-scope.md
@@ -60,15 +60,15 @@ authorization. Current ownership/catalog constraints still govern execution.
 Useful qualified RE/cross-match work and implementation proceed together; missing
 unrelated milestones cannot become global gates.
 
-## Target problem
+## Purpose
 
 A Ghidra project holds dozens of builds of the same codebase. Each build has its own addresses and may share logical functions and fields while changing their behavior, layout, or physical representation. Without cross-build identity and a propagation path, every recovery pass repeats work and metadata edits on one binary never reach the others. The crux is telling honest source from a wrapper that only compiles because it still contains the original bytes.
 
 The end state is not per-function byte parity — it is a **whole-image byte-identical rebuild**: a source project that recompiles and *relinks* into a file bit-identical to the shipped executable. Per-function objdiff-0 is necessary but not sufficient. A stock linker assigns its own layout — section order, virtual addresses, padding, the PE/ELF headers, the import table, and base relocations — none of which reproduce the original image unless placement is enforced. This exact-placement gap is a first-class, unsolved part of the problem, not a footnote: the goal is a rebuilt binary whose whole-file hash equals the original's.
 
-## Our approach
+## Positioning
 
-Recover from the best available evidence, reuse only what transfers, and verify each result at the level where it will be used. Distinguish logical entities, implementation variants and physical instances. Similarity, logical identity, code equality and behavioral test agreement are separate claims. Prefer authoritative debug/provenance and unique exact evidence, then rare references and neighborhood propagation, structure/BSim, and applicable second opinions on diagnosed residue. Preserve ambiguity, absent entities, folded bodies, inline occurrences and split regions. A `logical_id` never establishes source interchangeability or ABI/layout compatibility.
+Recover from the best available evidence, reuse only what transfers, and verify each result at the level where it will be used. Distinguish logical entities, implementation variants and physical instances. Similarity, logical identity, code equality and behavioral test agreement are separate claims. Prefer authoritative debug/provenance and unique exact evidence, then rare references and neighborhood propagation, structure/BSim, and applicable second opinions on diagnosed residue. Every matching method stays available. Each has an ordered fallback, and an unavailable method narrows the evidence instead of stopping identity. No single method, BSim included, gates the pipeline. Operators see which methods ran, which were unavailable and why. Preserve ambiguity, absent entities, folded bodies, inline occurrences and split regions. A `logical_id` never establishes source interchangeability or ABI/layout compatibility.
 
 Reuse valid unchanged analysis and receipts. Revisit only affected dependencies when bytes, types, callees, toolchain or analysis evidence changes, or when a recorded uncertainty warrants an independent view. Establish minimum platform facts first; identity and calibration refine each other. Start reconstruction infrastructure during scaffolding and verify candidates continuously. Keep one operational catalog on 8080. The [design package](docs/plans/2026-09-22-design-package.md), [recovery contracts](docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md) and [editable diagram](docs/dashboard-design/pipeline-diagram/README.md) carry the concrete contracts and current delivery limits.
 
@@ -104,7 +104,7 @@ ownership and their own complete prerequisites. Future execution contracts descr
 required mechanisms and acceptance; they do not establish checks already passed or
 authorize bypassing those operational constraints.
 
-## Who it's for
+## Users
 
 **Primary:** An operator, or an agent acting as one, finishing byte-accurate, assembly-free source for every program in a multi-build Ghidra corpus, with labels and structures kept in sync across builds.
 
@@ -121,9 +121,14 @@ authorize bypassing those operational constraints.
 
 ## Tracks
 
-### One operator surface (8080)
+### One catalog, two surfaces
 
-Workbench + kotorxid corpus pages + Atlas + report + `/api/v1/actions` on the MCP HTTP server. Deprecate leftover dashboard ports when in-tree server runs with corpus env.
+The MCP HTTP server holds one catalog (`/api/v1/actions`), one job store and one claim model. Two frontends read it, with different jobs (user directive, 2026-09-28):
+
+- **Static 8080 (no Node runtime).** Ghidra CodeBrowser parity following the PyKotor reversing guide. One browser tab holds a project, with its builds as peers on one cursor, so the call graph and matcher show together. It has no control for work the pipeline already schedules. Pause, resume and stop are the only workflow controls.
+- **Vite (5174, also served at `/react/`).** A real-time workstation modeled first on objdiff-web, then decomp.me, Dogbolt, RzWeb, r2web and APKMan, adapted to the recovery pipeline's stages and lanes, including distributed compute.
+
+A per-binary objdiff-shaped `report.json` feeds progress views in both. Publishing statistics to decomp.dev is a later, separately approved step. Deprecate leftover dashboard ports when the in-tree server runs with corpus env.
 
 _Why it serves the approach:_ Agents and humans must share one catalog and one progress view or they will diverge on what "done" means.
 
@@ -131,7 +136,7 @@ _Why it serves the approach:_ Agents and humans must share one catalog and one p
 
 The named stages describe dependencies, not a rigid one-pass schedule. Identity ↔ calibration → validated linkable-region scaffold → compiling C/C++ candidates → compatible-recipient candidate propagation → diagnosed source repair, with continuous local/linked parity and early reconstruction checks. Terminal acceptance remains a fresh whole-image rebuild and comparison. A receipt is reusable only while its relevant dependency hashes remain valid.
 
-**Cross match pipeline:** `ghidra-bulk` → compile admission → compatible implementation variant and recipient ABI/layout gate → distribute candidate → recipient compile/local/linked verification. Compile success authorizes candidate distribution, not replacement, runtime calls or verified-source credit. Keep candidate storage separate from accepted replacement selection; legacy `real_c=1` records compilation only. A failed compile routes through behavior-preserving deterministic repair and then bounded AI when applicable. Diagnose behavior/types, ABI, compilation context, code generation and placement before source search or permutation.
+**Cross match pipeline:** `ghidra-bulk` → compile admission → compatible implementation variant and recipient ABI/layout gate → distribute candidate → recipient compile/local/linked verification. Compile success authorizes candidate distribution, not replacement, runtime calls or verified-source credit. Keep candidate storage separate from accepted replacement selection; legacy `real_c=1` records compilation only. A failed compile routes through behavior-preserving deterministic repair and then bounded AI when it is enabled. Targeted AI is one optional implementation. It is switched on or off through an environment variable, a flag when starting the 8080 server, or a dashboard setting. One precedence rule decides between them, and the dashboard shows where the current value came from. The deterministic path never depends on it. Diagnose behavior/types, ABI, compilation context, code generation and placement before source search or permutation.
 
 Recovery units, compilation units and comparison units are distinct. Per-function fragments may be assembled into translation units or LTCG groups; compare the final emitted region when an intermediate object is insufficient. Toolchain records include compiler/linker hashes, headers/libraries, language, macros, packing, floating-point mode, grouping and scoped overrides. Probe legacy toolchain support instead of copying modern switches.
 
@@ -213,6 +218,6 @@ _Why it serves the approach:_ "Decompiled" means rebuildable to the original art
 
 Maintain two separately measured variants: **byte-accurate C+assembly-floor**, with every assembly/original-byte contribution explicitly counted, and **max-C**, maximizing readable assembly-free C. Never count floor bytes toward recovered-C coverage or borrow one variant's receipt for the other. Final acceptance needs a fresh compiler/toolchain run on the complete current source, per-function relocation-aware objdiff and an exact-placement whole-image relink/hash comparison for each claimed build. Cached receipts guide reuse; they do not substitute for this terminal fresh rebuild. Cheap deterministic compile/repair/verification comes first; permuter next where applicable; LLM/Mizuchi last on measured residue.
 
-## Marketing
+## Brand
 
 **Key message:** Recover from the best available evidence, reuse only what transfers, and verify each result at the level where it will be used. One catalog; separate source, identity and runtime claims.

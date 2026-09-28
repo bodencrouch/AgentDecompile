@@ -554,3 +554,83 @@ def test_export_with_windows_is_insertion_order_independent(tmp_path: Path, monk
     assert (tmp_path / "f.json").read_bytes() == (tmp_path / "r.json").read_bytes()
     site = _json(tmp_path / "f.json")["sites"]["Tick__1"]
     assert [w["binary"] for w in site["instance_windows"]] == ["debug", "debug", "release"]
+
+
+# ---------------------------------------------------- generated operations
+
+
+def _operation_store(path: Path, image: bytes):
+    con = connect(path)
+    digest = __import__("hashlib").sha256(image).hexdigest()
+    con.execute(
+        "INSERT INTO binary(id, repo_path, slug, game, platform, format, arch, bits, image_base, content_sha256) "
+        "VALUES (1, '/k1-gog', 'windows-k1-gog', 'k1', 'windows', 'pe', 'x86', 32, 4194304, ?)",
+        (digest,),
+    )
+    _stamp(con)
+    for index, name in enumerate(("Convert", "Creature", "Model", "SetScale", "ServerObject"), start=1):
+        addr = 0x401000 + index * 0x20
+        con.execute("INSERT INTO logical_function(id, best_name, best_signature, n_members) VALUES (?,?,?,1)", (index, name, "void f()"))
+        con.execute("INSERT INTO identity(logical_id,binary_id,addr,confidence,method) VALUES (?,?,?,1.0,'fixture')", (index, 1, addr))
+        con.execute("INSERT INTO func(binary_id,addr,name,signature,size) VALUES (?,?,?,?,8)", (1, addr, name, "void f()"))
+    con.commit()
+    return con, digest
+
+
+def _model_operation_contract(path: Path, digest: str) -> Path:
+    path.write_text(
+        __import__("json").dumps({
+            "format": "agentdecompile.operation-contract/v1",
+            "operations": [{
+                "id": "kotor.k1.model-scale.v1",
+                "target": {"slug": "windows-k1-gog", "sha256": digest},
+                "adapter": "kp.model.scale",
+                "roles": {
+                    "convert": "kp.model.convert", "creature": "kp.model.creature",
+                    "model": "kp.model.model", "setter": "kp.model.setter", "server_object": "kp.model.server-object",
+                },
+                "abi": {"calling_convention": "windows-i386-thiscall", "pointer_width": 4},
+                "units": "dimensionless model scale", "thread": "engine script thread",
+                "lifetime": "owned actor with no world transition", "inverse": "restore captured base scale",
+                "observations": "independent before/during/after actor observation",
+            }],
+        }, indent=2),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_export_operation_binds_exact_raw_image_and_each_adapter_role(tmp_path: Path, monkeypatch) -> None:
+    patterns = [bytes((0x50 + index,)) * 8 for index in range(5)]
+    image = b"".join(patterns)
+    con, digest = _operation_store(tmp_path / "operation.sqlite", image)
+    monkeypatch.setattr("agentdecompile_recovery.corpus.export_hookpack._raw_image", lambda _: image)
+    monkeypatch.setattr(
+        "agentdecompile_recovery.corpus.export_hookpack._file_offset",
+        lambda _image, addr, load_base=None: (addr - 0x401020) // 0x20 * 8,
+    )
+    adapter_map = tmp_path / "adapters.json"
+    adapter_map.write_text(__import__("json").dumps({"keys": {
+        "Convert": "kp.model.convert", "Creature": "kp.model.creature", "Model": "kp.model.model",
+        "SetScale": "kp.model.setter", "ServerObject": "kp.model.server-object",
+    }}), encoding="utf-8")
+    out = tmp_path / "pack.json"
+    export_hookpack(con, out, adapter_map=adapter_map, operation_contract=_model_operation_contract(tmp_path / "operation.json", digest))
+    operation = _json(out)["operations"][0]
+    assert operation["target"]["raw_image_sha256"] == digest
+    assert operation["abi"] == {"calling_convention": "windows-i386-thiscall", "pointer_width": 4}
+    assert set(operation["roles"]) == {"convert", "creature", "model", "setter", "server_object"}
+    assert all(role["expected_bytes"] for role in operation["roles"].values())
+
+
+def test_export_operation_refuses_stored_hash_without_matching_raw_image(tmp_path: Path, monkeypatch) -> None:
+    image = b"".join(bytes((0x50 + index,)) * 8 for index in range(5))
+    con, digest = _operation_store(tmp_path / "operation.sqlite", image)
+    monkeypatch.setattr("agentdecompile_recovery.corpus.export_hookpack._raw_image", lambda _: image + b"changed")
+    adapter_map = tmp_path / "adapters.json"
+    adapter_map.write_text(__import__("json").dumps({"keys": {
+        "Convert": "kp.model.convert", "Creature": "kp.model.creature", "Model": "kp.model.model",
+        "SetScale": "kp.model.setter", "ServerObject": "kp.model.server-object",
+    }}), encoding="utf-8")
+    with pytest.raises(ValueError, match="raw-image SHA-256"):
+        export_hookpack(con, tmp_path / "pack.json", adapter_map=adapter_map, operation_contract=_model_operation_contract(tmp_path / "operation.json", digest))

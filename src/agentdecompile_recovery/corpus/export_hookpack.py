@@ -27,6 +27,7 @@ from .hookpack_policy import (
     load_site_policy,
     lookup_site,
 )
+from .operation_contract import bind_operations, load_operation_contract
 
 
 FORMAT = "agentdecompile.hookpack/v1"
@@ -122,7 +123,7 @@ def _binary_entry(b: dict, image_for) -> dict:
     return entry
 
 
-def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> dict:
+def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None, operation_contract=None) -> dict:
     """Write the pack for *con* to *out*.
 
     *site_policy* and *adapter_map* are optional file paths; see
@@ -131,6 +132,7 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> di
     """
     policy = load_site_policy(site_policy)
     amap = load_adapter_map(adapter_map)
+    operations = load_operation_contract(operation_contract)
     # Basis first: it refuses in about a millisecond, and the site loop
     # below can take minutes on a real store (A5). A store that cannot
     # declare its basis has no pack to build.
@@ -276,6 +278,21 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> di
         ),
         "sites": sites,
     }
+    if operations:
+        by_slug = {
+            entry["slug"]: entry
+            for entry in pack["binaries"]
+        }
+        raw_images = {
+            str(binary.get("slug") or bid): image_for(bid)
+            for bid, binary in binaries.items()
+        }
+        pack["operations"] = bind_operations(
+            operations,
+            binaries=by_slug,
+            sites=sites,
+            raw_images=raw_images,
+        )
     if site_policy is not None or adapter_map is not None:
         pack["policy_hashes"] = {
             "site_policy": file_sha256(site_policy),
@@ -289,4 +306,4 @@ def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None) -> di
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(pack, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return {"wrote": str(out), "sites": len(sites), "binaries": len(binaries)}
+    return {"wrote": str(out), "sites": len(sites), "binaries": len(binaries), "operations": len(pack.get("operations", []))}

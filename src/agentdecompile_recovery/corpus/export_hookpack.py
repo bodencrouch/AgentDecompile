@@ -33,6 +33,61 @@ from .operation_contract import bind_operations, load_operation_contract
 FORMAT = "agentdecompile.hookpack/v1"
 
 
+def function_abi(con, binary_id: int, addr: int) -> dict:
+    """Observed ABI for v2 consumers; never infer storage from a type name.
+
+    v1 emission intentionally does not call this helper, keeping its bytes and
+    consumer contract unchanged. Legacy captures remain explicitly uncertain.
+    Confidence describes captured metadata, not successful runtime invocation.
+    """
+    columns = {row[1] for row in con.execute("PRAGMA table_info(func)")}
+    if not {"return_storage", "function_properties"} <= columns:
+        return {"confidence": 0.0, "reason": "ABI storage was not collected", "parameters": [], "returnStorage": None}
+    row = con.execute(
+        "SELECT calling_convention, return_type, param_count, return_storage, function_properties "
+        "FROM func WHERE binary_id=? AND addr=?", (binary_id, addr),
+    ).fetchone()
+    if row is None:
+        return {"confidence": 0.0, "reason": "Function is absent from the capture", "parameters": [], "returnStorage": None}
+    convention, return_type, count, return_json, props_json = row
+    properties = json.loads(props_json) if props_json is not None else {}
+    returned = json.loads(return_json) if return_json is not None else None
+    parameters = [
+        {"ordinal": ordinal, "name": name, "dataType": type_name,
+         "storage": json.loads(pieces) if pieces is not None else None}
+        for ordinal, name, type_name, pieces in con.execute(
+            "SELECT ordinal,name,type,pieces_json FROM func_param WHERE binary_id=? AND addr=? ORDER BY ordinal",
+            (binary_id, addr),
+        )
+    ]
+    def known_pieces(pieces):
+        return isinstance(pieces, list) and bool(pieces) and all(
+            isinstance(piece, dict) and isinstance(piece.get("size"), int)
+            and not isinstance(piece["size"], bool) and piece["size"] > 0
+            and (bool(piece.get("register")) != (isinstance(piece.get("stackOffset"), int)
+                                                   and not isinstance(piece.get("stackOffset"), bool)))
+            for piece in pieces
+        )
+    complete = (
+        count is not None and count == len(parameters)
+        and [p["ordinal"] for p in parameters] == list(range(count))
+        and all(p["dataType"] and known_pieces(p["storage"]) for p in parameters)
+        and (known_pieces(returned) or (return_type == "void" and returned == []))
+        and convention not in (None, "", "unknown", "__unknown")
+        and isinstance(properties, dict) and not properties.get("varArgs")
+    )
+    trusted_signature = isinstance(properties, dict) and properties.get("signatureSource") in {"USER_DEFINED", "IMPORTED"}
+    confidence = 1.0 if complete and trusted_signature else 0.5 if complete else 0.0
+    return {
+        "callingConvention": convention, "returnType": return_type,
+        "returnStorage": returned, "parameters": parameters,
+        "properties": properties, "confidence": confidence,
+        "reason": "Captured explicit signature and storage" if confidence == 1.0 else
+                  "Analyzer-derived signature; runtime ABI unverified" if complete else
+                  "ABI storage incomplete or unsupported; typed calls refused",
+    }
+
+
 def _preferred_signature(best: str | None, member_sigs: list[str]) -> dict:
     members = [str(s).strip() for s in member_sigs if s and str(s).strip()]
     best_s = str(best or "").strip()

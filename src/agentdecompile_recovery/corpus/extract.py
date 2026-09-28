@@ -286,12 +286,38 @@ def upsert_binary(
 
 def persist_functions(con, binary_id: int, functions: list[dict[str, Any]]) -> int:
     ensure_func_columns(con)
+    columns = {r[1] for r in con.execute("PRAGMA table_info(func)")}
+    if not {"return_storage", "function_properties"} <= columns or not con.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='func_param'"
+    ).fetchone():
+        raise ValueError("Function storage schema is unavailable; complete the owned store migration before extraction")
     payload = []
     edges = []
+    parameters = []
+    storage_rows = []
     for row in functions:
         addr = int(row.get("addr") or 0)
         row = attach_hashes(row)
         provenance = row.get("symbol_provenance") or row.get("name_origin")
+        # Validate and serialize before replacing any persisted function rows.
+        # None means uncollected; [] means observed empty storage (e.g. void).
+        props = row.get("function_properties")
+        return_storage = row.get("return_storage")
+        if return_storage is not None and not isinstance(return_storage, list):
+            raise ValueError("return_storage must be a list or null")
+        if props is not None and not isinstance(props, dict):
+            raise ValueError("function_properties must be an object or null")
+        storage_rows.append((j(return_storage), j(props), binary_id, addr))
+        seen_ordinals = set()
+        for param in row.get("parameters") or []:
+            ordinal = param.get("ordinal")
+            if isinstance(ordinal, bool) or not isinstance(ordinal, int) or ordinal < 0 or ordinal in seen_ordinals:
+                raise ValueError(f"invalid or duplicate parameter ordinal at {addr}: {ordinal}")
+            seen_ordinals.add(ordinal)
+            pieces = param.get("storage")
+            if pieces is not None and not isinstance(pieces, list):
+                raise ValueError("parameter storage must be a list or null")
+            parameters.append((binary_id, addr, ordinal, param.get("name"), param.get("dataType"), j(pieces)))
         payload.append(
             (
                 binary_id,
@@ -342,6 +368,7 @@ def persist_functions(con, binary_id: int, functions: list[dict[str, Any]]) -> i
         for callee in row.get("callees") or row.get("callee_addrs") or []:
             edges.append((binary_id, addr, int(callee)))
     con.execute("DELETE FROM calledge WHERE binary_id=?", (binary_id,))
+    con.execute("DELETE FROM func_param WHERE binary_id=?", (binary_id,))
     con.execute("DELETE FROM func WHERE binary_id=?", (binary_id,))
     con.executemany(
         """INSERT INTO func(
@@ -355,6 +382,8 @@ def persist_functions(con, binary_id: int, functions: list[dict[str, Any]]) -> i
            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         payload,
     )
+    con.executemany("UPDATE func SET return_storage=?, function_properties=? WHERE binary_id=? AND addr=?", storage_rows)
+    con.executemany("INSERT INTO func_param(binary_id, addr, ordinal, name, type, pieces_json) VALUES (?,?,?,?,?,?)", parameters)
     if edges:
         con.executemany(
             "INSERT INTO calledge(binary_id, caller_addr, callee_addr) VALUES (?,?,?)",

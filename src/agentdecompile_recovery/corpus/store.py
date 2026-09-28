@@ -218,7 +218,7 @@ def remove_binary(
         raise SystemExit(f"no binary matching {repo_path or slug!r}")
     bid = int(row["id"])
     deleted: dict[str, int] = {}
-    for table in ("calledge", "identity", "func", "stabs_type"):
+    for table in ("calledge", "identity", "func_param", "func", "stabs_type"):
         cur = con.execute(f"DELETE FROM {table} WHERE binary_id=?", (bid,))
         deleted[table] = cur.rowcount
     deleted["match"] = con.execute(

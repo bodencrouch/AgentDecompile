@@ -80,6 +80,8 @@ def _demangler():
 
 
 def tier1(program) -> list[dict]:
+    from agentdecompile_cli.mcp_server.providers.guide_function import storage_pieces
+
     dem = _demangler()
     fm = program.getFunctionManager()
     rows = []
@@ -129,6 +131,21 @@ def tier1(program) -> list[dict]:
                 "return_type": str(f.getReturnType().getName()),
                 "param_count": int(f.getParameterCount()),
                 "param_types": [str(p.getDataType().getName()) for p in f.getParameters()],
+                "parameters": [
+                    {"ordinal": int(p.getOrdinal()), "name": str(p.getName()),
+                     "dataType": str(p.getDataType().getName()),
+                     "storage": storage_pieces(program, p.getVariableStorage())}
+                    for p in f.getParameters()
+                ],
+                "return_storage": storage_pieces(program, f.getReturn().getVariableStorage()),
+                "function_properties": {
+                    "customStorage": bool(f.hasCustomVariableStorage()),
+                    "varArgs": bool(f.hasVarArgs()),
+                    "noReturn": bool(f.hasNoReturn()),
+                    "inline": bool(f.isInline()),
+                    "callFixup": str(f.getCallFixup() or ""),
+                    "signatureSource": str(f.getSignatureSource()),
+                },
                 "stack_frame_size": int(f.getStackFrame().getFrameSize()),
                 "stack_param_size": int(f.getStackFrame().getParameterSize()),
                 "stack_local_size": int(f.getStackFrame().getLocalSize()),

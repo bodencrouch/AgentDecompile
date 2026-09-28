@@ -171,11 +171,30 @@ def _match_review(con: sqlite3.Connection) -> None:
     install(con)
 
 
+def _function_storage(con: sqlite3.Connection) -> None:
+    """Version 5: lossless observed ABI storage; existing rows remain unknown."""
+    columns = {row[1] for row in con.execute("PRAGMA table_info(func)")}
+    for name in ("return_storage", "function_properties"):
+        if name not in columns:
+            con.execute(f"ALTER TABLE func ADD COLUMN {name} TEXT")
+    con.execute("""CREATE TABLE IF NOT EXISTS func_param (
+        binary_id INTEGER NOT NULL,
+        addr INTEGER NOT NULL,
+        ordinal INTEGER NOT NULL,
+        name TEXT,
+        type TEXT,
+        pieces_json TEXT,
+        PRIMARY KEY(binary_id, addr, ordinal),
+        FOREIGN KEY(binary_id, addr) REFERENCES func(binary_id, addr) ON DELETE CASCADE
+    )""")
+
+
 MIGRATIONS: list[Migration] = [
     Migration(1, "baseline", _baseline),
     Migration(2, "analyzer_identity", _analyzer_identity),
     Migration(3, "basis_supersession", _basis_supersession),
     Migration(4, "match_review", _match_review),
+    Migration(5, "function_storage", _function_storage),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1].version

@@ -197,7 +197,9 @@ class StructureToolProvider(ToolProvider):
         name = self._require_str(args, "name", "structurename", name="name")
         size = self._get_int(args, "size", default=0)
         cat_path = self._get_str(args, "categorypath", "category", default="/")
-        is_union = self._get_bool(args, "isunion", default=False)
+        # Honour `type="union"` too: generated/`tool`/`tool-seq` clients send
+        # the schema-free `type` field without `isUnion`.
+        is_union = self._get_bool(args, "isunion", default=False) or self._get_str(args, "type").strip().lower() == "union"
 
         assert program_info is not None  # for type checker
         program = program_info.program

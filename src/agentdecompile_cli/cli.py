@@ -4315,10 +4315,10 @@ def structures_run(
     if type_ is not None:
         # "type" (structure/union) is passed through under its own name so
         # registry-level alias resolution never collapses it into "mode" --
-        # see registry.py MODE_PARAM_PRECEDENCE. The `create` handler itself
-        # (mcp_server/providers/structures.py `_create`) does not read "type"
-        # though; it reads the boolean `isUnion`. Translate here so `--type
-        # union` actually creates a union, not merely survives the wire.
+        # see registry.py MODE_PARAM_PRECEDENCE. The server's `_create`
+        # (mcp_server/providers/structures.py) is the source of truth and
+        # honours `type="union"` itself; `isUnion` is also sent only so this
+        # command still creates a union against servers predating that.
         payload["type"] = type_
         if action == "create":
             payload["isUnion"] = type_ == "union"

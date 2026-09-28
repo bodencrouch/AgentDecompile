@@ -297,15 +297,17 @@ def _params(*names: str) -> list[str]:
 # Order is fixed (a tuple, never a set) so the winner cannot depend on
 # PYTHONHASHSEED.
 #
-# Rationale, grounded in `grep -oE '_get_str\(args, "mode"[^)]*\)'` across
-# mcp_server/providers/*.py (26 call sites, one per provider handler that
-# reads the selector argument):
-#   - "mode"      appears in all 26 chains, always first -- it is the literal
+# Rationale, grounded in `grep -rhoE '_get_str\(args, "mode"[^)]*\)'` across
+# mcp_server/providers/*.py (25 call sites, one per provider handler that
+# reads the selector argument; counted 2026-09-27):
+#   - "mode"      appears in all 25 chains, always first -- it is the literal
 #                 wire key every provider reads before any fallback.
-#   - "action"    appears in 9 of the 26 chains (bookmarks, structures,
-#                 symbols, comments, datatypes, enums, functions, getfunction,
-#                 callgraph, project), always second.
-#   - "operation" appears in the same 9 chains, always third (functions.py's
+#   - "action"    appears in 11 of the 25 chains across 10 files (bookmarks,
+#                 structures, symbols, comments, datatypes, enums, functions,
+#                 getfunction, callgraph, project x2), always second. Two more
+#                 `_require_str(args, "mode", "action", "operation", ...)`
+#                 chains (getfunction, project) follow the same order.
+#   - "operation" appears in the same 11 chains, always third (functions.py's
 #                 chain is the one exception in shape -- `mode, view, action,
 #                 operation` -- but "view" is not one of this tool's generic
 #                 aliases, so it does not change this table).

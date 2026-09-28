@@ -68,7 +68,7 @@ Vite into a development-preview-only product or replace static /dashboard.
 Recovery package: `src/agentdecompile_recovery/`; companion `scripts/` and
 root-relative `target/` layouts remain compatibility contracts. Entry points
 `agentdecompile-corpus`, `agentdecompile-recover`,
-`agentdecompile-reconstruct` and `scripts/decomp-cli.sh` are implementation
+`agentdecompile-cli reconstruct` and `scripts/decomp-cli.sh` are implementation
 references; operations use the catalog. See [corpus contract](docs/CORPUS_PIPELINE.md)
 and [single-binary reference](docs/CRITICAL_PATH.md).
 

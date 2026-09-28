@@ -68,6 +68,24 @@ export AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY="<set-in-user-env>"
 
 Those credentials authenticate Ghidra Server, not the MCP HTTP listener. See [docs/MCP_CONFIGURATION_SECURITY.md](docs/MCP_CONFIGURATION_SECURITY.md).
 
+## Consolidated command groups
+
+`agentdecompile-cli corpus`, `agentdecompile-cli recover`, and
+`agentdecompile-cli grid` expose the corpus, staged recovery, and grid command
+surfaces. Use `<group> --help` to list verbs and `<group> <verb> --help` for
+options. Arguments, including a literal `--`, are forwarded to the backing CLI.
+The optional `agentdecompile[s3]` and `agentdecompile[signing]` extras supply
+grid S3 storage and Ed25519 signing dependencies.
+
+Use `agentdecompile-cli reconstruct` for the reconstruction front door. The
+standalone `agentdecompile-reconstruct` and `agentdecompile-acquisition-query`
+entry points have been retired; acquisition queries remain available through
+`agentdecompile-cli acquisition-query`. Duplicate recovery verbs direct you to
+`agentdecompile-cli corpus list-archive` or `corpus check-extraction`.
+
+These are implementation and general-use interfaces. Current recovery
+operations still use the existing 8080 action catalog under [AGENTS.md](AGENTS.md).
+
 ## Workflows
 
 Public fixture: `tests/fixtures/test_x86_64`. Other examples use `/path/to/binary`.
@@ -155,7 +173,7 @@ Typical unresolved-program payload:
 | `AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME`, `AGENT_DECOMPILE_SERVER_USERNAME`, `AGENT_DECOMPILE_GHIDRA_USERNAME` | Runtime/CLI | Shared Ghidra username |
 | `AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD`, `AGENT_DECOMPILE_SERVER_PASSWORD`, `AGENT_DECOMPILE_GHIDRA_PASSWORD` | Runtime/CLI | Shared Ghidra password |
 | `AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY`, `AGENT_DECOMPILE_HTTP_GHIDRA_SERVER_REPOSITORY`, `AGENT_DECOMPILE_REPOSITORY`, `AGENT_DECOMPILE_GHIDRA_REPOSITORY` | Runtime/CLI | Shared repository name |
-| `AGENT_DECOMPILE_AUTH_ENABLED` | Runtime | Require MCP HTTP auth |
+| `AGENT_DECOMPILE_AUTH_ENABLED` | Runtime | Require MCP HTTP Basic auth (HTTP transports). Needs `AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME` and `_PASSWORD`; startup fails without them. `--no-require-auth` does not override it |
 | `AGENT_DECOMPILE_TLS_CERT`, `AGENT_DECOMPILE_TLS_KEY` | Runtime | TLS paths for HTTPS |
 | `AGENT_DECOMPILE_PYGHIDRA_VMARGS` | Runtime/tests | Extra JVM args |
 | `AGENT_DECOMPILE_CLI_OP_TIMEOUT` | CLI | Per-tool timeout |

@@ -216,15 +216,21 @@ class PyGhidraContext:
     def close(self, save: bool = True):
         """Saves changes to all open programs and closes the project."""
         logger.debug("diag.enter %s", "context.py:PyGhidraContext.close")
-        for _program_name, program_info in self.programs.items():
-            program: GhidraProgram = program_info.program
-            self.project.close(program)
-
         if self.executor is not None:
             self.executor.shutdown(wait=True)
 
         if self.import_executor is not None:
             self.import_executor.shutdown(wait=True)
+
+        # GhidraProject.save owns the outer transaction handle. Save all
+        # programs before releasing any, so a save failure keeps them open.
+        if save:
+            for program_info in self.programs.values():
+                self.project.save(program_info.program)
+
+        for _program_name, program_info in self.programs.items():
+            program: GhidraProgram = program_info.program
+            self.project.close(program)
 
         self.project.close()
         logger.info(f"Project {self.project_name} closed.")

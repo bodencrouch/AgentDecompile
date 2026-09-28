@@ -75,9 +75,12 @@ def run_check_extraction_command(args: argparse.Namespace) -> int:
     return 0 if report.is_complete else 1
 
 
-def build_parser() -> argparse.ArgumentParser:
+DEFAULT_PROG = "agentdecompile-corpus"
+
+
+def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="agentdecompile-corpus",
+        prog=prog or DEFAULT_PROG,
         description=(
             "Corpus-wide semantic decompilation. First priority is linking one "
             "STABS/DWARF donor project to a complete executable. Adding a binary "
@@ -549,8 +552,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
+def main(argv: list[str] | None = None, prog: str | None = None) -> int:
+    parser = build_parser(prog)
     args = parser.parse_args(argv)
     if args.cmd == "init":
         save_corpus(args.out, new_corpus(args.corpus_id))

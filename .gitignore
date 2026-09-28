@@ -342,6 +342,8 @@ vendor/*
 !vendor/ghidra
 volumes/
 agentdecompile*/
+# Tracked grid source is part of the consolidated CLI.
+!src/agentdecompile_grid/
 !src/agentdecompile_cli/
 !src/agentdecompile_cli/**
 !src/agentdecompile_recovery/

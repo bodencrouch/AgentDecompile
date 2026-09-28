@@ -64,10 +64,15 @@ from agentdecompile_cli.mcp_utils.program_analysis import (
 )
 from agentdecompile_cli.registry import (  # pyright: ignore[reportMissingImports]
     ADVERTISED_TOOL_PARAMS,
+    RESPONSE_FORMAT_PARAM,
+    RESPONSE_FORMAT_VALUES,
+    SELECTOR_PARAM_ALIASES as _SELECTOR_PARAM_ALIASES,
+    MODE_PARAM_PRECEDENCE,
     TOOL_ALIASES,
     TOOL_PARAM_ALIASES,
     Tool,
     _auto_checkin_enabled,
+    apply_alias_implied_arguments,
     get_advertised_tools_for_list,
     get_effective_max_analysis_tier,
     get_tool_analysis_tier,
@@ -75,6 +80,7 @@ from agentdecompile_cli.registry import (  # pyright: ignore[reportMissingImport
     normalize_identifier,
     resolve_tool_name,
     to_snake_case,
+    tool_owns_format_param,
 )
 
 if TYPE_CHECKING:
@@ -200,6 +206,11 @@ _NO_AUTO_SELECT_TOOLS: frozenset[str] = frozenset(
         "listprocessors",
         "changeprocessor",
     }
+)
+
+# manage-files modes whose `path` is a filesystem path (never a program key).
+_MANAGE_FILES_FILESYSTEM_MODES: frozenset[str] = frozenset(
+    {"list", "import", "export", "info", "mkdir", "touch", "read", "write", "append", "copy"}
 )
 
 # Maximum number of programs to eagerly open when a project is opened.
@@ -386,21 +397,13 @@ _ARRAY_PARAMS = frozenset(
     },
 )
 
-_SELECTOR_PARAM_ALIASES = frozenset(
-    {
-        "action",
-        "actiontype",
-        "command",
-        "intent",
-        "method",
-        "mode",
-        "op",
-        "operation",
-        "task",
-        "type",
-        "verb",
-    },
-)
+# Deterministic order for the selector-schema fallback in `list_tools`:
+# registry precedence first, then any selector not ranked there, sorted.
+# Iterating the frozenset directly made the chosen schema depend on
+# PYTHONHASHSEED.
+_SELECTOR_PARAM_FALLBACK_ORDER: tuple[str, ...] = tuple(
+    alias for alias in MODE_PARAM_PRECEDENCE if alias in _SELECTOR_PARAM_ALIASES
+) + tuple(sorted(_SELECTOR_PARAM_ALIASES.difference(MODE_PARAM_PRECEDENCE)))
 
 
 T = TypeVar("T")
@@ -755,6 +758,40 @@ def resolve_domain_program_path(program: Any, fallback_path: str | None) -> str 
     return fallback_path
 
 
+def analysis_skipped_warning(program: Any, program_info: Any, program_path: str | None) -> str | None:
+    """One-line warning when the gate let a tool run past a recorded analysis failure.
+
+    Blocking (Ghidra calls); run it off the event loop.  A stale record on a
+    program that is analyzed now yields no warning.
+    """
+    from agentdecompile_cli.mcp_utils.program_analysis import analysis_failure, program_needs_analysis
+
+    failure = analysis_failure(program, program_path)
+    if failure is None or not program_needs_analysis(program, program_info=program_info):
+        return None
+    return (
+        f"Warning: auto-analysis of {program_path or 'this program'} failed earlier ({failure}); "
+        "this result uses the listing as it is. Run analyze-program to retry."
+    )
+
+
+def attach_analysis_warning(result: list[Any], warning: str | None, *, markdown: bool) -> list[Any]:
+    """Put ``warning`` into the first text part: a key in a JSON object, else a leading line."""
+    if not warning or not result or not isinstance(result[0], types.TextContent):
+        return result
+    text = result[0].text or ""
+    if not markdown:
+        try:
+            data = _json.loads(text)
+        except Exception:
+            data = None
+        if isinstance(data, dict):
+            data["analysisWarning"] = warning
+            return [types.TextContent(type="text", text=_json.dumps(data)), *result[1:]]
+    prefix = f"> {warning}" if markdown else warning
+    return [types.TextContent(type="text", text=f"{prefix}\n\n{text}"), *result[1:]]
+
+
 def analysis_timeout_error_response(
     exc: ProgramAnalysisTimeout,
     program_path: str | None,
@@ -934,6 +971,11 @@ class ToolProvider:
         norm_args: dict[str, Any] = {n(k): v for k, v in (arguments or {}).items()}
         auto_prereq_invocation: bool = self._get_bool(norm_args, "autoprereqinvocation", default=False)
 
+        # An overload alias such as get-function-count implies its mode when the
+        # caller chose none. `name` is still the name the caller used. Runs before the
+        # synonym pass, which would copy the output `format` into inspect-memory's mode.
+        norm_args = apply_alias_implied_arguments(name, norm_args)
+
         # Apply tool-specific parameter aliases: if the client sent a synonym (e.g. "action"
         # instead of "mode"), copy the value to the canonical key so _get_str(args, "mode", "action")
         # finds it. alias_map comes from registry TOOL_PARAM_ALIASES per tool.
@@ -947,8 +989,6 @@ class ToolProvider:
                     if norm_args.get(target) is None:
                         norm_args[target] = value
 
-        # Freeze the resolved target before a handler can yield or open another program.
-        response_program_info = effective_program_info if norm_args.get("programpath") else None
         try:
             handler_params = inspect.signature(handler).parameters
             accepts_program_info = "program_info" in handler_params or any(
@@ -970,12 +1010,14 @@ class ToolProvider:
 
                 sid = _get_sid()
                 if result and isinstance(result[0], types.TextContent):
-                    injected_text = inject_project_context(
-                        result[0].text,
-                        sid,
-                        tool_name_normalized=norm_name,
-                        target_program_info=response_program_info,
-                    )
+                    injected_text = result[0].text
+                    if effective_program_info is not None or not has_program_override:
+                        injected_text = inject_project_context(
+                            injected_text,
+                            sid,
+                            tool_name_normalized=norm_name,
+                            target_program_info=effective_program_info,
+                        )
                     injected_text = inject_ui_hints(
                         injected_text,
                         sid,
@@ -2332,9 +2374,10 @@ class ToolProviderManager:
             return activated
 
         if project_provider is not None:
-            await self._bootstrap_shared_session_from_env(session_id, requested_program_key)
+            activated = await self._bootstrap_shared_session_from_env(session_id, requested_program_key)
             requested_program_key = SESSION_CONTEXTS.canonicalize_program_path(session_id, requested_program_key)
-            activated = SESSION_CONTEXTS.get_program_info(session_id, requested_program_key)
+            if activated is None:
+                activated = SESSION_CONTEXTS.get_program_info(session_id, requested_program_key)
             if activated is not None:
                 logger.info(
                     "activate_requested_program route=bootstrap session_id=%s program_tail=%s",
@@ -2546,7 +2589,7 @@ class ToolProviderManager:
                             provider_param_schema = props_by_norm[alias]
                             break
                 if provider_param_schema is None and normalized_param in _SELECTOR_PARAM_ALIASES:
-                    for selector_alias in _SELECTOR_PARAM_ALIASES:
+                    for selector_alias in _SELECTOR_PARAM_FALLBACK_ORDER:
                         provider_param_schema = props_by_norm.get(selector_alias)
                         if provider_param_schema is not None:
                             break
@@ -2715,6 +2758,11 @@ class ToolProviderManager:
             # open/connect-shared-project/sync-project use `path` for project/repository selection, not an existing program.
             # Pre-activating that value as a program causes false "program-resolution-failed" before those tools run.
             resolution_keys = ("programpath", "binary", "binaryname") if norm_name in {"open", "connectsharedproject", "syncproject"} else ("programpath", "binary", "binaryname", "path")
+            # manage-files list/import/export/... take a filesystem `path`, not a program.
+            if norm_name == "managefiles":
+                fs_mode = n(str(norm_args.get("mode") or norm_args.get("operation") or norm_args.get("action") or ""))
+                if fs_mode in _MANAGE_FILES_FILESYSTEM_MODES:
+                    resolution_keys = ("programpath", "binary", "binaryname")
             for key in resolution_keys:
                 value = norm_args.get(key)
                 if value is None:
@@ -2821,6 +2869,7 @@ class ToolProviderManager:
             )
 
         resolved_prog_path: str | None = requested_program_key or SESSION_CONTEXTS.get_active_program_key(session_id)
+        analysis_warning: str | None = None
         if effective_program_info is not None and effective_program_info.program is not None:
             resolved_prog_path = resolve_domain_program_path(
                 effective_program_info.program,
@@ -2836,13 +2885,17 @@ class ToolProviderManager:
             from agentdecompile_cli.mcp_utils.program_analysis import wait_for_program_analysis_ready
 
             prog = effective_program_info.program
-            try:
-                await asyncio.to_thread(
-                    wait_for_program_analysis_ready,
+
+            def _run_analysis_gate() -> str | None:
+                wait_for_program_analysis_ready(
                     prog,
                     effective_program_info,
                     program_path=resolved_prog_path,
                 )
+                return analysis_skipped_warning(prog, effective_program_info, resolved_prog_path)
+
+            try:
+                analysis_warning = await asyncio.to_thread(_run_analysis_gate)
             except ProgramAnalysisTimeout as exc:
                 return analysis_timeout_error_response(exc, resolved_prog_path)
 
@@ -3002,21 +3055,26 @@ class ToolProviderManager:
                             )
                             result[0] = types.TextContent(type="text", text=_json.dumps(parent_parsed))
 
-        # Convert JSON response to rich markdown via response_formatter unless responseFormat/format=json.
+        # Convert JSON response to rich markdown via response_formatter unless responseFormat=json.
         # Argument keys are normalized earlier, so responseFormat and response_format both map to responseformat.
+        # A legacy `format` of markdown/json is honoured only on tools that do not own a `format`
+        # argument: export-context's format=json is its surrogate format, not a rendering request.
+        legacy_fmt: Any = None if tool_owns_format_param(norm_name) else norm_args.get("format")
         response_fmt: str = str(
-            norm_args.get(n("responseFormat"))
-            or (norm_args.get("format") if norm_args.get("format") in ("markdown", "json") else "markdown")
+            norm_args.get(n(RESPONSE_FORMAT_PARAM))
+            or (legacy_fmt if legacy_fmt in RESPONSE_FORMAT_VALUES else "markdown")
         )
         if not norm_args.get("autoprereqinvocation") and response_fmt != "json" and result and isinstance(result[0], types.TextContent):
             try:
                 data = _json.loads(result[0].text)
                 markdown = render_tool_response(norm_name, data)
-                return [types.TextContent(type="text", text=markdown)]
+                return attach_analysis_warning(
+                    [types.TextContent(type="text", text=markdown)], analysis_warning, markdown=True
+                )
             except Exception:
                 pass  # Fall back to raw JSON on any formatting error
 
-        return result
+        return attach_analysis_warning(result, analysis_warning, markdown=False)
 
     def program_opened(self, program_info_or_path: ProgramInfo | os.PathLike | str) -> None:
         """Notify all providers that a program was opened; accept path string or ProgramInfo/PathLike."""

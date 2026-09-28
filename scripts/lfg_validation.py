@@ -673,7 +673,16 @@ def _lfg_parse_tool_markdown_kv(text: str) -> dict[str, Any]:
 
 
 def _lfg_inner_tool_payload(step: dict[str, Any]) -> dict[str, Any] | None:
-    """Parse tool body from MCP ``content[0].text`` (JSON or markdown **key:** lines)."""
+    """Return the tool's data dict.
+
+    T11: ``-f json tool-seq`` now unwraps each step's ``result`` (no MCP
+    ``content`` envelope) — that dict *is* the tool payload. Fall back to
+    parsing MCP ``content[0].text`` (JSON or markdown ``**key:**`` lines) for
+    the older enveloped shape.
+    """
+    r = step.get("result")
+    if isinstance(r, dict) and "content" not in r:
+        return r
     t = _lfg_tool_result_text(step)
     if not t.strip():
         return None
@@ -686,6 +695,43 @@ def _lfg_inner_tool_payload(step: dict[str, Any]) -> dict[str, Any] | None:
         parsed = _lfg_parse_tool_markdown_kv(t)
         return parsed if parsed else None
     return None
+
+
+def _lfg_search_symbols_total(inner: dict[str, Any] | None, text: str) -> int | None:
+    """Total match count for a ``search-symbols`` step.
+
+    Prefers the JSON fields the provider actually returns:
+    - paginated responses set ``total`` (src/agentdecompile_cli/mcp_server/tool_providers.py:1784
+      ``_create_paginated_response``, called with ``total=len(...)`` from
+      src/agentdecompile_cli/mcp_server/providers/symbols.py:596,627,543,461,416).
+    - the raw (non-paginated) success path sets ``totalMatched`` instead
+      (src/agentdecompile_cli/mcp_server/providers/symbols.py:642).
+    Markdown rendering (src/agentdecompile_cli/mcp_server/response_formatter.py:126,
+    ``_pagination_footer``) prints ``Showing **{count}** of **{total}**`` where
+    ``total = data.get("total", count)`` — so the old regex on ``totalMatched``-only
+    payloads was silently reading back ``count``, not the real total. Fall back to
+    the regex only when no unwrapped/JSON payload is available at all.
+    """
+    if isinstance(inner, dict):
+        if "total" in inner:
+            return int(inner["total"])
+        if "totalMatched" in inner:
+            return int(inner["totalMatched"])
+        if "count" in inner:
+            return int(inner["count"])
+    m = re.search(r"Showing \*\*(\d+)\*\* of \*\*(\d+)\*\*", text)
+    return int(m.group(2)) if m else None
+
+
+def _lfg_step_query_matches(inner: dict[str, Any] | None, text: str, needle: str) -> bool:
+    """True when a search-symbols step's query echoes ``needle``.
+
+    Unwrapped JSON payloads carry ``query`` (symbols.py search-symbols success
+    response); the older enveloped/markdown shape only has it inline in ``text``.
+    """
+    if isinstance(inner, dict) and isinstance(inner.get("query"), str):
+        return needle in inner["query"]
+    return needle in text
 
 
 def verify_lfg_track_a_tool_seq_json(stdout: str, run_id: str) -> None:
@@ -729,11 +775,11 @@ def verify_lfg_track_a_tool_seq_json(stdout: str, run_id: str) -> None:
                 elif direction == "push":
                     saw_push_real = True
 
-        elif name == "search-symbols" and sh in text:
-            m = re.search(r"Showing \*\*(\d+)\*\* of \*\*(\d+)\*\*", text)
-            if not m:
+        elif name == "search-symbols" and _lfg_step_query_matches(inner, text, sh):
+            total = _lfg_search_symbols_total(inner, text)
+            if total is None:
                 raise AssertionError(f"search-symbols step missing result counts for {sh!r}")
-            sh_symbol_totals.append(int(m.group(2)))
+            sh_symbol_totals.append(total)
 
     if checkins < 3:
         raise AssertionError(f"expected 3 successful checkin-program steps, got {checkins}")
@@ -782,11 +828,11 @@ def verify_lfg_track_b_tool_seq_json(stdout: str, run_id: str) -> None:
             if inner.get("success") is False and inner.get("error"):
                 raise AssertionError(f"checkout-status error: {inner.get('error')}")
 
-        elif name == "search-symbols" and loc in text:
-            m = re.search(r"Showing \*\*(\d+)\*\* of \*\*(\d+)\*\*", text)
-            if not m:
+        elif name == "search-symbols" and _lfg_step_query_matches(inner, text, loc):
+            total = _lfg_search_symbols_total(inner, text)
+            if total is None:
                 raise AssertionError(f"search-symbols step missing result counts for {loc!r}")
-            loc_totals.append(int(m.group(2)))
+            loc_totals.append(total)
 
     if post_checkin_local_status < 3:
         raise AssertionError(

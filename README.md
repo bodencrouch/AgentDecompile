@@ -108,7 +108,7 @@ docker run --rm -i \
 |----------|---------|
 | `GHIDRA_INSTALL_DIR` | Local Ghidra install (source checkouts) |
 | `AGENT_DECOMPILE_MCP_SERVER_URL` | CLI connect URL, usually `http://127.0.0.1:8080/mcp` |
-| `AGENT_DECOMPILE_GHIDRA_SERVER_HOST` / `_PORT` / `_USERNAME` / `_PASSWORD` | Ghidra Server (shared repos) only — not MCP HTTP auth |
+| `AGENT_DECOMPILE_GHIDRA_SERVER_HOST` / `_PORT` / `_USERNAME` / `_PASSWORD` | Ghidra Server (shared repos). With `AGENT_DECOMPILE_AUTH_ENABLED` on, `_USERNAME` / `_PASSWORD` are also the MCP HTTP auth pair |
 
 HTTP examples in this README bind `127.0.0.1`. Do not set `AGENT_DECOMPILE_HOST=0.0.0.0` without `AGENT_DECOMPILE_AUTH_ENABLED` and a firewall. See [docs/MCP_CONFIGURATION_SECURITY.md](docs/MCP_CONFIGURATION_SECURITY.md).
 

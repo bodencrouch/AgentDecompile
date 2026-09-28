@@ -170,6 +170,84 @@ async def test_manager_override_without_program_path_binds_response_context(
     assert context["activeProgram"] == "/prog/override.exe"
 
 
+class DummyImportBinaryProvider(ToolProvider):
+    """Mirrors the shape of ImportExportToolProvider._handle_import (import_export.py ~1682-1728):
+    the handler resolves its own freshly-imported program_info and passes it directly to
+    create_success_response, independent of whatever call-scoped program_info the manager
+    dispatched with. import-binary's "path" argument does not alias to "programpath"
+    (registry.py TOOL_PARAM_ALIASES), so the manager calls it with program_info=None.
+    """
+
+    # HANDLERS key must be the real "importbinary" norm name: ToolProviderManager.call_tool
+    # special-cases norm_name == "importbinary" to skip its own program-resolution-from-"path"
+    # pass (tool_providers.py ~2712), which is what makes it dispatch with program_info=None
+    # instead of erroring out before ever reaching this handler.
+    HANDLERS: ClassVar[dict[str, str]] = {"importbinary": "_handle"}
+
+    def list_tools(self) -> list[types.Tool]:
+        return [
+            types.Tool(
+                name="import-binary",
+                description="Test helper import-binary tool",
+                inputSchema={"type": "object", "properties": {"path": {"type": "string"}}},
+            )
+        ]
+
+    async def _handle(self, args: dict[str, object], *, program_info=None) -> list[types.TextContent]:
+        # The real handler ignores the incoming (manager-scoped) program_info for the
+        # response it builds once a program has actually been imported; it binds the
+        # response to the just-imported program instead.
+        assert program_info is None
+        domain_file = SimpleNamespace(
+            getPathname=lambda: "/imported.exe",
+            getSharedProjectURL=lambda _ref: None,
+            getProjectLocator=lambda: SimpleNamespace(
+                getMarkerFile=lambda: SimpleNamespace(getAbsolutePath=lambda: "/projects/demo.gpr"),
+                getName=lambda: "demo",
+            ),
+        )
+        imported_info = SimpleNamespace(
+            program=SimpleNamespace(getDomainFile=lambda: domain_file),
+            name="imported.exe",
+        )
+        return create_success_response(
+            {
+                "success": True,
+                "importedPrograms": [{"programName": "imported.exe", "programPath": "/imported.exe"}],
+            },
+            program_info=imported_info,
+        )
+
+
+@pytest.mark.asyncio
+async def test_import_binary_self_attaches_context_despite_manager_none_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """R2: a project open, no active program, manager dispatches import-binary with
+    program_info=None (the restored 3fedee3 contract skips manager-level injection for
+    an explicit None). The response must still carry projectContext.projectPath because
+    the import handler attaches it itself from the program it just resolved.
+    """
+    manager = ToolProviderManager()
+    manager._register(DummyImportBinaryProvider())
+    monkeypatch.setattr(
+        program_metadata_module,
+        "collect_project_context",
+        lambda _session_id: {"activeProgram": "/prog/session.exe"},
+    )
+
+    result = await manager.call_tool(
+        "import-binary",
+        {"path": "/tmp/game.exe", "responseFormat": "json"},
+        program_info=None,
+    )
+
+    context = json.loads(result[0].text)["projectContext"]
+    assert context["scope"] == "target-program"
+    assert context["activeProgram"] == "/imported.exe"
+    assert context["projectPath"] == "/projects/demo.gpr"
+
+
 class FakeProgram:
     def __init__(self, name: str) -> None:
         self._name: str = name

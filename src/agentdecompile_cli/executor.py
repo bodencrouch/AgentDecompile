@@ -170,8 +170,9 @@ def resolve_backend_url(
 def format_output(data: Any, fmt: str, verbose: bool = False) -> str:
     """Format data for human-readable output.
 
-    fmt: 'shell' (default) | 'json' | 'markdown' | 'xml' | legacy aliases ('text', 'table').
-    Used by CLI commands to present tool results in the requested format.
+    fmt: 'text'/'shell'/'markdown' print an MCP result's text as-is (the server's
+    markdown); 'json' dumps ``data``; 'xml' and 'table' render ``data``. The CLI
+    unwraps the MCP envelope to the tool's JSON data before json/xml/table.
     """
     logger.debug("diag.enter %s", "executor.py:format_output")
     normalized: str = (fmt or "shell").strip().lower()
@@ -182,10 +183,10 @@ def format_output(data: Any, fmt: str, verbose: bool = False) -> str:
         content = data.get("content")
         if isinstance(content, list) and content and isinstance(content[0], dict) and content[0].get("text") is not None:
             text = content[0]["text"]
-            if isinstance(text, str):
-                text = text.replace("\\n", "\n")
-                if normalized in ("markdown", "shell", "text"):
-                    return text
+            # Print the text verbatim: it is already a decoded str. Rewriting "\\n"
+            # turned C escapes like printf("%d\\n") into real line breaks.
+            if isinstance(text, str) and normalized in ("markdown", "shell", "text"):
+                return text
 
     if normalized == "json":
         return _json.dumps(data, indent=2)
@@ -227,13 +228,36 @@ def format_output(data: Any, fmt: str, verbose: bool = False) -> str:
         return _to_xml(data, "result")
 
     if normalized == "table":
-        if isinstance(data, list) and data and isinstance(data[0], dict):
-            headers = list(data[0].keys())
+
+        def _cell(value: Any) -> str:
+            return _json.dumps(value, default=str) if isinstance(value, (dict, list)) else str(value)
+
+        def _rows_table(rows: list[dict[str, Any]]) -> str:
+            # Union of keys in first-seen order: rows of one list need not share keys.
+            headers: list[str] = []
+            for row in rows:
+                headers.extend(k for k in row if k not in headers)
             lines = [" | ".join(headers), "-" * (len(headers) * 10)]
-            for item in data:
-                row = [str(item.get(h, "")) for h in headers]
-                lines.append(" | ".join(row))
+            lines.extend(" | ".join(_cell(row.get(h, "")) for h in headers) for row in rows)
             return "\n".join(lines)
+
+        def _is_rows(value: Any) -> bool:
+            return isinstance(value, list) and bool(value) and all(isinstance(item, dict) for item in value)
+
+        if isinstance(data, dict):
+            # Scalars (and non-tabular values) as key | value rows; every
+            # list-of-dicts value becomes its own table under a "<key>:" heading
+            # instead of a Python repr squeezed into one cell.
+            scalar_items = [(k, v) for k, v in data.items() if not _is_rows(v)]
+            sections: list[str] = []
+            if scalar_items:
+                sections.append("\n".join(["key | value", "-" * 20, *(f"{k} | {_cell(v)}" for k, v in scalar_items)]))
+            for key, value in data.items():
+                if _is_rows(value):
+                    sections.append(f"{key}:\n{_rows_table(value)}")
+            return "\n\n".join(sections) if sections else "key | value\n" + "-" * 20
+        if _is_rows(data):
+            return _rows_table(data)
         return str(data)
 
     return str(data)

@@ -977,6 +977,19 @@ def proxy_main() -> None:
     parser.add_argument("--ghidra-server-username", type=str, default=None, help="Auth: Ghidra server username")
     parser.add_argument("--ghidra-server-password", type=str, default=None, help="Auth: Ghidra server password")
     parser.add_argument("--ghidra-server-repository", type=str, default=None, help="Auth: Ghidra server repository")
+    parser.add_argument(
+        "--enable-exchange",
+        dest="enable_exchange",
+        action="store_true",
+        default=None,
+        help="EXPERIMENTAL: serve the donated-compute work exchange on this proxy. Env: AGENT_DECOMPILE_EXCHANGE_ENABLED",
+    )
+    parser.add_argument(
+        "--no-enable-exchange",
+        dest="enable_exchange",
+        action="store_false",
+        help="Disable the experimental work exchange even when AGENT_DECOMPILE_EXCHANGE_ENABLED is set",
+    )
     args = parser.parse_args()
 
     backend_url = _resolve_proxy_backend_url(
@@ -1038,6 +1051,23 @@ def proxy_main() -> None:
                     pass
         return
 
+    # EXPERIMENTAL: work exchange is off by default. An explicit --enable-exchange
+    # / --no-enable-exchange wins over the env var; absent both, it stays off.
+    _exchange_flag = getattr(args, "enable_exchange", None)
+    _enable_exchange = (
+        bool(_exchange_flag)
+        if _exchange_flag is not None
+        else os.environ.get("AGENT_DECOMPILE_EXCHANGE_ENABLED", "").strip().lower() in ("true", "1", "yes", "on")
+    )
+    # Pipeline stages that produce work units run as subprocesses and read
+    # this var directly (exchange/producers.py:exchange_enabled), inheriting
+    # the parent's environment wholesale (isolated_job_env copies os.environ).
+    # --enable-exchange alone would otherwise mount the routes here without
+    # ever reaching the producer side: routes serve an exchange nothing feeds.
+    # Exporting the resolved decision is what makes the CLI flag and the env
+    # var the same switch rather than two switches that can disagree.
+    os.environ["AGENT_DECOMPILE_EXCHANGE_ENABLED"] = "true" if _enable_exchange else "false"
+
     proxy_server = AgentDecompileMcpProxyServer(
         ProxyServerConfig(
             host=host,
@@ -1045,6 +1075,7 @@ def proxy_main() -> None:
             backend_url=backend_url,
             tls_certfile=tls_certfile,
             tls_keyfile=tls_keyfile,
+            enable_exchange=_enable_exchange,
         ),
         auth_config=auth_config,
     )

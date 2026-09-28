@@ -175,6 +175,12 @@ class ProxyServerConfig(BaseModel):
     """Path to TLS certificate file (PEM). Enables HTTPS when combined with tls_keyfile."""
     tls_keyfile: str | None = None
     """Path to TLS private key file (PEM). Enables HTTPS when combined with tls_certfile."""
+    enable_exchange: bool = False
+    """EXPERIMENTAL: serve the donated-compute work exchange under
+    ``/dashboard/api/exchange/*``. Disabled by default; set
+    ``AGENT_DECOMPILE_EXCHANGE_ENABLED=true`` or pass ``--enable-exchange``.
+    When false the routes are never registered, so the surface is absent
+    rather than merely refusing."""
 
 
 class AgentDecompileMcpProxyServer:
@@ -347,6 +353,20 @@ class AgentDecompileMcpProxyServer:
         from agentdecompile_recovery.unified_pages import mount_unified_pages
 
         mount_unified_pages(self.app)
+
+        # EXPERIMENTAL: donated-compute work exchange, off by default.
+        # Registered only when enabled so the route surface is absent rather
+        # than present-and-refusing. Contributors claim leases and submit
+        # proposals here; nothing they send is trusted, because the
+        # compile-verify gate remains the sole proof mechanism.
+        if self.config.enable_exchange:
+            from agentdecompile_recovery.exchange.routes import create_exchange_router
+
+            self.app.include_router(create_exchange_router())
+            logger.warning(
+                "EXPERIMENTAL work exchange enabled: serving /dashboard/api/exchange/* "
+                "with no authentication. Submissions are proposals only.",
+            )
 
         logger.debug("diag.enter %s", "mcp_server/proxy_server.py:AgentDecompileMcpProxyServer._setup_routes")
         for method in ("GET", "POST", "DELETE"):

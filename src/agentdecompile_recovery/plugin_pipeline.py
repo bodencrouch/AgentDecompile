@@ -522,6 +522,24 @@ class PluginPipeline:
             compiler_profile=compiler_profile,
         )
 
+        # Also publish the request to the work exchange so donated compute can
+        # fulfill it. Best-effort and a no-op unless the exchange is enabled:
+        # the local fulfillment paths below remain the authority, and whatever
+        # a contributor returns is a proposal the compile-verify gate rules on.
+        from .exchange.producers import offer_rewrite_unit
+
+        offer_rewrite_unit(
+            work_dir=work_dir,
+            request_id=request_id,
+            function_name=function_name,
+            entry=str(row.get("entry") or ""),
+            candidate_source=candidate_source,
+            mismatch_class=decision.get("mismatchClass"),
+            mismatch_histogram=decision.get("mismatchHistogram"),
+            aligned_diff=aligned_diff,
+            compiler_profile=compiler_profile,
+        )
+
         if str(context.get("rewriteFulfillment") or "cli") != "cli":
             return
         from .pattern_memory import retrieve_patterns

@@ -68,6 +68,22 @@ export AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY="<set-in-user-env>"
 
 Those credentials authenticate Ghidra Server, not the MCP HTTP listener. See [docs/MCP_CONFIGURATION_SECURITY.md](docs/MCP_CONFIGURATION_SECURITY.md).
 
+## Consolidated command groups
+
+`agentdecompile-cli corpus`, `agentdecompile-cli recover`, and
+`agentdecompile-cli grid` expose the corpus, staged recovery, and grid command
+surfaces. Use `<group> --help` to list verbs and `<group> <verb> --help` for
+options. Arguments, including a literal `--`, are forwarded to the backing CLI.
+
+Use `agentdecompile-cli reconstruct` for the reconstruction front door. The
+standalone `agentdecompile-reconstruct` and `agentdecompile-acquisition-query`
+entry points have been retired; acquisition queries remain available through
+`agentdecompile-cli acquisition-query`. Duplicate recovery verbs direct you to
+`agentdecompile-cli corpus list-archive` or `corpus check-extraction`.
+
+These are implementation and general-use interfaces. Current recovery
+operations still use the existing 8080 action catalog under [AGENTS.md](AGENTS.md).
+
 ## Workflows
 
 Public fixture: `tests/fixtures/test_x86_64`. Other examples use `/path/to/binary`.

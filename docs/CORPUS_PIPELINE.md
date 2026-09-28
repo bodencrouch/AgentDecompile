@@ -78,7 +78,7 @@ to redo analysis or C-replace.
 uv run agentdecompile-corpus export-hookpack --db target/corpus.sqlite --out target/hookpack.json
 ```
 
-`agentdecompile-reconstruct corpus …` is the same CLI. Identity work uses
+`agentdecompile-cli corpus …` is the same CLI. Identity work uses
 `init-store`, `apply-stabs`, `logical-build`, `match-pair`, `merge-parts`.
 Project emit uses `genproject` and `ingest-recovered`. Compile Ghidra C with
 `ghidra-bulk` (default `--mode compile-only`; `--mode semantic` refuses

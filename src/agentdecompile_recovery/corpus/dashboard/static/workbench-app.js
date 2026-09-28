@@ -2634,7 +2634,31 @@
      component fetches what it can inside `budgetMs` and falls back to the
      existing detail.preview text -- with the measured elapsed time shown --
      rather than pretend a partial or synthetic result is the whole listing. */
-  function ListingRows({ addr, name, program, runReadAction, fallbackText, onJumpAddr, budgetMs }) {
+  // "00b411a0  b6 f1   MOV DH,0xf1" lines from get-function's disassembly.
+  function parseAssemblyRows(text, addr) {
+    if (!text) return null;
+    const want = parseInt(String(addr || "").replace(/^0x/i, ""), 16);
+    const rows = [];
+    let found = false;
+    String(text).split("\n").forEach(function (line) {
+      const m = /^\s*([0-9a-fA-F]{6,16})\s+((?:[0-9a-fA-F]{2} )*[0-9a-fA-F]{2})\s+(\S+)\s*(.*)$/.exec(line);
+      if (!m) return;
+      const at = parseInt(m[1], 16);
+      if (at === want) found = true;
+      const targets = (m[4].match(/0x[0-9a-fA-F]{6,16}/g) || []);
+      const branch = /^(CALL|J[A-Z]{1,3}|LOOP[A-Z]*)$/i.test(m[3]);
+      rows.push({
+        addr: "0x" + m[1].toLowerCase(),
+        bytes: m[2],
+        mnemonic: m[3],
+        operands: m[4].trim(),
+        flows: branch ? targets : []
+      });
+    });
+    return rows.length && found ? rows : null;
+  }
+
+  function ListingRows({ addr, name, program, runReadAction, fallbackText, onJumpAddr, budgetMs, assemblyText }) {
     const [state, setState] = useState({ status: "idle" });
     const [focusIdx, setFocusIdx] = useState(0);
     const seqRef = useRef(0);
@@ -2645,6 +2669,13 @@
       const seq = ++seqRef.current;
       setFocusIdx(0);
       if (!addr || !program) { setState({ status: "idle" }); return undefined; }
+      // The function read already carries its whole disassembly; use it rather
+      // than one inspect-memory round trip per instruction.
+      const parsed = parseAssemblyRows(assemblyText, addr);
+      if (parsed) {
+        setState({ status: "ok", rows: parsed, elapsedMs: 0, budgetHit: false, inboundCount: null });
+        return undefined;
+      }
       setState({ status: "loading" });
       const t0 = (window.performance && performance.now) ? performance.now() : Date.now();
       const now = function () { return (window.performance && performance.now) ? performance.now() : Date.now(); };
@@ -2696,7 +2727,7 @@
       }
       run();
       return function () { cancelled = true; };
-    }, [addr, program]);
+    }, [addr, program, assemblyText]);
 
     function onRowKeyDown(ev, idx, row) {
       if (ev.key === "ArrowDown") {
@@ -6302,6 +6333,7 @@
             ${selected && selected.addr
               ? html`<${ListingRows} addr=${selected.addr} name=${selected.name} program=${program}
                   runReadAction=${runReadAction}
+                  assemblyText=${detail && detail.assembly && detail.assembly.text}
                   fallbackText=${(detail && detail.preview) || ("Reading " + program + " from the Ghidra project on disk…")}
                   onJumpAddr=${function (target) { selectRow({ addr: target, name: target }); }} />`
               : html`<pre className="wb-preview" id="wb-listing-preview">${(detail && detail.preview) || (program

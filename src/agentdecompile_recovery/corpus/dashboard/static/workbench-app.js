@@ -2641,12 +2641,12 @@
     const rows = [];
     let found = false;
     String(text).split("\n").forEach(function (line) {
-      const m = /^\s*([0-9a-fA-F]{6,16})\s+((?:[0-9a-fA-F]{2} )*[0-9a-fA-F]{2})\s+(\S+)\s*(.*)$/.exec(line);
+      const m = /^\s*([0-9a-fA-F]{6,16})\s+((?:[0-9a-fA-F]{2} )*[0-9a-fA-F]{2})\s+((?:(?:REP[A-Z]*|LOCK)\s+)?\S+)\s*(.*)$/i.exec(line);
       if (!m) return;
       const at = parseInt(m[1], 16);
       if (at === want) found = true;
       const targets = (m[4].match(/0x[0-9a-fA-F]{6,16}/g) || []);
-      const branch = /^(CALL|J[A-Z]{1,3}|LOOP[A-Z]*)$/i.test(m[3]);
+      const branch = /^(CALL|J[A-Z]{1,3}|LOOP[A-Z]*)$/i.test(m[3].split(/\s+/).pop());
       rows.push({
         addr: "0x" + m[1].toLowerCase(),
         bytes: m[2],

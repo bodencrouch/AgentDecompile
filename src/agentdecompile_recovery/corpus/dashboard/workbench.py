@@ -2453,7 +2453,7 @@ def render_workbench(*, static_mode: bool = False) -> str:
 <script src="/dashboard/static/react-dom.js"></script>
 <script src="/dashboard/static/htm.js"></script>
 <script src="/dashboard/static/dashboard.js" defer></script>
-<script src="/dashboard/static/workbench-app.js?v=live40" defer></script>
+<script src="/dashboard/static/workbench-app.js?v=live41" defer></script>
 </body>
 </html>
 """

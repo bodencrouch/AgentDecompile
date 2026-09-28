@@ -415,6 +415,10 @@ def iter_long_key_range(buffer_file, root_buffer_id, schema, low, high):
         if current_id in seen:
             raise BTreeError(f"leaf chain revisits buffer {current_id}; database is corrupt")
         seen.add(current_id)
+        if len(seen) > 4096:
+            # A sparse range can walk many leaves without yielding; stop and let
+            # the caller fall back rather than scan the whole table.
+            raise BTreeError("keyed range crossed more than 4096 leaves")
         kind = node_type(node)
         if kind == LONGKEY_VAR_REC_NODE:
             records = _iter_var_rec_leaf(buffer_file, node)

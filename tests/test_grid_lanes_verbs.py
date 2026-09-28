@@ -14,7 +14,7 @@ from agentdecompile_recovery.corpus import logical, store
 from agentdecompile_recovery.corpus.determinism_basis import basis_hash_for
 from agentdecompile_recovery.corpus.extract import stamp_analyzer_identity
 from agentdecompile_recovery.grid_lanes import splitter, verbs
-from agentdecompile_recovery.grid_lanes._common import BasisRefused, ContentHashRefused, Infra, RunOutcome
+from agentdecompile_recovery.grid_lanes._common import BasisRefused, ContentHashRefused, Locked, Infra, Refused, RunOutcome
 
 pytestmark = pytest.mark.unit
 
@@ -200,3 +200,52 @@ def test_plan_backfill_analyzer_identity_with_null_identity(tmp_path: Path) -> N
     assert tasks[0].params["pass"] == "analyzer_identity"
     assert tasks[0].basis_hash == splitter.repair_basis_hash("corpus-backfill-pass")
     assert tasks[0].inputs["store"] in list(objects.list())
+
+
+@pytest.mark.parametrize(
+    "stderr_line, expected_prefix",
+    [
+        ("error: ContentHashError: build-1 missing content_sha256", "content-hash:build-1 missing content_sha256"),
+        ("error: basis mismatch: mixed basis_hash across binaries", "basis:mixed basis_hash across binaries"),
+        ("error: locked: busy_timeout exceeded", "locked"),
+        ("error: something-else went wrong", "verb-refused:something-else went wrong"),
+    ],
+)
+def test_classify_refusal_line_maps_reasons(stderr_line: str, expected_prefix: str) -> None:
+    """``classify_refusal_line`` names each exit-2 stderr line before ``run`` picks an exception."""
+    assert verbs.classify_refusal_line(stderr_line + "\n") == expected_prefix
+
+
+@pytest.mark.parametrize(
+    "stderr_line, expected_exc",
+    [
+        ("error: ContentHashError: build-1 missing content_sha256", ContentHashRefused),
+        ("error: basis mismatch: mixed basis_hash across binaries", BasisRefused),
+        ("error: locked: busy_timeout exceeded", Locked),
+        ("error: something-else went wrong", Refused),
+    ],
+)
+def test_verb_run_maps_refusal_reason_to_named_class(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stderr_line: str, expected_exc: type[Exception]
+) -> None:
+    """The ``basis:``/``locked``/``content-hash:`` mapping in ``CorpusVerbKind.run`` (added
+    alongside ``classify_refusal_line``'s existing string mapping) raises the named refusal
+    class the reason implies, not the generic ``Refused``.  On base 40d8539, every exit-2 line
+    -- however ``classify_refusal_line`` names it -- was wrapped in plain ``Refused``, so this
+    assertion fails for the basis/lock/content-hash rows there and only holds here."""
+    db = _store(tmp_path / "dispatch.sqlite", with_function=True)
+    objects = _objects(tmp_path / "objects")
+    spec = _logical_spec(objects, db, tmp_path / "snapshot")
+    monkeypatch.setattr(
+        verbs,
+        "run_argv",
+        lambda *args, **kwargs: RunOutcome(("synthetic",), 2, "", stderr_line + "\n", 0.01, False),
+    )
+
+    with pytest.raises(expected_exc) as caught:
+        verbs.CorpusLogicalBuild().run(spec, objects, str(tmp_path / "run"))
+
+    assert type(caught.value) is expected_exc, (
+        f"expected exactly {expected_exc.__name__}, got {type(caught.value).__name__} "
+        f"for stderr line {stderr_line!r}"
+    )

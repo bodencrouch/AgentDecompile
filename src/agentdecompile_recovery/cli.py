@@ -92,8 +92,11 @@ def unity_config_kwargs(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="agentdecompile-recover", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+DEFAULT_PROG = "agentdecompile-recover"
+
+
+def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog=prog or DEFAULT_PROG, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     sub = parser.add_subparsers(dest="command")
 
     inspect = sub.add_parser("inspect", help="Resolve and identify the target binary.")
@@ -1380,8 +1383,8 @@ def run_survey_project(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
+def main(argv: list[str] | None = None, prog: str | None = None) -> int:
+    parser = build_parser(prog)
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
     if args.command == "inspect":
         return run_inspect(args)

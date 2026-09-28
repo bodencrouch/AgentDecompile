@@ -537,33 +537,27 @@ class StructureToolProvider(ToolProvider):
         if dt is None:
             raise ValueError(f"Structure not found: {struct_name}")
 
-        # Batch
         addr_list = self._get_list(args, "addressorsymbol", "addresses")
-        if addr_list and len(addr_list) > 1:
-            results = []
-
-            def _batch_apply_struct() -> None:
-                listing = self._get_listing(program, program_info=program_info)
-                for a in addr_list:
-                    try:
-                        addr = self._resolve_address(str(a), program=program, program_info=program_info)
-                        listing.clearCodeUnits(addr, addr.add(dt.getLength() - 1), False)
-                        listing.createData(addr, dt)
-                        results.append({"address": str(addr), "success": True})
-                    except Exception as e:
-                        results.append({"address": str(a), "success": False, "error": str(e)})
-
-            self._run_program_transaction(program, "batch-apply-struct", _batch_apply_struct)
-            return create_success_response({"action": "apply", "batch": True, "results": results})
-
-        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
+        is_batch = bool(addr_list and len(addr_list) > 1)
+        results = []
+        resolved_targets = []
+        for raw_address in addr_list if is_batch else [addr_str]:
+            try:
+                addr = self._resolve_address(str(raw_address), program=program, program_info=program_info)
+                resolved_targets.append((str(raw_address), addr))
+            except Exception as exc:
+                if not is_batch:
+                    raise
+                results.append({"address": str(raw_address), "success": False, "error": str(exc)})
         listing = self._get_listing(program, program_info=program_info)
 
         if not args.get(FORCE_APPLY_CONFLICT_ID_KEY):
             from agentdecompile_cli.mcp_utils.datatype_util import format_conflict_lines, overlapping_data_conflicts
 
             # clearCodeUnits below clears every code unit overlapping [addr, addr+len-1]; ask before losing defined data anywhere in it.
-            conflicts = overlapping_data_conflicts(listing, addr, dt)
+            conflicts = []
+            for _raw_address, target_addr in resolved_targets:
+                conflicts.extend(overlapping_data_conflicts(listing, target_addr, dt))
             if conflicts:
                 from agentdecompile_cli.mcp_server.conflict_store import store as conflict_store_store
                 from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
@@ -584,6 +578,20 @@ class StructureToolProvider(ToolProvider):
                 )
                 return create_conflict_response(conflict_id, Tool.MANAGE_STRUCTURES.value, conflict_summary, next_step)
 
+        if is_batch:
+            def _batch_apply_struct() -> None:
+                for raw_address, target_addr in resolved_targets:
+                    try:
+                        listing.clearCodeUnits(target_addr, target_addr.add(dt.getLength() - 1), False)
+                        listing.createData(target_addr, dt)
+                        results.append({"address": str(target_addr), "success": True})
+                    except Exception as exc:
+                        results.append({"address": raw_address, "success": False, "error": str(exc)})
+
+            self._run_program_transaction(program, "batch-apply-struct", _batch_apply_struct)
+            return create_success_response({"action": "apply", "batch": True, "results": results})
+
+        addr = resolved_targets[0][1]
         def _apply_struct() -> None:
             listing.clearCodeUnits(addr, addr.add(dt.getLength() - 1), False)
             listing.createData(addr, dt)

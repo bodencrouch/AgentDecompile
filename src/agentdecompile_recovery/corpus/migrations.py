@@ -9,8 +9,9 @@ Two records describe a store's schema state:
 * ``schema_migration`` -- the ledger. One row per applied migration with the
   version, the name, when it was applied, and a hash of the determinism
   basis at that moment. ``applied_at`` and ``basis_supersession.recorded_at``
-  are the only clock-derived values in the store; nothing else may derive
-  from them. ``basis_hash`` is NULL when the basis cannot be computed; a
+  are recovery metadata; match-review UUIDs and audit times are separate
+  control-plane metadata excluded from deterministic recovery content.
+  ``basis_hash`` is NULL when the basis cannot be computed; a
   re-baseline (``corpus rebaseline``) records its supersession in
   ``basis_supersession`` rather than rewriting this ledger.
 
@@ -163,10 +164,18 @@ def _basis_supersession(con: sqlite3.Connection) -> None:
     con.execute(SUPERSESSION_INDEX_SQL)
 
 
+def _match_review(con: sqlite3.Connection) -> None:
+    """Version 4: durable per-entity review freshness and atomic decision audit."""
+    from .match_review_schema import install
+
+    install(con)
+
+
 MIGRATIONS: list[Migration] = [
     Migration(1, "baseline", _baseline),
     Migration(2, "analyzer_identity", _analyzer_identity),
     Migration(3, "basis_supersession", _basis_supersession),
+    Migration(4, "match_review", _match_review),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1].version

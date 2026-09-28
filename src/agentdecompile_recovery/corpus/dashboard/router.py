@@ -645,118 +645,44 @@ def create_dashboard_router() -> APIRouter:
         payload = await asyncio.to_thread(match_status)
         return JSONResponse(payload, status_code=200)
 
+    @router.get("/dashboard/api/workbench/match-review")
+    async def workbench_match_review(request: Request) -> JSONResponse:
+        from .common import list_match_review, review_error_status
+        from ..match_review import ReviewError
+        try:
+            after = request.query_params.get("after_id", "0")
+            limit = request.query_params.get("limit", "50")
+            if len(after) > 19 or len(limit) > 3 or not after.isascii() or not after.isdecimal() or not limit.isascii() or not limit.isdecimal():
+                raise ReviewError('malformed_request')
+            payload = await asyncio.to_thread(list_match_review, after_id=int(after), limit=int(limit))
+            return JSONResponse(payload)
+        except ReviewError as exc:
+            return JSONResponse(exc.result(), status_code=review_error_status(exc))
+
+    async def _review_submit(request: Request, *, batch: bool) -> JSONResponse:
+        from .actions.match_review import MAX_REQUEST_BYTES, submit_http
+        size = 0
+        chunks = []
+        async for chunk in request.stream():
+            size += len(chunk)
+            if size > MAX_REQUEST_BYTES:
+                return JSONResponse({"ok": False, "error": "request_too_large", "refreshRequired": False}, status_code=413)
+            chunks.append(chunk)
+        try:
+            import json
+            body = json.loads(b''.join(chunks))
+        except (ValueError, UnicodeError):
+            return JSONResponse({"ok": False, "error": "malformed_request", "refreshRequired": False}, status_code=400)
+        payload, status = await asyncio.to_thread(submit_http, body, batch=batch)
+        return JSONResponse(payload, status_code=status)
+
     @router.post("/dashboard/api/workbench/match-decide")
     async def workbench_match_decide(request: Request) -> JSONResponse:
-        import sqlite3
-
-        from agentdecompile_recovery.corpus.dashboard.common import live_db, query_db
-
-        try:
-            body = await request.json()
-        except Exception:
-            return JSONResponse({"ok": False, "error": "JSON object required"}, status_code=400)
-        if not isinstance(body, dict):
-            return JSONResponse({"ok": False, "error": "JSON object required"}, status_code=400)
-
-        decision = str(body.get("decision") or "").strip().lower()
-        if decision not in {"accept", "reject"}:
-            return JSONResponse({"ok": False, "error": "decision must be accept or reject"}, status_code=400)
-        try:
-            match_id = int(body.get("match_id"))
-        except (TypeError, ValueError):
-            return JSONResponse({"ok": False, "error": "match_id must be an integer"}, status_code=400)
-
-        rows, err = query_db("SELECT status FROM match WHERE id=?", (match_id,))
-        if err:
-            return JSONResponse({"ok": False, "error": err}, status_code=500)
-        if not rows:
-            return JSONResponse({"ok": False, "error": f"no match with id {match_id}"}, status_code=404)
-        current = str(rows[0][0] or "")
-        if current != "review":
-            return JSONResponse(
-                {"ok": False, "error": f"match {match_id} is {current!r}, not review"},
-                status_code=409,
-            )
-
-        new_status = "verify" if decision == "accept" else "rejected"
-        target = live_db()
-        if target is None:
-            return JSONResponse({"ok": False, "error": "AGENT_DECOMPILE_CORPUS_DB is unset"}, status_code=503)
-        if not target.exists():
-            return JSONResponse({"ok": False, "error": f"database missing ({target})"}, status_code=503)
-        try:
-            con = sqlite3.connect(str(target), timeout=10)
-            cur = con.execute(
-                "UPDATE match SET status=? WHERE id=? AND status='review'",
-                (new_status, match_id),
-            )
-            con.commit()
-            changed = cur.rowcount
-            con.close()
-        except sqlite3.Error as exc:
-            return JSONResponse({"ok": False, "error": f"update failed: {exc}"}, status_code=500)
-        if not changed:
-            return JSONResponse(
-                {"ok": False, "error": f"match {match_id} is no longer in review"},
-                status_code=409,
-            )
-        return JSONResponse({"ok": True, "match_id": match_id, "status": new_status})
+        return await _review_submit(request, batch=False)
 
     @router.post("/dashboard/api/workbench/match-decide-batch")
     async def workbench_match_decide_batch(request: Request) -> JSONResponse:
-        import sqlite3
-
-        from agentdecompile_recovery.corpus.dashboard.common import live_db
-
-        try:
-            body = await request.json()
-        except Exception:
-            return JSONResponse({"ok": False, "error": "JSON object required"}, status_code=400)
-        if not isinstance(body, dict):
-            return JSONResponse({"ok": False, "error": "JSON object required"}, status_code=400)
-
-        decision = str(body.get("decision") or "").strip().lower()
-        if decision not in {"accept", "reject"}:
-            return JSONResponse({"ok": False, "error": "decision must be accept or reject"}, status_code=400)
-
-        raw_ids = body.get("match_ids")
-        if not isinstance(raw_ids, list) or not raw_ids:
-            return JSONResponse({"ok": False, "error": "match_ids must be a non-empty array"}, status_code=400)
-        if len(raw_ids) > 100:
-            return JSONResponse({"ok": False, "error": "match_ids limited to 100 per request"}, status_code=400)
-
-        match_ids: list[int] = []
-        seen: set[int] = set()
-        for item in raw_ids:
-            try:
-                mid = int(item)
-            except (TypeError, ValueError):
-                return JSONResponse({"ok": False, "error": "match_ids must contain integers"}, status_code=400)
-            if mid not in seen:
-                seen.add(mid)
-                match_ids.append(mid)
-
-        new_status = "verify" if decision == "accept" else "rejected"
-        target = live_db()
-        if target is None:
-            return JSONResponse({"ok": False, "error": "AGENT_DECOMPILE_CORPUS_DB is unset"}, status_code=503)
-        if not target.exists():
-            return JSONResponse({"ok": False, "error": f"database missing ({target})"}, status_code=503)
-
-        placeholders = ",".join("?" * len(match_ids))
-        try:
-            con = sqlite3.connect(str(target), timeout=10)
-            cur = con.execute(
-                f"UPDATE match SET status=? WHERE id IN ({placeholders}) AND status='review'",
-                (new_status, *match_ids),
-            )
-            con.commit()
-            updated = int(cur.rowcount)
-            con.close()
-        except sqlite3.Error as exc:
-            return JSONResponse({"ok": False, "error": f"update failed: {exc}"}, status_code=500)
-
-        return JSONResponse({"ok": True, "updated": updated, "skipped": len(match_ids) - updated})
+        return await _review_submit(request, batch=True)
 
     @router.get("/dashboard/api/workbench/recover-status")
     async def workbench_recover_status(request: Request) -> JSONResponse:

@@ -72,6 +72,7 @@ from agentdecompile_cli.registry import (
     RESOURCE_URI_DEBUG_INFO,
     RESOURCE_URI_PROGRAMS,
     RESOURCE_URI_STATIC_ANALYSIS,
+    TOOL_PARAM_ALIASES,
     TOOLS,
     Tool,
     get_tool_params,
@@ -1203,8 +1204,14 @@ def _resolve_tool_call_target(tool: str, payload: dict[str, Any]) -> tuple[str, 
     return call_tool_name, resolved_payload
 
 
-async def _call(ctx: click.Context, tool: str | Tool, **kwargs: Any) -> None:
+async def _call(ctx: click.Context, tool: str | Tool, /, **kwargs: Any) -> None:
     """Call tool through the preferred backend for this CLI invocation.
+
+    `tool` is positional-only so a generated tool that itself has a
+    parameter literally named ``tool`` (e.g. ``run-decomp-match``,
+    ``run-external-re-scan``; see registry.py params for
+    Tool.RUN_DECOMP_MATCH / Tool.RUN_EXTERNAL_RE_SCAN) can be forwarded as
+    ``**kwargs`` without colliding with this positional argument.
 
     The CLI prefers an MCP HTTP backend, but when no explicit backend was
     requested it can auto-start a local AgentDecompile server or fall back to
@@ -1264,8 +1271,18 @@ async def _call_raw(
     """
     # Default to markdown for human-readable output. Use -f json when you need
     # machine-readable output (shell/json/xml/table modes parse structured data).
+    #
+    # Guard: skip this for tools where TOOL_PARAM_ALIASES maps "format" onto a
+    # *different* canonical param (currently only inspect-memory: TOOLS_LIST.md
+    # documents `read-memory(..., format)` as a synonym for its `mode` param).
+    # Without this guard, omitting --mode on `memory run` (F10 fix) let this
+    # injected rendering default get aliased into `mode="markdown"` by
+    # _prepare_tool_payload_with_program_fallback below -- silently sending a
+    # bogus mode instead of no key, defeating the backend-default fallback.
     logger.debug("diag.enter %s", "cli.py:_call_raw")
-    payload.setdefault("format", "markdown")
+    _format_alias_target = TOOL_PARAM_ALIASES.get(normalize_identifier(str(tool)), {}).get("format")
+    if not _format_alias_target or _format_alias_target == {"format"}:
+        payload.setdefault("format", "markdown")
 
     call_tool_name, safe_payload = _resolve_tool_call_target(tool, payload)
     prepared_payload, _ = _prepare_tool_payload_with_program_fallback(ctx, call_tool_name, dict(safe_payload))
@@ -2158,9 +2175,140 @@ def _register_output_format_option_on_all_commands(root: click.Command) -> None:
         if isinstance(command, click.Group):
             for subcommand in command.commands.values():
                 _walk(subcommand)
-
     _walk(root)
     _format_options_registered = True
+
+
+# ---------------------------------------------------------------------------
+# Generated-command option typing and required-ness (P3, F10)
+#
+# Evidence source for int/bool classification: the same fragment tables the
+# MCP server itself uses to build the *advertised* JSON schema for these
+# tools -- _INT_FRAGMENTS / _BOOL_FRAGMENTS / _BOOL_PREFIXES /
+# _BOOL_PREFIX_EXCEPTIONS in agentdecompile_cli/mcp_server/tool_providers.py
+# (~lines 260-355, see _infer_param_schema()). Copied rather than imported so
+# the lightweight CLI module does not pull in the mcp_server package's much
+# heavier import surface (launcher/session/Ghidra-adjacent modules) just to
+# read a couple of frozensets.
+#
+# Deliberate additions beyond the verbatim copy, each with its own citation:
+#   - "maxfiles": mcp_server/providers/context_substrate.py:85 declares it
+#     `"type": "integer"` explicitly and :162 reads it via `_get_int`; the
+#     substring-based guess previously classified it as a click.Path because
+#     the name contains "file" (P3 repro: `max_files` became a Path option).
+_CLI_INT_FRAGMENTS: frozenset[str] = frozenset(
+    {
+        "batchsize", "bottomlayers", "callers", "condensethreshold", "count",
+        "depth", "entries", "height", "index", "length", "limit", "linenumber",
+        "max", "maxcallers", "maxcount", "maxdepth", "maxentries", "maxfiles",
+        "maxfunctions", "maxinstructions", "maxreferencers", "maxresults",
+        "maxruntime", "maxvalue", "min", "minreferencecount", "minsimilarity",
+        "minvalue", "offset", "propagatemaxcandidates",
+        "propagatemaxinstructions", "referencecount", "results", "serverport",
+        "size", "startindex", "toplayers", "topn", "value", "width",
+    },
+)
+_CLI_BOOL_FRAGMENTS: frozenset[str] = frozenset(
+    {
+        "analyzeafterimport", "casesensitive", "clearexisting",
+        "createifnotexists", "demangleall", "enableversioncontrol",
+        "exclusive", "filterdefaultnames", "force", "groupbylibrary",
+        "hastags", "include", "includebuiltin", "includecallcontext",
+        "includecallees", "includecallers", "includecomments",
+        "includedatarefs", "includeexternal", "includeincomingreferences",
+        "includeparameters", "includerefcontext", "includereferencecontext",
+        "includereferencingfunctions", "includerefs", "includesmallvalues",
+        "includesubcategories", "includevariables", "keepcheckedout",
+        "mirrorfs", "openallprograms", "overridemaxfunctionslimit", "packed",
+        "propagate", "propagatecomments", "propagatenames", "propagatetags",
+        "recursive", "removeall", "setasprimary", "stripallcontainerpath",
+        "stripleadingpath", "untagged", "verbose",
+    },
+)
+_CLI_BOOL_PREFIXES: tuple[str, ...] = (
+    "enable", "filter", "include", "mirror", "override", "propagate", "strip",
+)
+_CLI_BOOL_PREFIX_EXCEPTIONS: frozenset[str] = frozenset({"filterbytag"})
+
+
+class _HexAwareIntParamType(click.ParamType):
+    """Integer option type that also accepts 0x/0o/0b-prefixed literals.
+
+    P3 repro: `search-constants --max-value 0x20` was rejected by plain
+    click.INT ("0x20 is not a valid integer") even though min/max-value are
+    genuinely numeric (mcp_server/providers/constants.py:127-128 read them
+    via `_get_int`). Parsing here (base 0) means the CLI sends a real Python
+    int downstream, so `_coerce_int()`'s `isinstance(v, int)` fast path is
+    used and no provider-side change is needed. Plain decimal input keeps
+    working exactly as before.
+    """
+
+    name = "integer"
+
+    def convert(self, value: Any, param: click.Parameter | None, ctx: click.Context | None) -> int:
+        if isinstance(value, int):
+            return value
+        try:
+            return int(str(value), 0)
+        except (TypeError, ValueError):
+            self.fail(f"{value!r} is not a valid integer (decimal or 0x/0o/0b-prefixed)", param, ctx)
+
+
+_CLI_HEX_INT = _HexAwareIntParamType()
+
+
+def _generated_option_type(param: str) -> Any:
+    """Derive a generated command's click option type from evidenced fragments (P3).
+
+    Order matters: a param must be checked against the bool/int fragment
+    tables *before* falling back to the path/file substring guess, otherwise
+    real booleans and integers whose names happen to contain "path" or
+    "file" (stripLeadingPath, stripAllContainerPath, maxFiles) get
+    misclassified as click.Path. Anything not covered by evidence stays
+    `str` (conservative fallback per R3), which the provider parses itself.
+    """
+    norm = normalize_identifier(param)
+    if norm in _CLI_BOOL_FRAGMENTS:
+        return bool
+    if norm not in _CLI_BOOL_PREFIX_EXCEPTIONS:
+        for prefix in _CLI_BOOL_PREFIXES:
+            if norm.startswith(prefix) and len(norm) > len(prefix):
+                return bool
+    if norm in _CLI_INT_FRAGMENTS:
+        return _CLI_HEX_INT
+    if "path" in param.lower() or "file" in param.lower():
+        return click.Path(exists=False)
+    return str
+
+
+# Genuinely-required (tool, param) pairs for generated commands: the provider
+# raises (no default, no alternate alias) when the param is omitted. Anything
+# not listed here is optional -- omitting it sends no key so the backend's
+# own default (or its own "give me at least one of X/Y/Z" error) applies.
+# Evidence (file:line):
+#   MANAGE_FILES / mode:        providers/project.py:2792 `_require_str(args, "mode", "action", "operation", name="mode")`
+#   MANAGE_FUNCTION / mode:     providers/getfunction.py:349 `_require_str(args, "mode", "action", "operation", name="mode")`
+#   APPLY_DATA_TYPE / addressOrSymbol, dataTypeString: providers/data.py `_handle_apply` -> `_require_address_or_symbol` + `_require_str(..., name="dataType")`
+#   CREATE_LABEL / addressOrSymbol, labelName: providers/symbols.py `_create_label` -> `_require_str(..., name="addressOrSymbol")` + `_require_str(..., name="labelName")`
+#   GET_DATA / addressOrSymbol: providers/data.py `_handle_get` -> `_require_address_or_symbol`
+#
+# Params that were previously force-required by the blanket
+# `param in ["addressOrSymbol", "action", "mode"]` rule but are NOT listed
+# here because the provider has a documented default (mode/action) or
+# accepts an alternate alias flag (e.g. get-function accepts `function`,
+# `addressOrSymbol`, or `functionIdentifier` -- requiring one specific flag
+# name was the bug): analyze-vtables (default "analyze"), inspect-memory
+# (default "blocks"), manage-bookmarks (default "list"), manage-comments
+# (default "get"), manage-structures (default "list"), search-constants
+# (default "common"), manage-function-tags (default "list"), get-function,
+# get-references (no target -> index listing).
+_CLI_GENERATED_REQUIRED_PARAMS: dict[str, frozenset[str]] = {
+    Tool.MANAGE_FILES.value: frozenset({"mode"}),
+    Tool.MANAGE_FUNCTION.value: frozenset({"mode"}),
+    Tool.APPLY_DATA_TYPE.value: frozenset({"addressOrSymbol", "dataTypeString"}),
+    Tool.CREATE_LABEL.value: frozenset({"addressOrSymbol", "labelName"}),
+    Tool.GET_DATA.value: frozenset({"addressOrSymbol"}),
+}
 
 
 def _create_dynamic_commands(cli_group: click.Group) -> None:
@@ -2205,14 +2353,15 @@ def _create_dynamic_commands(cli_group: click.Group) -> None:
                     if v and not args.get("path"):
                         args["path"] = str(v).strip()
 
-            # Call the tool using the unified registry
+            # Call the tool using the unified registry. Exceptions are left
+            # to propagate to _run_async, which formats them via
+            # handle_command_error() and then sys.exit(1)s (matching
+            # hand-written commands). Catching and swallowing here would
+            # make _run_async see a normal return and exit 0 on error.
             async def _run():
-                try:
-                    result: Any = await _call(ctx, _tool_name, **args)
-                    if result:
-                        click.echo(result)
-                except Exception as e:
-                    handle_command_error(e)
+                result: Any = await _call(ctx, _tool_name, **args)
+                if result:
+                    click.echo(result)
 
             _run_async(_run())
 
@@ -2221,18 +2370,15 @@ def _create_dynamic_commands(cli_group: click.Group) -> None:
             snake_param: str = to_snake_case(param)
             option_name: str = f"--{snake_param}"
 
-            # Determine option type based on parameter name
-            if "path" in param.lower() or "file" in param.lower():
-                option_type = click.Path(exists=False)
-            elif "limit" in param.lower() or "max" in param.lower() or param in ["timeout", "maxRunTime"]:
-                option_type = int
-            elif param in ["includeSignature", "includeRefs", "caseSensitive", "setAsPrimary"]:
-                option_type = bool
-            else:
-                option_type = str
+            # Determine option type from evidenced fragment tables (P3), not
+            # raw name-substring guessing. See _generated_option_type().
+            option_type = _generated_option_type(param)
 
-            # Check if parameter is required (programPath resolves from session / env when omitted)
-            required: bool = param in ["addressOrSymbol", "action", "mode"]
+            # Genuinely-required per-tool params only (F10); see
+            # _CLI_GENERATED_REQUIRED_PARAMS for the evidence table. Omitting
+            # everything else sends no key so the backend's own default (or
+            # its own multi-alias "give me at least one of" check) applies.
+            required: bool = param in _CLI_GENERATED_REQUIRED_PARAMS.get(tool_name, frozenset())
 
             # Add the option decorator
             tool_command = click.option(
@@ -3148,7 +3294,9 @@ def symbols_grp() -> None:
             "demangle",
         ],
     ),
-    required=True,
+    default=None,
+    help="Symbol operation mode. Defaults to the backend's own default "
+    "(mode=symbols; mcp_server/providers/symbols.py:334) when omitted.",
 )
 @click.option("--address", multiple=True)
 @click.option("--label-name", "label_name", multiple=True)
@@ -3171,7 +3319,7 @@ def symbols_grp() -> None:
 def symbols_run(
     ctx: click.Context,
     program_path: str | None,
-    mode: str,
+    mode: str | None,
     address: tuple[str, ...],
     label_name: tuple[str, ...],
     new_name: tuple[str, ...],
@@ -3184,7 +3332,9 @@ def symbols_run(
     demangle_all: bool | None,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:symbols_run")
-    payload: dict[str, Any] = {"mode": mode}
+    payload: dict[str, Any] = {}
+    if mode is not None:
+        payload["mode"] = mode
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path
     if address:
@@ -3649,7 +3799,13 @@ def memory_grp() -> None:
 
 @memory_grp.command("run", help="Run inspect-memory with --mode")
 @click.option("-b", "--binary", "program_path")
-@click.option("--mode", type=click.Choice(["blocks", "read", "data_at", "data_items", "segments"]), required=True)
+@click.option(
+    "--mode",
+    type=click.Choice(["blocks", "read", "data_at", "data_items", "segments"]),
+    default=None,
+    help="Defaults to the backend's own default (mode=blocks; "
+    "mcp_server/providers/memory.py:124) when omitted.",
+)
 @click.option("--address")
 @click.option("--length", type=int)
 @click.option("--offset", type=int)
@@ -3657,13 +3813,15 @@ def memory_grp() -> None:
 def memory_run(
     ctx: click.Context,
     program_path: str | None,
-    mode: str,
+    mode: str | None,
     address: str | None,
     length: int | None,
     offset: int | None,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:memory_run")
-    payload: dict[str, Any] = {"mode": mode}
+    payload: dict[str, Any] = {}
+    if mode is not None:
+        payload["mode"] = mode
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path
     if address is not None and address.strip():
@@ -3844,7 +4002,13 @@ def datatypes_grp() -> None:
 
 @datatypes_grp.command("run", help="Run manage-data-types with --action")
 @click.option("-b", "--binary", "program_path")
-@click.option("--action", type=click.Choice(["archives", "list", "by_string", "apply"]), required=True)
+@click.option(
+    "--action",
+    type=click.Choice(["archives", "list", "by_string", "apply"]),
+    default=None,
+    help="Defaults to the backend's own default (action=list; "
+    "mcp_server/providers/datatypes.py:103) when omitted.",
+)
 @click.option("--archive-name")
 @click.option("--category-path", default="/")
 @click.option("--include-subcategories", is_flag=True)
@@ -3855,7 +4019,7 @@ def datatypes_grp() -> None:
 def datatypes_run(
     ctx: click.Context,
     program_path: str | None,
-    action: str,
+    action: str | None,
     archive_name: str | None,
     category_path: str,
     include_subcategories: bool,
@@ -3864,7 +4028,9 @@ def datatypes_run(
     address_or_symbol: str | None,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:datatypes_run")
-    payload: dict[str, Any] = {"action": action}
+    payload: dict[str, Any] = {}
+    if action is not None:
+        payload["action"] = action
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path
     if archive_name is not None:
@@ -3912,7 +4078,9 @@ def structures_grp() -> None:
             "parse_header",
         ],
     ),
-    required=True,
+    default=None,
+    help="Defaults to the backend's own default (action=list; "
+    "mcp_server/providers/structures.py:122) when omitted.",
 )
 @click.option("--c-definition")
 @click.option("--header-content")
@@ -3933,7 +4101,7 @@ def structures_grp() -> None:
 def structures_run(
     ctx: click.Context,
     program_path: str | None,
-    action: str,
+    action: str | None,
     c_definition: str | None,
     header_content: str | None,
     structure_name: str | None,
@@ -3951,7 +4119,9 @@ def structures_run(
     include_built_in: bool,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:structures_run")
-    payload: dict[str, Any] = {"action": action}
+    payload: dict[str, Any] = {}
+    if action is not None:
+        payload["action"] = action
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path
     if c_definition is not None:
@@ -4011,7 +4181,13 @@ def comments_grp() -> None:
 
 @comments_grp.command("run", help="Run manage-comments with --action")
 @click.option("-b", "--binary", "program_path")
-@click.option("--action", type=click.Choice(["set", "get", "remove", "search", "search_decomp"]), required=True)
+@click.option(
+    "--action",
+    type=click.Choice(["set", "get", "remove", "search", "search_decomp"]),
+    default=None,
+    help="Defaults to the backend's own default (action=get; "
+    "mcp_server/providers/comments.py:127) when omitted.",
+)
 @click.option("--address-or-symbol")
 @click.option("--function")
 @click.option("--line-number", type=int)
@@ -4029,7 +4205,7 @@ def comments_grp() -> None:
 def comments_run(
     ctx: click.Context,
     program_path: str | None,
-    action: str,
+    action: str | None,
     address_or_symbol: str | None,
     function: str | None,
     line_number: int | None,
@@ -4045,7 +4221,9 @@ def comments_run(
     override_max_functions_limit: bool,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:comments_run")
-    payload: dict[str, Any] = {"action": action}
+    payload: dict[str, Any] = {}
+    if action is not None:
+        payload["action"] = action
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path
     if address_or_symbol is not None:
@@ -4103,7 +4281,13 @@ def bookmarks_grp() -> None:
 
 @bookmarks_grp.command("run", help="Run manage-bookmarks with --action")
 @click.option("-b", "--binary", "program_path")
-@click.option("--action", type=click.Choice(["set", "get", "search", "remove", "removeAll", "categories"]), required=True)
+@click.option(
+    "--action",
+    type=click.Choice(["set", "get", "search", "remove", "removeAll", "categories"]),
+    default=None,
+    help="Defaults to the backend's own default (action=list; "
+    "mcp_server/providers/bookmarks.py:86-89) when omitted.",
+)
 @click.option("--address-or-symbol")
 @click.option("--type", "type_", type=click.Choice(["Note", "Warning", "TODO", "Bug", "Analysis"]))
 @click.option("--category")
@@ -4115,7 +4299,7 @@ def bookmarks_grp() -> None:
 def bookmarks_run(
     ctx: click.Context,
     program_path: str | None,
-    action: str,
+    action: str | None,
     address_or_symbol: str | None,
     type_: str | None,
     category: str | None,
@@ -4125,7 +4309,9 @@ def bookmarks_run(
     remove_all: bool,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:bookmarks_run")
-    payload: dict[str, Any] = {"action": action}
+    payload: dict[str, Any] = {}
+    if action is not None:
+        payload["action"] = action
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path
     if address_or_symbol is not None:
@@ -4167,7 +4353,13 @@ _derive_convenience_commands(
 @click.option("--function-address", "function_address", required=True)
 @click.option("--start-address", "start_address")
 @click.option("--variable-name", "variable_name")
-@click.option("--direction", type=click.Choice(["backward", "forward", "variable_accesses"]), required=True)
+@click.option(
+    "--direction",
+    type=click.Choice(["backward", "forward", "variable_accesses"]),
+    default=None,
+    help="Defaults to the backend's own default (direction=backward; "
+    "mcp_server/providers/dataflow.py:122) when omitted.",
+)
 @click.pass_context
 def dataflow(
     ctx: click.Context,
@@ -4175,13 +4367,14 @@ def dataflow(
     function_address: str,
     start_address: str | None,
     variable_name: str | None,
-    direction: str,
+    direction: str | None,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:dataflow")
     payload: dict[str, Any] = {
         "functionAddress": function_address,
-        "direction": direction,
     }
+    if direction is not None:
+        payload["direction"] = direction
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path
     if start_address is not None:
@@ -4204,7 +4397,13 @@ def callgraph_grp() -> None:
 
 @callgraph_grp.command("run", help="Run get-call-graph")
 @click.option("-b", "--binary", "program_path")
-@click.option("--function", "function_identifier", required=True)
+@click.option(
+    "--function",
+    "function_identifier",
+    default=None,
+    help="Function identifier. Omit for a whole-program overview "
+    "(mcp_server/providers/callgraph.py:97-98: no function -> _handle_overview).",
+)
 @click.option("--mode", type=click.Choice(["graph", "tree", "callers", "callees", "callers_decomp", "common_callers"]), default="graph")
 @click.option("--depth", type=int)
 @click.option(
@@ -4221,7 +4420,7 @@ def callgraph_grp() -> None:
 def callgraph_run(
     ctx: click.Context,
     program_path: str | None,
-    function_identifier: str,
+    function_identifier: str | None,
     mode: str,
     depth: int | None,
     direction: str | None,
@@ -4232,7 +4431,9 @@ def callgraph_run(
     function_addresses: str | None,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:callgraph_run")
-    payload: dict[str, Any] = {"functionIdentifier": function_identifier, "mode": mode}
+    payload: dict[str, Any] = {"mode": mode}
+    if function_identifier is not None:
+        payload["functionIdentifier"] = function_identifier
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path
     if depth is not None:
@@ -4282,7 +4483,13 @@ def constants_grp() -> None:
 
 @constants_grp.command("run", help="Run search-constants")
 @click.option("-b", "--binary", "program_path")
-@click.option("--mode", type=click.Choice(["specific", "range", "common"]), required=True)
+@click.option(
+    "--mode",
+    type=click.Choice(["specific", "range", "common"]),
+    default=None,
+    help="Defaults to the backend's own default (mode=common; "
+    "mcp_server/providers/constants.py:78) when omitted.",
+)
 @click.option("--value")
 @click.option("--min-value")
 @click.option("--max-value")
@@ -4291,14 +4498,16 @@ def constants_grp() -> None:
 def constants_run(
     ctx: click.Context,
     program_path: str | None,
-    mode: str,
+    mode: str | None,
     value: str | None,
     min_value: str | None,
     max_value: str | None,
     include_small_values: bool,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:constants_run")
-    payload: dict[str, Any] = {"mode": mode}
+    payload: dict[str, Any] = {}
+    if mode is not None:
+        payload["mode"] = mode
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path
     if value is not None:
@@ -4333,7 +4542,13 @@ def vtables_grp() -> None:
 
 @vtables_grp.command("run", help="Run analyze-vtables")
 @click.option("-b", "--binary", "program_path")
-@click.option("--mode", type=click.Choice(["analyze", "callers", "containing"]), required=True)
+@click.option(
+    "--mode",
+    type=click.Choice(["analyze", "callers", "containing"]),
+    default=None,
+    help="Defaults to the backend's own default (mode=analyze; "
+    "mcp_server/providers/vtable.py:80) when omitted.",
+)
 @click.option("--vtable-address")
 @click.option("--function-address")
 @click.option("--max-entries", type=int)
@@ -4341,13 +4556,15 @@ def vtables_grp() -> None:
 def vtables_run(
     ctx: click.Context,
     program_path: str | None,
-    mode: str,
+    mode: str | None,
     vtable_address: str | None,
     function_address: str | None,
     max_entries: int | None,
 ) -> None:
     logger.debug("diag.enter %s", "cli.py:vtables_run")
-    payload: dict[str, Any] = {"mode": mode}
+    payload: dict[str, Any] = {}
+    if mode is not None:
+        payload["mode"] = mode
     if program_path is not None and program_path.strip():
         payload["programPath"] = program_path
     if vtable_address is not None:

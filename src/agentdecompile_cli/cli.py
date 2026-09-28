@@ -1762,22 +1762,111 @@ def _run_async(coro: Coroutine[Any, Any, None]) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _declares_format_param(cmd: click.Command | FunctionType) -> bool:
+    """True when `cmd` already declares a parameter named `format`.
+
+    Options attached by decorator live on the function as `__click_params__`
+    until click builds the Command, so check both places.
+    """
+    logger.debug("diag.enter %s", "cli.py:_declares_format_param")
+    pending: list[Any] = list(getattr(cmd, "__click_params__", []))
+    built: list[Any] = list(getattr(cmd, "params", []))
+    return any(getattr(param, "name", None) == "format" for param in pending + built)
+
+
+_BACKEND_EXPLICIT_MARKERS: dict[str, str] = {
+    "host": "backend_host_explicit",
+    "port": "backend_port_explicit",
+    "server_url": "backend_cli_url_explicit",
+}
+
+
+def _set_backend_option_override(
+    ctx: click.Context,
+    param: click.Parameter,
+    value: Any,
+) -> Any:
+    """Apply a per-command --host/--port/--server-url to the root options.
+
+    The connection target is read from the root context (`_get_opts`), so a
+    per-command flag only routes if it lands there. It must also mark the backend
+    as explicit: `main` decides auto-local mode from those markers, and an
+    explicit backend must not fall back to in-process execution.
+    """
+    logger.debug("diag.enter %s", "cli.py:_set_backend_option_override")
+    if value is None:
+        return value
+    root_ctx = ctx.find_root()
+    if root_ctx.obj is None:
+        root_ctx.obj = {}
+    opts: dict[str, Any] = root_ctx.obj
+    opts[param.name] = value
+    opts[_BACKEND_EXPLICIT_MARKERS[param.name]] = True
+    opts["backend_cli_explicit"] = True
+    if opts.get("auto_local_mode"):
+        # Local mode was only on because no backend had been named. Keep it only
+        # when it was requested: --local, AGENTDECOMPILE_LOCAL_MODE, or a pre-existing obj's local_mode.
+        opts["auto_local_mode"] = False
+        opts["local_mode"] = bool(opts.get("local_mode_requested"))
+    return value
+
+
 def _add_global_options(cmd: click.Command | FunctionType) -> click.Command | FunctionType:
     logger.debug("diag.enter %s", "cli.py:_add_global_options")
-    cmd = click.option("--host", default="127.0.0.1", help="Server host")(cmd)
-    cmd = click.option("--port", type=int, default=8080, help="Server port")(cmd)
+    # Connection and format settings, not tool arguments: they update the root
+    # options as the top-level flags do and never reach the payload.
+    cmd = click.option(
+        "--host",
+        default=None,
+        expose_value=False,
+        callback=_set_backend_option_override,
+        help="Server host (same as the top-level --host).",
+    )(cmd)
+    cmd = click.option(
+        "--port",
+        type=int,
+        default=None,
+        expose_value=False,
+        callback=_set_backend_option_override,
+        help="Server port (same as the top-level --port).",
+    )(cmd)
     cmd = click.option(
         "--server-url",
         "--mcp-server-url",
-        help="Full server URL (overrides --host/--port)",
+        "server_url",
+        default=None,
+        expose_value=False,
+        callback=_set_backend_option_override,
+        help="Full server URL, overrides --host/--port (same as the top-level --server-url).",
     )(cmd)
-    cmd = click.option(
-        "-f",
-        "--format",
-        type=str,
-        default=_DEFAULT_OUTPUT_FORMAT,
-        help=("Output format (default: text). Use -f/--format json only when you strictly need machine-readable output; text/markdown is recommended."),
-    )(cmd)
+    # A few tools own a `format` parameter of their own (export, gen-callgraph,
+    # export-context, manage-files). Stacking the output-format flag on those
+    # declares --format twice and lets one declaration silently win, so the long
+    # flag is left to the tool. `-f` still selects output format there: it is
+    # attached separately, and because it does not expose a value it cannot
+    # collide with the tool's own `format` parameter or leak into the request.
+    if _declares_format_param(cmd):
+        cmd = click.option(
+            "-f",
+            type=str,
+            default=None,
+            expose_value=False,
+            callback=_set_output_format_option,
+            help="Output format (default: text). This command's --format is its own parameter.",
+        )(cmd)
+    else:
+        # Same handling as the top-level -f/--format: it updates the root render
+        # option and never reaches the payload, so `_call_raw`'s markdown
+        # default for the request is preserved.
+        cmd = click.option(
+            "-f",
+            "--format",
+            type=str,
+            default=None,
+            expose_value=False,
+            callback=_set_output_format_option,
+            help=("Output format (default: text). Use -f/--format json only when you strictly need machine-readable output; text/markdown is recommended."),
+        )(cmd)
     return cmd
 
 
@@ -1972,7 +2061,21 @@ def _is_cli_result_limit_param(param: str) -> bool:
 def _supported_cli_tool_params(tool_name: str) -> list[str]:
     logger.debug("diag.enter %s", "cli.py:_supported_cli_tool_params")
     params: list[str] = get_tool_params(tool_name)
-    return [param for param in params if not _is_cli_result_limit_param(param)]
+    # `get_tool_params` can return one parameter twice: `_canonical_param_name`
+    # collapses every MODE_PARAM_ALIASES synonym onto `mode`, so a tool carrying
+    # both `mode` and a synonym such as `type` yields `mode` twice
+    # (manage-bookmarks and manage-structures do today). A repeat would declare
+    # the option twice and let one declaration silently win. Key on the canonical
+    # identifier, since that -- not the raw spelling -- is what collides.
+    seen: set[str] = set()
+    unique: list[str] = []
+    for param in params:
+        key: str = normalize_identifier(param)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(param)
+    return [param for param in unique if not _is_cli_result_limit_param(param)]
 
 
 def _tool_signature(tool_name: str) -> str:
@@ -2190,6 +2293,7 @@ def main(
         "cli_default_binary_name": bn or existing_obj.get("cli_default_binary_name"),
         "format": existing_obj.get("format", format),
         "local_mode": local_mode or auto_local_mode or existing_obj.get("local_mode", False),
+        "local_mode_requested": local_mode or existing_obj.get("local_mode_requested", existing_obj.get("local_mode", False)),
         "local_project_path": (local_project_path or "").strip() or existing_obj.get("local_project_path") or None,
         "local_project_name": (local_project_name or "").strip() or existing_obj.get("local_project_name") or "agentdecompile",
     }
@@ -2539,8 +2643,8 @@ def data_apply_type(
 @data_grp.command("create-label", help="Create label at address (create-label)")
 @click.option("-b", "--binary", "program_path")
 @click.argument("address_or_symbol")
-@click.option("--name", "labelName", required=True)
-@click.option("--primary", "setAsPrimary", is_flag=True)
+@click.option("--name", "label_name", required=True)
+@click.option("--primary", "set_as_primary", is_flag=True)
 @click.pass_context
 def data_create_label(
     ctx: click.Context,
@@ -3123,22 +3227,22 @@ def function_grp() -> None:
 @click.option("-b", "--binary", "program_path")
 @click.option("--action", type=click.Choice(["create", "rename_function", "rename_variable", "set_prototype", "set_variable_type", "change_datatypes"]), required=True)
 @click.option("--address", multiple=True)
-@click.option("--function-identifier", "functionIdentifier", multiple=True)
+@click.option("--function-identifier", "function_identifier", multiple=True)
 @click.option("--name")
 @click.option("--functions", help="JSON array of function rename objects")
-@click.option("--old-name", "oldName")
-@click.option("--new-name", "newName")
-@click.option("--variable-mappings", "variableMappings", help="oldName1:newName1,oldName2:newName2")
+@click.option("--old-name", "old_name")
+@click.option("--new-name", "new_name")
+@click.option("--variable-mappings", "variable_mappings", help="oldName1:newName1,oldName2:newName2")
 @click.option("--prototype", "prototype", multiple=True)
-@click.option("--variable-name", "variableName")
-@click.option("--new-type", "newType")
-@click.option("--datatype-mappings", "datatypeMappings", help="varName1:type1,varName2:type2")
-@click.option("--archive-name", "archiveName")
-@click.option("--create-if-not-exists/--no-create-if-not-exists", "createIfNotExists", default=True)
+@click.option("--variable-name", "variable_name")
+@click.option("--new-type", "new_type")
+@click.option("--datatype-mappings", "datatype_mappings", help="varName1:type1,varName2:type2")
+@click.option("--archive-name", "archive_name")
+@click.option("--create-if-not-exists/--no-create-if-not-exists", "create_if_not_exists", default=True)
 @click.option("--propagate/--no-propagate", default=True)
-@click.option("--propagate-program-paths", "propagateProgramPaths", multiple=True)
-@click.option("--propagate-max-candidates", "propagateMaxCandidates", type=int)
-@click.option("--propagate-max-instructions", "propagateMaxInstructions", type=int)
+@click.option("--propagate-program-paths", "propagate_program_paths", multiple=True)
+@click.option("--propagate-max-candidates", "propagate_max_candidates", type=int)
+@click.option("--propagate-max-instructions", "propagate_max_instructions", type=int)
 @click.pass_context
 def function_run(
     ctx: click.Context,
@@ -3246,17 +3350,17 @@ def function_tags_run(
 
 @main.command("match-function", help=f"Match functions across programs ({Tool.MATCH_FUNCTION.value})")
 @click.option("-b", "--binary", "program_path")
-@click.option("--function-identifier", "functionIdentifier", multiple=True)
-@click.option("--target-program-paths", "targetProgramPaths", multiple=True)
-@click.option("--max-instructions", "maxInstructions", type=int)
-@click.option("--min-similarity", "minSimilarity", type=float)
-@click.option("--propagate-names/--no-propagate-names", "propagateNames", default=True)
-@click.option("--propagate-tags/--no-propagate-tags", "propagateTags", default=True)
-@click.option("--propagate-comments/--no-propagate-comments", "propagateComments", default=False)
-@click.option("--filter-default-names/--no-filter-default-names", "filterDefaultNames", default=True)
-@click.option("--filter-by-tag", "filterByTag")
-@click.option("--max-functions", "maxFunctions", type=int)
-@click.option("--batch-size", "batchSize", type=int)
+@click.option("--function-identifier", "function_identifier", multiple=True)
+@click.option("--target-program-paths", "target_program_paths", multiple=True)
+@click.option("--max-instructions", "max_instructions", type=int)
+@click.option("--min-similarity", "min_similarity", type=float)
+@click.option("--propagate-names/--no-propagate-names", "propagate_names", default=True)
+@click.option("--propagate-tags/--no-propagate-tags", "propagate_tags", default=True)
+@click.option("--propagate-comments/--no-propagate-comments", "propagate_comments", default=False)
+@click.option("--filter-default-names/--no-filter-default-names", "filter_default_names", default=True)
+@click.option("--filter-by-tag", "filter_by_tag")
+@click.option("--max-functions", "max_functions", type=int)
+@click.option("--batch-size", "batch_size", type=int)
 @click.pass_context
 def match_function(
     ctx: click.Context,
@@ -4092,9 +4196,9 @@ for _action in ("set", "get", "search", "remove", "categories"):
 
 @main.command("dataflow", help="Trace data flow (analyze-data-flow): backward, forward, variable_accesses")
 @click.option("-b", "--binary", "program_path")
-@click.option("--function-address", "functionAddress", required=True)
-@click.option("--start-address", "startAddress")
-@click.option("--variable-name", "variableName")
+@click.option("--function-address", "function_address", required=True)
+@click.option("--start-address", "start_address")
+@click.option("--variable-name", "variable_name")
 @click.option("--direction", type=click.Choice(["backward", "forward", "variable_accesses"]), required=True)
 @click.pass_context
 def dataflow(
@@ -4379,11 +4483,11 @@ for _mode in ("analyze", "callers", "containing"):
 
 @main.command("suggest", help="Context-aware suggestions (suggest): comments, names, tags, types")
 @click.option("-b", "--binary", "program_path")
-@click.option("--suggestion-type", "suggestionType", required=True)
+@click.option("--suggestion-type", "suggestion_type", required=True)
 @click.option("--address")
 @click.option("--function")
-@click.option("--data-type", "dataType")
-@click.option("--variable-address", "variableAddress")
+@click.option("--data-type", "data_type")
+@click.option("--variable-address", "variable_address")
 @click.pass_context
 def suggest_cmd(
     ctx: click.Context,
@@ -4422,7 +4526,7 @@ def suggest_cmd(
 )
 @click.option("-b", "--binary", "program_path", default=None, help="Program path to check in. Omit to check in all open programs that can be checked in.")
 @click.option("-m", "--message", "comment", default=None, help="Checkin comment (default: 'AgentDecompile checkin').")
-@click.option("--keep-checked-out", "keepCheckedOut", is_flag=True)
+@click.option("--keep-checked-out", "keep_checked_out", is_flag=True)
 @click.pass_context
 def checkin(
     ctx: click.Context,
@@ -4456,8 +4560,8 @@ def analyze(ctx: click.Context, program_path: str | None, force: bool) -> None:
 
 @main.command("change-processor", help="Change processor (change-processor)")
 @click.option("-b", "--binary", "program_path")
-@click.option("--language-id", "languageId", required=True)
-@click.option("--compiler-spec-id", "compilerSpecId")
+@click.option("--language-id", "language_id", required=True)
+@click.option("--compiler-spec-id", "compiler_spec_id")
 @click.pass_context
 def change_processor(
     ctx: click.Context,
@@ -4736,7 +4840,7 @@ def open_in_code_browser(ctx: click.Context, program_path: str | None) -> None:
 # TODO: GUI Only tools/commands
 @main.command("open-all-in-code-browser", help="Open all programs matching extensions in Code Browser (open-all-programs-in-code-browser, GUI)")
 @click.option("--extensions", default="exe,dll", help="Comma-separated file extensions to open (default: exe,dll)")
-@click.option("--folder-path", "folderPath", default="/", help="Project folder to search (default: /)")
+@click.option("--folder-path", "folder_path", default="/", help="Project folder to search (default: /)")
 @click.pass_context
 def open_all_in_code_browser(
     ctx: click.Context,

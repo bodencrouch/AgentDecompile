@@ -37,9 +37,13 @@ available; those gaps are named, not closed, below.
   it is the concrete reason U126 requires the fleet to hold two keys with disjoint ancestry: one
   issuer cannot self-certify its own invitees.
 - **View materialization of a cross-root verified record.** `adgrid view materialize` on `rootA`
-  replayed the full chain (`applied: 7`, `verified_rows: 1`) once every signer in it (`peerB`,
-  `verifierC`, and `opA`'s own null-signed TASK) had an explicit trust-file entry; the recomputed
-  digest read back byte-identical to the independently computed `sha256sum` of the input.
+  replayed the full chain (`applied: 7`, `verified_rows: 1`) once the two *node*-signed identities
+  in it (`peerB`, `verifierC`) each had an explicit `keys/trusted/*.json` entry; the recomputed
+  digest read back byte-identical to the independently computed `sha256sum` of the input. The
+  TASK record itself (seq 1, `signer_key: null`) is trusted separately, through
+  `ADGRID_KEYRING__ALLOW_NULL=true` on both roots (the same one-host opt-in named in the
+  walkthrough addendum) — this trace does not show `allow_null` being avoidable, only that the
+  *node*-key layer can be trusted without it, purely through per-key trust files.
 
 Full command sequence and raw JSON: `multi-node/01..11-*.txt` in the delivered sequence
 (`grid-of-one/multi-node/` under the 2026-09-28 deliverables root).

@@ -380,6 +380,60 @@ def find_long_key_record(buffer_file, root_buffer_id, schema, wanted):
     raise BTreeError(f"b-tree deeper than {_MAX_DEPTH}; refusing to descend further")
 
 
+def iter_long_key_range(buffer_file, root_buffer_id, schema, low, high):
+    """Yield `(key, record_bytes)` for long keys in [low, high), in key order.
+
+    Descends to the leaf holding `low` the same way find_long_key_record does,
+    then follows the leaf chain until a key reaches `high`.
+    """
+
+    if root_buffer_id is None or root_buffer_id < 0 or high <= low:
+        return
+    current_id = root_buffer_id
+    node = b""
+    for _ in range(_MAX_DEPTH):
+        node = buffer_file.read_buffer(current_id)
+        if node_type(node) != LONGKEY_INTERIOR_NODE:
+            break
+        count = key_count(node)
+        if count <= 0:
+            raise BTreeError(f"interior node {current_id} declares no children")
+        lo, hi, pick = 0, count - 1, 0
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            (key,) = struct.unpack_from(">q", node, _INTERIOR_BASE + mid * _INTERIOR_ENTRY_SIZE)
+            if key <= low:
+                pick = mid
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        (current_id,) = struct.unpack_from(">i", node, _INTERIOR_BASE + pick * _INTERIOR_ENTRY_SIZE + 8)
+    else:
+        raise BTreeError(f"b-tree deeper than {_MAX_DEPTH}; refusing to descend further")
+    seen = set()
+    while True:
+        if current_id in seen:
+            raise BTreeError(f"leaf chain revisits buffer {current_id}; database is corrupt")
+        seen.add(current_id)
+        kind = node_type(node)
+        if kind == LONGKEY_VAR_REC_NODE:
+            records = _iter_var_rec_leaf(buffer_file, node)
+        elif kind == LONGKEY_FIXED_REC_NODE:
+            records = _iter_fixed_rec_leaf(node, fixed_record_length(schema))
+        else:
+            raise BTreeError(f"keyed range expects a long-key tree, found node type {kind}")
+        for key, record in records:
+            if key >= high:
+                return
+            if key >= low:
+                yield key, record
+        (next_leaf,) = struct.unpack_from(">i", node, NEXT_LEAF_ID_OFFSET)
+        if next_leaf < 0:
+            return
+        current_id = next_leaf
+        node = buffer_file.read_buffer(current_id)
+
+
 def iter_table_records(
     buffer_file: BufferFile, root_buffer_id: int, schema: Schema
 ) -> Iterator[tuple[Any, bytes]]:

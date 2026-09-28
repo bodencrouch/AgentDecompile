@@ -1845,13 +1845,31 @@ def _parse_ref_blob(prog, data: bytes, count: int) -> list[tuple[int, int]]:
     if rec < 9:
         return []
     out: list[tuple[int, int]] = []
+    # Each entry is address(8) flags(1) refType(1) operandIndex(1). The type is
+    # Ghidra's RefType value; fold it into the kind codes _REF_KIND names
+    # (1 data, 3 call, 4 jump, 6 computed jump, 7 computed call).
+    calls = {3, 4, 9, 11, 16, 18}
+    computed_calls = {8, 10, 12}
+    jumps = {1, 2, 14, 17, 19}
+    computed_jumps = {6, 13}
     for index in range(int(count)):
         chunk = data[index * rec : (index + 1) * rec]
         encoded = int.from_bytes(chunk[:8], "big")
         va = prog.virtual_address(encoded)
         if va is None:
             continue
-        out.append((int(va), int(chunk[8])))
+        ref_type = int(chunk[9]) if len(chunk) > 9 else int(chunk[8])
+        if ref_type in calls:
+            kind = 3
+        elif ref_type in computed_calls:
+            kind = 7
+        elif ref_type in jumps:
+            kind = 4
+        elif ref_type in computed_jumps:
+            kind = 6
+        else:
+            kind = 1
+        out.append((int(va), kind))
     return out
 
 
@@ -1883,10 +1901,46 @@ def _ref_row(prog, table_name, key_name, wanted, raw_key):
     table = find_table(prog.buffer_file, table_name)
     if table is None:
         return None
+    if raw_key >= 1 << 63:
+        # Tree keys are signed longs; the decoded address keeps the unsigned form.
+        raw_key -= 1 << 64
     try:
         return find_row(prog.buffer_file, table, raw_key)
     except BTreeError:
         return _lookup_ref_row(prog, table_name, key_name, wanted)
+
+
+def _body_ref_rows(prog, table_name, raw_low, span):
+    """FROM-style ref rows for every instruction key in one function body.
+
+    FROM REFS is keyed by the referencing instruction, so a function's calls sit
+    under the keys between its entry and the next function, not under the entry.
+    Returns None when the keyed read is not possible, so the caller keeps the
+    entry-only row.
+    """
+    from agentdecompile_recovery.ghidra_db.btree import BTreeError
+    from agentdecompile_recovery.ghidra_db.master_table import find_table, iter_rows_in_range
+
+    if raw_low is None or span <= 0:
+        return None
+    # The offset is the low 32 bits of the encoded long; a body that would carry
+    # into the next base index cannot be read as one contiguous key range.
+    if (raw_low & 0xFFFFFFFF) + span > 0x100000000:
+        return None
+    if raw_low >= 1 << 63:
+        raw_low -= 1 << 64
+    table = find_table(prog.buffer_file, table_name)
+    if table is None:
+        return []
+    rows = []
+    try:
+        for row in iter_rows_in_range(prog.buffer_file, table, raw_low, raw_low + span):
+            rows.append(row)
+            if len(rows) >= 4096:
+                break
+    except BTreeError:
+        return None
+    return rows
 
 
 def program_workspace(
@@ -2030,10 +2084,20 @@ def program_workspace(
                         )
                     )
             callees: list[dict[str, Any]] = []
-            if outgoing is not None:
+            body_rows = _body_ref_rows(prog, "FROM REFS", raw_keys.get(pick), nxt - pick)
+            if body_rows is None:
+                body_rows = [outgoing] if outgoing is not None else []
+                body_only_calls = False
+            else:
+                body_only_calls = True
+            for out_row in body_rows:
                 for va, rtype in _parse_ref_blob(
-                    prog, outgoing.get("Ref Data") or b"", int(outgoing.get("Number of Refs") or 0)
+                    prog, out_row.get("Ref Data") or b"", int(out_row.get("Number of Refs") or 0)
                 ):
+                    if body_only_calls and rtype not in {3, 5, 7, 8} and not (va in by_entry and va != pick):
+                        # Body-wide refs include data reads and local branches; keep
+                        # calls and jumps that land on another function's entry.
+                        continue
                     owner, owner_name = owning(va)
                     callees.append(
                         _format_store_node(
@@ -2272,7 +2336,7 @@ def render_workbench(*, static_mode: bool = False) -> str:
 <link rel="stylesheet" href="/dashboard/static/workbench-controls.css?v=onepage1">
 <link rel="stylesheet" href="/dashboard/static/workbench-chrome.css?v=onepage1">
 <link rel="stylesheet" href="/dashboard/static/workbench-sidebar.css?v=live11">
-<link rel="stylesheet" href="/dashboard/static/workbench-editor.css?v=live25">
+<link rel="stylesheet" href="/dashboard/static/workbench-editor.css?v=live26">
 <link rel="stylesheet" href="/dashboard/static/workbench-dialogs.css?v=onepage1">
 <link rel="stylesheet" href="/dashboard/static/workbench-overlays.css?v=onepage1">
 </head>
@@ -2386,7 +2450,7 @@ def render_workbench(*, static_mode: bool = False) -> str:
 <script src="/dashboard/static/react-dom.js"></script>
 <script src="/dashboard/static/htm.js"></script>
 <script src="/dashboard/static/dashboard.js" defer></script>
-<script src="/dashboard/static/workbench-app.js?v=live33" defer></script>
+<script src="/dashboard/static/workbench-app.js?v=live34" defer></script>
 </body>
 </html>
 """

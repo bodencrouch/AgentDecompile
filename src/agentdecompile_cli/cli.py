@@ -2481,9 +2481,7 @@ def _create_dynamic_commands(cli_group: click.Group) -> None:
             # hand-written commands). Catching and swallowing here would
             # make _run_async see a normal return and exit 0 on error.
             async def _run():
-                result: Any = await _call(ctx, _tool_name, **args)
-                if result:
-                    click.echo(result)
+                await _call(ctx, _tool_name, **args)
 
             _run_async(_run())
 

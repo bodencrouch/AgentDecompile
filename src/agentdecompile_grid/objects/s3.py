@@ -37,7 +37,7 @@ from .base import (
     schema_from_dataclass, shard_parts, validate_name, validate_ref,
 )
 
-EXTRA_HINT = "install boto3/botocore (pip install boto3, the 'agentdecompile-grid[s3]' extra)"
+EXTRA_HINT = "install boto3/botocore (pip install boto3, the 'agentdecompile[s3]' extra)"
 
 
 class S3CompatibleStore(BaseObjectStore):

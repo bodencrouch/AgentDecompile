@@ -27,7 +27,7 @@ HDR_EVID = re.compile(r"evidence:\s*(\S+)")
 ADDR_IN_NAME = re.compile(r"(?:FUN|sub|LAB)_([0-9a-fA-F]{6,16})")
 ADDR_SUFFIX = re.compile(r"_([0-9a-fA-F]{6,16})$")
 
-RECOVERED_SCHEMA = """
+RECOVERED_FUNCTION_DDL = """
 CREATE TABLE IF NOT EXISTS recovered_function (
     program      TEXT NOT NULL,
     binary_id    INTEGER,
@@ -48,7 +48,9 @@ CREATE TABLE IF NOT EXISTS recovered_function (
     PRIMARY KEY (program, name, binary_id, addr, path, source_sha256)
 );
 CREATE INDEX IF NOT EXISTS ix_recovered_logical ON recovered_function(logical_id);
+"""
 
+REUSE_CANDIDATE_DDL = """
 CREATE TABLE IF NOT EXISTS reuse_candidate (
     src_program   TEXT NOT NULL,
     src_name      TEXT NOT NULL,
@@ -63,19 +65,92 @@ CREATE TABLE IF NOT EXISTS reuse_candidate (
 CREATE INDEX IF NOT EXISTS ix_reuse_dst ON reuse_candidate(dst_binary_id, dst_addr);
 """
 
+RECOVERED_SCHEMA = RECOVERED_FUNCTION_DDL + REUSE_CANDIDATE_DDL
+
+_RECOVERED_FUNCTION_STATEMENTS = (
+    RECOVERED_FUNCTION_DDL.split(";", 1)[0],
+    "CREATE INDEX IF NOT EXISTS ix_recovered_logical ON recovered_function(logical_id)",
+)
+
+RECOVERED_FUNCTION_ADDED_COLUMNS = (
+    ("binary_id", "INTEGER"),
+    ("machine_code", "TEXT"),
+    ("source_sha256", "TEXT"),
+    ("target_sha256", "TEXT"),
+    ("semantic_status", "TEXT"),
+    ("semantic_reason", "TEXT"),
+    ("semantic_evidence", "TEXT"),
+)
+
+
+def ensure_recovered_function(con: sqlite3.Connection) -> None:
+    """Create or upgrade only the shared ``recovered_function`` table.
+
+    Export and bridge readers use this narrow helper so command order cannot
+    leave them with the historical report-only shape. A canonical table is a
+    read-only fast path. Schema work joins a caller transaction through a
+    savepoint; otherwise it owns one ``BEGIN IMMEDIATE`` transaction.
+    """
+    info = list(con.execute("PRAGMA table_info(recovered_function)"))
+    columns = {row[1] for row in info}
+    key = [row[1] for row in sorted(info, key=lambda row: row[5]) if row[5]]
+    target_key = ["program", "name", "binary_id", "addr", "path", "source_sha256"]
+    if info and all(column in columns for column, _decl in RECOVERED_FUNCTION_ADDED_COLUMNS) and key == target_key:
+        return
+
+    def upgrade() -> None:
+        current = list(con.execute("PRAGMA table_info(recovered_function)"))
+        if not current:
+            for statement in _RECOVERED_FUNCTION_STATEMENTS:
+                con.execute(statement)
+            return
+
+        current_columns = {row[1] for row in current}
+        for column, declaration in RECOVERED_FUNCTION_ADDED_COLUMNS:
+            if column not in current_columns:
+                con.execute(f"ALTER TABLE recovered_function ADD COLUMN {column} {declaration}")
+
+        # An empty legacy table can take the exact current constraints. A
+        # populated legacy table is rebuilt only when its rows satisfy the
+        # current NOT NULL contract; otherwise retain every historical row and
+        # leave the table additive rather than deleting evidence.
+        has_rows = con.execute("SELECT 1 FROM recovered_function LIMIT 1").fetchone() is not None
+        if not has_rows:
+            con.execute("DROP TABLE recovered_function")
+            for statement in _RECOVERED_FUNCTION_STATEMENTS:
+                con.execute(statement)
+            return
+        invalid = con.execute(
+            "SELECT 1 FROM recovered_function "
+            "WHERE program IS NULL OR name IS NULL OR real_c IS NULL OR path IS NULL LIMIT 1"
+        ).fetchone()
+        if invalid is None:
+            _migrate_recovered_candidate_key(con)
+        con.execute("CREATE INDEX IF NOT EXISTS ix_recovered_logical ON recovered_function(logical_id)")
+
+    if con.in_transaction:
+        con.execute("SAVEPOINT recovered_function_upgrade")
+        try:
+            upgrade()
+        except BaseException:
+            con.execute("ROLLBACK TO recovered_function_upgrade")
+            con.execute("RELEASE recovered_function_upgrade")
+            raise
+        con.execute("RELEASE recovered_function_upgrade")
+        return
+
+    con.execute("BEGIN IMMEDIATE")
+    try:
+        upgrade()
+        con.execute("COMMIT")
+    except BaseException:
+        con.execute("ROLLBACK")
+        raise
+
 
 def ensure_recovered_schema(con: sqlite3.Connection) -> None:
-    con.executescript(RECOVERED_SCHEMA)
-    columns = {row[1] for row in con.execute("PRAGMA table_info(recovered_function)")}
-    # Historical report-created tables predate the corpus binary binding field.
-    if "binary_id" not in columns:
-        con.execute("ALTER TABLE recovered_function ADD COLUMN binary_id INTEGER")
-    for column in ("source_sha256", "target_sha256", "semantic_status", "semantic_reason", "semantic_evidence"):
-        # Historical rows have no observed binding; never hash today's file to
-        # invent provenance for an earlier compilation.
-        if column not in columns:
-            con.execute(f"ALTER TABLE recovered_function ADD COLUMN {column} TEXT")
-    _migrate_recovered_candidate_key(con)
+    ensure_recovered_function(con)
+    con.executescript(REUSE_CANDIDATE_DDL)
     con.commit()
 
 

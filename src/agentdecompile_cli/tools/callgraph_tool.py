@@ -14,6 +14,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 import base64
+import contextlib
 import re
 import sys
 import zlib
@@ -43,6 +44,15 @@ if TYPE_CHECKING:
 # Constants
 MAX_DEPTH = sys.getrecursionlimit() - 1
 MAX_PATH_LEN = 50
+DEFAULT_MAX_RUN_TIME = 60.0
+
+
+# Which rendering from _gen_callgraph each display type returns as `graph`.
+_DISPLAY_TYPE_KEYS: dict[CallGraphDisplayType, str] = {
+    CallGraphDisplayType.FLOW: "graph",
+    CallGraphDisplayType.FLOW_ENDS: "flow_ends",
+    CallGraphDisplayType.MIND: "mind_map",
+}
 
 
 class CallGraphTool:
@@ -162,7 +172,7 @@ class CallGraphTool:
         result = self._gen_callgraph(
             func=func,
             max_display_depth=max_depth,
-            direction=direction,
+            direction=cg_direction.value,
             max_run_time=max_run_time,
             include_refs=include_refs,
             condense_threshold=condense_threshold,
@@ -170,12 +180,16 @@ class CallGraphTool:
             bottom_layers=bottom_layers,
         )
 
+        # The link has to open the drawing returned as `graph`, not always the flow one.
+        drawing = result[_DISPLAY_TYPE_KEYS[cg_display_type]]
         return CallGraphResult(
             function_name=f"{func.getName()[:MAX_PATH_LEN]}-{func.entryPoint}",
             direction=cg_direction,
             display_type=cg_display_type,
-            graph=result["graph"],
-            mermaid_url=result["mermaid_url"],
+            graph=drawing,
+            mermaid_url=self._mermaid_url(drawing),
+            truncated=result["truncated"],
+            max_run_time=result["max_run_time"],
         )
 
     def generate_for_cli(
@@ -284,7 +298,9 @@ class CallGraphTool:
         else:
             raise ValueError(f"Unsupported callgraph direction: {direction}")
 
-        if callgraph is not None:
+        # A root with no edges still renders a Mermaid header and style block;
+        # report it as empty so callers can say there are no relationships.
+        if callgraph is not None and callgraph.links_count() > 0:
             flow = callgraph.gen_mermaid_flow_graph(
                 shaded_nodes=callgraph.get_endpoints(),
                 max_display_depth=max_display_depth,
@@ -306,28 +322,36 @@ class CallGraphTool:
             flow_ends = ""
             mind = ""
 
-        # Create mermaid URL
-        mermaid_url = ""
-        if flow:
-            try:
-                compressed = zlib.compress(flow.encode("utf-8"))
-                encoded = base64.b64encode(compressed).decode("utf-8")
-                mermaid_url = f"https://mermaid.ink/img/{encoded}"
-            except Exception:
-                # If compression/encoding fails, create simple URL
-                try:
-                    encoded = base64.b64encode(flow.encode("utf-8")).decode("utf-8")
-                    mermaid_url = f"https://mermaid.ink/img/{encoded}"
-                except Exception:
-                    pass
+        # ghidrecomp stops walking at max_run_time and marks the spot with a
+        # "MAX_TIME_HIT - ..." node, so the drawing is only part of the graph.
+        truncated = callgraph is not None and any(str(node).startswith("MAX_TIME_HIT") for node in callgraph.graph)
 
         return {
             "graph": flow,
             "flow_ends": flow_ends,
             "mind_map": mind,
-            "mermaid_url": mermaid_url,
+            "mermaid_url": self._mermaid_url(flow),
             "function_name": name,
+            "truncated": truncated,
+            "max_run_time": DEFAULT_MAX_RUN_TIME if max_run_time is None else float(max_run_time),
         }
+
+    @staticmethod
+    def _mermaid_url(drawing: str) -> str:
+        """Return a mermaid.ink image link for one Mermaid drawing, or "" when there is none."""
+        if not drawing:
+            return ""
+        try:
+            compressed = zlib.compress(drawing.encode("utf-8"))
+            encoded = base64.b64encode(compressed).decode("utf-8")
+            return f"https://mermaid.ink/img/{encoded}"
+        except Exception:
+            # If compression/encoding fails, create simple URL
+            try:
+                encoded = base64.b64encode(drawing.encode("utf-8")).decode("utf-8")
+                return f"https://mermaid.ink/img/{encoded}"
+            except Exception:
+                return ""
 
     def _get_calling(
         self,
@@ -335,11 +359,11 @@ class CallGraphTool:
         max_run_time: float | None = None,
         include_refs: bool = True,
     ) -> Any:
-        """Get calling callgraph for function."""
-        # Implementation would use Ghidra's callgraph analysis
-        # This is a placeholder - actual implementation would be complex
+        """Build the graph of functions that call ``func`` (walks callers upward)."""
         logger.debug("diag.enter %s", "tools/callgraph_tool.py:CallGraphTool._get_calling")
-        return None
+        from ghidrecomp import callgraph as ghidrecomp_callgraph
+
+        return self._trace(ghidrecomp_callgraph.get_calling, func, max_run_time=max_run_time, include_refs=include_refs)
 
     def _get_called(
         self,
@@ -347,8 +371,31 @@ class CallGraphTool:
         max_run_time: float | None = None,
         include_refs: bool = True,
     ) -> Any:
-        """Get called callgraph for function."""
-        # Implementation would use Ghidra's callgraph analysis
-        # This is a placeholder - actual implementation would be complex
+        """Build the graph of functions that ``func`` calls (walks callees downward)."""
         logger.debug("diag.enter %s", "tools/callgraph_tool.py:CallGraphTool._get_called")
-        return None
+        from ghidrecomp import callgraph as ghidrecomp_callgraph
+
+        return self._trace(ghidrecomp_callgraph.get_called, func, max_run_time=max_run_time, include_refs=include_refs)
+
+    @staticmethod
+    def _trace(
+        walker: Any,
+        func: GhidraFunction,
+        max_run_time: float | None,
+        include_refs: bool,
+    ) -> Any:
+        """Run one of ghidrecomp's graph walkers and return its ``CallGraph``.
+
+        ghidrecomp calls ``float(max_run_time)`` on every step, so ``None`` has to
+        become a number here. It memoises reference lookups per Function in a
+        module-wide cache; clear it so a long-lived server does not draw edges
+        that an earlier edit removed. Its timeout warning goes to stdout, which
+        is the protocol stream for stdio MCP clients, so send it to stderr.
+        """
+        from ghidrecomp import callgraph as ghidrecomp_callgraph
+
+        run_time = DEFAULT_MAX_RUN_TIME if max_run_time is None else float(max_run_time)
+        ghidrecomp_callgraph.get_calling_funcs_memo.cache_clear()
+        ghidrecomp_callgraph.get_called_funcs_memo.cache_clear()
+        with contextlib.redirect_stdout(sys.stderr):
+            return walker(func, max_run_time=run_time, include_refs=bool(include_refs))

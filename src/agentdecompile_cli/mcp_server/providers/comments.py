@@ -295,30 +295,32 @@ class CommentToolProvider(ToolProvider):
             from agentdecompile_cli.mcp_utils.decompiler_util import get_decompiled_function_from_results
 
             decomp = DecompInterface()
-            decomp.openProgram(program)
-            fm = self._get_function_manager(program, program_info=program_info)
-            from ghidra.util.task import ConsoleTaskMonitor  # pyright: ignore[reportMissingModuleSource]
+            try:
+                decomp.openProgram(program)
+                fm = self._get_function_manager(program, program_info=program_info)
+                from ghidra.util.task import ConsoleTaskMonitor  # pyright: ignore[reportMissingModuleSource]
 
-            monitor = ConsoleTaskMonitor()
-            for func in fm.getFunctions(True):
-                if len(results) >= max_results:
-                    break
-                try:
-                    dr = decomp.decompileFunction(func, 30, monitor)
-                    if dr and dr.decompileCompleted():
-                        df = get_decompiled_function_from_results(dr)
-                        code = df.getC() if df else ""
-                        if code and query.lower() in code.lower():
-                            results.append(
-                                {
-                                    "function": func.getName(),
-                                    "address": str(func.getEntryPoint()),
-                                    "snippet": code[:500],
-                                },
-                            )
-                except Exception:
-                    continue
-            decomp.dispose()
+                monitor = ConsoleTaskMonitor()
+                for func in fm.getFunctions(True):
+                    if len(results) >= max_results:
+                        break
+                    try:
+                        dr = decomp.decompileFunction(func, 30, monitor)
+                        if dr and dr.decompileCompleted():
+                            df = get_decompiled_function_from_results(dr)
+                            code = df.getC() if df else ""
+                            if code and query.lower() in code.lower():
+                                results.append(
+                                    {
+                                        "function": func.getName(),
+                                        "address": str(func.getEntryPoint()),
+                                        "snippet": code[:500],
+                                    },
+                                )
+                    except Exception:
+                        continue
+            finally:
+                decomp.dispose()
         except Exception as e:
             logger.warning(f"Decompiler search failed: {e.__class__.__name__}: {e}")
             return create_success_response({"action": "search_decomp", "results": [], "note": {e.__class__.__name__: str(e)}, "query": query})

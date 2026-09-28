@@ -302,6 +302,16 @@ def list_functions(
     limit: int | str = "all",
     program_path: str = "",
 ) -> dict[str, Any]:
+    """List a live program's functions through the MCP list-functions tool.
+
+    With a query ``q``, a successful empty page means nothing matched: the
+    result has no rows and no ``next`` hint. That holds on a program Ghidra
+    has not analysed yet too, so a search there reports "no match" rather
+    than the analyze-program hint an unfiltered listing gives.
+
+    ``total`` covers only the rows fetched so far (``offset`` plus this
+    page), not every function or match in the program.
+    """
     from agentdecompile_recovery.corpus.dashboard.common import page_window
 
     wanted = (program_path or program or "").strip()
@@ -312,6 +322,9 @@ def list_functions(
         "offset": start,
         "limit": chunk,
         "responseFormat": "json",
+        # list-functions includes imports by default; their EXTERNAL: addresses
+        # have no integer form, so the function browser would show blank rows.
+        "includeExternals": False,
     }
     if path:
         args["program_path"] = path
@@ -342,6 +355,7 @@ def list_functions(
     collected: list[dict[str, Any]] = []
     cursor = start
     last_error = ""
+    no_match = False
     while True:
         args["offset"] = cursor
         args["limit"] = chunk
@@ -353,9 +367,14 @@ def list_functions(
             if cap is not None or len(page) < chunk:
                 break
             continue
+        if q and hit.get("ok"):
+            # A successful empty page for a search means nothing matched, not
+            # that the program lacks functions or needs analysis.
+            no_match = True
+            break
         last_error = hit.get("error") or hit.get("text") or "Ghidra has no functions for this program yet."
         break
-    if collected:
+    if collected or no_match:
         return {
             "ok": True,
             "program": program,
@@ -363,7 +382,7 @@ def list_functions(
             "q": q,
             "offset": start,
             "limit": "all" if cap is None else cap,
-            "total": start + len(collected),
+            "total": start + len(collected) if collected else 0,
             "results": collected,
             "hasMore": cap is not None and len(collected) >= cap,
             "source": "ghidra-mcp",

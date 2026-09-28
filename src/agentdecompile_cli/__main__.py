@@ -352,16 +352,20 @@ class AgentDecompileCLI:
 
 
 def _setup_main_argument_parser() -> argparse.ArgumentParser:
-    """Set up the argument parser for the main CLI."""
+    """Set up the argument parser for the main CLI.
+
+    Without a URL or host (flag or env), mcp-agentdecompile starts a local
+    PyGhidra server; otherwise it bridges stdio to the existing server.
+    See executor.resolve_backend_url for the resolution order.
+    """
     logger.debug("diag.enter %s", "__main__.py:_setup_main_argument_parser")
     parser = argparse.ArgumentParser(
         description="AgentDecompile MCP server with stdio transport for Claude CLI integration",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
         "--config",
         type=Path,
-        help="Path to AgentDecompile configuration file",
+        help="AgentDecompile config file for the local server. Must exist. Ignored in connect mode. Default: unset.",
         required=False,
     )
     parser.add_argument(
@@ -369,7 +373,11 @@ def _setup_main_argument_parser() -> argparse.ArgumentParser:
         "--mcp-server-url",
         dest="server_url",
         type=str,
-        help="Connect to an existing AgentDecompile MCP server (http(s)://host:port[/mcp/message])",
+        help=(
+            "Connect to an existing AgentDecompile MCP server (http(s)://host:port[/mcp/message]) instead of starting one. "
+            "Default: AGENT_DECOMPILE_MCP_SERVER_URL, AGENT_DECOMPILE_SERVER_URL, AGENTDECOMPILE_MCP_SERVER_URL "
+            "or AGENTDECOMPILE_SERVER_URL, else unset."
+        ),
         required=False,
     )
     parser.add_argument(
@@ -377,14 +385,21 @@ def _setup_main_argument_parser() -> argparse.ArgumentParser:
         type=str,
         default=None,
         metavar="HOST",
-        help="Server host for connect mode (default: 127.0.0.1 or AGENT_DECOMPILE_MCP_SERVER_HOST)",
+        help=(
+            "Connect to an existing server on this host instead of starting one. "
+            "Default: AGENT_DECOMPILE_MCP_SERVER_HOST, AGENT_DECOMPILE_SERVER_HOST or AGENTDECOMPILE_SERVER_HOST, else unset."
+        ),
     )
     parser.add_argument(
         "--port",
         type=int,
         default=None,
         metavar="PORT",
-        help="Server port for connect mode (default: 8080 or AGENT_DECOMPILE_MCP_SERVER_PORT)",
+        help=(
+            "Port for connect mode. --port alone does not select connect mode; give a host too. "
+            "Default: AGENT_DECOMPILE_MCP_SERVER_PORT (which alone connects to 127.0.0.1), "
+            "AGENT_DECOMPILE_SERVER_PORT or AGENTDECOMPILE_SERVER_PORT, else 8080."
+        ),
     )
     parser.add_argument(
         "-f",
@@ -393,13 +408,13 @@ def _setup_main_argument_parser() -> argparse.ArgumentParser:
         type=str,
         choices=["json", "table", "text"],
         default="text",
-        help=("Output format for CLI messages (default: text). Use -f/--format json only when you strictly need machine-readable output; text is recommended."),
+        help="Not used: accepted for compatibility; output does not change. Default: text.",
     )
     parser.add_argument(
         "--verbose",
         "-v",
         action="store_true",
-        help="Enable verbose logging",
+        help="Verbose PyGhidra startup (local mode) and WebUI sidecar logs (connect mode). Default: off.",
         default=False,
         required=False,
     )
@@ -546,8 +561,7 @@ def main():
     """Main entry point for mcp-agentdecompile command.
 
     Flow: parse args → resolve backend URL → if URL given, connect mode (stdio bridge only);
-    else spawn PyGhidra + l
-    apply_default_env()ocal server, then run stdio bridge to that server.
+    else spawn PyGhidra + local server, then run stdio bridge to that server.
     """
     apply_default_env()
     logger.debug("diag.enter %s", "__main__.py:main")

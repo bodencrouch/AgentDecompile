@@ -12,13 +12,13 @@ The **main multi-binary recovery path** is the corpus pipeline
 ([CORPUS_PIPELINE.md](CORPUS_PIPELINE.md)): extract → identify →
 calibrate-global → assembly-floor → recover-source → apply-cross-build →
 leftover-recover → verify → fresh whole-image identity (terminal goal, not a claimed checkpoint verb). CLI: `agentdecompile-corpus` (also
-`agentdecompile-reconstruct corpus`). `--stop-after compile` still means
+`agentdecompile-cli corpus`). `--stop-after compile` still means
 stop after donor C compiles (`recover-source`). Open an already-analyzed
 Ghidra project and reuse that analysis. Do not re-run `analyze-program`
 unless the program has none.
 
 Packed Windows PE targets still use a **bounded checkpoint loop** inside
-`agentdecompile-reconstruct` for a single binary. There is no separate
+`agentdecompile-cli reconstruct` for a single binary. There is no separate
 `acquire` or `vacuum` CLI — use reconstruct flags instead.
 
 ELF targets (format detected from the binary) use `.eh_frame` as the authoritative inventory denominator, then a single PyGhidra enrich+decompile session, optional reference-corpus naming, evidence-based module mapping, and native clang/objdiff verification.
@@ -39,7 +39,7 @@ flowchart LR
 These names are the valid PE critical-path `--stop-after` checkpoints. After checkpoints you can run autonomous repair with:
 
 ```bash
-uv run agentdecompile-reconstruct <target> --work-dir <dir> --autonomous --autonomous-max-functions 1
+uv run agentdecompile-cli reconstruct <target> --work-dir <dir> --autonomous --autonomous-max-functions 1
 ```
 
 That is not a `--stop-after` stage and there is no standalone `vacuum` command.
@@ -75,25 +75,25 @@ WORK=target/agentdecompile-reconstruct/example-run
 DUMP=target/source-dump
 
 # 1) Unpack/inventory (once)
-uv run agentdecompile-reconstruct "$TARGET" \
+uv run agentdecompile-cli reconstruct "$TARGET" \
   --stop-after discover-functions \
   --work-dir "$WORK"
 
 # 2) Resume, match/synth, dump
-uv run agentdecompile-reconstruct "$TARGET" \
+uv run agentdecompile-cli reconstruct "$TARGET" \
   --resume \
   --work-dir "$WORK" \
   --dump-source "$DUMP"
 
 # 3) Rebuild dump from existing receipts only
-uv run agentdecompile-reconstruct "$TARGET" \
+uv run agentdecompile-cli reconstruct "$TARGET" \
   --dump-source-only \
   --dump-source "$DUMP" \
   --ghidra-facts "$WORK/unpack/facts/function-facts.jsonl" \
   --work-dir "$WORK"
 
 # 4) Force rematch of cached zero-diff functions
-uv run agentdecompile-reconstruct "$TARGET" \
+uv run agentdecompile-cli reconstruct "$TARGET" \
   --resume --work-dir "$WORK" \
   --force-rematch
 ```

@@ -708,8 +708,9 @@ class SymbolToolProvider(ToolProvider):
         ghidra_tools = ghidra_tools_for_program(program_info)
         self._require_program(program_info=program_info)
         offset, max_results = self._get_pagination_params(args)
+        library_filter = self._get_str(args, "libraryfilter", "library").strip().lower()
 
-        if ghidra_tools:
+        if ghidra_tools and not library_filter:
             try:
                 imports = ghidra_tools.list_imports()
                 paginated, has_more = self._paginate_results(imports, offset, max_results)
@@ -720,6 +721,9 @@ class SymbolToolProvider(ToolProvider):
         assert program_info is not None  # for type checker
         program: GhidraProgram = program_info.program
         imports = collect_imports(program)
+        if library_filter:
+            # agentdecompile-cli `symbols imports --library-filter` sent this and it was ignored.
+            imports = [row for row in imports if library_filter in str(row.get("library") or row.get("namespace") or "").lower()]
         paginated, has_more = self._paginate_results(imports, offset, max_results)
         return self._create_paginated_response(paginated, offset, max_results, total=len(imports), mode="imports")
 

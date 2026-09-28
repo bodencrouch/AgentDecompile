@@ -106,6 +106,7 @@ class StructureToolProvider(ToolProvider):
                         "fields": {"type": "array", "items": {"type": "object"}, "description": "An array of multiple field definitions to apply at once."},
                         "addressOrSymbol": {"type": "string", "description": "The memory address where you want to drop/apply the struct template."},
                         "isUnion": {"type": "boolean", "default": False, "description": "If true, treats the object as a C-union (all fields overlap at offset 0)."},
+                        "type": {"type": "string", "description": "create: struct|union kind (\"union\" is the same as isUnion=true); add_field/modify_field: fallback for fieldType."},
                         "nameFilter": {"type": "string", "description": "Case-insensitive text to filter the struct list by."},
                         "query": {"type": "string", "description": "Alternative parameter for nameFilter."},
                         "filter": {"type": "string", "description": "Alternative parameter for nameFilter."},
@@ -197,7 +198,10 @@ class StructureToolProvider(ToolProvider):
         name = self._require_str(args, "name", "structurename", name="name")
         size = self._get_int(args, "size", default=0)
         cat_path = self._get_str(args, "categorypath", "category", default="/")
-        is_union = self._get_bool(args, "isunion", default=False)
+        # Honour `type="union"` too: it is an advertised schema field (see the
+        # inputSchema above), and generated/`tool`/`tool-seq` clients send it
+        # without `isUnion`.
+        is_union = self._get_bool(args, "isunion", default=False) or self._get_str(args, "type").strip().lower() == "union"
 
         assert program_info is not None  # for type checker
         program = program_info.program
@@ -264,7 +268,7 @@ class StructureToolProvider(ToolProvider):
                 for field in batch:
                     ni = {n(k): v for k, v in field.items()}
                     f_name = ni.get("fieldname") or ni.get("name") or f"field_{dt.getNumComponents()}"
-                    f_type = ni.get("fieldtype") or ni.get("type") or "byte"
+                    f_type = ni.get("fieldtype") or ni.get("datatype") or ni.get("type") or "byte"
                     f_comment = ni.get("fieldcomment") or ni.get("comment") or ""
                     try:
                         fdt = parser.parse(f_type)
@@ -278,7 +282,8 @@ class StructureToolProvider(ToolProvider):
 
         # Single field
         field_name = self._get_str(args, "fieldname", "field", default=f"field_{dt.getNumComponents()}")
-        field_type = self._require_str(args, "fieldtype", "type", name="fieldType")
+        # dataType is the name TOOL_PARAMS/the CLI advertise (--data_type).
+        field_type = self._require_str(args, "fieldtype", "datatype", "type", name="fieldType")
         field_comment = self._get_str(args, "fieldcomment", "comment", default="")
         fdt = parser.parse(field_type)
 
@@ -289,12 +294,14 @@ class StructureToolProvider(ToolProvider):
         return create_success_response({"action": "add_field", "structure": struct_name, "field": field_name, "type": field_type, "success": True})
 
     async def _modify_field(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        """Edit existing fields: rename, retype or re-comment.
+
+        Single edit: ``fieldOffset`` selects the field (``fieldName`` is then its new
+        name), or ``fieldName`` selects it by name when ``newFieldName`` is given.
+        Batch: ``fields`` is a list of objects using the same keys per entry.
+        """
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._modify_field")
-        struct_name = self._require_str(args, "name", "structurename", name="name")
-        field_offset = self._get_int(args, "fieldoffset", "offset")
-        field_name = self._get_str(args, "fieldname", "field")
-        field_type = self._get_str(args, "fieldtype", "type")
-        field_comment = self._get_str(args, "fieldcomment", "comment")
+        struct_name = self._require_str(args, "name", "structurename", "structure", name="name")
 
         assert program_info is not None  # for type checker
         program = program_info.program
@@ -306,21 +313,114 @@ class StructureToolProvider(ToolProvider):
 
         parser = self._new_data_type_parser(dtm)
 
-        comp = dt.getComponentAt(field_offset)
-        if comp is None:
-            raise ValueError(f"No field at offset {field_offset}")
+        raw_fields = self._get(args, "fields")
+        if isinstance(raw_fields, str) and raw_fields.strip():
+            import json
 
-        def _modify_field() -> None:
-            if field_name:
-                comp.setFieldName(field_name)
-            if field_comment:
-                comp.setComment(field_comment)
-            if field_type:
-                new_dt = parser.parse(field_type)
-                comp.setDataType(new_dt)
+            try:
+                raw_fields = json.loads(raw_fields)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"fields must be a JSON array of objects: {exc}") from exc
+        if isinstance(raw_fields, dict):
+            raw_fields = [raw_fields]
 
-        self._run_program_transaction(program, "modify-field", _modify_field)
-        return create_success_response({"action": "modify_field", "structure": struct_name, "offset": field_offset, "success": True})
+        if raw_fields:
+            if not isinstance(raw_fields, list):
+                raise ValueError("fields must be a list of objects")
+            edits = [{n(k): v for k, v in item.items()} if isinstance(item, dict) else None for item in raw_fields]
+        else:
+            edits = [
+                {
+                    "fieldoffset": self._get(args, "fieldoffset", "offset"),
+                    "fieldname": self._get_str(args, "fieldname", "field"),
+                    "newfieldname": self._get_str(args, "newfieldname", "newname"),
+                    "fieldtype": self._get_str(args, "fieldtype", "datatype", "newdatatype", "type", "newfieldtype"),
+                    "fieldcomment": self._get(args, "fieldcomment", "comment"),
+                },
+            ]
+
+        results: list[dict[str, Any]] = []
+
+        def _apply_edits() -> None:
+            for item in edits:
+                if item is None:
+                    results.append({"name": "?", "success": False, "error": "field entry must be an object"})
+                    continue
+                try:
+                    results.append(self._apply_field_edit(dt, parser, item))
+                except Exception as exc:
+                    label = str(item.get("fieldname") or item.get("name") or item.get("fieldoffset") or item.get("offset") or "?")
+                    results.append({"name": label, "success": False, "error": str(exc)})
+
+        self._run_program_transaction(program, "modify-field", _apply_edits)
+
+        if not raw_fields:
+            only = results[0]
+            if not only.get("success"):
+                raise ValueError(f"modify_field failed on {struct_name}: {only.get('error')}")
+            return create_success_response({"action": "modify_field", "structure": struct_name, **{k: v for k, v in only.items() if k != "name"}, "field": only.get("name"), "success": True})
+        return create_success_response(
+            {
+                "action": "modify_field",
+                "structure": struct_name,
+                "batch": True,
+                "results": results,
+                "success": all(r.get("success") for r in results),
+                **({} if all(r.get("success") for r in results) else {"error": "; ".join(f"{r.get('name')}: {r.get('error')}" for r in results if not r.get("success"))}),
+            },
+        )
+
+    @staticmethod
+    def _apply_field_edit(dt: Any, parser: Any, item: dict[str, Any]) -> dict[str, Any]:
+        """Apply one normalized field edit to *dt*; return a result row or raise ``ValueError``."""
+        raw_offset = item.get("fieldoffset", item.get("offset"))
+        selector_name = str(item.get("fieldname") or item.get("name") or "").strip()
+        new_name = str(item.get("newfieldname") or item.get("newname") or "").strip()
+        new_type = str(item.get("fieldtype") or item.get("datatype") or item.get("newdatatype") or item.get("type") or item.get("newfieldtype") or "").strip()
+        comment = item.get("fieldcomment", item.get("comment"))
+
+        if raw_offset is not None and str(raw_offset).strip() != "":
+            text = str(raw_offset).strip()
+            offset = int(text, 16) if text.lower().startswith("0x") else int(text)
+            comp = dt.getComponentAt(offset)
+            if comp is None:
+                raise ValueError(f"No field at offset {offset}")
+            if selector_name and not new_name:
+                # Offset selects; fieldName is the new name (legacy single-field form).
+                new_name = selector_name
+        elif selector_name:
+            comp = None
+            for candidate in list(dt.getDefinedComponents()):
+                if str(candidate.getFieldName() or "") == selector_name:
+                    comp = candidate
+                    break
+            if comp is None:
+                raise ValueError(f"No field named {selector_name}")
+        else:
+            raise ValueError("Select the field with fieldOffset or fieldName")
+
+        old_name = str(comp.getFieldName() or "")
+        if not new_name and not new_type and comment is None:
+            raise ValueError(f"Nothing to change for field {old_name or comp.getOffset()}: give newFieldName, fieldType or fieldComment")
+
+        final_name = new_name or (comp.getFieldName() or None)
+        final_comment = str(comment) if comment is not None else comp.getComment()
+        if new_type:
+            new_dt = parser.parse(new_type)
+            # DataTypeComponent has no setDataType; replace the component in place.
+            comp = dt.replaceAtOffset(comp.getOffset(), new_dt, new_dt.getLength(), final_name, final_comment)
+        else:
+            if new_name:
+                comp.setFieldName(new_name)
+            if comment is not None:
+                comp.setComment(str(comment))
+        return {
+            "name": str(comp.getFieldName() or ""),
+            "previousName": old_name,
+            "offset": int(comp.getOffset()),
+            "dataType": str(comp.getDataType().getName()),
+            "success": True,
+        }
 
     async def _modify_from_c(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._modify_from_c")
@@ -330,23 +430,50 @@ class StructureToolProvider(ToolProvider):
         dtm = program.getDataTypeManager()
 
         try:
-            from ghidra.app.util.cparser import CParser
+            from ghidra.app.util.cparser.C import CParser
 
             parser = CParser(dtm)
 
-            def _parse_c_struct() -> Any:
-                dt = parser.parse(c_def)
-                return dt
+            def _parse_c_struct() -> tuple[list[Any], str]:
+                from ghidra.program.model.data import DataTypeConflictHandler
 
-            dt = self._run_program_transaction(program, "parse-c-struct", _parse_c_struct)
-            return create_success_response(
-                {
-                    "action": "modify_from_c",
-                    "parsed": True,
-                    "name": dt.getName() if hasattr(dt, "getName") else str(dt),
-                    "success": True,
-                },
-            )
+                last = parser.parse(c_def)
+                # CParser(dtm) does not store what it parses and parse() returns only
+                # the last declaration, so resolve every composite, enum and typedef
+                # it collected. Types the header only references were looked up in
+                # dtm by the parser and are not in these maps, so existing program
+                # types are not replaced by empty placeholders.
+                parsed: list[Any] = []
+                for table in (parser.getComposites(), parser.getEnums(), parser.getTypes()):
+                    if table is not None:
+                        parsed.extend(value for value in table.values() if value is not None)
+                if not parsed and last is not None:
+                    parsed.append(last)
+                resolved: list[Any] = []
+                seen: set[str] = set()
+                for item in parsed:
+                    stored = dtm.resolve(item, DataTypeConflictHandler.REPLACE_HANDLER)
+                    key = str(stored.getPathName()) if hasattr(stored, "getPathName") else str(stored)
+                    if key not in seen:
+                        seen.add(key)
+                        resolved.append(stored)
+                last_name = str(last.getName()) if last is not None and hasattr(last, "getName") else ""
+                return resolved, last_name
+
+            stored_types, last_name = self._run_program_transaction(program, "parse-c-struct", _parse_c_struct)
+            names = sorted(str(dt.getName()) if hasattr(dt, "getName") else str(dt) for dt in stored_types)
+            payload: dict[str, Any] = {
+                "action": "modify_from_c",
+                "parsed": True,
+                "name": last_name if last_name in names else (names[-1] if names else ""),
+                "names": names,
+                "count": len(names),
+                "success": True,
+            }
+            if len(names) > 1:
+                payload["batch"] = True
+                payload["results"] = [{"name": name, "success": True} for name in names]
+            return create_success_response(payload)
         except ImportError:
             raise ValueError("CParser not available in this environment")
 
@@ -360,19 +487,43 @@ class StructureToolProvider(ToolProvider):
 
     async def _validate(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._validate")
-        c_def = self._require_str(args, "cdefinition", "headercontent", "definition", "code", name="cDefinition")
+        c_def = self._require_str(args, "cdefinition", "headercontent", "definition", "code", "c", name="cDefinition")
         assert program_info is not None  # for type checker
-        program = program_info.program
-        dtm = program.getDataTypeManager()
 
+        scratch = None
         try:
-            from ghidra.app.util.cparser import CParser
+            try:
+                from jpype import JArray
 
-            parser = CParser(dtm)
-            dt = parser.parse(c_def)
-            return create_success_response({"action": "validate", "valid": True, "name": str(dt.getName()) if hasattr(dt, "getName") else str(dt)})
-        except Exception as e:
-            return create_success_response({"action": "validate", "valid": False, "error": str(e)})
+                from ghidra.app.util.cparser.C import CParser
+                from ghidra.program.model.data import DataTypeManager, StandAloneDataTypeManager
+
+                # Validation must not add types to the program: parse into a throwaway manager.
+                # The program's manager is passed as a read-only source so definitions that
+                # use program types (DWORD, undefined4, user structs) still resolve.
+                program_dtm = program_info.program.getDataTypeManager()
+                scratch = StandAloneDataTypeManager("agentdecompile-validate")
+                parser = CParser(scratch, False, JArray(DataTypeManager)([program_dtm]))
+            except ImportError as e:
+                # A broken environment is an error, not a verdict on the caller's C.
+                raise ValueError("CParser not available in this environment") from e
+            except Exception as e:
+                raise ValueError(f"structure validation setup failed: {type(e).__name__}: {e}") from e
+
+            try:
+                dt = parser.parse(c_def)
+                # Read the name while the scratch manager is still open.
+                name = str(dt.getName()) if hasattr(dt, "getName") else str(dt)
+                return create_success_response({"action": "validate", "valid": True, "name": name})
+            except Exception as e:
+                logger.debug("structure validate parse failed", exc_info=True)
+                return create_success_response({"action": "validate", "valid": False, "error": str(e)})
+        finally:
+            if scratch is not None:
+                try:
+                    scratch.close()
+                except Exception:
+                    logger.debug("structure validate scratch close failed", exc_info=True)
 
     async def _apply(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/structures.py:StructureToolProvider._apply")
@@ -386,52 +537,61 @@ class StructureToolProvider(ToolProvider):
         if dt is None:
             raise ValueError(f"Structure not found: {struct_name}")
 
-        # Batch
         addr_list = self._get_list(args, "addressorsymbol", "addresses")
-        if addr_list and len(addr_list) > 1:
-            results = []
+        is_batch = bool(addr_list and len(addr_list) > 1)
+        results = []
+        resolved_targets = []
+        for raw_address in addr_list if is_batch else [addr_str]:
+            try:
+                addr = self._resolve_address(str(raw_address), program=program, program_info=program_info)
+                resolved_targets.append((str(raw_address), addr))
+            except Exception as exc:
+                if not is_batch:
+                    raise
+                results.append({"address": str(raw_address), "success": False, "error": str(exc)})
+        listing = self._get_listing(program, program_info=program_info)
 
+        if not args.get(FORCE_APPLY_CONFLICT_ID_KEY):
+            from agentdecompile_cli.mcp_utils.datatype_util import format_conflict_lines, overlapping_data_conflicts
+
+            # clearCodeUnits below clears every code unit overlapping [addr, addr+len-1]; ask before losing defined data anywhere in it.
+            conflicts = []
+            for _raw_address, target_addr in resolved_targets:
+                conflicts.extend(overlapping_data_conflicts(listing, target_addr, dt))
+            if conflicts:
+                from agentdecompile_cli.mcp_server.conflict_store import store as conflict_store_store
+                from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
+
+                conflict_id = str(uuid.uuid4())
+                conflict_summary = f"Apply structure would overwrite existing data at address:\n\n```diff\n{format_conflict_lines(conflicts, prefix='(existing) ')}\n+ {struct_name}\n```"
+                next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
+                program_path = args.get(n("programPath")) or getattr(program_info, "path", None) or getattr(program_info, "file_path", None)
+                store_args = dict(args)
+                store_args["mode"] = "apply"
+                conflict_store_store(
+                    get_current_mcp_session_id(),
+                    conflict_id,
+                    tool=Tool.MANAGE_STRUCTURES.value,
+                    arguments=store_args,
+                    program_path=str(program_path) if program_path else None,
+                    summary=conflict_summary,
+                )
+                return create_conflict_response(conflict_id, Tool.MANAGE_STRUCTURES.value, conflict_summary, next_step)
+
+        if is_batch:
             def _batch_apply_struct() -> None:
-                listing = self._get_listing(program, program_info=program_info)
-                for a in addr_list:
+                for raw_address, target_addr in resolved_targets:
                     try:
-                        addr = self._resolve_address(str(a), program=program, program_info=program_info)
-                        listing.clearCodeUnits(addr, addr.add(dt.getLength() - 1), False)
-                        listing.createData(addr, dt)
-                        results.append({"address": str(addr), "success": True})
-                    except Exception as e:
-                        results.append({"address": str(a), "success": False, "error": str(e)})
+                        listing.clearCodeUnits(target_addr, target_addr.add(dt.getLength() - 1), False)
+                        listing.createData(target_addr, dt)
+                        results.append({"address": str(target_addr), "success": True})
+                    except Exception as exc:
+                        results.append({"address": raw_address, "success": False, "error": str(exc)})
 
             self._run_program_transaction(program, "batch-apply-struct", _batch_apply_struct)
             return create_success_response({"action": "apply", "batch": True, "results": results})
 
-        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
-        listing = self._get_listing(program, program_info=program_info)
-
-        if not args.get(FORCE_APPLY_CONFLICT_ID_KEY):
-            existing_data = listing.getDataAt(addr)
-            if existing_data is not None:
-                existing_type = str(existing_data.getDataType() or "")
-                if existing_type.strip():
-                    from agentdecompile_cli.mcp_server.conflict_store import store as conflict_store_store
-                    from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
-
-                    conflict_id = str(uuid.uuid4())
-                    conflict_summary = f"Apply structure would overwrite existing data at address:\n\n```diff\n- (existing) {existing_type}\n+ {struct_name}\n```"
-                    next_step = f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
-                    program_path = args.get(n("programPath")) or getattr(program_info, "path", None) or getattr(program_info, "file_path", None)
-                    store_args = dict(args)
-                    store_args["mode"] = "apply"
-                    conflict_store_store(
-                        get_current_mcp_session_id(),
-                        conflict_id,
-                        tool=Tool.MANAGE_STRUCTURES.value,
-                        arguments=store_args,
-                        program_path=str(program_path) if program_path else None,
-                        summary=conflict_summary,
-                    )
-                    return create_conflict_response(conflict_id, Tool.MANAGE_STRUCTURES.value, conflict_summary, next_step)
-
+        addr = resolved_targets[0][1]
         def _apply_struct() -> None:
             listing.clearCodeUnits(addr, addr.add(dt.getLength() - 1), False)
             listing.createData(addr, dt)

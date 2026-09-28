@@ -73,9 +73,7 @@ Changelog = "https://github.com/bolabaden/AgentDecompile/releases"
 agentdecompile        = "agentdecompile_cli.cli:cli_entry_point"
 agentdecompile-cli    = "agentdecompile_cli.cli:cli_entry_point"
 agentdecompile-recover = "agentdecompile_recovery.cli:main"
-agentdecompile-reconstruct = "agentdecompile_recovery.frontdoor:main"
 agentdecompile-corpus = "agentdecompile_recovery.corpus.cli:main"
-agentdecompile-acquisition-query = "agentdecompile_recovery.acquisition_mcp:main"
 adgrid = "agentdecompile_grid.cli:main"
 # MCP stdio entrypoint.
 agentdecompile-mcp    = "agentdecompile_cli.__main__:main"
@@ -94,6 +92,9 @@ recovery = "agentdecompile_recovery.grid_lanes"
 builtin = "agentdecompile_grid.tasks.builtin:BUILTIN_KINDS"
 
 [project.optional-dependencies]
+# Optional backends for the consolidated grid command.
+s3 = ["boto3"]
+signing = ["cryptography"]
 semantic = [
   "chromadb",
 ]
@@ -112,7 +113,7 @@ test = [
 # PyPI package, and cannot be expressed as a pip dependency. Install it
 # separately with `dotnet tool install -g ilspycmd`; see README.md.
 all = [
-  "agentdecompile[semantic,unity]",
+  "agentdecompile[semantic,unity,s3,signing]",
 ]
 
 [build-system]

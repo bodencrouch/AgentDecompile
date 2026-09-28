@@ -10,23 +10,9 @@ import json
 import time
 from pathlib import Path
 
+from .ingest_recovered import RECOVERED_FUNCTION_DDL, ensure_recovered_function  # noqa: F401
 from .store import connect
 from .semantic_identity import CLAIM_SCOPE, recorded_export_name
-
-RECOVERED_FUNCTION_DDL = """
-CREATE TABLE IF NOT EXISTS recovered_function (
-    program TEXT,
-    name TEXT,
-    addr INTEGER,
-    size INTEGER,
-    convention TEXT,
-    real_c INTEGER,
-    logical_id INTEGER,
-    path TEXT,
-    evidence TEXT,
-    machine_code TEXT
-)
-"""
 
 
 def _iso(ts: float) -> str:
@@ -42,7 +28,7 @@ def match_source(logical_id: int | None, evidence: str | None) -> str:
 
 
 def build(con) -> dict:
-    con.executescript(RECOVERED_FUNCTION_DDL)
+    ensure_recovered_function(con)
     columns = {row[1] for row in con.execute("PRAGMA table_info(recovered_function)")}
     extra = ", ".join(column if column in columns else f"NULL AS {column}" for column in
                       ("binary_id", "target_sha256", "semantic_status", "semantic_reason", "semantic_evidence"))

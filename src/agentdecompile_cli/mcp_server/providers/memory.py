@@ -288,11 +288,13 @@ class MemoryToolProvider(ToolProvider):
             data = listing.getDataContaining(addr)
 
         if data is not None:
+            from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
+
             return create_success_response(
                 {
                     "mode": "data_at",
                     "address": str(addr),
-                    "dataType": str(data.getDataType()),
+                    "dataType": data_type_label(data.getDataType()),
                     "length": data.getLength(),
                     "value": str(data.getValue()) if data.getValue() else None,
                     "label": str(data.getLabel()) if hasattr(data, "getLabel") and data.getLabel() else None,
@@ -319,6 +321,8 @@ class MemoryToolProvider(ToolProvider):
 
         listing: GhidraListing | None = self._get_listing(program, program_info=program_info)
         assert listing is not None, "listing should be set after _get_listing()"
+        from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
+
         all_items: list[dict[str, Any]] = []
         data: GhidraData | None
         for data in listing.getDefinedData(True):
@@ -326,7 +330,7 @@ class MemoryToolProvider(ToolProvider):
             all_items.append(
                 {
                     "address": str(data.getAddress()),  # pyright: ignore[reportCallIssue]
-                    "dataType": str(data.getDataType()),
+                    "dataType": data_type_label(data.getDataType()),
                     "length": data.getLength(),
                     "label": str(data.getLabel()) if hasattr(data, "getLabel") and data.getLabel() else None,
                 },

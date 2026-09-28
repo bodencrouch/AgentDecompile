@@ -1737,6 +1737,7 @@ def _list_functions_from_bsim(
     listed = bo.list_program_functions(
         program,
         bsim_url=bsim_url,
+        datadir=_bsim_datadir(),
         offset=offset,
         limit=limit,
     )

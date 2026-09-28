@@ -422,6 +422,10 @@ def click_public_names() -> list[str]:
     for name, cmd in sorted(_click_root().commands.items()):
         if getattr(cmd, "hidden", False):
             continue
+        # Bridged corpus/recover/reconstruct/grid forward raw argv to argparse;
+        # corpus.*, recover.* and reconstruct.* already expose them field-by-field.
+        if getattr(cmd, "BRIDGED", False):
+            continue
         if name in advertised or name in _GUI_CLICK:
             continue
         names.append(name)

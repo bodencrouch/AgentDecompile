@@ -204,3 +204,18 @@ def iter_rows(buffer_file: BufferFile, table: TableRecord) -> Iterator[dict[str,
         for name, value in zip(schema.field_names, values):
             row[name] = value
         yield row
+
+
+def find_row(buffer_file, table, key):
+    """Decode the one row stored under a long key, or None when it is absent."""
+
+    from agentdecompile_recovery.ghidra_db.btree import find_long_key_record
+
+    schema = table.schema()
+    record_bytes = find_long_key_record(buffer_file, table.root_buffer_id, schema, key)
+    if record_bytes is None:
+        return None
+    row = {schema.key_name: key}
+    for name, value in zip(schema.field_names, decode_record(schema, record_bytes)):
+        row[name] = value
+    return row

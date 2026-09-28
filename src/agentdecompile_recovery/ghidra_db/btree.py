@@ -335,6 +335,51 @@ def _iter_fixedkey_var_rec_leaf(
         previous_offset = rec_offset
 
 
+def find_long_key_record(buffer_file, root_buffer_id, schema, wanted):
+    """Return the record stored under one long key, or None when it is absent.
+
+    Descends LongKeyInteriorNode entries ([key(8) childId(4)] * n) by binary
+    search instead of walking the leaf chain, so a single-row lookup in a
+    multi-million-row table reads O(depth) buffers. Raises BTreeError for any
+    node type other than the long-key family; callers may fall back to a scan.
+    """
+
+    if root_buffer_id is None or root_buffer_id < 0:
+        return None
+    current_id = root_buffer_id
+    for _ in range(_MAX_DEPTH):
+        node = buffer_file.read_buffer(current_id)
+        kind = node_type(node)
+        if kind == LONGKEY_INTERIOR_NODE:
+            count = key_count(node)
+            if count <= 0:
+                raise BTreeError(f"interior node {current_id} declares no children")
+            lo, hi, pick = 0, count - 1, 0
+            while lo <= hi:
+                mid = (lo + hi) // 2
+                (key,) = struct.unpack_from(">q", node, _INTERIOR_BASE + mid * _INTERIOR_ENTRY_SIZE)
+                if key <= wanted:
+                    pick = mid
+                    lo = mid + 1
+                else:
+                    hi = mid - 1
+            (current_id,) = struct.unpack_from(">i", node, _INTERIOR_BASE + pick * _INTERIOR_ENTRY_SIZE + 8)
+            continue
+        if kind == LONGKEY_VAR_REC_NODE:
+            records = _iter_var_rec_leaf(buffer_file, node)
+        elif kind == LONGKEY_FIXED_REC_NODE:
+            records = _iter_fixed_rec_leaf(node, fixed_record_length(schema))
+        else:
+            raise BTreeError(f"keyed lookup expects a long-key tree, found node type {kind}")
+        for key, record in records:
+            if key == wanted:
+                return record
+            if key > wanted:
+                return None
+        return None
+    raise BTreeError(f"b-tree deeper than {_MAX_DEPTH}; refusing to descend further")
+
+
 def iter_table_records(
     buffer_file: BufferFile, root_buffer_id: int, schema: Schema
 ) -> Iterator[tuple[Any, bytes]]:

@@ -2241,6 +2241,7 @@
     { id: "view.density-comfortable", title: "Use roomy layout", group: "View" },
     { id: "view.jobs-rail", title: "Dock jobs on the side", group: "View" },
     { id: "view.jobs-bottom", title: "Dock jobs at the bottom", group: "View" },
+    { id: "view.classic-layout", title: "Use classic layout", group: "View" },
     { id: "analyze.program", title: "Analyze program", accel: "mod+shift+A", group: "Analyze" },
     { id: "analyze.bsim-ingest", title: "Ingest repository into BSim", accel: "mod+shift+B", group: "Analyze" },
     { id: "analyze.bsim-report", title: "Report BSim database", group: "Analyze" },
@@ -2764,6 +2765,9 @@
     const [moreOpen, setMoreOpen] = useState(false);
     const [density, setDensity] = useState(function () { return readUiPref("wb-density", "compact"); });
     const [jobsRail, setJobsRail] = useState(function () { return readUiPref("wb-jobs-rail", "0") === "1"; });
+    const [classicLayout, setClassicLayout] = useState(function () { return readUiPref("wb-classic-layout", "0") === "1"; });
+    const [decompileOpenNarrow, setDecompileOpenNarrow] = useState(function () { return readUiPref("wb-decompile-open", "0") === "1"; });
+    const [lastDecompile, setLastDecompile] = useState(null);
     const [recentActionIds, setRecentActionIds] = useState(readRecentActionIds);
     const [checkedAddrs, setCheckedAddrs] = useState([]);
     const [checkAnchor, setCheckAnchor] = useState("");
@@ -2771,6 +2775,7 @@
     const jobsSnapshotRef = useRef(null);
     const ensureSeqRef = useRef(0);
     const funcSeqRef = useRef(0);
+    const evidenceSeqRef = useRef(0);
     const funcSlugRef = useRef(slug);
     const fileRef = useRef(null);
     const folderRef = useRef(null);
@@ -2916,13 +2921,64 @@
       return applyWorkspace(data, row);
     }, [program, slug, selected, applyWorkspace]);
 
+    // The store listing carries only recovered C. Decompiler output comes from a
+    // Ghidra read the detail endpoint admits as a job, so poll it until it lands.
+    async function loadFunctionEvidence(row, evidenceSlug, loc, attempt) {
+      const seq = attempt ? evidenceSeqRef.current : ++evidenceSeqRef.current;
+      let data = null;
+      try {
+        const res = await fetch(
+          API.detail + "?slug=" + encodeURIComponent(evidenceSlug || "")
+            + "&addr=" + encodeURIComponent(row.addr)
+            + "&locator=" + encodeURIComponent(loc)
+            + "&program=" + encodeURIComponent(program),
+          { cache: "no-store" }
+        );
+        data = await res.json();
+      } catch (err) {
+        return;
+      }
+      if (seq !== evidenceSeqRef.current || !data) return;
+      const request = data.evidenceRequest || null;
+      let cause = "";
+      if (request && request.status === "failed" && request.jobId) {
+        try {
+          const job = await fetch(API.jobs + "/" + encodeURIComponent(request.jobId), { cache: "no-store" })
+            .then(function (res) { return res.json(); });
+          const record = (job && (job.job || job)) || {};
+          const output = String(record.log || record.output || "");
+          const state = /\*\*State:\*\* `([^`]+)`/.exec(output);
+          cause = state ? state[1] : "";
+        } catch (err) {
+          cause = "";
+        }
+        if (seq !== evidenceSeqRef.current) return;
+      }
+      setDetail(function (prev) {
+        const next = Object.assign({}, prev || {});
+        if (data.decompile && data.decompile.text) next.decompile = data.decompile;
+        if (data.assembly && data.assembly.text) next.assembly = data.assembly;
+        next.evidenceRequest = request ? Object.assign({}, request, { cause: cause }) : null;
+        return next;
+      });
+      const pending = request && (request.status === "running" || request.status === "queued" || request.status === "admitted");
+      if (pending && (attempt || 0) < 40) {
+        setTimeout(function () {
+          if (seq === evidenceSeqRef.current) loadFunctionEvidence(row, evidenceSlug, loc, (attempt || 0) + 1);
+        }, 3000);
+      }
+    }
+
     const selectRow = useCallback(async function (row) {
       setSelected(row);
       setContext(row);
       const loc = (typeof currentLocator === "function" ? currentLocator() : "") || "";
       if (loc && program) {
         const ws = await loadWorkspace(program, row);
-        if (ws && ws.ok) return;
+        if (ws && ws.ok) {
+          if (!(ws.decompile && ws.decompile.text)) loadFunctionEvidence(row, ws.slug || slug, loc, 0);
+          return;
+        }
       }
       const res = await fetch(
         API.detail + "?slug=" + encodeURIComponent(slug)
@@ -3583,9 +3639,32 @@
     }, [density]);
 
     useEffect(function () {
-      document.body.classList.toggle("wb-jobs-rail", jobsRail);
+      /* Decompile owns the right edge in the CodeBrowser grid, so the side rail
+         only applies in classic layout. The command and pref still work either way. */
+      document.body.classList.toggle("wb-jobs-rail", jobsRail && classicLayout);
       writeUiPref("wb-jobs-rail", jobsRail ? "1" : "0");
-    }, [jobsRail]);
+    }, [jobsRail, classicLayout]);
+
+    useEffect(function () {
+      document.body.classList.toggle("wb-classic-layout", classicLayout);
+      writeUiPref("wb-classic-layout", classicLayout ? "1" : "0");
+    }, [classicLayout]);
+
+    useEffect(function () {
+      writeUiPref("wb-decompile-open", decompileOpenNarrow ? "1" : "0");
+    }, [decompileOpenNarrow]);
+
+    useEffect(function () {
+      const text = detail && detail.decompile && detail.decompile.text;
+      if (text) {
+        setLastDecompile({
+          text: text,
+          name: (selected && selected.name) || (detail && detail.name) || "",
+          addr: (selected && selected.addr) || (detail && detail.addr) || "",
+          source: detail.decompile.source || ""
+        });
+      }
+    }, [detail, selected]);
 
     useEffect(function () {
       let last = "";
@@ -3720,7 +3799,10 @@
       }
       const regSlug = String(inspected.slug || newSlug || "").trim();
       let registered = { ok: true, binary: { slug: regSlug } };
-      if (!sameProject || !currentSession.projectSlug) {
+      // Projects and repository trees are opened, never registered as binaries;
+      // the server refuses that. Each program resolves its own corpus slug.
+      const projectKind = ["ghidra-project", "shared-fs", "shared-project"].indexOf(inspected.kind) >= 0;
+      if (!projectKind && (!sameProject || !currentSession.projectSlug)) {
         registered = await registerLocator(value, regSlug, { quiet: true });
         if (!registered.ok) {
           showToast(registered.error || "Could not register that project.", "error");
@@ -4279,6 +4361,14 @@
       if (id === "view.density-comfortable") { setDensity("comfortable"); return; }
       if (id === "view.jobs-rail") { setJobsRail(true); return; }
       if (id === "view.jobs-bottom") { setJobsRail(false); return; }
+      if (id === "view.classic-layout") {
+        setClassicLayout(function (v) {
+          const next = !v;
+          showToast(next ? "Classic layout on" : "Classic layout off");
+          return next;
+        });
+        return;
+      }
       if (id === "analyze.program") {
         const target = program || "";
         if (!target) { showToast("Select a program first", "error"); return; }
@@ -5582,9 +5672,13 @@
         </section>`;
       }
       const decompileText = (detail && detail.decompile && detail.decompile.text) || "";
+      /* Classic layout keeps today's side-by-side Listing/Decompile split, unchanged.
+         The CodeBrowser layout lifts Decompile into its own persistent dock (see
+         decompileDock() below), so Listing here is always single-column there. */
+      const showInlineDecompile = classicLayout && Boolean(decompileText);
       const listingTitle = (selected && selected.name) || program || "Listing";
       return html`<${Surface} id="wb-inspect" title=${"Listing: " + (program || "—")}>
-        <div id="wb-inspect-body" className=${"wb-workspace-split" + (decompileText ? "" : " wb-listing-only")}>
+        <div id="wb-inspect-body" className=${"wb-workspace-split" + (showInlineDecompile ? "" : " wb-listing-only")}>
           <div className="wb-listing-pane">
           ${overview || selected || program ? html`<div>
             <h3>Listing ${listingTitle} ${(selected && selected.addr) ? html`<code>${selected.addr}</code>` : null}</h3>
@@ -5626,7 +5720,7 @@
               : "File → Open a Ghidra repository, then pick a program."}</p>
           </div>`}
           </div>
-          ${decompileText ? html`<div className="wb-decompile-pane">
+          ${showInlineDecompile ? html`<div className="wb-decompile-pane">
             <h3>Decompile: ${(selected && selected.name) || "function"}</h3>
             <p className="wb-hint">${(detail.decompile && detail.decompile.source === "recovered")
               ? "Recovered C for this function."
@@ -5649,6 +5743,60 @@
           </div>
         </div>
       </${Surface}>`;
+    }
+
+    /* Persistent Decompile dock (CodeBrowser layout only). Shows the selected
+       function's decompile from whichever center tab is active, not only
+       Listing. When nothing is selected, it keeps the last function that had
+       a decompile, per the guide's "connected views" behavior. */
+    function decompileDockBody() {
+      const liveText = detail && detail.decompile && detail.decompile.text;
+      const text = liveText || (lastDecompile && lastDecompile.text) || "";
+      const request = detail && detail.evidenceRequest;
+      let status = "";
+      if (!liveText && request) {
+        if (request.status === "running" || request.status === "queued" || request.status === "admitted") {
+          status = "Reading this function from Ghidra…";
+        } else if (request.status === "failed") {
+          status = request.cause === "authentication-failed"
+            ? "The Ghidra server refused the login, so this function could not be read. Open a local copy of the project to read it."
+            : "Ghidra could not read this function." + (request.cause ? " (" + request.cause + ")" : "");
+        }
+      }
+      if (!text) {
+        return html`<div className="wb-decompile-pane wb-decompile-empty">
+          <h3>Decompile</h3>
+          <p className="wb-hint" role="status">${status || "Pick a function to see its decompiled C."}</p>
+        </div>`;
+      }
+      const name = (liveText && selected && selected.name)
+        || (lastDecompile && lastDecompile.name)
+        || (selected && selected.name)
+        || "function";
+      const source = (liveText && detail.decompile && detail.decompile.source)
+        || (lastDecompile && lastDecompile.source)
+        || "";
+      return html`<div className="wb-decompile-pane">
+        <h3>Decompile: ${name}</h3>
+        <p className="wb-hint" role="status">${status
+          ? status + " Showing the last function read."
+          : (source === "recovered" ? "Recovered C for this function." : "Decompiler pane.")}</p>
+        <pre className="wb-preview" id="wb-decompile-preview">${text}</pre>
+      </div>`;
+    }
+
+    function decompileDock() {
+      if (classicLayout) return null;
+      return html`<aside className="wb-decompile-dock" aria-label="Decompile">
+        <button type="button" className="wb-decompile-dock-toggle"
+          aria-expanded=${decompileOpenNarrow} aria-controls="wb-decompile-dock-body"
+          onClick=${function () { setDecompileOpenNarrow(function (v) { return !v; }); }}>
+          ${decompileOpenNarrow ? "Hide Decompile" : "Show Decompile"}
+        </button>
+        <div id="wb-decompile-dock-body" className=${"wb-decompile-dock-body" + (decompileOpenNarrow ? " open" : "")}>
+          ${decompileDockBody()}
+        </div>
+      </aside>`;
     }
 
     return html`<div className="wb">
@@ -5722,7 +5870,8 @@
             ["Use compact layout", "view.density-compact"],
             ["Use roomy layout", "view.density-comfortable"],
             ["Dock jobs on the side", "view.jobs-rail"],
-            ["Dock jobs at the bottom", "view.jobs-bottom"]
+            ["Dock jobs at the bottom", "view.jobs-bottom"],
+            [classicLayout ? "Use new layout" : "Use classic layout", "view.classic-layout"]
           ]],
           ["analyze", "Analyze", [
             ["Analyze program", "analyze.program"],
@@ -6010,7 +6159,8 @@
         </table>
       </${Modal}>
 
-      <div className="wb-app-shell" style=${{ "--wb-side-w": sideW + "px" }}>
+      <div className=${"wb-app-shell" + (classicLayout ? " wb-shell-classic" : "")} style=${{ "--wb-side-w": sideW + "px" }}>
+        <nav className="wb-guide-rail" aria-label="Guide"></nav>
         <aside id="wb-sidebar" className="wb-sidebar" style=${{ width: sideW + "px", flexBasis: sideW + "px" }}
           onContextMenu=${function (ev) {
             const items = [
@@ -6165,6 +6315,7 @@
           ${renderEditorBody()}
         </div>
       </div>
+      ${decompileDock()}
       </div>
       <${LogDock}
         entries=${logEntries}

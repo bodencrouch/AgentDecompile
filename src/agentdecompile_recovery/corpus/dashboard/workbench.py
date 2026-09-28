@@ -1868,6 +1868,27 @@ def _lookup_ref_row(prog, table_name: str, key_name: str, wanted: int) -> dict[s
     return None
 
 
+def _ref_row(prog, table_name, key_name, wanted, raw_key):
+    """Ref-table row for one function entry, by B-tree key when possible.
+
+    The ref tables are keyed by the same encoded address long as the symbol
+    row, so one descent replaces a multi-million-row scan. Any tree shape the
+    keyed reader does not handle falls back to the scan.
+    """
+    from agentdecompile_recovery.ghidra_db.btree import BTreeError
+    from agentdecompile_recovery.ghidra_db.master_table import find_row, find_table
+
+    if raw_key is None:
+        return _lookup_ref_row(prog, table_name, key_name, wanted)
+    table = find_table(prog.buffer_file, table_name)
+    if table is None:
+        return None
+    try:
+        return find_row(prog.buffer_file, table, raw_key)
+    except BTreeError:
+        return _lookup_ref_row(prog, table_name, key_name, wanted)
+
+
 def program_workspace(
     locator: str,
     program: str,
@@ -1896,18 +1917,42 @@ def program_workspace(
         return {"ok": False, "error": str(exc)[:800]}
     if entry is None:
         return {"ok": False, "error": f"{name} is not in {loc}"}
+    # A session carries one project slug, but a repository holds many programs.
+    # The corpus row for this program is the one whose repo_path is its path.
+    from agentdecompile_recovery.corpus.dashboard.common import query_db
+
+    slug_rows, _slug_error = query_db(
+        "SELECT slug FROM binary WHERE repo_path = ? LIMIT 1", (entry.project_path,), ignore_missing=True
+    )
+    if slug_rows:
+        slug = str(slug_rows[0][0] if not isinstance(slug_rows[0], dict) else slug_rows[0].get("slug") or slug)
     try:
         with entry.open() as prog:
             bits = _bits_from_language(prog.language_id)
-            functions: list[tuple[int, str]] = []
-            named = 0
-            for func in prog.functions():
-                if func.entry is None:
-                    continue
-                functions.append((int(func.entry), func.name or ""))
-                if func.name and not func.name.startswith(("FUN_", "Unwind@", "thunk_")):
-                    named += 1
-            functions.sort(key=lambda item: item[0])
+            # The function list is the slow part (every symbol row decoded), and it
+            # only changes when the program database does, so key it by that file.
+            try:
+                db_stamp = entry.database_path.stat().st_mtime_ns
+            except OSError:
+                db_stamp = time.time_ns()
+            fn_key = f"fnlist:{entry.database_path}:{entry.version}:{db_stamp}"
+            fn_hit = _CACHE.get(fn_key)
+            if fn_hit is not None:
+                functions, raw_keys, named = fn_hit[1]
+            else:
+                functions: list[tuple[int, str]] = []
+                raw_keys: dict[int, int] = {}
+                named = 0
+                for func in prog.functions():
+                    if func.entry is None:
+                        continue
+                    functions.append((int(func.entry), func.name or ""))
+                    if func.address is not None:
+                        raw_keys.setdefault(int(func.entry), func.address.raw)
+                    if func.name and not func.name.startswith(("FUN_", "Unwind@", "thunk_")):
+                        named += 1
+                functions.sort(key=lambda item: item[0])
+                _CACHE[fn_key] = (time.time(), (functions, raw_keys, named))
             if not functions:
                 overview = {
                     "program": name,
@@ -1953,8 +1998,8 @@ def program_workspace(
                             )
                 if len(comments) >= 24:
                     break
-            incoming = _lookup_ref_row(prog, "TO REFS", "To Address", pick)
-            outgoing = _lookup_ref_row(prog, "FROM REFS", "From Address", pick)
+            incoming = _ref_row(prog, "TO REFS", "To Address", pick, raw_keys.get(pick))
+            outgoing = _ref_row(prog, "FROM REFS", "From Address", pick, raw_keys.get(pick))
             by_entry = {start: fname for start, fname in functions}
 
             def owning(va: int) -> tuple[int, str]:
@@ -2227,7 +2272,7 @@ def render_workbench(*, static_mode: bool = False) -> str:
 <link rel="stylesheet" href="/dashboard/static/workbench-controls.css?v=onepage1">
 <link rel="stylesheet" href="/dashboard/static/workbench-chrome.css?v=onepage1">
 <link rel="stylesheet" href="/dashboard/static/workbench-sidebar.css?v=live11">
-<link rel="stylesheet" href="/dashboard/static/workbench-editor.css?v=live24">
+<link rel="stylesheet" href="/dashboard/static/workbench-editor.css?v=live25">
 <link rel="stylesheet" href="/dashboard/static/workbench-dialogs.css?v=onepage1">
 <link rel="stylesheet" href="/dashboard/static/workbench-overlays.css?v=onepage1">
 </head>
@@ -2341,7 +2386,7 @@ def render_workbench(*, static_mode: bool = False) -> str:
 <script src="/dashboard/static/react-dom.js"></script>
 <script src="/dashboard/static/htm.js"></script>
 <script src="/dashboard/static/dashboard.js" defer></script>
-<script src="/dashboard/static/workbench-app.js?v=live29" defer></script>
+<script src="/dashboard/static/workbench-app.js?v=live33" defer></script>
 </body>
 </html>
 """

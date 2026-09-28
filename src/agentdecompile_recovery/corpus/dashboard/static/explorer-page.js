@@ -33,7 +33,6 @@
     treeActions: {},
     source: null,
     reconnectTimer: 0,
-    budgetHours: 24,
     binarySearch: readPref("binary-search", ""),
     functionSearch: readPref("function-search", ""),
     functionFilter: readPref("function-filter", "all"),
@@ -716,9 +715,7 @@
     ]));
     if (!run) {
       if (state.selection.locator || state.selection.slug) {
-        var start = node("button", { type: "button", onclick: function () { startWorkflow(); } }, ["Start workflow"]);
-        start.disabled = Boolean(state.workflowBusy);
-        body.appendChild(node("div", { className: "workflow-controls" }, [start]));
+        body.appendChild(node("p", { className: "workflow-scope" }, ["The pipeline admits eligible work automatically."]));
       }
       if (state.workflowError) body.appendChild(node("p", { className: "workflow-error" }, ["Error: " + state.workflowError]));
       return;
@@ -795,23 +792,6 @@
       controls.appendChild(controlButton("stop", "Stop workflow"));
     }
     if (run.status === "paused") controls.appendChild(controlButton("resume", "Resume workflow"));
-    if (run.status === "cancelled" || run.status === "blocked") {
-      var restart = node("button", { type: "button", onclick: function () { startWorkflow(); } }, ["Start workflow"]);
-      restart.disabled = Boolean(state.workflowBusy);
-      controls.appendChild(restart);
-    }
-    var hours = node("input", {
-      type: "number",
-      min: "1",
-      max: "168",
-      value: String(state.budgetHours),
-      "aria-label": "Workflow budget hours"
-    });
-    hours.addEventListener("change", function () {
-      state.budgetHours = Number(hours.value);
-    });
-    controls.appendChild(node("label", {}, ["Hours from now ", hours]));
-    controls.appendChild(controlButton("budget", "Set budget"));
     if (state.workflowBusy) controls.appendChild(node("span", { role: "status" }, ["Submitting " + state.workflowBusy + "…"]));
     body.appendChild(controls);
     if (state.workflowError) body.appendChild(node("p", { className: "workflow-error" }, ["Error: " + state.workflowError]));
@@ -1021,7 +1001,6 @@
     state.workflowError = "";
     renderWorkflow();
     var params = { preparation_id: state.run.id, operation: operation };
-    if (operation === "budget") params.seconds = Math.round(Number(state.budgetHours || 24) * 3600);
     fetch(API.jobs, {
       method: "POST",
       headers: { "content-type": "application/json" },

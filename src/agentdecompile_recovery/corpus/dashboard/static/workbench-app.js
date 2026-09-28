@@ -1212,7 +1212,7 @@
     </div>`;
   }
 
-  function StepLadder({ steps, title, onRun }) {
+  function StepLadder({ steps, title }) {
     const list = steps || [];
     if (!list.length) return html`<p className="wb-hint">No ladder facts yet.</p>`;
     return html`<section className="wb-ladder">
@@ -1231,9 +1231,6 @@
               <span className="wb-step-name">${step.title || step.key}</span>
               <span className="wb-step-state">${st}</span>
               <span className="wb-step-count">${count}</span>
-              ${step.action_id && onRun ? html`<button type="button" className="wb-btn wb-btn-mini"
-                disabled=${!step.action_enabled}
-                onClick=${function () { onRun(step); }}>Run</button>` : null}
             </div>
             <p className="wb-hint">${step.why || step.reason || ""}</p>
             ${step.currentProgram || step.currentTarget ? html`<p className="wb-hint"><code>${step.currentProgram || step.currentTarget}</code>${step.currentAction ? " · " + step.currentAction : ""}</p>` : null}
@@ -1298,9 +1295,25 @@
     return `MCP tool calls: ${used} used / ${limit} allowance · allocation revision ${revision}${exhausted}${prior}`;
   }
 
-  function PreparationObservation({ run, feed, now }) {
+  const PREPARATION_ACTIVE = { queued: 1, running: 1, waiting: 1, cancelling: 1 };
+
+  function PreparationObservation({ run, feed, now, onControl }) {
     const stale = ["disconnected", "resync"].includes(String(run && run.status)) || Boolean(feed.error) || Boolean(feed.receivedAt && now - feed.receivedAt > 10000);
     const decisions = Object.values(run && run.retryDecisions || {}).filter(function (value) { return value && typeof value === "object" && value.nextAction !== "dispatch"; });
+    const [busy, setBusy] = useState("");
+    const [ctlError, setCtlError] = useState("");
+    function control(operation) {
+      if (!run || !run.id || busy || !onControl) return;
+      setBusy(operation);
+      setCtlError("");
+      Promise.resolve(onControl(run.id, operation)).then(function (result) {
+        setBusy("");
+        if (!result) setCtlError("Could not send " + operation + ". Try again.");
+      }, function (err) {
+        setBusy("");
+        setCtlError(String((err && err.message) || err || ("Could not send " + operation + ".")));
+      });
+    }
     return html`<section className="wb-preparation-observation" aria-label="Recorded preparation state">
       <p role="status">${stale ? "Connection lost · showing last received state; current state unknown" : feed.receivedAt ? "Preparation feed connected" : "Preparation status not yet received"}</p>
       ${feed.receivedAt ? html`<p className="wb-hint">Last received: <time dateTime=${new Date(feed.receivedAt).toISOString()}>${new Date(feed.receivedAt).toLocaleString()}</time></p>` : null}
@@ -1311,7 +1324,17 @@
         <p className="wb-hint">Admission allowance counts reserved action attempts, including uncertain or rejected dispatches. It is separate from the execution deadline and does not measure recovered code. Accounting scope: ${run.objectiveBudget && typeof run.objectiveBudget.accountingScope === "string" ? run.objectiveBudget.accountingScope : "unknown"}.</p>
         ${typeof run.updatedAt === "number" && Number.isFinite(run.updatedAt) ? html`<p className="wb-hint">Last recorded change: <time dateTime=${new Date(run.updatedAt * 1000).toISOString()}>${new Date(run.updatedAt * 1000).toLocaleString()}</time></p>` : null}
         ${decisions.map(function (decision, index) { return html`<p key=${index} className="wb-hint">${decision.reason || "Awaiting reconciliation"}${decision.wakeCondition ? " · Continues after: " + String(decision.wakeCondition).replace(/_/g, " ") : ""}</p>`; })}
-        <p className="wb-hint">Stage completion does not establish byte verification or accepted source contribution.</p>` : null}
+        <p className="wb-hint">Stage completion does not establish byte verification or accepted source contribution.</p>
+        ${onControl && run.id ? html`<div className="wb-fn-tools" role="toolbar" aria-label="Workflow control">
+          ${PREPARATION_ACTIVE[run.status] ? html`<button type="button" className="wb-btn wb-btn-mini" disabled=${Boolean(busy)}
+            onClick=${function () { control("pause"); }}>Pause</button>` : null}
+          ${PREPARATION_ACTIVE[run.status] ? html`<button type="button" className="wb-btn wb-btn-mini" disabled=${Boolean(busy)}
+            onClick=${function () { control("stop"); }}>Stop</button>` : null}
+          ${run.status === "paused" ? html`<button type="button" className="wb-btn wb-btn-mini" disabled=${Boolean(busy)}
+            onClick=${function () { control("resume"); }}>Resume</button>` : null}
+          ${busy ? html`<span role="status" className="wb-hint">Submitting ${busy}…</span>` : null}
+          ${ctlError ? html`<span role="status" className="wb-dialog-error">${ctlError}</span>` : null}
+        </div>` : null}` : null}
     </section>`;
   }
 
@@ -1477,10 +1500,7 @@
 
   function MatchWorkbench({
     program, selected, detail, bsim,
-    onRefresh, onRunMatch, onRunMatchFunction,
-    onApplyStabs, onLogicalBuild, onMergeParts, onPropagate,
-    onRunCrossPlace, onExtractStabs, onPickSibling,
-    canMatchPair, canMatchFunction, canIdentity
+    onRefresh, onPickSibling
   }) {
     const state = (bsim && bsim.state) || "";
     const siblings = (detail && detail.siblings) || [];
@@ -1496,33 +1516,13 @@
         <p>${line}</p>
         ${bsim && bsim.datadir ? html`<p className="wb-hint"><code>${bsim.datadir}</code></p>` : null}
       </div>
+      <p className="wb-hint">The pipeline matches and rebuilds identities automatically.</p>
       <div className="wb-fn-tools" role="toolbar" aria-label="Match">
-        <button type="button" id="wb-match-run" className="wb-btn wb-btn-primary"
-          disabled=${canMatchPair === false}
-          onClick=${onRunMatch}>Run match</button>
-        <button type="button" id="wb-match-fn" className="wb-btn"
-          disabled=${canMatchFunction === false}
-          onClick=${onRunMatchFunction}>Match function</button>
-        <button type="button" id="wb-match-apply-stabs" className="wb-btn wb-btn-mini"
-          disabled=${canIdentity === false}
-          onClick=${onApplyStabs}>Apply STABS</button>
-        <button type="button" id="wb-match-logical-build" className="wb-btn wb-btn-mini"
-          disabled=${canIdentity === false}
-          onClick=${onLogicalBuild}>Logical build</button>
-        <button type="button" id="wb-match-merge-parts" className="wb-btn wb-btn-mini"
-          disabled=${canIdentity === false}
-          onClick=${onMergeParts}>Merge parts</button>
-        <button type="button" id="wb-match-propagate" className="wb-btn wb-btn-mini"
-          disabled=${canIdentity === false}
-          onClick=${onPropagate}>Propagate</button>
-        <button type="button" id="wb-match-cross" className="wb-btn"
-          onClick=${onRunCrossPlace}>Run cross-place</button>
         <button type="button" className="wb-btn" onClick=${onRefresh}>Refresh</button>
       </div>
       <section className="wb-stabs-detail">
         <h3>STABS</h3>
-        <p className="wb-hint">Donor symbols for this program, if a STABS file exists.</p>
-        <button type="button" id="wb-match-stabs" className="wb-btn wb-btn-mini" onClick=${onExtractStabs}>Extract STABS</button>
+        <p className="wb-hint">Donor symbols for this program, if a STABS file exists. The pipeline extracts them automatically.</p>
       </section>
       ${siblings.length ? html`<section>
         <h3>Siblings</h3>
@@ -1634,7 +1634,7 @@
     </div>`;
   }
 
-  function RecoverWorkbench({ program, selected, recover, recoveredRoot, onRefresh, onDump, onOneShot, onExportC, onDecompile, onGhidraBulk, onCrossPlace, onIngest }) {
+  function RecoverWorkbench({ program, selected, recover, recoveredRoot, onRefresh }) {
     const state = (recover && recover.state) || "";
     const files = (recover && recover.files) || [];
     const summary = (recover && recover.summary)
@@ -1647,25 +1647,16 @@
         <p>${summary}</p>
         ${recover && recover.path ? html`<p className="wb-hint"><code>${recover.path}</code></p>` : null}
       </div>
+      <p className="wb-hint">The pipeline recovers, places and ingests source automatically.</p>
       <div className="wb-fn-tools" role="toolbar" aria-label="Recover">
-        <button type="button" id="wb-recover-run" className="wb-btn wb-btn-primary"
-          onClick=${onGhidraBulk}>Ghidra bulk</button>
-        <button type="button" className="wb-btn" onClick=${onCrossPlace}>Cross-place</button>
-        <button type="button" id="wb-recover-export" className="wb-btn"
-          onClick=${onExportC}>Export C</button>
-        <button type="button" className="wb-btn" onClick=${onIngest}>Ingest recovered</button>
-        <button type="button" className="wb-btn" onClick=${onDecompile}>Decompile function</button>
         <button type="button" className="wb-btn" onClick=${onRefresh}>Refresh</button>
       </div>
-      ${((recover && recover.leftoverCount) || 0) > 0 ? html`<div className="wb-fn-tools" role="toolbar" aria-label="Leftover">
-        <button type="button" className="wb-btn" onClick=${onDump}>Dump leftover</button>
-        <button type="button" className="wb-btn" onClick=${onOneShot}>One-shot leftover</button>
-      </div>` : html`<p className="wb-hint">Leftover dump stays off until a leftover set exists.</p>`}
+      ${((recover && recover.leftoverCount) || 0) > 0 ? html`<p className="wb-hint">Leftover functions are pending. The pipeline recovers them automatically.</p>` : html`<p className="wb-hint">No leftover functions right now.</p>`}
       ${files.length ? html`<ul className="wb-recover-files">
         ${files.map(function (name) {
           return html`<li key=${name}><code>${name}</code></li>`;
         })}
-      </ul>` : html`<p className="wb-hint">Run Ghidra bulk to write compiling C.</p>`}
+      </ul>` : html`<p className="wb-hint">The pipeline writes compiling C here automatically.</p>`}
     </div>`;
   }
 
@@ -1792,56 +1783,39 @@
 
   const QUICK_ACTION_SETS = {
     home: [
-      { id: "corpus.ghidra-bulk", label: "Ghidra bulk", mutating: true },
-      { id: "corpus.cross-place", label: "Cross-place" },
       { id: "mcp.status", label: "Status" },
       { id: "mcp.list-functions", label: "List functions" }
     ],
     atlas: [
-      { id: "corpus.genproject", label: "Genproject" },
       { id: "mcp.decompile-function", label: "Decompile", needsFunction: true },
       { id: "mcp.get-function", label: "Get function", needsFunction: true }
     ],
     functions: [
       { id: "mcp.list-functions", label: "List functions" },
-      { id: "mcp.search-symbols", label: "Search symbols" },
-      { id: "corpus.logical-build", label: "Logical build", needsProject: true }
+      { id: "mcp.search-symbols", label: "Search symbols" }
     ],
     explorer: [
       { ui: "upload", label: "Add files…" },
       { ui: "import", label: "Open…" },
-      { id: "corpus.extract-stabs", label: "Extract STABS", needsProject: true },
       { id: "corpus.init-store", label: "Init store" },
       { id: "corpus.init", label: "Init corpus", needsProject: true, mutating: true }
     ],
-    project: [
-      { id: "corpus.ghidra-bulk", label: "Ghidra bulk", mutating: true },
-      { id: "corpus.workspace", label: "Workspace", mutating: true },
-      { id: "corpus.cross-place", label: "Cross-place" },
-      { id: "corpus.compile-link", label: "Compile link", mutating: true }
-    ],
+    project: [],
     pipeline: [
-      { id: "corpus.stages", label: "Stages" },
-      { id: "corpus.run", label: "Run pipeline", danger: true }
+      { id: "corpus.stages", label: "Stages" }
     ],
     function: [
       { id: "mcp.decompile-function", label: "Decompile", needsFunction: true },
-      { id: "mcp.match-function", label: "Match", needsFunction: true, mutating: true },
       { id: "mcp.get-references", label: "Xrefs", needsFunction: true },
       { id: "mcp.analyze-data-flow", label: "Data flow", needsFunction: true }
     ],
     binary: [
-      { id: "recover.inspect", label: "Inspect", needsSlug: true },
-      { id: "corpus.ghidra-bulk", label: "Ghidra bulk", needsSlug: true, mutating: true }
+      { id: "recover.inspect", label: "Inspect", needsSlug: true }
     ],
     report: [
-      { id: "corpus.export-run-report", label: "Export report" },
-      { id: "corpus.ingest-recovered", label: "Ingest recovered", mutating: true }
+      { id: "corpus.export-run-report", label: "Export report" }
     ],
-    stabs: [
-      { id: "corpus.extract-stabs", label: "Extract STABS", needsProject: true },
-      { id: "corpus.stabs-report", label: "STABS report" }
-    ]
+    stabs: []
   };
 
   function quickActionDisabled(item, flags) {
@@ -1849,18 +1823,6 @@
     if (item.needsSlug && flags.needsSlug) return true;
     if (item.needsProject && flags.needsProject) return true;
     return false;
-  }
-
-  function pipelineQuickActions(baseItems, stages) {
-    return (baseItems || []).concat((stages || []).map(function (stage) {
-      return {
-        id: stage.actionId,
-        label: stage.label,
-        needsProject: stage.needsProject === true,
-        mutating: stage.mutating === true,
-        requiresCatalog: true
-      };
-    }));
   }
 
   function quickActionUnavailable(item, catalog, flags) {
@@ -2283,11 +2245,6 @@
     { id: "view.jobs-rail", title: "Dock jobs on the side", group: "View" },
     { id: "view.jobs-bottom", title: "Dock jobs at the bottom", group: "View" },
     { id: "view.classic-layout", title: "Use classic layout", group: "View" },
-    { id: "analyze.program", title: "Analyze program", accel: "mod+shift+A", group: "Analyze" },
-    { id: "analyze.bsim-ingest", title: "Ingest repository into BSim", accel: "mod+shift+B", group: "Analyze" },
-    { id: "analyze.bsim-report", title: "Report BSim database", group: "Analyze" },
-    { id: "analyze.bsim-create", title: "Create BSim database", group: "Analyze" },
-    { id: "run.cross-place", title: "Run Cross-place", accel: "mod+shift+X", group: "Run" },
     { id: "run.last", title: "Run last action", accel: "Enter", group: "Run" },
     { id: "help.access", title: "Shortcuts and menus…", accel: "shift+?", group: "Help" },
     { id: "help.overview", title: "Overview", group: "Help" }
@@ -3395,7 +3352,7 @@
       if (!data.ok && data.error) setFuncNote(humanError(data.error));
       else if (!(data.results || []).length) {
         setFuncNote(humanError(data.error) || (program
-          ? (program + " has no functions yet. Analyze → Analyze program.")
+          ? (program + " has no functions yet. The pipeline analyzes it automatically.")
           : (funcOffset ? "Past the end of this build. Go back a page." : "Pick a program in Explorer.")));
       } else setFuncNote("");
     }, [slug, query, program, funcOffset, funcLimit]);
@@ -3939,12 +3896,6 @@
         } else if (key === "j") {
           ev.preventDefault();
           runCommand("view.jobs");
-        } else if (key === "a" && ev.shiftKey) {
-          ev.preventDefault();
-          runCommand("analyze.program");
-        } else if (key === "b" && ev.shiftKey) {
-          ev.preventDefault();
-          runCommand("analyze.bsim-ingest");
         }
       }
       window.addEventListener("keydown", onKey);
@@ -4732,7 +4683,6 @@
       return [
         { title: "Select program", run: function () { selectProgram(name); } },
         { title: "Open in Ghidra", run: function () { setProgram(name); ensureGhidraProgram(name, { locator: currentLocator() }); } },
-        { title: "Analyze program", run: function () { setProgram(name); startImportPipeline(name); } },
         { title: "Listing", id: "view.listing" },
         { title: "Match", id: "view.cross-match" },
         { title: "Recover", id: "view.recovery" },
@@ -4779,10 +4729,8 @@
         { title: "Data flow", run: function () { runTool("mcp.analyze-data-flow"); } },
         { title: "Bookmark…", run: function () { if (row) selectRow(row); openActionStrip("mcp.manage-bookmarks"); } },
         { title: "Rename / manage function…", run: function () { if (row) selectRow(row); openActionStrip("mcp.manage-function"); } },
-        { title: "Match function", run: function () { runTool("mcp.match-function"); } },
         "—",
         { title: "Run last action", id: "run.last" },
-        { title: "Run Cross-place", id: "run.cross-place" },
         "—",
         { title: "Copy address", run: function () { copyText(row && row.addr, "address"); } },
         { title: "Copy name", run: function () { copyText((row && row.name) || (row && row.addr), "name"); } }
@@ -4891,32 +4839,6 @@
         });
         return;
       }
-      if (id === "analyze.program") {
-        const target = program || "";
-        if (!target) { showToast("Select a program first", "error"); return; }
-        startImportPipeline(target);
-        return;
-      }
-      if (id === "analyze.bsim-ingest") {
-        executeAction("corpus.bsim-ingest", {}, { skipConfirm: true });
-        showToast("BSim ingest started");
-        return;
-      }
-      if (id === "analyze.bsim-report") {
-        executeAction("corpus.bsim-report", catalogParamsFor("corpus.bsim-report", {}), { skipConfirm: true });
-        showToast("BSim report started");
-        return;
-      }
-      if (id === "analyze.bsim-create") {
-        executeAction("corpus.bsim-createdatabase", {}, { skipConfirm: true });
-        showToast("Create BSim database started");
-        return;
-      }
-      if (id === "run.cross-place") {
-        jumpTo("wb-match");
-        executeAction("corpus.cross-place", {}, { skipConfirm: true });
-        return;
-      }
       if (id === "run.last") {
         if (lastActionId) { openActionStrip(lastActionId); showToast("Last action " + lastActionId); }
         else showToast("No last action yet.", "error");
@@ -4984,9 +4906,6 @@
         else if (key === "s") { ev.preventDefault(); runCommand("file.save"); }
         else if (key === "i") { ev.preventDefault(); runCommand("file.add-binaries"); }
         else if (key === "e" && ev.shiftKey) { ev.preventDefault(); runCommand("view.explorer"); }
-        else if (key === "x" && ev.shiftKey) { ev.preventDefault(); runCommand("run.cross-place"); }
-        else if (key === "a" && ev.shiftKey) { ev.preventDefault(); runCommand("analyze.program"); }
-        else if (key === "b" && ev.shiftKey) { ev.preventDefault(); runCommand("analyze.bsim-ingest"); }
         else if (key === "w") { ev.preventDefault(); runCommand("file.close-tab"); }
       }
       window.addEventListener("keydown", onCmd);
@@ -5167,6 +5086,20 @@
       return data;
     }
 
+    /* Pause, resume and stop are the only workflow controls (R4). They post the
+       same workbench.workflow-control action explorer-page.js already uses,
+       scoped to the run in view via preparation_id. */
+    function controlPreparation(preparationId, operation) {
+      if (!preparationId || !operation) return Promise.resolve(null);
+      return executeAction("workbench.workflow-control", {
+        preparation_id: preparationId,
+        operation: operation
+      }, { skipConfirm: true, quiet: true }).then(function (data) {
+        loadPreparations();
+        return data;
+      });
+    }
+
     /* Quiet, budget-bounded reader for catalog actions the Symbol Tree (slice 1)
        and the continuous Listing rows (slice 2) use. Same POST-then-poll idiom
        as executeAction/loadFunctionEvidence above, but: (1) refuses to run
@@ -5270,42 +5203,6 @@
       });
       window.KotorXidUI = window.AgentDecompileUI;
     }, [toolContext, envDefaults, binaries, detail]);
-
-    function programAlreadyAnalyzed(data) {
-      if (!data) return false;
-      if (data.analysisComplete === true) return true;
-      if (data.results && data.results.length) return true;
-      if ((data.total || 0) > 0 && data.source === "ghidra-store") return true;
-      return false;
-    }
-
-    function startImportPipeline(programName, opts) {
-      const target = String(programName || "").trim();
-      if (!target) return;
-      const force = !!(opts && opts.force);
-      const targetContext = {
-        slug: toolContext.slug || "",
-        program: target,
-        repo: toolContext.repo || "",
-        locator: currentLocator()
-      };
-      Promise.resolve(ensureGhidraProgram(target, {
-        quiet: true,
-        reportFailure: true,
-        locator: targetContext.locator
-      })).then(function (data) {
-        if (!data) return;
-        if (!force && programAlreadyAnalyzed(data)) {
-          return;
-        }
-        return executeAction("mcp.analyze-program", {
-          program: target,
-          locator: targetContext.locator
-        }, { skipConfirm: true, targetContext: targetContext });
-      }).catch(function (err) {
-        showToast("Analyze request failed: " + String((err && err.message) || err), "error");
-      });
-    }
 
     function runFromActionStrip() {
       const act = actions.find(function (item) { return item.id === pendingActionId; });
@@ -5667,9 +5564,7 @@
     }
 
     function quickBar(setName) {
-      const items = setName === "pipeline"
-        ? pipelineQuickActions(QUICK_ACTION_SETS.pipeline, pipelineStages)
-        : (QUICK_ACTION_SETS[setName] || []);
+      const items = QUICK_ACTION_SETS[setName] || [];
       return html`<${QuickActions}
         items=${items}
         catalog=${actions}
@@ -5803,14 +5698,6 @@
         }}>${label}</button>`;
     }
 
-    function runLadderStep(step) {
-      if (!step || !step.action_id) return;
-      executeAction(step.action_id, {
-        slug: step.action_slug || slug || "",
-        program: step.action_program || program || ""
-      }, { skipConfirm: !step.action_enabled, quiet: false });
-    }
-
     function renderEditorBody() {
       const tab = centerTab || "decompile";
       const recoveryRun = selectPreparationRun(preparationRuns, currentLocator(), program, slug);
@@ -5829,7 +5716,6 @@
           html`<button type="button" className="wb-btn wb-btn-mini" onClick=${function () { loadCorpusStatus(); }}>Refresh facts</button>`
         )}>
           ${quickBar("home")}
-          ${quickBar("project")}
           <${TabRoster}
             programs=${projectNames}
             imports=${importItems}
@@ -5845,7 +5731,7 @@
             }} />
           <${HealthStrip} probes=${corpusStatus && corpusStatus.probes} atlasUrl=${atlasHref(corpusStatus)} />
           <${CorpusHeadline} headline=${corpusStatus && corpusStatus.headline} claim=${corpusStatus && corpusStatus.claimBoundary} />
-          <${StepLadder} title="Corpus ladder" steps=${ladder.corpus_steps} onRun=${runLadderStep} />
+          <${StepLadder} title="Corpus ladder" steps=${ladder.corpus_steps} />
           <${BinaryCompareTable} binaries=${ladder.binaries} onOpen=${function (b) {
             if (b && b.slug) { setSlug(b.slug); setCenterTab("wb-pipeline"); }
           }} />
@@ -5874,14 +5760,13 @@
         const ladder = (corpusStatus && corpusStatus.ladder) || {};
         const active = (ladder.binaries || []).find(function (b) { return b.slug === slug; }) || (ladder.binaries || [])[0];
         return html`<${Surface} id="wb-pipeline" title="Pipeline" actions=${panelActions(
-          runActionButton("corpus.run", "Run pipeline"),
           runActionButton("corpus.stages", "Stages"),
           html`<button type="button" className="wb-btn wb-btn-mini" onClick=${function () { loadCorpusStatus(); }}>Refresh facts</button>`
         )}>
           ${quickBar("pipeline")}
-          <${StepLadder} title="Corpus" steps=${ladder.corpus_steps} onRun=${runLadderStep} />
-          ${active ? html`<${StepLadder} title=${"Build " + active.slug} steps=${active.steps} onRun=${runLadderStep} />` : null}
-          <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} />
+          <${StepLadder} title="Corpus" steps=${ladder.corpus_steps} />
+          ${active ? html`<${StepLadder} title=${"Build " + active.slug} steps=${active.steps} />` : null}
+          <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} onControl=${controlPreparation} />
           ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + recoveryRun.status} steps=${recoveryRun.stages} />` : null}
         </${Surface}>`;
       }
@@ -5895,87 +5780,15 @@
         </${Surface}>`;
       }
       if (tab === "wb-match") {
-        const siblings = (detail && detail.siblings) || [];
-        const pair = matchPairParams(toolContext, binaries, siblings);
-        const canPair = pair.ok;
-        const canFn = Boolean(selected && selected.addr && program);
-        const canId = hasCorpusContext(toolContext);
-        const matchRunReady = canId ? canPair : canFn;
-        function runIdentity(actionId) {
-          if (!canId) {
-            showToast("Pick a program or corpus binary in Explorer first", "error");
-            return;
-          }
-          if (actionId === "corpus.apply-stabs" && !toolContext.slug) {
-            showToast("Pick a corpus binary slug for STABS apply", "error");
-            return;
-          }
-          if (actionId === "corpus.match-pair") {
-            if (!pair.src) {
-              showToast("No repo path for the active binary", "error");
-              return;
-            }
-            if (!pair.dst) {
-              showToast("Need a second binary for pair match", "error");
-              return;
-            }
-          }
-          executeAction(
-            actionId,
-            identityActionParams(actionId, toolContext, binaries, siblings),
-            { skipConfirm: true }
-          );
-        }
         return html`<${Surface} id="wb-match" title="Match" actions=${panelActions(
-          runActionButtonRun("corpus.bsim-ingest", "BSim ingest"),
-          runActionButtonRun("corpus.bsim-report", "BSim report"),
-          runActionButton("corpus.bsim-createdatabase", "Create BSim DB")
+          runActionButtonRun("corpus.bsim-report", "BSim report")
         )}>
           <${MatchWorkbench}
             program=${program}
             selected=${selected}
             detail=${detail}
             bsim=${bsimStatus}
-            canMatchPair=${matchRunReady}
-            canMatchFunction=${canFn}
-            canIdentity=${canId}
             onRefresh=${function () { loadMatchStatus(); showToast("BSim status refreshed"); }}
-            onRunMatch=${function () {
-              if (canId) {
-                runIdentity("corpus.match-pair");
-                return;
-              }
-              if (!canFn) {
-                showToast("Select a function first", "error");
-                return;
-              }
-              executeAction("mcp.match-function", {
-                addr: selected.addr,
-                name: selected.name || "",
-                program: program || ""
-              }, { skipConfirm: true });
-            }}
-            onRunMatchFunction=${function () {
-              if (!canFn) {
-                showToast("Select a function first", "error");
-                return;
-              }
-              executeAction("mcp.match-function", {
-                addr: selected.addr,
-                name: selected.name || "",
-                program: program || ""
-              }, { skipConfirm: true });
-            }}
-            onApplyStabs=${function () { runIdentity("corpus.apply-stabs"); }}
-            onLogicalBuild=${function () { runIdentity("corpus.logical-build"); }}
-            onMergeParts=${function () { runIdentity("corpus.merge-parts"); }}
-            onPropagate=${function () { runIdentity("corpus.propagate-source"); }}
-            onRunCrossPlace=${function () {
-              executeAction("corpus.cross-place", { program: program || "", slug: slug || "" }, { skipConfirm: true });
-            }}
-            onExtractStabs=${function () {
-              executeAction("corpus.extract-stabs", { program: program || "", slug: slug || "" }, { skipConfirm: true });
-            }}
             onPickSibling=${function (sib) {
               if (sib && sib.slug) setSlug(sib.slug);
             }} />
@@ -5985,7 +5798,6 @@
       }
       if (tab === "wb-recovery") {
         return html`<${Surface} id="wb-recovery" title="Recover" actions=${panelActions(
-          runActionButtonRun("corpus.genproject", "Genproject"),
           runActionButtonRun("recover.inspect", "Inspect recover")
         )}>
           <${RecoverWorkbench}
@@ -5993,74 +5805,16 @@
             selected=${selected}
             recover=${recoverInfo}
             recoveredRoot=${recoveredRoot}
-            onRefresh=${function () { loadRecoverStatus(); showToast("Recovery status refreshed"); }}
-            onDump=${function () {
-              if (!((recoverInfo && recoverInfo.leftoverCount) || 0)) {
-                showToast("No leftover functions. Ghidra bulk is the recover path.", "error");
-                return;
-              }
-              executeAction("corpus.genproject", {
-                program: program || "",
-                "leftover-only": true
-              }, { skipConfirm: true });
-            }}
-            onOneShot=${function () {
-              if (!((recoverInfo && recoverInfo.leftoverCount) || 0)) {
-                showToast("No leftover functions. Ghidra bulk is the recover path.", "error");
-                return;
-              }
-              executeAction("reconstruct.one-shot", {
-                program: program || ""
-              }, { skipConfirm: true });
-            }}
-            onGhidraBulk=${function () {
-              executeAction("corpus.ghidra-bulk", { program: program || "" }, { skipConfirm: true });
-            }}
-            onCrossPlace=${function () {
-              executeAction("corpus.cross-place", { program: program || "" }, { skipConfirm: true });
-            }}
-            onIngest=${function () {
-              executeAction("corpus.ingest-recovered", {}, { skipConfirm: true });
-            }}
-            onExportC=${function () {
-              const loc = (typeof currentLocator === "function" ? currentLocator() : "") || "";
-              const work = envDefaults.work_dir || "";
-              if (!work) {
-                showToast("Set AGENT_DECOMPILE_CORPUS_WORK_DIR on the server", "error");
-                return;
-              }
-              const dest = work.replace(/\/?$/, "/") + "export-c";
-              executeAction("corpus.export-c", {
-                "repo-path": loc,
-                "out-dir": dest,
-                program: program || ""
-              }, { skipConfirm: true });
-            }}
-            onDecompile=${function () {
-              if (!selected || !selected.addr) {
-                showToast("Select a function first", "error");
-                return;
-              }
-              if (selected.decomp === "c") {
-                showToast("This logical function already has real C. Ghidra bulk skips it.", "error");
-                return;
-              }
-              executeAction("mcp.decompile-function", {
-                addr: selected.addr,
-                name: selected.name || "",
-                program: program || ""
-              }, { skipConfirm: true });
-            }} />
+            onRefresh=${function () { loadRecoverStatus(); showToast("Recovery status refreshed"); }} />
         </${Surface}>`;
       }
       if (tab === "wb-stabs") {
         const bins = (corpusStatus && corpusStatus.ladder && corpusStatus.ladder.binaries) || [];
         return html`<${Surface} id="wb-stabs" title="STABS" actions=${panelActions(
-          runActionButton("corpus.extract-stabs", "Extract STABS"),
           runActionButton("corpus.stabs-manifest", "STABS manifest")
         )}>
           ${quickBar("stabs")}
-          <p className="wb-hint">Named counts come from the live corpus snapshot. Extract STABS writes the index the ladder reads.</p>
+          <p className="wb-hint">Named counts come from the live corpus snapshot. The pipeline extracts STABS automatically.</p>
           <${BinaryCompareTable} binaries=${bins} onOpen=${function (b) { if (b && b.slug) setSlug(b.slug); }} />
         </${Surface}>`;
       }
@@ -6069,10 +5823,9 @@
           return s.key === "calibrate-global" || s.key === "identify";
         });
         return html`<${Surface} id="wb-knowledge" title="Knowledge" actions=${panelActions(
-          runActionButton("corpus.bsim-ingest", "BSim ingest"),
           runActionButton("corpus.bsim-report", "BSim report")
         )}>
-          <${StepLadder} title="Identity and knowledge merge" steps=${steps} onRun=${runLadderStep} />
+          <${StepLadder} title="Identity and knowledge merge" steps=${steps} />
         </${Surface}>`;
       }
       if (tab === "wb-roundtrip") {
@@ -6082,21 +5835,16 @@
         const recoverySteps = recoveryRun ? (recoveryRun.stages || []).filter(function (stage) {
           return ["calibrate-global", "materialize-target", "assembly-floor", "recover-source", "apply-cross-build", "leftover-recover", "verify-byte-accuracy"].includes(stage.key);
         }) : [];
-        return html`<${Surface} id="wb-roundtrip" title="Roundtrip" actions=${panelActions(
-          runActionButton("reconstruct.run", "Reconstruct run"),
-          runActionButton("corpus.verify-legacy-recovered", "Verify legacy"),
-          runActionButton("corpus.external-bridge", "External bridge")
-        )}>
+        return html`<${Surface} id="wb-roundtrip" title="Roundtrip" actions=${panelActions()}>
           <${CorpusHeadline} headline=${corpusStatus && corpusStatus.headline} claim="Compile and byte-accuracy stay separate columns." />
-          <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} />
+          <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} onControl=${controlPreparation} />
           ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + (recoveryRun.program || program || slug || recoveryRun.status)} steps=${recoverySteps} />` : null}
-          <${StepLadder} title="Compile and verify" steps=${steps} onRun=${runLadderStep} />
+          <${StepLadder} title="Compile and verify" steps=${steps} />
         </${Surface}>`;
       }
       if (tab === "wb-processes") {
         return html`<${Surface} id="wb-processes" title="Process log" actions=${panelActions(
-          runActionButton("mcp.status", "MCP status"),
-          runActionButton("corpus.run", "Run pipeline")
+          runActionButton("mcp.status", "MCP status")
         )}>
           <${HealthStrip} probes=${corpusStatus && corpusStatus.probes} atlasUrl=${atlasHref(corpusStatus)} />
           <ul id="action-jobs" className="wb-job-list">
@@ -6174,13 +5922,10 @@
           </table>` : html`<div className="wb-empty wb-empty-surface">
             <p>${funcNote || "Select a program in Explorer to list its functions."}</p>
             <p className="wb-empty-actions">
-              <button type="button" className="wb-btn wb-btn-primary" data-cmd="analyze.program"
-                onClick=${function () { runCommand("analyze.program"); }}>Analyze program</button>
               <button type="button" className="wb-btn" data-cmd="file.open-program"
                 onClick=${function () { runCommand("file.open-program"); }}>Open in Ghidra</button>
-              <button type="button" className="wb-btn" data-cmd="analyze.bsim-ingest"
-                onClick=${function () { runCommand("analyze.bsim-ingest"); }}>Ingest into BSim</button>
             </p>
+            <p className="wb-hint">The pipeline analyzes and ingests new programs automatically.</p>
           </div>`}
           ${rows.length ? html`<${FuncPager} limit=${funcLimit} shown=${rows.length}
             total=${total}
@@ -6198,22 +5943,15 @@
         </${Surface}>`;
       }
       if (tab === "wb-logical") {
-        return html`<${Surface} id="wb-logical" title="Logical identities" actions=${panelActions(
-          runActionButton("corpus.logical-build", "Logical build"),
-          runActionButton("corpus.propagate-source", "Propagate source"),
-          runActionButton("corpus.cross-place", "Cross-place")
-        )}>
+        return html`<${Surface} id="wb-logical" title="Logical identities" actions=${panelActions()}>
           <p className="wb-hint">Same function across builds. Bound vs real C is the identity picture.</p>
+          <p className="wb-hint">The pipeline builds and propagates identities across builds automatically.</p>
           <${BinaryCompareTable} binaries=${(corpusStatus && corpusStatus.ladder && corpusStatus.ladder.binaries) || []}
             onOpen=${function (b) { if (b && b.slug) setSlug(b.slug); }} />
         </${Surface}>`;
       }
       if (tab === "wb-review") {
-        return html`<${Surface} id="wb-review" title="Review" actions=${panelActions(
-          runActionButton("corpus.reclassify-matches", "Reclassify"),
-          runActionButton("corpus.match-pair", "Re-run match"),
-          runActionButton("corpus.evaluate-pair", "Evaluate pair")
-        )}>
+        return html`<${Surface} id="wb-review" title="Review" actions=${panelActions()}>
           <${ReviewReact} onRefresh=${loadCorpusStatus}/>
         </${Surface}>`;
       }
@@ -6303,11 +6041,6 @@
             <h3>Listing ${listingTitle} ${(selected && selected.addr) ? html`<code>${selected.addr}</code>` : null}</h3>
             <p className="wb-hint">${(detail && detail.path) || (overview && overview.path) || ""}</p>
             <div className="wb-fn-tools" role="toolbar" aria-label="Listing tools">
-              <button type="button" id="wb-analyze" className="wb-btn wb-btn-mini wb-btn-primary" data-cmd="analyze.program"
-                onClick=${function () {
-                  if (!program) { showToast("Select a program first", "error"); return; }
-                  startImportPipeline(program);
-                }}>Analyze</button>
               <button type="button" id="wb-listing-decompile" className="wb-btn wb-btn-mini"
                 onClick=${function () {
                   if (!selected || !selected.addr) { showToast("Select a function first", "error"); return; }
@@ -6319,8 +6052,8 @@
                 onClick=${function () { jumpTo("wb-match"); }}>Match</button>
               <button type="button" id="wb-listing-recover" className="wb-btn wb-btn-mini"
                 onClick=${function () { jumpTo("wb-recovery"); }}>Recover</button>
-              <button type="button" id="wb-listing-fields" className="wb-btn wb-btn-mini"
-                onClick=${function () { openActionStrip(selected ? "mcp.manage-function" : "mcp.decompile-function"); }}>Fields…</button>
+              <button type="button" id="wb-listing-fields" className="wb-btn wb-btn-mini" disabled=${!selected}
+                onClick=${function () { if (selected) openActionStrip("mcp.manage-function"); }}>Fields…</button>
             </div>
             ${(detail && detail.siblings && detail.siblings.length) ? html`<ul className="wb-siblings">
               ${detail.siblings.map(function (sib) {
@@ -6483,7 +6216,6 @@
             ["Atlas", "view.atlas"],
             ["Jobs", "view.jobs"],
             ["—"],
-            ["Run Cross-place", "run.cross-place"],
             ["STABS", "view.stabs"],
             ["Knowledge", "view.knowledge"],
             ["Logical identities", "view.logical"],
@@ -6497,12 +6229,6 @@
             ["Dock jobs on the side", "view.jobs-rail"],
             ["Dock jobs at the bottom", "view.jobs-bottom"],
             [classicLayout ? "Use new layout" : "Use classic layout", "view.classic-layout"]
-          ]],
-          ["analyze", "Analyze", [
-            ["Analyze program", "analyze.program"],
-            ["Ingest repository into BSim", "analyze.bsim-ingest"],
-            ["Report BSim database", "analyze.bsim-report"],
-            ["Create BSim database", "analyze.bsim-create"]
           ]],
           ["server", "Server", [
             ["Restart server", null, restartServer],
@@ -6895,7 +6621,6 @@
                     run: function () { setCheckedAddrs([]); setCheckAnchor(""); } },
                   "—",
                   { id: "run.last" },
-                  { id: "run.cross-place" },
                   "—",
                   { id: "view.listing" },
                   { id: "view.graph" }
@@ -6942,7 +6667,6 @@
             "—",
             { id: "view.palette" },
             { id: "view.cross-match" },
-            { id: "run.cross-place" },
             "—",
             { id: "file.open" },
             { id: "file.add-binaries" }

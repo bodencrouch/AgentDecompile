@@ -7,6 +7,49 @@ by the recovery pipeline in plain language with an ETA.
 from __future__ import annotations
 
 
+def render_ai_page() -> str:
+    return """<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Targeted AI — AgentDecompile</title>
+<style>
+body{font:14px/1.5 system-ui,sans-serif;background:#141517;color:#ddd;margin:0;padding:clamp(16px,4vw,32px)}
+main{max-width:680px}a{color:#9ac1ff}h1{font-size:1.3rem}
+form{padding:20px;border:1px solid #555;background:#24262a}label{display:flex;gap:12px;align-items:center}
+button{font:inherit;padding:8px 16px;margin-top:16px}button:disabled{opacity:.6}input{width:20px;height:20px}
+#status{min-height:1.5em;overflow-wrap:anywhere}.hint{color:#b4bac2}
+</style></head><body><main>
+<a href="/dashboard">Back to workspace</a><h1>Targeted AI</h1>
+<p>Allow bounded AI proposals for unresolved source recovery and cleanup. Deterministic analysis,
+matching, compilation and verification remain available with AI off. A proposal must pass the same acceptance checks.</p>
+<form id="ai-form"><label><input type="checkbox" id="ai-enabled" disabled>Use targeted AI for future jobs</label>
+<p id="effective" aria-live="polite">Loading effective setting…</p>
+<p id="override" class="hint"></p><button id="save-ai" type="submit" disabled>Save setting</button>
+<p id="status" role="status"></p></form>
+<p class="hint">Precedence: server flag, environment, dashboard, then off. Server flags are fixed at process start.
+Saving affects the next job; a running job keeps its captured policy. Changing another shell's environment does not change this server.</p>
+</main><script>
+const toggle=document.getElementById('ai-enabled'), save=document.getElementById('save-ai');
+const status=document.getElementById('status');
+const sources={cli:'server flag',env:'environment',dashboard:'dashboard',default:'default'};
+function show(data){
+ toggle.checked=data.enabled; toggle.disabled=!data.editable; save.disabled=!data.editable;
+ document.getElementById('effective').textContent='Effective: '+(data.enabled?'On':'Off')+' · Source: '+(sources[data.source]||data.source);
+ document.getElementById('override').textContent=data.editable?'Changes apply to future jobs.':'Overridden by '+(sources[data.source]||data.source)+'. The dashboard cannot override this source.';
+}
+async function load(){
+ try{const r=await fetch('/dashboard/api/settings/ai');const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||'Could not read setting');show(d);}
+ catch(e){status.textContent=e.message;document.getElementById('effective').textContent='Effective setting unavailable';}
+}
+document.getElementById('ai-form').addEventListener('submit',async function(e){
+ e.preventDefault();save.disabled=true;toggle.disabled=true;status.textContent='Saving…';
+ try{const r=await fetch('/dashboard/api/settings/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:toggle.checked})});
+ const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||'Could not save setting');show(d);status.textContent='Saved for future jobs.';}
+ catch(e){status.textContent=e.message;await load();}
+});load();
+</script></body></html>"""
+
+
 def render_notifications_page() -> str:
     return """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">

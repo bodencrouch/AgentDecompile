@@ -376,7 +376,31 @@ def _unique_binary_slug(con, desired: str) -> str:
 
 def register_path_binary(path: str, *, slug: str = "", role: str = "member", label: str = "", url: str = "") -> dict[str, Any]:
     with _REGISTRATION_LOCK:
-        return _register_path_binary(path, slug=slug, role=role, label=label, url=url)
+        result = _register_path_binary(path, slug=slug, role=role, label=label, url=url)
+    if result.get("ok") and (result.get("binary") or {}).get("slug"):
+        result["preparation"] = _admit_open_context({"slug": result["binary"]["slug"]})
+    return result
+
+
+def _admit_open_context(context: dict[str, Any]) -> dict[str, Any]:
+    """Opening admits missing work through the existing durable coordinator.
+
+    Non-resuming submit reuses current/completed receipts; opening a tab is not
+    permission to reset budgets, unpause work or redo accepted analysis.
+    """
+    from .preparation import submit
+
+    try:
+        row = submit(context, resume=False)
+    except (OSError, ValueError) as exc:
+        return {"status": "blocked", "error": str(exc), "reason": str(exc)}
+    return {
+        "id": row.get("id"), "status": row.get("status", "unknown"),
+        "generation": row.get("inventoryGeneration"),
+        "queuePosition": row.get("queuePosition"),
+        "reason": row.get("reason") or row.get("error") or "",
+        "admissionPending": bool(row.get("admissionPending")),
+    }
 
 
 def _register_path_binary(
@@ -1439,7 +1463,9 @@ def list_sessions() -> dict[str, Any]:
 def write_sessions(payload: dict[str, Any]) -> dict[str, Any]:
     from agentdecompile_recovery.corpus.ghidra_project import fresh_draft_session, load_sessions, save_sessions_merged
 
-    sessions = list((payload or {}).get("sessions") or [])
+    admit_open = (payload or {}).get("admitOpen") is True
+    payload = {key: value for key, value in (payload or {}).items() if key != "admitOpen"}
+    sessions = list(payload.get("sessions") or [])
     if not sessions:
         # An empty list never wipes stored tabs; a client that lost its state
         # must not erase the server's. With nothing stored, keep one draft tab
@@ -1448,7 +1474,12 @@ def write_sessions(payload: dict[str, Any]) -> dict[str, Any]:
         if stored.get("sessions"):
             return {"ok": True, **stored, "ignored": True}
         return fresh_draft_session(live_root())
-    return save_sessions_merged(live_root(), payload)
+    result = save_sessions_merged(live_root(), payload)
+    if admit_open and result.get("ok"):
+        active = next((item for item in result.get("sessions", []) if item.get("id") == result.get("active")), None)
+        if active and active.get("locator") and active.get("kind") != "draft":
+            result["preparation"] = _admit_open_context({"locator": active["locator"], "slug": active.get("projectSlug", "")})
+    return result
 
 
 def list_functions(
@@ -1745,7 +1776,9 @@ def _list_functions_fallback(
         return bsim_listed
     from agentdecompile_recovery.corpus.dashboard.mcp_bridge import list_functions as mcp_list
 
-    ghidra_listed = mcp_list(program, q=q, offset=offset, limit=limit)
+    ghidra_listed = mcp_list(program, q=q, offset=offset, limit=limit, locator=locator)
+    if ghidra_listed.get("queued"):
+        return ghidra_listed
     if ghidra_listed.get("results"):
         return ghidra_listed
     if ghidra_listed.get("error") and not bsim_listed.get("error"):
@@ -1759,9 +1792,9 @@ def _list_functions_fallback(
 
 
 def ensure_ghidra_program(locator: str, program: str = "") -> dict[str, Any]:
-    from agentdecompile_recovery.corpus.dashboard.mcp_bridge import ensure_program
+    from agentdecompile_recovery.corpus.dashboard.mcp_bridge import read_program
 
-    return ensure_program(locator, program)
+    return read_program(locator, program)
 
 
 def _list_functions_from_bsim(
@@ -2371,6 +2404,7 @@ def render_workbench(*, static_mode: bool = False) -> str:
       <button type="button" class="wb-menu-btn">Edit</button>
       <button type="button" class="wb-menu-btn">View</button>
       <button type="button" class="wb-menu-btn">Help</button>
+      <a class="wb-menu-btn" href="/dashboard/settings/ai">Targeted AI</a>
     </nav>
     <div id="wb-sessions" class="wb-sessions" role="tablist" aria-label="Open projects">
       <button type="button" id="wb-tab-new" class="wb-tab-new">New tab</button>

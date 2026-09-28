@@ -1436,6 +1436,11 @@ def _canonical_session_locator(value: object) -> str:
     text = str(value or "").strip()
     if not text:
         return ""
+    if is_shared_locator(text):
+        # A repository URL is not a relative filesystem path. Resolving it
+        # through Path would tie its identity to the dashboard's current cwd.
+        parsed = urlparse(text)
+        return parsed._replace(scheme=parsed.scheme.lower(), path=parsed.path.rstrip("/")).geturl()
     try:
         return str(Path(text).expanduser().resolve(strict=False))
     except (OSError, RuntimeError, ValueError):
@@ -1443,11 +1448,10 @@ def _canonical_session_locator(value: object) -> str:
 
 
 def _dedupe_project_sessions(sessions: list[dict[str, object]], active: str) -> tuple[list[dict[str, object]], str]:
-    """Coalesce duplicate project records and leave one project visibly loaded.
+    """Coalesce aliases of each project while retaining distinct open peers.
 
-    Draft sessions are retained, but hidden while a concrete project is active.
-    Older projects remain as hidden recent-project records instead of rendering
-    as competing open projects in the explorer.
+    Active selection is independent of visibility. Scoped MCP consumers own
+    their project's reads; a second tab is not a second writer admission.
     """
     project_by_locator: dict[str, dict[str, object]] = {}
     other: list[dict[str, object]] = []
@@ -1489,12 +1493,13 @@ def _dedupe_project_sessions(sessions: list[dict[str, object]], active: str) -> 
         active_item = next((item for item in sessions if str(item.get("id") or "") == active), {})
         active_locator = _canonical_session_locator(active_item.get("locator")) or (f"slug:{str(active_item.get('projectSlug') or '').strip()}" if active_item.get("projectSlug") else "")
     visible_project = active_locator if active_locator in project_by_locator else (next(reversed(project_by_locator), ""))
-    for key, project in project_by_locator.items():
-        project["hidden"] = key != visible_project
+    for project in project_by_locator.values():
+        project["hidden"] = False
     for item in other:
-        item["hidden"] = bool(visible_project) or bool(item.get("hidden"))
+        item["hidden"] = False if str(item.get("id") or "") == active else bool(item.get("hidden"))
     ordered = [*other, *projects]
-    active_id = str(project_by_locator[visible_project].get("id") or "") if visible_project else active
+    active_draft = any(str(item.get("id") or "") == active for item in other)
+    active_id = active if active_draft else str(project_by_locator[visible_project].get("id") or "") if visible_project else active
     return ordered, active_id
 
 

@@ -5,6 +5,8 @@ import { ErrorLine, PrefDetails, Section } from "./ui";
 import { stageDisplayProgress, stageProgressDetail, stageProgressLabel } from "./preparationProgress";
 import { preparationBudgetText, preparationProviderBudgetText } from "./preparationBudget";
 import "./preparation.css";
+import {useEntityActivity} from "./activity";
+import {DependencyGraph} from "./DependencyGraph";
 const active = (status: string) => ["queued", "running", "waiting", "cancelling", "disconnected", "resync"].includes(status);
 const statusLabels: Record<string, string> = {
   queued: "Preparation queued",
@@ -152,6 +154,7 @@ export function PreparationProgress({ run, selection, notify, error = "", loadin
 }
 export function PreparationActivity({ selection, notify }: SurfaceProps) {
   const { runs, error, loading, lastConnectedAt, now } = usePreparationFeed();
+  const graph = useEntityActivity(selection.locator, selection.slug, selection.program, Boolean(selection.locator || selection.slug));
   const run = selectPreparation(runs, selection);
   const [childJob, setChildJob] = useState<Data | undefined>();
   const childId = run?.stages?.find((stage: Data) => stage.status === "running")?.jobId;
@@ -175,5 +178,5 @@ export function PreparationActivity({ selection, notify }: SurfaceProps) {
     return () => { alive = false; clearTimeout(timer); };
   }, [childId, runId]);
   const displayed = run && childJob ? {...run, currentJob: childJob} : run;
-  return <Section id="preparation" title="Prepare the project"><PreparationProgress run={displayed} selection={selection} notify={notify} error={error} loading={loading} lastConnectedAt={lastConnectedAt} now={now} /></Section>;
+  return <Section id="preparation" title="Prepare the project"><DependencyGraph entities={graph.entities} connection={graph.connection} error={graph.error}/><PreparationProgress run={displayed} selection={selection} notify={notify} error={error} loading={loading} lastConnectedAt={lastConnectedAt} now={now} /></Section>;
 }

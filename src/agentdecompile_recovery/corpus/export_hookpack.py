@@ -31,6 +31,7 @@ from .operation_contract import bind_operations, load_operation_contract
 
 
 FORMAT = "agentdecompile.hookpack/v1"
+FORMAT_V2 = "agentdecompile.hookpack/v2"
 
 
 def function_abi(con, binary_id: int, addr: int) -> dict:
@@ -72,6 +73,7 @@ def function_abi(con, binary_id: int, addr: int) -> dict:
         count is not None and count == len(parameters)
         and [p["ordinal"] for p in parameters] == list(range(count))
         and all(p["dataType"] and known_pieces(p["storage"]) for p in parameters)
+        and bool(return_type)
         and (known_pieces(returned) or (return_type == "void" and returned == []))
         and convention not in (None, "", "unknown", "__unknown")
         and isinstance(properties, dict) and not properties.get("varArgs")
@@ -178,13 +180,24 @@ def _binary_entry(b: dict, image_for) -> dict:
     return entry
 
 
-def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None, operation_contract=None) -> dict:
+def export_hookpack(con, out: Path, *, site_policy=None, adapter_map=None, operation_contract=None, format="v1") -> dict:
     """Write the pack for *con* to *out*.
 
     *site_policy* and *adapter_map* are optional file paths; see
     :mod:`hookpack_policy` for their shapes. With neither given the pack
     carries default site kinds and no adapter keys.
     """
+    if format not in ("v1", "v2", FORMAT, FORMAT_V2):
+        raise ValueError(f"Unsupported hook pack format: {format}")
+    if format in ("v2", FORMAT_V2):
+        from .hookpack_v2 import build_hookpack_v2
+        pack = build_hookpack_v2(con, site_policy=site_policy, adapter_map=adapter_map,
+                                 operation_contract=operation_contract)
+        out = Path(out)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(pack, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        return {"wrote": str(out), "format": FORMAT_V2, "entities": len(pack["entities"]),
+                "binaries": len(pack["binaries"]), "pack_sha256": pack["pack_sha256"]}
     policy = load_site_policy(site_policy)
     amap = load_adapter_map(adapter_map)
     operations = load_operation_contract(operation_contract)

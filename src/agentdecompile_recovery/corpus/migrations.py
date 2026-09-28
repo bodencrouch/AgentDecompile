@@ -208,6 +208,64 @@ def _typed_fields(con: sqlite3.Connection) -> None:
     )""")
 
 
+def _matching_evidence(con: sqlite3.Connection) -> None:
+    """Version 7: optional BSim evidence with explicit query provenance."""
+    con.execute("""CREATE TABLE IF NOT EXISTS bsim_query (
+        src_binary INTEGER NOT NULL REFERENCES binary(id),
+        dst_binary INTEGER NOT NULL REFERENCES binary(id),
+        database_id TEXT NOT NULL, src_digest TEXT NOT NULL, dst_digest TEXT NOT NULL,
+        state TEXT NOT NULL, reason TEXT NOT NULL,
+        PRIMARY KEY(src_binary, dst_binary)
+    )""")
+    con.execute("""CREATE TABLE IF NOT EXISTS bsim_hit (
+        src_binary INTEGER NOT NULL REFERENCES binary(id), src_addr INTEGER NOT NULL,
+        dst_binary INTEGER NOT NULL REFERENCES binary(id), dst_addr INTEGER NOT NULL,
+        database_id TEXT NOT NULL, similarity REAL NOT NULL,
+        significance REAL NOT NULL, self_significance REAL,
+        PRIMARY KEY(src_binary, src_addr, dst_binary, dst_addr)
+    )""")
+    con.execute("CREATE INDEX IF NOT EXISTS ix_bsim_pair ON bsim_hit(src_binary,dst_binary)")
+
+
+def _pcode_channel(con: sqlite3.Connection) -> None:
+    """Version 8: correct the algorithm label, retaining historical decisions."""
+    import json
+    for row in con.execute("SELECT id,evidence FROM match ORDER BY id").fetchall():
+        try:
+            evidence = json.loads(row[1] or "{}")
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(evidence, dict) or evidence.get("stage") != "pcode_il_ast" or evidence.get("primary_channel") != "M":
+            continue
+        evidence["primary_channel"] = "K"
+        evidence["channels"] = sorted({"K" if c == "M" else c for c in evidence.get("channels", ["M"])})
+        # Historical confidence and operator decisions are immutable evidence.
+        # Explicitly require review rather than silently promoting on +4 base.
+        evidence["algorithm_relabel"] = {"from": "M", "to": "K", "base_delta": 4,
+                                        "confidence_review_required": True}
+        con.execute("UPDATE match SET evidence=? WHERE id=?", (json.dumps(evidence, sort_keys=True), row[0]))
+
+
+def _match_metadata(con: sqlite3.Connection) -> None:
+    """Version 9: queryable projection of recorded evidence, no rescoring."""
+    import json
+    _store.ensure_match_columns(con)
+    for row in con.execute("SELECT id,evidence FROM match ORDER BY id").fetchall():
+        try:
+            evidence = json.loads(row[1] or "{}")
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(evidence, dict):
+            continue
+        confidence = evidence.get("confidence")
+        if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
+            confidence = None
+        con.execute("UPDATE match SET kind=?,confidence=?,algorithm=? WHERE id=?",
+                    (evidence.get("kind"), confidence,
+                     evidence.get("primary_channel") or evidence.get("channel"), row[0]))
+    con.execute("CREATE INDEX IF NOT EXISTS ix_match_algorithm_confidence ON match(algorithm,confidence)")
+
+
 MIGRATIONS: list[Migration] = [
     Migration(1, "baseline", _baseline),
     Migration(2, "analyzer_identity", _analyzer_identity),
@@ -215,6 +273,9 @@ MIGRATIONS: list[Migration] = [
     Migration(4, "match_review", _match_review),
     Migration(5, "function_storage", _function_storage),
     Migration(6, "typed_fields", _typed_fields),
+    Migration(7, "matching_evidence", _matching_evidence),
+    Migration(8, "pcode_channel", _pcode_channel),
+    Migration(9, "match_metadata", _match_metadata),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1].version

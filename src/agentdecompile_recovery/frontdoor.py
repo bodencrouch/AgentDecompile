@@ -20,8 +20,9 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .targeted_ai import resolve_targeted_ai, targeted_ai_environment, targeted_ai_job
 from .acquire import acquire_context
-from .autonomy_budget import budget_from_args
+from .autonomy_budget import DEFAULT_MAX_REWRITE_REQUESTS_PER_FUNCTION, budget_from_args
 from .claim_report import write_claim_report
 from .cli import add_unity_arguments, main as legacy_main, unity_config_kwargs
 from .critical_path import write_critical_path
@@ -64,7 +65,7 @@ def run_decomp_cli_bridge(args: list[str], *, prog: str = DEFAULT_PROG) -> int:
     if not decomp.exists():
         print(f"{prog}: missing workspace bridge {decomp}", file=sys.stderr)
         return 1
-    proc = subprocess.run([str(decomp), *args], cwd=root)
+    proc = subprocess.run([str(decomp), *args], cwd=root, env=targeted_ai_environment())
     return int(proc.returncode or 0)
 
 
@@ -191,12 +192,10 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     parser.add_argument(
         "--autonomous-max-rewrite-requests",
         type=int,
-        default=0,
+        default=DEFAULT_MAX_REWRITE_REQUESTS_PER_FUNCTION,
         help=(
-            "Autonomy budget: maximum subagent-fulfilled rewrite-queue requests per "
-            "function (default: 0, disabled). Opt-in; requires a live Claude Code "
-            "session running /loop against the agentdecompile-rewrite-worker skill "
-            "to fulfill requests."
+            "Autonomy budget: maximum rewrite requests per function (default: 1). "
+            "Only applies when targeted AI is enabled by server policy; 0 suppresses rewrites."
         ),
     )
     parser.add_argument(
@@ -917,7 +916,7 @@ def build_reconstruct_namespace(
     autonomous: bool = False,
     autonomous_max_functions: int = 1,
     autonomous_max_attempts: int = 3,
-    autonomous_max_rewrite_requests: int = 0,
+    autonomous_max_rewrite_requests: int = DEFAULT_MAX_REWRITE_REQUESTS_PER_FUNCTION,
     autonomous_max_wall_seconds: int | None = None,
     autonomous_max_campaigns: int = 1,
     autonomous_stop_on_accept: bool = False,
@@ -943,8 +942,7 @@ def build_reconstruct_namespace(
         argv.append("--autonomous")
     argv.extend(["--autonomous-max-functions", str(autonomous_max_functions)])
     argv.extend(["--autonomous-max-attempts", str(autonomous_max_attempts)])
-    if autonomous_max_rewrite_requests:
-        argv.extend(["--autonomous-max-rewrite-requests", str(autonomous_max_rewrite_requests)])
+    argv.extend(["--autonomous-max-rewrite-requests", str(autonomous_max_rewrite_requests)])
     if autonomous_max_wall_seconds is not None:
         argv.extend(["--autonomous-max-wall-seconds", str(autonomous_max_wall_seconds)])
     if autonomous_max_campaigns != 1:
@@ -958,6 +956,7 @@ def build_reconstruct_namespace(
     return build_parser().parse_args(argv)
 
 
+@targeted_ai_job()
 def run_reconstruct_job(
     input_path: Path,
     *,
@@ -970,7 +969,7 @@ def run_reconstruct_job(
     autonomous: bool = False,
     autonomous_max_functions: int = 1,
     autonomous_max_attempts: int = 3,
-    autonomous_max_rewrite_requests: int = 0,
+    autonomous_max_rewrite_requests: int = DEFAULT_MAX_REWRITE_REQUESTS_PER_FUNCTION,
     autonomous_max_wall_seconds: int | None = None,
     autonomous_max_campaigns: int = 1,
     autonomous_stop_on_accept: bool = False,
@@ -982,6 +981,7 @@ def run_reconstruct_job(
     from .claim_report import build_claim_report
     from .recovery_status import build_recovery_status
 
+    ai_state = resolve_targeted_ai()
     args = build_reconstruct_namespace(
         input_path,
         work_dir=work_dir,
@@ -1031,6 +1031,7 @@ def run_reconstruct_job(
             "orchestration outcome only; semantic recovery requires receipt-backed "
             "objdiff-verified-semantic artifacts under verified/"
         ),
+        "targetedAI": {"enabled": ai_state.enabled, "source": ai_state.source},
         "autonomousRequested": bool(autonomous),
         "autonomyBudget": budget.to_json(),
     }
@@ -1164,6 +1165,7 @@ def run_upstream_command_guard(command: str, *, prog: str = DEFAULT_PROG) -> int
     return 2
 
 
+@targeted_ai_job()
 def main(argv: list[str] | None = None, prog: str | None = None) -> int:
     """Dispatch the reconstruct front door.
 

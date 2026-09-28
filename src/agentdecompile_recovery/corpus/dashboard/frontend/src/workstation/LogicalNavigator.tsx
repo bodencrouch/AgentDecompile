@@ -1,3 +1,5 @@
+import {TierProgress} from '../TierProgress';
+import {ExportReadiness} from '../ExportReadiness';
 import {useEffect,useRef,useState} from 'react';
 import {API,request,type Data,type Selection} from '../contracts';
 import {ErrorLine,RecordView,useData} from '../ui';
@@ -53,5 +55,7 @@ export function LogicalNavigator({selection,binaries,corpus,revision,onSelect,on
       {detailReady&&<CoverageMatrix members={members} binaries={binaries}/>}
       {missing.length>0&&<details><summary>Builds without a returned member ({missing.length})</summary><p>This does not establish that a build is unmatched; the API supplies no negative-match or divergence verdict.</p><ul>{missing.map((binary,index)=><li key={binary.slug||index}>{binary.name||binary.slug||binary.sha256}</li>)}</ul></details>}
     </section>}
+    <TierProgress selection={selection} revision={revision}/>
+    <ExportReadiness selection={selection} revision={revision}/>
   </div>;
 }

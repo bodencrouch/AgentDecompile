@@ -23,6 +23,8 @@ BASE = {
     "bsim": 68,
     "T": 55,
     "abi": 55,
+    "K": 70,
+    "pcode": 70,
     "M": 66,
     "bindiff": 66,
     "D": 64,
@@ -55,6 +57,8 @@ def _channel_letter(token: str) -> str:
         return "S"
     if t in {"t", "abi", "arity", "cc"}:
         return "T"
+    if t in {"k", "pcode", "pcode_fingerprint", "pcode_il_ast", "skeleton"}:
+        return "K"
     if t in {"m", "bindiff", "binexport", "diaphora"}:
         return "M"
     if t in {"d", "emulate", "unicorn", "qemu"}:
@@ -77,14 +81,14 @@ def independent_channels(evidence: Mapping[str, Any] | None) -> set[str]:
         if key in HASH_KEYS or key.startswith("hash_"):
             letters.add("H")
             continue
-        ch = evidence.get("channel") or evidence.get("primary_channel")
-        if key in {"channel", "primary_channel", "kind", "propagation_kind"} and isinstance(val, str):
+        if key in {"channel", "primary_channel"} and isinstance(val, str):
             letters.add(_channel_letter(val))
             continue
         if key in BASE or key in {"strings", "consts", "ext", "neighbors", "compunit", "decomp", "fuzzy_hash", "bsim", "abi"}:
             letters.add(_channel_letter(key))
+    letters.update(_channel_letter(str(channel)) for channel in evidence.get("channels", []) if isinstance(channel, str))
     kind = evidence.get("kind") or evidence.get("propagation_kind")
-    if isinstance(kind, str):
+    if isinstance(kind, str) and not (evidence.get("primary_channel") or evidence.get("channel") or evidence.get("channels")):
         letters.add(_channel_letter(kind))
     return {c for c in letters if c and c != "?"}
 

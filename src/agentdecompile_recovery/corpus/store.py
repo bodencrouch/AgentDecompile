@@ -221,6 +221,8 @@ def remove_binary(
     for table in ("calledge", "identity", "func_param", "ghidra_field", "func", "stabs_type"):
         cur = con.execute(f"DELETE FROM {table} WHERE binary_id=?", (bid,))
         deleted[table] = cur.rowcount
+    for table in ("bsim_hit", "bsim_query"):
+        deleted[table] = con.execute(f"DELETE FROM {table} WHERE src_binary=? OR dst_binary=?", (bid, bid)).rowcount
     deleted["match"] = con.execute(
         "DELETE FROM match WHERE src_binary=? OR dst_binary=?", (bid, bid)
     ).rowcount
@@ -260,6 +262,9 @@ def ensure_match_columns(con: sqlite3.Connection) -> None:
         ("relation", "TEXT NOT NULL DEFAULT 'one_to_one'"),
         ("src_end", "INTEGER"),
         ("dst_end", "INTEGER"),
+        ("kind", "TEXT"),
+        ("confidence", "REAL"),
+        ("algorithm", "TEXT"),
     ):
         if col not in cols:
             con.execute(f"ALTER TABLE match ADD COLUMN {col} {decl}")

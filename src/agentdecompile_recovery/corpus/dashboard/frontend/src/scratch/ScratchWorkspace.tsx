@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { API, query, request, type Data, type Notify, type Selection } from "../contracts";
-import { matchingPhase, matchingProvider, parseMatchPayload } from "../integration/boundaries";
+import { instructionDiffRows, matchingPhase, matchingProvider, parseMatchPayload } from "../integration/boundaries";
 import { DiffEvidence } from "../views/DiffEvidence";
+import { InstructionDiff } from "../views/InstructionDiff";
 import { candidateHash, loadScratches, presetCompatible, resultBelongs, saveScratch, translationUnit, type Scratch } from "./records";
 import "./scratch.css";
 import { ScratchEditor } from "./ScratchEditor";
@@ -206,7 +207,7 @@ export function ScratchWorkspace({ selection, revision, catalog, notify, onSelec
           <div className="scratch-output">
           {!validResult ? <p role="status">{jobStarted ? attributableError || job.error || "No result validated for this scratch revision yet." : "No current result. Editing a draft invalidates prior results."}</p> : <>
             <p role="status">{phase === "objdiff-verified" ? "Objdiff verified for this exact candidate and captured target." : phase}</p>
-            {outputTab === "compilation" ? aligned.length ? <table><caption>Recorded target / current instructions</caption><thead><tr><th>Target</th><th>Current</th></tr></thead><tbody>{aligned.map((row, i) => <tr key={i} data-differs={!!row.differs}><td>{String(row.target || "—")}</td><td>{String(row.candidate || "—")}</td></tr>)}</tbody></table> : <p>The provider returned no instruction listing.</p> :
+            {outputTab === "compilation" ? <InstructionDiff rows={instructionDiffRows({receipt})} verified={phase==='objdiff-verified'} onNavigate={addr=>onSelect({...active.binding?.selection,addr})}/> :
               <DiffEvidence receipts={receipt ? [receipt] : []} mismatches={aligned.filter(row => row.differs).map((row, i) => ({ id: String(i), summary: String(row.diffKind || "Instruction differs"), expected: String(row.target || "—"), actual: String(row.candidate || "—") }))}/>}
           </>}
           </div><section className="scratch-problems" aria-label="Compiler problems"><h3>Problems</h3>

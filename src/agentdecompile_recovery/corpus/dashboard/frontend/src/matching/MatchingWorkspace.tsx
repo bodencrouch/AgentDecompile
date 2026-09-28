@@ -4,18 +4,8 @@ import { ApprovalGate } from "../ai/ApprovalGate";
 import { DiffEvidence, type DiffMismatch } from "../views/DiffEvidence";
 import "./matching.css";
 
-export type MatchPhase =
-  | "draft"
-  | "compiling"
-  | "compiled"
-  | "linked"
-  | "structurally-similar"
-  | "diffing"
-  | "mismatch"
-  | "objdiff-verified"
-  | "provider-unavailable"
-  | "incomplete"
-  | "failed";
+import type { MatchPhase } from "../integration/boundaries";
+export type { MatchPhase } from "../integration/boundaries";
 
 const phaseLabel: Record<MatchPhase, string> = {
   draft: "Candidate draft",

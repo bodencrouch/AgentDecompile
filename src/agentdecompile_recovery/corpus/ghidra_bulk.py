@@ -69,6 +69,8 @@ work from.
 
 from __future__ import annotations
 
+from ..targeted_ai import resolve_targeted_ai, targeted_ai_job
+
 import argparse
 import concurrent.futures
 import hashlib
@@ -1353,7 +1355,7 @@ def should_skip_llm(*, body: str) -> bool:
 
 
 def _llm_allowed() -> bool:
-    if not LLM_CLEANUP:
+    if not LLM_CLEANUP or not resolve_targeted_ai().enabled:
         return False
     with _CORPUS_LOCK:
         if _LLM_STOPPED:
@@ -1568,6 +1570,7 @@ def _try_compile_inner(entry_hex, name, header, body, tmpdir, prog_dir, program_
     }
 
 
+@targeted_ai_job()
 def main(argv: list[str] | None = None) -> int:
     global OUT_DIR, KB, COMPILE, NORMALIZE_MODE, ASM_FALLBACK, EXTRACT_RAW, _CROSS_INDEX, _RAW_IMAGE, _CROSS_CONFIG
     ap = argparse.ArgumentParser()
@@ -1616,7 +1619,7 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         default=True,
         help="after preparse+cl.exe still fail, edit that Ghidra C with "
-             "claude CLI and retry once (default on)",
+             "claude CLI and retry once when shared targeted AI policy enables it",
     )
     ap.add_argument(
         "--no-llm-cleanup",
@@ -1660,7 +1663,7 @@ def main(argv: list[str] | None = None) -> int:
         COMPILE = _find_compiler(OUT_DIR, pathlib.Path(args.db))
     global LLM_CLEANUP, LLM_MODEL, CTX_H, KNOWN_GLOBALS, KNOWN_INT_GLOBALS, _CTX_TEXT
     global COMPILE_COMPLETE
-    LLM_CLEANUP = bool(args.llm_cleanup)
+    LLM_CLEANUP = bool(args.llm_cleanup) and resolve_targeted_ai().enabled
     LLM_MODEL = args.llm_model
     COMPILE_COMPLETE = float(args.compile_complete)
     ASM_FALLBACK = bool(args.asm_fallback) and NORMALIZE_MODE is NormalizeMode.COMPILE_ONLY
@@ -1848,8 +1851,12 @@ def main(argv: list[str] | None = None) -> int:
                          prog_dir if args.write else None, args.repo))
 
         results = []
+        job_ai_state = resolve_targeted_ai()
+        def compile_with_job_policy(job):
+            with targeted_ai_job(job_ai_state):
+                return try_compile(job)
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as ex:
-            for i, res in enumerate(ex.map(try_compile, jobs)):
+            for i, res in enumerate(ex.map(compile_with_job_policy, jobs)):
                 results.append(res)
                 if fail_log is not None and not res["ok"]:
                     with fail_log.open("a") as fh:

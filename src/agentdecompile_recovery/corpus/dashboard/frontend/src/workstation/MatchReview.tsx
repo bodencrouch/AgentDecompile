@@ -13,6 +13,8 @@ import {API, request, type Data, type Notify} from '../contracts';
  */
 interface ReviewRow {match: Data; binaries: Data[]; token: string}
 interface ReviewPage {rows: ReviewRow[]; total: number; nextAfterId: number|null; selection: string}
+interface MethodAvailability {channel: string; label: string; state: string; reason: string; enabled?: boolean; availability?: string; providerReason?: string}
+interface AvailabilityRow {matchId: number; srcBinary: number; dstBinary: number; srcAddr: number; run: string; channels: MethodAvailability[]}
 interface ReviewDecision {matchId: number; status: string; revision: number}
 /** A submitted decision whose result is not known yet. Its rows stay locked. */
 interface OpenJob {id: string; tokens: string[]; matchIds: number[]}
@@ -131,6 +133,11 @@ const address = (value: unknown) => typeof value === 'number' && Number.isSafeIn
 export function MatchReview({active, revision, heading = true, notify}:
     {active: boolean; revision: number; heading?: boolean; notify?: Notify}) {
   const [page, setPage] = useState<ReviewPage>(EMPTY);
+  const [view, setView] = useState<'review'|'fleet'>('review');
+  const [pairFilter, setPairFilter] = useState('');
+  const [scoreFloor, setScoreFloor] = useState('');
+  const [methods, setMethods] = useState<Record<number, AvailabilityRow>>({});
+  const [methodsStatus, setMethodsStatus] = useState('');
   const [afterId, setAfterId] = useState(0);
   const [history, setHistory] = useState<number[]>([]);
   const [refresh, setRefresh] = useState(0);
@@ -173,6 +180,29 @@ export function MatchReview({active, revision, heading = true, notify}:
   }, [active, revision, refresh, afterId]);
 
   useEffect(() => {
+    setMethods({});
+    if (!active || !page.rows.length || !page.selection) {setMethodsStatus(''); return;}
+    const controller = new AbortController();
+    setMethodsStatus('Loading recorded method availability…');
+    const ids = page.rows.map(row => row.match.id).join(',');
+    request<{rows: AvailabilityRow[]}>(`${API}/matching-availability?match_ids=${encodeURIComponent(ids)}&selection=${encodeURIComponent(page.selection)}`, {signal: controller.signal})
+      .then(data => {
+        if (controller.signal.aborted) return;
+        const observed: Record<number, AvailabilityRow> = {};
+        for (const item of data.rows || []) {
+          const row = page.rows.find(candidate => candidate.match.id === item.matchId);
+          if (row && row.match.src_binary === item.srcBinary && row.match.dst_binary === item.dstBinary
+              && row.match.src_addr === item.srcAddr && row.match.run === item.run) observed[item.matchId] = item;
+        }
+        setMethods(observed); setMethodsStatus('');
+      })
+      .catch(reason => {
+        if (!controller.signal.aborted) setMethodsStatus(`Method availability unavailable: ${reviewErrorText(reason?.message || reason)}`);
+      });
+    return () => controller.abort();
+  }, [active, page, revision]);
+
+  useEffect(() => {
     if (!confirm) return;
     confirmRef.current?.scrollIntoView({block: 'nearest'});
     confirmRef.current?.querySelector<HTMLButtonElement>('button')?.focus({preventScroll: true});
@@ -212,8 +242,12 @@ export function MatchReview({active, revision, heading = true, notify}:
   const busy = loading || submitting || Boolean(watching);
   const eligible = (row: ReviewRow) => Number.isSafeInteger(row.match.id) && Boolean(row.token && page.selection)
     && !locked.has(row.token);
-  const chosen = page.rows.filter(row => selected.has(row.token) && eligible(row));
-  const selectable = page.rows.filter(eligible);
+  const pairKey = (row: ReviewRow) => `${row.match.src_binary}:${row.match.dst_binary}`;
+  const visibleRows = page.rows.filter(row => (!pairFilter || pairKey(row) === pairFilter)
+    && (!scoreFloor || Number(row.match.score) >= Number(scoreFloor)));
+  const pairs = [...new Map(page.rows.map(row => [pairKey(row), row])).entries()];
+  const chosen = visibleRows.filter(row => selected.has(row.token) && eligible(row));
+  const selectable = visibleRows.filter(eligible);
   const allChosen = selectable.length > 0 && selectable.every(row => selected.has(row.token));
 
   function ask(rows: ReviewRow[], decision: Decision) {
@@ -270,6 +304,19 @@ export function MatchReview({active, revision, heading = true, notify}:
       <button onClick={() => setConfirm(null)}>Cancel</button>{' '}
       <button onClick={send}>{confirm.decision === 'accept' ? 'Confirm accept' : 'Confirm reject'}</button>
     </div>}
+    <div className="ws-toolbar" role="group" aria-label="Review view">
+      <button aria-pressed={view === 'review'} onClick={() => setView('review')}>Match review</button>
+      <button aria-pressed={view === 'fleet'} onClick={() => setView('fleet')}>Lane E fleet roster</button>
+      <label>Build pair <select value={pairFilter} onChange={event => {setPairFilter(event.target.value); setConfirm(null);}}>
+        <option value="">All pairs on this page</option>
+        {pairs.map(([key, row]) => <option key={key} value={key}>{row.binaries[0]?.row?.slug || row.match.src_binary} → {row.binaries[1]?.row?.slug || row.match.dst_binary}</option>)}
+      </select></label>
+      <label>Minimum score <select value={scoreFloor} onChange={event => {setScoreFloor(event.target.value); setConfirm(null);}}>
+        <option value="">All scores</option><option value="0.5">0.50</option><option value="0.7">0.70</option><option value="0.9">0.90</option>
+      </select></label>
+    </div>
+    {view === 'fleet' && <p>Donor → recipient decisions in the current review selection. Filters and batch selection apply to this page; they do not submit compute work.</p>}
+    {methodsStatus && <p role="status">{methodsStatus}</p>}
     <div className="ws-toolbar">
       <button disabled={loading || submitting} onClick={refreshRows}>Refresh rows</button>
       <button disabled={busy || Boolean(confirm) || !chosen.length} onClick={() => ask(chosen, 'accept')}>Accept selected</button>
@@ -277,10 +324,10 @@ export function MatchReview({active, revision, heading = true, notify}:
       <span>{loading ? 'Loading…' : `${page.total} candidates awaiting review, listed by match ID`}</span>
     </div>
     <table><thead><tr>
-      <th><input type="checkbox" aria-label="Select all rows on this page" checked={allChosen} disabled={busy || !selectable.length}
+      <th><input type="checkbox" aria-label="Select all visible rows on this page" checked={allChosen} disabled={busy || !selectable.length}
         onChange={event => {const checked = event.target.checked; setSelected(old => {const next = new Set(old); selectable.forEach(row => checked ? next.add(row.token) : next.delete(row.token)); return next;});}}/></th>
-      <th>Match</th><th>Source</th><th>Destination</th><th>Score / margin</th><th>Evidence</th><th>Decision</th></tr></thead>
-      <tbody>{page.rows.map(row => <tr key={row.token}>
+      <th>Match</th><th>{view === 'fleet' ? 'Donor' : 'Source'}</th><th>{view === 'fleet' ? 'Recipient' : 'Destination'}</th><th>Score / margin</th><th>Evidence</th>{view === 'fleet' && <th>Recorded matching methods</th>}<th>Decision</th></tr></thead>
+      <tbody>{visibleRows.map(row => <tr key={row.token}>
         <td><input type="checkbox" aria-label={`Select match ${row.match.id}`} checked={selected.has(row.token)} disabled={busy || !eligible(row)}
           onChange={event => {const checked = event.target.checked; setSelected(old => {const next = new Set(old); checked ? next.add(row.token) : next.delete(row.token); return next;});}}/></td>
         <td>{String(row.match.id)}</td>
@@ -288,11 +335,19 @@ export function MatchReview({active, revision, heading = true, notify}:
         <td>{row.binaries[1]?.row?.slug || row.match.dst_binary}<br/><code>{address(row.match.dst_addr)}</code></td>
         <td>{String(row.match.score)} / {String(row.match.margin)}</td>
         <td><details><summary>{row.match.relation || 'Relation unavailable'}</summary><pre>{row.match.evidence || 'No recorded evidence'}</pre><p>Run: {row.match.run}</p></details></td>
+        {view === 'fleet' && <td>{methods[row.match.id]
+          ? <details><summary>{methods[row.match.id].channels.filter(method => method.state === 'ran').map(method => method.channel).join(', ') || 'No recorded contributing methods'}</summary>
+            <ul>{methods[row.match.id].channels.map(method => <li key={method.channel}>
+              <strong>{method.channel} · {method.label}</strong>: {method.enabled === false ? 'available, off' : method.state}
+              {' — '}{method.reason.replaceAll('_', ' ')}{method.providerReason && <>; {method.providerReason.replaceAll('_', ' ')}</>}
+            </li>)}</ul></details>
+          : <span>{methodsStatus || 'No availability receipt for this row'}</span>}</td>}
         <td>{locked.has(row.token) ? <span>Waiting for its job</span> : <>
           <button disabled={busy || Boolean(confirm) || !eligible(row)} onClick={() => ask([row], 'accept')}>Accept</button>{' '}
           <button disabled={busy || Boolean(confirm) || !eligible(row)} onClick={() => ask([row], 'reject')}>Reject</button></>}</td>
       </tr>)}</tbody>
     </table>
+    {!loading && page.rows.length > 0 && !visibleRows.length && <p>No candidates on this page match these filters.</p>}
     {!loading && !error && !page.rows.length && <p>{afterId ? 'No review candidates after this match ID.' : 'No review candidates.'}</p>}
     <button disabled={loading || !afterId} onClick={() => {setHistory([]); setAfterId(0);}}>Go to first page</button>{' '}
     <button disabled={loading || !history.length} onClick={() => {setAfterId(history[history.length - 1]); setHistory(history.slice(0, -1));}}>Show previous page</button>{' '}

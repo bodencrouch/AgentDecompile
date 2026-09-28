@@ -884,10 +884,32 @@
     return "http://" + window.location.hostname + ":5173/";
   }
 
-  function CorpusHeadline({ headline, claim }) {
+  function TierProgress({ slug }) {
+    const [data,setData]=useState(null),[error,setError]=useState("");
+    useEffect(function () {
+      let alive=true;const controller=new AbortController();setData(null);setError("");
+      if(slug)fetch("/dashboard/api/workbench/progress-report?slug="+encodeURIComponent(slug),{signal:controller.signal,cache:"no-store"})
+        .then(function(r){return r.json();}).then(function(body){if(alive){if(body.ok)setData(body);else setError(body.error||"Progress unavailable");}})
+        .catch(function(e){if(alive)setError(String(e.message||e));});
+      return function(){alive=false;controller.abort();};
+    },[slug]);
+    if(!slug)return null;
+    const report=data&&data.report||{},tiers=report.tiers||{},total=report.measures&&report.measures.total_functions;
+    const verified=tiers["verified-byte-exact"]&&tiers["verified-byte-exact"].functions,advisory=tiers["advisory-ghidra"]&&tiers["advisory-ghidra"].functions;
+    const valid=[total,verified,advisory].every(function(v){return Number.isSafeInteger(v)&&v>=0;})&&verified+advisory<=total;
+    return html`<section aria-label="Separate verified and advisory progress"><h3>Recorded source coverage</h3>
+      ${error?html`<p className="wb-dialog-error">${error}</p>`:!data?html`<p role="status">Reading inventory accounting…</p>`:null}
+      ${valid?html`<div style=${{display:"flex",height:"12px",background:"#333943"}} role="img" aria-label=${verified+" accepted byte-exact receipts; "+advisory+" advisory source records; "+total+" inventory members"}><span style=${{width:(total?verified*100/total:0)+"%",background:"#79bd98"}}></span><span style=${{width:(total?advisory*100/total:0)+"%",background:"repeating-linear-gradient(135deg,#8baee0 0,#8baee0 3px,#343f52 3px,#343f52 7px)"}}></span></div><p>${verified} accepted byte-exact receipts · ${advisory} advisory source records · ${total} inventory members</p>`:data?html`<p>No reconciled tier counts available.</p>`:null}
+      ${data&&data.acceptance_provider?html`<p className="wb-hint">${data.acceptance_provider.reason}</p>`:null}
+      ${report.accounting?html`<p>Member accounting: ${report.accounting.status}. Byte extents: ${report.accounting.byte_accounting}. Function counts do not establish whole-image parity.</p>`:null}
+    </section>`;
+  }
+
+  function CorpusHeadline({ headline, claim, slug }) {
     const h = headline || {};
     return html`<section className="wb-corpus-hero" id="wb-corpus-hero">
       <p className="wb-kicker">Readable C and byte identity stay separate</p>
+      <${TierProgress} slug=${slug}/>
       <div className="wb-corpus-pair">
         <div>
           <p className="wb-hero-n">${fmtCount(h.real_c)} <span class="of">logical functions with real C</span></p>
@@ -1568,6 +1590,36 @@
       return html`<p id="wb-repo-status" className="wb-repo-row">Local project ${dossier.slug || ""}</p>`;
     }
     return html`<p id="wb-repo-status" className="wb-repo-row">${kindTitle(kind)}</p>`;
+  }
+
+  function ExportBundles({ slug, locator }) {
+    const [data, setData] = useState(null);
+    const [error, setError] = useState("");
+    useEffect(function () {
+      const controller = new AbortController();
+      let alive = true;
+      setData(null); setError("");
+      const params = new URLSearchParams({slug: slug || "", locator: locator || ""});
+      fetch("/dashboard/api/workbench/exports?" + params, {cache: "no-store", signal: controller.signal})
+        .then(function (response) { if (!response.ok) throw new Error("Export listing unavailable (" + response.status + ")"); return response.json(); })
+        .then(function (body) { if (alive) { if (!body.ok) setError(body.error || "Export listing unavailable"); else setData(body); } })
+        .catch(function (err) { if (alive) setError(String(err.message || err)); });
+      return function () { alive = false; controller.abort(); };
+    }, [slug, locator]);
+    return html`<section aria-label="Export readiness"><h3>Export bundles</h3>
+      <p className="wb-hint">Recorded pipeline outputs. Locator readiness does not establish supported runtime operations or recovered-source parity.</p>
+      ${error ? html`<p className="wb-dialog-error">${error}</p>` : !data ? html`<p role="status">Reading export manifests…</p>` : !(data.bundles || []).length ? html`<p role="status">${data.reason || "No complete export bundle is recorded for this selection. Nothing to download yet."}</p>` : null}
+      ${(data && data.bundles || []).map(function (bundle) { return html`<article key=${bundle.bundle_sha256}>
+        <h4>Bundle <code>${String(bundle.bundle_sha256).slice(0,16)}</code></h4>
+        ${(bundle.readiness && bundle.readiness.builds || []).map(function (build) { return html`<p key=${build.build}>${build.summary}</p>`; })}
+        <details><summary>Per-entity locator readiness</summary><table><thead><tr><th>Entity</th><th>Build</th><th>Status</th><th>Reason</th></tr></thead><tbody>
+          ${(bundle.readiness && bundle.readiness.entities || []).map(function (row) { return html`<tr key=${row.entity+":"+row.build}><td>${row.entity}</td><td>${row.build}</td><td data-readiness=${row.status}>${row.status}</td><td>${row.reason}</td></tr>`; })}
+        </tbody></table></details>
+        <ul>${(bundle.artifacts || []).map(function (artifact) { return html`<li key=${artifact.path}><a href=${artifact.href} download>${artifact.path}</a> · ${artifact.size} bytes</li>`; })}</ul>
+        ${(bundle.scope_receipts || []).map(function (receipt) { return html`<p key=${receipt.artifact}>${receipt.artifact}: ${receipt.status} · ${receipt.reason}</p>`; })}
+      </article>`; })}
+      ${(data && data.errors || []).map(function (message,index) { return html`<p className="wb-dialog-error" key=${index}>${typeof message === "string" ? message : (message.bundle || "Bundle") + ": " + (message.reason || "Unavailable")}</p>`; })}
+    </section>`;
   }
 
   function ArtifactsReact({ path, onOpen }) {
@@ -3329,6 +3381,8 @@
     }, []);
 
     const loadFuncs = useCallback(async function (nextSlug, nextQuery) {
+      const seq = funcSeqRef.current + 1;
+      funcSeqRef.current = seq;
       const useSlug = nextSlug !== undefined ? nextSlug : slug;
       if (!useSlug && !program) {
         setRows([]);
@@ -3336,8 +3390,6 @@
         setFuncNote("");
         return;
       }
-      const seq = funcSeqRef.current + 1;
-      funcSeqRef.current = seq;
       const loc = (typeof currentLocator === "function" ? currentLocator() : "") || "";
       const url = API.functions + "?slug=" + encodeURIComponent(useSlug)
         + "&q=" + encodeURIComponent(nextQuery !== undefined ? nextQuery : query)
@@ -3347,6 +3399,12 @@
       const res = await fetch(url, { cache: "no-store" });
       const data = await res.json();
       if (seq !== funcSeqRef.current) return;
+      if (res.ok && data.ok === true && data.queued === true) {
+        setRows([]);
+        setTotal(0);
+        setFuncNote("Live function read queued. " + (data.sessionReason || "Waiting for the current Ghidra reader or writer."));
+        return;
+      }
       setRows(data.results || []);
       setTotal(data.total || 0);
       if (!data.ok && data.error) setFuncNote(humanError(data.error));
@@ -3613,13 +3671,13 @@
       setLogOpen(true);
     }
 
-    const putSessions = useCallback(async function (nextActive, nextSessions, revision) {
+    const putSessions = useCallback(async function (nextActive, nextSessions, revision, options) {
       const rev = revision !== undefined ? revision : sessionRevision;
       try {
         const res = await fetch(API.sessions, {
           method: "PUT",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ active: nextActive, sessions: nextSessions, revision: rev })
+          body: JSON.stringify({ active: nextActive, sessions: nextSessions, revision: rev, admitOpen: Boolean(options && options.admitOpen) })
         });
         const data = await res.json();
         if (!res.ok || data.ok === false) {
@@ -3687,6 +3745,8 @@
     }
 
     function resetTabState() {
+      ensureSeqRef.current += 1;
+      funcSeqRef.current += 1;
       setSlug("");
       setProgram("");
       setSelected(null);
@@ -3712,6 +3772,8 @@
 
     function selectProgram(name) {
       const picked = (name || "").trim();
+      ensureSeqRef.current += 1;
+      funcSeqRef.current += 1;
       setProgram(picked);
       patchActiveSession({ program: picked });
       if (currentSession && currentSession.projectSlug) {
@@ -3733,12 +3795,22 @@
       const seq = ensureSeqRef.current;
       if (!opts.quiet) showToast("Opening " + target + "…");
       try {
-        const res = await fetch(API.ensureProgram, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ locator: locator, program: target })
-        });
-        const data = await res.json();
+        let res, data;
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+          if (seq !== ensureSeqRef.current) return null;
+          res = await fetch(API.ensureProgram, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ locator: locator, program: target })
+          });
+          data = await res.json();
+          if (seq !== ensureSeqRef.current) return null;
+          if (!res.ok || data.ok !== true || data.queued !== true) break;
+          setFuncNote("Live read queued for " + target + ". " + (data.sessionReason || "Waiting for the current Ghidra reader or writer."));
+          if (attempt === 5) return data;
+          const retryMs = Math.min(2000, Math.max(250, Number(data.retryAfterMs) || 500));
+          await new Promise(function (resolve) { window.setTimeout(resolve, retryMs); });
+        }
         if (!res.ok || data.ok !== true || data.ensured !== true) {
           const message = data.error || ("Could not open " + target + " in Ghidra.");
           if (!opts.quiet || opts.reportFailure) showToast(message, "error");
@@ -3777,6 +3849,7 @@
         if (data.error && !opts.quiet) showToast(data.error, data.next === "analyze-program" ? "" : "error");
         return data;
       } catch (err) {
+        if (seq !== ensureSeqRef.current) return null;
         if (!opts.quiet || opts.reportFailure) {
           showToast("Could not open " + target + " in Ghidra: " + String((err && err.message) || err), "error");
         }
@@ -3900,6 +3973,8 @@
       }
       window.addEventListener("keydown", onKey);
       return function () {
+        ensureSeqRef.current += 1;
+        funcSeqRef.current += 1;
         window.clearInterval(probeTimer);
         window.removeEventListener("keydown", onKey);
       };
@@ -4329,8 +4404,13 @@
       setProgram(nextProgram);
       setSessions(list);
       setActiveSession(id);
-      await putSessions(id, list);
-      setIngestNote("Loaded " + nextTitle);
+      const saved = await putSessions(id, list, undefined, { admitOpen: true });
+      const admission = saved && saved.preparation;
+      setIngestNote("Loaded " + nextTitle + (admission
+        ? " · Recovery " + admission.status + " · run " + (admission.id || "unavailable")
+          + " · generation " + (admission.generation || "not recorded")
+          + " · queue " + (admission.queuePosition == null ? (admission.admissionPending ? "position pending" : "not queued") : admission.queuePosition)
+          + (admission.reason ? " · " + admission.reason : "") : ""));
       closeDialog();
       if (nextProgram) ensureGhidraProgram(nextProgram, { quiet: true, locator: value });
       return { ok: true, list: list, id: id, projectSlug: projectSlug || "", inspected: inspected };
@@ -5731,7 +5811,7 @@
               showToast("Import " + ((row && row.slug) || ""));
             }} />
           <${HealthStrip} probes=${corpusStatus && corpusStatus.probes} atlasUrl=${atlasHref(corpusStatus)} />
-          <${CorpusHeadline} headline=${corpusStatus && corpusStatus.headline} claim=${corpusStatus && corpusStatus.claimBoundary} />
+          <${CorpusHeadline} slug=${slug} headline=${corpusStatus && corpusStatus.headline} claim=${corpusStatus && corpusStatus.claimBoundary} />
           <${StepLadder} title="Corpus ladder" steps=${ladder.corpus_steps} />
           <${BinaryCompareTable} binaries=${ladder.binaries} onOpen=${function (b) {
             if (b && b.slug) { setSlug(b.slug); setCenterTab("wb-pipeline"); }
@@ -5837,7 +5917,7 @@
           return ["calibrate-global", "materialize-target", "assembly-floor", "recover-source", "apply-cross-build", "leftover-recover", "verify-byte-accuracy"].includes(stage.key);
         }) : [];
         return html`<${Surface} id="wb-roundtrip" title="Roundtrip" actions=${panelActions()}>
-          <${CorpusHeadline} headline=${corpusStatus && corpusStatus.headline} claim="Compile and byte-accuracy stay separate columns." />
+          <${CorpusHeadline} slug=${slug} headline=${corpusStatus && corpusStatus.headline} claim="Compile and byte-accuracy stay separate columns." />
           <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} onControl=${controlPreparation} />
           ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + (recoveryRun.program || program || slug || recoveryRun.status)} steps=${recoverySteps} />` : null}
           <${StepLadder} title="Compile and verify" steps=${steps} />
@@ -5946,6 +6026,7 @@
       if (tab === "wb-logical") {
         return html`<${Surface} id="wb-logical" title="Logical identities" actions=${panelActions()}>
           <p className="wb-hint">Same function across builds. Bound vs real C is the identity picture.</p>
+          <${ExportBundles} slug=${slug} locator=${currentLocator()}/>
           <p className="wb-hint">The pipeline builds and propagates identities across builds automatically.</p>
           <${BinaryCompareTable} binaries=${(corpusStatus && corpusStatus.ladder && corpusStatus.ladder.binaries) || []}
             onOpen=${function (b) { if (b && b.slug) setSlug(b.slug); }} />
@@ -6232,6 +6313,8 @@
             [classicLayout ? "Use new layout" : "Use classic layout", "view.classic-layout"]
           ]],
           ["server", "Server", [
+            ["Targeted AI settings…", null, function () { window.location.href = "/dashboard/settings/ai"; }],
+            ["—"],
             ["Restart server", null, restartServer],
             ["Shut down server", null, shutdownServer]
           ]],

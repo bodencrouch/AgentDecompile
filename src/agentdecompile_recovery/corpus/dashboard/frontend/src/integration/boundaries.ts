@@ -1,7 +1,15 @@
 import type { Data, Selection } from "../contracts";
 import type { EvidenceRecord } from "../evidence/EvidenceBundle";
 import type { DiffMismatch } from "../views/DiffEvidence";
-import type { MatchPhase } from "../matching/MatchingWorkspace";
+
+export type MatchPhase = "draft" | "compiling" | "compiled" | "linked"
+  | "structurally-similar" | "diffing" | "mismatch" | "objdiff-verified"
+  | "provider-unavailable" | "incomplete" | "failed";
+
+export type InstructionDiffRow = {
+  id: string; target: string; candidate: string; differs: boolean;
+  kind: string; address?: string; candidateAddress?: string;
+};
 
 const MATCH_SCHEMA = "agentdecompile.workbench-match-candidate.v1";
 const terminalJobStates = new Set(["ok", "failed", "cancelled", "interrupted", "blocked"]);
@@ -121,6 +129,25 @@ export function diffReceipts(detail: Data): Data[] {
       return [entry as Data];
     const path = text(entry);
     return path ? [{ path }] : [];
+  });
+}
+
+/** Consume the existing alignedDiff receipt contract; never align invented text. */
+export function instructionDiffRows(detail: Data): InstructionDiffRow[] {
+  const match = parseMatchPayload(detail);
+  const proof = record(detail.proof || detail.verification);
+  const receipts = [record(match.receipt), record(detail.receipt), proof, ...diffReceipts(detail)];
+  const source = receipts.find(receipt => Array.isArray(receipt.alignedDiff));
+  if (!source) return [];
+  return source.alignedDiff.flatMap((value: unknown, index: number): InstructionDiffRow[] => {
+    const row = record(value);
+    if (typeof row.target !== "string" && typeof row.candidate !== "string") return [];
+    const target = text(row.target), candidate = text(row.candidate);
+    return [{id: String(index), target, candidate,
+      differs: row.differs === true || target !== candidate,
+      kind: text(row.diffKind) || (target === candidate ? "equal" : "changed"),
+      address: text(row.targetAddress) || text(row.address) || undefined,
+      candidateAddress: text(row.candidateAddress) || undefined}];
   });
 }
 

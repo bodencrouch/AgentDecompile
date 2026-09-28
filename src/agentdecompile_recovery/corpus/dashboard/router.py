@@ -162,6 +162,44 @@ def create_dashboard_router() -> APIRouter:
         discord_notify.save_settings({"discord_webhook": hook})
         return JSONResponse({"ok": True, "configured": bool(hook)})
 
+    @router.get("/dashboard/settings/ai", response_class=HTMLResponse)
+    async def dashboard_settings_ai() -> HTMLResponse:
+        from agentdecompile_recovery.corpus.dashboard.settings_page import render_ai_page
+        return _html(render_ai_page())
+
+    @router.get("/dashboard/api/settings/ai")
+    async def get_ai_settings() -> JSONResponse:
+        from agentdecompile_recovery.targeted_ai import TargetedAIConfigError, resolve_targeted_ai
+        try:
+            state = await asyncio.to_thread(resolve_targeted_ai)
+            return JSONResponse({"ok": True, "enabled": state.enabled, "source": state.source,
+                                 "editable": state.source not in {"cli", "env"}, "appliesTo": "next job"})
+        except TargetedAIConfigError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=503)
+
+    @router.post("/dashboard/api/settings/ai")
+    async def set_ai_settings(request: Request) -> JSONResponse:
+        from agentdecompile_recovery.targeted_ai import TargetedAIConfigError, save_targeted_ai_settings
+        if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "application/json":
+            return JSONResponse({"ok": False, "error": "Content-Type application/json required"}, status_code=415)
+        origin = request.headers.get("origin")
+        expected_origin = f"{request.url.scheme}://{request.url.netloc}"
+        if origin is not None and origin != expected_origin:
+            return JSONResponse({"ok": False, "error": "Cross-origin AI settings changes are not allowed"}, status_code=403)
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"ok": False, "error": "JSON object with enabled boolean required"}, status_code=400)
+        if not isinstance(body, dict) or type(body.get("enabled")) is not bool:
+            return JSONResponse({"ok": False, "error": "enabled must be a JSON boolean"}, status_code=400)
+        try:
+            state = await asyncio.to_thread(save_targeted_ai_settings, body["enabled"])
+            return JSONResponse({"ok": True, "saved": body["enabled"], "enabled": state.enabled,
+                                 "source": state.source, "editable": state.source not in {"cli", "env"},
+                                 "appliesTo": "next job"})
+        except TargetedAIConfigError as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
     @router.get("/dashboard/overview")
     async def dashboard_overview(request: Request) -> RedirectResponse:
         """Keep session tabs on the static workbench; overview is a window there."""
@@ -644,6 +682,65 @@ def create_dashboard_router() -> APIRouter:
 
         payload = await asyncio.to_thread(match_status)
         return JSONResponse(payload, status_code=200)
+
+    @router.get("/dashboard/api/workbench/progress-report")
+    async def workbench_progress_report(request: Request) -> JSONResponse:
+        from .progress_reports import progress_report
+
+        payload = await asyncio.to_thread(progress_report,
+            slug=request.query_params.get("slug", ""),
+            version=request.query_params.get("version", ""),
+            corpus_identity=request.query_params.get("corpusIdentity", ""))
+        return JSONResponse(payload, status_code=200 if payload.get("ok") else 503)
+
+    @router.get("/dashboard/api/workbench/exports")
+    async def workbench_exports(request: Request) -> JSONResponse:
+        from .export_listing import list_export_bundles
+
+        payload = await asyncio.to_thread(
+            list_export_bundles, slug=request.query_params.get("slug", ""),
+            locator=request.query_params.get("locator", ""),
+        )
+        return JSONResponse(payload, status_code=200 if payload.get("ok") else 503)
+
+    @router.get("/dashboard/api/workbench/exports/{bundle_id}/download")
+    async def workbench_export_download(bundle_id: str, request: Request) -> Response:
+        from .export_listing import read_export_artifact
+
+        try:
+            payload, filename = await asyncio.to_thread(
+                read_export_artifact, bundle_id, request.query_params.get("path", ""),
+            )
+        except (OSError, ValueError) as exc:
+            return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
+        return Response(payload, media_type="application/octet-stream", headers={
+            "Content-Disposition": "attachment; filename*=UTF-8''" + quote(filename, safe=""),
+            "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+        })
+
+    @router.get("/dashboard/api/workbench/matching-availability")
+    async def workbench_matching_availability(request: Request) -> JSONResponse:
+        from .common import match_review_context, review_error_status
+        from ..match_review import ReviewError, _transaction
+        from ..matching_availability import availability_for_matches
+
+        def read():
+            raw = request.query_params.get("match_ids", "")
+            selection = request.query_params.get("selection", "")
+            parts = raw.split(",")
+            if not selection or len(parts) > 50 or any(
+                not part.isascii() or not part.isdecimal() or len(part) > 19
+                or not 0 < int(part) <= 9223372036854775807 for part in parts
+            ):
+                raise ReviewError("malformed_request")
+            with match_review_context(selection) as context:
+                with _transaction(context, write=False) as con:
+                    return {"ok": True, "selection": context.selection,
+                            **availability_for_matches(con, [int(part) for part in parts])}
+        try:
+            return JSONResponse(await asyncio.to_thread(read))
+        except ReviewError as exc:
+            return JSONResponse(exc.result(), status_code=review_error_status(exc))
 
     @router.get("/dashboard/api/workbench/match-review")
     async def workbench_match_review(request: Request) -> JSONResponse:

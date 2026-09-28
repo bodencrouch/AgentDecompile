@@ -9,6 +9,8 @@ objdiff-0 byte proof and does not authorize type/source copy.
 from __future__ import annotations
 
 import json
+import math
+import sqlite3
 from collections import defaultdict
 from typing import Any, Callable, Mapping
 
@@ -100,7 +102,7 @@ class Binary:
         self.funcs: dict[int, dict] = {}
         cols = {d[1] for d in con.execute("PRAGMA table_info(func)").fetchall()}
         hash_select = ""
-        for col in ("hash_reloc", "hash_instr", "hash_mnemonic", "hash_raw", "symbol_provenance"):
+        for col in ("hash_reloc", "hash_instr", "hash_mnemonic", "hash_raw", "symbol_provenance", "function_properties"):
             if col in cols:
                 hash_select += f",{col}"
         for rec in con.execute(
@@ -113,6 +115,7 @@ class Binary:
             (binary_id,),
         ):
             d = dict(rec)
+            d["cpp_metadata"] = json.loads(d.get("function_properties") or "{}").get("cppMetadata", [])
             d["strings"] = json.loads(d["strings"] or "[]")
             d["consts"] = json.loads(d["consts"] or "[]")
             d["ext_calls"] = json.loads(d["ext_calls"] or "[]")
@@ -170,6 +173,7 @@ class Binary:
         return bits
 
     def _index(self) -> None:
+        self.by_cpp: dict[str, list[int]] = defaultdict(list)
         self.by_string: dict[str, list[int]] = defaultdict(list)
         self.by_const: dict[int, list[int]] = defaultdict(list)
         self.by_ext: dict[str, list[int]] = defaultdict(list)
@@ -182,6 +186,9 @@ class Binary:
         self.by_hash_mnemonic: dict[str, list[int]] = defaultdict(list)
         self.by_hash_raw: dict[str, list[int]] = defaultdict(list)
         for addr, f in self.funcs.items():
+            for item in f.get("cpp_metadata", []):
+                if item.get("kind") in {"rtti", "vtable"} and item.get("name"):
+                    self.by_cpp[item["kind"] + ":" + item["name"]].append(addr)
             for s in f["strings"]:
                 self.by_string[s].append(addr)
             for c in f["consts"]:
@@ -294,15 +301,93 @@ def _pcode_receipt(con, src_id: int, dst_id: int) -> dict:
     )
     if fingerprint is None:
         return {"skipped": True, "reason": "pcode_fingerprints_not_extracted"}
-    count = con.execute(
-        f"SELECT COUNT(*) FROM decomp WHERE binary_id IN (?,?) AND {fingerprint} IS NOT NULL AND {fingerprint}<>''",
+    counts = {int(row[0]): int(row[1]) for row in con.execute(
+        f"SELECT binary_id,COUNT(*) FROM decomp WHERE binary_id IN (?,?) AND ok=1 AND {fingerprint} IS NOT NULL AND {fingerprint}<>'' GROUP BY binary_id",
         (src_id, dst_id),
-    ).fetchone()[0]
-    return (
-        {"available": True, "storedFingerprintColumn": fingerprint, "storedFingerprintRows": count}
-        if count
-        else {"skipped": True, "reason": "pcode_fingerprints_not_stored", "storedFingerprintColumn": fingerprint}
-    )
+    )}
+    ready = bool(counts.get(src_id) and counts.get(dst_id))
+    return {"available": ready, "state": "available" if ready else "unavailable",
+            "skipped": not ready, "reason": "stored_fingerprints" if ready else "pair_fingerprints_missing",
+            "storedFingerprintColumn": fingerprint, "storedFingerprintRows": sum(counts.values()),
+            "sourceRows": counts.get(src_id, 0), "targetRows": counts.get(dst_id, 0)}
+
+
+
+def persist_bsim_hits(con, src_id: int, dst_id: int, hits: Mapping, *, database_id: str,
+                      self_significance: Mapping | None = None) -> dict:
+    """Persist a complete pair query from bsim_eval.query_sample atomically.
+
+    The producer emits {source_address: [(target_md5, name, target_address,
+    similarity, significance)]}. No query or Ghidra launch occurs here.
+    """
+    if not database_id.strip():
+        raise ValueError("BSim database identity is required")
+    binaries = {int(row["id"]): dict(row) for row in con.execute(
+        "SELECT id,md5,content_sha256 FROM binary WHERE id IN (?,?)", (src_id, dst_id))}
+    if src_id not in binaries or dst_id not in binaries:
+        raise ValueError("Both BSim binaries must exist")
+    if not all(binaries[key].get("content_sha256") for key in (src_id, dst_id)):
+        raise ValueError("BSim persistence requires both binary content digests")
+    target_md5 = str(binaries[dst_id].get("md5") or "").lower()
+    if not target_md5:
+        raise ValueError("Target MD5 required to validate BSim hit identity")
+    known = {key: {int(row[0]) for row in con.execute("SELECT addr FROM func WHERE binary_id=?", (key,))}
+             for key in (src_id, dst_id)}
+    rows = {}
+    for source, candidates in hits.items():
+        source = int(source)
+        if source not in known[src_id]:
+            raise ValueError("BSim source address is outside the selected binary")
+        for md5, _name, target, similarity, significance in candidates:
+            target, similarity, significance = int(target), float(similarity), float(significance)
+            if str(md5).lower() != target_md5 or target not in known[dst_id]:
+                raise ValueError("BSim hit does not belong to the selected target")
+            own = (self_significance or {}).get(source)
+            own = float(own) if own is not None else None
+            if not math.isfinite(similarity) or not 0 <= similarity <= 1 or not math.isfinite(significance) or significance < 0:
+                raise ValueError("Invalid BSim similarity or significance")
+            if own is not None and (not math.isfinite(own) or own < 0):
+                raise ValueError("Invalid BSim self significance")
+            key = (source, target)
+            row = (src_id, source, dst_id, target, database_id, similarity, significance, own)
+            if key in rows and rows[key] != row:
+                raise ValueError("Conflicting duplicate BSim hit")
+            rows[key] = row
+    con.execute("SAVEPOINT persist_bsim_pair")
+    try:
+        con.execute("DELETE FROM bsim_hit WHERE src_binary=? AND dst_binary=?", (src_id, dst_id))
+        con.executemany("INSERT INTO bsim_hit VALUES (?,?,?,?,?,?,?,?)", [rows[key] for key in sorted(rows)])
+        con.execute("INSERT OR REPLACE INTO bsim_query VALUES (?,?,?,?,?,?,?)",
+                    (src_id, dst_id, database_id, binaries[src_id]["content_sha256"],
+                     binaries[dst_id]["content_sha256"], "available", "query_completed"))
+        con.execute("RELEASE persist_bsim_pair")
+    except BaseException:
+        con.execute("ROLLBACK TO persist_bsim_pair")
+        con.execute("RELEASE persist_bsim_pair")
+        raise
+    return {"state": "available", "row_count": len(rows), "reason": "query_completed"}
+
+
+def query_bsim_pair(con, src_id: int, dst_id: int, *, database_id: str, query=None, open_program=None) -> dict:
+    """Explicit read-only BSim query job; never called implicitly by matching.
+
+    The operator/catalog owns admission and Ghidra resource ownership. The
+    existing preparation receipt only records indexed signatures, not hits.
+    """
+    if not database_id.strip():
+        return {"state": "unavailable", "reason": "no_bsim_database"}
+    from .bsim_eval import query_sample
+    source = con.execute("SELECT repo_path FROM binary WHERE id=?", (src_id,)).fetchone()
+    target = con.execute("SELECT md5 FROM binary WHERE id=?", (dst_id,)).fetchone()
+    if source is None or target is None or not target[0]:
+        raise ValueError("BSim query requires existing source and target identity")
+    addresses = [int(row[0]) for row in con.execute("SELECT addr FROM func WHERE binary_id=? ORDER BY addr", (src_id,))]
+    hits = (query or query_sample)(source[0], target[0], addresses, bsim_url=database_id, open_program=open_program)
+    # query_sample returns {} when the provider cannot initialize. Never
+    # misrepresent this ambiguous result as a successful exhaustive query.
+    if not hits:
+        return {"state": "unavailable", "reason": "query_returned_no_observations"}
+    return persist_bsim_hits(con, src_id, dst_id, hits, database_id=database_id)
 
 
 def _fuse_bsim(con, sa: Binary, sb: Binary, mapping: dict[int, int], results: dict, pair_class: str) -> dict:
@@ -324,8 +409,17 @@ def _fuse_bsim(con, sa: Binary, sb: Binary, mapping: dict[int, int], results: di
             (sa.id, sb.id),
         ).fetchall()
     except Exception as exc:
-        receipt.update(skipped=True, reason="missing_bsim_hit_table", error=type(exc).__name__)
+        receipt.update(state="unavailable", available=False, skipped=True, reason="missing_bsim_hit_table", error=type(exc).__name__)
         return receipt
+    receipt.update(state="available", available=True)
+    try:
+        query = con.execute("SELECT src_digest,dst_digest FROM bsim_query WHERE src_binary=? AND dst_binary=?", (sa.id, sb.id)).fetchone()
+    except sqlite3.OperationalError:
+        query = None
+    if query is None:
+        return {**receipt, "state": "unavailable", "available": False, "skipped": True, "reason": "bsim_pair_not_queried"}
+    if tuple(query) != (sa.meta.get("content_sha256"), sb.meta.get("content_sha256")):
+        return {**receipt, "state": "unavailable", "available": False, "skipped": True, "reason": "stale_bsim_input_identity"}
     taken = set(mapping.values())
     by_src: dict[int, list] = defaultdict(list)
     for src, dst, sim, sig in rows:
@@ -343,6 +437,11 @@ def _fuse_bsim(con, sa: Binary, sb: Binary, mapping: dict[int, int], results: di
         if best_dst in taken or best_dst not in sb.funcs:
             continue
         if sig < BSIM_TRUSTED_SIGNIFICANCE:
+            continue
+        # A target must prefer this source uniquely as well; greedy source
+        # iteration is not mutual-best matching.
+        rivals = [(other, item) for other, group in by_src.items() for item in group if item[0] == best_dst]
+        if any(other != src and (item[2], item[1]) >= (sig, sim) for other, item in rivals):
             continue
         second_sig = hits[1][2] if len(hits) > 1 else 0.0
         if len(hits) > 1 and (sig - second_sig) < 5.0:
@@ -372,6 +471,9 @@ def _fuse_bsim(con, sa: Binary, sb: Binary, mapping: dict[int, int], results: di
         receipt["hits_used"] += 1
     receipt["ok"] = True
     receipt["row_count"] = len(rows)
+    receipt["reason"] = ("hits_fused" if receipt["hits_used"] else "no_hits_above_significance_threshold"
+                         if rows and max(float(row[3] or 0) for row in rows) < BSIM_TRUSTED_SIGNIFICANCE
+                         else "no_eligible_mutual_unique_hits" if rows else "query_completed_without_hits")
     return receipt
 
 
@@ -387,6 +489,7 @@ def match_binaries(
     quiet: bool = True,
     progress: Callable[[dict], None] | None = None,
     contract_features: Callable[[str, int], Mapping[str, Any] | None] | None = None,
+    contract_veto_enabled: bool = True,
 ) -> dict:
     sa, sb = Binary(con, src_id), Binary(con, dst_id)
     early = short_circuit_match(sa, sb)
@@ -502,6 +605,8 @@ def match_binaries(
         ("X", unique_index_anchors(sa.by_string, sb.by_string, src_eligible=src_eligible, dst_eligible=dst_eligible, key_ok=interesting_string)),
         ("X", unique_index_anchors(sa.by_const, sb.by_const, src_eligible=src_eligible, dst_eligible=dst_eligible, key_ok=interesting_const)),
     ]
+    cpp_pairs = unique_index_anchors(sa.by_cpp, sb.by_cpp, src_eligible=src_eligible, dst_eligible=dst_eligible)
+    anchor_sets.append(("X", cpp_pairs))
     proposals: dict[int, list[tuple[int, str]]] = defaultdict(list)
     for channel, pairs in anchor_sets:
         for src, dst in pairs.items():
@@ -565,7 +670,8 @@ def match_binaries(
             )
             channels = sorted({channel for dst, channel in proposals.get(addr, ()) if dst == result["dst"]})
             result["evidence"] = enrich_evidence(
-                {**result.get("evidence", {}), "channels": channels, "primary_channel": channels[0] if channels else "I"},
+                {**result.get("evidence", {}), "channels": channels, "primary_channel": channels[0] if channels else "I",
+                 "cpp_metadata": sa.funcs[addr].get("cpp_metadata", []) if cpp_pairs.get(addr) == result["dst"] else []},
                 kind="anchor",
                 status=result.get("status") or "auto",
                 code_equality=code_eq,
@@ -675,7 +781,7 @@ def match_binaries(
         results[src_addr] = {
             "dst": dst_addr, "score": 0.9, "margin": 1.0,
             "evidence": enrich_evidence(
-                {"pcode_fingerprint": 1.0, "primary_channel": "M", "channels": ["M"]},
+                {"pcode_fingerprint": 1.0, "primary_channel": "K", "channels": ["K"]},
                 kind="structural", status="verify", identity_claim=True, stage="pcode_il_ast",
             ),
             "round": "pcode_il_ast", "kind": "structural", "status": "verify",
@@ -703,6 +809,8 @@ def match_binaries(
                             if item.get("kind") == "callgraph"
                             and item.get("round") == "bsim-callgraph"
                             and src not in mapping})
+
+    contract_shadow = {"enabled": contract_veto_enabled, "evaluated": 0, "changed_decisions": 0, "changes": []}
 
     def _contract_veto(a: int, b: int, best: float, second: float, second_b: int | None) -> dict | None:
         """Opt-in calling-contract check for the current best/runner-up pair.
@@ -828,7 +936,7 @@ def match_binaries(
                 if src_pcode and dst_pcode:
                     ev["pcode_fingerprint"] = 1.0 if src_pcode == dst_pcode else 0.0
                     if src_pcode == dst_pcode:
-                        ev["channels"] = sorted(set(ev.get("channels") or ()) | {"M"})
+                        ev["channels"] = sorted(set(ev.get("channels") or ()) | {"K"})
                 ev["target_candidate_count"] = len(cands)
                 ev["target_unique"] = len(cands) == 1
                 if s > best:
@@ -849,6 +957,17 @@ def match_binaries(
                 continue
             if contract_features is not None:
                 veto_info = _contract_veto(a, b, best, second, second_b)
+                contract_shadow["evaluated"] += 1
+                changed = bool(veto_info["drop"] or veto_info["vetoed_best"])
+                contract_shadow["changed_decisions"] += int(changed)
+                ev = {**ev, "contract_shadow": {"enabled": contract_veto_enabled,
+                      "changed": changed, "drop": veto_info["drop"], "kept_addr": veto_info["kept_addr"],
+                      "contract": veto_info["contract"], "alternatives": veto_info["alternatives"]}}
+                if changed:
+                    contract_shadow["changes"].append({"src": a, "best": b, "runner_up": second_b,
+                                                       **ev["contract_shadow"]})
+                if not contract_veto_enabled:
+                    veto_info = {**veto_info, "drop": False, "vetoed_best": False}
                 if veto_info["drop"]:
                     continue
                 if veto_info["vetoed_best"]:
@@ -1023,7 +1142,15 @@ def match_binaries(
         "pair_class": pair_class,
         "inlines": inlines,
         "optional_channels": {
+            "contract_veto": {**contract_shadow, "state": "available" if contract_features else "unavailable",
+                              "reason": "enabled" if contract_veto_enabled else "available_off_shadow",
+                              "provider": getattr(contract_features, "receipt", None)},
             "bsim": bsim_receipt,
+            "cpp_metadata": {"available": bool(sa.by_cpp and sb.by_cpp),
+                             "state": "available" if sa.by_cpp and sb.by_cpp else "unavailable",
+                             "reason": "observed_rtti_vtable_references" if sa.by_cpp and sb.by_cpp else "pair_cpp_metadata_missing",
+                             "sourceKeys": len(sa.by_cpp), "targetKeys": len(sb.by_cpp),
+                             "scope": "named RTTI and vtable data references; dispatch-slot recovery is separate"},
             "binexport": {"skipped": True, "reason": "no_pairwise_bindiff_adapter", "available": binexport_available()},
             "emulate": {"skipped": True, "reason": "residue_path_not_configured", "available": unicorn_available()},
             "pcode": _pcode_receipt(con, src_id, dst_id),

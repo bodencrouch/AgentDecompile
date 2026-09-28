@@ -11,19 +11,105 @@ import json
 import os
 import re
 import threading
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from agentdecompile_recovery.corpus.dashboard import mcp_budget
 import urllib.error
 import urllib.request
 from typing import Any
 from urllib.parse import urlparse
 
+# Kept for legacy action executors: their multi-call writer intervals must
+# exclude peer reads until upstream Ghidra isolation is observed, not inferred
+# merely from a successful MCP initialize response.
 CONTEXT_LOCK = threading.RLock()
-_LOCK = threading.RLock()
-_SESSION_ID = ""
-_INITIALIZED = False
-_REQ_ID = 0
-_OPENED: dict[str, str] = {}
-_ACTIVE_LOCATOR = ""
+_POOL_LOCK = threading.RLock()
+
+
+@dataclass
+class _PeerSession:
+    locator: str = ""
+    program: str = ""
+    lock: Any = field(default_factory=threading.RLock)
+    session_id: str = ""
+    initialized: bool = False
+    request_id: int = 0
+    opened: dict[str, str] = field(default_factory=dict)
+    active_locator: str = ""
+    capabilities: dict[str, Any] = field(default_factory=dict)
+
+
+_LEGACY_SESSION = _PeerSession()
+_PEER_SESSIONS: dict[tuple[str, str], _PeerSession] = {}
+_CURRENT_SESSION: ContextVar[_PeerSession] = ContextVar("dashboard_mcp_peer", default=_LEGACY_SESSION)
+
+
+def _session() -> _PeerSession:
+    return _CURRENT_SESSION.get()
+
+
+@contextmanager
+def program_context(locator: str, program: str):
+    """Isolate a peer's transport and cache; never block the UI behind a writer.
+
+    Multiple HTTP session IDs alone do not prove Ghidra isolation. Until the
+    two-project live oracle establishes that, use the existing writer lock as
+    the serialized fallback. A contending caller receives an explicit queued
+    result and retries; it does not hold an HTTP worker waiting for Ghidra.
+    """
+    key = (str(locator or "").strip(), str(program or "").strip().replace("\\", "/"))
+    if not key[0] or not key[1]:
+        yield None
+        return
+    with _POOL_LOCK:
+        peer = _PEER_SESSIONS.setdefault(key, _PeerSession(*key))
+    if not CONTEXT_LOCK.acquire(blocking=False):
+        yield None
+        return
+    token = _CURRENT_SESSION.set(peer)
+    try:
+        with peer.lock:
+            # Serialized fallback does not assume provider project isolation,
+            # even when transport session IDs differ. Another peer or legacy
+            # writer may have changed Ghidra's active project since this peer's
+            # last interval. Rebind it before consulting live program state.
+            peer.opened.clear()
+            peer.active_locator = ""
+            _LEGACY_SESSION.opened.clear()
+            _LEGACY_SESSION.active_locator = ""
+            yield peer
+    finally:
+        _CURRENT_SESSION.reset(token)
+        CONTEXT_LOCK.release()
+
+
+def _peer_status(locator: str, program: str, *, queued: bool = False) -> dict[str, Any]:
+    return {
+        "locator": locator, "program": program, "program_path": program,
+        "readiness": "queued" if queued else "readable",
+        "sessionMode": "serialized", "concurrentSessionSupport": "unverified",
+        "sessionReason": "Concurrent Ghidra project isolation has not been verified; reads serialize with writers.",
+        **({"ok": True, "queued": True, "results": [], "total": 0,
+            "source": "ghidra-mcp", "next": "retry-live-read", "retryAfterMs": 500}
+           if queued else {}),
+    }
+
+
+def read_program(locator: str, program: str, *, inventory: bool = True, **kwargs: Any) -> dict[str, Any]:
+    """Workbench consumer entry point for an explicitly selected project peer."""
+    if not program:
+        # The existing project-only open flow has no selected peer yet.
+        with CONTEXT_LOCK:
+            return ensure_program(locator, program, include_inventory=inventory, **kwargs)
+    if not locator:
+        return {"ok": False, "readiness": "blocked", "error": "Select a project before reading live state."}
+    with program_context(locator, program) as peer:
+        if peer is None:
+            return _peer_status(locator, program, queued=True)
+        result = ensure_program(locator, program, include_inventory=inventory, **kwargs)
+        return {**_peer_status(locator, program), **result,
+                "readiness": "readable" if result.get("ok") and not result.get("error") else "blocked"}
 
 
 def mcp_url() -> str:
@@ -95,17 +181,18 @@ def _resolve_open_program(wanted: str) -> tuple[str, list[str]]:
 
 
 def reset_session() -> None:
-    global _SESSION_ID, _INITIALIZED, _ACTIVE_LOCATOR
-    with _LOCK:
-        _SESSION_ID = ""
-        _INITIALIZED = False
-        _OPENED.clear()
-        _ACTIVE_LOCATOR = ""
+    """Reset only this peer; another project's transport and cache survive."""
+    state = _session()
+    with state.lock:
+        state.session_id = ""
+        state.initialized = False
+        state.opened.clear()
+        state.active_locator = ""
+        state.capabilities.clear()
 
 
 def call_tool(name: str, arguments: dict[str, Any] | None = None, *, timeout: float = 90.0) -> dict[str, Any]:
-    global _ACTIVE_LOCATOR
-    with CONTEXT_LOCK:
+    with CONTEXT_LOCK, _session().lock:
         result = _call_tool(name, arguments, timeout=timeout)
         mcp_budget.observe(ownership_metadata(result))
         if name == "import-binary" and result.get("ok") and isinstance(result.get("parsed"), dict):
@@ -117,7 +204,7 @@ def call_tool(name: str, arguments: dict[str, Any] | None = None, *, timeout: fl
                 # merely because its navigation metadata could not be saved.
                 result["parsed"]["workbenchBindingError"] = str(exc)
         if name in {"open", "import-binary", "connect-shared-project", "close"}:
-            _ACTIVE_LOCATOR = str((arguments or {}).get("path") or "") if result.get("ok") and name == "open" else ""
+            _session().active_locator = str((arguments or {}).get("path") or "") if result.get("ok") and name == "open" else ""
         return result
 
 
@@ -143,8 +230,8 @@ def ensure_project(locator: str) -> dict[str, Any]:
             args = ghidra_connect_args(info)
             canonical = str(info.get("canonical") or locator)
             key = "shared" + chr(0) + canonical
-            with _LOCK:
-                if _OPENED.get(key) == "connected":
+            with _session().lock:
+                if _session().opened.get(key) == "connected":
                     return {"ok": True, "reused": True}
             shared_args = {
                 "serverHost": args["server_host"],
@@ -181,10 +268,10 @@ def ensure_project(locator: str) -> dict[str, Any]:
                             opened = retry
                             break
             if opened.get("ok"):
-                with _LOCK:
-                    _OPENED[key] = "connected"
+                with _session().lock:
+                    _session().opened[key] = "connected"
             return opened
-        if locator and locator == _ACTIVE_LOCATOR:
+        if locator and locator == _session().active_locator:
             return {"ok": True, "reused": True}
         return call_tool("open", {"path": locator, "analyzeAfterImport": False, "openAllPrograms": False}, timeout=180.0)
 
@@ -301,6 +388,7 @@ def list_functions(
     offset: int = 0,
     limit: int | str = "all",
     program_path: str = "",
+    locator: str = "",
 ) -> dict[str, Any]:
     """List a live program's functions through the MCP list-functions tool.
 
@@ -312,6 +400,21 @@ def list_functions(
     ``total`` covers only the rows fetched so far (``offset`` plus this
     page), not every function or match in the program.
     """
+    if locator:
+        selected = program_path or program
+        if not selected:
+            return {"ok": False, "readiness": "blocked", "error": "Select a program before reading live state."}
+        with program_context(locator, selected) as peer:
+            if peer is None:
+                return _peer_status(locator, selected, queued=True)
+            opened = ensure_program(locator, selected, require_live=True, include_inventory=False)
+            if not opened.get("ok") or opened.get("error"):
+                return {**_peer_status(locator, selected), **opened, "readiness": "blocked"}
+            result = list_functions(program, q=q, offset=offset, limit=limit,
+                                    program_path=opened.get("program_path") or selected)
+            return {**_peer_status(locator, selected), **result,
+                    "readiness": "readable" if not result.get("error") else "blocked"}
+
     from agentdecompile_recovery.corpus.dashboard.common import page_window
 
     wanted = (program_path or program or "").strip()
@@ -449,10 +552,7 @@ def ensure_program(
         if (stored.get("results") or stored.get("opened")) and not require_live:
             stored["ensured"] = True
             stored["steps"] = [{"tool": "ghidra-store", "ok": True, "error": stored.get("error")}]
-            if stored.get("results"):
-                key = f"{loc}\0{stored.get('program_path') or name}"
-                with _LOCK:
-                    _OPENED[key] = "ready"
+            # On-disk inventory does not establish a live MCP checkout.
             return stored
         if kind == "shared-fs" and not require_live:
             return {
@@ -471,13 +571,13 @@ def ensure_program(
                 ),
             }
     path = ghidra_program_path(info, name) if name else ""
-    if include_inventory:
-        resolved, _available = _resolve_open_program(name)
-        if resolved:
-            path = resolved
+    # Resolve aliases only after the selected project is open. A fresh MCP
+    # session may expose the provider default project, whose identical basename
+    # is not evidence for this peer. list_functions resolves within the bound
+    # session below and always supplies the resulting explicit program path.
     key = f"{loc}\0{path or name}"
-    with _LOCK:
-        cached = _OPENED.get(key)
+    with _session().lock:
+        cached = _session().opened.get(key)
     if cached == "ready" and not exclusive:
         if not include_inventory:
             return {
@@ -539,7 +639,7 @@ def ensure_program(
         if not checked.get("ok"):
             return {"ok": False, "ensured": False, "program_path": path or name, "steps": steps, "error": checked.get("error") or checked.get("text")}
         shared_checked_out = True
-    elif kind == "shared-fs" and loc == _ACTIVE_LOCATOR:
+    elif kind == "shared-fs" and loc == _session().active_locator:
         # ``ensure_project`` already opened the owned native checkout. Do not
         # re-materialize it; checkout below makes the requested program live.
         steps.append({"tool": "open", "ok": True, "reused": True})
@@ -564,6 +664,9 @@ def ensure_program(
             if ownership_metadata(retry):
                 return {"ok": False, "ensured": False, "program_path": path or name, "steps": steps, "error": retry.get("error") or retry.get("text"), **ownership_metadata(retry)}
             opened = retry
+        if not opened.get("ok"):
+            return {"ok": False, "ensured": False, "program_path": path or name,
+                    "steps": steps, "error": opened.get("error") or opened.get("text") or "Could not open the selected project."}
 
     if (path or name) and not shared_checked_out:
         checked = call_tool(
@@ -584,8 +687,8 @@ def ensure_program(
             }
 
     if not include_inventory:
-        with _LOCK:
-            _OPENED[key] = "ready"
+        with _session().lock:
+            _session().opened[key] = "ready"
         return {
             "ok": True,
             "ensured": True,
@@ -602,8 +705,8 @@ def ensure_program(
     listed["steps"] = steps
     listed["program_path"] = path or name
     if listed.get("results"):
-        with _LOCK:
-            _OPENED[key] = "ready"
+        with _session().lock:
+            _session().opened[key] = "ready"
     return listed
 
 
@@ -617,11 +720,10 @@ def _apply_server_auth(args: dict[str, Any]) -> None:
 
 
 def _ensure_initialized(*, timeout: float) -> None:
-    global _INITIALIZED
-    with _LOCK:
-        if _INITIALIZED:
+    with _session().lock:
+        if _session().initialized:
             return
-        _rpc(
+        initialized = _rpc(
             "initialize",
             {
                 "protocolVersion": "2025-11-25",
@@ -631,7 +733,9 @@ def _ensure_initialized(*, timeout: float) -> None:
             timeout=timeout,
             notification_after="notifications/initialized",
         )
-        _INITIALIZED = True
+        _session().initialized = True
+        capabilities = initialized.get("capabilities")
+        _session().capabilities = dict(capabilities) if isinstance(capabilities, dict) else {}
 
 
 def _rpc(
@@ -641,9 +745,9 @@ def _rpc(
     timeout: float,
     notification_after: str = "",
 ) -> dict[str, Any]:
-    global _REQ_ID, _SESSION_ID
-    _REQ_ID += 1
-    payload = {"jsonrpc": "2.0", "id": _REQ_ID, "method": method, "params": params}
+    state = _session()
+    state.request_id += 1
+    payload = {"jsonrpc": "2.0", "id": state.request_id, "method": method, "params": params}
     body, headers = _post(payload, timeout=timeout)
     if notification_after:
         note = {"jsonrpc": "2.0", "method": notification_after}
@@ -658,14 +762,13 @@ def _rpc(
 
 
 def _post(payload: dict[str, Any], *, timeout: float) -> tuple[dict[str, Any], dict[str, str]]:
-    global _SESSION_ID
     data = json.dumps(payload).encode("utf-8")
     headers = {
         "accept": "application/json, text/event-stream",
         "content-type": "application/json",
     }
-    if _SESSION_ID:
-        headers["mcp-session-id"] = _SESSION_ID
+    if _session().session_id:
+        headers["mcp-session-id"] = _session().session_id
     req = urllib.request.Request(mcp_url(), data=data, headers=headers, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -673,14 +776,14 @@ def _post(payload: dict[str, Any], *, timeout: float) -> tuple[dict[str, Any], d
             hdrs = {k.lower(): v for k, v in resp.headers.items()}
             sid = (resp.headers.get("mcp-session-id") or "").strip()
             if sid:
-                _SESSION_ID = sid
+                _session().session_id = sid
             parsed = _decode_rpc(raw, hdrs.get("content-type") or "")
             return parsed, hdrs
     except urllib.error.HTTPError as exc:
         raw = exc.read() if exc.fp else b""
         sid = (exc.headers.get("mcp-session-id") if exc.headers else "") or ""
         if sid:
-            _SESSION_ID = sid
+            _session().session_id = sid
         text = raw.decode("utf-8", errors="replace")
         if exc.code in {400, 404} and "session" in text.lower():
             reset_session()

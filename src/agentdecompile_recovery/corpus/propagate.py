@@ -52,13 +52,24 @@ def bid(con, path: str) -> int:
 def run_pair(
     con, src_path: str, dst_path: str, note: str, run: str,
     *, progress: Callable[[dict], None] | None = None,
+    contract_veto_enabled: bool = False, knowledge_con=None, knowledge_programs: dict | None = None,
 ) -> dict:
     from .store import ensure_match_columns
 
     ensure_match_columns(con)
     src_id, dst_id = bid(con, src_path), bid(con, dst_path)
+    from .contract_features import StoredContractProvider
+    metadata = {int(row["id"]): dict(row) for row in con.execute(
+        "SELECT id,arch,bits FROM binary WHERE id IN (?,?)", (src_id, dst_id))}
+    contract_provider = StoredContractProvider(
+        knowledge_con if knowledge_con is not None else con,
+        knowledge_programs or {"src": src_path, "dst": dst_path},
+        {side: (metadata[bid].get("arch"), metadata[bid].get("bits"))
+         for side, bid in (("src", src_id), ("dst", dst_id))},
+    )
     res = match.match_binaries(
         con, src_id, dst_id, rounds=4, use_name_features=True, progress=progress,
+        contract_features=contract_provider, contract_veto_enabled=contract_veto_enabled,
     )
     sa, sb = res["src"], res["dst"]
 
@@ -89,6 +100,13 @@ def run_pair(
             from .correspondence import enrich_evidence
 
             evidence = enrich_evidence(evidence, kind=result.get("kind"), status=status, identity_claim=False)
+        from .channel_confidence import channel_confidence
+        kind = str(evidence.get("kind") or result.get("kind") or "unknown")
+        algorithm = str(evidence.get("primary_channel") or evidence.get("channel") or kind)
+        confidence = channel_confidence(primary=algorithm, evidence=result.get("evidence"),
+                                        n_instr=sa.funcs[addr].get("n_instr"),
+                                        margin=float(result.get("margin") or 0), unique=True)
+        evidence.update(kind=kind, primary_channel=algorithm, confidence=confidence)
         counts[status] += 1
         relation = str(evidence.get("relation") or "one_to_one")
         ranges = evidence.get("range") or {}
@@ -106,6 +124,7 @@ def run_pair(
                 relation,
                 ranges.get("src_end"),
                 ranges.get("dst_end"),
+                kind, confidence, algorithm,
             )
         )
     # match.id follows insert order. Sort on (src_addr, dst_addr) - the pair's
@@ -114,8 +133,8 @@ def run_pair(
     rows.sort(key=lambda r: (r[2], r[4]))
     con.executemany(
         """INSERT INTO match(run, src_binary, src_addr, dst_binary, dst_addr,
-                             score, margin, evidence, status, relation, src_end, dst_end)
-           VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                             score, margin, evidence, status, relation, src_end, dst_end, kind, confidence, algorithm)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         rows,
     )
     con.commit()
@@ -134,6 +153,7 @@ def run_pair(
         "dst": dst_path,
         "note": note,
         "counts": dict(counts),
+        "optional_channels": res.get("optional_channels", {}),
         "named_src_candidates": named_src,
         "transferable": transferable,
         "src_funcs": len(sa.funcs),

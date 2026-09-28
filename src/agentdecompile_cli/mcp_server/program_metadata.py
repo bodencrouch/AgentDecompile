@@ -813,6 +813,11 @@ def static_surface_action_violations(source: str) -> list[dict[str, Any]]:
         if kind == "comment":
             clean[start:end] = ["\n" if ch == "\n" else " " for ch in source[start:end]]
     code = "".join(clean)
+    structural = list(code)
+    for token_start, token_end, token_kind in tokens:
+        if token_kind == "string":
+            structural[token_start:token_end] = [" " for _ in range(token_end - token_start)]
+    structure = "".join(structural)
     violations: list[dict[str, Any]] = []
     for start, end, kind in tokens:
         if kind != "string":
@@ -838,11 +843,24 @@ def static_surface_action_violations(source: str) -> list[dict[str, Any]]:
                     params["operation"] = found.group(1)
         if action_id == "workbench.workflow-control" and not params:
             # Only a guard in the enclosing helper may prove a dynamic mode.
-            # Find the nearest function declaration, not another file's guard.
-            functions = list(re.finditer(r"\bfunction\s+\w+\s*\([^)]*\)\s*\{", before))
-            body = before[functions[-1].end():] if functions else ""
-            if _WORKFLOW_CONTROL_GUARD.search(body):
-                params["operation"] = "pause"  # representative of the finite set
+            # Prove the declaration is still open; a previously closed helper
+            # cannot lend its guard to a following callback. Require a leading
+            # guard and reject nested callbacks or reassignment we cannot prove.
+            functions = list(re.finditer(r"\bfunction\s+\w+\s*\([^)]*\)\s*\{", structure[:start]))
+            if functions:
+                body_start = functions[-1].end()
+                body = code[body_start:start]
+                syntax = structure[body_start:start]
+                depth, enclosed = 1, True
+                for char in syntax:
+                    depth += (char == "{") - (char == "}")
+                    if depth <= 0:
+                        enclosed = False
+                        break
+                guard = _WORKFLOW_CONTROL_GUARD.match(body.lstrip())
+                uncertain = re.search(r"=>|\bfunction\b|\boperation\s*(?:=(?!=)|\+=|-=|\+\+|--)", syntax)
+                if enclosed and guard and not uncertain:
+                    params["operation"] = "pause"  # representative of the finite set
         ownership = classify_static_action(action_id, params)
         if ownership in {"pipeline", "expert-only"}:
             violations.append({

@@ -1158,3 +1158,45 @@ def contract_compatibility(left: Mapping[str, Any] | None, right: Mapping[str, A
         notes.append("listing_incomplete")
     return {"verdict": verdict, "reasons": reasons, "axes": axes,
             "differences": differences, "notes": notes}
+
+
+class StoredContractProvider:
+    """Read cached listings using exact program keys; no JVM or alias guessing.
+
+    Pass the knowledge database connection explicitly when it is separate
+    from the corpus. Unsupported architectures remain unavailable.
+    """
+    def __init__(self, con, programs: Mapping[str, str], architectures: Mapping[str, tuple]):
+        self.con, self.programs, self.architectures = con, dict(programs), dict(architectures)
+        self.cache = {}
+        self.available = bool(con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='func_knowledge'").fetchone())
+        self.receipt = {"state": "available" if self.available else "unavailable",
+                        "reason": "cached_listing_provider" if self.available else "knowledge_listing_store_missing",
+                        "loaded": 0, "missing": 0, "unsupported": 0}
+
+    def __call__(self, side: str, addr: int) -> dict | None:
+        key = (side, int(addr))
+        if key in self.cache:
+            return self.cache[key]
+        self.cache[key] = None
+        arch, bits = self.architectures.get(side, (None, None))
+        if str(arch).lower() not in {"x86", "i386", "ia32", "x86:le:32:default"} or bits != 32:
+            self.receipt["unsupported"] += 1
+            return None
+        if not self.available:
+            self.receipt["missing"] += 1
+            return None
+        # entry_hex is stored canonically with a 0x prefix by the ingest path.
+        rows = self.con.execute(
+            "SELECT entry_hex,size,substr(asm,1,?),length(asm) FROM func_knowledge WHERE program=? AND lower(entry_hex) IN (?,?)",
+            (MAX_LISTING_CHARS, self.programs[side], hex(int(addr)), format(int(addr), "x")),
+        ).fetchall()
+        if len(rows) != 1 or not rows[0][2]:
+            self.receipt["missing"] += 1
+            return None
+        row = rows[0]
+        result = extract_contract(parse_cache_listing(row[2]), entry=int(addr), size=row[1],
+                                  truncated=(row[3] or 0) > MAX_LISTING_CHARS)
+        self.cache[key] = result
+        self.receipt["loaded"] += 1
+        return result

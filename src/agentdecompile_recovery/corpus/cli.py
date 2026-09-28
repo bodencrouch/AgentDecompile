@@ -9,6 +9,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
+from ..targeted_ai import resolve_targeted_ai
 from .archive import check_extraction, list_archive, summarize_entries
 from .contract import STAGE_ALIASES, stages_catalog, resolve_stage
 from .pipeline import run_corpus_pipeline, write_calibrate_global_receipt
@@ -348,9 +349,11 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     run.add_argument(
         "--llm",
         action="store_true",
+        default=None,
         help=(
             "After preparse+compile still fail, edit that Ghidra C with the local "
-            "claude CLI and retry once. The model is given `agentdecompile-cli get-function` output."
+            "claude CLI and retry once, only when targeted AI policy enables it. "
+            "Defaults to the shared targeted AI policy."
         ),
     )
     run.add_argument("--llm-model", default=None, help="Optional claude --model for cleanup")
@@ -407,6 +410,8 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
     )
     hookpack.add_argument("--db", type=Path, required=True)
     hookpack.add_argument("--out", type=Path, required=True)
+    hookpack.add_argument("--format", choices=("v1", "v2"), default="v1",
+                          help="Pack format; v1 preserves the existing consumer contract.")
     hookpack.add_argument(
         "--site-policy", type=Path, default=None,
         help="Optional validated site-kind/field policy for emitted hook sites.",
@@ -419,6 +424,31 @@ def build_parser(prog: str | None = None) -> argparse.ArgumentParser:
         "--operation-contract", type=Path, default=None,
         help="Validated target-bound native operation declarations to include in the hook pack.",
     )
+
+    lua = sub.add_parser("export-lua-bindings", help="Generate deterministic Lua bindings from a v2 hook pack")
+    lua.add_argument("--pack", type=Path, required=True)
+    lua.add_argument("--out", type=Path, required=True)
+
+    readiness = sub.add_parser("readiness-report", help="Explain per-entity/build readiness from a v2 hook pack")
+    readiness.add_argument("--pack", type=Path, required=True)
+    readiness.add_argument("--out", type=Path, required=True)
+
+    progress = sub.add_parser("export-progress-report", help="Write an objdiff-shaped corpus inventory report without publishing")
+    progress.add_argument("--db", type=Path, required=True)
+    progress.add_argument("--binary-id", type=int, required=True)
+    progress.add_argument("--version", required=True)
+    progress.add_argument("--out", type=Path, required=True)
+
+    divergence = sub.add_parser("divergence-report", help="Explain recorded cross-build structural divergence")
+    divergence.add_argument("--pack", type=Path, required=True)
+    divergence.add_argument("--out", type=Path, required=True)
+
+    bundle = sub.add_parser("export-bundle", help="Publish a verified content-addressed export bundle")
+    bundle.add_argument("--db", type=Path, required=True)
+    bundle.add_argument("--out", type=Path, required=True)
+    bundle.add_argument("--site-policy", type=Path)
+    bundle.add_argument("--adapter-map", type=Path)
+    bundle.add_argument("--operation-contract", type=Path)
 
     verify_det = sub.add_parser(
         "verify-determinism",
@@ -963,7 +993,7 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
             snapshot_dir=args.snapshot_dir,
             stop_after=stop_after,
             compiler=args.compiler,
-            llm=bool(args.llm),
+            llm=resolve_targeted_ai().enabled,
             llm_model=args.llm_model,
         )
         print(json.dumps(summary, indent=2))
@@ -1060,11 +1090,75 @@ def main(argv: list[str] | None = None, prog: str | None = None) -> int:
                 site_policy=args.site_policy,
                 adapter_map=args.adapter_map,
                 operation_contract=args.operation_contract,
+                format=args.format,
             )
         )
         if summary is REFUSED:
             return 2
         print(json.dumps(summary))
+        return 0
+    if args.cmd == "export-lua-bindings":
+        from .export_lua_bindings import export_lua_bindings
+
+        try:
+            result = export_lua_bindings(args.pack, args.out)
+        except (OSError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(result))
+        return 0
+    if args.cmd == "readiness-report":
+        from .readiness_report import export_readiness_report
+
+        try:
+            result = export_readiness_report(args.pack, args.out)
+        except (OSError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(result))
+        return 0
+    if args.cmd == "export-progress-report":
+        from .objdiff_report import export_report
+        from .store import connect
+
+        con = connect(args.db)
+        try:
+            result = export_report(con, args.binary_id, args.out, version=args.version)
+        except (OSError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        finally:
+            con.close()
+        print(json.dumps(result))
+        return 0
+    if args.cmd == "divergence-report":
+        from .divergence_report import export_divergence_report
+
+        try:
+            result = export_divergence_report(args.pack, args.out)
+        except (OSError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(result))
+        return 0
+    if args.cmd == "export-bundle":
+        from .export_bundle import export_bundle
+        from .store import connect
+
+        con = connect(args.db)
+        try:
+            result = _run_keyed_verb(lambda: export_bundle(
+                con, args.out, site_policy=args.site_policy,
+                adapter_map=args.adapter_map, operation_contract=args.operation_contract,
+            ))
+        except (OSError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        finally:
+            con.close()
+        if result is REFUSED:
+            return 2
+        print(json.dumps(result))
         return 0
     if args.cmd == "verify-determinism":
         from .determinism_basis import verify_export

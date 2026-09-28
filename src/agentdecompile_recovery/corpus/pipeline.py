@@ -8,6 +8,8 @@ ghidra-bulk.
 
 from __future__ import annotations
 
+from ..targeted_ai import resolve_targeted_ai, targeted_ai_job
+
 import shutil
 import json
 from pathlib import Path
@@ -369,7 +371,7 @@ def _compile_snapshot_c(
                     runner=llm_runner,
                     get_function_runner=get_function_runner,
                 )
-                result["llmAttempted"] = True
+                result["llmAttempted"] = edited.get("ran", True)
                 result["llmReason"] = edited.get("reason")
                 if edited.get("ok") and edited.get("source"):
                     body = edited["source"]
@@ -378,7 +380,7 @@ def _compile_snapshot_c(
                     src.write_text((row.get("preamble") or "") + "\n" + body.rstrip() + "\n", encoding="utf-8")
                     result = compile_unit(cc, src, obj)
                     result["llmCleanup"] = True
-                    result["llmAttempted"] = True
+                    result["llmAttempted"] = edited.get("ran", True)
             compile_rows.append({"id": row.get("id"), "binary": binary_id, **result})
             if result["ok"]:
                 compiled_ids.add(str(row.get("id")))
@@ -400,6 +402,7 @@ def _compile_snapshot_c(
     }, compiled_ids
 
 
+@targeted_ai_job()
 def run_corpus_pipeline(
     corpus: CorpusManifest,
     *,
@@ -407,12 +410,14 @@ def run_corpus_pipeline(
     snapshot_dir: Path,
     stop_after: str = "compile",
     compiler: str | None = None,
-    llm: bool = False,
+    llm: bool | None = None,
     llm_model: str | None = None,
     llm_runner: Any | None = None,
     get_function_runner: Any | None = None,
     db: Path | None = None,
 ) -> dict[str, Any]:
+    ai_state = resolve_targeted_ai()
+    llm = ai_state.enabled and llm is not False
     work_dir = work_dir.resolve()
     work_dir.mkdir(parents=True, exist_ok=True)
     receipts: dict[str, Any] = {}
@@ -538,7 +543,7 @@ def run_corpus_pipeline(
             for row in rows
             if row.get("source_claim") == "recovered" and str(row.get("id")) not in compiled_ids
         ]
-        llm_ran = bool(llm) and bool(compiler or find_c_compiler()) and "recover-source" in planned
+        llm_ran = bool(compile_receipt.get("llmAttempted", 0))
         receipts["leftover-recover"] = {
             "queued": leftover,
             "count": len(leftover),
@@ -546,10 +551,12 @@ def run_corpus_pipeline(
             "attempted": compile_receipt.get("llmAttempted", 0),
             "kept": compile_receipt.get("llmKept", 0),
             "reason": (
-                "LLM edited leftover Ghidra C after snapshot C compile failed. "
+                "LLM cleanup was attempted after snapshot C compile failed. "
                 "Edits are kept only if the compiler then accepts them."
                 if llm_ran
-                else "Pass --llm (and have a C compiler) to edit leftover Ghidra C with the local claude CLI."
+                else "Targeted AI disabled by operator" if not ai_state.enabled
+                else "Targeted AI disabled for this run" if not llm
+                else "No model invocation recorded; inspect the compile receipt for missing prerequisites or no eligible leftovers."
             ),
         }
         write_json(work_dir / "leftover-recover.json", receipts["leftover-recover"])

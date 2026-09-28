@@ -120,10 +120,9 @@ def records() -> dict[str, dict]:
                             data['status'] = 'interrupted'
                             data['finishedAt'] = data.get('finishedAt') or time.time()
                             data['error'] = data.get('error') or 'The owning process stopped before recording completion; retained output is available for reconciliation.'
-                            try:
-                                write(data)
-                            except OSError:
-                                pass
+                            # Read-side projection only. A delayed owner-death
+                            # observation must never overwrite a newer terminal
+                            # receipt/resource reservation written by JobStore.
                     rows = [data] if path.parent.name == 'workbench-jobs' else _legacy(path, data)
                     _CACHE[str(path)] = (signature, rows)
                 else:

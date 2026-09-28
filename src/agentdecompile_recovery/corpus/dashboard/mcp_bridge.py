@@ -11,6 +11,7 @@ import json
 import os
 import re
 import threading
+from agentdecompile_recovery.corpus.dashboard import mcp_budget
 import urllib.error
 import urllib.request
 from typing import Any
@@ -106,6 +107,7 @@ def call_tool(name: str, arguments: dict[str, Any] | None = None, *, timeout: fl
     global _ACTIVE_LOCATOR
     with CONTEXT_LOCK:
         result = _call_tool(name, arguments, timeout=timeout)
+        mcp_budget.observe(ownership_metadata(result))
         if name == "import-binary" and result.get("ok") and isinstance(result.get("parsed"), dict):
             from .workbench import record_import_bindings
             try:
@@ -168,6 +170,8 @@ def ensure_project(locator: str) -> dict[str, Any]:
                     if candidate != shared_args["path"] and candidate.casefold() == str(shared_args["path"]).casefold():
                         retry_args = {**shared_args, "path": candidate}
                         retry = call_tool("connect-shared-project", retry_args, timeout=180.0)
+                        if ownership_metadata(retry):
+                            return retry
                         retry_payload = retry.get("parsed") if isinstance(retry.get("parsed"), dict) else {}
                         if not retry_payload:
                             retry_count = re.search(r"\*\*programCount:\*\*\s*(\d+)", str(retry.get("text") or ""))
@@ -185,6 +189,64 @@ def ensure_project(locator: str) -> dict[str, Any]:
         return call_tool("open", {"path": locator, "analyzeAfterImport": False, "openAllPrograms": False}, timeout=180.0)
 
 
+def ownership_metadata(result: dict[str, Any]) -> dict[str, bool]:
+    """Preserve uncertainty across wrappers; a returned client is not remote clearance."""
+    def unresolved(value: Any, depth: int = 0) -> bool:
+        # Match the retained JobStore envelope semantics, including JSON-string
+        # adapter results. Excessive nesting cannot prove remote clearance.
+        if depth > 8:
+            return True
+        if isinstance(value, dict):
+            return (value.get('ownershipResolved') is False or bool(value.get('ownershipUnresolved'))
+                    or any(unresolved(item, depth + 1) for item in value.values()))
+        if isinstance(value, list):
+            return any(unresolved(item, depth + 1) for item in value)
+        if isinstance(value, str) and value.lstrip().startswith(('{', '[')):
+            try:
+                return unresolved(json.loads(value), depth + 1)
+            except ValueError:
+                return False
+        return False
+    # The bridge repeats the provider payload as parsed, text, and raw MCP
+    # content. Start provider-depth accounting at each payload, not at its
+    # transport envelope; otherwise an ordinary function list can exceed the
+    # bound solely because it appears inside raw.content[0].text.
+    payloads = [{key: value for key, value in result.items()
+                 if key not in {'parsed', 'text', 'raw', 'content'}}]
+    if 'parsed' in result:
+        payloads.append(result['parsed'])
+    texts = [result.get('text')]
+    transports = [result]
+    if isinstance(result.get('raw'), dict):
+        transports.append(result['raw'])
+    elif 'raw' in result:
+        payloads.append(result['raw'])
+    for transport in transports:
+        if transport is not result:
+            payloads.append({key: value for key, value in transport.items() if key != 'content'})
+        content = transport.get('content')
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict):
+                    payloads.append({key: value for key, value in block.items() if key != 'text'})
+                    texts.append(block.get('text'))
+                else:
+                    payloads.append(block)
+        elif content is not None:
+            payloads.append(content)
+    # JSON text is itself a transport representation; decode before applying
+    # the same bounded envelope scan used for an already parsed provider body.
+    for text in texts:
+        if isinstance(text, str) and text.lstrip().startswith(('{', '[')):
+            try:
+                payloads.append(json.loads(text))
+            except ValueError:
+                pass
+    if any(unresolved(payload) for payload in payloads):
+        return {"ownershipResolved": False, "ownershipUnresolved": True}
+    return {}
+
+
 def _call_tool(
     name: str,
     arguments: dict[str, Any] | None = None,
@@ -192,15 +254,21 @@ def _call_tool(
     timeout: float = 90.0,
 ) -> dict[str, Any]:
     """JSON-RPC ``tools/call``. Returns ``{ok, isError, text, parsed, raw}``."""
+    dispatched = False
     try:
         _ensure_initialized(timeout=min(20.0, timeout))
+        mcp_budget.before_dispatch(name)
+        dispatched = True
         result = _rpc(
             "tools/call",
             {"name": name, "arguments": dict(arguments or {})},
             timeout=timeout,
         )
+    except mcp_budget.DispatchRefused:
+        raise
     except Exception as exc:  # noqa: BLE001 — surface MCP errors to the UI
-        return {"ok": False, "isError": True, "error": str(exc), "text": "", "parsed": None}
+        return {"ok": False, "isError": True, "error": str(exc), "text": "", "parsed": None,
+                **({"ownershipResolved": False, "ownershipUnresolved": True} if dispatched else {})}
     content = result.get("content") if isinstance(result, dict) else None
     text = _content_text(content if isinstance(content, list) else [])
     parsed = _maybe_json(text)
@@ -222,6 +290,7 @@ def _call_tool(
         "parsed": parsed,
         "raw": result,
         "error": err,
+        **ownership_metadata({"parsed": parsed}),
     }
 
 
@@ -424,9 +493,13 @@ def ensure_program(
             timeout=180.0,
         )
         steps.append({"tool": "import-binary", "ok": opened.get("ok"), "error": opened.get("error")})
+        if ownership_metadata(opened):
+            return {"ok": False, "ensured": False, "program_path": path or name, "steps": steps, "error": opened.get("error") or opened.get("text"), **ownership_metadata(opened)}
     elif kind == "shared-project":
         opened = ensure_project(loc)
         steps.append({"tool": "connect-shared-project", "ok": opened.get("ok"), "error": opened.get("error")})
+        if ownership_metadata(opened):
+            return {"ok": False, "ensured": False, "program_path": path or name, "steps": steps, "error": opened.get("error") or opened.get("text"), **ownership_metadata(opened)}
         if not opened.get("ok"):
             return {"ok": False, "ensured": False, "program_path": path or name, "steps": steps, "error": opened.get("error") or opened.get("text")}
         shared_args = {
@@ -442,6 +515,8 @@ def ensure_program(
         _apply_server_auth(shared_args)
         checked = call_tool("connect-shared-project", shared_args, timeout=180.0)
         steps.append({"tool": "shared-checkout", "ok": checked.get("ok"), "error": checked.get("error")})
+        if ownership_metadata(checked):
+            return {"ok": False, "ensured": False, "program_path": path or name, "steps": steps, "error": checked.get("error") or checked.get("text"), **ownership_metadata(checked)}
         if not checked.get("ok"):
             return {"ok": False, "ensured": False, "program_path": path or name, "steps": steps, "error": checked.get("error") or checked.get("text")}
         shared_checked_out = True
@@ -452,6 +527,8 @@ def ensure_program(
     elif open_args:
         opened = call_tool("open", open_args, timeout=180.0)
         steps.append({"tool": "open", "ok": opened.get("ok"), "error": opened.get("error")})
+        if ownership_metadata(opened):
+            return {"ok": False, "ensured": False, "program_path": path or name, "steps": steps, "error": opened.get("error") or opened.get("text"), **ownership_metadata(opened)}
         if not opened.get("ok") and open_args.get("shared"):
             defaults = shared_defaults()
             url = (
@@ -465,6 +542,8 @@ def ensure_program(
                 timeout=180.0,
             )
             steps.append({"tool": "open-url", "ok": retry.get("ok"), "error": retry.get("error")})
+            if ownership_metadata(retry):
+                return {"ok": False, "ensured": False, "program_path": path or name, "steps": steps, "error": retry.get("error") or retry.get("text"), **ownership_metadata(retry)}
             opened = retry
 
     if (path or name) and not shared_checked_out:
@@ -474,6 +553,8 @@ def ensure_program(
             timeout=90.0,
         )
         steps.append({"tool": "checkout-program", "ok": checked.get("ok"), "error": checked.get("error")})
+        if ownership_metadata(checked):
+            return {"ok": False, "ensured": False, "program_path": path or name, "steps": steps, "error": checked.get("error") or checked.get("text"), **ownership_metadata(checked)}
         if not checked.get("ok"):
             return {
                 "ok": False,

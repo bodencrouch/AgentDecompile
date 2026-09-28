@@ -110,10 +110,25 @@ def list_actions() -> list[ActionSpec]:
         from agentdecompile_recovery.corpus.dashboard.actions.introspect import generate_actions
 
         _ACTIONS = generate_actions() + [ActionSpec(
+            id="review.list", title="Read candidate review", group="workbench",
+            backend="match-review", command="list",
+            fields=(FieldSpec("db", required=True, from_context="db"), FieldSpec("selection"),
+                    FieldSpec("after_id", kind="int", default=0), FieldSpec("limit", kind="int", default=50)),
+        ), ActionSpec(
+            id="review.decide", title="Decide observed candidates", group="workbench",
+            backend="match-review", command="decide", mutating=True, identity_scope="database",
+            summary="Atomically accept or reject exact observed review bases with audit. Accept means verify, not source parity.",
+            fields=(FieldSpec("db", required=True, from_context="db"), FieldSpec("selection", required=True),
+                    FieldSpec("entries", kind="array", required=True, schema={"maxItems": 100})),
+        ), ActionSpec(
             id="workbench.prepare", title="Prepare project", group="workbench",
             backend="preparation", command="prepare", mutating=True, long_running=True,
             summary="Automatically prepare, compare, and recover without a wall-time limit by default. Optional finite budgets and per-function attempt limits remain available. Completion is not proof.",
-            fields=tuple(FieldSpec(name, from_context=name) for name in ("locator", "program", "slug")) + (FieldSpec("resume", kind="bool", default=False),),
+            fields=tuple(FieldSpec(name, from_context=name) for name in ("locator", "program", "slug")) + (
+                FieldSpec("resume", kind="bool", default=False),
+                FieldSpec("maxMcpToolCalls", kind="int", help="Optional nonnegative MCP tools/call cap, including prerequisites, retries and checkin. Omit for unlimited measured dispatches; resume retains spending."),
+                FieldSpec("maxActionAdmissions", kind="int", help="Optional nonnegative initial action-admission allocation. Omit for unlimited accounting. Resume preserves the existing allocation and spending."),
+            ),
         ), ActionSpec(
             id="workbench.merge-evidence", title="Bind compared knowledge", group="workbench",
             backend="merge-evidence", command="merge-evidence", mutating=True, identity_scope="database",
@@ -122,13 +137,26 @@ def list_actions() -> list[ActionSpec]:
         ), ActionSpec(
             id="workbench.workflow-control", title="Adjust automatic workflow", group="workbench",
             backend="workflow-control", command="workflow-control", mutating=True,
-            summary="Pause, resume, stop, or adjust the remaining workflow budget. Set unlimited=true to remove its wall-time limit. Accepted native operations drain before stopping.",
-            fields=(FieldSpec("preparation_id", required=True), FieldSpec("operation", required=True, choices=("pause", "resume", "stop", "budget", "priority")), FieldSpec("seconds", kind="int"), FieldSpec("unlimited", kind="bool"), FieldSpec("priority", kind="int")),
+            summary="Pause, resume, stop, or adjust workflow limits. Budget controls wall time; admission-budget revises root action admissions; provider-budget revises MCP tools/call dispatches. Both require the preparation to drain and the current allocation revision, and retain spending. Accepted native operations drain before stopping.",
+            fields=(FieldSpec("preparation_id", required=True), FieldSpec("operation", required=True, choices=("pause", "resume", "stop", "budget", "priority", "admission-budget", "provider-budget")), FieldSpec("seconds", kind="int"), FieldSpec("unlimited", kind="bool"), FieldSpec("priority", kind="int"),
+                    FieldSpec("maxMcpToolCalls", kind="int", help="New total MCP dispatch allocation for provider-budget; spent intents are retained."),
+                    FieldSpec("maxActionAdmissions", kind="int", help="New total allocation; previously spent admissions are retained. Use unlimited=true explicitly to remove the cap."),
+                    FieldSpec("expectedAllocationRevision", kind="int", help="Required current revision of the selected admission-budget or provider-budget; stale revisions are refused.")),
         ), ActionSpec(
             id="workbench.activity-snapshot", title="Read workspace activity", group="workbench",
             backend="activity-snapshot", command="activity-snapshot",
             summary="Read entity activity, progress, queue state, and receipt-backed evidence.",
             fields=(FieldSpec("locator", from_context="locator"), FieldSpec("slug", from_context="slug")),
+        ), ActionSpec(
+            id="workbench.resource-reconciliation-report", title="Inspect retained resource ownership", group="workbench",
+            backend="resource-reconciliation-report", command="resource-reconciliation-report",
+            summary="Read a job's retained ownership and missing clearance evidence without releasing resources.",
+            fields=(FieldSpec("job_id", required=True),),
+        ), ActionSpec(
+            id="workbench.resource-reconcile", title="Reconcile committed resource release", group="workbench",
+            backend="resource-reconcile", command="resource-reconcile", mutating=True,
+            summary="Repair stale reservations only from an already committed same-attempt terminal local clearance receipt. Unknown work remains reserved.",
+            fields=(FieldSpec("job_id", required=True),),
         ), ActionSpec(
             id="workbench.export-source-zip", title="Download binary source ZIP", group="workbench",
             backend="source-archive", command="source-archive", long_running=True,
@@ -416,7 +444,7 @@ def build_command(action: ActionSpec, params: dict[str, Any]) -> list[str]:
         if launcher is None:
             raise ValueError("Ghidra support/bsim not found; configure GHIDRA_INSTALL_DIR")
         return [str(launcher), "commitsigs", str(params["bsimUrl"]), str(params["signatureDirectory"])]
-    if action.backend in {"workflow-control", "activity-snapshot", "merge-evidence", "source-archive", "matching"}:
+    if action.backend in {"workflow-control", "activity-snapshot", "merge-evidence", "source-archive", "matching", "resource-reconciliation-report", "resource-reconcile", "match-review"}:
         return [action.id]
     if action.backend == "preparation":
         return ["workbench.prepare"]

@@ -196,7 +196,7 @@ def bind_identities(con, run: str, *, commit: bool = True) -> int:
         (row["logical_id"], row["binary_id"]): row["addr"]
         for row in con.execute("SELECT logical_id,binary_id,addr FROM identity ORDER BY logical_id, binary_id, addr")
     }
-    conflicts: list[tuple[str, int, int, int]] = []
+    conflicts: list[tuple[str, int, int, int, int]] = []
     for row in cur:
         evidence = json.loads(row["evidence"] or "{}")
         if not allows_identity_binding(evidence, "one_to_one", quarantined_sources):
@@ -244,14 +244,15 @@ def bind_identities(con, run: str, *, commit: bool = True) -> int:
             )
             evidence["reason"] = "logical_id_binary_conflict"
             evidence["conflicting_addr"] = occupied
-            conflicts.append((json.dumps(evidence), row["src_binary"], row["src_addr"], row["dst_addr"]))
+            conflicts.append((json.dumps(evidence), row["src_binary"], row["src_addr"], row["dst_binary"], row["dst_addr"]))
             continue
         best[key] = cand
         selected_logical[logical_key] = row["dst_addr"]
     if conflicts:
         con.executemany(
-            "UPDATE match SET status='review', evidence=? WHERE run=? AND src_binary=? AND src_addr=? AND dst_addr=?",
-            [(ev, run, src_binary, src_addr, dst_addr) for ev, src_binary, src_addr, dst_addr in conflicts],
+            "UPDATE match SET status='review', evidence=? WHERE run=? AND src_binary=? AND src_addr=? AND dst_binary=? AND dst_addr=?",
+            [(ev, run, src_binary, src_addr, dst_binary, dst_addr)
+             for ev, src_binary, src_addr, dst_binary, dst_addr in conflicts],
         )
     payload = list(best.values())
     con.executemany(

@@ -93,7 +93,7 @@ def test_full_key_set_is_pinned(tmp_path: Path) -> None:
     assert set(b["threshold_params"]) == THRESHOLD_KEYS
     assert b["pending"] == PENDING
     assert b["basis_version"] == 2
-    assert b["algorithm_version"] == "phase0.2+key:content_sha256"
+    assert b["algorithm_version"] == "phase0.4+key:content_sha256+dep:content_sha256_16"
     assert b["masking_rule_version"] == "none"
     assert b["analyzer"]["version"] == ANALYZER
     assert b["threshold_params"] == policy_tables.threshold_params()
@@ -434,3 +434,33 @@ def test_export_bytes_do_not_depend_on_pythonhashseed(tmp_path: Path, hashseed: 
     reference = tmp_path / "reference.json"
     export_hookpack(connect(db), reference)
     assert out.read_bytes() == reference.read_bytes()
+
+
+def test_destination_scope_revision_rejects_old_basis_and_resolves_history(tmp_path: Path, capsys) -> None:
+    from agentdecompile_recovery.corpus.rebaseline import LedgerResolver
+    previous = "phase0.3+key:content_sha256+dep:content_sha256_16"
+    assert db_mod.ALGORITHM_VERSION == "phase0.4+key:content_sha256+dep:content_sha256_16"
+    assert db_mod.algorithm_versions()[-2:] == (previous, db_mod.ALGORITHM_VERSION)
+    old_package = db_mod.package_basis_with_algorithm(ANALYZER, previous)
+    old_hash = db_mod.basis_hash_of(old_package)
+    assert old_hash != db_mod.basis_hash_for(ANALYZER)
+    db = tmp_path / "old-basis.sqlite"
+    con = _with_site(db)
+    try:
+        con.execute("UPDATE binary SET basis_hash=?", (old_hash,));con.commit()
+        identities = [tuple(r) for r in con.execute("SELECT * FROM identity ORDER BY binary_id,addr")]
+        with pytest.raises(db_mod.BasisError, match="basis_hash drift.*re-baseline"):
+            db_mod.basis(con)
+        resolved = LedgerResolver().resolve(con, old_hash, ANALYZER)
+        assert resolved.source == "history" and resolved.algorithm_version == previous
+        assert resolved.package_basis == old_package
+        assert db_mod.basis_hash_of(resolved.package_basis) == old_hash
+        output = tmp_path / "pack.json"
+        assert corpus_main(["export-hookpack", "--db", str(db), "--out", str(output)]) == 2
+        captured = capsys.readouterr()
+        assert not captured.out and "basis_hash drift" in captured.err and "re-baseline" in captured.err
+        assert not output.exists()
+        assert [tuple(r) for r in con.execute("SELECT * FROM identity ORDER BY binary_id,addr")] == identities
+        assert {r[0] for r in con.execute("SELECT basis_hash FROM binary")} == {old_hash}
+    finally:
+        con.close()

@@ -42,6 +42,7 @@ from pathlib import Path
 #: corpus_manifest_hash) emitted before 3b basis hardening.
 BASIS_VERSION = 2
 
+#: phase0.4 confines identity-conflict demotions to the destination binary.
 #: Names the cascade revision, the tie-break key it orders by, and the key
 #: its persisted dependency tokens carry. The ``dep:`` component records the
 #: dependency-token key: ``match.evidence`` tokens are
@@ -49,7 +50,7 @@ BASIS_VERSION = 2
 #: (``match_store.dependency_token``, A3). Moving this value moves every
 #: stamped store's ``basis_hash`` and makes :func:`basis` refuse with
 #: "re-baseline" until ``corpus rebaseline`` records the supersession.
-ALGORITHM_VERSION = "phase0.3+key:content_sha256+dep:content_sha256_16"
+ALGORITHM_VERSION = "phase0.4+key:content_sha256+dep:content_sha256_16"
 
 #: Every value ``ALGORITHM_VERSION`` held before the current one, oldest
 #: first. A supersession names the old value from here after the constant
@@ -58,6 +59,7 @@ ALGORITHM_VERSION = "phase0.3+key:content_sha256+dep:content_sha256_16"
 ALGORITHM_VERSION_HISTORY: tuple[str, ...] = (
     "phase0.1",
     "phase0.2+key:content_sha256",
+    "phase0.3+key:content_sha256+dep:content_sha256_16",
 )
 
 #: Present but "none" until U4 lands a masking rule set.

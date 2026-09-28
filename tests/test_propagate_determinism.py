@@ -231,3 +231,36 @@ def test_propagation_kind_is_mapping_order_invariant() -> None:
         assert [p[:2] for p in pairs] == [("X", "Y")]
         kinds.append(pairs[0][2])
     assert kinds[0] == kinds[1] == "callee"
+
+
+@pytest.mark.parametrize("reverse_matches", [False, True])
+@pytest.mark.parametrize("reverse_seeds", [False, True])
+@pytest.mark.parametrize("winner_hash_first", [False, True])
+def test_conflict_demotion_is_scoped_to_destination_binary(
+    tmp_path: Path, reverse_matches: bool, reverse_seeds: bool, winner_hash_first: bool,
+) -> None:
+    # The same source and numeric destination VA occur in two destination
+    # builds. Only build2 already owns this logical at a different address.
+    # Its losing row must not demote build3's independently accepted match.
+    matches = [(SRC, 0x10, 2, 0x100), (SRC, 0x10, 3, 0x100)]
+    seeds = [(1, SRC, 0x10), (1, 2, 0x90)]
+    if reverse_matches: matches.reverse()
+    if reverse_seeds: seeds.reverse()
+    hashes = {1: "1" * 64, 2: ("f" if winner_hash_first else "2") * 64,
+              3: ("2" if winner_hash_first else "f") * 64}
+    con = _build(tmp_path / "destination-scope.sqlite", matches, seeds, hashes=hashes)
+    before_ids = {r["dst_binary"]: r["id"] for r in con.execute("SELECT id,dst_binary FROM match")}
+    try:
+        assert bind_identities(con, RUN) == 1
+        rows = {r["dst_binary"]: dict(r) for r in con.execute("SELECT * FROM match")}
+        assert rows[2]["status"] == "review"
+        loser = json.loads(rows[2]["evidence"])
+        assert loser["reason"] == "logical_id_binary_conflict" and loser["conflicting_addr"] == 0x90
+        assert rows[3]["status"] == "auto" and rows[3]["evidence"] == "{}"
+        assert {bid: row["id"] for bid,row in rows.items()} == before_ids
+        identities = [tuple(r) for r in con.execute(
+            "SELECT logical_id,binary_id,addr,confidence,method FROM identity ORDER BY binary_id,addr")]
+        assert identities == [(1,1,0x10,0.9,"seed"), (1,2,0x90,0.9,"seed"),
+                              (1,3,0x100,1.0,f"match:{RUN}:auto")]
+    finally:
+        con.close()

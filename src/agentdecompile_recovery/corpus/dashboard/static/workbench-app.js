@@ -1962,6 +1962,26 @@
     { id: "wb-tools", title: "Commands", more: true }
   ];
 
+  /* Guide rail (slice 5). Titles and guide-anchor labels are reused verbatim
+     from the Vite frontend's GuideWorkflows.tsx (8 chapters, same order) so the
+     static dashboard doesn't grow a second guide taxonomy. GuideWorkflows.tsx
+     has no per-chapter URL (only a short "N · Section name" label) so a rail
+     click only focuses the mapped pane -- it never opens a tab and never calls
+     executeAction. `target` is the closest existing surface/centerTab id;
+     several chapters share one because the corresponding first-class surface
+     (Symbol Tree, Types/Structures/Vtables dock) doesn't exist yet -- see
+     docs/dashboard-design/2026-09-28-static-codebrowser-guide-redesign.md §2.3. */
+  const GUIDE_CHAPTERS = [
+    { title: "Orient to the project", guide: "2–3 · Projects and code browser", target: "wb-sidebar" },
+    { title: "Find symbols and types", guide: "4–5 · Symbol tree and data type manager", target: "wb-fnbrowse" },
+    { title: "Read bytes and reconstructed code", guide: "6–7 · Listing and decompile view", target: "decompile" },
+    { title: "Trace relationships and keep notes", guide: "8 · Call trees, memory map, and bookmarks", target: "graph" },
+    { title: "Check function signatures and ABI", guide: "9–11 · Functions, conventions, and return storage", target: "wb-fnbrowse" },
+    { title: "Recover structures and virtual dispatch", guide: "12–13 · Structures and vtables", target: "wb-tools" },
+    { title: "Compare template instantiations", guide: "14 · Template classes", target: "wb-tools" },
+    { title: "Diagnose decompiler inconsistencies", guide: "15–16 · Common issues and next steps", target: "decompile" }
+  ];
+
   const EDITOR_TABS = EDITOR_PRIMARY.concat(CORPUS_NAV);
 
   /* The browse page's old anchors and query keys still arrive from bookmarks,
@@ -2324,6 +2344,40 @@
         </footer>
       </div>
     </div>`;
+  }
+
+  /* Guide rail (slice 5, §5.3): state is derived only from data already in
+     scope, never invented. `reachable`/`evidence` are booleans the caller
+     computes from real app state (program selection, loaded rows/detail/
+     graph); this component only renders them. Clicking a step focuses its
+     mapped pane through the existing jumpTo mechanism -- it never runs an
+     action and never opens a network request. */
+  function GuideRail({ chapters, centerTab, reachable, evidence, onJump }) {
+    return html`<nav className="wb-guide-rail" aria-label="Guide">
+      <ol className="wb-guide-list">
+        ${chapters.map(function (chapter, i) {
+          const isReachable = Boolean(reachable[i]);
+          const inView = isReachable && centerTab === chapter.target;
+          const hasEvidence = isReachable && Boolean(evidence[i]);
+          const state = !isReachable ? "partial" : inView ? "active" : hasEvidence ? "proven" : "default";
+          const stateText = !isReachable ? "not reachable yet"
+            : inView ? "in view"
+              : hasEvidence ? "has evidence"
+                : "not started";
+          const label = (i + 1) + ". " + chapter.title + " (" + chapter.guide + ") — " + stateText;
+          return html`<li key=${chapter.title}>
+            <button type="button" className="wb-guide-step" data-state=${state}
+              title=${chapter.title}
+              aria-label=${label}
+              aria-current=${inView ? "step" : undefined}
+              onClick=${function () { onJump(chapter.target); }}>
+              <span className="wb-guide-dot" aria-hidden="true">${String(i + 1).padStart(2, "0")}</span>
+              <span className="sr-only">${label}</span>
+            </button>
+          </li>`;
+        })}
+      </ol>
+    </nav>`;
   }
 
   function CorpusNavBar({ active, onJump, moreOpen, onMoreToggle }) {
@@ -6160,7 +6214,21 @@
       </${Modal}>
 
       <div className=${"wb-app-shell" + (classicLayout ? " wb-shell-classic" : "")} style=${{ "--wb-side-w": sideW + "px" }}>
-        <nav className="wb-guide-rail" aria-label="Guide"></nav>
+        <${GuideRail} chapters=${GUIDE_CHAPTERS} centerTab=${centerTab}
+          reachable=${GUIDE_CHAPTERS.map(function (chapter) {
+            return chapter.target === "wb-sidebar" ? Boolean(dossier && dossier.ok) : Boolean(program);
+          })}
+          evidence=${[
+            Boolean(dossier && dossier.ok && (dossier.programs || []).length > 0),
+            rows.length > 0,
+            Boolean(detail && (detail.preview || (detail.decompile && detail.decompile.text))),
+            Boolean(graph && (graph.center || (graph.callers && graph.callers.length) || (graph.callees && graph.callees.length))),
+            Boolean(selected && selected.addr),
+            false,
+            false,
+            Boolean(detail && detail.decompile && detail.decompile.text)
+          ]}
+          onJump=${jumpTo} />
         <aside id="wb-sidebar" className="wb-sidebar" style=${{ width: sideW + "px", flexBasis: sideW + "px" }}
           onContextMenu=${function (ev) {
             const items = [

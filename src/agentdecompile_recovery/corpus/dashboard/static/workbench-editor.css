@@ -1060,6 +1060,7 @@ body.workbench-page.wb-density-compact .wb-editor-body .wb-surface {
     overflow: auto;
     background: var(--bg-panel);
     border-right: 1px solid var(--border);
+    padding: var(--wb-space-2) 0;
   }
 
   body.workbench-page:not(.wb-classic-layout) .wb-sidebar {
@@ -1100,6 +1101,71 @@ body.workbench-page.wb-density-compact .wb-editor-body .wb-surface {
   body.workbench-page:not(.wb-classic-layout) .wb-decompile-dock-body {
     display: block;
   }
+}
+
+/* Guide rail content (slice 5). Steps are numbered dots, one per guide
+   chapter; state (not reachable / in view / has evidence) is a data
+   attribute so it survives independent of hover/focus classes. Every step
+   stays a plain, always-focusable <button> -- never disabled -- so Tab
+   reaches all 8 regardless of reachability. The rail itself stays hidden
+   below 1101px per the existing collapse (base rule above); no horizontal
+   dot-strip variant is added for narrow widths, see implementer report. */
+.workbench-page .wb-guide-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--wb-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workbench-page .wb-guide-step {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--text-muted);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.workbench-page .wb-guide-step:hover {
+  border-color: var(--border-strong);
+  color: var(--fg-body);
+}
+
+.workbench-page .wb-guide-step:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.workbench-page .wb-guide-step[data-state="partial"] {
+  color: var(--st-partial);
+  border-color: var(--st-partial);
+  opacity: 0.6;
+}
+
+.workbench-page .wb-guide-step[data-state="active"] {
+  color: var(--bg);
+  background: var(--accent);
+  border-color: var(--accent);
+  opacity: 1;
+}
+
+.workbench-page .wb-guide-step[data-state="proven"] {
+  color: var(--st-proven);
+  border-color: var(--st-proven);
+  background: var(--bg-panel);
+  opacity: 1;
 }
 
 @media (min-width: 1440px) {

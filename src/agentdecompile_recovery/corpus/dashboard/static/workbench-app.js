@@ -3298,7 +3298,6 @@
       window.KotorXidUI = window.AgentDecompileUI;
       loadBinaries();
       loadCorpusStatus();
-      loadContext();
       loadActions();
       loadBrowse("");
       fetch(API.sessions, { cache: "no-store" }).then(function (res) { return res.json(); }).then(function (data) {
@@ -3375,7 +3374,11 @@
         window.clearInterval(probeTimer);
         window.removeEventListener("keydown", onKey);
       };
-    }, [loadBinaries, loadContext, loadActions, loadBrowse, loadPreview]);
+    }, [loadBinaries, loadActions, loadBrowse, loadPreview]);
+
+    useEffect(function () {
+      loadContext();
+    }, [loadContext]);
 
     useEffect(function () {
       loadPreparations();

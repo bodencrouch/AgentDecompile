@@ -589,36 +589,9 @@ class PyGhidraContext:
         if proj_dir_exists and marker_exists:
             logger.info(f"Opening existing project: {self.project_name}")
             sys.stderr.write(f"[_get_or_create_project] Opening existing LOCAL project: {self.project_name}\n")
-            _patch_project_owner(project_dir_str, self.project_name)
-            try:
-                return GhidraProject.openProject(project_dir_str, self.project_name, False)
-            except Exception as e:
-                # NotOwnerException occurs when a stale project lock exists from a
-                # previous process (e.g. crashed server, or uv-cached JVM user mismatch).
-                # Delete the project and recreate it so the server can start cleanly.
-                err_name = type(e).__name__
-                err_str = str(e)
-                is_not_owner = "NotOwnerException" in err_name or "NotOwnerException" in err_str
-                if not is_not_owner:
-                    raise
-                sys.stderr.write(f"[_get_or_create_project] NotOwnerException opening project {self.project_name!r} — deleting stale project and recreating.\n")
-                logger.warning(
-                    "NotOwnerException opening project %s — deleting and recreating: %s",
-                    self.project_name,
-                    e,
-                )
-                # Remove the .gpr marker and .rep directory
-                import shutil
-
-                marker_file = locator.getMarkerFile()
-                proj_dir_file = locator.getProjectDir()
-                marker_path = Path(str(marker_file))
-                proj_dir_path = Path(str(proj_dir_file))
-                if marker_path.exists():
-                    marker_path.unlink()
-                if proj_dir_path.exists():
-                    shutil.rmtree(proj_dir_path, ignore_errors=True)
-                # Fall through to createProject below
+            # Existing project ownership and lock failures must preserve all state.
+            # An operator must resolve ownership explicitly before reopening it.
+            return GhidraProject.openProject(project_dir_str, self.project_name, False)
         logger.info(f"Creating new project: {self.project_name}")
         sys.stderr.write(f"[_get_or_create_project] Creating new LOCAL project: {self.project_name}\n")
         return GhidraProject.createProject(

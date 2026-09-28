@@ -292,25 +292,60 @@ def _params(*names: str) -> list[str]:
     return list(names)
 
 
-MODE_PARAM_ALIASES: frozenset[str] = frozenset(
-    {
-        "mode",
-        "action",
-        "operation",
-        "command",
-        "op",
-        "task",
-        "intent",
-        "verb",
-        "actiontype",
-        "method",
-        "type",
-        "analysismode",
-        "behaviormode",
-        "kind",
-        "strategy",
-    },
+# Deterministic precedence for resolving the "mode"/selector argument when a
+# request carries more than one alias for it (e.g. both "action" and "type").
+# Order is fixed (a tuple, never a set) so the winner cannot depend on
+# PYTHONHASHSEED.
+#
+# Rationale, grounded in `grep -oE '_get_str\(args, "mode"[^)]*\)'` across
+# mcp_server/providers/*.py (26 call sites, one per provider handler that
+# reads the selector argument):
+#   - "mode"      appears in all 26 chains, always first -- it is the literal
+#                 wire key every provider reads before any fallback.
+#   - "action"    appears in 9 of the 26 chains (bookmarks, structures,
+#                 symbols, comments, datatypes, enums, functions, getfunction,
+#                 callgraph, project), always second.
+#   - "operation" appears in the same 9 chains, always third (functions.py's
+#                 chain is the one exception in shape -- `mode, view, action,
+#                 operation` -- but "view" is not one of this tool's generic
+#                 aliases, so it does not change this table).
+#   No provider `_get_str` chain in this codebase reaches for "command",
+#   "task", "intent", "verb", "actiontype", "method", "analysismode",
+#   "behaviormode", "kind", "strategy", or "op" -- they exist in
+#   MODE_PARAM_ALIASES for generic/defensive scavenging (arbitrary caller
+#   spellings) but have no observed provider precedent, so they keep the
+#   grep-backed trio's order and are otherwise unordered relative to each
+#   other (alphabetical-ish, not evidence-driven -- change freely if a
+#   provider ever documents one).
+#   - "type"      LAST, by construction rather than frequency: it is the one
+#                 alias that doubles as a real, independent data field on
+#                 real tools (manage-bookmarks' bookmark type, manage-
+#                 structures' create/field type -- see `_TOOL_PARAMS_STR`),
+#                 so it is the least trustworthy generic selector and must
+#                 lose to every more specific alias above. Tools that declare
+#                 "type" (or another alias) as their own parameter separately
+#                 from "mode" additionally exclude it from this fallback
+#                 entirely -- see `_canonical_param_name` /
+#                 `_extract_argument_value`'s `declared_for_tool`.
+MODE_PARAM_PRECEDENCE: tuple[str, ...] = (
+    "mode",
+    "action",
+    "operation",
+    "command",
+    "task",
+    "intent",
+    "verb",
+    "actiontype",
+    "method",
+    "analysismode",
+    "behaviormode",
+    "kind",
+    "strategy",
+    "op",
+    "type",
 )
+
+MODE_PARAM_ALIASES: frozenset[str] = frozenset(MODE_PARAM_PRECEDENCE)
 
 # Parameter names that may hold natural-language instructions; used by NL parsing to find user intents
 NATURAL_LANGUAGE_INPUT_KEYS: frozenset[str] = frozenset(
@@ -330,9 +365,21 @@ NATURAL_LANGUAGE_INPUT_KEYS: frozenset[str] = frozenset(
 )
 
 
-def _canonical_param_name(param: str) -> str:
+def _canonical_param_name(param: str, *, declared_for_tool: frozenset[str] = frozenset()) -> str:
+    """Collapse a mode-alias synonym onto "mode", unless this tool declares it as its own real parameter.
+
+    `declared_for_tool` holds the normalized names (excluding "mode" itself)
+    that a specific tool's own parameter list already declares separately
+    from "mode" (e.g. manage-bookmarks and manage-structures both declare
+    "mode" AND "type" as distinct parameters). For those tools "type" is a
+    genuine, independent field -- not a synonym for "mode" -- and must not be
+    collapsed away.
+    """
     logger.debug("diag.enter %s", "registry.py:_canonical_param_name")
-    if normalize_identifier(param) in MODE_PARAM_ALIASES:
+    normalized = normalize_identifier(param)
+    if normalized in declared_for_tool:
+        return param
+    if normalized in MODE_PARAM_ALIASES:
         return "mode"
     return param
 
@@ -1109,15 +1156,25 @@ def _merge_tools_list_params(base: dict[str, list[str]], extra: dict[str, list[s
     for tool, params in extra.items():
         if tool not in merged:
             continue
-        existing: list[str] = [_canonical_param_name(param) for param in merged[tool]]
-        existing_norm: set[str] = {normalize_identifier(x) for x in existing}
+        # Base (code-authored) params are kept verbatim -- never rewritten. A
+        # tool that already declares both "mode" and a mode-alias-shaped name
+        # (e.g. "type" for manage-bookmarks/manage-structures) is declaring
+        # that name as its own real, independent parameter, not a synonym for
+        # "mode". Exclude those from canonicalization for this tool so a
+        # docs-derived synonym never collapses them together and a real
+        # parameter is never silently dropped.
+        declared_for_tool: frozenset[str] = frozenset(
+            normalize_identifier(p) for p in merged[tool] if normalize_identifier(p) != "mode"
+        ) & MODE_PARAM_ALIASES
+        existing_norm: set[str] = {
+            normalize_identifier(_canonical_param_name(p, declared_for_tool=declared_for_tool)) for p in merged[tool]
+        }
         for param in params:
-            canonical_param = _canonical_param_name(param)
+            canonical_param = _canonical_param_name(param, declared_for_tool=declared_for_tool)
             param_norm: str = normalize_identifier(canonical_param)
             if param_norm not in existing_norm:
-                existing.append(canonical_param)
+                merged[tool].append(canonical_param)
                 existing_norm.add(param_norm)
-        merged[tool] = existing
     return merged
 
 
@@ -2051,6 +2108,15 @@ class ToolRegistry:
         for key, value in augmented_arguments.items():
             normalized_arguments.setdefault(normalized_argument_keys[key], value)
 
+        # Mode-alias-shaped names (e.g. "type") that this tool declares as
+        # their own, independent parameter alongside "mode" (manage-bookmarks,
+        # manage-structures). These must never be scavenged as a stand-in
+        # value for "mode", and their own resolution must never fall back
+        # onto the mode-alias chain either.
+        declared_for_tool: frozenset[str] = (
+            frozenset(normalize_identifier(p) for p in expected_params if normalize_identifier(p) != "mode") & MODE_PARAM_ALIASES
+        )
+
         parsed_args: dict[str, Any] = {}
 
         # For each expected parameter, try various naming variations
@@ -2060,6 +2126,7 @@ class ToolRegistry:
                 param,
                 normalized_arguments=normalized_arguments,
                 declared_params=expected_params,
+                declared_for_tool=declared_for_tool,
             )
             if value is not None:
                 parsed_args[param] = value
@@ -2355,6 +2422,7 @@ class ToolRegistry:
         param_name: str,
         normalized_arguments: dict[str, Any] | None = None,
         declared_params: list[str] | None = None,
+        declared_for_tool: frozenset[str] = frozenset(),
     ) -> Any:
         """Extract an argument value using fuzzy matching for parameter names.
 
@@ -2367,6 +2435,13 @@ class ToolRegistry:
         ----
             arguments: Arguments dictionary
             param_name: Canonical parameter name
+            normalized_arguments: Pre-normalized argument lookup, when available
+            declared_for_tool: Normalized mode-alias-shaped names (e.g. "type")
+                that the current tool declares as its own real parameter,
+                separate from "mode". These never participate in the mode
+                selector fallback below, in either direction: resolving
+                "mode" never scavenges one of these, and resolving one of
+                these never falls back onto a different mode alias.
 
         Returns:
         -------
@@ -2391,10 +2466,21 @@ class ToolRegistry:
                 return arguments[variation]
 
         # Selector fallback: canonical "mode" accepts action/operation/etc.
+        # `_canonical_param_name` already knows to leave this tool's own
+        # declared aliases (e.g. "type") alone, so a real independent
+        # parameter never enters this branch as the resolution target.
         normalized_param: str = normalize_identifier(param_name)
-        if _canonical_param_name(param_name) == "mode":
+        if _canonical_param_name(param_name, declared_for_tool=declared_for_tool) == "mode":
             lookup = normalized_arguments or {normalize_identifier(k): v for k, v in arguments.items()}
-            for alias in MODE_PARAM_ALIASES:
+            # Deterministic precedence, never a set: the first alias present
+            # in the payload wins, in the fixed order documented at
+            # MODE_PARAM_PRECEDENCE. Aliases this tool declares as their own
+            # real parameter are excluded so they cannot be scavenged as a
+            # stand-in "mode" value (e.g. a bookmark's "type": "Note" must
+            # never become the bookmark tool's "mode").
+            for alias in MODE_PARAM_PRECEDENCE:
+                if alias in declared_for_tool:
+                    continue
                 if alias in lookup:
                     return lookup[alias]
 

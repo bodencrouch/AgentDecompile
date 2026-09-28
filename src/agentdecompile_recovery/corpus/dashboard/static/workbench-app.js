@@ -24,6 +24,8 @@
     programs: "/dashboard/api/workbench/programs",
     matchStatus: "/dashboard/api/workbench/match-status",
     matchDecide: "/dashboard/api/workbench/match-decide",
+    matchDecideBatch: "/dashboard/api/workbench/match-decide-batch",
+    matchReview: "/dashboard/api/workbench/match-review",
     recoverStatus: "/dashboard/api/workbench/recover-status",
     corpusStatus: "/dashboard/api/workbench/corpus-status",
     preparations: "/dashboard/api/workbench/preparations",
@@ -558,97 +560,202 @@
     });
   }
 
+  /* Review decisions follow one contract on every surface (see MatchReview.tsx):
+     rows and tokens come from API.matchReview; a decision is a pending job
+     (HTTP 202) until /api/v1/jobs/{id} ends "ok" with acceptance
+     "review-decision-only". Nothing here marks a row decided before that. */
+  const REVIEW_ERRORS = {
+    stale_basis: "A row changed after you loaded it, or was already decided. Nothing was saved. Refresh the rows and decide again.",
+    context_changed: "The selected database changed after these rows loaded. Nothing was saved. Refresh the rows and decide again.",
+    busy: "The database is busy. Nothing was saved. Try again shortly.",
+    unavailable: "The review database is unavailable. Nothing was saved.",
+    review_schema_required: "This database has no review tables yet. Run its schema migration first.",
+    review_schema_corrupt: "The review tables in this database are damaged. Nothing was saved.",
+    schema_required: "This database needs a schema migration before review.",
+    duplicate_match: "The same match was submitted twice. Nothing was saved.",
+    malformed_request: "The server refused the request format. Refresh the rows and try again.",
+    malformed_context: "The request had no current selection. Refresh the rows and try again.",
+    request_too_large: "Too many rows in one request. Decide fewer rows at a time.",
+    unsafe_database_alias: "The review database path is a link or has extra hard links. Review is refused for it.",
+    corrupt_basis: "One review row has damaged data, so the whole review list could not load. Nothing was saved.",
+    basis_too_large: "One review row has too much recorded data, so the whole review list could not load. Nothing was saved.",
+    cancelled: "The decision was cancelled before it ran. Nothing was saved.",
+    ranked_cursor_retired: "This link used the old score-ranked page cursor. Rows are now listed by match ID."
+  };
+  const REVIEW_REFRESH = ["stale_basis", "context_changed", "malformed_context", "ranked_cursor_retired"];
+
+  function reviewErrorText(code) {
+    const text = String(code == null ? "" : code).trim();
+    return REVIEW_ERRORS[text] || text || "The review request failed.";
+  }
+
+  function reviewFailure(kind, code, text) {
+    const error = new Error(text || reviewErrorText(code));
+    error.kind = kind; /* "refused": nothing saved. "unknown": may have been saved. */
+    error.code = code || "";
+    error.refresh = kind === "unknown" || REVIEW_REFRESH.indexOf(code) >= 0;
+    return error;
+  }
+
+  function reviewOutcomeText(decisions) {
+    return (decisions || []).map(function (item) {
+      if (item.status === "verify") return "Match " + item.matchId + " moved to verification.";
+      if (item.status === "rejected") return "Match " + item.matchId + " rejected.";
+      return "Match " + item.matchId + " is now \"" + item.status + "\".";
+    }).join(" ");
+  }
+
+  /* Returns the decisions list on a committed result, or null while still running. */
+  async function observeReviewDecision(jobId, stopped) {
+    for (let attempt = 0; attempt < 40; attempt++) {
+      if (stopped && stopped()) return null;
+      const response = await fetch(API.jobs + "/" + encodeURIComponent(jobId), { cache: "no-store" });
+      if (response.status === 404) {
+        throw reviewFailure("unknown", "", "The server no longer knows this decision job. Refresh the rows to see whether it was saved.");
+      }
+      let data = {};
+      try { data = await response.json(); } catch (_) { data = {}; }
+      if (!response.ok) throw new Error("Could not read the decision job (" + response.status + "). Check its result again.");
+      const job = data.job || {};
+      if (["ok", "failed", "cancelled", "interrupted"].indexOf(job.status) >= 0) {
+        let result = {};
+        try { result = JSON.parse(job.log || "{}"); } catch (_) { result = {}; }
+        if (job.status === "ok" && result.ok === true && result.acceptance === "review-decision-only" && Array.isArray(result.decisions)) {
+          return result.decisions;
+        }
+        if (typeof result.error === "string" && result.error) throw reviewFailure("refused", result.error);
+        throw reviewFailure("unknown", "", "The decision job ended as \"" + job.status + "\" without a result. It may have been saved. Refresh the rows to see the current state.");
+      }
+      await new Promise(function (resolve) { setTimeout(resolve, 750); });
+    }
+    return null;
+  }
+
+  /* rows: [{match_id, token}] exactly as observed. Returns the pending job ID. */
+  async function submitReviewRows(rows, selection, decision) {
+    if (!selection || !rows.length || rows.some(function (row) {
+      return !Number.isSafeInteger(row.match_id) || !row.token;
+    })) throw reviewFailure("refused", "malformed_context");
+    const response = await fetch(API.matchDecideBatch, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ selection: selection, entries: rows.map(function (row) {
+        return { matchId: row.match_id, token: row.token, decision: decision };
+      }) })
+    });
+    let data = {};
+    try { data = await response.json(); } catch (_) { data = {}; }
+    if (!(response.ok || response.status === 202) || data.ok === false) {
+      const code = data.error || "";
+      if (REVIEW_ERRORS[code]) throw reviewFailure("refused", code);
+      throw new Error(code || ("The server refused the decision (" + response.status + ")."));
+    }
+    const jobId = data.job_id || (data.job && data.job.id);
+    if (!jobId) throw new Error("The server returned no decision job. Refresh the rows before you decide again.");
+    return String(jobId);
+  }
+
+  /* Decision links in server-rendered review tables (panels/entities.py). Each
+     link carries data-match-id, data-token and data-selection from one review read.
+     A click asks for confirmation first, because a decision cannot be undone. */
   function wireMatchDecide(host) {
     if (!host || host.dataset.matchDecideWired) return;
     host.dataset.matchDecideWired = "1";
+    function toast(text, tone) {
+      const ui = window.AgentDecompileUI || {};
+      if (typeof ui.showToast === "function") ui.showToast(text, tone);
+    }
+    /* The busy flag lives on the rendered table, so a refresh that replaces it
+       also releases a lock left by a still-running job. */
+    function lock(scope, on) {
+      scope.querySelectorAll("a.wb-match-decide").forEach(function (item) {
+        if (on) item.setAttribute("aria-disabled", "true"); else item.removeAttribute("aria-disabled");
+      });
+      scope.dataset.reviewBusy = on ? "1" : "";
+    }
+    /* Status text for one row, with optional buttons: [[label, onClick], ...]. */
+    function note(link, text, buttons) {
+      const cell = link.closest("td") || link.parentNode;
+      if (!cell) return;
+      let status = cell.querySelector(".wb-review-status");
+      if (!status) {
+        status = document.createElement("span");
+        status.className = "wb-review-status";
+        status.setAttribute("role", "status");
+        cell.appendChild(status);
+      }
+      status.textContent = " " + text + " ";
+      (buttons || []).forEach(function (spec) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "wb-btn wb-btn-mini";
+        button.textContent = spec[0];
+        button.addEventListener("click", function (ev) { ev.preventDefault(); spec[1](); });
+        status.appendChild(button);
+        status.appendChild(document.createTextNode(" "));
+      });
+      return status;
+    }
+    function watch(link, scope, jobId) {
+      note(link, "Waiting for job " + jobId + "…");
+      const stopped = function () { return !scope.isConnected; };
+      const again = ["Check result", function () { watch(link, scope, jobId); }];
+      observeReviewDecision(jobId, stopped).then(function (decisions) {
+        if (stopped()) return;
+        if (decisions) {
+          const text = reviewOutcomeText(decisions);
+          note(link, text);
+          toast(text, "info");
+          lock(scope, false);
+          reloadIslands();
+          return;
+        }
+        note(link, "Job " + jobId + " is still running. The table stays locked until you check its result or refresh the panel.", [again]);
+      }).catch(function (err) {
+        if (stopped()) return;
+        const text = String((err && err.message) || err);
+        toast(text, "error");
+        if (err && err.kind) {
+          note(link, text);
+          lock(scope, false);
+          if (err.refresh) reloadIslands();
+          return;
+        }
+        /* The job could not be read. It may still save, so keep its handle. */
+        note(link, text + " Job " + jobId + " may still save.", [again]);
+      });
+    }
     host.addEventListener("click", function (ev) {
       const link = ev.target.closest("a.wb-match-decide[data-match-id][data-decision]");
       if (!link || !host.contains(link)) return;
       ev.preventDefault();
-      if (link.dataset.busy === "1") return;
-      const matchId = link.getAttribute("data-match-id");
+      const scope = link.closest(".wb-legacy") || host;
+      if (scope.dataset.reviewBusy === "1") return;
+      const matchId = Number(link.getAttribute("data-match-id"));
+      const token = link.getAttribute("data-token") || "";
+      const selection = link.getAttribute("data-selection") || "";
       const decision = link.getAttribute("data-decision");
-      if (!matchId || !decision) return;
-      link.dataset.busy = "1";
-      fetch(API.matchDecide, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ match_id: Number(matchId), decision: decision })
-      }).then(function (res) {
-        return res.json().then(function (data) { return { ok: res.ok, data: data }; });
-      }).then(function (payload) {
-        link.dataset.busy = "0";
-        const ui = window.AgentDecompileUI || {};
-        if (payload.ok && payload.data && payload.data.ok) {
-          const msg = (decision === "accept" ? "Accepted" : "Rejected")
-            + " match #" + matchId + " → " + payload.data.status;
-          if (typeof ui.showToast === "function") ui.showToast(msg, "info");
-          reloadIslands();
-          return;
-        }
-        const err = (payload.data && payload.data.error) || "Could not update match.";
-        if (typeof ui.showToast === "function") ui.showToast(err, "error");
-      }).catch(function (err) {
-        link.dataset.busy = "0";
-        const ui = window.AgentDecompileUI || {};
-        if (typeof ui.showToast === "function") {
-          ui.showToast(String(err.message || err), "error");
-        }
-      });
-    });
-  }
-
-  function reviewPageMatchIds() {
-    const host = document.querySelector("#wb-review .wb-legacy");
-    if (!host) return [];
-    const ids = [];
-    const seen = {};
-    host.querySelectorAll("table tbody tr").forEach(function (tr) {
-      let id = 0;
-      const span = tr.querySelector("td:first-child [data-match-id]");
-      if (span) {
-        id = Number(span.getAttribute("data-match-id"));
-      } else {
-        const link = tr.querySelector("a.wb-match-decide[data-match-id]");
-        if (link) id = Number(link.getAttribute("data-match-id"));
-      }
-      if (id && !seen[id]) {
-        seen[id] = 1;
-        ids.push(id);
-      }
-    });
-    return ids;
-  }
-
-  function batchReviewPage(decision) {
-    const matchIds = reviewPageMatchIds();
-    const ui = window.AgentDecompileUI || {};
-    if (!matchIds.length) {
-      if (typeof ui.showToast === "function") ui.showToast("No review rows on this page.", "error");
-      return;
-    }
-    fetch(API.matchDecideBatch, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ match_ids: matchIds, decision: decision })
-    }).then(function (res) {
-      return res.json().then(function (data) { return { ok: res.ok, data: data }; });
-    }).then(function (payload) {
-      if (payload.ok && payload.data && payload.data.ok) {
-        const d = payload.data;
-        const verb = decision === "accept" ? "Accepted" : "Rejected";
-        const msg = verb + " " + d.updated + " match" + (d.updated === 1 ? "" : "es")
-          + (d.skipped ? " (" + d.skipped + " skipped)" : "");
-        if (typeof ui.showToast === "function") ui.showToast(msg, "info");
-        reloadIslands();
-        return;
-      }
-      const err = (payload.data && payload.data.error) || "Could not update matches.";
-      if (typeof ui.showToast === "function") ui.showToast(err, "error");
-    }).catch(function (err) {
-      if (typeof ui.showToast === "function") {
-        ui.showToast(String(err.message || err), "error");
-      }
+      if (decision !== "accept" && decision !== "reject") return;
+      lock(scope, true);
+      const question = decision === "accept"
+        ? "Move match " + matchId + " to verification? This cannot be undone here."
+        : "Reject match " + matchId + "? This cannot be undone here.";
+      const status = note(link, question, [
+        ["Cancel", function () { note(link, ""); lock(scope, false); }],
+        [decision === "accept" ? "Confirm accept" : "Confirm reject", function () {
+          note(link, "Sending…");
+          submitReviewRows([{ match_id: matchId, token: token }], selection, decision).then(function (jobId) {
+            watch(link, scope, jobId);
+          }).catch(function (err) {
+            const text = String((err && err.message) || err);
+            note(link, text);
+            toast(text, "error");
+            lock(scope, false);
+            if (err && err.refresh) reloadIslands();
+          });
+        }]
+      ]);
+      const first = status && status.querySelector("button");
+      if (first) first.focus();
     });
   }
 
@@ -903,27 +1010,205 @@
     </article>`;
   }
 
-  function ReviewReact({ review, onDecide }) {
-    const r = review || {};
-    const statuses = r.by_status || {};
+  function ReviewReact({ onRefresh }) {
+    /* Deep links from panels/entities.py carry review_after_id and
+       review_page_size. The retired score:id cursor is refused by name. */
+    const start = useMemo(function () {
+      const query = new URLSearchParams(window.location.search);
+      const rawAfter = query.get("review_after_id") || "";
+      const rawSize = (query.get("review_page_size") || query.get("page_size") || "").trim().toLowerCase();
+      const after = /^[0-9]{1,19}$/.test(rawAfter) && Number.isSafeInteger(Number(rawAfter)) ? Number(rawAfter) : 0;
+      let size = /^[0-9]{1,6}$/.test(rawSize) && Number(rawSize) > 0 ? Number(rawSize) : 50;
+      const capped = rawSize === "all" || size > 100;
+      if (capped) size = 100;
+      return {
+        after: after, size: size, capped: capped,
+        badCursor: Boolean(rawAfter) && !after && rawAfter !== "0",
+        legacy: Boolean(query.get("review_after")) || /^-?[0-9.]+(e-?[0-9]+)?:[0-9]+$/i.test(query.get("after") || "")
+      };
+    }, []);
+    const pageSize = start.size;
+    const legacyCursor = start.legacy;
+    /* Bumped to stop a poll loop: Stop waiting, a new poll, or unmount. */
+    const watchSeq = useRef(0);
+    const confirmRef = useRef(null);
+    /* Tracks mount state across an await so a resumed callback (e.g. send())
+       does not touch state or start a fresh watch() after unmount. Separate
+       from watchSeq, which only defeats an in-flight watch's own poll loop. */
+    const mountedRef = useRef(true);
+    useEffect(function () { return function () { watchSeq.current++; mountedRef.current = false; }; }, []);
+    const [page, setPage] = useState({ rows: [], total: 0, nextAfterId: null, selection: "" });
+    const [afterId, setAfterId] = useState(legacyCursor ? 0 : start.after);
+    const [history, setHistory] = useState([]);
+    const [nonce, setNonce] = useState(0);
+    const [loading, setLoading] = useState(false);
+    const [selected, setSelected] = useState([]);
+    const [submitting, setSubmitting] = useState(false);
+    const [watching, setWatching] = useState("");
+    /* Open decision jobs: [{id, tokens, matchIds}]. Their rows stay locked. */
+    const [jobs, setJobs] = useState([]);
+    const [confirm, setConfirm] = useState(null);
+    const [message, setMessage] = useState("");
+    const [error, setError] = useState("");
+    useEffect(function () {
+      let dead = false;
+      setLoading(true);
+      fetch(API.matchReview + "?after_id=" + afterId + "&limit=" + pageSize, { cache: "no-store" }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          if (!res.ok || data.ok === false) throw reviewFailure("refused", data.error || "", data.error ? "" : "Could not load review rows (" + res.status + ").");
+          return data;
+        });
+      }).then(function (data) {
+        if (dead) return;
+        const rows = data.rows || [];
+        setPage({ rows: rows, total: data.total || 0, nextAfterId: data.nextAfterId == null ? null : data.nextAfterId, selection: data.selection || "" });
+        setError(""); setConfirm(null);
+        /* Keep checked rows that are still on this page with the same token. */
+        const present = rows.map(function (row) { return row.token; });
+        setSelected(function (old) { return old.filter(function (token) { return present.indexOf(token) >= 0; }); });
+      }).catch(function (err) {
+        if (dead) return;
+        setPage({ rows: [], total: 0, nextAfterId: null, selection: "" });
+        setSelected([]); setConfirm(null);
+        setError(String((err && err.message) || err));
+      }).then(function () { if (!dead) setLoading(false); });
+      return function () { dead = true; };
+    }, [afterId, nonce]);
+    useEffect(function () {
+      if (!confirm || !confirmRef.current) return;
+      confirmRef.current.scrollIntoView({ block: "nearest" });
+      const first = confirmRef.current.querySelector("button");
+      if (first) first.focus({ preventScroll: true });
+    }, [confirm]);
+    function reload() { setNonce(function (n) { return n + 1; }); }
+    function closeJob(jobId) { setJobs(function (old) { return old.filter(function (job) { return job.id !== jobId; }); }); }
+    async function watch(jobId) {
+      const seq = ++watchSeq.current;
+      const stopped = function () { return seq !== watchSeq.current; };
+      setWatching(jobId); setError("");
+      try {
+        const decisions = await observeReviewDecision(jobId, stopped);
+        if (stopped()) return;
+        if (decisions) {
+          closeJob(jobId); setMessage(reviewOutcomeText(decisions));
+          reload();
+          if (onRefresh) onRefresh();
+        } else setMessage("Job " + jobId + " is still running. Its rows stay locked until you check its result or refresh the rows.");
+      } catch (err) {
+        if (stopped()) return;
+        setMessage("");
+        setError(String((err && err.message) || err));
+        if (err && err.kind) {
+          closeJob(jobId);
+          if (err.refresh) reload();
+        }
+        /* Any other failure only means the job could not be read. Keep it open. */
+      } finally { if (!stopped()) setWatching(""); }
+    }
+    function ask(rows, decision) {
+      if (busy || !rows.length) return;
+      setError(""); setConfirm({ rows: rows, decision: decision });
+    }
+    async function send() {
+      if (!confirm || busy) return;
+      const rows = confirm.rows, decision = confirm.decision;
+      setConfirm(null); setSubmitting(true); setError(""); setMessage("Sending the decision…");
+      try {
+        const jobId = await submitReviewRows(rows.map(function (row) {
+          return { match_id: row.match.id, token: row.token };
+        }), page.selection, decision);
+        if (!mountedRef.current) return;
+        const tokens = rows.map(function (row) { return row.token; });
+        setJobs(function (old) { return old.concat([{ id: jobId, tokens: tokens, matchIds: rows.map(function (row) { return row.match.id; }) }]); });
+        setSelected(function (old) { return old.filter(function (token) { return tokens.indexOf(token) < 0; }); });
+        setMessage("Decision sent as job " + jobId + ". Waiting for the server to record it.");
+        setSubmitting(false);
+        await watch(jobId);
+      } catch (err) {
+        if (!mountedRef.current) return;
+        setMessage("");
+        setError(String((err && err.message) || err));
+        if (err && err.refresh) reload();
+      } finally { if (mountedRef.current) setSubmitting(false); }
+    }
+    function stopWaiting() {
+      const jobId = watching;
+      watchSeq.current++;
+      setWatching("");
+      setMessage("Stopped waiting for job " + jobId + ". It may still save. Its rows stay locked until you check its result or refresh the rows.");
+    }
+    function refreshRows() {
+      /* After a refresh the rows show the current state, so open jobs no longer lock them. */
+      if (jobs.length) setMessage("Rows refreshed. Job" + (jobs.length === 1 ? " " : "s ") + jobs.map(function (job) { return job.id; }).join(", ") + " may still save; decided rows leave the list.");
+      setJobs([]); reload();
+    }
+    const locked = [].concat.apply([], jobs.map(function (job) { return job.tokens; }));
+    const busy = loading || submitting || Boolean(watching);
+    const eligible = function (row) { return Boolean(row.token && page.selection && Number.isSafeInteger(row.match && row.match.id)) && locked.indexOf(row.token) < 0; };
+    const chosen = page.rows.filter(function (row) { return selected.indexOf(row.token) >= 0 && eligible(row); });
+    const selectable = page.rows.filter(eligible);
+    const allChosen = selectable.length > 0 && selectable.every(function (row) { return selected.indexOf(row.token) >= 0; });
+    const slug = function (row, i) { const b = (row.binaries || [])[i] || {}; return (b.row && b.row.slug) || (i ? row.match.dst_binary : row.match.src_binary); };
+    const hex = function (value) { return Number.isSafeInteger(value) ? "0x" + value.toString(16) : String(value == null ? "Unavailable" : value); };
+    const confirmText = function (rows, decision) {
+      const ids = rows.map(function (row) { return String(row.match.id); });
+      const list = ids.length > 6 ? ids.slice(0, 6).join(", ") + " and " + (ids.length - 6) + " more" : ids.join(", ");
+      const noun = rows.length === 1 ? "match" : rows.length + " matches";
+      return decision === "accept"
+        ? "Move " + noun + " (" + list + ") to verification? This cannot be undone here."
+        : "Reject " + noun + " (" + list + ")? This cannot be undone here.";
+    };
     return html`<div className="wb-review-react">
-      <p className="wb-hint">${Object.keys(statuses).map(function (k) { return k + " " + statuses[k]; }).join(" · ") || "No match table."}</p>
+      <p className="wb-hint">Accept moves a candidate to verification. It does not prove matching source or runtime behaviour.</p>
+      ${legacyCursor ? html`<p role="alert">${REVIEW_ERRORS.ranked_cursor_retired} Showing the first page.</p>` : null}
+      ${start.badCursor ? html`<p role="alert">The page cursor in this link is not a match ID. Showing the first page.</p>` : null}
+      ${start.capped ? html`<p className="wb-hint">A review page holds at most 100 rows. Showing 100.</p>` : null}
+      ${error ? html`<p role="alert">${error}</p>` : null}
+      ${message ? html`<p role="status">${message}</p>` : null}
+      ${jobs.map(function (job) {
+        return html`<p key=${job.id}>Decision job <a href=${API.jobs + "/" + encodeURIComponent(job.id)} target="_blank" rel="noreferrer">${job.id}</a>
+          ${" for match" + (job.matchIds.length === 1 ? " " : "es ") + job.matchIds.join(", ") + " "}
+          ${watching === job.id
+            ? html`<button type="button" className="wb-btn wb-btn-mini" onClick=${stopWaiting}>Stop waiting</button>`
+            : html`<button type="button" className="wb-btn wb-btn-mini" disabled=${busy} onClick=${function () { watch(job.id); }}>Check result</button>`}</p>`;
+      })}
+      ${confirm ? html`<div ref=${confirmRef} className="review-confirm" role="group" aria-label="Confirm match decision">
+        <p>${confirmText(confirm.rows, confirm.decision)}</p>
+        <button type="button" className="wb-btn wb-btn-mini" onClick=${function () { setConfirm(null); }}>Cancel</button>
+        <button type="button" className="wb-btn wb-btn-mini" onClick=${send}>${confirm.decision === "accept" ? "Confirm accept" : "Confirm reject"}</button>
+      </div>` : null}
+      <div className="wb-toolbar">
+        <button type="button" className="wb-btn wb-btn-mini" disabled=${loading || submitting} onClick=${refreshRows}>Refresh rows</button>
+        <button type="button" className="wb-btn wb-btn-mini" disabled=${busy || Boolean(confirm) || !chosen.length} onClick=${function () { ask(chosen, "accept"); }}>Accept selected</button>
+        <button type="button" className="wb-btn wb-btn-mini" disabled=${busy || Boolean(confirm) || !chosen.length} onClick=${function () { ask(chosen, "reject"); }}>Reject selected</button>
+        <span>${loading ? "Loading…" : page.total + " candidates awaiting review, listed by match ID"}</span>
+      </div>
       <table className="wb-fnb-table">
-        <thead><tr><th>Score</th><th>Source</th><th>Dest</th><th></th></tr></thead>
-        <tbody>
-          ${(r.rows || []).length ? (r.rows || []).map(function (row, i) {
-            return html`<tr key=${i}>
-              <td>${fmtCount(row.score)}</td>
-              <td><code>${row.src_name || row.src_addr}</code></td>
-              <td><code>${row.dst_name || row.dst_addr}</code></td>
-              <td>
-                <button type="button" className="wb-btn wb-btn-mini" onClick=${function () { if (onDecide) onDecide(row, "accept"); }}>Accept</button>
-                <button type="button" className="wb-btn wb-btn-mini" onClick=${function () { if (onDecide) onDecide(row, "reject"); }}>Reject</button>
-              </td>
-            </tr>`;
-          }) : html`<tr><td colspan="4">No review-tier matches queued.</td></tr>`}
-        </tbody>
+        <thead><tr>
+          <th><input type="checkbox" aria-label="Select all rows on this page" checked=${allChosen} disabled=${busy || !selectable.length}
+            onChange=${function (event) { const checked = event.target.checked; const tokens = selectable.map(function (row) { return row.token; }); setSelected(function (old) { const rest = old.filter(function (token) { return tokens.indexOf(token) < 0; }); return checked ? rest.concat(tokens) : rest; }); }}/></th>
+          <th>Match</th><th>Score / margin</th><th>Source</th><th>Dest</th><th>Evidence</th><th>Decision</th></tr></thead>
+        <tbody>${page.rows.map(function (row) {
+          const waiting = locked.indexOf(row.token) >= 0;
+          return html`<tr key=${row.token}>
+            <td><input type="checkbox" aria-label=${"Select match " + row.match.id} disabled=${busy || !eligible(row)} checked=${selected.indexOf(row.token) >= 0}
+              onChange=${function (event) { const checked = event.target.checked; setSelected(function (old) { return checked ? old.concat([row.token]) : old.filter(function (token) { return token !== row.token; }); }); }}/></td>
+            <td>${String(row.match.id)}</td>
+            <td>${String(row.match.score)} / ${String(row.match.margin)}</td>
+            <td>${slug(row, 0)} <code>${hex(row.match.src_addr)}</code></td>
+            <td>${slug(row, 1)} <code>${hex(row.match.dst_addr)}</code></td>
+            <td><details><summary>${row.match.relation || "Recorded evidence"}</summary><pre>${row.match.evidence || "No recorded evidence"}</pre><p>Run: ${row.match.run}</p></details></td>
+            <td>${waiting ? html`<span>Waiting for its job</span>` : html`<button type="button" className="wb-btn wb-btn-mini" disabled=${busy || Boolean(confirm) || !eligible(row)} onClick=${function () { ask([row], "accept"); }}>Accept</button>
+              <button type="button" className="wb-btn wb-btn-mini" disabled=${busy || Boolean(confirm) || !eligible(row)} onClick=${function () { ask([row], "reject"); }}>Reject</button>`}</td>
+          </tr>`;
+        })}</tbody>
       </table>
+      ${!loading && !error && !page.rows.length ? html`<p>${afterId ? "No review candidates after this match ID." : "No review candidates."}</p>` : null}
+      <div className="wb-toolbar">
+        <button type="button" className="wb-btn wb-btn-mini" disabled=${loading || !afterId} onClick=${function () { setHistory([]); setAfterId(0); }}>Go to first page</button>
+        <button type="button" className="wb-btn wb-btn-mini" disabled=${loading || !history.length} onClick=${function () { setAfterId(history[history.length - 1]); setHistory(history.slice(0, -1)); }}>Show previous page</button>
+        <button type="button" className="wb-btn wb-btn-mini" disabled=${loading || page.nextAfterId === null} onClick=${function () { setHistory(history.concat([afterId])); setAfterId(page.nextAfterId); }}>Show next page</button>
+      </div>
     </div>`;
   }
 
@@ -957,6 +1242,76 @@
           </li>`;
         })}
       </ol>
+    </section>`;
+  }
+
+  function preparationResponse(data) {
+  if (!data || data.ok === false || !Array.isArray(data.runs)) throw new Error("Invalid preparation response");
+  const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+  const texts = ["id", "status", "locator", "program", "slug", "title", "key", "reason", "error", "currentProgram", "currentTarget", "currentAction", "jobStatus", "unit", "nextFallback", "message", "action", "nextAction", "wakeCondition", "label", "state", "why", "next", "receipt", "programPath", "src", "dst", "actionId"];
+  const numbers = ["completed", "total", "done", "attempts", "attemptsSpent", "attemptsRemaining", "executionLimitSeconds"];
+  const times = ["updatedAt", "createdAt", "startedAt", "retryAt", "at", "executionDeadlineAt", "deadline"];
+  function row(value) {
+    if (!object(value)) return false;
+    if (texts.some(key => value[key] != null && typeof value[key] !== "string")) return false;
+    if (numbers.some(key => value[key] != null && (typeof value[key] !== "number" || !Number.isFinite(value[key])))) return false;
+    if (times.some(key => value[key] != null && (typeof value[key] !== "number" || !Number.isFinite(value[key]) || Math.abs(value[key]) > 8640000000000))) return false;
+    return true;
+  }
+  for (const run of data.runs) {
+    if (!row(run)) throw new Error("Invalid preparation record");
+    for (const key of ["stages", "events"]) {
+      if (run[key] != null && (!Array.isArray(run[key]) || !run[key].every(row))) throw new Error("Invalid preparation " + key);
+    }
+    if (run.currentJob != null && (!row(run.currentJob) || (run.currentJob.params != null && !row(run.currentJob.params)))) throw new Error("Invalid current job");
+    for (const stage of run.stages || []) {
+      if (stage.workProgress != null && !row(stage.workProgress)) throw new Error("Invalid stage work progress");
+    }
+    if (run.programs != null && (!Array.isArray(run.programs) || !run.programs.every(value => typeof value === "string"))) throw new Error("Invalid preparation programs");
+    if (run.retryDecisions != null && (!object(run.retryDecisions) || !Object.values(run.retryDecisions).every(row))) throw new Error("Invalid continuation decisions");
+  }
+  return data.runs;
+  }
+
+  function preparationBudgetText(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return "Action admissions: unknown";
+    const budget = value;
+    const count = (n) => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
+    const used = count(budget.consumed) ? String(budget.consumed) : "unknown";
+    const limit = budget.maxActionAdmissions === null ? "unlimited" : count(budget.maxActionAdmissions) ? String(budget.maxActionAdmissions) : "unknown";
+    const revision = count(budget.allocationRevision) ? String(budget.allocationRevision) : "unknown";
+    const prior = budget.priorUsageUnknown === true ? " · earlier spending unknown; shown usage is a lower bound" : "";
+    const exhausted = count(budget.consumed) && count(budget.maxActionAdmissions) && budget.consumed >= budget.maxActionAdmissions ? " · allowance exhausted" : "";
+    return `Action admissions: ${used} used / ${limit} allowance · allocation revision ${revision}${exhausted}${prior}`;
+  }
+
+  function preparationProviderBudgetText(value) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return "MCP tool calls: unknown";
+    const budget = value;
+    if (budget.schema !== 1 || budget.accountingScope !== "mcp-tool-dispatches-since-allocation") return "MCP tool calls: unknown";
+    const count = (n) => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
+    const used = count(budget.consumed) ? String(budget.consumed) : "unknown";
+    const limit = budget.maxMcpToolCalls === null ? "unlimited" : count(budget.maxMcpToolCalls) ? String(budget.maxMcpToolCalls) : "unknown";
+    const revision = count(budget.allocationRevision) ? String(budget.allocationRevision) : "unknown";
+    const prior = budget.priorUsageUnknown === true ? " · earlier spending unknown; shown usage is a lower bound" : "";
+    const exhausted = count(budget.consumed) && count(budget.maxMcpToolCalls) && budget.consumed >= budget.maxMcpToolCalls ? " · allowance exhausted" : "";
+    return `MCP tool calls: ${used} used / ${limit} allowance · allocation revision ${revision}${exhausted}${prior}`;
+  }
+
+  function PreparationObservation({ run, feed, now }) {
+    const stale = ["disconnected", "resync"].includes(String(run && run.status)) || Boolean(feed.error) || Boolean(feed.receivedAt && now - feed.receivedAt > 10000);
+    const decisions = Object.values(run && run.retryDecisions || {}).filter(function (value) { return value && typeof value === "object" && value.nextAction !== "dispatch"; });
+    return html`<section className="wb-preparation-observation" aria-label="Recorded preparation state">
+      <p role="status">${stale ? "Connection lost · showing last received state; current state unknown" : feed.receivedAt ? "Preparation feed connected" : "Preparation status not yet received"}</p>
+      ${feed.receivedAt ? html`<p className="wb-hint">Last received: <time dateTime=${new Date(feed.receivedAt).toISOString()}>${new Date(feed.receivedAt).toLocaleString()}</time></p>` : null}
+      ${feed.error ? html`<p className="wb-hint">${feed.error}</p>` : null}
+      ${run ? html`<p>${preparationProviderBudgetText(run.providerBudget)}${stale ? " · last received observation; current usage unknown" : ""}</p>
+        <p className="wb-hint">MCP allowance counts prerequisite, retry and check-in tools/call attempts since allocation. It is separate from action admissions and the execution deadline; it does not count tokens, money or provider-internal work.</p>
+        <p>${preparationBudgetText(run.objectiveBudget)}</p>
+        <p className="wb-hint">Admission allowance counts reserved action attempts, including uncertain or rejected dispatches. It is separate from the execution deadline and does not measure recovered code. Accounting scope: ${run.objectiveBudget && typeof run.objectiveBudget.accountingScope === "string" ? run.objectiveBudget.accountingScope : "unknown"}.</p>
+        ${typeof run.updatedAt === "number" && Number.isFinite(run.updatedAt) ? html`<p className="wb-hint">Last recorded change: <time dateTime=${new Date(run.updatedAt * 1000).toISOString()}>${new Date(run.updatedAt * 1000).toLocaleString()}</time></p>` : null}
+        ${decisions.map(function (decision, index) { return html`<p key=${index} className="wb-hint">${decision.reason || "Awaiting reconciliation"}${decision.wakeCondition ? " · Continues after: " + String(decision.wakeCondition).replace(/_/g, " ") : ""}</p>`; })}
+        <p className="wb-hint">Stage completion does not establish byte verification or accepted source contribution.</p>` : null}
     </section>`;
   }
 
@@ -2169,7 +2524,7 @@
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickJob(job.id); }}>
                 <strong>${job.actionId || job.id}</strong>
-                <span>${job.status}</span>
+                <span>${job.status}${job.resourceDisposition === "quarantined" || job.ownershipUnresolved === true ? " · ownership unresolved" : ""}</span>
               </button>
             </li>`;
           })}</ul>
@@ -2280,7 +2635,7 @@
                 <button type="button" className="wb-job-row" onClick=${function () { onSelectJob(job.id); }}>
                   <code>${job.id}</code>
                   <span>${actionTitle(job.actionId, actions)}</span>
-                  <span className=${"st-" + (job.status || "unknown")}>${job.status}</span>
+                  <span className=${"st-" + (job.status || "unknown")}>${job.status}${job.resourceDisposition === "quarantined" || job.ownershipUnresolved === true ? " · ownership unresolved" : ""}</span>
                 </button>
                 ${live ? html`<button type="button" className="wb-btn danger wb-job-cancel"
                   onClick=${function (ev) { ev.stopPropagation(); onCancel(job.id); }}>Cancel</button>` : null}
@@ -2329,6 +2684,14 @@
     const [overview, setOverview] = useState(null);
     const [corpusStatus, setCorpusStatus] = useState(null);
     const [preparationRuns, setPreparationRuns] = useState([]);
+    const [preparationFeed, setPreparationFeed] = useState({ receivedAt: 0, error: "" });
+    const [preparationNow, setPreparationNow] = useState(Date.now());
+    const preparationSequence = useRef(0);
+    const preparationInFlight = useRef(false);
+    useEffect(function () {
+      const timer = setInterval(function () { setPreparationNow(Date.now()); }, 1000);
+      return function () { clearInterval(timer); };
+    }, []);
     const [graph, setGraph] = useState(null);
     const [actions, setActions] = useState([]);
     const [jobs, setJobs] = useState([]);
@@ -2463,12 +2826,22 @@
     }, []);
 
     const loadPreparations = useCallback(async function () {
+      if (preparationInFlight.current) return;
+      preparationInFlight.current = true;
+      const sequence = ++preparationSequence.current;
       try {
-        const res = await fetch(API.preparations, { cache: "no-store" });
+        const res = await fetch(API.preparations, { cache: "no-store", signal: AbortSignal.timeout(10000) });
+        if (!res.ok) throw new Error("Preparation request failed (" + res.status + ")");
         const data = await res.json();
-        setPreparationRuns(data.runs || []);
-      } catch (_err) {
-        /* Keep the last durable preparation receipt visible while reconnecting. */
+        const received = preparationResponse(data);
+        if (sequence !== preparationSequence.current) return;
+        setPreparationRuns(received);
+        setPreparationFeed({ receivedAt: Date.now(), error: "" });
+      } catch (err) {
+        if (sequence !== preparationSequence.current) return;
+        setPreparationFeed(function (previous) { return { receivedAt: previous.receivedAt, error: String(err && err.message || err) }; });
+      } finally {
+        preparationInFlight.current = false;
       }
     }, []);
 
@@ -4675,7 +5048,7 @@
     const blockUrl = function (block) {
       let url = "/dashboard/browse-block?block=" + encodeURIComponent(block);
       if (slug) url += "&binary=" + encodeURIComponent(slug);
-      ["lq", "logical_q", "logical_after", "review_after", "q", "addr", "logical_id"].forEach(function (key) {
+      ["lq", "logical_q", "logical_after", "q", "addr", "logical_id"].forEach(function (key) {
         const val = start.get(key);
         if (val) url += "&" + encodeURIComponent(key) + "=" + encodeURIComponent(val);
       });
@@ -4795,6 +5168,7 @@
           ${quickBar("pipeline")}
           <${StepLadder} title="Corpus" steps=${ladder.corpus_steps} onRun=${runLadderStep} />
           ${active ? html`<${StepLadder} title=${"Build " + active.slug} steps=${active.steps} onRun=${runLadderStep} />` : null}
+          <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} />
           ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + recoveryRun.status} steps=${recoveryRun.stages} />` : null}
         </${Surface}>`;
       }
@@ -5001,6 +5375,7 @@
           runActionButton("corpus.external-bridge", "External bridge")
         )}>
           <${CorpusHeadline} headline=${corpusStatus && corpusStatus.headline} claim="Compile and byte-accuracy stay separate columns." />
+          <${PreparationObservation} run=${recoveryRun} feed=${preparationFeed} now=${preparationNow} />
           ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + (recoveryRun.program || program || slug || recoveryRun.status)} steps=${recoverySteps} />` : null}
           <${StepLadder} title="Compile and verify" steps=${steps} onRun=${runLadderStep} />
         </${Surface}>`;
@@ -5124,31 +5499,9 @@
         return html`<${Surface} id="wb-review" title="Review" actions=${panelActions(
           runActionButton("corpus.reclassify-matches", "Reclassify"),
           runActionButton("corpus.match-pair", "Re-run match"),
-          runActionButton("corpus.evaluate-pair", "Evaluate pair"),
-          html`<button type="button" className="wb-btn wb-btn-mini"
-            onClick=${function () { batchReviewPage("accept"); }}>Accept page</button>`,
-          html`<button type="button" className="wb-btn wb-btn-mini"
-            onClick=${function () { batchReviewPage("reject"); }}>Reject page</button>`
+          runActionButton("corpus.evaluate-pair", "Evaluate pair")
         )}>
-          <p className="wb-hint">Review-tier match rows ranked by score. Accept or reject from the row or the toolbar.</p>
-          <${ReviewReact} review=${corpusStatus && corpusStatus.review} onDecide=${function (row, decision) {
-            if (!row) return;
-            fetch(API.matchDecide, {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({
-                decision: decision,
-                src_addr: row.src_addr,
-                dst_addr: row.dst_addr,
-                src_binary_id: row.src_binary_id,
-                dst_binary_id: row.dst_binary_id
-              })
-            }).then(function (res) { return res.json(); }).then(function (data) {
-              showToast((decision === "accept" ? "Accepted" : "Rejected") + " match", "info");
-              loadCorpusStatus();
-              if (!data || data.ok === false) showToast((data && data.error) || "Decide failed", "error");
-            }).catch(function (e) { showToast(String(e && e.message || e), "error"); });
-          }} />
+          <${ReviewReact} onRefresh=${loadCorpusStatus}/>
         </${Surface}>`;
       }
       if (tab === "wb-tools") {

@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1450" viewBox="0 0 1800 1450">
+<title>Autonomous capability delivery: current foundation and future milestones</title>
+<desc>One existing task authority connects evidence, admission, isolated operations, independent acceptance and continuation. M0 has implemented foundations and partial software verification; M1 through M7 are future capabilities.</desc>
+<rect x="0" y="0" width="1800" height="1450" fill="#16181c"/>
+<!--SEC:Desired workflow-->
+<text x="35" y="55" fill="#f2f4f7" font-family="sans-serif" font-size="34">Autonomous capability delivery</text>
+<text x="35" y="91" fill="#8cbaff" font-family="sans-serif" font-size="21">Desired capability + exact eligible game/build → supported operation + understandable proof</text>
+<text x="35" y="125" fill="#d8dbe0" font-family="sans-serif" font-size="17">One task/acceptance authority • reuse preparation, corpus receipts, recovery supervision and KotorPhasor adapters</text>
+<rect x="35" y="158" width="270" height="128" rx="12" fill="#20232a" stroke="#495364"/>
+<text x="50" y="192" fill="#8cbaff" font-family="sans-serif" font-size="20">1 Request</text>
+<text x="50" y="225" fill="#d8dbe0" font-family="sans-serif" font-size="15">Behavior, target, predicates</text>
+<text x="50" y="249" fill="#d8dbe0" font-family="sans-serif" font-size="15">Allowed effects and cost</text>
+<text x="307" y="228" fill="#7fd6a4" font-family="sans-serif" font-size="17">→</text>
+<rect x="325" y="158" width="270" height="128" rx="12" fill="#20232a" stroke="#495364"/>
+<text x="340" y="192" fill="#8cbaff" font-family="sans-serif" font-size="20">2 Resolve evidence</text>
+<text x="340" y="225" fill="#d8dbe0" font-family="sans-serif" font-size="15">Reuse valid receipts</text>
+<text x="340" y="249" fill="#d8dbe0" font-family="sans-serif" font-size="15">Name missing prerequisites</text>
+<text x="597" y="228" fill="#7fd6a4" font-family="sans-serif" font-size="17">→</text>
+<rect x="615" y="158" width="270" height="128" rx="12" fill="#20232a" stroke="#495364"/>
+<text x="630" y="192" fill="#8cbaff" font-family="sans-serif" font-size="20">3 Deterministic admit</text>
+<text x="630" y="225" fill="#d8dbe0" font-family="sans-serif" font-size="15">Pinned observations + policy</text>
+<text x="630" y="249" fill="#d8dbe0" font-family="sans-serif" font-size="15">Ownership and budget gates</text>
+<text x="887" y="228" fill="#7fd6a4" font-family="sans-serif" font-size="17">→</text>
+<rect x="905" y="158" width="270" height="128" rx="12" fill="#20232a" stroke="#495364"/>
+<text x="920" y="192" fill="#8cbaff" font-family="sans-serif" font-size="20">4 Isolated action</text>
+<text x="920" y="225" fill="#d8dbe0" font-family="sans-serif" font-size="15">Typed catalog operation</text>
+<text x="920" y="249" fill="#d8dbe0" font-family="sans-serif" font-size="15">Qualified engine adapter</text>
+<text x="1177" y="228" fill="#7fd6a4" font-family="sans-serif" font-size="17">→</text>
+<rect x="1195" y="158" width="270" height="128" rx="12" fill="#20232a" stroke="#495364"/>
+<text x="1210" y="192" fill="#8cbaff" font-family="sans-serif" font-size="20">5 Accept independently</text>
+<text x="1210" y="225" fill="#d8dbe0" font-family="sans-serif" font-size="15">Observe required behavior</text>
+<text x="1210" y="249" fill="#d8dbe0" font-family="sans-serif" font-size="15">Retain scoped proof</text>
+<text x="1467" y="228" fill="#7fd6a4" font-family="sans-serif" font-size="17">→</text>
+<rect x="1485" y="158" width="270" height="128" rx="12" fill="#20232a" stroke="#495364"/>
+<text x="1500" y="192" fill="#8cbaff" font-family="sans-serif" font-size="20">6 Continue</text>
+<text x="1500" y="225" fill="#d8dbe0" font-family="sans-serif" font-size="15">Reuse accepted observations</text>
+<text x="1500" y="249" fill="#d8dbe0" font-family="sans-serif" font-size="15">Exact wake; no blind replay</text>
+<rect x="35" y="305" width="1730" height="57" rx="12" fill="#20232a" stroke="#495364"/>
+<text x="53" y="340" fill="#f0c060" font-family="sans-serif" font-size="19">Unknown effects → reconcile; unavailable authority → pause new mutations; unrelated eligible work → keep progressing.</text>
+<!--SEC:Milestones and evidence boundaries-->
+<text x="35" y="408" fill="#f2f4f7" font-family="sans-serif" font-size="21">Useful native capabilities first; platform and browser investigations can proceed independently.</text>
+<rect x="35" y="435" width="425" height="308" rx="12" fill="#20232a" stroke="#7fd6a4"/>
+<text x="52" y="471" fill="#f2f4f7" font-family="sans-serif" font-size="23">M0  Reliable continuation</text>
+<text x="52" y="502" fill="#7fd6a4" font-family="sans-serif" font-size="13">IMPLEMENTED FOUNDATION · PARTIALLY VERIFIED</text>
+<text x="52" y="535" fill="#d8dbe0" font-family="sans-serif" font-size="17">Preserve attempts across resume.</text>
+<text x="52" y="560" fill="#d8dbe0" font-family="sans-serif" font-size="17">Explain exhaustion, unknown outcomes</text>
+<text x="52" y="585" fill="#d8dbe0" font-family="sans-serif" font-size="17">and the exact next action.</text>
+<text x="52" y="610" fill="#d8dbe0" font-family="sans-serif" font-size="17"></text>
+<text x="52" y="635" fill="#d8dbe0" font-family="sans-serif" font-size="17">Evidence: bounded coordinator and</text>
+<text x="52" y="660" fill="#d8dbe0" font-family="sans-serif" font-size="17">isolated worker software checks.</text>
+<text x="52" y="685" fill="#d8dbe0" font-family="sans-serif" font-size="17">Broader M0 obligations remain open.</text>
+<text x="52" y="710" fill="#d8dbe0" font-family="sans-serif" font-size="17">Native live delivery is unverified.</text>
+<rect x="470" y="435" width="425" height="308" rx="12" fill="#20232a" stroke="#8cbaff"/>
+<text x="487" y="471" fill="#f2f4f7" font-family="sans-serif" font-size="23">M1  Effective scenario</text>
+<text x="487" y="502" fill="#8cbaff" font-family="sans-serif" font-size="13">FUTURE DELIVERY</text>
+<text x="487" y="535" fill="#d8dbe0" font-family="sans-serif" font-size="17">Pin fixture and effective script.</text>
+<text x="487" y="560" fill="#d8dbe0" font-family="sans-serif" font-size="17">Prepare, run, observe, capture, clean.</text>
+<text x="487" y="585" fill="#d8dbe0" font-family="sans-serif" font-size="17">Resume a mixed pass/blocked batch.</text>
+<text x="487" y="610" fill="#d8dbe0" font-family="sans-serif" font-size="17"></text>
+<text x="487" y="635" fill="#d8dbe0" font-family="sans-serif" font-size="17">Acceptance: actual game receipt;</text>
+<text x="487" y="660" fill="#d8dbe0" font-family="sans-serif" font-size="17">no routine user repair of paths,</text>
+<text x="487" y="685" fill="#d8dbe0" font-family="sans-serif" font-size="17">manifests or lifecycle state.</text>
+<rect x="905" y="435" width="425" height="308" rx="12" fill="#20232a" stroke="#8cbaff"/>
+<text x="922" y="471" fill="#f2f4f7" font-family="sans-serif" font-size="23">M2  Operation bundle</text>
+<text x="922" y="502" fill="#8cbaff" font-family="sans-serif" font-size="13">FUTURE DELIVERY</text>
+<text x="922" y="535" fill="#d8dbe0" font-family="sans-serif" font-size="17">Generate ABI, units, ID domains,</text>
+<text x="922" y="560" fill="#d8dbe0" font-family="sans-serif" font-size="17">lifetime and effect/restore contract.</text>
+<text x="922" y="585" fill="#d8dbe0" font-family="sans-serif" font-size="17">Share help, CLI, Lua and harness.</text>
+<text x="922" y="610" fill="#d8dbe0" font-family="sans-serif" font-size="17"></text>
+<text x="922" y="635" fill="#d8dbe0" font-family="sans-serif" font-size="17">Acceptance: consumed binding +</text>
+<text x="922" y="660" fill="#d8dbe0" font-family="sans-serif" font-size="17">independent game-state oracle.</text>
+<text x="922" y="685" fill="#d8dbe0" font-family="sans-serif" font-size="17">Unsupported builds refuse.</text>
+<rect x="1340" y="435" width="425" height="308" rx="12" fill="#20232a" stroke="#8cbaff"/>
+<text x="1357" y="471" fill="#f2f4f7" font-family="sans-serif" font-size="23">M3  F12 workspace</text>
+<text x="1357" y="502" fill="#8cbaff" font-family="sans-serif" font-size="13">FUTURE DELIVERY</text>
+<text x="1357" y="535" fill="#d8dbe0" font-family="sans-serif" font-size="17">Select/query object; execute Lua.</text>
+<text x="1357" y="560" fill="#d8dbe0" font-family="sans-serif" font-size="17">Edit supported property; inspect</text>
+<text x="1357" y="585" fill="#d8dbe0" font-family="sans-serif" font-size="17">result/error; undo; Copy as Lua.</text>
+<text x="1357" y="610" fill="#d8dbe0" font-family="sans-serif" font-size="17"></text>
+<text x="1357" y="635" fill="#d8dbe0" font-family="sans-serif" font-size="17">Acceptance: real key/focus/input,</text>
+<text x="1357" y="660" fill="#d8dbe0" font-family="sans-serif" font-size="17">engine-thread execution and shared</text>
+<text x="1357" y="685" fill="#d8dbe0" font-family="sans-serif" font-size="17">operation IDs in UI/script/harness.</text>
+<rect x="35" y="765" width="425" height="308" rx="12" fill="#20232a" stroke="#c9a4f0"/>
+<text x="52" y="801" fill="#f2f4f7" font-family="sans-serif" font-size="23">M4  Creative projects</text>
+<text x="52" y="832" fill="#c9a4f0" font-family="sans-serif" font-size="13">FUTURE DELIVERY</text>
+<text x="52" y="865" fill="#d8dbe0" font-family="sans-serif" font-size="17">Compose meaningful scene + shot.</text>
+<text x="52" y="890" fill="#d8dbe0" font-family="sans-serif" font-size="17">Reopen in a fresh game session.</text>
+<text x="52" y="915" fill="#d8dbe0" font-family="sans-serif" font-size="17">Record the defining native effect.</text>
+<text x="52" y="940" fill="#d8dbe0" font-family="sans-serif" font-size="17"></text>
+<text x="52" y="965" fill="#d8dbe0" font-family="sans-serif" font-size="17">Acceptance: behavior + capture +</text>
+<text x="52" y="990" fill="#d8dbe0" font-family="sans-serif" font-size="17">presentation; protected installs;</text>
+<text x="52" y="1015" fill="#d8dbe0" font-family="sans-serif" font-size="17">no cross-script state collisions.</text>
+<rect x="470" y="765" width="425" height="308" rx="12" fill="#20232a" stroke="#c9a4f0"/>
+<text x="487" y="801" fill="#f2f4f7" font-family="sans-serif" font-size="23">M5  Playback / checkpoints</text>
+<text x="487" y="832" fill="#c9a4f0" font-family="sans-serif" font-size="13">FUTURE DELIVERY</text>
+<text x="487" y="865" fill="#d8dbe0" font-family="sans-serif" font-size="17">Owned pause, save and restore.</text>
+<text x="487" y="890" fill="#d8dbe0" font-family="sans-serif" font-size="17">Replay supported dialog branches.</text>
+<text x="487" y="915" fill="#d8dbe0" font-family="sans-serif" font-size="17">Stable selectors; fresh lifetimes.</text>
+<text x="487" y="940" fill="#d8dbe0" font-family="sans-serif" font-size="17"></text>
+<text x="487" y="965" fill="#d8dbe0" font-family="sans-serif" font-size="17">Acceptance: inventory/quest/party</text>
+<text x="487" y="990" fill="#d8dbe0" font-family="sans-serif" font-size="17">and script restoration; exclusions.</text>
+<text x="487" y="1015" fill="#d8dbe0" font-family="sans-serif" font-size="17">No arbitrary-memory rewind claim.</text>
+<rect x="905" y="765" width="425" height="308" rx="12" fill="#20232a" stroke="#f0c060"/>
+<text x="922" y="801" fill="#f2f4f7" font-family="sans-serif" font-size="23">M6  Native host matrix</text>
+<text x="922" y="832" fill="#f0c060" font-family="sans-serif" font-size="13">FUTURE QUALIFICATION</text>
+<text x="922" y="865" fill="#d8dbe0" font-family="sans-serif" font-size="17">Exact native Mac K1/K2 builds;</text>
+<text x="922" y="890" fill="#d8dbe0" font-family="sans-serif" font-size="17">compatible Windows/Linux workers.</text>
+<text x="922" y="915" fill="#d8dbe0" font-family="sans-serif" font-size="17">Qualify each build and architecture.</text>
+<text x="922" y="940" fill="#d8dbe0" font-family="sans-serif" font-size="17"></text>
+<text x="922" y="965" fill="#d8dbe0" font-family="sans-serif" font-size="17">Acceptance: ABI, graphics, input</text>
+<text x="922" y="990" fill="#d8dbe0" font-family="sans-serif" font-size="17">and capture results per build.</text>
+<text x="922" y="1015" fill="#d8dbe0" font-family="sans-serif" font-size="17">Windows proof does not qualify Mac.</text>
+<rect x="1340" y="765" width="425" height="308" rx="12" fill="#20232a" stroke="#f0c060"/>
+<text x="1357" y="801" fill="#f2f4f7" font-family="sans-serif" font-size="23">M7  Whole-game browser</text>
+<text x="1357" y="832" fill="#f0c060" font-family="sans-serif" font-size="13">FUTURE FEASIBILITY → DELIVERY</text>
+<text x="1357" y="865" fill="#d8dbe0" font-family="sans-serif" font-size="17">Inspect prior KotorPhasor work.</text>
+<text x="1357" y="890" fill="#d8dbe0" font-family="sans-serif" font-size="17">Prove an executable runtime route.</text>
+<text x="1357" y="915" fill="#d8dbe0" font-family="sans-serif" font-size="17">Then prove interactive game use.</text>
+<text x="1357" y="940" fill="#d8dbe0" font-family="sans-serif" font-size="17"></text>
+<text x="1357" y="965" fill="#d8dbe0" font-family="sans-serif" font-size="17">Acceptance: rendering/input/audio,</text>
+<text x="1357" y="990" fill="#d8dbe0" font-family="sans-serif" font-size="17">save, main loop, sustained play</text>
+<text x="1357" y="1015" fill="#d8dbe0" font-family="sans-serif" font-size="17">and shared devtools protocol.</text>
+<!--SEC:Proof and human boundary-->
+<rect x="35" y="1115" width="1115" height="210" rx="12" fill="#20232a" stroke="#7fd6a4"/>
+<text x="55" y="1152" fill="#7fd6a4" font-family="sans-serif" font-size="22">First complete product demonstration — FUTURE / NOT RUN</text>
+<text x="55" y="1187" fill="#d8dbe0" font-family="sans-serif" font-size="18">One requested native capability: discovery → binding → UI or Lua → prepared scenario,</text>
+<text x="55" y="1214" fill="#d8dbe0" font-family="sans-serif" font-size="18">independent state observation → verified supported restoration → useful recorded clip.</text>
+<text x="55" y="1241" fill="#d8dbe0" font-family="sans-serif" font-size="18">Behavior, capture integrity and presentation are separate acceptance predicates.</text>
+<text x="55" y="1268" fill="#d8dbe0" font-family="sans-serif" font-size="18">A job result, syntax pass, browser shell or Wasm utility does not prove this delivery.</text>
+<text x="55" y="1295" fill="#d8dbe0" font-family="sans-serif" font-size="18">Source parity, native game behavior and platform qualification keep separate receipts.</text>
+<rect x="1170" y="1115" width="595" height="210" rx="12" fill="#20232a" stroke="#c9a4f0"/>
+<text x="1190" y="1152" fill="#c9a4f0" font-family="sans-serif" font-size="22">Human input only for genuine exceptions</text>
+<text x="1190" y="1187" fill="#d8dbe0" font-family="sans-serif" font-size="17">Material objective / acceptance changes; unavailable</text>
+<text x="1190" y="1214" fill="#d8dbe0" font-family="sans-serif" font-size="17">legal, credential or device access; required external</text>
+<text x="1190" y="1241" fill="#d8dbe0" font-family="sans-serif" font-size="17">interaction; uninferable subjective creative direction.</text>
+<text x="1190" y="1268" fill="#d8dbe0" font-family="sans-serif" font-size="17">Deduplicate requests; continue independent work.</text>
+<text x="1190" y="1295" fill="#d8dbe0" font-family="sans-serif" font-size="17">Local artifact creation ≠ external publication authority.</text>
+<text x="35" y="1370" fill="#f0c060" font-family="sans-serif" font-size="19">Design status: M1–M7 are ambitions, not completed features. M0 software evidence does not establish live-game autonomy.</text>
+<text x="35" y="1406" fill="#d8dbe0" font-family="sans-serif" font-size="17">Contract: docs/plans/2026-09-22-autonomous-capability-product-roadmap.md • 2026-09-22</text>
+</svg>

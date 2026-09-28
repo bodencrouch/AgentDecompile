@@ -36,6 +36,8 @@ from agentdecompile_recovery.corpus.dashboard.common import (
     table as render_table,
     tcp_up,
     table_exists,
+    corpus_read_snapshot,
+    CorpusReadError,
 )
 from agentdecompile_recovery.corpus.dashboard.panels import viz
 
@@ -738,7 +740,7 @@ def render_corpus_status() -> dict:
         "claimBoundary": CLAIM,
         "headline": {
             "real_c": n.get("real_c"),
-            "byte_exact": byte_exact if byte_exact is not None else "unmeasured",
+            "byte_exact": byte_exact if byte_exact is not None else "pending",
             "placed_concrete": n.get("placed_concrete"),
             "unplaced_real_c": n.get("unplaced_real_c"),
             "queued": n.get("queued"),
@@ -792,13 +794,23 @@ def review_queue_json(limit: int = 40) -> dict:
     return out
 
 
-def logical_listing_json(q: str = "", after: int = 0, limit: int | str = "all") -> dict:
+def logical_listing_json(q: str = "", after: int = 0, limit: int | str = "all", expected_corpus: str = "") -> dict:
+    try:
+        with corpus_read_snapshot(expected_corpus) as (connection, corpus):
+            payload = _logical_listing_json(q, after, limit, connection)
+            payload["corpus"] = corpus
+        return payload
+    except CorpusReadError as exc:
+        return {"ok": False, "error": str(exc), "status": exc.status, "rows": [], "more": False}
+
+
+def _logical_listing_json(q: str, after: int, limit: int | str, connection) -> dict:
     """Logical identities for the React identities window."""
     from agentdecompile_recovery.corpus.dashboard.common import page_window
 
     _, cap = page_window(0, limit)
     out = {"ok": True, "q": q or "", "after": int(after or 0), "rows": [], "more": False, "limit": "all" if cap is None else cap, "errors": []}
-    has_names = table_exists("logical_name")
+    has_names = table_exists("logical_name", connection=connection)
     name = "COALESCE(ln.name, lf.best_name, lf.canon_key)" if has_names else "COALESCE(lf.best_name, lf.canon_key)"
     tier = "ln.tier_name" if has_names else "NULL"
     name_join = "LEFT JOIN logical_name ln ON ln.logical_id=lf.id " if has_names else ""
@@ -817,16 +829,20 @@ def logical_listing_json(q: str = "", after: int = 0, limit: int | str = "all") 
     )
     if cap is not None:
         sql += " LIMIT ?"
-        binds.append(cap)
-    rows, err = query_db(sql, tuple(binds), ignore_missing=True)
+        binds.append(cap + 1)
+    rows, err = query_db(sql, tuple(binds), connection=connection)
     if err:
         out["ok"] = False
+        out["error"] = err
         if "no such table" in str(err).lower():
             out["empty_reason"] = "No logical identities yet. They appear after cross-build matching."
+            out["error"] = out["empty_reason"]
         else:
             out["errors"].append(err)
         return out
-    out["more"] = False
+    out["more"] = cap is not None and len(rows) > cap
+    if cap is not None:
+        rows = rows[:cap]
     out["rows"] = [
         {
             "id": r[0],
@@ -841,7 +857,17 @@ def logical_listing_json(q: str = "", after: int = 0, limit: int | str = "all") 
     return out
 
 
-def logical_detail_json(raw_id: str) -> tuple[dict, int]:
+def logical_detail_json(raw_id: str, expected_corpus: str = "") -> tuple[dict, int]:
+    try:
+        with corpus_read_snapshot(expected_corpus) as (connection, corpus):
+            payload, status = _logical_detail_json(raw_id, connection)
+            payload["corpus"] = corpus
+        return payload, status
+    except CorpusReadError as exc:
+        return {"ok": False, "error": str(exc), "members": []}, exc.status
+
+
+def _logical_detail_json(raw_id: str, connection) -> tuple[dict, int]:
     try:
         lid = int(raw_id)
     except (TypeError, ValueError):
@@ -850,7 +876,7 @@ def logical_detail_json(raw_id: str) -> tuple[dict, int]:
         "SELECT canon_key, canon_class, canon_method, game, best_name, best_signature, "
         "source_file, object_file, n_members FROM logical_function WHERE id=?",
         (lid,),
-        ignore_missing=True,
+        connection=connection,
     )
     if err:
         return {"ok": False, "error": err}, 503
@@ -865,8 +891,10 @@ def logical_detail_json(raw_id: str) -> tuple[dict, int]:
         "SELECT b.slug, i.addr, i.confidence, i.method, i.evidence FROM identity i "
         "JOIN binary b ON b.id=i.binary_id WHERE i.logical_id=? ORDER BY b.slug",
         (lid,),
-        ignore_missing=True,
+        connection=connection,
     )
+    if merr:
+        return {"ok": False, "error": merr, "members": []}, 503
     rows = []
     if not merr:
         for slug, addr, conf, method, evidence in members or []:
@@ -1165,11 +1193,13 @@ def browse_block_json(block: str, query: dict) -> tuple[dict, int]:
         return {"ok": False, "error": f"no browse block called {block or ''}"}, 404
     params = {k: (v[0] if v else "") for k, v in query.items()}
     if name == "logical":
-        return logical_listing_json(
+        payload = logical_listing_json(
             q=params.get("lq") or params.get("logical_q") or "",
             after=int(params.get("logical_after") or 0 or 0) if str(params.get("logical_after") or "").isdigit() else 0,
             limit=params.get("limit") or "all",
-        ), 200
+            expected_corpus=params.get("corpus_identity") or "",
+        )
+        return payload, 200 if payload.get("ok") else payload.get("status", 503)
     if name == "review":
         return review_queue_json(), 200
     if name == "builds":
@@ -1791,7 +1821,9 @@ def _resolve_artifact(raw: str):
     if "\x00" in raw:
         return None, "path contains a null byte"
     work = _work_dir()
-    live = ROOT or live_root()
+    # An explicit runtime root (environment) outranks the module default;
+    # the default is only a fallback when nothing was configured.
+    live = _configured_root() or ROOT or live_root()
     if live is None and work is None:
         return None, "AGENT_DECOMPILE_CORPUS_ROOT / AGENT_DECOMPILE_CORPUS_WORK_DIR is unset"
     root = (live or work).resolve()
@@ -2235,14 +2267,25 @@ def missing_html(msg: str) -> str:
     return f'<p class="miss">{esc(msg)}</p>'
 
 
-def _work_dir() -> Path | None:
-    raw = (os.environ.get("AGENT_DECOMPILE_CORPUS_WORK_DIR") or "").strip()
-    if not raw:
+def _configured_root() -> Path | None:
+    """Root named by the environment, or None when only defaults apply."""
+    raw = (os.environ.get("AGENT_DECOMPILE_CORPUS_ROOT") or os.environ.get("AGENT_DECOMPILE_CORPUS_WORK_DIR") or "").strip()
+    if not raw or "\x00" in raw:
         return None
     try:
         return Path(raw).expanduser()
     except (OSError, RuntimeError, ValueError):
         return None
+
+
+def _work_dir() -> Path | None:
+    raw = (os.environ.get("AGENT_DECOMPILE_CORPUS_WORK_DIR") or "").strip()
+    if raw:
+        try:
+            return Path(raw).expanduser()
+        except (OSError, RuntimeError, ValueError):
+            return None
+    return live_root()
 
 
 def _func_source_sql() -> str:
@@ -3582,4 +3625,3 @@ PAGE_INDEX = {
 
 def page_index() -> dict[str, str]:
     return dict(PAGE_INDEX)
-

@@ -82,7 +82,7 @@ def test_resolve_drop_finds_gpr_by_name(
 ) -> None:
     client = _client(monkeypatch, tmp_path)
     work = tmp_path / "work"
-    work.mkdir()
+    work.mkdir(exist_ok=True)
     gpr = _write_gpr(work, "Dropped")
     resolved = client.post(
         "/dashboard/api/workbench/resolve-drop",
@@ -148,15 +148,17 @@ def test_register_shared_fs_and_inspect_http(
 ) -> None:
     client = _client(monkeypatch, tmp_path)
     repos = _write_shared_fs(tmp_path)
+    # A server repository directory is a project locator, not a binary.
     added = client.post(
         "/dashboard/api/workbench/binaries",
         json={"path": str(repos), "slug": "server-fs"},
     )
-    assert added.status_code == 200
-    body = added.json()
-    assert body["ok"] is True
-    assert body["binary"]["kind"] == "shared-fs"
-    assert "Game.exe" in body["binary"]["programs"]
+    assert added.status_code == 400
+    assert "project locator" in added.json()["error"]
+    local = client.get("/dashboard/api/workbench/inspect", params={"locator": str(repos)})
+    assert local.status_code == 200
+    assert local.json()["kind"] == "shared-fs"
+    assert "Game.exe" in local.json()["programs"]
     http = client.get(
         "/dashboard/api/workbench/inspect",
         params={"locator": "ghidra://127.0.0.1:1/Repo/Game.exe"},
@@ -164,7 +166,8 @@ def test_register_shared_fs_and_inspect_http(
     assert http.status_code == 200
     remote = http.json()
     assert remote["kind"] == "shared-project"
-    assert remote["access"] == "http"
+    # Ghidra Server speaks RMI over SSL; a ghidra:// locator is never HTTP.
+    assert remote["access"] == "rmi"
     assert remote["reachable"] is False
     assert "Game.exe" in remote["programs"]
 
@@ -174,7 +177,7 @@ def test_resolve_drop_rep_folder(
 ) -> None:
     client = _client(monkeypatch, tmp_path)
     work = tmp_path / "work"
-    work.mkdir()
+    work.mkdir(exist_ok=True)
     gpr = _write_gpr(work, "Packed")
     resolved = client.post(
         "/dashboard/api/workbench/resolve-drop",
@@ -191,7 +194,10 @@ def test_browse_marks_shared_fs_folder(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     client = _client(monkeypatch, tmp_path)
-    repos = _write_shared_fs(tmp_path)
+    # Browsing is confined to corpus and project roots; the work dir is one of them.
+    work = tmp_path / "work"
+    work.mkdir(exist_ok=True)
+    repos = _write_shared_fs(work)
     listed = client.get("/dashboard/api/workbench/browse", params={"path": str(repos.parent)})
     assert listed.status_code == 200
     kinds = {row["name"]: row["kind"] for row in listed.json()["entries"]}
@@ -247,7 +253,7 @@ def test_save_as_local_to_shared_fs_and_back(
 ) -> None:
     client = _client(monkeypatch, tmp_path)
     work = tmp_path / "work"
-    work.mkdir()
+    work.mkdir(exist_ok=True)
     gpr = _write_gpr(work, "Packed")
     exported = client.post(
         "/dashboard/api/workbench/save-as",
@@ -271,7 +277,7 @@ def test_save_as_local_to_http_writes_checkout(
 ) -> None:
     client = _client(monkeypatch, tmp_path)
     work = tmp_path / "work"
-    work.mkdir()
+    work.mkdir(exist_ok=True)
     gpr = _write_gpr(work, "Packed")
     linked = client.post(
         "/dashboard/api/workbench/save-as",

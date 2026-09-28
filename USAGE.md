@@ -1,6 +1,6 @@
 # AgentDecompile Usage Guide
 
-Install and first start live in [README.md](README.md). This page is the day-to-day operator manual. New CLI command recipes land here first.
+Install and first start live in [README.md](README.md). This page is the day-to-day operator manual. Current recovery uses the existing 8080 action catalog under [AGENTS.md](AGENTS.md); CLI snippets below document implementation and general usage, not a recovery bypass. Do not start duplicate servers or use automatic local fallback for the current recovery mission.
 
 ```mermaid
 flowchart TD
@@ -30,7 +30,7 @@ uvx --from /path/to/agentdecompile/ --with-editable ./agentdecompile agentdecomp
 
 Prefer `--mcp-server-url http://127.0.0.1:8080/mcp` in examples. The CLI also accepts the base URL and normalizes it. Explicit `--server-url`, `--host`, or `--port` stay authoritative and fail instead of being ignored.
 
-When you do not pass an explicit backend, the CLI treats unreachable default or env URLs as recoverable: reuse a cached local server, auto-start one, or fall back to in-process local execution.
+Implementation behavior outside the current recovery mission: when you do not pass an explicit backend, the CLI treats unreachable default or env URLs as recoverable: reuse a cached local server, auto-start one, or fall back to in-process local execution.
 
 ## Sessions
 
@@ -48,11 +48,9 @@ Add `--verbose` on the CLI, server, or proxy when you need transport diagnostics
 
 The operator UI is `/dashboard` on the same HTTP server as `/mcp`. Default: `http://127.0.0.1:8080/dashboard`.
 
-```bash
-uv run agentdecompile-server -t streamable-http
-```
+Reuse the existing listener. Read `GET /api/v1/actions`, select a listed action and its parameters, and inspect the resulting job and evidence. Do not infer missing analysis from an empty page; first check selected project/program and corpus binding.
 
-Open an already-analyzed Ghidra project and use the functions already there. Do not call `analyze-program` unless that program has no analysis yet. `force=true` is the retry.
+Open an already-analyzed Ghidra project and use the functions already there. Do not call `analyze-program` unless that program has no analysis yet. Force only an explicitly requested retry or work shown to be invalid.
 
 `AGENT_DECOMPILE_WEBUI_*` still starts an optional sidecar if you set it. Corpus recovery does not use that port.
 
@@ -69,6 +67,24 @@ export AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY="<set-in-user-env>"
 ```
 
 Those credentials authenticate Ghidra Server, not the MCP HTTP listener. See [docs/MCP_CONFIGURATION_SECURITY.md](docs/MCP_CONFIGURATION_SECURITY.md).
+
+## Consolidated command groups
+
+`agentdecompile-cli corpus`, `agentdecompile-cli recover`, and
+`agentdecompile-cli grid` expose the corpus, staged recovery, and grid command
+surfaces. Use `<group> --help` to list verbs and `<group> <verb> --help` for
+options. Arguments, including a literal `--`, are forwarded to the backing CLI.
+The optional `agentdecompile[s3]` and `agentdecompile[signing]` extras supply
+grid S3 storage and Ed25519 signing dependencies.
+
+Use `agentdecompile-cli reconstruct` for the reconstruction front door. The
+standalone `agentdecompile-reconstruct` and `agentdecompile-acquisition-query`
+entry points have been retired; acquisition queries remain available through
+`agentdecompile-cli acquisition-query`. Duplicate recovery verbs direct you to
+`agentdecompile-cli corpus list-archive` or `corpus check-extraction`.
+
+These are implementation and general-use interfaces. Current recovery
+operations still use the existing 8080 action catalog under [AGENTS.md](AGENTS.md).
 
 ## Workflows
 
@@ -121,7 +137,7 @@ Extra notes, dumps, and archives merge by address. They stay advisory until objd
 | Tool content has `## Error` but process exit is 0 | Payload text, not transport | Treat payload as authoritative |
 | Convenience flag missing | `agentdecompile-cli <command> -h` | Use raw `tool` for exact MCP keys |
 | Local VC probe looks like success | Content may still say checkout failed | Trust payload semantics |
-| Empty SARIF | `analyzeAfterImport` | Re-import or analyze first |
+| Empty SARIF | Selected program, binding and existing analysis | Reuse valid analysis; analyze only proven missing/invalid work |
 
 Typical unresolved-program payload:
 
@@ -157,7 +173,7 @@ Typical unresolved-program payload:
 | `AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME`, `AGENT_DECOMPILE_SERVER_USERNAME`, `AGENT_DECOMPILE_GHIDRA_USERNAME` | Runtime/CLI | Shared Ghidra username |
 | `AGENT_DECOMPILE_GHIDRA_SERVER_PASSWORD`, `AGENT_DECOMPILE_SERVER_PASSWORD`, `AGENT_DECOMPILE_GHIDRA_PASSWORD` | Runtime/CLI | Shared Ghidra password |
 | `AGENT_DECOMPILE_GHIDRA_SERVER_REPOSITORY`, `AGENT_DECOMPILE_HTTP_GHIDRA_SERVER_REPOSITORY`, `AGENT_DECOMPILE_REPOSITORY`, `AGENT_DECOMPILE_GHIDRA_REPOSITORY` | Runtime/CLI | Shared repository name |
-| `AGENT_DECOMPILE_AUTH_ENABLED` | Runtime | Require MCP HTTP auth |
+| `AGENT_DECOMPILE_AUTH_ENABLED` | Runtime | Require MCP HTTP Basic auth (HTTP transports). Needs `AGENT_DECOMPILE_GHIDRA_SERVER_USERNAME` and `_PASSWORD`; startup fails without them. `--no-require-auth` does not override it |
 | `AGENT_DECOMPILE_TLS_CERT`, `AGENT_DECOMPILE_TLS_KEY` | Runtime | TLS paths for HTTPS |
 | `AGENT_DECOMPILE_PYGHIDRA_VMARGS` | Runtime/tests | Extra JVM args |
 | `AGENT_DECOMPILE_CLI_OP_TIMEOUT` | CLI | Per-tool timeout |
@@ -177,6 +193,7 @@ Typical unresolved-program payload:
 | `AGENT_DECOMPILE_PROGRAM` | CLI | Legacy program alias |
 | `AGENT_DECOMPILE_BINARY_NAME` | CLI | Default `binaryName` |
 | `AGENT_DECOMPILE_WEBUI_ENABLED`, `AGENT_DECOMPILE_WEBUI` | Runtime | Optional leftover sidecar on/off. Workbench is `/dashboard` on 8080. |
+| `AGENT_DECOMPILE_EXCHANGE_ENABLED` | Runtime | Experimental donated-compute work exchange on the proxy. Off by default; `--enable-exchange` / `--no-enable-exchange` win over the variable. Contributions stay proposals until the local compile and objdiff gate verifies them. See [the exchange plan](docs/plans/2026-09-08-donated-compute-work-exchange.md). |
 | `AGENT_DECOMPILE_WEBUI_HOST` | Runtime | Leftover sidecar bind host |
 | `AGENT_DECOMPILE_WEBUI_PORT` | Runtime | Leftover sidecar bind port |
 | `AGENT_DECOMPILE_WEBUI_BACKEND_URL` | Runtime | Leftover sidecar backend override |
@@ -216,6 +233,164 @@ Modifying tools may return a `conflictId`. Complete the change with `resolve-mod
 - [docs/CONTEXT_FUSION.md](docs/CONTEXT_FUSION.md) — merge notes and address-keyed conflicts
 - [TOOLS_LIST.md](TOOLS_LIST.md) — tool parameters
 
-### React workbench and optional Vite frontend
+### Workbench implementation and runtime reuse
 
-The MCP HTTP server serves the production React application at `/dashboard`, without a Node runtime. See [frontend development and verification](src/agentdecompile_recovery/corpus/dashboard/frontend/README.md). The optional Vite process uses port **5174** and `AGENTDECOMPILE_BACKEND` to select its MCP backend; both serving modes use the same application and state.
+Use the existing 8080 workbench. Static workbench source and the React frontend
+coexist; see the [interface guide](src/agentdecompile_recovery/corpus/dashboard/frontend/README.md)
+for source and packaged route distinctions. Do not start 5174 or infer completed
+migration from generated assets.
+
+`corpus.export-hookpack` is implemented and advertised through parser
+introspection. [Runtime reuse](docs/RUNTIME_REUSE.md) describes the existing
+KotorPhasor consumer, target bindings and unverified readiness/behavior gates.
+An exported pack is not proof of a safe call or recovered source.
+
+
+## Durable continuation and verification controls
+
+The September 22 foundation adds controls to the existing action catalog and CLI
+implementation parsers. Recovery operations still use the existing 8080 action
+catalog, discovered through `GET /api/v1/actions`; CLI names below identify the
+implementation contract and are not instructions to bypass that catalog.
+
+| Action | New behavior / parameters |
+|---|---|
+| `corpus.recovery-orchestrator` | Requires explicit `input-basis` for dispatch; `max-failed-exits` defaults to 3, `backoff` to 30 seconds and `success-backoff` to 300. Worker defaults are 1. `status` reads without dispatch; `once` performs one admission cycle and does not establish completion. |
+| `corpus.verify-byteexact` | `cache-input-manifest` declares the compiler dependency closure; `transient-retry-seconds` defaults to 300. Cache identity uses content, relevant database rows, tool code and declared environment. |
+| `corpus.verify-periodic` | `full-interval-seconds` defaults to 86400, `force-full` requests an explicit fresh pass. Legacy `full-every` defaults to 0. Failed full attempts consume the time interval too. |
+
+The supervisor persists its state in the output directory's `.supervision` folder.
+Its lock excludes other instances of this supervisor for that output root; it does
+not prove exclusive ownership of all external compiler, Ghidra, Wine or corpus
+writers. Unknown prior launches remain `needs_reconciliation`, even when their stage
+is now disabled. Do not delete state to bypass a reservation or exhausted allowance.
+A zero process exit records a completed pass, never recovery acceptance. The explicit
+input basis must describe a real changed input set; arbitrary new labels are not a
+repair. Automatic input-basis generation and cross-provider ownership reconciliation
+remain roadmap work.
+
+A cache manifest is a JSON object such as:
+
+```json
+{
+  "complete": true,
+  "files": ["toolchain/compiler.exe", "toolchain/runtime.dll", "include/header.h"],
+  "environment": ["INCLUDE", "LIB"]
+}
+```
+
+File paths resolve relative to the manifest. Include every material toolchain,
+header, runtime and configuration dependency; completeness is asserted by the
+provider, not automatically discovered by the verifier. Without complete closure,
+a fresh comparison can run, but later unchanged cached positives are withheld with
+`cache-basis-incomplete` rather than silently trusted or continuously recompiled.
+Transient/unclassified failures expire under a rate limit. This TTL is not a total
+objective spending cap. Only known deterministic compiler diagnostics are classified
+as `compile-rejected`. Local function comparisons retain their existing comparison
+semantics and do not establish fresh whole-image byte identity.
+
+Preparation now records retry decisions, reasons, remaining attempts and wake
+conditions. Both preparation interfaces expose them under **Recorded continuation
+decisions**. Same-input resume preserves attempts, including after unrelated KB
+writes. Unknown job outcomes hold the affected action while independent eligible
+comparisons can proceed. A missing job during cancellation is not proof its work
+stopped. The displayed history is a record, not proof every old condition remains
+active. See the [roadmap](docs/plans/2026-09-22-autonomous-capability-product-roadmap.md)
+and [verification receipt](docs/verification/2026-09-22-autonomy-foundation.md).
+
+
+### External diagnostic report reader
+
+`corpus.normalize-validation-report` is a read-only catalog action and CLI command.
+It takes `provider` (`reagent-benchmark` or `reccmp-compare`) and `report` (a JSON
+report file), returning a normalized diagnostic proposal. It does not run the
+provider or accept recovery claims. Invalid/empty/unknown-schema reports return
+`invalid_output` and CLI exit 2; CLI exit 0 means normalization succeeded.
+
+A ReAgent benchmark can meet its expected negative while the candidate mismatches.
+The reader retains those separate outcomes. reccmp scores retain their comparison
+scope, omitted-entity caveat and unknown eligible denominator. A standalone report
+cannot prove input identity, freshness or the actual provider revision. Those gaps
+remain explicit for the future execution adapter and independent acceptor.
+
+### Resource reservations after uncertain outcomes
+
+Catalog jobs now expose `resourceDisposition`, `resourceKeys` and
+`ownershipUnresolved`. Unknown child/remote outcomes and failed terminal receipt
+writes retain identity/pair/Ghidra reservations in the existing job receipt store.
+A receipt-root owner lock serializes admission authorities for that directory;
+restart restores reservations before admitting scoped work. Unrelated resources
+can proceed after the worker slot is released. Both activity surfaces show unknown
+ownership, and React suppresses its retry shortcut for a quarantined job.
+
+`workbench.resource-reconciliation-report` inspects a job's retained reservation;
+`workbench.resource-reconcile` repairs a stale reservation only when a qualified
+terminal release was already durably committed. Both accept `job_id`. The same
+eligible repair runs during the next scoped admission. The initial qualified local
+provider is `corpus.logical-build`; unknown remote/crash outcomes remain reserved.
+Internal clearance binds the exact attempt, arguments, resource keys, process and
+receipt generation. Child log claims and caller-supplied proof cannot release keys.
+
+These changes do not infer clearance from age or a stopped coordinator. General
+reconciliation of uncertain provider outcomes remains forthcoming. Different receipt roots,
+external writers and deliberately detached children require the broader resource
+contract; this local authority is not proof of universal writer exclusion.
+
+### Cached evidence for ReAgent
+
+`corpus.export-reagent-snapshot` exports selected existing `func_knowledge` rows
+without live analysis. Its parameters are `kb`, `program`, repeated `address`, a
+new `destination`, and optional `max_functions` (default 100, maximum 1000). The
+action creates private artifacts and is marked mutating; the input cache is opened
+read-only. Use the catalog for recovery operations.
+
+The schema-1 snapshot preserves available source and assembly, records row/file
+hashes, and publishes its manifest last. Missing context remains explicit gaps.
+A cache program name is not verified original-binary identity. See the
+[actual cached-evidence consumer receipt](docs/verification/2026-09-22-reagent-cache-export.md).
+
+### Reusing local comparison evidence
+
+Current source ingestion and collection require `sourceSha256` from the observation
+that actually compiled those source bytes. Old coverage flags paired only by function
+name remain historical evidence. Revalidate through the existing catalog route for
+current-source verification; do not add a digest to an old success by hand. Rejected
+files remain candidates. Collection preserves exact verified bytes and moves stale
+prior verified output under `unverified/`, reporting each preserved path.
+
+This local source binding does not establish semantic identity, complete compiler
+inputs or linked contribution. See the [verification scope](docs/verification/2026-09-26-current-source-binding.md).
+
+Recovered-source ingestion now persists nullable `source_sha256`. Legacy rows remain
+unbound until a producer supplies a checked observation; schema migration does not
+hash today's files as proof of historical compilation. Covered automatic skip readers
+recheck current source bytes, and database-backed packaging exports the same checked
+byte snapshot. New restoration ledger rows are reused/unverified, even if their stored
+source digest matches. See the [consumer freshness receipt](docs/verification/2026-09-26-recovered-source-freshness.md).
+
+### Seed comparison reuse inputs
+
+`corpus.seed-validation` accepts `compile-input-manifest` (CLI
+`--compile-input-manifest`). It forwards the existing closure declaration format:
+`complete: true`, a nonempty `files` list resolved relative to the manifest, and an
+optional `environment` list. Known compiler/context/verifier inputs are also included;
+receipts retain the basis digest and completeness state, without environment values.
+
+The configured audit API accepts the compiler provider, object parsers and optional
+objdiff checker. Missing compiler/verifier setup or an incomplete declaration cannot
+qualify positive reuse. The standalone command still requires its supported compiler
+configuration path to be completed for real compilation; the manifest option alone
+is not a compiler setup. Fresh attempts and reusable positive evidence remain distinct.
+See the [compile-input receipt](docs/verification/2026-09-27-seed-compile-input-basis.md).
+
+### Preparation admission allocations
+
+The existing action catalog exposes `workbench.prepare.maxActionAdmissions` as an
+optional nonnegative initial allocation. Omit it for Unlimited accounting. Resume
+preserves the current allocation and spending. To revise an inactive preparation,
+use `workbench.workflow-control` with `operation: "admission-budget"`, its
+`preparation_id`, current `expectedAllocationRevision`, and a new total
+`maxActionAdmissions`; explicit `unlimited: true` allows null. Active preparations
+must pause and drain first. Existing nonpaused queued work remains eligible; paused
+work requires resume. These are action admissions, not CPU/token/provider costs.
+See the [accounting contract and proof](docs/verification/2026-09-27-objective-admission-accounting.md).

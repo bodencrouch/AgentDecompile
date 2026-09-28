@@ -10,11 +10,16 @@ metadata:
 
 # BSim corpus (issue 169)
 
-BSim is how curated names move across related builds. Starting PostgreSQL is not ingest.
+Read [AGENTS](../../../AGENTS.md) and [STRATEGY](../../../STRATEGY.md) first.
+Current recovery operations use the existing 8080 catalog; CLI, test and startup
+recipes below are implementation references subject to the mission restrictions.
+
+
+BSim supplies one identity witness under STRATEGY's field-level propagation gates. Starting PostgreSQL is not ingest.
 
 **REQUIRED SUB-SKILL:** `tiered-re-analysis` (this is Tier 1 — no open MCP program required)
 
-## Commands
+## Implementation command reference
 
 | Goal | CLI | MCP |
 |---|---|---|
@@ -36,7 +41,7 @@ Never infer a corpus from `du` of `base/<oid>`.
 ## Ingest rules
 
 - Discover programs from the Ghidra project / shared-fs locator.
-- Skip programs already in `listexes` or the receipt (`agentdecompile-bsim-ingest.json`) unless `--force`.
+- Skip programs already in `listexes` or the receipt (`agentdecompile-bsim-ingest.json`) unless specific invalid evidence requires authorized regeneration.
 - Per-program progress in the JSON `results` list. A 24-program failure must resume, not restart.
 - Default URL: `AGENT_DECOMPILE_BSIM_URL` or `postgresql://127.0.0.1:<port from postgresql.conf>/<name>`.
 

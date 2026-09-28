@@ -50,10 +50,3 @@ def test_resolve_source_dir_prefers_dump_source_verified(tmp_path: Path) -> None
     verified.mkdir(parents=True)
     (verified / "FUN_00401000.c").write_text("/* address: 0x00401000 */\nint f(void) { return 1; }\n")
     assert cross_place.resolve_source_dir(tmp_path, "k1_win_gog_swkotor.exe") == verified
-
-
-def test_resolve_source_dir_uses_dump_source_verified(tmp_path: Path) -> None:
-    verified = tmp_path / "dump-source" / "verified"
-    verified.mkdir(parents=True)
-    (verified / "FUN_00401000.c").write_text("/* address: 0x00401000 */\nint f(void) { return 1; }\n")
-    assert cross_place.resolve_source_dir(tmp_path, "k1_win_gog_swkotor.exe") == verified

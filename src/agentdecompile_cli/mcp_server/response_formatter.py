@@ -57,13 +57,21 @@ def _md_code_block(code: str, lang: str = "") -> str:
     return f"```{lang}\n{code}\n```"
 
 
+def _md_table_cell(value: Any) -> str:
+    """One markdown table cell: newlines would end the row and a bare pipe would split it."""
+    text = str(value)
+    if "\n" in text or "\r" in text:
+        text = " ".join(part.strip() for part in text.splitlines() if part.strip())
+    return text.replace("|", "\\|")
+
+
 def _md_table(headers: list[str], rows: list[list[str]]) -> str:
     logger.debug("diag.enter %s", "mcp_server/response_formatter.py:_md_table")
     if not headers:
         return ""
     header_row: str = "| " + " | ".join(headers) + " |"
     sep_row: str = "| " + " | ".join("---" for _ in headers) + " |"
-    body: str = "\n".join("| " + " | ".join(str(c) for c in row) + " |" for row in rows)
+    body: str = "\n".join("| " + " | ".join(_md_table_cell(c) for c in row) + " |" for row in rows)
     return f"{header_row}\n{sep_row}\n{body}" if body else f"{header_row}\n{sep_row}"
 
 
@@ -858,7 +866,7 @@ def _next_steps_search_code(data: dict[str, Any]) -> list[str]:
     steps: list[str] = []
     if results:
         first: dict[str, Any] = results[0]
-        func_name = first.get("function", "")
+        func_name = first.get("function") or first.get("function_name", "")
         if func_name:
             steps.append(f"Decompile/disassemble/inspect matching function: `get-function function={func_name}`.")
     steps.append("Use `searchMode=regex` for pattern matching, or `searchMode=literal` for exact text.")
@@ -923,11 +931,17 @@ def _next_steps_match_function(data: dict[str, Any]) -> list[str]:
 
 TOOL_GUIDANCE: dict[str, tuple[str, Callable[[dict[str, Any]], list[str]]]] = {
     "decompile": (
-        "Converts machine code into C-like pseudocode using Ghidra's decompiler engine. The decompiled output shows control flow, variable usage, function calls, and data access patterns. Read the signature line first to understand parameters and return type.",
+        "Converts machine code into high-level pseudocode using Ghidra's decompiler engine. "
+        "Ghidra emits structured pseudocode; recovery presentation language is configurable via the "
+        "recovery profile (not only C-like syntax). Output shows control flow, variables, calls, and data access. "
+        "Read the signature line first to understand parameters and return type.",
         _next_steps_decompile,
     ),
     "decompilefunction": (
-        "Converts machine code into C-like pseudocode using Ghidra's decompiler engine. The decompiled output shows control flow, variable usage, function calls, and data access patterns. Read the signature line first to understand parameters and return type.",
+        "Converts machine code into high-level pseudocode using Ghidra's decompiler engine. "
+        "Ghidra emits structured pseudocode; recovery presentation language is configurable via the "
+        "recovery profile (not only C-like syntax). Output shows control flow, variables, calls, and data access. "
+        "Read the signature line first to understand parameters and return type.",
         _next_steps_decompile,
     ),
     "executescript": (
@@ -1035,7 +1049,8 @@ TOOL_GUIDANCE: dict[str, tuple[str, Callable[[dict[str, Any]], list[str]]]] = {
         _next_steps_import_export,
     ),
     "export": (
-        "Exports analysis results in various formats (C/C++, GZF, SARIF, XML, HTML).",
+        "Exports analysis results in various Ghidra exporter formats (high-level source via CppExporter, GZF, SARIF, XML, HTML). "
+        "Exporter format is separate from recovery source language (see recoveryLanguage).",
         _next_steps_import_export,
     ),
     "analyzeprogram": (
@@ -1118,6 +1133,19 @@ def _render_execute_script(data: dict[str, Any]) -> str:
     success = data.get("success", True)
     lines.append(_md_bold_kv("Status", "Success" if success else "Error"))
 
+    error_text = data.get("error")
+    exception_type = data.get("exceptionType")
+    traceback_text = data.get("traceback")
+    if error_text:
+        lines.append(_md_bold_kv("Error", _md_code_inline(str(error_text))))
+    if exception_type:
+        lines.append(_md_bold_kv("Exception Type", _md_code_inline(str(exception_type))))
+    if traceback_text:
+        lines.append("")
+        lines.append(_md_heading(3, "Traceback"))
+        lines.append("")
+        lines.append(_md_code_block(str(traceback_text).rstrip(), ""))
+
     stdout_text = str(data.get("stdout", ""))
     stderr_text = str(data.get("stderr", ""))
     result_text = str(data.get("result", ""))
@@ -1193,6 +1221,11 @@ def _render_list_functions(data: dict[str, Any]) -> str:
     """Render list-functions response as markdown table."""
     logger.debug("diag.enter %s", "mcp_server/response_formatter.py:_render_list_functions")
     lines: list[str] = []
+    if data.get("mode") == "count":
+        lines.append(_md_heading(2, "Function Count"))
+        lines.append("")
+        lines.append(_md_bold_kv("Functions", data.get("count", 0)))
+        return "\n".join(lines)
     lines.append(_md_heading(2, "Function Listing"))
     lines.append("")
     lines.append(_pagination_footer(data))
@@ -1693,7 +1726,7 @@ def _render_memory(data: dict[str, Any]) -> str:
         lines.append(_md_bold_kv("Address", _md_code_inline(data.get("address", ""))))
         dt = data.get("dataType")
         if dt:
-            lines.append(_md_bold_kv("Data Type", _md_code_inline(str(dt))))
+            lines.append(_md_bold_kv("Data Type", _md_code_inline(str(dt).strip().split("\n", 1)[0])))
             lines.append(_md_bold_kv("Length", f"{data.get('length', 0)} bytes"))
             val = data.get("value")
             if val is not None:
@@ -1714,7 +1747,12 @@ def _render_memory(data: dict[str, Any]) -> str:
         results = data.get("results", [])
         if results:
             headers = ["Address", "Data Type", "Length", "Label"]
-            rows: list[list[str]] = [[r.get("address", ""), r.get("dataType", ""), str(r.get("length", "")), r.get("label", "") or ""] for r in results]
+            # str(DataType) of a composite is its multi-line layout dump whose
+            # first line is the path name; keep only that line in the cell.
+            rows: list[list[str]] = [
+                [r.get("address", ""), str(r.get("dataType", "") or "").strip().split("\n", 1)[0], str(r.get("length", "")), r.get("label", "") or ""]
+                for r in results
+            ]
             lines.append(_md_table(headers, rows))
         return "\n".join(lines)
 
@@ -1737,6 +1775,8 @@ def _render_callgraph(data: dict[str, Any]) -> str:
         direction = data.get("direction", "")
         if direction:
             lines.append(_md_bold_kv("Direction", direction))
+        if data.get("truncated"):
+            lines.append(f"> Partial graph: the walk stopped after {data.get('maxRunTime', '?')} s. Raise maxRunTime to see more.")
 
         # If we have callers/callees directly
         callers: list[dict[str, Any]] = data.get("callers", [])  # pyright: ignore[reportRedeclaration]
@@ -1744,6 +1784,18 @@ def _render_callgraph(data: dict[str, Any]) -> str:
 
         if callers or (callees and not graph_data):
             return _render_function_calls(data)
+
+        # CallGraphTool returns the graph as Mermaid flowchart text.
+        if isinstance(graph_data, str):
+            if graph_data.strip():
+                lines.append("")
+                lines.append("```mermaid")
+                lines.append(graph_data.strip())
+                lines.append("```")
+            else:
+                lines.append("")
+                lines.append("*No call relationships in this direction.*")
+            return "\n".join(lines)
 
         # Rendered graph from CallGraphTool
         if graph_data:
@@ -1902,7 +1954,8 @@ def _render_bookmarks(data: dict[str, Any]) -> str:
         lines.append(_md_heading(2, "All Bookmarks Removed"))
         return "\n".join(lines)
 
-    if action == "categories":
+    # _handle_categories returns {"categories", "count"} without an action key.
+    if action == "categories" or ("categories" in data and "results" not in data):
         lines.append(_md_heading(2, "Bookmark Categories"))
         lines.append("")
         categories = data.get("categories", [])
@@ -1977,7 +2030,9 @@ def _render_structures(data: dict[str, Any]) -> str:
                 [
                     str(f.get("offset", "")),
                     f.get("name", ""),
-                    f.get("dataType", ""),
+                    # collect_structure_fields emits "type" (str(DataType)); accept "dataType" too.
+                    # A nested composite stringifies to a multi-line dump; keep its path line.
+                    str(f.get("dataType") or f.get("type", "") or "").strip().split("\n", 1)[0],
                     str(f.get("length", "")),
                     f.get("comment", "") or "",
                 ]
@@ -2081,7 +2136,17 @@ def _render_constants(data: dict[str, Any]) -> str:
     results: list[dict[str, Any]] = data.get("results", [])
     if results:
         sample = results[0]
-        if "value" in sample:
+        if "value" in sample and "samples" in sample:
+            # collect_constants groups hits per value: value, hex, occurrences, samples[address, instruction].
+            headers = ["Value", "Hex", "Occurrences", "Sample Locations"]
+            rows = []
+            for r in results:
+                samples = r.get("samples") or []
+                shown = ", ".join(f"`{s.get('address', '')}` {s.get('instruction', '')}".strip() for s in samples[:3])
+                if len(samples) > 3:
+                    shown += f" (+{len(samples) - 3} more samples)"
+                rows.append([str(r.get("value", "")), str(r.get("hex", "")), str(r.get("occurrences", "")), shown])
+        elif "value" in sample:
             headers: list[str] = ["Address", "Value", "Function", "Mnemonic"]
             rows: list[list[str]] = [
                 [
@@ -2120,8 +2185,22 @@ def _render_dataflow(data: dict[str, Any]) -> str:
     if direction == "variable_accesses":
         variables: list[dict[str, Any]] = data.get("variables", [])
         if variables:
-            headers: list[str] = ["Name", "Type", "Storage", "Size"]
-            rows: list[list[str]] = [[v.get("name", ""), v.get("dataType", ""), v.get("storage", ""), str(v.get("size", ""))] for v in variables]
+            if data.get("accessCount") is not None:
+                lines.append(_md_bold_kv("Access Count", data.get("accessCount", 0)))
+                lines.append("")
+            headers: list[str] = ["Name", "Type", "Storage", "Size", "Accesses"]
+            rows: list[list[str]] = []
+            for variable in variables:
+                accesses = variable.get("accesses", []) or []
+                access_text = ", ".join(
+                    f"{access.get('address', '')} ({access.get('kind', '')})"
+                    for access in accesses
+                    if isinstance(access, dict)
+                )
+                access_count = variable.get("accessCount", len(accesses))
+                if variable.get("hasMore"):
+                    access_text = f"{access_text}, ..." if access_text else "..."
+                rows.append([variable.get("name", ""), variable.get("dataType", ""), variable.get("storage", ""), str(variable.get("size", "")), f"{access_count}: {access_text}"])
             lines.append(_md_table(headers, rows))
         else:
             lines.append("*No variable accesses found.*")
@@ -2200,6 +2279,78 @@ def _render_strings(data: dict[str, Any]) -> str:
     else:
         lines.append("*No strings found.*")
 
+    return "\n".join(lines)
+
+
+def _render_search_code(data: dict[str, Any]) -> str:
+    """Render search-code: code-index results (function_name/code/similarity) or the
+    name+decompiled-code fallback (function/address/match/snippet)."""
+    logger.debug("diag.enter %s", "mcp_server/response_formatter.py:_render_search_code")
+    lines: list[str] = []
+    query = data.get("query", "")
+    lines.append(_md_heading(2, f"Code Search: `{query}`" if query else "Code Search"))
+    lines.append("")
+    results: list[dict[str, Any]] = data.get("results", []) or []
+    mode = data.get("searchMode", data.get("search_mode", ""))
+    returned = data.get("returnedCount", data.get("returned_count", len(results)))
+    offset = data.get("offset", 0)
+    summary = f"Showing **{returned}** result(s) (offset {offset})"
+    if data.get("literal_total") is not None:
+        summary += f"; literal matches: **{data.get('literal_total')}**"
+    if data.get("total_functions") is not None:
+        summary += f"; functions indexed: {data.get('total_functions')}"
+    if data.get("scannedFunctions") is not None:
+        summary += f"; functions scanned: {data.get('scannedFunctions')}"
+    lines.append(summary + ".")
+    if mode:
+        lines.append(_md_bold_kv("Mode", mode))
+    if data.get("decompileFailures"):
+        lines.append(_md_bold_kv("Decompile Failures", data.get("decompileFailures")))
+    note = data.get("note")
+    if note:
+        lines.append("")
+        lines.append(f"> {note}")
+    limit = data.get("limit")
+    if isinstance(limit, int) and isinstance(returned, int) and limit and returned >= limit:
+        lines.append("")
+        lines.append(f"More results may exist; use `offset={int(offset or 0) + returned}` to continue.")
+    lines.append("")
+    if not results:
+        lines.append("*No matches.*")
+        return "\n".join(lines)
+
+    if "function_name" in results[0]:
+        headers = ["Function", "Similarity", "Preview"]
+        rows = [
+            [
+                str(r.get("function_name", "")),
+                f"{float(r.get('similarity', 0) or 0):.2f}",
+                _truncate(str(r.get("preview") or r.get("code") or ""), 120),
+            ]
+            for r in results
+        ]
+        lines.append(_md_table(headers, rows))
+        return "\n".join(lines)
+
+    headers = ["Function", "Address", "Match", "Line", "Snippet"]
+    rows = [
+        [
+            str(r.get("function", "")),
+            str(r.get("address", "")),
+            str(r.get("match", "")),
+            str(r.get("line", "")),
+            _truncate(str(r.get("snippet", "") or ""), 120),
+        ]
+        for r in results
+    ]
+    lines.append(_md_table(headers, rows))
+    for r in results:
+        code = r.get("code")
+        if code:
+            lines.append("")
+            lines.append(_md_heading(3, f"`{r.get('function', '')}` @ `{r.get('address', '')}`"))
+            lines.append("")
+            lines.append(_md_code_block(str(code).strip("\n"), "c"))
     return "\n".join(lines)
 
 
@@ -2387,7 +2538,11 @@ def _render_import_export(data: dict[str, Any]) -> str:
             lines.append(_md_bold_kv("Count", data.get("count", len(processors))))
             lines.append("")
             for p in processors[:50]:
-                lines.append(f"- {p}")
+                lines.append(f"- {_md_table_cell(p)}")
+            total = data.get("count", len(processors))
+            if len(processors) > 50:
+                lines.append("")
+                lines.append(f"*Showing 50 of {total} processors.*")
         else:
             lines.append(_md_bold_kv("Language", data.get("language", "")))
             lines.append(_md_bold_kv("Compiler", data.get("compiler", "")))
@@ -2558,7 +2713,7 @@ def _render_project(data: dict[str, Any]) -> str:
         lines.append(_md_heading(2, "Current Program"))
         lines.append("")
         lines.append(_md_bold_kv("Name", _md_code_inline(data.get("name", ""))))
-        lines.append(_md_bold_kv("Path", _md_code_inline(data.get("path", ""))))
+        lines.append(_md_bold_kv("Path", _md_code_inline(data.get("programPath") or data.get("path", ""))))
         lines.append(_md_bold_kv("Language", data.get("language", "")))
         lines.append(_md_bold_kv("Compiler", data.get("compiler", "")))
         lines.append(_md_bold_kv("Image Base", _md_code_inline(str(data.get("imageBase", "")))))
@@ -2639,11 +2794,16 @@ def _render_data(data: dict[str, Any]) -> str:
     lines.append("")
     lines.append(_md_bold_kv("Address", _md_code_inline(data.get("address", ""))))
     if data.get("definedType"):
-        lines.append(_md_bold_kv("Type", _md_code_inline(data.get("definedType", ""))))
+        defined_type = str(data.get("definedType", "")).strip().split("\n", 1)[0]
+        lines.append(_md_bold_kv("Type", _md_code_inline(defined_type)))
     if data.get("value"):
         lines.append(_md_bold_kv("Value", _md_code_inline(str(data.get("value", "")))))
+    # "length" is how many bytes were read (the request, default 16), not the
+    # size of the defined data; show the data unit length separately.
+    if data.get("definedLength"):
+        lines.append(_md_bold_kv("Data Length", f"{data['definedLength']} bytes"))
     if data.get("length"):
-        lines.append(_md_bold_kv("Length", f"{data['length']} bytes"))
+        lines.append(_md_bold_kv("Bytes Read", f"{data['length']} bytes"))
     hex_str = data.get("hex", "")
     ascii_str = data.get("ascii", "")
     if hex_str:
@@ -3057,6 +3217,138 @@ def _render_get_function(data: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _references_table(refs: list[dict[str, Any]]) -> str:
+    """From/To/Type(/Function) table for get-references to/from/function rows."""
+    if not refs:
+        return "*No references.*"
+    with_function = any("function" in r for r in refs)
+    headers = ["From", "To", "Type"] + (["Function"] if with_function else [])
+    rows: list[list[str]] = []
+    for r in refs:
+        ref_type = str(r.get("type", ""))
+        if r.get("indirect"):
+            # LoadStringA/W call sites for .rsrc strings, not direct xrefs to the target.
+            via = r.get("via")
+            ref_type = f"{ref_type} (indirect via {via})" if via else f"{ref_type} (indirect)"
+        row = [str(r.get("fromAddress", "")), str(r.get("toAddress", "")), ref_type]
+        if with_function:
+            row.append(str(r.get("function") or ""))
+        rows.append(row)
+    return _md_table(headers, rows)
+
+
+def _render_references(data: dict[str, Any]) -> str:
+    """Render get-references / list-cross-references for every mode the xrefs provider returns."""
+    logger.debug("diag.enter %s", "mcp_server/response_formatter.py:_render_references")
+    mode = str(data.get("mode", "") or "")
+    lines: list[str] = []
+
+    if mode == "index":
+        lines.append(_md_heading(2, "Reference Hot Spots"))
+        lines.append("")
+        entries: list[dict[str, Any]] = data.get("entries", []) or []
+        total = data.get("total", len(entries))
+        lines.append(f"Showing **{len(entries)}** of **{total}** functions (offset {data.get('offset', 0)}), most referenced first.")
+        lines.append("")
+        if entries:
+            rows = [[str(e.get("address", "")), str(e.get("name", "")), str(e.get("referencesTo", "")), str(e.get("referencesFrom", ""))] for e in entries]
+            lines.append(_md_table(["Address", "Function", "Refs To", "Refs From"], rows))
+        else:
+            lines.append("*No functions.*")
+        return "\n".join(lines)
+
+    target = data.get("target") or data.get("function") or ""
+    heading = {
+        "to": "References To",
+        "from": "References From",
+        "both": "References",
+        "function": "References From Function",
+        "referencers_decomp": "Referencing Functions (Decompiled)",
+        "import": "Import References",
+        "thunk": "Thunk Target",
+    }.get(mode, "References")
+    lines.append(_md_heading(2, f"{heading} `{target}`" if target else heading))
+    lines.append("")
+
+    if mode == "both":
+        refs_to: list[dict[str, Any]] = data.get("referencesTo", []) or []
+        refs_from: list[dict[str, Any]] = data.get("referencesFrom", []) or []
+        lines.append(_md_heading(3, f"To ({len(refs_to)})"))
+        lines.append("")
+        lines.append(_references_table(refs_to))
+        lines.append("")
+        lines.append(_md_heading(3, f"From ({len(refs_from)})"))
+        lines.append("")
+        lines.append(_references_table(refs_from))
+        return "\n".join(lines)
+
+    if mode == "referencers_decomp":
+        referencers: list[dict[str, Any]] = data.get("referencers", []) or []
+        lines.append(_md_bold_kv("Functions", data.get("count", len(referencers))))
+        if not referencers:
+            lines.append("")
+            lines.append("*No referencing functions.*")
+        for item in referencers:
+            lines.append("")
+            addr = item.get("address")
+            name = item.get("function", "")
+            lines.append(_md_heading(3, f"`{name}` @ `{addr}`" if addr else f"`{name}`"))
+            lines.append("")
+            lines.append(_md_code_block(str(item.get("decompilation", "") or "").strip("\n"), "c"))
+        return "\n".join(lines)
+
+    if mode == "import":
+        refs: list[dict[str, Any]] = data.get("references", []) or []
+        lines.append(_md_bold_kv("Count", data.get("count", len(refs))))
+        lines.append("")
+        if refs:
+            rows = [[str(r.get("importName", "")), str(r.get("fromAddress", "")), str(r.get("function") or "")] for r in refs]
+            lines.append(_md_table(["Import", "From", "Function"], rows))
+        else:
+            lines.append("*No references.*")
+        return "\n".join(lines)
+
+    if mode == "thunk":
+        results: list[dict[str, Any]] = data.get("results", []) or []
+        if results:
+            rows = [[str(r.get("thunk", "")), str(r.get("thunkAddress", "")), str(r.get("target", "")), str(r.get("targetAddress", ""))] for r in results]
+            lines.append(_md_table(["Thunk", "Thunk Address", "Target", "Target Address"], rows))
+        else:
+            lines.append("*Not a thunk.*")
+        return "\n".join(lines)
+
+    # to / from / function (and any future mode that returns "references")
+    refs = data.get("references", []) or []
+    lines.append(_md_bold_kv("Count", data.get("count", len(refs))))
+    lines.append("")
+    lines.append(_references_table(refs))
+    return "\n".join(lines)
+
+
+def _key_display_title(key: str) -> str:
+    """Heading for a payload key: split camelCase and snake_case ("analysisByProgram" -> "Analysis By Program")."""
+    words = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", key).replace("_", " ").split()
+    return " ".join(w[:1].upper() + w[1:] for w in words)
+
+
+def _tool_display_title(tool_name: str) -> str:
+    """Heading for a tool: canonical kebab name split into words ("get-references" -> "Get References").
+
+    Callers pass either a canonical name or the normalized squashed form
+    ("getreferences"); title-casing the squashed form gave "Getreferences".
+    """
+    if not tool_name:
+        return ""
+    canonical = tool_name
+    try:
+        resolved = Tool.from_string(tool_name)
+    except Exception:
+        resolved = None
+    if resolved is not None:
+        canonical = resolved.value
+    return " ".join(part.capitalize() for part in re.split(r"[-_\s]+", canonical) if part)
+
+
 def _render_generic(data: dict[str, Any], tool_name: str = "") -> str:
     """Smart generic renderer for tools without a custom renderer.
 
@@ -3069,9 +3361,9 @@ def _render_generic(data: dict[str, Any], tool_name: str = "") -> str:
 
     # Title from mode/action or tool name so the user knows which tool produced this
     mode = data.get("mode", data.get("action", data.get("operation", "")))
-    title = tool_name.replace("-", " ").title()
+    title = _tool_display_title(tool_name)
     if mode:
-        title = f"{title} ({mode})"
+        title = f"{title} ({mode})" if title else str(mode)
     lines.append(_md_heading(2, title))
     lines.append("")
 
@@ -3094,7 +3386,8 @@ def _render_generic(data: dict[str, Any], tool_name: str = "") -> str:
             lines.append("*No results.*")
     else:
         # Single item — render as key-value pairs
-        skip_keys = {"success", "nextSteps", "context", "nextTools"}
+        # projectContext/uiVisibility/guiHint/autoCheckin get their own sections in render_tool_response.
+        skip_keys = {"success", "nextSteps", "context", "nextTools", "projectContext", "uiVisibility", "guiHint", "autoCheckin"}
         for key, value in data.items():
             if key in skip_keys:
                 continue
@@ -3103,14 +3396,14 @@ def _render_generic(data: dict[str, Any], tool_name: str = "") -> str:
                     lines.append(_md_bold_kv(key, ", ".join(str(v) for v in value)))
                 elif isinstance(value, list) and value and isinstance(value[0], dict):
                     lines.append("")
-                    lines.append(_md_heading(3, key.replace("_", " ").title()))
+                    lines.append(_md_heading(3, _key_display_title(key)))
                     lines.append("")
                     headers = list(value[0].keys())
                     rows = [[_truncate(str(item.get(h, "")), 60) for h in headers] for item in cast("list[dict[str, Any]]", value)]
                     lines.append(_md_table(headers, rows))
                 elif isinstance(value, dict):
                     lines.append("")
-                    lines.append(_md_heading(3, key.replace("_", " ").title()))
+                    lines.append(_md_heading(3, _key_display_title(key)))
                     lines.append("")
                     for k2, v2 in value.items():
                         lines.append(_md_bold_kv(k2, v2))
@@ -3159,7 +3452,7 @@ TOOL_RENDERERS: dict[str, Callable[[dict[str, Any]], str]] = {
     "managestrings": _render_strings,
     "liststrings": _render_strings,
     "searchstrings": _render_strings,
-    "searchcode": _render_strings,
+    "searchcode": _render_search_code,
     "getdata": _render_data,
     "applydatatype": _render_data,
     "importbinary": _render_import_export,
@@ -3185,6 +3478,8 @@ TOOL_RENDERERS: dict[str, Callable[[dict[str, Any]], str]] = {
     "matchfunction": _render_generic,
     "managefunctiontags": _render_generic,
     "managefunction": _render_generic,
+    "getreferences": _render_references,
+    "listcrossreferences": _render_references,
 }
 
 
@@ -3219,7 +3514,8 @@ def render_tool_response(normalized_tool_name: str, data: dict[str, Any]) -> str
         renderer = TOOL_RENDERERS.get(normalized_tool_name)
         if renderer is not None:
             try:
-                body = renderer(data)
+                # _render_generic needs the tool name for its heading ("##  (list)" otherwise).
+                body = _render_generic(data, normalized_tool_name) if renderer is _render_generic else renderer(data)
             except Exception as exc:
                 logger.warning(
                     "tool_markdown_render_fallback normalized_tool=%s exc_type=%s payload_keys=%s",

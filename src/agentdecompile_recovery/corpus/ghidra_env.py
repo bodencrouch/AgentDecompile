@@ -1,8 +1,9 @@
 """Shared bootstrap for talking to Ghidra / a configured server.
 
-Workspace and project paths are arguments or ``AGENT_DECOMPILE_PROJECT_PATH``.
-There is no kotorxid/repo-root default. ``start()`` boots pyghidra if needed
-and returns False when Ghidra is unavailable.
+Workspace and project paths are an argument, ``AGENT_DECOMPILE_PROJECT_PATH``,
+or the same ``./agentdecompile_projects`` default used elsewhere in the repo.
+``start()`` boots pyghidra if needed and returns False when Ghidra is
+unavailable.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ import contextlib
 import os
 from pathlib import Path
 
+from . import corpus_env
 from .corpus_config import load_ghidra_server
 
 _STARTED = False
@@ -20,13 +22,12 @@ _CONSUMER = None
 
 
 def resolve_workspace(path: Path | str | None = None) -> Path:
-    """Resolve the project workspace. Argument or AGENT_DECOMPILE_PROJECT_PATH."""
-    if path is not None:
-        return Path(path)
-    env = os.environ.get("AGENT_DECOMPILE_PROJECT_PATH", "").strip()
-    if env:
-        return Path(env)
-    raise ValueError("workspace path required (argument or AGENT_DECOMPILE_PROJECT_PATH)")
+    """Resolve the project workspace.
+
+    Argument, then ``AGENT_DECOMPILE_PROJECT_PATH``, then the repo-wide
+    ``./agentdecompile_projects`` default.
+    """
+    return corpus_env.project_workspace(path=path)
 
 
 def pyghidra_available() -> bool:

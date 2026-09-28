@@ -7,9 +7,9 @@ from contextlib import nullcontext
 from types import ModuleType, SimpleNamespace
 from typing import Any, cast
 
+import agentdecompile_cli.mcp_server.providers.search_everything as search_module
 import pytest
 
-import agentdecompile_cli.mcp_server.providers.search_everything as search_module
 from agentdecompile_cli.mcp_server.providers.search_everything import SearchEverythingToolProvider
 
 
@@ -98,7 +98,7 @@ async def test_handle_skips_expensive_default_scopes_after_fast_hits(monkeypatch
     provider = SearchEverythingToolProvider()
     calls: list[str] = []
 
-    async def fake_resolve_target_programs(_args: dict[str, object]) -> tuple[list[dict[str, object]], list[str], dict[str, object]]:
+    async def fake_resolve_target_programs(_args: dict[str, object], *, program_info) -> tuple[list[dict[str, object]], list[str], dict[str, object]]:
         return ([{"programKey": "test.bin", "program": object()}], [], {"requestedProgramCount": 1, "projectProgramCount": 1, "skippedPrograms": []})
 
     def fake_search_scope(**kwargs: object) -> tuple[list[dict[str, object]], dict[str, object] | None]:
@@ -127,7 +127,7 @@ async def test_handle_skips_expensive_default_scopes_after_fast_hits(monkeypatch
     monkeypatch.setattr(provider, "_resolve_target_programs", fake_resolve_target_programs)
     monkeypatch.setattr(provider, "_search_scope", fake_search_scope)
 
-    result = await provider._handle({"query": "entry", "limit": 5})
+    result = await provider._handle({"query": "entry", "limit": 5}, program_info=getattr(provider, "program_info", None))
     payload = json.loads(result[0].text)
 
     assert "functions" in calls
@@ -168,7 +168,7 @@ def test_search_decompilation_counts_cancelled_timeouts(monkeypatch: pytest.Monk
         def decompileFunction(self, _func: object, _timeout: int, _monitor: object) -> FakeDecompileResults:
             return FakeDecompileResults()
 
-    monkeypatch.setattr(provider, "_get_function_manager", lambda _program: FakeFunctionManager())
+    monkeypatch.setattr(provider, "_get_function_manager", lambda _program, **_context: FakeFunctionManager())
 
     fake_ghidra = ModuleType("ghidra")
     fake_ghidra_app = ModuleType("ghidra.app")
@@ -176,9 +176,9 @@ def test_search_decompilation_counts_cancelled_timeouts(monkeypatch: pytest.Monk
     fake_ghidra_util = ModuleType("ghidra.util")
     fake_ghidra_task = ModuleType("ghidra.util.task")
 
-    setattr(fake_ghidra_decompiler, "DecompileResults", FakeDecompileResults)
-    setattr(fake_ghidra_decompiler, "DecompiledFunction", object)
-    setattr(fake_ghidra_task, "ConsoleTaskMonitor", object)
+    fake_ghidra_decompiler.DecompileResults = FakeDecompileResults
+    fake_ghidra_decompiler.DecompiledFunction = object
+    fake_ghidra_task.ConsoleTaskMonitor = object
 
     monkeypatch.setitem(sys.modules, "ghidra", fake_ghidra)
     monkeypatch.setitem(sys.modules, "ghidra.app", fake_ghidra_app)
@@ -247,12 +247,12 @@ def test_search_decompilation_prefers_target_program_info_decompiler(monkeypatch
 
     fake_info = FakeProgramInfo()
     provider.program_info = cast(Any, SimpleNamespace(decompiler=None))
-    monkeypatch.setattr(provider, "_get_function_manager", lambda _program: FakeFunctionManager())
+    monkeypatch.setattr(provider, "_get_function_manager", lambda _program, **_context: FakeFunctionManager())
 
     fake_ghidra = ModuleType("ghidra")
     fake_ghidra_util = ModuleType("ghidra.util")
     fake_ghidra_task = ModuleType("ghidra.util.task")
-    setattr(fake_ghidra_task, "ConsoleTaskMonitor", object)
+    fake_ghidra_task.ConsoleTaskMonitor = object
     monkeypatch.setitem(sys.modules, "ghidra", fake_ghidra)
     monkeypatch.setitem(sys.modules, "ghidra.util", fake_ghidra_util)
     monkeypatch.setitem(sys.modules, "ghidra.util.task", fake_ghidra_task)
@@ -343,7 +343,7 @@ async def test_resolve_target_programs_reports_project_inventory_and_skips(monke
     monkeypatch.setattr(search_module.SESSION_CONTEXTS, "get_program_info", lambda _session_id, _key: None)
     monkeypatch.setattr(search_module.SESSION_CONTEXTS, "get_active_program_info", lambda _session_id: None)
 
-    targets, warnings, resolution = await provider._resolve_target_programs({"query": "Aurora"})
+    targets, warnings, resolution = await provider._resolve_target_programs({"query": "Aurora"}, program_info=getattr(provider, "program_info", None))
 
     assert [target["programKey"] for target in targets] == ["/Other BioWare Engines/Aurora/nwmain.exe"]
     assert resolution["projectProgramCount"] == 3
@@ -366,7 +366,7 @@ def test_search_structures_enriches_field_preview_and_related_class(monkeypatch:
     fake_ghidra_program = ModuleType("ghidra.program")
     fake_ghidra_model = ModuleType("ghidra.program.model")
     fake_ghidra_symbol = ModuleType("ghidra.program.model.symbol")
-    setattr(fake_ghidra_symbol, "SymbolType", FakeSymbolType)
+    fake_ghidra_symbol.SymbolType = FakeSymbolType
 
     monkeypatch.setitem(sys.modules, "ghidra.program", fake_ghidra_program)
     monkeypatch.setitem(sys.modules, "ghidra.program.model", fake_ghidra_model)
@@ -407,13 +407,13 @@ def test_search_structures_enriches_field_preview_and_related_class(monkeypatch:
     monkeypatch.setattr(
         provider,
         "_collect_reference_summary",
-        lambda _program, _address, max_refs=3: {
+        lambda _program, _address, max_refs=3, **_context: {
             "referenceCount": 2,
             "referencesPreview": [{"fromAddress": "0x402000", "function": "LoadTexture", "type": "DATA"}],
         },
     )
 
-    results = provider._search_structures(cast(Any, object()), ["CResTGA"], "auto", False, 0.7, {}, 10)
+    results = provider._search_structures(cast(Any, object()), ["CResTGA"], "auto", False, 0.7, {}, 10, program_info=getattr(provider, "program_info", None))
 
     assert len(results) == 1
     result = results[0]
@@ -433,7 +433,7 @@ def test_search_classes_enriches_related_structure_and_references(monkeypatch: p
     fake_ghidra_program = ModuleType("ghidra.program")
     fake_ghidra_model = ModuleType("ghidra.program.model")
     fake_ghidra_symbol = ModuleType("ghidra.program.model.symbol")
-    setattr(fake_ghidra_symbol, "SymbolType", FakeSymbolType)
+    fake_ghidra_symbol.SymbolType = FakeSymbolType
 
     monkeypatch.setitem(sys.modules, "ghidra.program", fake_ghidra_program)
     monkeypatch.setitem(sys.modules, "ghidra.program.model", fake_ghidra_model)
@@ -479,13 +479,13 @@ def test_search_classes_enriches_related_structure_and_references(monkeypatch: p
     monkeypatch.setattr(
         provider,
         "_collect_reference_summary",
-        lambda _program, _address, max_refs=3: {
+        lambda _program, _address, max_refs=3, **_context: {
             "referenceCount": 1,
             "referencesPreview": [{"fromAddress": "0x406000", "function": "CreateDDS", "type": "UNCONDITIONAL_CALL"}],
         },
     )
 
-    results = provider._search_classes(cast(Any, object()), ["CResDDS"], "auto", False, 0.7, {}, 10)
+    results = provider._search_classes(cast(Any, object()), ["CResDDS"], "auto", False, 0.7, {}, 10, program_info=getattr(provider, "program_info", None))
 
     assert len(results) == 1
     result = results[0]

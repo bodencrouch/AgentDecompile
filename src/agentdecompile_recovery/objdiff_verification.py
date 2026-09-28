@@ -8,10 +8,21 @@ not satisfy ``is_proven_zero`` / ``verified/`` promotion.
 from __future__ import annotations
 
 import json
-from typing import Any, Iterable
 
+from collections.abc import Iterable
+from typing import Any
 
 SCHEMA = "agentdecompile.verify-objdiff.v1"
+
+
+def is_objdiff_match(report: dict[str, Any]) -> bool:
+    """A match requires a successful objdiff receipt, never fallback evidence."""
+    return (
+        report.get("status") in {"matched", "code-slice-matched", "source-shape-code-slice-matched"}
+        and report.get("differences") == 0
+        and report.get("objdiffExit") == 0
+        and not report.get("fallback")
+    )
 
 # objdiff tags each instruction with "diff_kind" using these DIFF_-prefixed
 # values (not the bare category names, and not the "kind" field, which

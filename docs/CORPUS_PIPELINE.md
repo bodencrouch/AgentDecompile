@@ -5,42 +5,48 @@
 
 ## What this is
 
-You give AgentDecompile a list of binaries. It treats them as one corpus. It
-extracts functions, binds the same function across builds to one `logical_id`,
-calibrates compiler and layout once, links a donor tree (assembly floor),
-replaces assembly with compiling Ghidra C, copies that C onto siblings, then
-spends agent compute only on leftovers. Later it compares compiled output to
-the shipped bytes. A dashboard light is not proof.
+AgentDecompile treats related binaries as a corpus while keeping each build's
+behavior, layout and physical instances distinct. Identify related entities,
+refine platform/toolchain facts, reconstruct validated linkable regions, produce
+C/C++ candidates and distribute eligible candidates to compatible recipients.
+Verify continuously; start reconstruction checks early. Terminal acceptance still
+requires a fresh whole-image rebuild with proven source contribution and byte
+comparison. Keep C+assembly-floor and max-C separately accounted.
+[STRATEGY.md](../STRATEGY.md) owns policy; the
+[implementation delta](plans/2026-09-22-recovery-contracts-and-validation-plan.md)
+separates required contracts from delivered behavior.
 
-Do not decompile the same logical function twice. Do not re-analyze a Ghidra
-program that already has analysis. Open that project and use what is there.
+Reuse valid unchanged analysis. Changed dependencies invalidate affected work,
+not the entire corpus. A logical identity or compile receipt cannot authorize a
+verified replacement. Optional reccmp and ReAgent checks contribute their own
+scoped evidence; they do not replace objdiff or whole-file acceptance.
 
 ```mermaid
 flowchart TD
-  extract[extract] --> identify[identify]
-  identify --> calib[calibrate-global]
-  calib --> floor[assembly-floor]
-  floor --> recover[recover-source]
-  recover --> apply[apply-cross-build]
-  apply --> leftover[leftover-recover]
-  leftover --> verify[verify-byte-accuracy]
+  identify[Identity and implementation variants] <--> calib[Scoped calibration]
+  calib --> regions[Validated linkable regions]
+  regions --> source[C/C++ candidates]
+  source --> recipient[Compatible recipient candidates]
+  source --> parity[Continuous local and linked checks]
+  recipient --> parity
+  regions --> roundtrip[Early unchanged reconstruction]
+  parity --> image[Fresh whole-image proof and contribution]
+  roundtrip --> image
+  identify --> runtime[Per-operation runtime capabilities]
+  runtime --> identify
 ```
 
-Identity matching (`identify`) is not source copy. It is also not "paste a nearby instruction run into the other binary." Debug names, compilation unit, strings/constants, and BSim bind first; a unique byte window is last. Source copy (`apply-cross-build`) is after donor C compiles. `analyze-program` runs only when that program has no analysis yet. `export-hookpack` writes those identities for a Phasor-shaped host.
+Runtime exports use known-build identity/RVA/live checks or supported unknown-build
+discovery. [RUNTIME_REUSE.md](RUNTIME_REUSE.md) distinguishes export, ABI and object
+lifetime checks, installation/removal, and observed behavior. Runtime calls do not
+increase recovered-source coverage. Use the existing catalog to inspect available
+operations; source-described actions are not a fresh live observation.
 
-## Priorities
+## Catalog operations and CLI reference
 
-1. Know which functions match (`logical_id`). Skip Ghidra analyze when the
-   program already has it.
-2. Calibrate compiler, ABI, and global layouts once.
-3. One donor tree links (assembly floor). That is not byte identity.
-4. Replace assembly with compiling Ghidra C. Keep assembly on failure.
-5. Cross-place that C onto siblings.
-6. Targeted AI only on leftovers.
-7. Compare compiled output to each shipped binary. `real_c` and byte-accuracy
-   are two different scores.
-
-## Commands
+Use the existing 8080 workbench and `GET /api/v1/actions` for recovery; inspect
+advertised parameters rather than inventing action names or argv. The following
+CLI forms document implementation only and do not authorize a direct bypass.
 
 ```bash
 uv run agentdecompile-corpus init --id my-corpus --out target/corpus.json
@@ -67,7 +73,7 @@ to redo analysis or C-replace.
 uv run agentdecompile-corpus export-hookpack --db target/corpus.sqlite --out target/hookpack.json
 ```
 
-`agentdecompile-reconstruct corpus …` is the same CLI. Identity work uses
+`agentdecompile-cli corpus …` is the same CLI. Identity work uses
 `init-store`, `apply-stabs`, `logical-build`, `match-pair`, `merge-parts`.
 Project emit uses `genproject` and `ingest-recovered`. Compile Ghidra C with
 `ghidra-bulk` (default `--mode compile-only`; `--mode semantic` refuses

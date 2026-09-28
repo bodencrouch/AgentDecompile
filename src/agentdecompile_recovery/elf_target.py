@@ -123,4 +123,8 @@ def format_profile_slug(path: Path) -> str:
 
     if is_pe_binary(path, min_bytes=0):
         return f"pe-{stem}"
+    from .containers import is_nds_binary
+
+    if is_nds_binary(path):
+        return f"nds-{stem}"
     return stem

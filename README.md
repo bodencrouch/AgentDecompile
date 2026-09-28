@@ -25,7 +25,7 @@ flowchart TD
 2. **Recover rebuildable C** — The reconstruct pipeline only promotes functions that compile and pass objdiff with zero differences. Everything else stays in advisory folders with honest labels.
 3. **Run your way** — Stdio for desktop MCP clients, HTTP at `/mcp` for scripts and remote use, optional browser UI when you start the server locally.
 
-A finished dashboard job is not a match. Verified means compile plus objdiff 0.
+A finished dashboard job is not a match. Verified C requires compile plus objdiff 0; terminal recovery additionally requires a fresh whole-image byte-identical rebuild, with C+assembly-floor and max-C variants separately measured.
 
 Source lives at [github.com/bodencrouch/AgentDecompile](https://github.com/bodencrouch/AgentDecompile). The published container image is still `docker.io/bolabaden/agentdecompile-mcp`. The Pages site is [bodecloud.github.io/AgentDecompile](https://bodecloud.github.io/AgentDecompile/).
 
@@ -56,6 +56,19 @@ The MCP endpoint is `http://127.0.0.1:8080/mcp`. `/` and `/api` are metadata onl
 ```bash
 uv run agentdecompile-cli --server-url http://127.0.0.1:8080/mcp tool --list-tools
 ```
+
+**Current recovery operations:** reuse the existing listener on 8080. Inspect
+`GET /api/v1/actions` and submit work through the advertised catalog.
+Do not start a second server, Vite on 5174, a watcher or an alternate port.
+[AGENTS.md](AGENTS.md) owns process/mission rules. Startup commands above are
+installation reference, not instructions to replace an active owner.
+
+For a browser IDE, set `VITE_AGENTDECOMPILE_WEB_IDE_URL` while building or
+running Vite and expose the same origin to the dashboard process as either
+`AGENTDECOMPILE_WEB_IDE_URL` or `VITE_AGENTDECOMPILE_WEB_IDE_URL`. Embedding
+also requires `VITE_AGENTDECOMPILE_WEB_IDE_EMBED=1` and a browser IDE whose
+frame policy permits this dashboard origin; otherwise the workbench keeps the
+external browser-IDE link as the honest fallback.
 
 Success: the CLI prints the advertised tool list.
 
@@ -95,7 +108,7 @@ docker run --rm -i \
 |----------|---------|
 | `GHIDRA_INSTALL_DIR` | Local Ghidra install (source checkouts) |
 | `AGENT_DECOMPILE_MCP_SERVER_URL` | CLI connect URL, usually `http://127.0.0.1:8080/mcp` |
-| `AGENT_DECOMPILE_GHIDRA_SERVER_HOST` / `_PORT` / `_USERNAME` / `_PASSWORD` | Ghidra Server (shared repos) only — not MCP HTTP auth |
+| `AGENT_DECOMPILE_GHIDRA_SERVER_HOST` / `_PORT` / `_USERNAME` / `_PASSWORD` | Ghidra Server (shared repos). With `AGENT_DECOMPILE_AUTH_ENABLED` on, `_USERNAME` / `_PASSWORD` are also the MCP HTTP auth pair |
 
 HTTP examples in this README bind `127.0.0.1`. Do not set `AGENT_DECOMPILE_HOST=0.0.0.0` without `AGENT_DECOMPILE_AUTH_ENABLED` and a firewall. See [docs/MCP_CONFIGURATION_SECURITY.md](docs/MCP_CONFIGURATION_SECURITY.md).
 
@@ -103,7 +116,9 @@ The full env-var and HTTP-header catalog lives in [USAGE.md](USAGE.md).
 
 ## Corpus recovery
 
-For more than one build, use `agentdecompile-corpus`. Register each binary. Mark the STABS/DWARF build as `--donor`. Recover a function once on the easy build, then propagate. Do not re-analyze a Ghidra program that already has analysis. A green dashboard label is not proof.
+For more than one build, use the corpus actions advertised on 8080. Register each binary. Mark the STABS/DWARF build as `--donor`. Recover a function once on the easy build, then propagate. Do not re-analyze a Ghidra program that already has analysis. A green dashboard label is not proof.
+
+Implementation CLI reference (current recovery uses the 8080 catalog):
 
 ```bash
 uv run agentdecompile-corpus init --id my-corpus --out target/corpus.json
@@ -115,15 +130,15 @@ uv run agentdecompile-corpus run --corpus target/corpus.json \
 
 `--stop-after compile` stops after donor C compiles. It is not a byte match. The workbench is `/dashboard` on the same HTTP server as `/mcp` (default 8080).
 
-The optional Vite interface on port 5174 opens with a project manager. Both interfaces provide the same Code Browser, recovery commands, evidence, and jobs. See the [interface guide](src/agentdecompile_recovery/corpus/dashboard/frontend/README.md) for startup, project preparation, and Ghidra reversing workflows.
+The [interface guide](src/agentdecompile_recovery/corpus/dashboard/frontend/README.md) distinguishes the static workbench source from the React frontend and its packaged routes. Use the current 8080 serving mode; source or asset presence does not prove a completed migration.
 
-Cross-build identity is a `logical_id`, not a virtual address. After the store has bindings:
+Cross-build identity is a `logical_id`, not a virtual address. After the store has bindings, inspect `corpus.export-hookpack` in the live catalog. Its implementation CLI equivalent is:
 
 ```bash
 uv run agentdecompile-corpus export-hookpack --db target/corpus.sqlite --out target/hookpack.json
 ```
 
-That pack is what a Phasor-shaped host loads. Per-build addresses in it are a cache.
+KotorPhasor already loads v1 packs, but exported names/build profiles and ABI adapters still require alignment. Resolution, installation, calls and observed behavior have separate gates. [Runtime reuse](docs/RUNTIME_REUSE.md) is useful before whole-image recovery and does not count original-code execution as recovered source.
 
 Contract: [docs/CORPUS_PIPELINE.md](docs/CORPUS_PIPELINE.md). Bet: [STRATEGY.md](STRATEGY.md). Single-binary reconstruct (not the default): [docs/CRITICAL_PATH.md](docs/CRITICAL_PATH.md).
 

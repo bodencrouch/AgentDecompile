@@ -7,6 +7,10 @@ Real C, compile success, and byte-accuracy are three separate properties.
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from agentdecompile_recovery.languages.registry import SourceLanguage
 
 SHIM_RE = re.compile(
     r"""
@@ -101,13 +105,33 @@ def _strip_symbol_aliases(source: str) -> str:
     return ''.join(output)
 
 
-def is_real_c(source: str | None) -> bool:
+def _c_readable_ok(source: str | None) -> bool:
     return not SHIM_RE.search(_strip_symbol_aliases(source or ""))
 
 
-def shim_reason(source: str | None) -> str | None:
+def _c_shim_match(source: str | None) -> str | None:
     match = SHIM_RE.search(_strip_symbol_aliases(source or ""))
     return match.group(0) if match else None
+
+
+def is_real_c(source: str | None) -> bool:
+    from agentdecompile_recovery.languages.registry import SourceLanguage
+    from agentdecompile_recovery.languages.validators import is_readable_high_level_source
+
+    return is_readable_high_level_source(source, SourceLanguage.C)
+
+
+def shim_reason(source: str | None) -> str | None:
+    from agentdecompile_recovery.languages.registry import SourceLanguage
+    from agentdecompile_recovery.languages.validators import shim_reason_for
+
+    return shim_reason_for(source, SourceLanguage.C)
+
+
+def is_readable_source(text: str | None, language: SourceLanguage | str | None = None) -> bool:
+    from agentdecompile_recovery.languages.validators import is_readable_high_level_source
+
+    return is_readable_high_level_source(text, language)
 
 
 def is_machine_code_shim(text: str | None) -> bool:
@@ -117,8 +141,8 @@ def is_machine_code_shim(text: str | None) -> bool:
     return not is_real_c(body)
 
 
-def is_recovered_source(text: str | None) -> bool:
+def is_recovered_source(text: str | None, language: SourceLanguage | str | None = None) -> bool:
     body = (text or "").strip()
     if not body:
         return False
-    return is_real_c(body)
+    return is_readable_source(body, language)

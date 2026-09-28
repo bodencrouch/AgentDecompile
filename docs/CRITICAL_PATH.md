@@ -1,16 +1,24 @@
 # Recovery critical path
 
+Current operations use the existing 8080 workbench and `GET /api/v1/actions`
+under [AGENTS.md](../AGENTS.md). This page retains single-binary implementation
+CLI/checkpoint reference; do not use it to bypass catalog ownership, regenerate
+valid evidence, or run filesystem tests in the current recovery mission.
+[STRATEGY.md](../STRATEGY.md) owns matcher order, resource admission and terminal
+fresh whole-image acceptance for separately measured C+assembly-floor and max-C
+variants. [Runtime reuse](RUNTIME_REUSE.md) is a parallel capability, not source proof.
+
 The **main multi-binary recovery path** is the corpus pipeline
 ([CORPUS_PIPELINE.md](CORPUS_PIPELINE.md)): extract → identify →
 calibrate-global → assembly-floor → recover-source → apply-cross-build →
-leftover-recover → verify. CLI: `agentdecompile-corpus` (also
-`agentdecompile-reconstruct corpus`). `--stop-after compile` still means
+leftover-recover → verify → fresh whole-image identity (terminal goal, not a claimed checkpoint verb). CLI: `agentdecompile-corpus` (also
+`agentdecompile-cli corpus`). `--stop-after compile` still means
 stop after donor C compiles (`recover-source`). Open an already-analyzed
 Ghidra project and reuse that analysis. Do not re-run `analyze-program`
 unless the program has none.
 
 Packed Windows PE targets still use a **bounded checkpoint loop** inside
-`agentdecompile-reconstruct` for a single binary. There is no separate
+`agentdecompile-cli reconstruct` for a single binary. There is no separate
 `acquire` or `vacuum` CLI — use reconstruct flags instead.
 
 ELF targets (format detected from the binary) use `.eh_frame` as the authoritative inventory denominator, then a single PyGhidra enrich+decompile session, optional reference-corpus naming, evidence-based module mapping, and native clang/objdiff verification.
@@ -31,7 +39,7 @@ flowchart LR
 These names are the valid PE critical-path `--stop-after` checkpoints. After checkpoints you can run autonomous repair with:
 
 ```bash
-uv run agentdecompile-reconstruct <target> --work-dir <dir> --autonomous --autonomous-max-functions 1
+uv run agentdecompile-cli reconstruct <target> --work-dir <dir> --autonomous --autonomous-max-functions 1
 ```
 
 That is not a `--stop-after` stage and there is no standalone `vacuum` command.
@@ -67,25 +75,25 @@ WORK=target/agentdecompile-reconstruct/example-run
 DUMP=target/source-dump
 
 # 1) Unpack/inventory (once)
-uv run agentdecompile-reconstruct "$TARGET" \
+uv run agentdecompile-cli reconstruct "$TARGET" \
   --stop-after discover-functions \
   --work-dir "$WORK"
 
 # 2) Resume, match/synth, dump
-uv run agentdecompile-reconstruct "$TARGET" \
+uv run agentdecompile-cli reconstruct "$TARGET" \
   --resume \
   --work-dir "$WORK" \
   --dump-source "$DUMP"
 
 # 3) Rebuild dump from existing receipts only
-uv run agentdecompile-reconstruct "$TARGET" \
+uv run agentdecompile-cli reconstruct "$TARGET" \
   --dump-source-only \
   --dump-source "$DUMP" \
   --ghidra-facts "$WORK/unpack/facts/function-facts.jsonl" \
   --work-dir "$WORK"
 
 # 4) Force rematch of cached zero-diff functions
-uv run agentdecompile-reconstruct "$TARGET" \
+uv run agentdecompile-cli reconstruct "$TARGET" \
   --resume --work-dir "$WORK" \
   --force-rematch
 ```
@@ -134,7 +142,7 @@ target/source-dump/
 - Never promote inline asm, `_emit`, `.incbin`, or byte-copy sources into `verified/`.
 - Names, types, and module paths are advisory unless objdiff reports `differences==0`.
 
-## Proof-scale smoke
+## Historical proof-scale smoke reference (not current mission instructions)
 
 Bounded live validation for the **1% proof ladder rung**. The public worked path is `tests/fixtures/test_x86_64`. Requires a work dir that has completed through `report` (proof-target queue and proof-ladder receipts present). PE MSVC verification needs `--vc-root` and `--source-synthesis-wineprefix` when using Wine.
 
@@ -158,7 +166,7 @@ uv run agentdecompile-reconstruct "$TARGET" \
   --workers 4
 ```
 
-**Pass criteria (either):**
+**Historical smoke terminal criteria (neither completes corpus recovery):**
 
 1. **Accept** — `state/proof-campaign-loop.json` shows `totalAccepts > 0` and `verified/` gains objdiff-zero receipts; `proof-ladder.json` numerator increases.
 2. **Named terminal** — loop receipt `status` is one of `near-miss`, `readability-blocked`, `bridge-failed`, `empty-queue`, or `budget-stop`, with `claimBoundary` set and per-iteration rows in `state/proof-campaign-history.jsonl`.

@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 import uuid
 
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from mcp import types
 
@@ -25,6 +25,12 @@ from agentdecompile_cli.mcp_server.tool_providers import (
     n,
 )
 from agentdecompile_cli.registry import Tool
+
+if TYPE_CHECKING:
+    from types import SimpleNamespace
+
+    from agentdecompile_cli.launcher import ProgramInfo
+
 
 logger = logging.getLogger(__name__)
 
@@ -91,9 +97,9 @@ class DataTypeToolProvider(ToolProvider):
             ),
         ]
 
-    async def _handle(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/datatypes.py:DataTypeToolProvider._handle")
-        self._require_program()
+        self._require_program(program_info=program_info)
         action = self._get_str(args, "mode", "action", "operation", default="list")
         # Pattern 1 dispatch: get handler by action, then call with args
         dispatch = {
@@ -107,16 +113,16 @@ class DataTypeToolProvider(ToolProvider):
             "delete": self._delete,
             "apply": self._apply,
         }
-        handler = self._dispatch_handler(dispatch, action, "action")
+        handler = self._dispatch_handler(dispatch, action, "action", program_info=program_info)
         return await handler(args)
 
-    async def _find_uses(self, args):
+    async def _find_uses(self, args, *, program_info: ProgramInfo | SimpleNamespace | None):
         from ghidra.app.plugin.core.navigation.locationreferences import ReferenceUtils
         from ghidra.util.datastruct import ListAccumulator
         from ghidra.util.task import TimeoutTaskMonitor
         from java.util.concurrent import TimeUnit
-        assert self.program_info is not None
-        program = self.program_info.program
+        assert program_info is not None
+        program = program_info.program
         name = self._require_str(args, "name")
         data_type = find_catalog_data_type(program.getDataTypeManager(), name, self._get_str(args, "categorypath") or None)
         if data_type is None and not self._get_str(args, "categorypath"):
@@ -138,18 +144,18 @@ class DataTypeToolProvider(ToolProvider):
             rows.append({"address": str(address), "context": str(reference.getContext()), "referenceType": str(reference.getRefTypeString()), "function": str(function.getName()) if function else None})
         return create_success_response({"action": "find_uses", "name": name, "results": rows, "total": len(references), "offset": offset, "hasMore": offset + len(rows) < len(references)})
 
-    async def _archives(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _archives(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/datatypes.py:DataTypeToolProvider._archives")
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
         archives = collect_data_type_archives(program)
 
         return create_success_response({"action": "archives", "archives": archives, "count": len(archives)})
 
-    async def _list(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _list(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/datatypes.py:DataTypeToolProvider._list")
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
         dtm = program.getDataTypeManager()
         cat_path = self._get_str(args, "categorypath", "category", "path")
         offset, max_results = self._get_pagination_params(args, default_limit=100)
@@ -212,11 +218,11 @@ class DataTypeToolProvider(ToolProvider):
             },
         )
 
-    async def _by_string(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _by_string(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/datatypes.py:DataTypeToolProvider._by_string")
         dt_str = self._require_str(args, "datatypestring", "datatype", "typestring", "type", name="dataTypeString")
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
         try:
@@ -240,10 +246,10 @@ class DataTypeToolProvider(ToolProvider):
         except Exception as e:
             raise ValueError(f"Could not parse data type '{dt_str}': {e}")
 
-    async def _info(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _info(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/datatypes.py:DataTypeToolProvider._info")
-        assert self.program_info is not None
-        program = self.program_info.program
+        assert program_info is not None
+        program = program_info.program
         dtm = program.getDataTypeManager()
         name = self._get_str(args, "name", "typename")
         cat_path = self._get_str(args, "categorypath", "category", "path")
@@ -260,14 +266,14 @@ class DataTypeToolProvider(ToolProvider):
             raise ValueError(f"Data type not found: {name}")
         return create_success_response({"action": "info", "resolved": data_type_summary(dt)})
 
-    async def _create(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _create(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/datatypes.py:DataTypeToolProvider._create")
         dt_str = self._require_str(args, "datatypestring", "datatype", "typestring", "type", name="dataTypeString")
         alias_name = self._require_str(args, "name", "typename", name="name")
         cat_path = self._get_str(args, "categorypath", "category", default="/") or "/"
         description = self._get_str(args, "description", "comment", default="")
-        assert self.program_info is not None
-        program = self.program_info.program
+        assert program_info is not None
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
         if not args.get(FORCE_APPLY_CONFLICT_ID_KEY):
@@ -285,8 +291,8 @@ class DataTypeToolProvider(ToolProvider):
                     f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" '
                     'and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
                 )
-                program_path = args.get(n("programPath")) or getattr(self.program_info, "path", None) or getattr(
-                    self.program_info,
+                program_path = args.get(n("programPath")) or getattr(program_info, "path", None) or getattr(
+                    program_info,
                     "file_path",
                     None,
                 )
@@ -333,11 +339,11 @@ class DataTypeToolProvider(ToolProvider):
             },
         )
 
-    async def _update(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _update(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/datatypes.py:DataTypeToolProvider._update")
         name = self._require_str(args, "name", "typename", name="name")
         cat_path = self._get_str(args, "categorypath", "category", "path")
-        new_name = self._get_str(args, "newname", "new_name")
+        new_name = self._get_str(args, "newname")
         dt_str = self._get_str(args, "datatypestring", "datatype", "typestring", "type")
         description_provided = any(args.get(n(k)) is not None for k in ("description", "comment"))
         description = self._get_str(args, "description", "comment", default="")
@@ -345,8 +351,8 @@ class DataTypeToolProvider(ToolProvider):
         if not new_name and not dt_str and not description_provided:
             raise ValueError("At least one of newName, dataTypeString, or description required for update")
 
-        assert self.program_info is not None
-        program = self.program_info.program
+        assert program_info is not None
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
         dt = find_catalog_data_type(dtm, name, cat_path)
@@ -374,8 +380,8 @@ class DataTypeToolProvider(ToolProvider):
                     f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" '
                     'and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
                 )
-                program_path = args.get(n("programPath")) or getattr(self.program_info, "path", None) or getattr(
-                    self.program_info,
+                program_path = args.get(n("programPath")) or getattr(program_info, "path", None) or getattr(
+                    program_info,
                     "file_path",
                     None,
                 )
@@ -457,12 +463,12 @@ class DataTypeToolProvider(ToolProvider):
             },
         )
 
-    async def _delete(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _delete(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/datatypes.py:DataTypeToolProvider._delete")
         name = self._require_str(args, "name", "typename", name="name")
         cat_path = self._get_str(args, "categorypath", "category", "path")
-        assert self.program_info is not None
-        program = self.program_info.program
+        assert program_info is not None
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
         dt = find_catalog_data_type(dtm, name, cat_path)
@@ -475,12 +481,12 @@ class DataTypeToolProvider(ToolProvider):
         self._run_program_transaction(program, "delete-data-type", _delete_datatype)
         return create_success_response({"action": "delete", "name": name, "success": True})
 
-    async def _apply(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _apply(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/datatypes.py:DataTypeToolProvider._apply")
         addr_str = self._require_str(args, "addressorsymbol", "address", "addr", name="addressOrSymbol")
         dt_str = self._require_str(args, "datatypestring", "datatype", "type", name="dataTypeString")
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
         # Batch support
@@ -494,10 +500,10 @@ class DataTypeToolProvider(ToolProvider):
             results = []
 
             def _batch_apply_datatype() -> None:
-                listing = self._get_listing(program)
+                listing = self._get_listing(program, program_info=program_info)
                 for a in addr_list:
                     try:
-                        addr = self._resolve_address(str(a), program=program)
+                        addr = self._resolve_address(str(a), program=program, program_info=program_info)
                         listing.clearCodeUnits(addr, addr.add(dt.getLength() - 1), False)
                         listing.createData(addr, dt)
                         results.append({"address": str(addr), "success": True})
@@ -512,10 +518,10 @@ class DataTypeToolProvider(ToolProvider):
 
         parser = DataTypeParser(dtm, dtm, cast("Any", None), DataTypeParser.AllowedDataTypes.ALL)
         dt = parser.parse(dt_str)
-        addr = self._resolve_address(addr_str, program=program)
+        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
 
         def _apply_datatype() -> None:
-            listing = self._get_listing(program)
+            listing = self._get_listing(program, program_info=program_info)
             listing.clearCodeUnits(addr, addr.add(dt.getLength() - 1), False)
             listing.createData(addr, dt)
 

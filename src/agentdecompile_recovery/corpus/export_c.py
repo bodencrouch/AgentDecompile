@@ -1,6 +1,8 @@
-"""Export whole-program decompiled C + header via Ghidra's CppExporter.
+"""Export whole-program decompiled source via Ghidra's CppExporter.
 
-Destination directory is required. An existing C file larger than 1 KiB is skipped.
+Ghidra's exporter emits C/C++ regardless of recovery target language. For
+non-C/C++ recovery profiles, treat this module as a Ghidra bridge adapter and
+map outputs through ``languages.registry`` when packaging readable trees.
 """
 
 from __future__ import annotations
@@ -8,12 +10,28 @@ from __future__ import annotations
 import time
 from pathlib import Path
 
+from agentdecompile_recovery.languages import SourceLanguage, language_spec, parse_source_language
+
 from . import ghidra_env as ge
 
 
-def export_dest(out_dir: Path | str, repo_path: str) -> Path:
+def export_dest(
+    out_dir: Path | str,
+    repo_path: str,
+    *,
+    recovery_language: SourceLanguage | str | None = None,
+) -> Path:
     slug = repo_path.strip("/").replace("/", "__")
-    return Path(out_dir) / slug / f"{slug}.c"
+    if recovery_language is None:
+        ext = ".c"
+    else:
+        lang = (
+            recovery_language
+            if isinstance(recovery_language, SourceLanguage)
+            else parse_source_language(recovery_language)
+        )
+        ext = language_spec(lang).default_export_extension
+    return Path(out_dir) / slug / f"{slug}{ext}"
 
 
 def run(
@@ -21,11 +39,12 @@ def run(
     out_dir: Path | str,
     *,
     source_path: str | None = None,
+    recovery_language: SourceLanguage | str | None = None,
     open_program=None,
     start=None,
 ) -> dict:
-    """Export one program's C. *out_dir* is required; there is no workspace default."""
-    dest_c = export_dest(out_dir, repo_path)
+    """Export one program's decompiled source. *out_dir* is required."""
+    dest_c = export_dest(out_dir, repo_path, recovery_language=recovery_language)
     dest_c.parent.mkdir(parents=True, exist_ok=True)
     if dest_c.exists() and dest_c.stat().st_size > 1024:
         return {

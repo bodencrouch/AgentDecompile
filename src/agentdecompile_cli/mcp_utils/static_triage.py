@@ -140,6 +140,7 @@ def _suggest_tier_escalation(file_output: str) -> dict[str, Any]:
         "mach-o",
         "elf",
         "core dump",
+        "nintendo ds rom",
     )
     if any(marker in lowered for marker in executable_markers):
         return {
@@ -246,6 +247,21 @@ def build_file_triage_payload(
         "optionalTools": optional_tools,
         "suggestedTierEscalation": triage_escalation,
     }
+    try:
+        from agentdecompile_recovery.containers import detect_container, resolve_container
+
+        container_kind = detect_container(path)
+        if container_kind:
+            payload["containerFormat"] = container_kind
+            if container_kind == "nds":
+                resolution = resolve_container(path)
+                if resolution is not None:
+                    payload["overlayCount"] = resolution.detail.get(
+                        "overlayCount",
+                        sum(1 for image in resolution.images if image.overlay_id is not None),
+                    )
+    except Exception:
+        logger.debug("container format detection failed for %s", path, exc_info=True)
     if external_scans is not None:
         payload["externalScans"] = external_scans
     return payload

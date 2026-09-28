@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Any
 
 from .common import live_db, live_root, query_db
+from agentdecompile_recovery.corpus.ghidra_project import ghidra_program_path
+from agentdecompile_recovery.corpus.donor_schedule import spanning_forest_pairs
 from .workflow import DEFAULT_BUDGET_SECONDS, MAX_BUDGET_SECONDS, STAGES as RECOVERY_STAGES, VERSION, transient_failure
 
 _LOCK = threading.RLock()
@@ -26,6 +28,88 @@ _ADMISSION_THREAD: threading.Thread | None = None
 _STAGES = [('inspect', 'Read project'), ('protection', 'Prepare analysis image'),
            ('analysis', 'Analyze missing programs'), ('facts', 'Extract function facts'),
            ('bsim', 'Index similarity signatures'), ('matching', 'Match related builds')] + RECOVERY_STAGES
+_ANALYSIS_PROBE = """import json
+from ghidra.framework import Application
+try:
+    from ghidra.program.util import GhidraProgramUtilities
+    pending = bool(GhidraProgramUtilities.shouldAskToAnalyze(currentProgram)) or not bool(GhidraProgramUtilities.isAnalyzed(currentProgram))
+except Exception:
+    pending = None
+try:
+    analysisState = currentProgram.getAnalysisState()
+    stateDone = bool(analysisState.isDone()) if analysisState is not None and hasattr(analysisState, 'isDone') else None
+except Exception:
+    stateDone = None
+needsAnalysis = False if pending is False else (True if stateDone is False else (False if stateDone is True else True if pending is None else pending))
+try:
+    observedProgramPath = str(globals().get('programPath') or currentProgram.getDomainFile().getPathname())
+except Exception:
+    observedProgramPath = ''
+__result__ = json.dumps({'programPath': observedProgramPath, 'needsAnalysis': needsAnalysis, 'executablePath': str(currentProgram.getExecutablePath()), 'architecture': str(currentProgram.getLanguageID()), 'ghidraVersion': str(Application.getApplicationVersion()), 'workSize': int(currentProgram.getFunctionManager().getFunctionCount())})"""
+
+
+def _same_program_path(left: Any, right: Any) -> bool:
+    """Require the exact Ghidra DomainFile path before accepting a probe."""
+    return bool(left and right and str(left).replace('\\', '/').strip().strip('/') == str(right).replace('\\', '/').strip().strip('/'))
+
+
+def _effective_recovery_family(stored: Any, locator: Any, program: Any, binary_id: Any) -> str:
+    """Group only exact project-folder peers unless a catalog family exists.
+
+    ``program_binding`` is durable evidence that a binary belongs to one
+    folder-qualified Ghidra project object.  Its full parent folder is a
+    conservative variant boundary: sibling builds in ``/K1`` can be compared,
+    while ``/TSL`` and nested engine/game folders stay separate.  A stored
+    non-placeholder family remains authoritative user metadata.  Root-level
+    and unbound programs remain isolated rather than being grouped by filename.
+    """
+    stored_family = str(stored or '').strip()
+    if stored_family and not stored_family.startswith('unclassified:'):
+        return stored_family
+    normalized_locator = str(locator or '').replace('\\', '/').strip().rstrip('/')
+    parts = [part for part in str(program or '').replace('\\', '/').strip().split('/') if part]
+    if normalized_locator and len(parts) > 1:
+        project_id = hashlib.sha256(normalized_locator.encode()).hexdigest()[:16]
+        return f"project-folder:{project_id}:{'/'.join(parts[:-1])}"
+    return stored_family or f'unclassified:{binary_id}'
+
+
+def _discard_unverified_probe(checkpoint: dict[str, Any], requested: str, observed: str = '') -> bool:
+    """Remove probe-derived state that cannot be tied to its selected program."""
+    if _same_program_path(checkpoint.get('observedProgramPath'), requested):
+        return False
+    for key in (
+        'analysisConfirmed', 'analysisCheckedAt', 'needsAnalysis', 'executablePath',
+        'architecture', 'ghidraVersion', 'workSize', 'protection',
+        'externalSourceAvailable', 'programFingerprint', 'arch', 'toolchain',
+        'targetImage', 'bsimComplete', 'bsimUrl', 'bsimReceipt', 'bsimFingerprint',
+        'knowledgeComplete', 'knowledgeCursor', 'knowledgeFingerprint',
+        'knowledgeAvailable', 'workflow', 'factsComplete', 'factsPath',
+        'binaryId', 'slug', 'repoPath', 'recoveryFamily',
+    ):
+        checkpoint.pop(key, None)
+    checkpoint['probeMismatch'] = {
+        'requestedProgramPath': requested,
+        'observedProgramPath': observed or str(checkpoint.get('observedProgramPath') or ''),
+        'at': time.time(),
+    }
+    checkpoint.pop('observedProgramPath', None)
+    return True
+
+
+def _accept_probe(checkpoint: dict[str, Any], requested: str, payload: dict[str, Any]) -> bool:
+    observed = str(payload.get('programPath') or '')
+    if not _same_program_path(requested, observed):
+        _discard_unverified_probe(checkpoint, requested, observed)
+        return False
+    checkpoint.update(
+        observedProgramPath=observed,
+        executablePath=payload.get('executablePath'), analysisCheckedAt=time.time(),
+        needsAnalysis=payload.get('needsAnalysis'),
+        **{key: payload.get(key) for key in ('architecture', 'ghidraVersion', 'workSize')},
+    )
+    checkpoint.pop('probeMismatch', None)
+    return True
 
 
 def _matching_concurrency() -> int:
@@ -70,6 +154,35 @@ def _ensure_stages(row: dict[str, Any]) -> bool:
         row['workflowVersion'] = VERSION
         return True
     return False
+
+
+def _reset_resume_projection(row: dict[str, Any]) -> bool:
+    """Make a renewed coordinator show only work it still has to reach."""
+    stages = row.get('stages') or []
+    first_pending = next((index for index, stage in enumerate(stages)
+                          if stage.get('status') != 'completed'), None)
+    if first_pending is None:
+        return False
+    changed = False
+    stale_fields = {
+        'jobId', 'jobStatus', 'currentAction', 'currentProgram', 'currentPair',
+        'startedAt', 'lastJobUpdateAt', 'heartbeatAt', 'nextFallback', 'retryAt',
+        'pauseRequestedAt', 'executionDeadlineAt', 'executionLimitSeconds',
+    }
+    for stage in stages[first_pending:]:
+        if stage.get('status') == 'completed':
+            continue
+        changed = True
+        stage.update(status='queued', reason='Waiting for the renewed workflow to reach this stage.')
+        for field in stale_fields:
+            stage.pop(field, None)
+    if changed:
+        row.update(
+            status='queued', error='',
+            currentStage=stages[first_pending].get('key', ''),
+            currentAction='', currentProgram='',
+        )
+    return changed
 
 
 def _lock_lease(lease: Any) -> None:
@@ -139,7 +252,156 @@ def _owner_alive(row: dict[str, Any]) -> bool:
         return False
 
 
-def list_runs() -> list[dict[str, Any]]:
+_WORK_PROGRESS_FIELDS = ('completed', 'total', 'unit', 'currentTarget')
+
+
+def _bounded_work_progress(value: Any) -> dict[str, Any] | None:
+    """Keep the measured counter the UI reads, not the whole producer event.
+
+    A stage counter can come from the durable receipt writer, which emits
+    ``{completed, total, unit}``, or from a parsed ``match-pair-progress`` log
+    event, which is returned whole and carries further producer fields.  The
+    live feed only needs the measured facets ``stageDisplayProgress`` reads.
+    """
+    if not isinstance(value, dict):
+        return None
+    bounded = {key: value[key] for key in _WORK_PROGRESS_FIELDS if key in value}
+    return bounded or None
+
+
+def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[Any] | None = None) -> dict[str, Any]:
+    """Return the live UI contract without replaying every historical action.
+
+    The durable run receipt retains full action logs for audit and recovery.
+    Shipping that ever-growing history on every two-second UI poll made the
+    workbench appear frozen while a real Ghidra run was active.
+    """
+    fields = {
+        'id', 'locator', 'program', 'slug', 'status', 'scope', 'createdAt',
+        'updatedAt', 'workflowVersion', 'queuePriority', 'priorityReason',
+        'queuePosition', 'budgetSeconds', 'budgetOrigin', 'deadline', 'error',
+        'jobId', 'admissionPending', 'executionLocator',
+        'executionProgramPaths', 'stages',
+    }
+    result = {key: row[key] for key in fields if key in row}
+    result['stages'] = []
+    for stage in row.get('stages') or []:
+        if not isinstance(stage, dict):
+            continue
+        projected = {
+            key: value for key, value in stage.items()
+            if key != 'outcomes'
+        }
+        # A stored retry note describes a waiting/backoff state.  It is not
+        # current once a child job is accepted and running; older receipts may
+        # still contain it, so normalize the public projection as well.
+        if projected.get('status') == 'running':
+            projected.pop('nextFallback', None)
+            projected.pop('retryAt', None)
+            # Dropping every stored counter made a refreshed workbench lose
+            # measured progress for the live stage and fall back to a spinner.
+            # Keep only the measured facets: the stored value may be a whole
+            # parsed producer event rather than the receipt writer's compact
+            # counter.  The live child overlay below still takes precedence.
+            bounded = _bounded_work_progress(projected.get('workProgress'))
+            if bounded:
+                projected['workProgress'] = bounded
+            else:
+                projected.pop('workProgress', None)
+        else:
+            # A finished or waiting stage's leftover counter is not current work.
+            projected.pop('workProgress', None)
+        result['stages'].append(projected)
+    # Checkpoints can contain complete tool responses.  The activity/stage
+    # contract already carries its visible state, so expose concise evidence
+    # facets rather than a second copy of every Ghidra response.
+    if detailed:
+        result['checkpoints'] = {
+            program: {key: value for key, value in checkpoint.items()
+                      if key in {'analysisConfirmed', 'needsAnalysis', 'factsComplete',
+                                 'bsimComplete', 'architecture', 'workSize',
+                                 'protection', 'externalSourceAvailable', 'targetImage'}}
+            for program, checkpoint in (row.get('checkpoints') or {}).items()
+            if isinstance(checkpoint, dict)
+        }
+        result['events'] = list(row.get('events') or [])[-100:]
+    else:
+        # Older runs are still represented in the project picker, but their
+        # full evidence trail belongs to durable history.  Do not replay every
+        # old checkpoint on the live two-second feed.
+        result['events'] = list(row.get('events') or [])[-3:]
+    # The durable receipt is intentionally cheap to read while PyGhidra is
+    # busy.  Its stage job id can lag the scheduler by one admitted child,
+    # though, which made the UI name a queued comparison as the live one.
+    # Overlay only the current child job; the receipt remains the audit record.
+    run_token = f"prepare-{row['id']}"
+    active_jobs = [job for job in live_jobs or []
+                   if getattr(job, 'status', None) in {'queued', 'running', 'cancelling'}
+                   and (getattr(job, 'params', {}) or {}).get('run') == run_token]
+    if active_jobs:
+        active_jobs.sort(key=lambda job: (
+            0 if getattr(job, 'status', None) == 'running' else 1,
+            -(float(getattr(job, 'started_at', None) or getattr(job, 'created_at', 0) or 0)),
+        ))
+        job = active_jobs[0]
+        params = getattr(job, 'params', {}) or {}
+        action = str(getattr(job, 'action_id', '') or '')
+        source, target = str(params.get('src') or ''), str(params.get('dst') or '')
+        pair = {'source': source, 'target': target} if source and target else None
+        key = 'matching' if action == 'corpus.match-pair' else ''
+        stage = next((item for item in result['stages'] if item.get('key') == key), None)
+        if stage is not None:
+            stage.update(
+                jobId=getattr(job, 'id', ''), jobStatus=getattr(job, 'status', ''),
+                currentAction=action or stage.get('currentAction', ''),
+                startedAt=getattr(job, 'started_at', None) or stage.get('startedAt'),
+            )
+            if pair:
+                stage.update(currentProgram=f"{source} → {target}", currentPair=pair)
+                result.update(currentProgram=stage['currentProgram'], currentPair=pair)
+            work_progress = _bounded_work_progress(getattr(job, 'work_progress', None))
+            if work_progress:
+                stage['workProgress'] = work_progress
+            result['currentStage'] = stage.get('key', result.get('currentStage', ''))
+            result['currentAction'] = stage.get('currentAction', result.get('currentAction', ''))
+    return result
+
+
+def list_runs(*, public: bool = False) -> list[dict[str, Any]]:
+    # The browser only needs the durable stage projection.  Do not wait on the
+    # mutable Ghidra coordinator for that read: a long JVM call can hold the
+    # interpreter long enough to make an otherwise healthy live dashboard look
+    # frozen.  Each receipt is atomically replaced by _write(), so this path
+    # either reads the last complete revision or skips a revision being written.
+    if public:
+        rows: list[dict[str, Any]] = []
+        try:
+            paths = sorted(_directory().glob('*.json'), key=lambda path: path.stat().st_mtime, reverse=True)[:100]
+        except OSError:
+            paths = []
+        for path in paths:
+            try:
+                row = json.loads(path.read_text())
+            except (OSError, ValueError, TypeError):
+                continue
+            if not isinstance(row, dict) or not row.get('id'):
+                continue
+            _ensure_stages(row)
+            command = _read_control(str(row['id']))
+            if 'deadline' in command:
+                row['deadline'] = command['deadline']
+                row['budgetSeconds'] = command.get('budgetSeconds', row.get('budgetSeconds'))
+                row['budgetOrigin'] = command.get('budgetOrigin', row.get('budgetOrigin', 'default'))
+            row['queuePriority'] = command.get('priority', row.get('queuePriority', 50))
+            row['priorityReason'] = command.get('priorityReason', 'FIFO among projects with equal priority.')
+            rows.append(row)
+        waiting = sorted((row for row in rows if row.get('admissionPending') and _read_control(str(row['id'])).get('operation') not in {'pause', 'stop'}), key=_admission_order)
+        positions = {str(row['id']): index + 1 for index, row in enumerate(waiting)}
+        for row in rows:
+            row['queuePosition'] = positions.get(str(row['id']))
+        from .actions.jobs import list_jobs
+        return [_public_run(row, detailed=row.get('status') in {'running', 'queued', 'paused'}, live_jobs=list_jobs(compact=True)) for row in rows]
+
     from .actions import jobs
     with _LOCK:
         rows = []
@@ -166,7 +428,7 @@ def list_runs() -> list[dict[str, Any]]:
         positions = {row['id']: index + 1 for index, row in enumerate(waiting)}
         for row in rows:
             row['queuePosition'] = positions.get(row['id'])
-        return rows
+        return [_public_run(row, detailed=row.get('status') in {'running', 'queued', 'paused'}) for row in rows] if public else rows
 
 
 def _admission_order(row: dict[str, Any]) -> tuple[int, float, str]:
@@ -243,6 +505,21 @@ def _drain_admissions() -> None:
                     break
                 command = _read_control(row['id'])
                 if command.get('operation') == 'pause':
+                    # A paused admission was silently skipped, so Pause looked
+                    # like it did nothing: the row kept its pre-pause status
+                    # while no child was ever started.  Checkpoint it visibly
+                    # instead.  admissionPending stays true because the
+                    # admission really is still pending, and the id stays in
+                    # _WAITING so an explicit resume re-admits it in queue
+                    # order.  No child is started and no ownership is released.
+                    if row.get('status') != 'paused':
+                        row.update(status='paused')
+                        row.setdefault('events', []).append({
+                            'at': time.time(), 'stage': '',
+                            'message': 'Paused before admission; no child process was started.',
+                        })
+                        row['events'] = row['events'][-250:]
+                        _write(row)
                     continue
                 if command.get('operation') == 'stop' or _budget_expired(command.get('deadline', row.get('deadline'))):
                     row.update(status='cancelled' if command.get('operation') == 'stop' else 'budget-stop', admissionPending=False)
@@ -280,6 +557,243 @@ def _project_context(context: dict[str, Any]) -> dict[str, Any]:
     if locator and (locator.startswith('ghidra:') or Path(locator).suffix.lower() in {'.gpr', '.rep'} or Path(locator).is_dir()):
         return {**context, 'locator': locator, 'program': '', 'slug': ''}
     return dict(context)
+
+
+def _without_backup_siblings(programs: list[str]) -> list[str]:
+    """Exclude a ``.keep`` backup only when its canonical sibling exists.
+
+    Ghidra projects sometimes retain ``program.keep`` alongside ``program``.
+    It is a backup of the same project object, not another build variant.  Do
+    not make a product-specific assumption: preserve a ``.keep`` entry when
+    no base sibling is present, but never schedule both copies as distinct
+    recovery targets.
+    """
+    known = {str(program).replace('\\', '/').casefold() for program in programs}
+    return [
+        program for program in programs
+        if not (str(program).casefold().endswith('.keep') and str(program).replace('\\', '/').casefold()[:-5] in known)
+    ]
+
+
+def _execution_program_bindings(locator: str, info: dict[str, Any], programs: list[str]) -> dict[str, tuple[str, str]]:
+    """Route every shared-folder program to the Ghidra project that owns it.
+
+    A shared repository is an inventory scope, not necessarily one local Ghidra
+    project.  Choosing a single project with the largest overlap lets unrelated
+    programs be sent to the wrong database.  Prefer durable import bindings;
+    otherwise discover a local project containing the exact path or its unique
+    leaf name.  An unresolved program is deliberately left without a route so
+    the workflow reports the missing prerequisite instead of analyzing another
+    binary by accident.
+    """
+    if str(info.get('kind') or '') != 'shared-fs':
+        return {program: (locator, program) for program in programs}
+
+    from agentdecompile_recovery.corpus.ghidra_project import inspect_locator, shared_defaults
+
+    def normalized(value: str) -> str:
+        return str(value or '').replace('\\', '/').strip().lstrip('/')
+
+    program_paths = {
+        str(name): normalized(str(path))
+        for name, path in (info.get('program_paths') or {}).items()
+        if name and path
+    }
+    # The filesystem inventory exposes short display names while repository
+    # entries are folder-qualified DomainFile paths.  Keep the former as the
+    # receipt key, but join it to the latter before comparing repositories.
+    requested = {
+        program: program_paths.get(str(program), program_paths.get(Path(str(program)).name, normalized(program)))
+        for program in programs
+    }
+
+    def binding_matches_requested(source_key: str, actual: str) -> bool:
+        """Reject an old binding when its selected Ghidra object is unrelated.
+
+        ``program_binding`` predates shared-folder routing and can contain a
+        source path paired with whichever program happened to be active.  Its
+        locator alone is therefore not proof that the selected object is the
+        same binary.  A local project often prefixes the imported filename
+        (``NWN-Diamond__nwmain.exe``), so accept that harmless naming form but
+        never let a Jade Empire source path select ``nwmain.exe``.
+        """
+        expected = Path(source_key).name.casefold()
+        observed = Path(normalized(actual)).name.casefold()
+        return bool(expected and observed and (observed == expected or observed.endswith(expected) or expected.endswith(observed)))
+
+    bindings: dict[str, list[tuple[str, str]]] = {program: [] for program in programs}
+    rows, _ = query_db('SELECT source_path, locator, program FROM program_binding ORDER BY updated DESC')
+    for source, project_locator, project_program in rows:
+        for program, source_key in requested.items():
+            if normalized(str(source)) == source_key:
+                bindings[program].append((str(project_locator), str(project_program)))
+
+    # A filesystem repository is inventory, but its sibling server.log records
+    # the endpoint that can open those exact folder-qualified DomainFiles. Prefer
+    # that live project over stale local checkout bindings.
+    defaults = shared_defaults()
+    origin = info.get('origin') if isinstance(info.get('origin'), dict) else {}
+    origin_repository = str(origin.get('repository') or '').strip()
+    ports = [origin.get('port')]
+    try:
+        log_lines = (Path(locator) / 'server.log').read_text(errors='replace').splitlines()
+        ports.extend(line.rsplit(':', 1)[-1].strip() for line in reversed(log_lines)
+                     if 'RMI Registry port:' in line)
+    except OSError:
+        pass
+    ports.append(defaults.get('port'))
+    host = str(origin.get('host') or defaults.get('host') or '127.0.0.1')
+    live_routes: dict[str, tuple[str, str]] = {}
+    for repository in info.get('repositories') or []:
+        if not isinstance(repository, dict):
+            continue
+        repository_name = str(repository.get('name') or '').strip()
+        if origin_repository and repository_name.casefold() == origin_repository.casefold():
+            repository_name = origin_repository
+        repository_programs = {
+            normalized(str(item.get('path') or f"{str(item.get('folder') or '/').rstrip('/')}/{item.get('name') or ''}")): str(item.get('path') or f"{str(item.get('folder') or '/').rstrip('/')}/{item.get('name') or ''}")
+            for item in repository.get('programs') or [] if isinstance(item, dict)
+        }
+        if not repository_name or not set(requested.values()).intersection(repository_programs):
+            continue
+        for port in dict.fromkeys(ports):
+            try:
+                shared_locator = f'ghidra://{host}:{int(port)}/{repository_name}'
+            except (TypeError, ValueError):
+                continue
+            try:
+                live = inspect_locator(shared_locator)
+            except (OSError, ValueError):
+                continue
+            if not live.get('reachable'):
+                continue
+            canonical = str(live.get('canonical') or shared_locator)
+            for program, source_key in requested.items():
+                if actual := repository_programs.get(source_key):
+                    live_routes[program] = (canonical, actual)
+            break
+
+    candidates: list[str] = []
+    for choices in bindings.values():
+        candidates.extend(project for project, _ in choices)
+    for root in (live_root(), _directory().parent):
+        if root:
+            base = Path(root)
+            for pattern in ('workspace/*.gpr', 'native-checkouts/**/*.gpr', 'copied-projects/*.gpr', 'ghidra-projects/*.gpr'):
+                found = [str(path.resolve()) for path in base.glob(pattern)]
+                candidates.extend(found)
+
+    available: dict[str, dict[str, str]] = {}
+    for candidate in dict.fromkeys(item for item in candidates if item):
+        try:
+            discovered = inspect_locator(candidate)
+        except (OSError, ValueError):
+            continue
+        # A shared folder supplies inventory only.  The executor must receive
+        # a concrete local Ghidra project; otherwise ensure_project may select
+        # a sibling .gpr with a misleading partial overlap.
+        if str(discovered.get('kind') or '') != 'ghidra-project':
+            continue
+        listed = [str(item) for item in discovered.get('programs') or []]
+        if listed:
+            available[candidate] = {normalized(item): item for item in listed}
+
+    routes: dict[str, tuple[str, str]] = {}
+    for program, source_key in requested.items():
+        if program in live_routes:
+            routes[program] = live_routes[program]
+            continue
+        # Without a live server route, reuse a previous successful import when
+        # the project still contains that program.
+        for candidate, bound_program in bindings[program]:
+            programs_by_path = available.get(candidate, {})
+            actual = programs_by_path.get(normalized(bound_program))
+            if actual and binding_matches_requested(source_key, actual):
+                # The Ghidra session accepts the program path recorded in its
+                # own project inventory.  A shared-folder path may carry a
+                # grouping prefix (for example ``/TSL/...``) that is absent
+                # from a native checkout, and passing that prefix causes the
+                # session resolver to reject the program before analysis can
+                # begin.  The binding has already proved the source identity;
+                # use the exact stored project path to select that object.
+                routes[program] = (candidate, actual)
+                break
+        if program in routes:
+            continue
+        exact: list[tuple[str, str]] = []
+        leaf: list[tuple[str, str]] = []
+        wanted_leaf = Path(source_key).name
+        for candidate, programs_by_path in available.items():
+            actual = programs_by_path.get(source_key)
+            if actual:
+                exact.append((candidate, actual))
+            for discovered_key, discovered in programs_by_path.items():
+                if Path(discovered_key).name == wanted_leaf:
+                    leaf.append((candidate, discovered))
+        if len(exact) == 1:
+            candidate, actual = exact[0]
+            routes[program] = (candidate, actual)
+        elif len(leaf) == 1:
+            candidate, actual = leaf[0]
+            routes[program] = (candidate, actual)
+        elif exact:
+            # Equivalent copies are safe to choose only when the local path is
+            # deterministic.  Never choose a merely-largest unrelated project.
+            candidate, actual = sorted(exact)[0]
+            routes[program] = (candidate, actual)
+        elif leaf:
+            candidate, actual = sorted(leaf)[0]
+            routes[program] = (candidate, actual)
+        else:
+            routes[program] = ('', '')
+    return routes
+
+
+def _supersede_obsolete_probe_routes(row: dict[str, Any], routes: dict[str, tuple[str, str]]) -> str:
+    """Keep historical probe receipts while making a repaired route executable.
+
+    Preparation used to send a shared project's display leaf (for example,
+    ``JadeEmpire.exe``) to a session that can only resolve the qualified
+    DomainFile path (``/JE/JadeEmpire.exe``).  A failed automatic probe is an
+    audit record, not a reason to keep retrying its obsolete route.  Route
+    revision is deliberately limited to read-only probes; analysis and other
+    mutations keep their ordinary durable replay rules.
+    """
+    current = {
+        program: {'locator': locator, 'program': target}
+        for program, (locator, target) in sorted(routes.items())
+        if locator and target
+    }
+    revision = hashlib.sha256(json.dumps(current, sort_keys=True).encode()).hexdigest()
+    targets = {details['program']: details for details in current.values()}
+    by_leaf = {Path(details['program']).name: details for details in current.values()}
+    changed = 0
+    for receipt in (row.get('actions') or {}).values():
+        if not isinstance(receipt, dict) or receipt.get('action') != 'mcp.execute-script':
+            continue
+        fields = receipt.get('params') or {}
+        if not fields.get('_preparationProbe'):
+            continue
+        requested = str(fields.get('programPath') or '')
+        expected = targets.get(requested) or by_leaf.get(Path(requested).name)
+        prior_replacement = receipt.get('supersededByRoute') or {}
+        if (not expected or receipt.get('executionRouteRevision') == revision
+                or (isinstance(prior_replacement, dict) and prior_replacement.get('revision') == revision)):
+            continue
+        receipt.update(
+            supersededAt=time.time(),
+            supersededReason='A canonical shared-project execution route replaced this automatic probe receipt.',
+            supersededByRoute={**expected, 'revision': revision},
+        )
+        changed += 1
+    if changed:
+        row.setdefault('events', []).append({
+            'at': time.time(), 'stage': 'inspect',
+            'message': f'Recorded {changed} historical probe receipt(s); canonical shared paths will be probed again.',
+        })
+        row['events'] = row['events'][-250:]
+    row['executionRouteRevision'] = revision
+    return revision
 
 
 def _context_id(context: dict[str, Any]) -> str:
@@ -380,9 +894,21 @@ def _submit(context: dict[str, Any], *, resume: bool = False, _admit: bool = Fal
                 return live_legacy
             if _ensure_stages(previous):
                 previous['workflowVersion'] = VERSION
-            _write(previous)
             if previous['status'] in {'queued', 'running'} and not _owner_alive(previous):
                 previous['status'] = 'interrupted'
+                # A coordinator may be restarted while a child job is in a
+                # session-critical Ghidra call.  Those child receipts inherit
+                # the parent owner in the compact history view, so leaving
+                # them as ``running`` makes the renewed coordinator wait on
+                # a process that no longer exists.  Preserve their recorded
+                # parameters and output, but make their state explicit so
+                # the normal safe-replay policy can submit them once.
+                for action_row in (previous.get('actions') or {}).values():
+                    if isinstance(action_row, dict) and action_row.get('status') in {'submitting', 'queued', 'running', 'cancelling'}:
+                        action_row['status'] = 'interrupted'
+                        action_row['interruptedAt'] = time.time()
+                        action_row['interruptedReason'] = 'Coordinator restarted before this action recorded completion.'
+            _write(previous)
             if run_id in _ACTIVE or (_owner_alive(previous) and previous['status'] in {'queued', 'running'} and not (_admit and previous.get('admissionPending'))) or (not resume and previous['status'] not in {'interrupted'}):
                 return previous
         else:
@@ -403,9 +929,7 @@ def _submit(context: dict[str, Any], *, resume: bool = False, _admit: bool = Fal
                'events': previous.get('events', []), 'programs': [], 'checkpoints': previous.get('checkpoints', {}),
                'stages': _merge_stages(previous)}
         if resume:
-            for stage in row['stages']:
-                if stage.get('status') in {'blocked', 'cancelled', 'interrupted', 'cancelling'} and str(stage.get('reason', '')).startswith(('Workflow stopped', 'The server stopped')):
-                    stage.update(status='queued', reason='Waiting for the renewed workflow to reach this stage.')
+            _reset_resume_projection(row)
         if len(_ACTIVE) >= 4 or (_WAITING and not _admit):
             row.update(admissionPending=True, reason='Waiting for another project operation to release a worker.')
             _write(row)
@@ -449,6 +973,17 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 title = next((name for item, name in _STAGES if item == key), key)
                 stage = {'key': key, 'title': title, 'status': 'queued', 'completed': 0, 'total': None, 'reason': ''}
                 row['stages'].append(stage)
+            # A new accepted child supersedes an earlier retry/backoff note.
+            # Leaving the old fallback on a running stage made the frontend
+            # describe a previous failure instead of the operation in flight.
+            if status == 'running':
+                stage.pop('nextFallback', None)
+                stage.pop('retryAt', None)
+                # Starting an unlimited child must not inherit a limit from
+                # a prior bounded probe or legacy execution attempt.
+                if values.get('jobId') and 'executionLimitSeconds' not in values:
+                    stage.pop('executionDeadlineAt', None)
+                    stage.pop('executionLimitSeconds', None)
             stage.update(status=status, reason=reason, **values)
             # A completed/partial terminal must not keep rendering its last
             # child as an active stage. Preserve the link for the activity
@@ -485,6 +1020,15 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             cancel.set()
         return cancel.is_set() or _budget_expired(row.get('deadline'))
 
+    def pause_outcome(job_id: str = '') -> dict[str, Any]:
+        """Checkpoint a matching wave without cancelling its accepted child."""
+        return {
+            'ok': False,
+            'paused': True,
+            'jobId': job_id,
+            'error': 'Pause requested. No additional comparison was admitted.',
+        }
+
     def action(key: str, name: str, fields: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
         # Admission and terminal receipts are durable. An uncertain external
         # mutation is blocked after owner death rather than replayed blindly.
@@ -492,6 +1036,12 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         from .workflow import input_revision
         identity_parts = [name, fields, input_revision(fields), context.get('locator'), context.get('program'),
                           context.get('slug'), row['checkpoints'].get(context.get('program', ''), {}).get('programFingerprint')]
+        # Automatic probes do not mutate Ghidra.  Bind their durable action
+        # identity to the route revision so a repaired shared DomainFile path
+        # gets one fresh observation instead of inheriting a failed leaf-path
+        # receipt from an older execution route.
+        if fields.get('_preparationProbe'):
+            identity_parts.append(row.get('executionRouteRevision', ''))
         if name == 'corpus.match-pair':
             identity_parts.append(_comparison_inventory(str(fields.get('src') or ''), str(fields.get('dst') or ''), comparison_inputs))
         identity = json.dumps(identity_parts, sort_keys=True)
@@ -513,6 +1063,19 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         # in flight — the retry loop below is never reached, so that pair
         # can never complete for the life of the run.
         safe_replay = name in {'mcp.analyze-program', 'mcp.execute-script', 'corpus.match-pair'}
+        # The facts inventory first reconciles durable SQLite state before it
+        # submits, so an owner-reload interruption — or this terminal
+        # 600-second tool timeout with no reconciled inventory — has no
+        # partial write to preserve. Do not broadly replay timed-out actions.
+        retry_missing_facts_timeout = (
+            key == 'facts' and name == 'mcp.execute-script'
+            and prior.get('status') == 'failed' and fields.get('timeout') == 600
+            and str((prior.get('result') or {}).get('error') or '').strip().lower() == 'error: timed out'
+        )
+        if key == 'facts' and name == 'mcp.execute-script' and (
+            prior.get('status') == 'interrupted' or retry_missing_facts_timeout
+        ):
+            prior = {}
         prior = _action_prior_for_retry(name, prior)
         prior_job = jobs.get_job(prior.get('jobId', '')) if prior.get('jobId') else None
         unavailable = prior_job is None or getattr(prior_job, 'history_only', False) or getattr(prior_job, 'owner_unavailable', False) or prior_job.status == 'interrupted'
@@ -521,12 +1084,36 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         if not probe and prior.get('status') == 'failed' and not transient_failure(prior.get('result', {})):
             return prior['result']
         for attempt in range(int(prior.get('attempts', 0)), 3):
+            # Matching submits several independent candidates into the shared
+            # job store. A pause must freeze that admission queue, while a
+            # child already executing gets to write its durable receipt.
+            if name == 'corpus.match-pair' and _read_control(run_id).get('operation') == 'pause':
+                return pause_outcome()
             if stopped():
                 raise InterruptedError('Workflow stopped or its execution budget was reached.')
             with _LOCK:
-                history[action_id] = {'status': 'submitting', 'action': name, 'params': fields, 'target': context.get('program') or context.get('locator'), 'attempts': attempt + 1, 'at': time.time()}
+                history[action_id] = {
+                    'status': 'submitting', 'action': name, 'params': fields,
+                    'target': context.get('program') or context.get('locator'),
+                    'attempts': attempt + 1, 'at': time.time(),
+                    **({'executionRouteRevision': row.get('executionRouteRevision', ''),
+                        'executionRoute': {'locator': context.get('locator', ''), 'program': context.get('program', '')}}
+                       if fields.get('_preparationProbe') else {}),
+                }
                 _write(row)
-            response, status = jobs.start_job(name, fields, context=context, confirm=True)
+            job_fields = dict(fields)
+            if name == 'corpus.match-pair':
+                # This records the project's explicit budget decision with
+                # the child receipt. The subprocess remains cancellable; only
+                # an Unlimited project avoids the generic 30-minute cutoff.
+                job_fields['_preparationUnlimited'] = row.get('deadline') is None
+                job_fields['progress_json'] = True
+            if key == 'facts' and name == 'mcp.execute-script':
+                response, status = jobs._start_preparation_facts_inventory(job_fields, context)
+            elif fields.get('_preparationProbe') and name == 'mcp.execute-script':
+                response, status = jobs._start_preparation_probe(job_fields, context)
+            else:
+                response, status = jobs.start_job(name, job_fields, context=context, confirm=True)
             if status >= 400:
                 outcome = {'ok': False, 'error': response.get('error')}
             else:
@@ -539,8 +1126,15 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                     _write(row)
                 target = str(fields.get('programPath') or fields.get('program') or context.get('program') or fields.get('src') or context.get('locator') or '')
                 update(key, 'running', f'{name}: {target}' if target else name, jobId=job_id,
-                       currentProgram=target, currentAction=name, jobStatus=response['job'].get('status', 'queued'), startedAt=time.time(), attempts=attempt + 1)
+                       lastJobId=job_id, currentProgram=target, currentAction=name,
+                       jobStatus=response['job'].get('status', 'queued'), startedAt=time.time(), attempts=attempt + 1)
                 previous_status = None
+                # A Ghidra analysis can legitimately run for a long time
+                # without changing the job's coarse status.  Persist a small
+                # heartbeat so the durable run and reconnecting clients can
+                # distinguish active work from a stale receipt without
+                # rewriting it on every 250 ms poll.
+                last_heartbeat_at = 0.0
                 wait_limit = float(fields.get('workflowWaitSeconds') or (900 if probe else 0))
                 wait_deadline = time.monotonic() + wait_limit if wait_limit else None
                 if wait_limit:
@@ -558,7 +1152,39 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                         stage = next(item for item in row['stages'] if item['key'] == key)
                         if work_progress and work_progress != stage.get('workProgress'):
                             update(key, 'running', workProgress=work_progress)
-                    if stopped():
+                    if name == 'corpus.match-pair' and isinstance(getattr(job, 'work_progress', None), dict):
+                        stage = next(item for item in row['stages'] if item['key'] == key)
+                        if job.work_progress != stage.get('workProgress'):
+                            update(key, 'running', workProgress=dict(job.work_progress))
+                    command = _read_control(run_id)
+                    if name == 'corpus.match-pair' and command.get('operation') == 'pause':
+                        if job is not None and job.status == 'running':
+                            # The active pair owns durable comparison output. Let
+                            # it finish, then checkpoint the wave before another
+                            # queued pair can begin. Persist this transition once;
+                            # the normal heartbeat remains responsible for liveness.
+                            stage = next(item for item in row['stages'] if item['key'] == key)
+                            if not stage.get('pauseRequestedAt'):
+                                update(key, 'running', 'Pause requested. Finishing the accepted comparison before checkpointing.',
+                                       jobId=job_id, currentProgram=target, currentAction=name,
+                                       jobStatus='running', pauseRequestedAt=time.time())
+                        else:
+                            # This candidate never began execution. Remove it
+                            # from the shared queue so the completed sibling is
+                            # the last admitted comparison in this paused wave.
+                            jobs.cancel_job(job_id)
+                            drain_deadline = time.monotonic() + 120
+                            while job is not None and job.status in {'queued', 'running', 'cancelling'}:
+                                if time.monotonic() > drain_deadline:
+                                    raise InterruptedError('Queued comparison did not drain while honoring pause.')
+                                time.sleep(.25)
+                                job = jobs.get_job(job_id)
+                            outcome = pause_outcome(job_id)
+                            with _LOCK:
+                                history[action_id].update(status='paused', result=outcome)
+                                _write(row)
+                            return outcome
+                    elif stopped():
                         jobs.cancel_job(job_id)
                         update(key, 'cancelling', 'Waiting for the accepted operation to stop before releasing project ownership.')
                         drain_deadline = time.monotonic() + 120
@@ -573,23 +1199,49 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                         break
                     if wait_deadline is not None and time.monotonic() >= wait_deadline:
                         jobs.cancel_job(job_id)
-                        outcome = {'ok': False, 'error': f'{key}-timeout: the {"read-only probe" if probe else "bounded operation"} exceeded {int(wait_limit)} seconds; it was cancelled before the next program was admitted.', 'jobId': job_id}
+                        drain_deadline = time.monotonic() + 30
+                        while job is not None and job.status in {'queued', 'running', 'cancelling'} and time.monotonic() < drain_deadline:
+                            cancel.wait(.25)
+                            job = jobs.get_job(job_id)
+                        if job is not None and job.status in {'queued', 'running', 'cancelling'}:
+                            outcome = {
+                                'ok': False,
+                                'error': f'{key}-timeout: cancellation did not reach a terminal state; project ownership is quarantined and this operation will not be retried.',
+                                'jobId': job_id,
+                                'ownershipUnresolved': True,
+                            }
+                        else:
+                            outcome = {'ok': False, 'error': f'{key}-timeout: the {"read-only probe" if probe else "bounded operation"} exceeded {int(wait_limit)} seconds and drained after cancellation.', 'jobId': job_id}
                         break
                     if job.status != previous_status:
                         previous_status = job.status
                         with _LOCK:
                             history[action_id]['status'] = job.status
                         update(key, 'running', jobStatus=job.status, lastJobUpdateAt=time.time())
+                    now = time.time()
+                    if job.status in {'queued', 'running', 'cancelling'} and now - last_heartbeat_at >= 10:
+                        last_heartbeat_at = now
+                        update(key, 'running', jobStatus=job.status, lastJobUpdateAt=now,
+                               heartbeatAt=now)
                     if job.status not in {'queued', 'running', 'cancelling'}:
                         data = None
                         text = job.log.strip()
                         try:
                             data, _ = json.JSONDecoder().raw_decode(text[text.index('{'):])
                             if isinstance(data, dict) and isinstance(data.get('result'), str):
+                                executed = data.get('executedProgram')
                                 try:
-                                    data = json.loads(data['result'])
+                                    result = json.loads(data['result'])
                                 except ValueError:
-                                    pass
+                                    result = data
+                                if isinstance(result, dict) and isinstance(executed, dict):
+                                    # Immutable shared snapshots expose /Untitled as their
+                                    # transient DomainFile. The provider's executed target is
+                                    # the canonical project identity for this exact MCP call.
+                                    target_path = str(executed.get('path') or '')
+                                    if target_path:
+                                        result['programPath'] = target_path
+                                data = result
                         except (ValueError, TypeError):
                             pass
                         with _LOCK:
@@ -613,12 +1265,82 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         info = inspect_locator(locator) if locator else {'ok': True, 'programs': []}
         if not info.get('ok'):
             raise ValueError(info.get('error') or 'The project could not be inspected.')
-        programs = [selected] if selected else [p if isinstance(p, str) else p.get('name') or p.get('path') for p in info.get('programs', [])]
-        programs = list(dict.fromkeys(p for p in programs if p))
+        # Shared repositories can contain several objects with the same leaf
+        # name.  Ghidra resolves the folder-qualified path unambiguously;
+        # using a leaf here sent preparation to an arbitrary object (or no
+        # object) and made a moved external source look like an analysis
+        # failure.  Keep the UI label compact, but run the pipeline by the
+        # stable project path.
+        programs = [ghidra_program_path(info, selected)] if selected else [
+            ghidra_program_path(info, p if isinstance(p, str) else str(p.get('path') or p.get('name') or ''))
+            for p in info.get('programs', [])
+        ]
+        programs = _without_backup_siblings(list(dict.fromkeys(p for p in programs if p)))
+        # Older receipts keyed checkpoints by Ghidra's display leaf while new
+        # receipts use the folder-qualified program path.  Merge the leaf
+        # record into the canonical key before stage accounting so a resume
+        # neither forgets facts nor reports two separate copies of one
+        # program.  Canonical fields win because they describe the current
+        # project object; older fields fill only missing provenance.
+        for program in programs:
+            leaf = Path(program).name
+            if leaf == program or leaf not in row['checkpoints']:
+                continue
+            legacy = row['checkpoints'].pop(leaf)
+            current = row['checkpoints'].get(program)
+            if isinstance(legacy, dict):
+                row['checkpoints'][program] = {
+                    **legacy,
+                    **(current if isinstance(current, dict) else {}),
+                }
+        execution_routes = _execution_program_bindings(locator, info, programs)
+        execution_locator = locator
+        execution_programs = {program: execution_routes[program][1] for program in programs}
+        execution_locators = {program: execution_routes[program][0] for program in programs}
+        _supersede_obsolete_probe_routes(row, execution_routes)
+        row['executionLocator'] = execution_locator
+        row['executionProgramPaths'] = execution_programs
+        row['executionRoutes'] = {program: {'locator': execution_locators[program], 'program': execution_programs[program]} for program in programs}
         if len(programs) > 256:
             raise ValueError('Select at most 256 programs per preparation run.')
         row['programs'] = programs
-        update('inspect', 'completed', f'{len(programs)} programs available.', completed=len(programs), total=len(programs))
+        shared_probe: dict[str, Any] | None = None
+        shared_probe_program = ''
+        shared_route = next(
+            (
+                (program, execution_locators[program], execution_programs[program])
+                for program in programs
+                if str(execution_locators[program]).startswith('ghidra://')
+                and execution_programs[program]
+            ),
+            None,
+        )
+        if shared_route:
+            shared_probe_program, shared_locator, shared_program = shared_route
+            update('inspect', 'running', f'Opening shared Ghidra project through {shared_program}.', completed=0, total=1)
+            shared_probe = action('inspect', 'mcp.execute-script', {
+                'programPath': shared_program, '_preparationProbe': True,
+                'workflowWaitSeconds': 900, 'code': _ANALYSIS_PROBE,
+            }, {**row, 'locator': shared_locator, 'program': shared_program})
+            payload = shared_probe.get('data') or {}
+            probe_ok = (
+                shared_probe.get('ok')
+                and isinstance(payload, dict)
+                and _same_program_path(payload.get('programPath'), shared_program)
+            )
+            row['sharedSessionProbe'] = {
+                'locator': shared_locator, 'program': shared_program, 'at': time.time(),
+                'ok': bool(probe_ok), 'jobId': shared_probe.get('jobId'),
+                'observedProgramPath': payload.get('programPath') if isinstance(payload, dict) else '',
+                'error': '' if probe_ok else str(shared_probe.get('error') or shared_probe.get('log') or 'Shared program activation did not return the requested path.'),
+            }
+            if not probe_ok:
+                detail = row['sharedSessionProbe']['error']
+                update('inspect', 'partial', f'Shared Ghidra session could not open {shared_program}: {detail}', completed=0, total=1)
+                raise ValueError(detail)
+            update('inspect', 'completed', f'Opened shared Ghidra project through {shared_program}; {len(programs)} programs available.', completed=len(programs), total=len(programs))
+        else:
+            update('inspect', 'completed', f'{len(programs)} programs available.', completed=len(programs), total=len(programs))
 
         protection_blocked = set()
         from .protection import inspect_protection, prepare_protected_binary
@@ -628,9 +1350,21 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         else:
             prepared = 0
             for program in programs:
-                context = {**row, 'program': program}
+                execution_program = execution_programs[program]
+                execution_project = execution_locators[program]
+                context = {**row, 'locator': execution_project, 'program': execution_program}
                 checkpoint = row['checkpoints'].setdefault(program, {})
-                checkpoint['analysisConfirmed'] = False
+                # A protection refresh must not discard a previously accepted
+                # analysis receipt.  The analysis stage decides whether a
+                # changed input needs work; preserving this flag makes resume
+                # reuse completed programs instead of starting them again.
+                if _discard_unverified_probe(checkpoint, execution_program):
+                    update('protection', 'running', f'Recording fresh program evidence for {program}.')
+                checkpoint.setdefault('analysisConfirmed', False)
+                if not execution_project or not execution_program:
+                    protection_blocked.add(program)
+                    update('protection', 'blocked', f'{program}: no live shared or local Ghidra project binding is available; import or link its analyzed project before preparation.')
+                    continue
                 update('protection', 'running', f'Checking protection for {program}.', completed=prepared, total=len(programs))
                 # A resumed wave must not spend another Ghidra round-trip on a
                 # program whose executable identity and protection observation
@@ -644,18 +1378,43 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                     prepared += 1
                     update('protection', 'running', f'Reusing recorded protection inspection for {program}.', completed=prepared, total=len(programs))
                     continue
-                state = action('protection', 'mcp.execute-script', {
-                    'programPath': program, '_preparationProbe': True, 'workflowWaitSeconds': 900, 'code': "import json\nfrom agentdecompile_cli.mcp_utils.program_analysis import program_needs_analysis\nfrom ghidra.framework import Application\n__result__ = json.dumps({'needsAnalysis': program_needs_analysis(currentProgram), 'executablePath': str(currentProgram.getExecutablePath()), 'architecture': str(currentProgram.getLanguageID()), 'ghidraVersion': str(Application.getApplicationVersion()), 'workSize': int(currentProgram.getFunctionManager().getFunctionCount())})"
-                }, context)
+                try:
+                    if program == shared_probe_program and shared_probe is not None:
+                        state = shared_probe
+                    else:
+                        state = action('protection', 'mcp.execute-script', {
+                            'programPath': execution_program, '_preparationProbe': True, 'workflowWaitSeconds': 900, 'code': _ANALYSIS_PROBE
+                        }, context)
+                except Exception as exc:
+                    # A single program probe must not abort the corpus wave.
+                    # Persist a named blocker and continue with independent programs;
+                    # the next resume can retry after the Ghidra session recovers.
+                    state = {'ok': False, 'error': f'protection probe failed: {type(exc).__name__}: {exc}'}
                 payload = state.get('data') or {}
                 if not state['ok'] or not isinstance(payload, dict) or 'executablePath' not in payload:
                     protection_blocked.add(program)
-                    update('protection', 'blocked', f'Cannot read the executable path for {program}.')
+                    update('protection', 'blocked', f'Cannot inspect stored program bytes for {program}; protection and analysis cannot proceed.')
                     continue
-                checkpoint.update(executablePath=payload.get('executablePath'), analysisCheckedAt=time.time(),
-                                  needsAnalysis=payload.get('needsAnalysis'),
-                                  **{key: payload.get(key) for key in ('architecture', 'ghidraVersion', 'workSize')})
+                if not _accept_probe(checkpoint, execution_program, payload):
+                    protection_blocked.add(program)
+                    update('protection', 'blocked', f'{program}: the Ghidra probe returned a different program path; no evidence was accepted.')
+                    continue
                 source = payload.get('executablePath') or ''
+                # Ghidra keeps the imported bytes in its database.  An
+                # original source location may be stale after a shared
+                # project moves, which must not prevent analysis of that
+                # already-imported program.  Record the lost external source
+                # honestly and continue through the Ghidra-backed path.
+                if not Path(source).is_file():
+                    checkpoint['protection'] = {
+                        'status': 'unknown', 'encryption': 'unknown', 'drm': 'unknown',
+                        'handling': 'stored-program', 'sourcePath': source,
+                        'reason': 'Original external executable is unavailable; analysis uses the bytes stored in this Ghidra program.',
+                    }
+                    checkpoint['externalSourceAvailable'] = False
+                    prepared += 1
+                    update('protection', 'running', f'{program}: original file moved; reusing stored Ghidra bytes.', completed=prepared, total=len(programs))
+                    continue
                 observed = inspect_protection(source)
                 if observed.get('status') != 'detected':
                     checkpoint['protection'] = observed
@@ -689,7 +1448,9 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             for program in programs:
                 if program in protection_blocked:
                     continue
-                context = {**row, 'program': program}
+                execution_program = execution_programs[program]
+                execution_project = execution_locators[program]
+                context = {**row, 'locator': execution_project, 'program': execution_program}
                 checkpoint = row['checkpoints'].setdefault(program, {})
                 update('analysis', 'running', f'Checking existing analysis for {program}.', completed=analyzed, total=len(programs))
                 if checkpoint.get('analysisConfirmed') and checkpoint.get('needsAnalysis') is False:
@@ -698,34 +1459,33 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                     continue
                 if 'needsAnalysis' not in checkpoint:
                     state = action('analysis', 'mcp.execute-script', {
-                    'programPath': program, '_preparationProbe': True, 'workflowWaitSeconds': 900, 'code': "import json\nfrom agentdecompile_cli.mcp_utils.program_analysis import program_needs_analysis\nfrom ghidra.framework import Application\n__result__ = json.dumps({'needsAnalysis': program_needs_analysis(currentProgram), 'executablePath': str(currentProgram.getExecutablePath()), 'architecture': str(currentProgram.getLanguageID()), 'ghidraVersion': str(Application.getApplicationVersion()), 'workSize': int(currentProgram.getFunctionManager().getFunctionCount())})"
+                    'programPath': execution_program, '_preparationProbe': True, 'workflowWaitSeconds': 900, 'code': _ANALYSIS_PROBE
                     }, context)
                     payload = state.get('data') or {}
                     if not state['ok'] or not isinstance(payload, dict) or 'needsAnalysis' not in payload:
                         update('analysis', 'blocked', f'Cannot determine existing analysis for {program}; analysis was not rerun.')
                         continue
-                    checkpoint.update(executablePath=payload.get('executablePath'), analysisCheckedAt=time.time(),
-                                      needsAnalysis=payload.get('needsAnalysis'),
-                                      **{key: payload.get(key) for key in ('architecture', 'ghidraVersion', 'workSize')})
+                    if not _accept_probe(checkpoint, execution_program, payload):
+                        update('analysis', 'blocked', f'{program}: the Ghidra probe returned a different program path; analysis was not accepted.')
+                        continue
                 if checkpoint.get('needsAnalysis') is False:
                     checkpoint['analysisConfirmed'] = True
                     analyzed += 1
                     update('analysis', 'running', f'Reusing completed analysis for {program}.', completed=analyzed, total=len(programs))
                     continue
-                # Full analysis is materially longer than a read-only probe,
-                # especially for mobile executables.  It still needs a
-                # durable upper bound: an unbounded job can otherwise hold a
-                # project lease forever while the UI misleadingly reports it
-                # as active.  The range is deliberately conservative and the
-                # terminal names the timeout rather than retrying unchanged
-                # analysis indefinitely.
-                work_size = int(checkpoint.get('workSize') or 0)
-                analysis_wait_seconds = max(1800, min(14400, 900 + work_size // 2))
+                # Analysis inherits the workflow's unlimited default.  Its
+                # durable heartbeat, owner lease, and explicit Pause/Stop
+                # controls make active work observable and controllable
+                # without inventing a wall-clock expiry for a large binary.
                 result = action('analysis', 'mcp.analyze-program', {
-                    'programPath': program,
-                    'workflowWaitSeconds': analysis_wait_seconds,
+                    'programPath': execution_program,
                 }, context)
-                if result['ok'] or (result.get('data') or {}).get('alreadyAnalyzed'):
+                result_text = str(result.get('error') or result.get('log') or '').lower()
+                # The Ghidra action deliberately refuses forced re-analysis
+                # once its analyzed flag is set.  That response is an
+                # authoritative completion observation, not a failed stage.
+                already_analyzed = (result.get('data') or {}).get('alreadyAnalyzed') or 'already been analyzed' in result_text
+                if result['ok'] or already_analyzed:
                     checkpoint.update(analysisConfirmed=True, analysisCheckedAt=time.time(), needsAnalysis=False)
                     analyzed += 1
                 else:
@@ -737,29 +1497,98 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
 
         # Use the canonical extractor and persistence functions in the live JVM.
         # A nonempty inventory is never replaced by automatic preparation.
+        # Existing SQLite inventories are durable evidence.  Do not require a
+        # second live Ghidra extraction merely because this coordinator was
+        # resumed: doing so can duplicate expensive work and falsely make the
+        # facts stage look empty while the corpus already contains functions.
+        inventory_rows, inventory_error = query_db(
+            'SELECT b.id,b.slug,b.repo_path,b.func_count,b.recovery_family,p.locator,p.program FROM binary b '
+            'LEFT JOIN program_binding p ON p.source_path=b.repo_path '
+            'WHERE EXISTS (SELECT 1 FROM func WHERE func.binary_id=b.id)'
+        )
+        inventory_rows = inventory_rows if not inventory_error else []
+        inventory_by_binding = {
+            (str(item[5] or '').replace('\\', '/').rstrip('/'), str(item[6] or '').replace('\\', '/').lstrip('/')): item[:5]
+            for item in inventory_rows if item[5] and item[6]
+        }
+        inventory_by_source = {
+            str(Path(str(item[2] or '')).expanduser().resolve(strict=False)): item[:5]
+            for item in inventory_rows if item[2]
+        }
         extracted = 0
+        analyzed_programs = [
+            program for program in programs
+            if program not in protection_blocked and row['checkpoints'].get(program, {}).get('analysisConfirmed')
+        ]
         for program in programs:
             if program in protection_blocked or not row['checkpoints'].get(program, {}).get('analysisConfirmed'):
                 continue
             checkpoint = row['checkpoints'].setdefault(program, {})
+            binding_key = (locator.replace('\\', '/').rstrip('/'), program.replace('\\', '/').lstrip('/'))
+            canonical_source = str((Path(locator).expanduser() / program.lstrip('/')).resolve(strict=False))
+            existing = inventory_by_binding.get(binding_key) or inventory_by_source.get(canonical_source)
+            if existing:
+                checkpoint.update(
+                    factsComplete=True, binaryId=existing[0], slug=existing[1],
+                    repoPath=existing[2], workSize=existing[3], factsReused=True,
+                    recoveryFamily=_effective_recovery_family(existing[4], existing[5], existing[6], existing[0]),
+                )
+                extracted += 1
+                update('facts', 'running', f"{program}: reusing {existing[3]} stored functions.", completed=extracted, total=len(analyzed_programs))
+                continue
             facts_path = _directory() / f"{run_id}-{hashlib.sha256(program.encode()).hexdigest()[:12]}.facts"
             checkpoint.pop('programFingerprint', None)
             config = {'db': str(live_db()), 'locator': locator, 'program': program,
                       'slug': row['slug'] if len(programs) == 1 else '', 'factsPath': str(facts_path)}
             code = _inventory_script(config)
-            result = action('facts', 'mcp.execute-script', {'programPath': program, 'code': code, 'timeout': 600}, {**row, 'program': program})
+            result = action('facts', 'mcp.execute-script', {'programPath': execution_programs[program], 'code': code, 'timeout': 600}, {**row, 'locator': execution_locators[program], 'program': execution_programs[program]})
             payload = result.get('data') or {}
             if result['ok'] and isinstance(payload, dict) and payload.get('inventoryAvailable'):
-                checkpoint.update(factsComplete=True, factsPath=str(facts_path), binaryId=payload['binaryId'], slug=payload['slug'], repoPath=payload['repoPath'], programFingerprint=payload.get('programFingerprint'), arch=payload.get('arch'), workSize=payload.get('count'))
+                checkpoint.update(factsComplete=True, factsPath=str(facts_path), binaryId=payload['binaryId'], slug=payload['slug'], repoPath=payload['repoPath'], recoveryFamily=_effective_recovery_family(payload.get('recoveryFamily'), locator, program, payload['binaryId']), programFingerprint=payload.get('programFingerprint'), arch=payload.get('arch'), workSize=payload.get('count'))
                 extracted += 1
                 update('facts', 'running', f"{program}: {payload['count']} stored functions available.", completed=extracted, total=len(programs))
             else:
                 update('facts', 'partial', result.get('error') or result.get('log') or f'{program}: feature extraction failed; existing corpus observations preserved.', completed=extracted, total=len(programs))
-        update('facts', 'completed' if extracted == len(programs) and programs else 'partial', f'{extracted} programs have stored feature inventories.', completed=extracted, total=len(programs))
-        records, error = query_db('SELECT id,slug,repo_path,game,func_count FROM binary WHERE EXISTS (SELECT 1 FROM func WHERE func.binary_id=binary.id)')
+        update(
+            'facts',
+            'completed' if analyzed_programs and extracted == len(analyzed_programs) else 'partial',
+            f'{extracted} of {len(analyzed_programs)} analyzed programs have stored feature inventories.'
+            if analyzed_programs else 'No analyzed programs have stored feature inventories.',
+            completed=extracted, total=len(analyzed_programs),
+        )
+        records, error = query_db(
+            'SELECT b.id,b.slug,b.repo_path,b.recovery_family,b.func_count,b.arch,b.bits,p.locator,p.program '
+            'FROM binary b LEFT JOIN program_binding p ON p.source_path=b.repo_path AND rtrim(p.locator,\'/\')=? '
+            'WHERE EXISTS (SELECT 1 FROM func WHERE func.binary_id=b.id)',
+            (locator.rstrip('/'),),
+        )
+        if error:
+            legacy_records, legacy_error = query_db(
+                'SELECT id,slug,repo_path,recovery_family,func_count,arch,bits FROM binary '
+                'WHERE EXISTS (SELECT 1 FROM func WHERE func.binary_id=binary.id)'
+            )
+            records = [(*item, None, None) for item in legacy_records]
+            error = legacy_error
         records = records if not error else []
-        prepared_ids = {c.get('binaryId') for program, c in row['checkpoints'].items() if program in programs and c.get('analysisConfirmed') and c.get('factsComplete')}
-        candidates = [r for r in records if r[0] in prepared_ids]
+        # A resumed project must reuse its persisted function inventory.  The
+        # older gate considered only facts written during this particular
+        # coordinator invocation, so a restart hid valid corpus evidence and
+        # incorrectly reported that there was nothing to cross-match.
+        existing_by_source = {str(item[2] or ''): item for item in records}
+        prepared_ids = {
+            checkpoint.get('binaryId')
+            for program, checkpoint in row['checkpoints'].items()
+            if program in programs and checkpoint.get('analysisConfirmed') and checkpoint.get('factsComplete')
+        }
+        prepared_sources = {
+            program for program, checkpoint in row['checkpoints'].items()
+            if program in programs and checkpoint.get('analysisConfirmed')
+            and (checkpoint.get('factsComplete') or program in existing_by_source)
+        }
+        candidates = [
+            item for item in records
+            if item[0] in prepared_ids or str(item[2] or '') in prepared_sources
+        ]
 
         # A workspace-wide BSim database makes cross-build comparison possible.
         # Signature XML and receipts remain isolated by program and fingerprint.
@@ -806,7 +1635,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                             update('bsim', 'partial', created.get('error') or created.get('log') or 'Could not create the similarity database.')
                     if ready:
                         signature_dir = program_dir / 'xml'
-                        generated = action('bsim', 'mcp.execute-script', {'programPath': program, 'code': _signature_script({'url': bsim_url, 'directory': str(signature_dir), 'locator': locator, 'template': '' if configured else 'medium_nosize'}), 'timeout': 1200}, {**row, 'program': program})
+                        generated = action('bsim', 'mcp.execute-script', {'programPath': execution_programs[program], 'code': _signature_script({'url': bsim_url, 'directory': str(signature_dir), 'locator': execution_locators[program], 'template': '' if configured else 'medium_nosize'}), 'timeout': 1200}, {**row, 'locator': execution_locators[program], 'program': execution_programs[program]})
                         if generated['ok'] and (generated.get('data') or {}).get('signatureCount', 0) > 0:
                             result = action('bsim', 'workbench.commit-signatures', {'bsimUrl': bsim_url, 'signatureDirectory': str(signature_dir)}, row)
                         else:
@@ -827,14 +1656,58 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         pairs = load_match_pairs()
         source_paths = {item[2] for item in candidates}
         pairs = [pair for pair in pairs if pair[0] in source_paths or pair[1] in source_paths]
+        effective_family_by_id = {
+            item[0]: _effective_recovery_family(item[3], item[7], item[8], item[0])
+            for item in records
+        }
+        family_by_path = {str(item[2] or ''): effective_family_by_id[item[0]] for item in records}
+        excluded_pairs = []
+        compatible_pairs = []
+        for src, dst, note in pairs:
+            src_family, dst_family = family_by_path.get(src), family_by_path.get(dst)
+            if src_family and dst_family and src_family == dst_family:
+                compatible_pairs.append((src, dst, note))
+            else:
+                excluded_pairs.append({
+                    'source': src, 'target': dst,
+                    'reason': 'Explicit recovery-family catalog assignments differ or are unavailable.',
+                    'sourceFamily': src_family, 'targetFamily': dst_family,
+                })
+        pairs = compatible_pairs
         # Project membership selects the sources; stored corpus evidence supplies
         # comparison candidates even when the project has only one binary.
-        # Similar inventory size only orders work, never establishes a relation.
+        # Automatically schedule a *spanning forest*, never a dense graph:
+        # recovery knowledge travels through logical identities, so one
+        # evidence-backed edge per variant is enough to propagate it.  This
+        # keeps a 16-build KotOR corpus to 15 planned comparisons instead of
+        # 240 directed attempts, while explicit configured pairs above retain
+        # deliberate corroboration edges.
         project_candidates = [item for item in candidates if item[4]]
-        for src in sorted(project_candidates, key=lambda item: item[0]):
-            peers = sorted((dst for dst in records if dst[0] != src[0] and dst[4]),
-                           key=lambda dst: (abs(int(dst[4]) - int(src[4])), dst[0]))
-            pairs += [(src[2], dst[2], 'workspace feature inventory; relationship unproven until comparison') for dst in peers]
+        by_id = {item[0]: item for item in records}
+        families: dict[str, list[dict[str, Any]]] = {}
+        for item in project_candidates:
+            family = effective_family_by_id[item[0]]
+            families.setdefault(family, []).append({
+                'id': item[0], 'repo_path': item[2], 'func_count': item[4],
+                'arch': item[5], 'bits': item[6],
+            })
+        for family, members in sorted(families.items()):
+            # Same-architecture links are the cheap, high-confidence first
+            # lane.  Connect their donor hubs across architectures afterwards
+            # so the full declared family remains one navigable identity graph.
+            scheduled = list(spanning_forest_pairs(members))
+            groups: dict[tuple[str, int], list[dict[str, Any]]] = {}
+            for member in members:
+                groups.setdefault((str(member.get('arch') or ''), int(member.get('bits') or 0)), []).append(member)
+            hubs = [max(group, key=lambda row: (int(row.get('func_count') or 0), str(row['id']))) for group in groups.values()]
+            if hubs:
+                anchor = max(hubs, key=lambda row: (int(row.get('func_count') or 0), str(row['id'])))
+                scheduled.extend((anchor['id'], hub['id']) for hub in hubs if hub['id'] != anchor['id'])
+            for src_id, dst_id in dict.fromkeys(scheduled):
+                src = by_id.get(src_id)
+                dst = by_id.get(dst_id)
+                if src and dst:
+                    pairs.append((src[2], dst[2], f'{family} variant spanning-forest edge; relationship unproven until comparison'))
         unique_pairs = {}
         for src, dst, note in pairs:
             if src != dst:
@@ -858,6 +1731,28 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             update('matching', 'running', f'Reading comparison evidence: {completed} of {total} inventories.{detail}',
                    **progress)
         comparison_inputs.update(_matching_input_digests({path for src, dst, _ in pairs for path in (src, dst)}, input_progress))
+        # A configured pair can point at a slice or an old project member
+        # whose binary row has no function inventory.  Passing that pair to
+        # the matcher spends a worker constructing an empty side and cannot
+        # produce an identity binding.  Retain the excluded target and reason
+        # for the operator, but admit only evidence-backed inventories.
+        admitted_pairs = []
+        for pair in pairs:
+            src, dst, note = pair
+            missing = [
+                path for path in (src, dst)
+                if not isinstance(comparison_inputs.get(path), dict)
+                or comparison_inputs[path].get('state') == 'missing'
+                or int(comparison_inputs[path].get('functionCount') or 0) <= 0
+            ]
+            if missing:
+                excluded_pairs.append({'source': src, 'target': dst, 'reason': 'No stored function inventory for ' + ', '.join(missing), 'recoveryFamily': family_by_path.get(src)})
+            else:
+                admitted_pairs.append(pair)
+        pairs = admitted_pairs
+        row['comparisonTargets'] = [{'source': src, 'target': dst, 'reason': note, 'recoveryFamily': family_by_path.get(src)} for src, dst, note in pairs]
+        row['excludedComparisonTargets'] = excluded_pairs
+        row['comparisonTargetsFrozenAt'] = time.time()
         row['comparisonInputs'] = comparison_inputs
         update('matching', 'running', 'Comparison targets and input evidence frozen.', completed=0, total=len(pairs), progressUnit='comparisons', workProgress=None)
         _write(row)
@@ -887,7 +1782,9 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
 
             if to_run:
                 workers = min(_matching_concurrency(), len(to_run))
-                with ThreadPoolExecutor(max_workers=workers, thread_name_prefix=f'match-{run_id[:8]}') as pool:
+                pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix=f'match-{run_id[:8]}')
+                interrupted = False
+                try:
                     futures = [pool.submit(_run_pair, item) for item in to_run]
                     try:
                         for future in as_completed(futures):
@@ -896,18 +1793,65 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                                 if result['ok']:
                                     record_comparison_receipt(run_id, src, dst, result, comparison_inputs)
                                     matched += 1
+                                elif result.get('paused'):
+                                    continue
                                 update('matching', 'running', result.get('error') or f'{Path(src).name} → {Path(dst).name}: {"compared" if result["ok"] else "failed"}.', completed=matched, total=len(pairs))
                     except InterruptedError:
+                        interrupted = True
                         for pending in futures:
                             pending.cancel()
                         raise
+                finally:
+                    pool.shutdown(wait=not interrupted, cancel_futures=interrupted)
+            if _read_control(run_id).get('operation') == 'pause':
+                update('matching', 'paused', f'Paused after {matched} of {len(pairs)} durable comparison receipts.', completed=matched, total=len(pairs), deferred=len(pairs) - matched)
+                raise _PauseRequested()
             update('matching', 'completed' if matched == len(pairs) else 'partial', f'{matched} of {len(pairs)} pairs compared. {deferred} comparisons await admission.' if deferred else f'{matched} of {len(pairs)} pairs compared.', completed=matched, total=len(pairs), deferred=deferred)
         if pairs and matched:
             merged = action('matching', 'workbench.merge-evidence', {'db': str(live_db()), 'run': f'prepare-{run_id}'}, row)
             update('matching', 'completed' if merged['ok'] and matched == len(pairs) else 'partial', 'Compared identities bound; existing human metadata retained.' if merged['ok'] else merged.get('error') or 'Knowledge binding could not finish.', completed=matched, total=len(pairs))
         from .workflow import continue_recovery
-        continue_recovery(row, _directory().parent, live_db(), action, update)
-        row['status'] = 'completed' if all(stage['status'] == 'completed' for stage in row['stages']) else 'partial'
+        recovery_families: dict[str, list[str]] = {}
+        for program in programs:
+            checkpoint = row['checkpoints'].get(program, {})
+            family = str(checkpoint.get('recoveryFamily') or f"unclassified:{checkpoint.get('binaryId') or hashlib.sha256(program.encode()).hexdigest()[:12]}")
+            checkpoint['recoveryFamily'] = family
+            recovery_families.setdefault(family, []).append(program)
+        family_receipts = row.setdefault('recoveryFamilies', {})
+        for family, members in sorted(recovery_families.items()):
+            eligible = [program for program in members if row['checkpoints'].get(program, {}).get('analysisConfirmed') and row['checkpoints'].get(program, {}).get('factsComplete')]
+            family_receipts[family] = {
+                'family': family, 'programs': members, 'eligiblePrograms': eligible,
+                'state': 'running' if eligible else 'waiting', 'updatedAt': time.time(),
+            }
+            if eligible:
+                continue_recovery(
+                    row, _directory().parent, live_db(), action, update,
+                    execution_routes=execution_routes, recovery_family=family,
+                    programs=eligible, all_programs=programs,
+                )
+            else:
+                family_receipts[family]['reason'] = 'Waiting for this family\'s analysis and facts receipts.'
+        _write(row)
+        routed = sum(bool(execution_locators[program] and execution_programs[program]) for program in programs)
+        probed = sum(
+            _same_program_path(row['checkpoints'].get(program, {}).get('observedProgramPath'), execution_programs[program])
+            for program in programs
+        )
+        row['executionSummary'] = {'programs': len(programs), 'routed': routed, 'probed': probed}
+        if programs and (not routed or not probed):
+            row.update(
+                status='blocked',
+                error=(
+                    'No executable Ghidra project route was found for this preparation.'
+                    if not routed else
+                    'No program probe receipt matched its requested Ghidra program; no execution evidence was accepted.'
+                ),
+            )
+        else:
+            row['status'] = 'completed' if all(stage['status'] == 'completed' for stage in row['stages']) else 'partial'
+    except _PauseRequested:
+        row.update(status='paused', error='')
     except InterruptedError as exc:
         row.update(status='cancelled' if cancel.is_set() else 'budget-stop', error=str(exc))
     except Exception as exc:
@@ -921,7 +1865,11 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             _ACTIVE.discard(run_id)
             _release_lease(run_id)
             _ADMISSION_WAKE.set()
-    return (0 if row['status'] in {'completed', 'partial'} else 1), json.dumps(row, indent=2)
+    return (0 if row['status'] in {'completed', 'partial', 'paused'} else 1), json.dumps(row, indent=2)
+
+
+class _PauseRequested(Exception):
+    """Internal control-flow marker for a durable coordinator pause."""
 
 
 def _inventory_script(config: dict[str, Any]) -> str:
@@ -936,7 +1884,6 @@ from java.util.concurrent import TimeUnit
 monitor = TimeoutTaskMonitor.timeoutIn(600, TimeUnit.SECONDS)
 con = connect(config['db'])
 try:
-    con.execute('BEGIN IMMEDIATE')
     selected = con.execute('SELECT id,slug,repo_path FROM binary WHERE slug=?', (config['slug'],)).fetchone() if config['slug'] else None
     if selected is not None and str(selected[2]).rstrip('/') == config['locator'].rstrip('/'):
         # A project tab's slug identifies the container, not its first program.
@@ -966,9 +1913,9 @@ try:
         raise ValueError('Selected corpus build has a different executable fingerprint. Select the matching build before indexing.')
     # Registration precedes analysis. Refresh measured program metadata even
     # when the roster row already exists, retaining operator classification.
-    classification = con.execute('SELECT game,platform,variant,role FROM binary WHERE id=?', (binary_id,)).fetchone()
+    classification = con.execute('SELECT game,platform,variant,role,recovery_family FROM binary WHERE id=?', (binary_id,)).fetchone()
     upsert_binary(con, repo_path=repo, slug=slug, program=currentProgram,
-                  meta=dict(zip(('game', 'platform', 'variant', 'role'), classification)))
+                  meta=dict(zip(('game', 'platform', 'variant', 'role', 'recovery_family'), classification)))
     con.execute('CREATE TABLE IF NOT EXISTS program_binding (source_path TEXT NOT NULL, locator TEXT NOT NULL, program TEXT NOT NULL, updated REAL NOT NULL, PRIMARY KEY(source_path,locator))')
     con.execute('INSERT INTO program_binding VALUES(?,?,?,?) ON CONFLICT(source_path,locator) DO UPDATE SET program=excluded.program,updated=excluded.updated', (repo, config['locator'], config['program'], time.time()))
     con.commit()
@@ -985,7 +1932,8 @@ try:
         else:
             reused = True
             con.rollback()
-    receipt = {'binaryId': binary_id, 'slug': slug, 'repoPath': repo, 'count': count,
+    recovery_family = con.execute('SELECT recovery_family FROM binary WHERE id=?', (binary_id,)).fetchone()[0]
+    receipt = {'binaryId': binary_id, 'slug': slug, 'repoPath': repo, 'recoveryFamily': recovery_family, 'count': count,
                'inventoryAvailable': count > 0, 'reused': reused, 'claim': 'advisory',
                'tool': 'corpus.extract.functions_from_program', 'program': config['program'],
                'programFingerprint': str(currentProgram.getExecutableMD5()), 'arch': str(currentProgram.getLanguageID())}
@@ -1073,6 +2021,15 @@ def _action_prior_for_retry(name: str, prior: dict[str, Any]) -> dict[str, Any]:
     """
     if name == 'corpus.match-pair' and prior.get('status') == 'failed':
         return {}
+    data = (prior.get('result') or {}).get('data') or {}
+    if (
+        name == 'corpus.bsim-createdatabase' and prior.get('status') == 'failed'
+        and data.get('returncode') == 127
+        and data.get('error') == 'Ghidra support/bsim not found (set GHIDRA_INSTALL_DIR)'
+    ):
+        from agentdecompile_recovery.corpus.bsim_ops import find_bsim_launcher
+        if find_bsim_launcher() is not None:
+            return {}
     return prior
 
 
@@ -1240,7 +2197,10 @@ def control(params: dict[str, Any]) -> dict[str, Any]:
     # Pause takes effect between stages. An accepted native operation is allowed
     # to drain; releasing its project lock early would risk duplicated mutations.
     may_resume = operation == 'resume' or (operation == 'budget' and row['status'] == 'budget-stop' and command.get('operation') not in {'pause', 'stop'})
-    if may_resume and run_id not in _ACTIVE and (not _owner_alive(row) or row['status'] not in {'running', 'queued', 'paused'}):
+    # A paused coordinator has drained its accepted child and released its
+    # lease. Its server process can still be alive, so owner liveness alone
+    # must not prevent a durable resume of the same receipt.
+    if may_resume and run_id not in _ACTIVE and (not _owner_alive(row) or row['status'] not in {'running', 'queued'}):
         if 'deadline' in command:
             row.update(deadline=command['deadline'], budgetSeconds=command.get('budgetSeconds'))
             _write(row)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+
 from types import SimpleNamespace
 from typing import Any
 
@@ -13,6 +14,7 @@ from agentdecompile_cli.mcp_server.providers.getfunction import (
     GetFunctionToolProvider,
     is_default_decompiler_var_name,
 )
+
 from tests.helpers import create_test_program_with_stack_function, ghidra_install_available
 
 _INTEGRATION_SKIP = pytest.mark.skipif(
@@ -83,7 +85,7 @@ async def test_rename_variable_persists_in_decompiled_output(
         file_path="VarRenameIntegrationProgram",
     )
 
-    hfunc = provider._decompile_high_function(program, func)
+    hfunc = provider._decompile_high_function(program, func, program_info=provider.program_info)
     original_name = _first_default_local_name(hfunc)
     new_name = "slotIndex"
 
@@ -95,6 +97,7 @@ async def test_rename_variable_persists_in_decompiled_output(
             "newName": new_name,
             "format": "json",
         },
+        program_info=provider.program_info,
     )
     assert len(result) == 1
     payload = json.loads(result[0].text)

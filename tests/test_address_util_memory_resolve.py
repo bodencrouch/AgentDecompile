@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+
 from types import SimpleNamespace
 
 import pytest
@@ -85,9 +86,9 @@ async def test_handle_read_returns_error_json_when_resolve_fails(monkeypatch: py
     provider = MemoryToolProvider(program_info=SimpleNamespace(program=prog, decompiler=None))  # pyright: ignore[reportArgumentType]
 
     monkeypatch.setattr(provider, "_require_address_or_symbol", lambda args: "not_resolvable___")
-    monkeypatch.setattr(provider, "_resolve_address", lambda addr_str, program=None: None)
+    monkeypatch.setattr(provider, "_resolve_address", lambda addr_str, program=None, **kwargs: None)
 
-    out = await provider._handle_read({"address": "not_resolvable___"}, prog, fake_memory)  # type: ignore[arg-type]
+    out = await provider._handle_read({"address": "not_resolvable___"}, prog, fake_memory, program_info=provider.program_info)  # type: ignore[arg-type]
     assert len(out) == 1
     payload = json.loads(out[0].text)
     assert payload.get("success") is False

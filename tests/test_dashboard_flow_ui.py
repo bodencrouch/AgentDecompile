@@ -94,7 +94,8 @@ def test_workbench_js_editor_shell() -> None:
     assert 'placeholder="Filter functions…"' in JS
     assert "slugFromDiskPath" in JS
     assert "startImportPipeline" in JS
-    assert "chainAfterAnalyze" in JS
+    # Browser-side analysis chaining was removed: the server owns follow-on work.
+    assert "chainAfterAnalyze" not in JS
     assert "wb-prog-meter" in JS
     assert "analyze.program" in JS
     assert "mcp.analyze-program" in JS

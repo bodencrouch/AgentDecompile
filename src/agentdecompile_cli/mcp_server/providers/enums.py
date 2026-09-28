@@ -28,10 +28,14 @@ from agentdecompile_cli.mcp_server.tool_providers import (
 from agentdecompile_cli.registry import Tool
 
 if TYPE_CHECKING:
+    from types import SimpleNamespace
+
     from ghidra.program.model.data import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
         DataTypeManager as GhidraDataTypeManager,
         Enum as GhidraEnum,
     )
+
+    from agentdecompile_cli.launcher import ProgramInfo
 
 logger = logging.getLogger(__name__)
 
@@ -93,10 +97,10 @@ class EnumToolProvider(ToolProvider):
         "manageenums": "_handle",
     }
 
-    def _find_enum(self, dtm: GhidraDataTypeManager, name: str) -> GhidraEnum | None:
+    def _find_enum(self, dtm: GhidraDataTypeManager, name: str, *, program_info: ProgramInfo | SimpleNamespace | None) -> GhidraEnum | None:
         logger.debug("diag.enter %s", "mcp_server/providers/enums.py:EnumToolProvider._find_enum")
-        assert self.program_info is not None
-        for row in collect_enums(self.program_info.program):
+        assert program_info is not None
+        for row in collect_enums(program_info.program):
             enum_dt = row.get("enum")
             if enum_dt is not None and enum_dt.getName() == name:
                 return enum_dt
@@ -136,6 +140,7 @@ class EnumToolProvider(ToolProvider):
                             "description": "Category folder where the enum is stored.",
                         },
                         "description": {"type": "string", "description": "Optional enum description."},
+                        "size": {"type": "integer", "enum": [1, 2, 4, 8], "default": 4, "description": "Enum size in bytes for create."},
                         "memberName": {"type": "string", "description": "Enum member name (COBRA_CASE)."},
                         "newMemberName": {"type": "string", "description": "Renamed member name for edit_member."},
                         "memberValue": {"type": "integer", "description": "Integer value for an enum member."},
@@ -159,9 +164,9 @@ class EnumToolProvider(ToolProvider):
             ),
         ]
 
-    async def _handle(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/enums.py:EnumToolProvider._handle")
-        self._require_program()
+        self._require_program(program_info=program_info)
         action = self._get_str(args, "mode", "action", "operation", default="list")
 
         dispatch = {
@@ -173,33 +178,33 @@ class EnumToolProvider(ToolProvider):
             "removemember": self._remove_member,
             "delete": self._delete,
         }
-        handler = self._dispatch_handler(dispatch, action, "action")
+        handler = self._dispatch_handler(dispatch, action, "action", program_info=program_info)
         return await handler(args)
 
-    async def _handle_mode_alias(self, args: dict[str, Any], mode: str) -> list[types.TextContent]:
+    async def _handle_mode_alias(self, args: dict[str, Any], mode: str, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         forwarded_args = dict(args)
         forwarded_args.setdefault("mode", mode)
-        return await self._handle(forwarded_args)
+        return await self._handle(forwarded_args, program_info=program_info)
 
-    async def _handle_create_alias(self, args: dict[str, Any]) -> list[types.TextContent]:
-        return await self._handle_mode_alias(args, "create")
+    async def _handle_create_alias(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        return await self._handle_mode_alias(args, "create", program_info=program_info)
 
-    async def _handle_list_alias(self, args: dict[str, Any]) -> list[types.TextContent]:
-        return await self._handle_mode_alias(args, "list")
+    async def _handle_list_alias(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        return await self._handle_mode_alias(args, "list", program_info=program_info)
 
-    async def _handle_info_alias(self, args: dict[str, Any]) -> list[types.TextContent]:
-        return await self._handle_mode_alias(args, "info")
+    async def _handle_info_alias(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        return await self._handle_mode_alias(args, "info", program_info=program_info)
 
-    async def _handle_delete_alias(self, args: dict[str, Any]) -> list[types.TextContent]:
-        return await self._handle_mode_alias(args, "delete")
+    async def _handle_delete_alias(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        return await self._handle_mode_alias(args, "delete", program_info=program_info)
 
-    async def _handle_edit_alias(self, args: dict[str, Any]) -> list[types.TextContent]:
-        return await self._handle_mode_alias(args, "edit_member")
+    async def _handle_edit_alias(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
+        return await self._handle_mode_alias(args, "edit_member", program_info=program_info)
 
-    async def _list(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _list(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/enums.py:EnumToolProvider._list")
-        assert self.program_info is not None
-        program = self.program_info.program
+        assert program_info is not None
+        program = program_info.program
         max_results = self._get_int(args, "maxresults", "limit", default=100)
         cat_path = self._get_str(args, "categorypath", "category")
         name_filter = self._get_str(args, "namefilter", "query", "filter", "search", "pattern").strip().lower()
@@ -221,14 +226,14 @@ class EnumToolProvider(ToolProvider):
             )
         return create_success_response({"action": "list", "enums": results, "count": len(results)})
 
-    async def _info(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _info(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/enums.py:EnumToolProvider._info")
         name = self._require_str(args, "name", "enumname", "enum", name="name")
-        assert self.program_info is not None
-        program = self.program_info.program
+        assert program_info is not None
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
-        enum_dt = self._find_enum(dtm, name)
+        enum_dt = self._find_enum(dtm, name, program_info=program_info)
         if enum_dt is None:
             raise ValueError(f"Enum not found: {name}")
 
@@ -242,23 +247,26 @@ class EnumToolProvider(ToolProvider):
             },
         )
 
-    async def _create(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _create(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/enums.py:EnumToolProvider._create")
         name = self._require_str(args, "name", "enumname", name="name")
         cat_path = self._get_str(args, "categorypath", "category", default="/")
         description = self._get_str(args, "description", "comment", default="")
+        size_arg = self._get_int(args, "size", "length", default=None)
+        if size_arg is not None and size_arg not in (1, 2, 4, 8):
+            raise ValueError(f"size must be 1, 2, 4 or 8 bytes, got {size_arg}")
         members = parse_enum_member_specs(
             self._get_list(args, "members"),
             single_name=None,
             single_value=None,
         )
 
-        assert self.program_info is not None
-        program = self.program_info.program
+        assert program_info is not None
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
         if not args.get(FORCE_APPLY_CONFLICT_ID_KEY):
-            existing = self._find_enum(dtm, name)
+            existing = self._find_enum(dtm, name, program_info=program_info)
             if existing is not None:
                 from agentdecompile_cli.mcp_server.conflict_store import store as conflict_store_store
                 from agentdecompile_cli.mcp_server.session_context import get_current_mcp_session_id
@@ -269,8 +277,8 @@ class EnumToolProvider(ToolProvider):
                     f'To apply this change, call `resolve-modification-conflict` with `conflictId` = "{conflict_id}" '
                     'and `resolution` = "overwrite". To discard, use `resolution` = "skip".'
                 )
-                program_path = args.get(n("programPath")) or getattr(self.program_info, "path", None) or getattr(
-                    self.program_info,
+                program_path = args.get(n("programPath")) or getattr(program_info, "path", None) or getattr(
+                    program_info,
                     "file_path",
                     None,
                 )
@@ -289,12 +297,21 @@ class EnumToolProvider(ToolProvider):
         from ghidra.program.model.data import CategoryPath, EnumDataType  # pyright: ignore[reportMissingModuleSource]
 
         force_apply = bool(args.get(FORCE_APPLY_CONFLICT_ID_KEY))
-        existing = self._find_enum(dtm, name) if force_apply else None
+        existing = self._find_enum(dtm, name, program_info=program_info) if force_apply else None
+        # No explicit size: preserve the replaced enum's width instead of silently
+        # narrowing/widening it to the 4-byte fallback.
+        if size_arg is not None:
+            size = size_arg
+        elif existing is not None:
+            size = existing.getLength()
+        else:
+            size = 4
 
         def _create_enum() -> None:
             if existing is not None:
                 dtm.remove(existing, None)
-            enum_dt = EnumDataType(CategoryPath(cat_path), name, dtm)
+            # EnumDataType has no (CategoryPath, String, DataTypeManager) constructor; the byte size is required.
+            enum_dt = EnumDataType(CategoryPath(cat_path), name, size, dtm)
             if description:
                 enum_dt.setDescription(description)
             for member_name, member_value in members:
@@ -311,14 +328,14 @@ class EnumToolProvider(ToolProvider):
             },
         )
 
-    async def _add_member(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _add_member(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/enums.py:EnumToolProvider._add_member")
         enum_name = self._require_str(args, "name", "enumname", "enum", name="name")
-        assert self.program_info is not None
-        program = self.program_info.program
+        assert program_info is not None
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
-        enum_dt = self._find_enum(dtm, enum_name)
+        enum_dt = self._find_enum(dtm, enum_name, program_info=program_info)
         if enum_dt is None:
             raise ValueError(f"Enum not found: {enum_name}")
 
@@ -360,18 +377,18 @@ class EnumToolProvider(ToolProvider):
             },
         )
 
-    async def _edit_member(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _edit_member(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/enums.py:EnumToolProvider._edit_member")
         enum_name = self._require_str(args, "name", "enumname", name="name")
         member_name = self._require_str(args, "membername", "member", name="memberName")
         new_member_name = self._get_str(args, "newmembername", "newname")
         member_value = self._get_int(args, "membervalue", "value")
 
-        assert self.program_info is not None
-        program = self.program_info.program
+        assert program_info is not None
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
-        enum_dt = self._find_enum(dtm, enum_name)
+        enum_dt = self._find_enum(dtm, enum_name, program_info=program_info)
         if enum_dt is None:
             raise ValueError(f"Enum not found: {enum_name}")
         if not enum_dt.contains(member_name):
@@ -401,16 +418,16 @@ class EnumToolProvider(ToolProvider):
             },
         )
 
-    async def _remove_member(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _remove_member(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/enums.py:EnumToolProvider._remove_member")
         enum_name = self._require_str(args, "name", "enumname", name="name")
         member_name = self._require_str(args, "membername", "member", name="memberName")
 
-        assert self.program_info is not None
-        program = self.program_info.program
+        assert program_info is not None
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
-        enum_dt = self._find_enum(dtm, enum_name)
+        enum_dt = self._find_enum(dtm, enum_name, program_info=program_info)
         if enum_dt is None:
             raise ValueError(f"Enum not found: {enum_name}")
         if not enum_dt.contains(member_name):
@@ -429,14 +446,14 @@ class EnumToolProvider(ToolProvider):
             },
         )
 
-    async def _delete(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _delete(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/enums.py:EnumToolProvider._delete")
         name = self._require_str(args, "name", "enumname", name="name")
-        assert self.program_info is not None
-        program = self.program_info.program
+        assert program_info is not None
+        program = program_info.program
         dtm = program.getDataTypeManager()
 
-        enum_dt = self._find_enum(dtm, name)
+        enum_dt = self._find_enum(dtm, name, program_info=program_info)
         if enum_dt is None:
             raise ValueError(f"Enum not found: {name}")
 

@@ -7,8 +7,19 @@ metadata:
   version: "1.0"
 ---
 
-# mcp-debugging
+# MCP debugging
 
-Canonical skill: [../../../.agents/skills/mcp-debugging/SKILL.md](../../../.agents/skills/mcp-debugging/SKILL.md)
+Read [AGENTS](../../../AGENTS.md) and [server environment](../agentdecompile-server-env/SKILL.md).
+Diagnose the existing 8080 backend without restarting it or switching ports.
 
-Read that file immediately and follow it. Do not continue from this stub.
+Check the configured endpoint/transport, advertised tool schema, session ID,
+selected project/binary, authentication boundary, and existing logs. Distinguish
+a missing program binding from missing analysis. Corroborate process ownership
+before proposing any operational change; a timeout alone does not establish death.
+Never retry a mutation blindly after an uncertain response.
+
+The project plugin connects directly to existing 8080 over native HTTP.
+Global Codex MCP defaults remain Hugging Face and Zapier. Cursor-local servers
+are not global defaults. Historical debug recipes under `references/` are
+implementation references, not permission to start, reconnect, mutate or replace
+the current recovery environment.

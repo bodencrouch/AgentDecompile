@@ -1,35 +1,47 @@
 # Use the AgentDecompile interfaces
 
-AgentDecompile serves the built workbench at `/dashboard` on its MCP HTTP server. The installed Python package includes the assets; serving them does not require Node.
+Current recovery operations use the existing **8080** workbench and action
+catalog. [AGENTS.md](../../../../../AGENTS.md) owns process and mission rules:
+do not start Vite on 5174, another backend, a watcher, or an alternate port, and
+do not restart the live owner for UI checks.
 
-The MCP-served interface defaults to the dense workbench. Vite defaults to the Atlas project manager, with project preparation, build comparisons, and focused function exploration. Both include the same Code Browser, recovery surfaces, guide workflows, action catalog, and persistent jobs. `?mode=workbench` and `?mode=atlas` select either presentation explicitly.
+The static workbench is implemented in `../static/workbench-app.js` with
+`../workbench.py` as its shell. React source is in this directory; packaged
+assets are in `../static/react/`. The server's `../react_api.py` defines
+`/react/` and compatibility asset routes. Installed assets can be served
+without Node. Source and generated assets coexist; their presence does not
+establish that the current 8080 deployment has completed migration or that
+both presentations have feature parity. Inspect the live serving mode before
+making those claims. Vite configuration is development reference, not the
+current recovery operating surface.
 
-For frontend development, run these commands from this directory:
-
-```bash
-npm ci
-npm run build
-AGENTDECOMPILE_BACKEND=http://127.0.0.1:8080 npm run dev
-```
-
-Vite runs on `http://127.0.0.1:5174/`. It fails if 5174 is occupied. It proxies API requests to AgentDecompile; credentials stay on the backend. The production build writes to `../static/react` and is served by both full and proxy MCP servers.
+React remains the product strategy. Future packaging must validate the
+installed assets and actual handler paths; do not hand-edit generated assets.
+Python hot reload without restarting the live owner or resuming tasks is an
+open verification requirement, not an implemented capability claimed here.
 
 ```mermaid
 flowchart LR
-  frontend[frontend React source] --> react[static/react assets]
-  frontend --> vite[Vite 5174]
-  react --> dashboard[MCP dashboard]
-  vite --> api[Shared action and data APIs]
-  dashboard --> api
+  static[Static workbench source] --> server[Existing 8080 server]
+  frontend[React frontend source] --> assets[Packaged React assets]
+  assets --> server
+  server --> catalog[Shared action catalog and evidence]
 ```
 
-The workspace keeps one selection across the explorer, functions, source, graph, evidence, and commands. Project tabs represent sessions. Section navigation moves through the document. Drag the separators to resize panes; View provides density, visibility, and layout reset controls.
+The capabilities below describe interface intent and implementation reference,
+not fresh acceptance evidence from this documentation pass.
+
+The workspace keeps one selection across the explorer, functions, source, graph, evidence, and commands. Binary tabs and a compact analysis tab strip provide the RzWeb-style analysis workflow: choose a function in the navigator, then inspect its listing, decompilation, graph, or other analysis view in the main pane. The Evidence rail and resizable Activity/Logs/Jobs/Problems dock retain context while switching tabs. Header actions open binaries, create scratches, search, and invoke commands.
 
 Logs and Jobs share the bottom Activity dock. Logs remain inspectable. Job completion is distinct from compilation and byte verification. Unknown progress is indeterminate; object-file presence does not establish function proof.
 
-Use the command palette or Commands section to select a catalog action. Fields receive the current target and server defaults. Batch selections survive paging and filtering, clear on program changes, and are frozen on submission. Batch receipts live in `workbench-batches` under the configured corpus workspace. Reloading the browser does not restart a batch. A server restart reconciles durable workflow checkpoints and process ownership. Completed work is retained; ambiguous non-import mutations remain blocked for reconciliation.
+Use the command palette or Commands control to select a catalog action. Fields receive the current target and server defaults. Batch selections survive paging and filtering, clear on program changes, and are frozen on submission. Batch receipts live in `workbench-batches` under the configured corpus workspace. Reloading the browser does not restart a batch. A server restart reconciles durable workflow checkpoints and process ownership. Completed work is retained; ambiguous non-import mutations remain blocked for reconciliation.
 
 Save workspace writes metadata. Copy project reports whether program databases were copied. Save connection creates a reopenable reference; it does not upload a Ghidra repository.
+
+## Create and edit a scratch
+
+New scratch opens a decomp.me-style workflow with platform, preset/compiler, diff label, required target assembly, and optional context. The Matching surface places Source/Context/Options beside target assembly and compilation/objdiff output. Drafts stay local, survive reloads, and can be downloaded. Compilation uses the existing backend action and requires a valid configured target; provider failures remain visible beside output. A completed job or a local draft is not byte proof: that requires a revision-bound objdiff receipt.
 
 ## Follow the Ghidra guide
 
@@ -56,9 +68,14 @@ Project preparation checks existing analysis, extracts missing function features
 
 ## Verify the running interfaces
 
-Build with `npm run build`. Browser acceptance must exercise both MCP production delivery and Vite against actual handler paths. Use inline Playwright or browser tools to open/import projects, inspect functions, follow references, edit justified analysis, save state, resize panes, run recovery/export operations, and inspect their evidence. Verify installed-wheel serving with Node absent from the server's environment.
+For this recovery mission, use read-only source/diff checks and authorized
+observations of the existing 8080 listener. Do not run filesystem tests, type
+checks, builds, Vite or temporary-asset routing tests. Separate frontend release
+work needs its own authorized packaging and installed-wheel verification.
+Exercise the affected real handler path when live validation is authorized;
+report unexercised flows explicitly.
 
-For this implementation session, do not run saved test files or create or modify tests. Browser screenshots and JSON interaction receipts are evidence of the observed workflows, not corpus-recovery proof.
+Browser screenshots and interaction receipts are evidence of observed workflows, not corpus-recovery proof.
 
 See the [verification record](../../../../../docs/verification/2026-09-08-react-workbench.md) for observed workflows, defects found during live use, and remaining claim boundaries.
 

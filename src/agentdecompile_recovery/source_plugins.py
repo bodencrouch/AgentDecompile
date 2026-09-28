@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 from . import rewrite_queue
 from .mismatch_classify import enrich_attempt_records, routed_playbook_for_class, write_mismatch_class_last
+from .objdiff_verification import is_objdiff_match
 from .plugin_pipeline import PluginResult, now_ms
 from .source_export import export_recovered_source
 from .source_parity_synthesize import (
@@ -20,6 +23,7 @@ from .source_parity_synthesize import (
     generated_candidate_source_quality,
     matched_source_shape_record,
     packaged_source_candidate,
+    pending_rewrite_variant,
     prioritize_candidates,
 )
 
@@ -130,6 +134,17 @@ class SourceCandidateObjdiffPlugin:
                 str(row.get("name") or ""), str(getattr(candidate, "source", "") or "")
             )
             pending_rewrite_result = rewrite_queue.find_entry(Path(str(work_dir_value)), rewrite_request_id)
+        rewrite_variant = pending_rewrite_variant(row, candidate, pending_rewrite_result)
+        if rewrite_variant is not None:
+            # Queue metadata is advisory. Keep the locally selected symbol,
+            # calling convention, compiler flags, and proof scope.
+            candidate = replace(
+                candidate,
+                source=rewrite_variant["source"],
+                source_suffix=".c",
+                variant=f"{candidate.variant}-rewrite-request",
+                evidence={**candidate.evidence, "rewriteRequestId": rewrite_request_id},
+            )
         records = attempt_candidate(
             row,
             candidate,
@@ -143,24 +158,23 @@ class SourceCandidateObjdiffPlugin:
             wineprefix=Path(str(context["wineprefix"])) if context.get("wineprefix") else None,
             timeout=int(context.get("timeout") or 120),
             dry_run=bool(context.get("dryRun")),
-            source_shape_search=bool(context.get("sourceShapeSearch")),
-            pending_rewrite_result=pending_rewrite_result,
+            source_shape_search=bool(context.get("sourceShapeSearch")) and rewrite_variant is None,
         )
-        if (
-            work_dir_value
-            and rewrite_request_id
-            and pending_rewrite_result is not None
-            and pending_rewrite_result.get("status") in {"completed", "failed"}
-        ):
-            # Consumed this pass (whether it produced a match or not) -- prune so a
-            # later pass doesn't re-read a stale completed/failed entry. Never prune
-            # pending/claimed entries -- the worker may still be in flight.
-            rewrite_queue.prune_consumed_entries(Path(str(work_dir_value)), [rewrite_request_id])
+        target_sha = str(
+            context.get("targetSha256")
+            or row.get("targetSha256")
+            or row.get("analysisBinarySha256")
+            or ""
+        ).strip()
+        if target_sha:
+            for record in records:
+                if isinstance(record, dict) and not record.get("targetSha256"):
+                    record["targetSha256"] = target_sha
         enrich_attempt_records(records, row if isinstance(row, dict) else None)
         matches = [
             record
             for record in records
-            if record.get("status") in {"matched", "code-slice-matched"} and optional_int(record.get("differences"), -1) == 0
+            if is_objdiff_match(record)
         ]
         output_source_qualities = normalize_filter_set(context.get("sourceQualities"))
         exportable_matches = [
@@ -208,6 +222,33 @@ class SourceCandidateObjdiffPlugin:
         updated["sourceShapeMatchRecords"] = source_shape_matches
         updated["sourceParityAttemptsPath"] = str(attempts_path)
         status = "success" if exportable_matches or source_shape_matches else "failure"
+        if (
+            work_dir_value
+            and rewrite_request_id
+            and pending_rewrite_result is not None
+            and pending_rewrite_result.get("status") in {"completed", "failed"}
+            and not context.get("dryRun")
+            and (
+                rewrite_variant is None
+                or bool(matches)
+                or (
+                    bool(records)
+                    and all(
+                        record.get("candidateCompileInvoked") is True
+                        and (
+                            record.get("status") == "compile-failed"
+                            or (record.get("status") == "mismatched" and record.get("objdiffExit") == 0 and not record.get("fallback"))
+                        )
+                        for record in records
+                    )
+                )
+            )
+        ):
+            # Target preparation and verifier errors leave the proposal retryable.
+            # Status alone is insufficient: missing toolchains can be compile-failed.
+            # A match settles the candidate; rejection requires every profile to
+            # finish conclusively so one failure cannot hide another profile's retry.
+            rewrite_queue.prune_consumed_entries(Path(str(work_dir_value)), [rewrite_request_id])
         return (
             PluginResult(
                 self.id,

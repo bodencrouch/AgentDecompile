@@ -13,6 +13,8 @@ from typing import Any
 
 from mcp import types
 
+from agentdecompile_recovery.languages import default_source_language, language_spec
+
 logger = logging.getLogger(__name__)
 
 # Prompt evolution note: the nine workflow bodies below were revised from
@@ -115,7 +117,7 @@ _PROMPTS: list[dict[str, Any]] = [
             {
                 "role": "user",
                 "text": (
-                    "Recover readable C/C++ for functions in `{program_path}` related to "
+                    "Recover readable {recovery_source_language} for functions in `{program_path}` related to "
                     "**{analysis_target}**, with coverage recorded explicitly.\n\n"
                     "Execute these steps:\n\n"
                     "**Step 1: Identify all relevant functions**\n"
@@ -167,7 +169,7 @@ _PROMPTS: list[dict[str, Any]] = [
                 "role": "user",
                 "text": (
                     "Analyze the subsystem bottom-up, starting from low-level primitives and working upward.\n\n"
-                    "Your target binary is `{program_path}`. Recover readable C/C++ for the "
+                    "Your target binary is `{program_path}`. Recover readable {recovery_source_language} for the "
                     "evidenced logic related to **{analysis_target}**, working from primitives upward.\n\n"
                     "## Strategy (Bottom-Up)\n\n"
                     "### Phase 1: Find I/O and low-level primitives\n"
@@ -216,7 +218,7 @@ _PROMPTS: list[dict[str, Any]] = [
                 "role": "user",
                 "text": (
                     "Analyze the subsystem top-down, starting from high-level entry points and drilling down.\n\n"
-                    "Your target binary is `{program_path}`. Recover readable C/C++ for the "
+                    "Your target binary is `{program_path}`. Recover readable {recovery_source_language} for the "
                     "evidenced logic related to **{analysis_target}**, working from entry points downward.\n\n"
                     "## Strategy (Top-Down)\n\n"
                     "### Phase 1: Discovery\n"
@@ -532,6 +534,10 @@ def build_prompt_render_args(
     else:
         rendered.pop("program_path", None)
 
+    rendered.setdefault(
+        "recovery_source_language",
+        language_spec(default_source_language()).display_name,
+    )
     keywords = (rendered.get("search_keywords") or "").strip()
     rendered.setdefault("program_path", "(current project)")
     rendered.setdefault("source_program_path", rendered.get("program_path", "(current project)"))

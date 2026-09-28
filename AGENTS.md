@@ -1,49 +1,89 @@
 # AGENTS.md
 
-See [README.md](README.md) for project overview, [USAGE.md](USAGE.md) for CLI and env vars, [STRATEGY.md](STRATEGY.md) for product direction, [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, and [src/CLAUDE.md](src/CLAUDE.md) for architecture details. Plans hub: [docs/plans/README.md](docs/plans/README.md). Solutions hub: [docs/solutions/README.md](docs/solutions/README.md).
+Operational authority for this repository. [VISION.md](VISION.md) is the charter;
+[STRATEGY.md](STRATEGY.md) is the single recovery pipeline and priority policy.
+Start with [README.md](README.md), [USAGE.md](USAGE.md), the
+[plans hub](docs/plans/README.md) and [runtime reuse assessment](docs/RUNTIME_REUSE.md).
+Search [documented solutions](docs/solutions/README.md) by module or tag before
+changing MCP/Ghidra integration.
 
-```mermaid
-flowchart TD
-  readme[README] --> usage[USAGE]
-  usage --> agents[AGENTS.md]
-  agents --> srcClaude[src/CLAUDE.md]
-  agents --> skills[skills/README.md]
-```
+Frontend requirements are consolidated in [FRONTEND_INTENT.md](docs/FRONTEND_INTENT.md)
+with source locators and supersession decisions; [DELIVERY_STATUS.md](docs/DELIVERY_STATUS.md)
+separates implementation from observed outcomes. The optional full Vite application
+(default5174, packageable at /react/) and the static8080 alternative share backend
+capabilities/state. The recovery-operation port restriction below does not turn
+Vite into a development-preview-only product or replace static /dashboard.
 
-## Documented solutions
+## Recovery operations
 
-`docs/solutions/` — documented solutions to past problems (MCP/Ghidra integration, analysis gate, CLI agents, workflows), organized by category with YAML frontmatter (`module`, `problem_type`, `component`, `tags`). Relevant when implementing or debugging in those areas; search by module or tag before changing `src/agentdecompile_cli/`.
+- AgentDecompile is the only active recovery checkout. The
+  [upstream donor](docs/UPSTREAM_DONOR_ARCHIVE.md) is read-only.
+  Keep session data on NVMe (`/home/brunner56/...` or `/tmp`), not MyBook.
+- Use the existing **8080** workbench and `GET /api/v1/actions`; inspect current
+  action parameters and submit recovery through that catalog. Do not bypass it
+  with a direct recovery CLI, start alternate ports (including 8767 or 5174),
+  or treat implementation CLI examples as operating instructions.
+- Discover and reuse first: inspect `db/kotorxid.sqlite` (`recovered_function`,
+  `reuse_candidate`, `identity`), the Ghidra knowledge cache, verified source
+  and audit receipts. Corroborate binary/source/toolchain identity and provenance.
+  Bind loaded projects through `program_binding` when a known recovered binary
+  appears empty. An empty UI is not permission to analyze again.
+- Reuse existing Ghidra analysis and valid receipts. Resume/import is valid for
+  agents too. Regenerate only missing, invalid or explicitly requested work.
+  Label reused evidence as reused; do not backfill a fresh-run claim. A requested
+  fresh final rebuild must actually compile and compare the current source.
+- Before admitting work, manually corroborate catalog jobs against process
+  owner, PID/start time, command, cwd, target, workspace and logs. Job labels alone
+  do not establish ownership. Never duplicate compiler/Wine work or Ghidra
+  writers; do not kill or restart another owner's process to make room.
+- Before Python edits, corroborate the serving process PID/start time and cwd
+  against the loaded module's `__file__` and source revision. The canonical repo
+  and executing checkout may differ; editing another checkout is not activation.
+  Reconcile source roots and changes explicitly, preserving dirty work. Do not
+  blindly sync, overwrite files or restart processes to make an edit take effect.
+- Python updates use the standalone in-process reloader; inspect `/health` and
+  verify the real consumer with unchanged process/state identities. See
+  [hot reload and live receipt](docs/PYTHON_HOT_RELOAD.md). Rejected edits do not
+  trigger a restart. The former deferred-replacement supervisor is retired.
+- **Do not use systemctl for any reason.** Do not restart the server as routine
+  documentation/UI verification or click Restart/Shutdown. If 8080 is unavailable,
+  diagnose ownership and report the blocker; do not switch ports or kill on-port.
+- **Current recovery mission: no filesystem tests, test suites or builds for
+  documentation validation.** Use read-only diff/link/source checks; authorized
+  live recovery verification uses 8080. Historical test recipes are reference,
+  not permission to run them. Report exactly what was and was not verified.
+- Concurrency and matcher order follow STRATEGY; inspect memory, swap and existing
+  ownership before adding workers. Keep one writer per corpus/project/toolchain.
+- Never count a finished job, compiling C, copied bytes, runtime calls or a
+  screenshot as verified recovery. Keep byte-accurate C+assembly-floor and max-C
+  results separate; terminal recovery requires the fresh whole-image acceptance
+  described in STRATEGY. Runtime readiness follows RUNTIME_REUSE.
+- Continue authorized work without unnecessary confirmation. A vague “continue”
+  does not authorize publication. Do not automatically open a PR; public,
+  high-visibility or third-party upstream PRs require explicit approval in the
+  current conversation.
 
-`CONCEPTS.md` — shared domain vocabulary (entities, named processes, status concepts) for this project. Relevant when orienting to the codebase or discussing domain concepts such as substrate vs matching recovery.
+## Implementation references
 
-**Agent-native audit (2026-05-24):** [docs/audits/2026-05-24-agent-native-audit.md](docs/audits/2026-05-24-agent-native-audit.md) — scored MCP/CLI/GUI parity review; P1 follow-ups in [docs/residual-review-findings/impl-agent-native-audit-c2bc.md](docs/residual-review-findings/impl-agent-native-audit-c2bc.md). Patterns: [docs/solutions/architecture-patterns/agent-native-mcp-patterns.md](docs/solutions/architecture-patterns/agent-native-mcp-patterns.md).
+Recovery package: `src/agentdecompile_recovery/`; companion `scripts/` and
+root-relative `target/` layouts remain compatibility contracts. Entry points
+`agentdecompile-corpus`, `agentdecompile-recover`,
+`agentdecompile-cli reconstruct` and `scripts/decomp-cli.sh` are implementation
+references; operations use the catalog. See [corpus contract](docs/CORPUS_PIPELINE.md)
+and [single-binary reference](docs/CRITICAL_PATH.md).
 
-## Recovery integration
+Preserve format/stem-derived profiles; do not hardcode product binaries in
+generic defaults. Use MCP tools when available, markdown output by default,
+and header/CLI Ghidra authentication where supported. Naming, tool routing,
+session semantics, JPype, transactions and modification conflicts are documented
+in [src/agentdecompile_cli/CLAUDE.md](src/agentdecompile_cli/CLAUDE.md).
+Ghidra Server is RMI over SSL, not HTTP.
 
-This repo is the **only** active recovery cwd. Capabilities from the upstream donor checkout fold in here; do not keep a parallel product surface. See [docs/UPSTREAM_DONOR_ARCHIVE.md](docs/UPSTREAM_DONOR_ARCHIVE.md): the donor checkout is read-only—do not run `source-parity-one-shot` or rematch jobs there.
-
-Package: `src/agentdecompile_recovery/` plus companion scripts under `scripts/`.
-
-Current integrated entrypoints:
-
-- `agentdecompile-corpus` → `agentdecompile_recovery.corpus.cli:main` (main multi-binary pipeline)
-- `agentdecompile-recover` → `agentdecompile_recovery.cli:main`
-- `agentdecompile-reconstruct` → `agentdecompile_recovery.frontdoor:main` (`corpus` subcommand delegates)
-- `scripts/decomp-cli.sh` → recovery/source-parity helper front door
-
-Corpus contract and stages: [docs/CORPUS_PIPELINE.md](docs/CORPUS_PIPELINE.md). Living plan: [docs/plans/2026-08-30-corpus-semantic-pipeline-living-plan.md](docs/plans/2026-08-30-corpus-semantic-pipeline-living-plan.md). Add binaries with `agentdecompile-corpus add-binary`; do not hardcode product stems. First priority is linking one STABS/DWARF donor project to a complete executable. Do not claim completion from the `/dashboard` or `/atlas` pages on the MCP HTTP server.
-
-Fast recovery dump (AgentDecompile only): see [docs/CRITICAL_PATH.md](docs/CRITICAL_PATH.md) — `agentdecompile-reconstruct … --resume --dump-source DIR`. Default reconstruct runs PyGhidra enrich-decompile before source generation (`--skip-enrichment` to opt out). Never claim match without objdiff 0; never promote byte-emitters into `verified/`. Profiles are format/stem-derived (PE vs ELF); do not hardcode product binaries into recovery defaults.
-
-**Source recovery must be self-contained.** A run that is supposed to produce source (decompile, synthesize, match, or dump) should write its own inventory, facts, and match receipts in that execution. Do not skip those stages and point at leftover `target/` files, old dumps, or backfilled JSONL. Flags like `--resume`, match cache, and `--dump-source-only` exist for operators doing incremental work — not for agents to avoid running the pipeline. When the task is to obtain source, run the producing stages (or `--force-rematch` if rematch is the point).
-
-**One-shot perf (U1–U5 done):** [docs/plans/2026-07-24-perf-recovery-one-shot-living-plan.md](docs/plans/2026-07-24-perf-recovery-one-shot-living-plan.md) — backlog only: G14–G16. Update that plan’s progress section after substantial recovery-perf changes.
-
-The imported code expects a repo-root `scripts/` tree and root-relative `target/` outputs. Preserve that layout while the integration is being consolidated; do not silently rename or relocate the script surface without updating `src/agentdecompile_recovery/`.
-
-## Cursor Cloud specific instructions
-
-Environment setup, env-var reference (auto-match-propagate, auto-checkin, max-analysis-tier), local server startup, session/proxy behavior, and lint/test/build commands: see the **agentdecompile-server-env** skill (`skills/agentdecompile-server-env/SKILL.md`, same file under `.agents/skills/`). Skills catalog: [skills/README.md](skills/README.md). VS Code/Copilot scan [`.agents/skills/`](.agents/skills/).
+[Skills catalog](skills/README.md): environment setup reference is
+[server environment](.agents/skills/agentdecompile-server-env/SKILL.md); its generic startup/test recipes
+do not override the current mission constraints above. Preserve public behavior,
+fix underlying causes, and keep references synchronized when names change.
+[CONTRIBUTING.md](CONTRIBUTING.md) covers general development outside this mission.
 
 ## Naming Conventions
 
@@ -66,22 +106,3 @@ Apply these conventions in:
 - Documentation, comments, and analysis summaries that reference named symbols
 
 When a name is ambiguous or cannot be inferred, prefer the convention that matches the identifier category above rather than leaving it in a raw mangled/numbered form (e.g., prefer `slotIndex` over `local_8` for a loop counter).
-
-## Learned User Preferences
-
-- Source-producing recovery runs must be self-contained: run decompile/match/synth in the current execution, or use `--force-rematch` when rematch is intended. Do not pass off prior `target/` artifacts or backfilled JSONL as this run's output.
-- After a merge or vague “continue”, infer the next slice from `STRATEGY.md`, open plans, and `docs/residual-review-findings/`; implement and open the next PR without waiting for a detailed task (see `skills/lfg/SKILL.md` step 0).
-- Do not block the agent's main shell on long proof drivers (e.g. `scripts/lfg_cmd_sequence.ps1`): start them in a separate process, tee output to `.lfg_run/lfg_cmd_<RunId>/driver.log`, tail logs in parallel, and avoid overlapping runs without stopping the prior driver and its MCP server.
-- After fixing an issue, continue with the task without asking; run and verify, and if still broken fix and rerun until functional.
-- Fix the underlying behavior so the same user commands work unchanged; do not only improve error messages or documentation.
-- Complete implementations without placeholders; for features like export, provide fallbacks so the operation does not error or fail.
-- Use the MCP server tools (e.g. user-agdec-http) for agentdecompile workflows rather than the CLI when both are available.
-- Default to markdown (not JSON) for tool output; scale output detail by result count (few results = full detail, many = trimmed).
-- Prefer supporting Ghidra server auth via headers or CLI args when possible, not only via process environment.
-- When removing or renaming tests, update related docs (for example `CONTRIBUTING.md`, `tests/README.md`, `.cursor/plans`), helper scripts, and in-repo references so nothing still points at deleted modules.
-- Prefer tests that exercise real `tools/call` handlers and response payloads over tests that only assert `tools/list` advertisement shape.
-- After workbench/dashboard changes, restart the `:8767` test server (same `/tmp/wb-dogfood-fixes` env), then Playwright-verify and iterate before reporting. Do not click Restart/Shutdown in the UI.
-
-## Learned Workspace Facts
-
-Ghidra/MCP-server-specific gotchas (session semantics, JPype, tool routing, checkin/conflict flow), modification-conflict handling, tiered RE analysis routing, and MCP server debugging: see [src/agentdecompile_cli/CLAUDE.md](src/agentdecompile_cli/CLAUDE.md) — loads automatically when working in that package.

@@ -32,6 +32,7 @@ from .state import RunState, atomic_write_json, config_fingerprint, now
 from .strategy import build_strategy
 from .snapshot import snapshot_existing_recovery
 from .targets import TargetIdentity, identify_binary
+from .languages import RecoveryLanguageProfile
 from .tools import (
     ASSETRIPPER_ENV,
     ILSPYCMD_ENV,
@@ -115,6 +116,8 @@ class RecoveryConfig:
     context_extract_containers: bool = True
     context_include_low_signal_members: bool = False
     skip_enrichment: bool = False
+    project: Path | None = None
+    project_program: str | None = None
     unity_project_out: Path | None = None
     unity_editor: Path | None = None
     unity_editor_version: str | None = None
@@ -125,6 +128,11 @@ class RecoveryConfig:
     unity_assetripper_cli: Path | None = None
     unity_ilspycmd: Path | None = None
     unity_install_mcp_bridge: bool = False
+    # Program name used in operator-facing diagnostics emitted by the runner.
+    # Callers with a live argparse ``prog`` (the recover CLI, the reconstruct
+    # front door) should pass their effective name; this default preserves
+    # the historical wording for callers that construct the config directly.
+    display_prog: str = "agentdecompile-reconstruct"
 
 
 class RecoveryRunner:
@@ -291,6 +299,8 @@ class RecoveryRunner:
             return False
         if self.config.force:
             return False
+        if self.config.force_rematch and stage.name == "synthesize-source-tasks":
+            return False
         receipt = self.state.data.get("stages", {}).get(stage.name, {})
         if receipt.get("status") != "complete":
             return False
@@ -299,19 +309,21 @@ class RecoveryRunner:
         return all(path.exists() for path in stage.outputs)
 
     def stage_config(self, stage: Stage) -> dict[str, Any]:
+        source_batch_stage = stage.name in {"generate-source-candidates", "synthesize-source-tasks", "report"}
+        compiler_stage = stage.name in {"synthesize-source-tasks", "plan-strategy", "report"}
         config: dict[str, Any] = {
             "input": str(self.config.input_path),
             "preferredName": self.config.preferred_name,
-            "enableByteAuthority": self.config.enable_byte_authority,
+            "enableByteAuthority": self.config.enable_byte_authority if stage.name in {"byte-authority", "report"} else None,
             "enableLegacyAdapters": self.config.enable_legacy_adapters,
             "snapshotExistingLabel": self.config.snapshot_existing_label,
             "functionAnalysis": self.config.function_analysis,
             "skipEnrichment": self.config.skip_enrichment,
-            "sourceTaskLimit": self.config.source_task_limit,
-            "sourceTaskOffset": self.config.source_task_offset,
+            "sourceTaskLimit": self.config.source_task_limit if source_batch_stage else 500,
+            "sourceTaskOffset": self.config.source_task_offset if source_batch_stage else 0,
             "sourceSynthesisEngine": self.config.source_synthesis_engine,
             "sourceSynthesisMode": self.config.source_synthesis_mode,
-            "sourceSynthesisLimit": self.config.source_synthesis_limit,
+            "sourceSynthesisLimit": self.config.source_synthesis_limit if compiler_stage else 50,
             "sourceSynthesisMaxVariants": self.config.source_synthesis_max_variants,
             "sourceSynthesisSemanticOnly": self.config.source_synthesis_semantic_only,
             "sourceSynthesisSkipBoundarySuspect": self.config.source_synthesis_skip_boundary_suspect,
@@ -319,9 +331,19 @@ class RecoveryRunner:
             "sourceSynthesisUpgradePackagedSource": self.config.source_synthesis_upgrade_packaged_source,
             "sourceSynthesisStrategies": list(self.config.source_synthesis_strategies),
             "sourceSynthesisSourceQualities": list(self.config.source_synthesis_source_qualities),
-            "sourceSynthesisVcRoot": str(self.config.source_synthesis_vc_root) if self.config.source_synthesis_vc_root else None,
+            "sourceSynthesisVcRoot": (
+                str(self.config.source_synthesis_vc_root)
+                if self.config.source_synthesis_vc_root
+                and compiler_stage
+                else None
+            ),
             "sourceSynthesisWine": self.config.source_synthesis_wine,
-            "sourceSynthesisWineprefix": str(self.config.source_synthesis_wineprefix) if self.config.source_synthesis_wineprefix else None,
+            "sourceSynthesisWineprefix": (
+                str(self.config.source_synthesis_wineprefix)
+                if self.config.source_synthesis_wineprefix
+                and compiler_stage
+                else None
+            ),
             "steamlessCli": str(self.config.steamless_cli) if self.config.steamless_cli else None,
             "contextFormat": self.config.context_format,
             "contextBinaryAnalysis": self.config.context_binary_analysis,
@@ -338,7 +360,92 @@ class RecoveryRunner:
             # Stable bundle identity — not ephemeral --context path lists — so mid-run
             # re-acquire invalidates only stages that consume acquisition facts.
             config["acquisitionIdentity"] = self.acquisition_identity()
+            config["freshEnrichmentIdentity"] = self.fresh_enrichment_identity()
+        if stage.name == "enrich-decompile" and self.config.project is not None:
+            from .reconstruct_enrich import resolve_existing_project_source
+
+            try:
+                config["sourceProject"] = resolve_existing_project_source(
+                    self.config.project,
+                    self.config.project_program,
+                )
+            except Exception as exc:  # stage reports the full error when it runs
+                config["sourceProject"] = {
+                    "project": str(self.config.project.expanduser().resolve()),
+                    "program": self.config.project_program,
+                    "error": str(exc),
+                }
         return config
+
+    def fresh_enrichment_identity(self) -> dict[str, Any] | None:
+        """Identify fresh, target-bound Ghidra facts produced by this run.
+
+        Acquisition may legitimately contain no decompiler projection.  Source
+        generation must still notice when the preceding enrich stage produced
+        facts, and resume must invalidate its later receipts when those facts
+        change.
+        """
+        receipt_path = self.run_dir / "facts" / "enrich-receipt.json"
+        if not receipt_path.is_file():
+            return None
+        try:
+            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, TypeError, ValueError):
+            return None
+        if receipt.get("status") != "complete":
+            return None
+        target_path = self.run_dir / "target.json"
+        if target_path.is_file():
+            try:
+                target = json.loads(target_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError, TypeError, ValueError):
+                return None
+            if receipt.get("analysisBinarySha256") != target.get("sha256"):
+                return None
+        facts_path = Path(str(receipt.get("factsJsonl") or self.run_dir / "facts" / "function-facts.jsonl"))
+        if not facts_path.is_file() or facts_path.stat().st_size == 0:
+            return None
+        return {
+            "kind": "freshEnrichmentFacts",
+            "path": str(facts_path),
+            "analysisBinarySha256": receipt.get("analysisBinarySha256"),
+            "functionCount": receipt.get("functionCount"),
+            "sha256": hashlib.sha256(facts_path.read_bytes()).hexdigest(),
+        }
+
+    def fresh_enrichment_facts_path(self, target: dict[str, Any]) -> Path | None:
+        identity = self.fresh_enrichment_identity()
+        if identity is None or identity.get("analysisBinarySha256") != target.get("sha256"):
+            return None
+        path = Path(str(identity["path"]))
+        return path if path.is_file() and path.stat().st_size else None
+
+    def merge_function_fact_sources(self, sources: list[Path]) -> Path | None:
+        unique: list[Path] = []
+        seen: set[Path] = set()
+        for source in sources:
+            if not source.is_file() or source.stat().st_size == 0:
+                continue
+            resolved = source.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            unique.append(source)
+        if not unique:
+            return None
+        if len(unique) == 1:
+            return unique[0]
+        merged = self.run_dir / "context-pack" / "merged-function-facts.jsonl"
+        merged.parent.mkdir(parents=True, exist_ok=True)
+        pending = merged.with_suffix(".jsonl.tmp")
+        with pending.open("w", encoding="utf-8") as out:
+            for source in unique:
+                source_text = source.read_text(encoding="utf-8", errors="replace")
+                out.write(source_text)
+                if source_text and not source_text.endswith("\n"):
+                    out.write("\n")
+        pending.replace(merged)
+        return merged
 
     def acquisition_identity(self) -> dict[str, Any]:
         """Content-stable acquisition identity for resume fingerprints.
@@ -463,11 +570,27 @@ class RecoveryRunner:
         target = self.load_target()
         analysis_path = target.binary_path
         analysis_file = self.run_dir / "analysis-target.json"
+        analysis_data: dict[str, Any] = {}
         if analysis_file.exists():
-            data = json.loads(analysis_file.read_text(encoding="utf-8"))
-            analysis_path = Path(data.get("analysisBinaryPath") or analysis_path)
+            analysis_data = json.loads(analysis_file.read_text(encoding="utf-8"))
+            analysis_path = Path(analysis_data.get("analysisBinaryPath") or analysis_path)
         if analysis_path == target.binary_path:
             return target
+        container = analysis_data.get("container") if isinstance(analysis_data.get("container"), dict) else {}
+        primary = container.get("primary") if isinstance(container.get("primary"), dict) else {}
+        container_format = str(container.get("format") or analysis_data.get("craftPlatform") or target.format)
+        if container_format == "nds" and primary:
+            from .targets import sha256_file
+
+            return TargetIdentity(
+                input_path=target.input_path,
+                binary_path=analysis_path,
+                sha256=sha256_file(analysis_path),
+                size=analysis_path.stat().st_size,
+                format="nds",
+                architecture_hint=str(primary.get("architectureHint") or target.architecture_hint or "armv5te"),
+                stable_id=target.stable_id,
+            )
         analysis = identify_binary(analysis_path, analysis_path.name)
         return TargetIdentity(
             input_path=target.input_path,
@@ -481,10 +604,16 @@ class RecoveryRunner:
 
     def stage_discover(self, _stage: Stage) -> dict[str, Any]:
         self.target = identify_binary(self.config.input_path, self.config.preferred_name)
-        atomic_write_json(self.run_dir / "target.json", self.target.to_json())
-        self.state.data["target"] = self.target.to_json()
+        target_json = self.target.to_json()
+        from .prompt_builder import craft_platform_for_target_format
+
+        craft_platform = craft_platform_for_target_format(self.target.format)
+        if craft_platform:
+            target_json["craftPlatform"] = craft_platform
+        atomic_write_json(self.run_dir / "target.json", target_json)
+        self.state.data["target"] = target_json
         self.state.save()
-        return self.target.to_json()
+        return target_json
 
     def stage_inspect_capabilities(self, _stage: Stage) -> dict[str, Any]:
         capabilities = inspect_capabilities(ROOT)
@@ -503,6 +632,27 @@ class RecoveryRunner:
             "terminalStatus": None,
             "claimBoundary": "analysis image is for static recovery inputs; target identity remains the original binary",
         }
+        if target.format == "nds":
+            from .containers import prepare_container_for_analysis
+
+            container = prepare_container_for_analysis(target.binary_path, self.run_dir)
+            if container and container.get("analysisPath"):
+                analysis_path = Path(str(container["analysisPath"]))
+                summary.update(
+                    {
+                        "analysisBinaryPath": str(analysis_path),
+                        "status": "transformed",
+                        "transform": container.get("handling") or "container-extract",
+                        "analysisSha256": sha256_file(analysis_path),
+                        "analysisSize": analysis_path.stat().st_size,
+                        "container": container.get("container"),
+                        "craftPlatform": "nds",
+                    }
+                )
+                if container.get("overlays"):
+                    summary["containerOverlays"] = container["overlays"]
+            atomic_write_json(out_path, summary)
+            return summary
         if target.format == "pe":
             capabilities = json.loads((self.run_dir / "capabilities.json").read_text(encoding="utf-8"))
             mono = ((capabilities.get("tools") or {}).get("mono") or {}).get("available")
@@ -620,7 +770,11 @@ class RecoveryRunner:
 
     def stage_inventory_binary(self, _stage: Stage) -> dict[str, Any]:
         target = self.load_analysis_target()
-        inventory = build_binary_inventory(target)
+        analysis_payload: dict[str, Any] = {}
+        analysis_file = self.run_dir / "analysis-target.json"
+        if analysis_file.exists():
+            analysis_payload = json.loads(analysis_file.read_text(encoding="utf-8"))
+        inventory = build_binary_inventory(target, analysis_target=analysis_payload)
         write_inventory(self.run_dir / "binary-inventory.json", inventory)
         summary = inventory.get("summary", {})
         return {
@@ -676,6 +830,8 @@ class RecoveryRunner:
             work_dir=self.run_dir,
             candidates_payload=candidates,
             skip=self.config.skip_enrichment,
+            project=self.config.project,
+            project_program=self.config.project_program,
         )
 
     def resolve_acquisition_facts_source(self, target: dict[str, Any]) -> Path | None:
@@ -713,6 +869,10 @@ class RecoveryRunner:
             facts_path = bundle_dir / str(manifest.get("factsJsonl") or "function-facts.jsonl")
             if not facts_path.exists():
                 raise FileNotFoundError(f"bundle legacy facts projection missing: {facts_path}")
+            fresh_facts = self.fresh_enrichment_facts_path(target)
+            selected_facts = self.merge_function_fact_sources(
+                [compatibility_projection or facts_path, fresh_facts] if fresh_facts else [compatibility_projection or facts_path]
+            )
             atomic_write_json(
                 self.run_dir / "acquisition-bundle.json",
                 {
@@ -723,24 +883,17 @@ class RecoveryRunner:
                     "targetMatched": target_status["targetMatched"],
                     "conflictCount": len(conflicts),
                     "factsJsonl": str(facts_path),
+                    "freshEnrichmentFactsJsonl": str(fresh_facts) if fresh_facts else None,
+                    "selectedFactsJsonl": str(selected_facts) if selected_facts else None,
                     "claimBoundary": "bundle context is advisory acquisition evidence only; compile and objdiff gates remain required.",
                 },
             )
-            return compatibility_projection if compatibility_projection and compatibility_projection.exists() else facts_path
+            return selected_facts
+        fresh_facts = self.fresh_enrichment_facts_path(target)
+        if fresh_facts:
+            legacy_sources.append(fresh_facts)
         sources = [path for path in legacy_sources if path.exists()]
-        if not sources:
-            return None
-        if len(sources) == 1:
-            return sources[0]
-        merged = self.run_dir / "context-pack" / "merged-function-facts.jsonl"
-        merged.parent.mkdir(parents=True, exist_ok=True)
-        with merged.open("w", encoding="utf-8") as out:
-            for source in sources:
-                text = source.read_text(encoding="utf-8", errors="replace")
-                out.write(text)
-                if not text.endswith("\n"):
-                    out.write("\n")
-        return merged
+        return self.merge_function_fact_sources(sources)
 
     def stage_plan_strategy(self, _stage: Stage) -> dict[str, Any]:
         target = self.load_target()
@@ -764,24 +917,33 @@ class RecoveryRunner:
         candidates = json.loads((self.run_dir / "function-candidates.json").read_text(encoding="utf-8"))
         inventory = json.loads((self.run_dir / "binary-inventory.json").read_text(encoding="utf-8"))
         facts_jsonl = self.resolve_acquisition_facts_source(target.to_json()) or default_function_facts_path(self.run_dir)
+        # A verification run must not silently discard acquired candidates.  The
+        # old fixed window made a "complete" run process only the first slice
+        # of the inventory, even when all source context was already present.
+        source_limit = self.config.source_task_limit
+        if self.config.source_synthesis_verify_packaged_source:
+            # Candidate expansion can add acquired-context aliases beyond the
+            # raw inventory; leave room for that deterministic expansion.
+            source_limit = max(source_limit, len(candidates) * 2)
         summary = generate_source_candidates(
-            target=target.to_json(),
+            target=RecoveryLanguageProfile.merge_into_target(target.to_json()),
             function_candidates=candidates,
             out_dir=self.run_dir / "source-generation",
             inventory=inventory,
             function_facts_jsonl=facts_jsonl,
-            limit=self.config.source_task_limit,
+            limit=source_limit,
             offset=self.config.source_task_offset,
         )
         truncation = summary.get("candidateTruncation") if isinstance(summary, dict) else None
         if isinstance(truncation, dict) and truncation.get("warning"):
             # A truncated run still reports success, so the only way an operator
             # learns the inventory was cut is if we say so here.
-            print(f"agentdecompile-reconstruct: warning: {truncation['warning']}", file=sys.stderr)
+            print(f"{self.config.display_prog}: warning: {truncation['warning']}", file=sys.stderr)
         atomic_write_json(self.run_dir / "source-generation/summary.json", summary)
         return summary
 
     def stage_synthesize_source_tasks(self, _stage: Stage) -> dict[str, Any]:
+        target = self.load_target()
         out_dir = self.run_dir / "source-synthesis"
         summary_path = out_dir / "summary.json"
         mode = self.config.source_synthesis_mode
@@ -825,11 +987,13 @@ class RecoveryRunner:
                     dry_run=mode == "dry-run",
                     semantic_only=self.config.source_synthesis_semantic_only or mode == "msvc",
                     skip_boundary_suspect=self.config.source_synthesis_skip_boundary_suspect or mode == "msvc",
-                    clean=True,
+                    clean=not self.config.resume,
+                    resume=self.config.resume,
                     vc_root=self.config.source_synthesis_vc_root,
                     wine=self.config.source_synthesis_wine,
                     wineprefix=self.config.source_synthesis_wineprefix,
                     timeout=self.config.stage_timeout,
+                    target_sha=target.sha256,
                 )
             )
             export_summary = self.export_synthesized_source_slices(summary)
@@ -935,6 +1099,19 @@ class RecoveryRunner:
         result_path = out_dir / "result.json"
         if not self.config.enable_byte_authority:
             summary = {"status": "skipped", "reason": "enable with --byte-authority", "claimBoundary": "no semantic source claim"}
+            atomic_write_json(result_path, summary)
+            return summary
+        rebuilt = out_dir / "package" / "rebuilt.bin"
+        if rebuilt.is_file() and sha256_file(rebuilt) == target.sha256:
+            summary = {
+                "schema": "agentdecompile.byte-authority.v1",
+                "status": "complete",
+                "identical": True,
+                "sha256Original": target.sha256,
+                "sha256Rebuilt": target.sha256,
+                "rebuilt": str(rebuilt),
+                "claimBoundary": "Byte-identical assembly substrate; not recovered authored C/C++.",
+            }
             atomic_write_json(result_path, summary)
             return summary
         one_shot_script = resolve_script_asset(ROOT, "one-shot-source.py")
@@ -1328,6 +1505,8 @@ def resolve_source_synthesis_mode(
         # clang-cl is the fallback rather than clang: it at least matches MSVC
         # calling conventions and name decoration.
         return "msvc" if vc_root_available else "clang-cl"
+    if (target_format or "").strip().lower() == "nds":
+        return "clang"
     return "clang"
 
 

@@ -74,6 +74,12 @@ def load_program_config(program: str | None, config_dir_path: Path | str | None 
 
 
 def load_match_pairs(config_dir_path: Path | str | None = None) -> list[tuple[str, str, str]]:
+    """Load directed match pairs from CORPUS_PAIRS / pairs.json.
+
+    Prefer an explicit pairs list when present. Callers that only have a binary
+    inventory should use ``donor_schedule.spanning_forest_pairs`` to schedule
+    a spanning forest rather than a dense complete graph.
+    """
     env = os.environ.get("CORPUS_PAIRS", "").strip()
     root = config_dir(config_dir_path)
     path = Path(env) if env else (root / "pairs.json" if root is not None else None)

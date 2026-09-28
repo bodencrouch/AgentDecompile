@@ -19,16 +19,21 @@ from mcp import types
 from agentdecompile_cli.mcp_server.tool_providers import (
     ToolProvider,
     create_success_response,
+    n,
 )
 from agentdecompile_cli.registry import Tool
 
 if TYPE_CHECKING:
+    from types import SimpleNamespace
+
     from ghidra.program.model.address import Address as GhidraAddress  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
     from ghidra.program.model.listing import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
         FunctionManager as GhidraFunctionManager,
         Program as GhidraProgram,
     )
     from ghidra.program.model.symbol import ReferenceManager as GhidraReferenceManager  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]
+
+    from agentdecompile_cli.launcher import ProgramInfo
 
 logger = logging.getLogger(__name__)
 
@@ -85,29 +90,29 @@ class CrossReferencesToolProvider(ToolProvider):
             ),
         ]
 
-    async def _handle_list_cross_references(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_list_cross_references(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         """Alias for get-references with mode=both (refs to and from the address)."""
         logger.debug("diag.enter %s", "mcp_server/providers/xrefs.py:CrossReferencesToolProvider._handle_list_cross_references")
         updated = dict(args)
         updated.setdefault("mode", "both")
-        return await self._handle(updated)
+        return await self._handle(updated, program_info=program_info)
 
-    async def _handle(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle(self, args: dict[str, Any], *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/xrefs.py:CrossReferencesToolProvider._handle")
-        self._require_program()
+        self._require_program(program_info=program_info)
         addr_str = self._get_str(args, "addressorsymbol", "address", "addr", "target", "symbol", "importname", default="")
-        mode = self._get_str(args, "mode", "direction", default="to")
+        mode = self._resolve_mode(args)
         offset, max_results = self._get_pagination_params(args, default_limit=100)
 
-        assert self.program_info is not None  # for type checker
-        program = self.program_info.program
+        assert program_info is not None  # for type checker
+        program = program_info.program
         ref_mgr = program.getReferenceManager()
-        fm = self._get_function_manager(program)
+        fm = self._get_function_manager(program, program_info=program_info)
 
         if not addr_str:
             return await self._handle_index(args, program=program, ref_mgr=ref_mgr, fm=fm, offset=offset, max_results=max_results)
 
-        addr = self._resolve_address(addr_str, program=program)
+        addr = self._resolve_address(addr_str, program=program, program_info=program_info)
         if addr is None:
             raise ValueError(f"Could not resolve address or symbol: {addr_str!r}. Check format (e.g. 0x401000) and that the program is loaded.")
 
@@ -132,7 +137,23 @@ class CrossReferencesToolProvider(ToolProvider):
             fm=fm,
             offset=offset,
             max_results=max_results,
+            program_info=program_info,
         )
+
+    def _resolve_mode(self, args: dict[str, Any]) -> str:
+        """``direction`` narrows an absent or ``both`` mode; agentdecompile-cli always sends a
+        ``mode`` (``both`` by default), so reading ``mode`` first made ``--direction`` dead.
+        An explicit ``to``/``from`` mode (``references to``) keeps its direction."""
+        mode = self._get_str(args, "mode", default="")
+        direction = self._get_str(args, "direction", default="")
+        if direction and (not mode or n(mode) == "both"):
+            return direction
+        return mode or "to"
+
+    def _keep_reference(self, args: dict[str, Any], ref: Any) -> bool:
+        if self._get_bool(args, "includedatarefs", default=True):
+            return True
+        return not ref.getReferenceType().isData()
 
     async def _handle_index(self, args: dict[str, Any], program: GhidraProgram, ref_mgr: GhidraReferenceManager, fm: GhidraFunctionManager, offset: int, max_results: int) -> list[types.TextContent]:
         """Return a hot-spot index of the most-referenced functions when no address is given."""
@@ -233,6 +254,8 @@ class CrossReferencesToolProvider(ToolProvider):
         for ref in ref_mgr.getReferencesTo(addr):
             if len(refs_to) >= max_results:
                 break
+            if not self._keep_reference(args, ref):
+                continue
             from_addr = ref.getFromAddress()
             from_str = str(from_addr)
             seen_from.add(from_str)
@@ -258,6 +281,8 @@ class CrossReferencesToolProvider(ToolProvider):
         for ref in ref_mgr.getReferencesFrom(addr):
             if len(refs_from) >= max_results:
                 break
+            if not self._keep_reference(args, ref):
+                continue
             refs_from.append(
                 {
                     "fromAddress": str(ref.getFromAddress()),
@@ -275,6 +300,8 @@ class CrossReferencesToolProvider(ToolProvider):
         for ref in ref_mgr.getReferencesTo(addr):
             if len(refs_to) >= max_results:
                 break
+            if not self._keep_reference(args, ref):
+                continue
             from_addr = ref.getFromAddress()
             from_str = str(from_addr)
             seen_from.add(from_str)
@@ -295,6 +322,8 @@ class CrossReferencesToolProvider(ToolProvider):
         for ref in ref_mgr.getReferencesFrom(addr):
             if len(refs_from) >= max_results:
                 break
+            if not self._keep_reference(args, ref):
+                continue
             refs_from.append(
                 {
                     "fromAddress": str(ref.getFromAddress()),
@@ -337,6 +366,7 @@ class CrossReferencesToolProvider(ToolProvider):
     async def _handle_referencers_decomp(self, args: dict[str, Any], program: GhidraProgram, addr: GhidraAddress, addr_str: str, ref_mgr: GhidraReferenceManager, fm: GhidraFunctionManager, offset: int, max_results: int) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/xrefs.py:CrossReferencesToolProvider._handle_referencers_decomp")
         results = []
+        max_referencers = max(1, self._get_int(args, "maxreferencers", default=50) or 50)
         try:
             from ghidra.app.decompiler import DecompInterface  # pyright: ignore[reportMissingModuleSource]
             from ghidra.util.task import ConsoleTaskMonitor  # pyright: ignore[reportMissingModuleSource]
@@ -344,55 +374,20 @@ class CrossReferencesToolProvider(ToolProvider):
             from agentdecompile_cli.mcp_utils.decompiler_util import get_decompiled_function_from_results
 
             decomp = DecompInterface()
-            decomp.openProgram(program)
-            monitor = ConsoleTaskMonitor()
-            seen_funcs: set[str] = set()
-            refs_seen = 0
-            for ref in ref_mgr.getReferencesTo(addr):
-                if refs_seen >= max_results:
-                    break
-                refs_seen += 1
-                func = fm.getFunctionContaining(ref.getFromAddress())
-                if func and func.getName() not in seen_funcs:
-                    seen_funcs.add(func.getName())
-                    try:
-                        dr = decomp.decompileFunction(func, 30, monitor)
-                        code = ""
-                        if dr and dr.decompileCompleted():
-                            df = get_decompiled_function_from_results(dr)
-                            code = df.getC() if df else ""
-                        results.append(
-                            {
-                                "function": func.getName(),
-                                "address": str(func.getEntryPoint()),
-                                "decompilation": code[:2000],
-                            },
-                        )
-                    except Exception:
-                        results.append({"function": func.getName(), "decompilation": "// error"})
-                    if len(results) >= 50:
-                        break
-            # When target is in .rsrc, also decompile referencers via LoadStringA/LoadStringW.
-            if self._is_address_in_rsrc(program, addr) and len(results) < 50:
-                from agentdecompile_cli.mcp_utils.address_util import AddressUtil
-
-                seen_from_refs: set[str] = set()
-                indirect = self._get_loadstring_indirect_refs(program, ref_mgr, fm, seen_from_refs, max_results)
-                for entry in indirect:
-                    if len(results) >= 50:
-                        break
-                    func_name = entry.get("function")
-                    if not func_name or func_name in seen_funcs:
+            try:
+                decomp.openProgram(program)
+                monitor = ConsoleTaskMonitor()
+                seen_funcs: set[str] = set()
+                refs_seen = 0
+                for ref in ref_mgr.getReferencesTo(addr):
+                    if not self._keep_reference(args, ref):
                         continue
-                    seen_funcs.add(func_name)
-                    raw = (entry["fromAddress"] or "").strip()
-                    if ":" in raw:
-                        raw = raw.split(":")[-1].strip()
-                    from_addr = AddressUtil.parse_address(program, raw)
-                    if from_addr is None:
-                        continue
-                    func = fm.getFunctionContaining(from_addr) or fm.getFunctionAt(from_addr)
-                    if func is not None:
+                    if refs_seen >= max_results:
+                        break
+                    refs_seen += 1
+                    func = fm.getFunctionContaining(ref.getFromAddress())
+                    if func and func.getName() not in seen_funcs:
+                        seen_funcs.add(func.getName())
                         try:
                             dr = decomp.decompileFunction(func, 30, monitor)
                             code = ""
@@ -404,22 +399,64 @@ class CrossReferencesToolProvider(ToolProvider):
                                     "function": func.getName(),
                                     "address": str(func.getEntryPoint()),
                                     "decompilation": code[:2000],
-                                    "indirect": True,
-                                    "via": entry.get("via", "LoadString"),
                                 },
                             )
                         except Exception:
-                            results.append({"function": func.getName(), "decompilation": "// error", "indirect": True})
-            decomp.dispose()
+                            results.append({"function": func.getName(), "decompilation": "// error"})
+                        if len(results) >= max_referencers:
+                            break
+                # When target is in .rsrc, also decompile referencers via LoadStringA/LoadStringW.
+                if self._is_address_in_rsrc(program, addr) and len(results) < max_referencers:
+                    from agentdecompile_cli.mcp_utils.address_util import AddressUtil
+
+                    seen_from_refs: set[str] = set()
+                    indirect = self._get_loadstring_indirect_refs(program, ref_mgr, fm, seen_from_refs, max_results)
+                    for entry in indirect:
+                        if len(results) >= max_referencers:
+                            break
+                        func_name = entry.get("function")
+                        if not func_name or func_name in seen_funcs:
+                            continue
+                        seen_funcs.add(func_name)
+                        raw = (entry["fromAddress"] or "").strip()
+                        if ":" in raw:
+                            raw = raw.split(":")[-1].strip()
+                        from_addr = AddressUtil.parse_address(program, raw)
+                        if from_addr is None:
+                            continue
+                        func = fm.getFunctionContaining(from_addr) or fm.getFunctionAt(from_addr)
+                        if func is not None:
+                            try:
+                                dr = decomp.decompileFunction(func, 30, monitor)
+                                code = ""
+                                if dr and dr.decompileCompleted():
+                                    df = get_decompiled_function_from_results(dr)
+                                    code = df.getC() if df else ""
+                                results.append(
+                                    {
+                                        "function": func.getName(),
+                                        "address": str(func.getEntryPoint()),
+                                        "decompilation": code[:2000],
+                                        "indirect": True,
+                                        "via": entry.get("via", "LoadString"),
+                                    },
+                                )
+                            except Exception:
+                                results.append({"function": func.getName(), "decompilation": "// error", "indirect": True})
+            finally:
+                decomp.dispose()
         except ImportError:
             pass
         return create_success_response({"mode": "referencers_decomp", "target": str(addr), "referencers": results, "count": len(results)})
 
-    async def _handle_import(self, args: dict[str, Any], program: GhidraProgram, addr: GhidraAddress, addr_str: str, ref_mgr: GhidraReferenceManager, fm: GhidraFunctionManager, offset: int, max_results: int) -> list[types.TextContent]:
+    async def _handle_import(self, args: dict[str, Any], program: GhidraProgram, addr: GhidraAddress, addr_str: str, ref_mgr: GhidraReferenceManager, fm: GhidraFunctionManager, offset: int, max_results: int, *, program_info: ProgramInfo | SimpleNamespace | None) -> list[types.TextContent]:
         logger.debug("diag.enter %s", "mcp_server/providers/xrefs.py:CrossReferencesToolProvider._handle_import")
         refs = []
-        st = self._get_symbol_table(program)
+        st = self._get_symbol_table(program, program_info=program_info)
+        library = self._get_str(args, "libraryname", "library").strip().lower()
         for sym in st.getExternalSymbols():
+            if library and library != str(sym.getParentNamespace().getName()).lower():
+                continue
             for ref in ref_mgr.getReferencesTo(sym.getAddress()):
                 func = fm.getFunctionContaining(ref.getFromAddress())
                 refs.append(

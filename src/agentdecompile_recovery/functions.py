@@ -17,6 +17,8 @@ def discover_function_candidates(inventory: dict[str, Any]) -> dict[str, Any]:
         candidates = pe_function_candidates(inventory)
     elif fmt == "macho":
         candidates = macho_function_candidates(inventory)
+    elif fmt == "nds":
+        candidates = nds_function_candidates(inventory)
     else:
         candidates = []
     candidates = dedupe_same_address_candidates(candidates)
@@ -331,6 +333,39 @@ def pe_function_candidates(inventory: dict[str, Any]) -> list[dict[str, Any]]:
                 "source": "executable-range",
                 "confidence": "low",
                 "section": code_range.get("name"),
+                "fileOffset": code_range.get("fileOffset"),
+            }
+        )
+    return candidates
+
+
+def nds_function_candidates(inventory: dict[str, Any]) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
+    image_base = int(inventory.get("imageBase") or 0)
+    entry = inventory.get("entryVa")
+    if entry is not None:
+        entry = int(entry)
+        candidates.append(
+            {
+                "name": f"entry_{entry:x}",
+                "address": entry,
+                "size": 0,
+                "source": "entrypoint",
+                "confidence": "high",
+            }
+        )
+    for code_range in inventory.get("codeRanges", []):
+        address = int(code_range.get("address") or image_base or 0)
+        size = int(code_range.get("size") or 0)
+        role = str(code_range.get("name") or "arm9")
+        candidates.append(
+            {
+                "name": f"range_{role}_{address:x}",
+                "address": address,
+                "size": size,
+                "source": "executable-range",
+                "confidence": "low",
+                "section": role,
                 "fileOffset": code_range.get("fileOffset"),
             }
         )

@@ -1,5 +1,10 @@
 # /ralphy-plan (PRD -> OpenSpec change)
 
+Follow [AGENTS](../../AGENTS.md) and [STRATEGY](../../STRATEGY.md). Current recovery
+forbids filesystem tests/builds and uses existing 8080; generic development steps
+below do not override those restrictions or permit publication.
+
+
 You are an AI coding assistant. Your job is to convert user requirements into an OpenSpec change proposal with clear acceptance criteria.
 
 ## Goal
@@ -16,7 +21,7 @@ Create a new OpenSpec change folder under `openspec/changes/<change-name>/` cont
 - Use MUST/SHALL language in requirements.
 - Every requirement MUST have at least one `#### Scenario:` block.
 - Add acceptance criteria that can be validated via tests/commands.
-- Assume liuterally anything is ALWAYS in scope!
+- Keep scope within the user's current authorization.
 
 ## Steps
 1. Read `openspec/project.md` and any relevant specs in `openspec/specs/`.
@@ -36,4 +41,3 @@ Create a new OpenSpec change folder under `openspec/changes/<change-name>/` cont
 
 ## Output
 When the OpenSpec change artifacts are created and consistent, summarize what you created and what the next command should be.
-

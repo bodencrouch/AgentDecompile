@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from agentdecompile_recovery.corpus.dashboard.app.models import (
     BinaryRef,
@@ -22,8 +25,18 @@ from agentdecompile_recovery.corpus.dashboard.app.routes import (
     logical_url,
     parse_graph_query,
 )
+from agentdecompile_recovery.corpus.dashboard.router import (
+    SECURITY_HEADERS,
+    create_dashboard_router,
+)
 
 pytestmark = pytest.mark.unit
+
+
+def _dashboard_client() -> TestClient:
+    app = FastAPI()
+    app.include_router(create_dashboard_router())
+    return TestClient(app)
 
 
 def test_builders_emit_raw_urls_and_quote_slugs() -> None:
@@ -130,3 +143,61 @@ def test_page_result_carries_status_headers_and_body() -> None:
     assert result.status == 308
     assert result.header("Location") == "/binary/K1__game.exe"
     assert result.body == ""
+
+
+def test_dashboard_keeps_static_default_and_atlas_is_opt_in() -> None:
+    client = _dashboard_client()
+
+    static = client.get("/dashboard")
+    atlas = client.get("/dashboard?mode=atlas")
+
+    assert static.status_code == 200
+    assert "workbench-app.js" in static.text
+    assert atlas.status_code == 200
+    assert 'id="root"' in atlas.text
+    for response in (static, atlas):
+        for key, value in SECURITY_HEADERS.items():
+            assert response.headers[key] == value
+
+
+def test_atlas_delivery_failure_preserves_query_for_static_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agentdecompile_recovery.corpus.dashboard import react_api
+
+    monkeypatch.setattr(react_api, "ASSETS", Path("atlas-build-not-installed"))
+    response = _dashboard_client().get("/dashboard?mode=atlas&binary=demo.exe&addr=0x401000")
+
+    assert response.status_code == 503
+    assert "React workstation delivery unavailable" in response.text
+    assert 'href="/dashboard?mode=static&amp;binary=demo.exe&amp;addr=0x401000"' in response.text
+    assert "window.location.hash" in response.text
+    for key, value in SECURITY_HEADERS.items():
+        assert response.headers[key] == value
+
+
+def test_incomplete_atlas_build_is_a_visible_delivery_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agentdecompile_recovery.corpus.dashboard import react_api
+
+    monkeypatch.setattr(
+        react_api,
+        "_missing_entry_asset",
+        lambda _entry: "/dashboard/static/react/assets/stale-entry.js",
+    )
+    response = _dashboard_client().get("/dashboard?mode=atlas")
+
+    assert response.status_code == 503
+    assert "stale-entry.js is unavailable" in response.text
+
+
+def test_missing_atlas_asset_is_visible_and_nosniff() -> None:
+    response = _dashboard_client().get("/dashboard/static/react/assets/not-present.js")
+
+    assert response.status_code == 404
+    assert "React workstation delivery unavailable" in response.text
+    assert 'href="/dashboard?mode=static"' in response.text
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    # The failure page is HTML and never cacheable, unlike a delivered asset.
+    assert response.headers["Cache-Control"] == SECURITY_HEADERS["Cache-Control"]

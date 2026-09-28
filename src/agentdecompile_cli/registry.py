@@ -21,6 +21,7 @@ import logging
 import os
 import re
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
 from functools import lru_cache
@@ -36,8 +37,7 @@ _NON_ALPHA_PATTERN = re.compile(r"[^a-z]")
 # ---------------------------------------------------------------------------
 # These are compiled once at module load, not in hot loops/functions
 
-_CAMEL_TO_SNAKE_PATTERN = re.compile(r"([a-z0-9])([A-Z])")
-_CAMEL_TO_KEBAB_PATTERN = re.compile(r"([a-z0-9])([A-Z])")
+_CAMEL_BOUNDARY_PATTERN = re.compile(r"([a-z0-9])([A-Z])")
 
 # Natural language value patterns
 _QUOTED_STR_PATTERN = re.compile(r'"[^\\"]*"|\'[^\']*\'')
@@ -249,6 +249,7 @@ class ToolMetadata:
     legacy: bool
     analysis_tier: int
     replacement: tuple[str, ...] = ()
+    long_running: bool = False
 
 
 # Backward-compat alias
@@ -291,25 +292,62 @@ def _params(*names: str) -> list[str]:
     return list(names)
 
 
-MODE_PARAM_ALIASES: frozenset[str] = frozenset(
-    {
-        "mode",
-        "action",
-        "operation",
-        "command",
-        "op",
-        "task",
-        "intent",
-        "verb",
-        "actiontype",
-        "method",
-        "type",
-        "analysismode",
-        "behaviormode",
-        "kind",
-        "strategy",
-    },
+# Deterministic precedence for resolving the "mode"/selector argument when a
+# request carries more than one alias for it (e.g. both "action" and "type").
+# Order is fixed (a tuple, never a set) so the winner cannot depend on
+# PYTHONHASHSEED.
+#
+# Rationale, grounded in `grep -rhoE '_get_str\(args, "mode"[^)]*\)'` across
+# mcp_server/providers/*.py (25 call sites, one per provider handler that
+# reads the selector argument; counted 2026-09-27):
+#   - "mode"      appears in all 25 chains, always first -- it is the literal
+#                 wire key every provider reads before any fallback.
+#   - "action"    appears in 11 of the 25 chains across 10 files (bookmarks,
+#                 structures, symbols, comments, datatypes, enums, functions,
+#                 getfunction, callgraph, project x2), always second. Two more
+#                 `_require_str(args, "mode", "action", "operation", ...)`
+#                 chains (getfunction, project) follow the same order.
+#   - "operation" appears in the same 11 chains, always third (functions.py's
+#                 chain is the one exception in shape -- `mode, view, action,
+#                 operation` -- but "view" is not one of this tool's generic
+#                 aliases, so it does not change this table).
+#   No provider `_get_str` chain in this codebase reaches for "command",
+#   "task", "intent", "verb", "actiontype", "method", "analysismode",
+#   "behaviormode", "kind", "strategy", or "op" -- they exist in
+#   MODE_PARAM_ALIASES for generic/defensive scavenging (arbitrary caller
+#   spellings) but have no observed provider precedent, so they keep the
+#   grep-backed trio's order and are otherwise unordered relative to each
+#   other (alphabetical-ish, not evidence-driven -- change freely if a
+#   provider ever documents one).
+#   - "type"      LAST, by construction rather than frequency: it is the one
+#                 alias that doubles as a real, independent data field on
+#                 real tools (manage-bookmarks' bookmark type, manage-
+#                 structures' create/field type -- see `_TOOL_PARAMS_STR`),
+#                 so it is the least trustworthy generic selector and must
+#                 lose to every more specific alias above. Tools that declare
+#                 "type" (or another alias) as their own parameter separately
+#                 from "mode" additionally exclude it from this fallback
+#                 entirely -- see `_canonical_param_name` /
+#                 `_extract_argument_value`'s `declared_for_tool`.
+MODE_PARAM_PRECEDENCE: tuple[str, ...] = (
+    "mode",
+    "action",
+    "operation",
+    "command",
+    "task",
+    "intent",
+    "verb",
+    "actiontype",
+    "method",
+    "analysismode",
+    "behaviormode",
+    "kind",
+    "strategy",
+    "op",
+    "type",
 )
+
+MODE_PARAM_ALIASES: frozenset[str] = frozenset(MODE_PARAM_PRECEDENCE)
 
 # Parameter names that may hold natural-language instructions; used by NL parsing to find user intents
 NATURAL_LANGUAGE_INPUT_KEYS: frozenset[str] = frozenset(
@@ -329,9 +367,21 @@ NATURAL_LANGUAGE_INPUT_KEYS: frozenset[str] = frozenset(
 )
 
 
-def _canonical_param_name(param: str) -> str:
+def _canonical_param_name(param: str, *, declared_for_tool: frozenset[str] = frozenset()) -> str:
+    """Collapse a mode-alias synonym onto "mode", unless this tool declares it as its own real parameter.
+
+    `declared_for_tool` holds the normalized names (excluding "mode" itself)
+    that a specific tool's own parameter list already declares separately
+    from "mode" (e.g. manage-bookmarks and manage-structures both declare
+    "mode" AND "type" as distinct parameters). For those tools "type" is a
+    genuine, independent field -- not a synonym for "mode" -- and must not be
+    collapsed away.
+    """
     logger.debug("diag.enter %s", "registry.py:_canonical_param_name")
-    if normalize_identifier(param) in MODE_PARAM_ALIASES:
+    normalized = normalize_identifier(param)
+    if normalized in declared_for_tool:
+        return param
+    if normalized in MODE_PARAM_ALIASES:
         return "mode"
     return param
 
@@ -430,6 +480,7 @@ _TOOL_PARAMS_STR: dict[str, list[str]] = {
         "enumName",
         "categoryPath",
         "description",
+        "size",
         "memberName",
         "newMemberName",
         "memberValue",
@@ -873,6 +924,42 @@ def normalize_identifier(s: str) -> str:
     return _NON_ALPHA_PATTERN.sub("", s.lower().strip())
 
 
+@lru_cache(maxsize=512)
+def parameter_name_variations(
+    param_name: str,
+    semantic_aliases: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    """Return canonical, snake, kebab, then contextual semantic spellings."""
+    variations: list[str] = [param_name]
+    snake_case = _CAMEL_BOUNDARY_PATTERN.sub(r"\1_\2", param_name).lower()
+    kebab_case = _CAMEL_BOUNDARY_PATTERN.sub(r"\1-\2", param_name).lower()
+    if snake_case != param_name.lower():
+        variations.append(snake_case)
+    if kebab_case != param_name.lower():
+        variations.append(kebab_case)
+    variations.extend(semantic_aliases)
+    return tuple(dict.fromkeys(variations))
+
+
+def iter_argument_candidates(
+    arguments: dict[str, Any],
+    keys: tuple[str, ...],
+    *,
+    normalized_fallback_keys: tuple[str, ...] | None = None,
+) -> Iterator[Any]:
+    """Yield exact candidates by key priority, then normalized input-order matches."""
+    for key in keys:
+        if key in arguments:
+            yield arguments[key]
+
+    fallback_keys = keys if normalized_fallback_keys is None else normalized_fallback_keys
+    normalized_keys = {normalize_identifier(key) for key in fallback_keys}
+    exact_keys = set(keys)
+    for arg_key, value in arguments.items():
+        if arg_key not in exact_keys and normalize_identifier(arg_key) in normalized_keys:
+            yield value
+
+
 def _find_repo_root_for_tools_list() -> Path | None:
     """Best-effort discovery of repository root containing TOOLS_LIST.md.
 
@@ -998,7 +1085,58 @@ def _extract_tools_list_sync_data() -> tuple[dict[str, list[str]], dict[str, dic
             for alias in re.findall(r"`([^`]+)`", synonyms_match.group(1)):
                 tool_aliases_by_norm[normalize_identifier(alias)] = canonical_tool
 
+    _drop_cross_param_synonyms(param_aliases_by_tool, params_by_tool)
     return params_by_tool, param_aliases_by_tool, tool_aliases_by_norm
+
+
+# Synonyms that name another documented parameter of the same tool on purpose.
+# Tool -> synonym -> the one parameter it may feed (all normalized).
+_CROSS_PARAM_SYNONYMS_ALLOWED: dict[str, dict[str, str]] = {
+    # The get-call-graph(programPath, functionAddress, depth) overload; the provider reads maxDepth.
+    "getcallgraph": {"depth": "maxdepth"},
+    # Documented as "Alias for query/startIndex/maxCount".
+    "listfunctions": {"searchstring": "query", "startindex": "offset", "maxcount": "limit"},
+    "getreferences": {"startindex": "offset"},
+}
+
+
+def _drop_cross_param_synonyms(
+    param_aliases_by_tool: dict[str, dict[str, set[str]]],
+    params_by_tool: dict[str, list[str]],
+) -> None:
+    """Ignore a TOOLS_LIST synonym that is another parameter of the same tool.
+
+    A synonym line that lists the tool's other parameter names (an overload
+    signature pasted in by mistake) would copy an unrelated value into that
+    parameter whenever it is unset: ``maxEntries=5`` also capped ``maxResults``.
+    The same slip can list one synonym under two parameters, which copies one
+    value into both (``inspect-memory view=bytes`` also set ``limit``); such a
+    synonym is dropped whole, since the doc does not say which edge is right.
+    Runs after every section is parsed, so forwarded sections count too.
+    Logs and drops the edge rather than raising, so a doc slip cannot break import.
+    """
+    canonical_by_tool: dict[str, set[str]] = {}
+    for tool, params in params_by_tool.items():
+        canonical_by_tool.setdefault(normalize_identifier(tool), set()).update(normalize_identifier(p) for p in params)
+    for tool_norm, alias_map in param_aliases_by_tool.items():
+        canonical = canonical_by_tool.get(tool_norm, set())
+        allowed = _CROSS_PARAM_SYNONYMS_ALLOWED.get(tool_norm, {})
+        for alias, targets in alias_map.items():
+            if alias not in canonical:
+                continue
+            for target in sorted(targets - {alias}):
+                if allowed.get(alias) == target:
+                    continue
+                logger.warning("TOOLS_LIST.md: %s lists parameter %s as a synonym of %s; ignoring it", tool_norm, alias, target)
+                targets.discard(target)
+        for alias, targets in list(alias_map.items()):
+            if len(targets - {alias}) <= 1:
+                continue
+            if allowed.get(alias) in targets:
+                alias_map[alias] = {allowed[alias]}
+                continue
+            logger.warning("TOOLS_LIST.md: %s lists synonym %s under %s; ignoring it", tool_norm, alias, ", ".join(sorted(targets)))
+            del alias_map[alias]
 
 
 def _merge_tools_list_params(base: dict[str, list[str]], extra: dict[str, list[str]]) -> dict[str, list[str]]:
@@ -1020,15 +1158,25 @@ def _merge_tools_list_params(base: dict[str, list[str]], extra: dict[str, list[s
     for tool, params in extra.items():
         if tool not in merged:
             continue
-        existing: list[str] = [_canonical_param_name(param) for param in merged[tool]]
-        existing_norm: set[str] = {normalize_identifier(x) for x in existing}
+        # Base (code-authored) params are kept verbatim -- never rewritten. A
+        # tool that already declares both "mode" and a mode-alias-shaped name
+        # (e.g. "type" for manage-bookmarks/manage-structures) is declaring
+        # that name as its own real, independent parameter, not a synonym for
+        # "mode". Exclude those from canonicalization for this tool so a
+        # docs-derived synonym never collapses them together and a real
+        # parameter is never silently dropped.
+        declared_for_tool: frozenset[str] = frozenset(
+            normalize_identifier(p) for p in merged[tool] if normalize_identifier(p) != "mode"
+        ) & MODE_PARAM_ALIASES
+        existing_norm: set[str] = {
+            normalize_identifier(_canonical_param_name(p, declared_for_tool=declared_for_tool)) for p in merged[tool]
+        }
         for param in params:
-            canonical_param = _canonical_param_name(param)
+            canonical_param = _canonical_param_name(param, declared_for_tool=declared_for_tool)
             param_norm: str = normalize_identifier(canonical_param)
             if param_norm not in existing_norm:
-                existing.append(canonical_param)
+                merged[tool].append(canonical_param)
                 existing_norm.add(param_norm)
-        merged[tool] = existing
     return merged
 
 
@@ -1064,7 +1212,6 @@ def _add_builtin_param_aliases() -> None:
     for alias_name, canonical_param in (
         ("filePath", "path"),
         ("binaryPath", "path"),
-        ("binary_path", "path"),
         ("destFolder", "destinationFolder"),
         ("recurse", "recursive"),
         ("autoAnalyze", "analyzeAfterImport"),
@@ -1080,24 +1227,133 @@ def _add_builtin_param_aliases() -> None:
     for tool_name in (Tool.OPEN.value,):
         _add(tool_name, "isShared", "shared")
         _add(tool_name, "sharedMode", "shared")
-        _add(tool_name, "shared_mode", "shared")
         _add(tool_name, "ghidraServerHost", "serverHost")
-        _add(tool_name, "ghidra_server_host", "serverHost")
         _add(tool_name, "ghidraServerPort", "serverPort")
-        _add(tool_name, "ghidra_server_port", "serverPort")
         _add(tool_name, "ghidraServerUsername", "serverUsername")
-        _add(tool_name, "ghidra_server_username", "serverUsername")
         _add(tool_name, "ghidraServerPassword", "serverPassword")
-        _add(tool_name, "ghidra_server_password", "serverPassword")
         _add(tool_name, "ghidraServerRepository", "path")
-        _add(tool_name, "ghidra_server_repository", "path")
         _add(tool_name, "serverRepository", "path")
-        _add(tool_name, "server_repository", "path")
         _add(tool_name, "repositoryName", "path")
-        _add(tool_name, "repository_name", "path")
 
 
 _add_builtin_param_aliases()
+
+
+# Key that selects how a tool result is rendered (markdown or json). No tool
+# reads it: ToolProviderManager does, and advertises it on every tool schema.
+RESPONSE_FORMAT_PARAM = "responseFormat"
+RESPONSE_FORMAT_VALUES: frozenset[str] = frozenset({"markdown", "json"})
+
+
+# Explicit fallback for tools whose own overloaded param collides with the
+# rendering-choice meaning of "format" (get-data view style). Protection
+# must also work when TOOLS_LIST.md is absent: TOOL_PARAM_ALIASES normally
+# loads its synonyms at import, but may then contain only built-in aliases.
+_FORMAT_OWNING_TOOLS_FALLBACK: frozenset[Tool] = frozenset(
+    {
+        Tool.GET_DATA,
+    },
+)
+
+
+def tool_owns_format_param(tool_name: str) -> bool:
+    """True when ``format`` is one of the tool's own arguments.
+
+    That holds when the tool declares ``format`` (export, export-context,
+    gen-callgraph, manage-files), when TOOL_PARAM_ALIASES maps ``format`` onto
+    another of its params, or when the tool is in the explicit
+    ``_FORMAT_OWNING_TOOLS_FALLBACK`` set (get-data). For those
+    tools ``format`` must never be read or written as a rendering choice.
+    """
+    logger.debug("diag.enter %s", "registry.py:tool_owns_format_param")
+    tool = Tool.from_string(tool_name)
+    if tool in _FORMAT_OWNING_TOOLS_FALLBACK:
+        return True
+    tool_norm = normalize_identifier(tool.value if tool is not None else tool_name)
+    if "format" in TOOL_PARAM_ALIASES.get(tool_norm, {}):
+        return True
+    if tool is None:
+        return False
+    return any(normalize_identifier(param) == "format" for param in TOOL_PARAMS.get(tool, []))
+
+# Keys that choose what a tool does (mode/action/...). A caller that sends any of
+# them has already picked a behaviour.
+SELECTOR_PARAM_ALIASES: frozenset[str] = frozenset(
+    {
+        "action",
+        "actiontype",
+        "command",
+        "intent",
+        "method",
+        "mode",
+        "op",
+        "operation",
+        "task",
+        "type",
+        "verb",
+    },
+)
+
+# Overload aliases that forward to a multi-mode tool and imply its selector.
+# Key: normalized alias tool name -> arguments to add when the caller chose none.
+# Every value is a key of the owning provider's dispatch table.
+TOOL_ALIAS_IMPLIED_ARGUMENTS: dict[str, dict[str, str]] = {
+    normalize_identifier(alias): implied
+    for alias, implied in {
+        # analyze-data-flow reads direction before mode.
+        "find-variable-accesses": {"direction": "variable_accesses"},
+        "trace-data-flow-backward": {"direction": "backward"},
+        "trace-data-flow-forward": {"direction": "forward"},
+        "analyze-vtable": {"mode": "analyze"},
+        "find-vtable-callers": {"mode": "callers"},
+        "find-vtables-containing-function": {"mode": "containing"},
+        "find-common-callers": {"mode": "common_callers"},
+        "get-call-tree": {"mode": "tree"},
+        "get-callers-decompiled": {"mode": "callers_decomp"},
+        "disassemble_function": {"view": "disassemble"},
+        "get_xrefs_to": {"mode": "to"},
+        "get_xrefs_from": {"mode": "from"},
+        "find-import-references": {"mode": "import"},
+        "get-referencers-decompiled": {"mode": "referencers_decomp"},
+        "resolve-thunk": {"mode": "thunk"},
+        "get-memory-blocks": {"mode": "blocks"},
+        "read-memory": {"mode": "read"},
+        "list_segments": {"mode": "segments"},
+        "list_data_items": {"mode": "data_items"},
+        "get-function-count": {"mode": "count"},
+        "get-functions-by-similarity": {"mode": "similarity"},
+        "get-undefined-function-candidates": {"mode": "undefined"},
+        "find-constant-uses": {"mode": "specific"},
+        "find-constants-in-range": {"mode": "range"},
+        "list-common-constants": {"mode": "common"},
+    }.items()
+}
+
+
+def apply_alias_implied_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return *arguments* plus the selector an overload alias implies.
+
+    ``get-function-count`` forwards to list-functions and means ``mode=count``.
+    Nothing is added when the caller already chose: the implied key itself, any
+    selector key, or a TOOLS_LIST synonym of the implied key with a value.
+    ``format`` never counts as a mode selector: it may select a tool-specific
+    representation or a legacy rendering format. Rendering uses responseFormat.
+    """
+    implied = TOOL_ALIAS_IMPLIED_ARGUMENTS.get(normalize_identifier(tool_name))
+    if not implied:
+        return dict(arguments)
+    canonical = resolve_tool_name(tool_name) or tool_name
+    synonyms = TOOL_PARAM_ALIASES.get(normalize_identifier(canonical), {})
+    chosen_keys = set(SELECTOR_PARAM_ALIASES)
+    for key in implied:
+        chosen_keys.add(key)
+        chosen_keys.update(alias for alias, targets in synonyms.items() if key in targets)
+    chosen_keys.discard("format")
+    for key, value in arguments.items():
+        if normalize_identifier(key) in chosen_keys and value is not None and str(value).strip():
+            return dict(arguments)
+    return {**arguments, **implied}
+
 
 # Default advertised surface (MCP + CLI) is blacklist-driven.
 # All tools remain accepted via normalize/resolve/dispatch regardless of advertisement.
@@ -1198,6 +1454,20 @@ _STATE_WRITING_TOOLS: frozenset[Tool] = frozenset(
         Tool.RESOLVE_MODIFICATION_CONFLICT,
         Tool.SVR_ADMIN,
         Tool.SYNC_PROJECT,
+    },
+)
+
+_LONG_RUNNING_TOOLS: frozenset[Tool] = frozenset(
+    {
+        Tool.RECONSTRUCT,
+        Tool.ANALYZE_PROGRAM,
+        Tool.IMPORT_BINARY,
+        Tool.RUN_DECOMP_MATCH,
+        Tool.DECOMPILE_FUNCTION,
+        Tool.RUN_BATCH_DECOMPILE,
+        Tool.RUN_BATCH_EXPORT_GZF,
+        Tool.RUN_BATCH_BSIM_SIGNATURES,
+        Tool.RUN_BATCH_SAST_SCAN,
     },
 )
 
@@ -1392,6 +1662,7 @@ def get_tool_metadata(tool_name: Tool | str) -> ToolMetadata | None:
         legacy=tool in _LEGACY_TOOLS,
         analysis_tier=get_tool_analysis_tier(tool),
         replacement=_TOOL_REPLACEMENTS.get(tool, ()),
+        long_running=tool in _LONG_RUNNING_TOOLS,
     )
 
 
@@ -1836,6 +2107,15 @@ class ToolRegistry:
         for key, value in augmented_arguments.items():
             normalized_arguments.setdefault(normalized_argument_keys[key], value)
 
+        # Mode-alias-shaped names (e.g. "type") that this tool declares as
+        # their own, independent parameter alongside "mode" (manage-bookmarks,
+        # manage-structures). These must never be scavenged as a stand-in
+        # value for "mode", and their own resolution must never fall back
+        # onto the mode-alias chain either.
+        declared_for_tool: frozenset[str] = (
+            frozenset(normalize_identifier(p) for p in expected_params if normalize_identifier(p) != "mode") & MODE_PARAM_ALIASES
+        )
+
         parsed_args: dict[str, Any] = {}
 
         # For each expected parameter, try various naming variations
@@ -1844,6 +2124,8 @@ class ToolRegistry:
                 augmented_arguments,
                 param,
                 normalized_arguments=normalized_arguments,
+                declared_params=expected_params,
+                declared_for_tool=declared_for_tool,
             )
             if value is not None:
                 parsed_args[param] = value
@@ -2138,6 +2420,8 @@ class ToolRegistry:
         arguments: dict[str, Any],
         param_name: str,
         normalized_arguments: dict[str, Any] | None = None,
+        declared_params: list[str] | None = None,
+        declared_for_tool: frozenset[str] = frozenset(),
     ) -> Any:
         """Extract an argument value using fuzzy matching for parameter names.
 
@@ -2150,6 +2434,13 @@ class ToolRegistry:
         ----
             arguments: Arguments dictionary
             param_name: Canonical parameter name
+            normalized_arguments: Pre-normalized argument lookup, when available
+            declared_for_tool: Normalized mode-alias-shaped names (e.g. "type")
+                that the current tool declares as its own real parameter,
+                separate from "mode". These never participate in the mode
+                selector fallback below, in either direction: resolving
+                "mode" never scavenges one of these, and resolving one of
+                these never falls back onto a different mode alias.
 
         Returns:
         -------
@@ -2162,16 +2453,33 @@ class ToolRegistry:
 
         # Try variations of the parameter name
         variations: tuple[str, ...] = self._generate_param_variations(param_name)
+        # A semantic alias that is itself a declared parameter of this tool
+        # belongs to that parameter (manage-files `path` is a filesystem path,
+        # import-binary `path` is the source file), never to programPath.
+        declared: set[str] = {normalize_identifier(p) for p in (declared_params or ()) if p != param_name}
 
         for variation in variations:
+            if variation != param_name and normalize_identifier(variation) in declared:
+                continue
             if variation in arguments:
                 return arguments[variation]
 
         # Selector fallback: canonical "mode" accepts action/operation/etc.
+        # `_canonical_param_name` already knows to leave this tool's own
+        # declared aliases (e.g. "type") alone, so a real independent
+        # parameter never enters this branch as the resolution target.
         normalized_param: str = normalize_identifier(param_name)
-        if _canonical_param_name(param_name) == "mode":
+        if _canonical_param_name(param_name, declared_for_tool=declared_for_tool) == "mode":
             lookup = normalized_arguments or {normalize_identifier(k): v for k, v in arguments.items()}
-            for alias in MODE_PARAM_ALIASES:
+            # Deterministic precedence, never a set: the first alias present
+            # in the payload wins, in the fixed order documented at
+            # MODE_PARAM_PRECEDENCE. Aliases this tool declares as their own
+            # real parameter are excluded so they cannot be scavenged as a
+            # stand-in "mode" value (e.g. a bookmark's "type": "Note" must
+            # never become the bookmark tool's "mode").
+            for alias in MODE_PARAM_PRECEDENCE:
+                if alias in declared_for_tool:
+                    continue
                 if alias in lookup:
                     return lookup[alias]
 
@@ -2207,27 +2515,14 @@ class ToolRegistry:
             List of parameter name variations
         """
         logger.debug("diag.enter %s", "registry.py:ToolRegistry._generate_param_variations")
-        variations: list[str] = [param_name]
-
-        # Convert camelCase to snake_case using precompiled pattern
-        snake_case: str = _CAMEL_TO_SNAKE_PATTERN.sub(r"\1_\2", param_name).lower()
-        if snake_case != param_name.lower():
-            variations.append(snake_case)
-
-        # Convert camelCase to kebab-case using precompiled pattern
-        kebab_case: str = _CAMEL_TO_KEBAB_PATTERN.sub(r"\1-\2", param_name).lower()
-        if kebab_case != param_name.lower():
-            variations.append(kebab_case)
-
-        # Handle special cases with explicit aliases
+        semantic_aliases: tuple[str, ...] = ()
         if param_name == "addressOrSymbol":
-            variations.extend(["address_or_symbol", "addressOrSymbol", "address"])
+            semantic_aliases = ("address",)
         elif param_name == "programPath":
-            variations.extend(["program_path", "program-path", "program", "filepath", "path"])
+            semantic_aliases = ("program", "filepath", "path")
         elif param_name == "maxResults":
-            variations.extend(["max_results", "max-results", "limit", "maxResults", "limits"])
-
-        return tuple(dict.fromkeys(variations))
+            semantic_aliases = ("limit", "limits")
+        return parameter_name_variations(param_name, semantic_aliases)
 
     def validate_required_arguments(
         self,

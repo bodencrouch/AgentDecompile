@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 
-EXECUTABLE_SUFFIXES = {".exe", ".dll", ".xbe", ".elf", ".so", ""}
+EXECUTABLE_SUFFIXES = {".exe", ".dll", ".xbe", ".elf", ".so", ".nds", ""}
 # Host utilities that must never be selected as game analysis targets.
 EXECUTABLE_NAME_BLOCKLIST = frozenset(
     {"true", "false", "test", "sh", "bash", "echo", "cat", "ls", "cp", "mv", "rm"}
@@ -76,7 +76,7 @@ def looks_executable(path: Path) -> bool:
         }
         if has_magic:
             return True
-        if path.suffix.lower() in {".exe", ".dll", ".xbe"}:
+        if path.suffix.lower() in {".exe", ".dll", ".xbe", ".nds"}:
             return path.stat().st_size >= 4096
         return False
     except OSError:
@@ -120,12 +120,18 @@ def identify_binary(input_path: Path, preferred_name: str | None = None) -> Targ
 
 def inspect_magic(path: Path) -> tuple[str, str]:
     data = path.read_bytes()[:0x1000]
+    from agentdecompile_recovery.containers import detect_container
+
+    if detect_container(path, head=data[:0x200]):
+        return ("nds", "armv5te")
     if data.startswith(b"MZ"):
         machine = pe_machine(data)
         return ("pe", machine)
     if data.startswith(b"\x7fELF"):
         cls = {1: "x86", 2: "x86_64"}.get(data[4], "unknown")
         return ("elf", cls)
+    if data.startswith(b"XBEH"):
+        return ("xbe", "x86")
     if data[:4] in {b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe"}:
         return ("macho", macho_machine(data))
     return ("unknown", "unknown")

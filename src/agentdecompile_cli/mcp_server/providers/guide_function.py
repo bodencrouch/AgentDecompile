@@ -1,5 +1,7 @@
 """Native Ghidra function properties and explicit variable storage for code browsers."""
 from __future__ import annotations
+from agentdecompile_cli.mcp_utils.datatype_util import data_type_label
+
 
 from agentdecompile_cli.registry import normalize_identifier as n
 
@@ -27,14 +29,14 @@ def function_properties(program, func):
         "availableCallFixups": [str(c) for c in program.getCompilerSpec().getPcodeInjectLibrary().getCallFixupNames()],
         "namespace": str(func.getParentNamespace().getName(True)),
         "callingConvention": str(func.getCallingConventionName() or ""),
-        "returnType": str(func.getReturnType()),
+        "returnType": data_type_label(func.getReturnType()),
         "customStorage": bool(func.hasCustomVariableStorage()),
         "returnStorage": storage_pieces(program, func.getReturn().getVariableStorage()),
         "inline": bool(func.isInline()), "noReturn": bool(func.hasNoReturn()),
         "varArgs": bool(func.hasVarArgs()), "callFixup": str(func.getCallFixup() or ""),
         "thunkTarget": str(target.getEntryPoint()) if target else "",
         "parameters": [{"ordinal": int(p.getOrdinal()), "name": str(p.getName()),
-                        "dataType": str(p.getDataType()),
+                        "dataType": data_type_label(p.getDataType()),
                         "storage": storage_pieces(program, p.getVariableStorage())}
                        for p in func.getParameters()],
     }

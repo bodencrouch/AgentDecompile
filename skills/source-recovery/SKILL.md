@@ -7,20 +7,8 @@ metadata:
   version: "1.0"
 ---
 
-# Source recovery
+# source-recovery
 
-This repo is the only active recovery cwd. Package: `src/agentdecompile_recovery/`.
+Canonical skill: [../../.agents/skills/source-recovery/SKILL.md](../../.agents/skills/source-recovery/SKILL.md)
 
-## Rule
-
-A run that is supposed to produce source must write inventory, facts, and match receipts **in that execution**. `--resume`, match cache, and `--dump-source-only` are for operators doing incremental work — not for agents skipping the pipeline.
-
-## Defaults
-
-- Entry: `agentdecompile-reconstruct` / `scripts/decomp-cli.sh`; corpus: `agentdecompile-corpus`.
-- Fast dump: reconstruct with `--resume --dump-source DIR`. Default reconstruct runs PyGhidra enrich-decompile (`--skip-enrichment` to opt out).
-- Never claim match without objdiff 0. Never promote byte-emitters into `verified/`.
-- Profiles are format/stem-derived (PE vs ELF). Do not hardcode product binaries.
-- Rematch intended → `--force-rematch`.
-
-See `docs/CRITICAL_PATH.md` and `docs/CORPUS_PIPELINE.md`.
+Read that file and its linked operational authority before acting.

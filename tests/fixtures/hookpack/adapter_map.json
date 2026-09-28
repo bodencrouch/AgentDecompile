@@ -1,0 +1,11 @@
+{
+  "keys": {
+    "RunScript": "script.run",
+    "SlotTable": "slot.table",
+    "Phantom": "phantom.key"
+  },
+  "aliases": {
+    "RunScript": ["run_script", "RunScript", "run_script", "ExecScript"],
+    "Phantom": ["ph"]
+  }
+}

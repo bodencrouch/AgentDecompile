@@ -1,5 +1,11 @@
 # Context puzzle-piece fusion
 
+Implementation reference; current recovery operations follow [AGENTS](../AGENTS.md)
+through existing 8080 catalog actions. Address placement below is scoped to a
+target fingerprint, not an address-only corpus identity. Cross-build propagation
+and whole-image acceptance follow [STRATEGY](../STRATEGY.md); individual accepted
+source seeds do not complete either full source variant.
+
 AgentDecompile treats extra inputs as **puzzle pieces** for a target binary: sniff type, extract address-keyed facts when possible, register the bundle by target fingerprint, and keep everything advisory until objdiff.
 
 ```mermaid
@@ -50,7 +56,10 @@ Propose ≠ apply. Nothing silently renames Ghidra.
 
 ## Mid-run add another piece
 
-Re-run reconstruct on the same `--work-dir` with `--resume` and the new file. That creates a new acquisition snapshot and merges into the target fingerprint without deleting `verified/`.
+The reconstruct implementation supports the same `--work-dir` with `--resume`
+and another context file, creating an acquisition snapshot without deleting
+`verified/`. During current recovery, inspect and use the corresponding advertised
+8080 action; this reference does not authorize a direct CLI invocation.
 
 ## Not in v1
 

@@ -10,6 +10,11 @@ metadata:
 
 # RE Worker
 
+Read [AGENTS](../../../AGENTS.md) and [STRATEGY](../../../STRATEGY.md) first.
+Current recovery operations use the existing 8080 catalog; CLI, test and startup
+recipes below are implementation references subject to the mission restrictions.
+
+
 Analyze the assigned function. Output **is** the JSON artifact. No coordination.
 
 **REQUIRED SUB-SKILL:** `tiered-re-analysis`
@@ -31,6 +36,9 @@ Analyze the assigned function. Output **is** the JSON artifact. No coordination.
 
 ```json
 {
+  "binary_fingerprint": "",
+  "build": "",
+  "logical_id": null,
   "address": "0x",
   "name": "",
   "suggested_name": null,
@@ -52,7 +60,9 @@ Analyze the assigned function. Output **is** the JSON artifact. No coordination.
 }
 ```
 
-Names: locals/params `camelCase`, fields `snake_case`, types `PascalCase`, enums `SCREAMING_SNAKE`.
+Naming follows AGENTS. Scores below are advisory only; they neither prove recovery
+nor authorize source/type propagation. Preserve fingerprint, instance address,
+logical identity if known and evidence provenance in every record.
 
 | Score | Meaning |
 |---|---|

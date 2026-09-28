@@ -28,8 +28,6 @@ from agentdecompile_cli.mcp_server.tool_providers import (
 from agentdecompile_cli.registry import Tool
 
 if TYPE_CHECKING:
-    from agentdecompile_cli.context import ProgramInfo
-
     from ghidra.app.decompiler import (  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]  # noqa: F401
         DecompInterface as GhidraDecompInterface,
     )
@@ -47,6 +45,8 @@ if TYPE_CHECKING:
         SymbolType as GhidraSymbolType,
     )
     from ghidra.util.task import TaskMonitor as GhidraTaskMonitor  # pyright: ignore[reportMissingImports, reportMissingModuleSource, reportMissingTypeStubs]  # noqa: F401
+
+    from agentdecompile_cli.context import ProgramInfo
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +138,12 @@ class ScriptToolProvider(ToolProvider):
 
     # ------------------------------------------------------------------
 
-    def _build_namespace(self, program_info: ProgramInfo | SimpleNamespace | None = None) -> dict[str, Any]:
+    def _build_namespace(
+        self,
+        program_info: ProgramInfo | SimpleNamespace | None = None,
+        *,
+        fallback_to_provider: bool = True,
+    ) -> dict[str, Any]:
         """Build the execution namespace for Ghidra script execution.
 
         Populates a Python namespace with Ghidra API equivalents so that script
@@ -186,7 +191,7 @@ class ScriptToolProvider(ToolProvider):
         flat_api = None
         decompiler = None
 
-        effective_program_info = program_info if program_info is not None else self.program_info
+        effective_program_info = self.program_info if program_info is None and fallback_to_provider else program_info
         if effective_program_info is not None:
             program = effective_program_info.program
             flat_api = getattr(effective_program_info, "flat_api", None)
@@ -199,6 +204,14 @@ class ScriptToolProvider(ToolProvider):
         ns["state"] = None  # GhidraState (not always available headless)
         ns["monitor"] = None
         ns["decompiler"] = decompiler
+        # Immutable shared-server ProgramDB snapshots are intentionally not
+        # attached to a local DomainFile.  Expose the resolved invocation path
+        # so read-only scripts can retain the identity established by the MCP
+        # request instead of observing the transient `/Untitled` database name.
+        if effective_program_info is not None:
+            program_path = getattr(effective_program_info, "file_path", None)
+            if program_path is not None:
+                ns["programPath"] = str(program_path)
 
         # Try to get a real monitor
         try:
@@ -336,7 +349,12 @@ class ScriptToolProvider(ToolProvider):
 
     # ------------------------------------------------------------------
 
-    async def _handle_execute(self, args: dict[str, Any]) -> list[types.TextContent]:
+    async def _handle_execute(
+        self,
+        args: dict[str, Any],
+        *,
+        program_info: ProgramInfo | SimpleNamespace | None = None,
+    ) -> list[types.TextContent]:
         """Execute Python code in the Ghidra script context.
 
         **Execution Flow:**
@@ -371,9 +389,15 @@ class ScriptToolProvider(ToolProvider):
         # execute-script accepts programPath, not a generic project/file path.
         # Treating "path" as a program alias causes .gpr project markers to be
         # misclassified as programs during script execution.
-        requested_program_path = self._get_str(args, "programpath", "program_path", default="")
-        effective_program_info = self.program_info
-        ns: dict[str, Any] = self._build_namespace(effective_program_info)
+        requested_program_path = self._get_str(args, "programpath", default="")
+        # ToolProviderManager resolves programPath per invocation.  Providers are
+        # long-lived, so self.program_info can still name a previous program.
+        effective_program_info = program_info
+        ns: dict[str, Any] = self._build_namespace(effective_program_info, fallback_to_provider=False)
+        # The per-invocation target remains authoritative when an immutable
+        # shared snapshot has no local DomainFile-backed ProgramInfo path.
+        if requested_program_path:
+            ns["programPath"] = requested_program_path
         executed_program = ns.get("currentProgram")
 
         if requested_program_path and executed_program is None:
@@ -389,6 +413,8 @@ class ScriptToolProvider(ToolProvider):
 
         stdout_capture: io.StringIO = io.StringIO()
         stderr_capture: io.StringIO = io.StringIO()
+        script_error: str = ""
+        script_traceback: str = ""
 
         def execute_code() -> Any:
             with _capture_thread_streams(stdout_capture, stderr_capture):
@@ -429,6 +455,11 @@ class ScriptToolProvider(ToolProvider):
             tb: str = traceback.format_exc()
             stderr_capture.write(tb)
             result = None
+            script_error = f"{type(script_exc).__name__}: {script_exc}"
+            script_frames = [frame for frame in traceback.extract_tb(script_exc.__traceback__) if frame.filename == "<string>"]
+            if script_frames and script_frames[-1].lineno:
+                script_error += f" (script line {script_frames[-1].lineno})"
+            script_traceback = _short_script_traceback(script_exc, code, tb)
             logger.warning(
                 "pyghidra_script_execute_fail exc_type=%s arg_keys=%s",
                 type(script_exc).__name__,
@@ -449,7 +480,16 @@ class ScriptToolProvider(ToolProvider):
                 result_str = repr(result_value)
 
         # Build response: success=True only if no errors caught
-        response: dict[str, Any] = {"success": not (stderr_text and not stdout_text and result_str == "")}
+        failed = bool(script_error) or bool(stderr_text and not stdout_text and result_str == "")
+        response: dict[str, Any] = {"success": not failed}
+        if script_error:
+            # Error responses render only `error`; put the type and message there.
+            response["error"] = script_error
+            response["exceptionType"] = script_error.split(":", 1)[0]
+            response["traceback"] = script_traceback
+        elif failed:
+            last_line = next((line for line in reversed(stderr_text.splitlines()) if line.strip()), "")
+            response["error"] = f"Script wrote to stderr: {last_line.strip()}" if last_line else "Script wrote to stderr"
         if stdout_text:
             response["stdout"] = stdout_text
         if stderr_text:
@@ -482,6 +522,30 @@ class ScriptToolProvider(ToolProvider):
             response["executedProgram"] = execution_target
 
         return create_success_response(response)
+
+
+def _short_script_traceback(exc: BaseException, code: str, full_traceback: str, max_frames: int = 5) -> str:
+    """Return the user-script part of a traceback: its frames with source lines, then the exception line.
+
+    Frames from this provider (eval/exec wrappers, asyncio) are dropped. When the
+    script contributed no frame (e.g. a SyntaxError at compile time) the tail of
+    the full traceback is returned instead.
+    """
+    code_lines = code.splitlines()
+    frames = [frame for frame in traceback.extract_tb(exc.__traceback__) if frame.filename == "<string>"]
+    exception_line = "".join(traceback.format_exception_only(type(exc), exc)).rstrip()
+    if not frames:
+        tail = [line for line in full_traceback.rstrip().splitlines() if line.strip()]
+        return "\n".join(tail[-(max_frames * 2 + 1) :])
+    lines = ["Traceback (script frames):"]
+    for frame in frames[-max_frames:]:
+        lineno = frame.lineno or 0
+        source = code_lines[lineno - 1].strip() if 0 < lineno <= len(code_lines) else ""
+        lines.append(f"  line {lineno}, in {frame.name}")
+        if source:
+            lines.append(f"    {source}")
+    lines.append(exception_line)
+    return "\n".join(lines)
 
 
 def _serialize_result(obj: Any, max_depth: int = 3, max_items: int = 200) -> str:

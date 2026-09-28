@@ -10,6 +10,55 @@ execution: code
 
 # Portable Signatures and Phasor Export - Plan
 
+## Reconciliation — 2026-09-22
+
+[Recovery contracts and external validation](2026-09-22-recovery-contracts-and-validation-plan.md) implements the latest
+design revision under [STRATEGY.md](../../STRATEGY.md). It supersedes rigid stage
+barriers, universal per-function compilation/inline assembly, identity-only source
+transfer and unconditional locator/runtime promises in the historical body.
+Identity/calibration iterate; reconstruction starts early; candidate admission,
+recipient verification and runtime capabilities stay separate. Reuse only valid
+unchanged dependencies. reccmp/ReAgent are planned optional external adapters;
+provider baselines are documentary references, not dependencies installed now.
+The [design package](2026-09-22-design-package.md) also governs task/acceptance,
+dependency-local continuation and independent identity evidence. Future execution
+and reconstruction/runtime demonstrations are NOT RUN; no running service is
+required to complete the design.
+The current session's AGENTS.md operational constraints govern historical recipes.
+
+## Reconciliation — 2026-09-20
+
+This note governs current work; the original plan below is retained as decision
+history, not a claim that its acceptance examples passed. Follow
+[STRATEGY.md](../../STRATEGY.md) for the current evidence-fusion matcher cascade,
+compile-gated source propagation, resource-aware concurrency and fresh terminal
+whole-image acceptance. The old debug/content/BSim/byte-window-last ordering and
+eight-step endpoint are superseded: local runtime byte scans are distinct from
+corpus identity, and per-function parity is not the terminal deliverable.
+Track byte-accurate C+assembly-floor and max-C variants separately.
+
+[Runtime reuse](../RUNTIME_REUSE.md) records the existing exporter, observed
+8080 `corpus.export-hookpack` catalog action and KotorPhasor v1 pack/overlay
+loader. Exporter/catalog/loader implementation work is not all still prospective.
+Build admission, site-key/profile mapping, ABI adapters, cave plans and fresh
+export-to-behavior proof remain incomplete; no original acceptance example is
+marked passed by this documentation assessment. Runtime reuse branches before
+whole-image recovery and feeds observations back without promoting source proof.
+
+[AGENTS.md](../../AGENTS.md) overrides historical test, port-reclaim, restart and
+forced-analysis instructions below. Use existing 8080 only, corroborate ownership
+and reuse valid work. No filesystem tests/builds or process restarts in this
+mission. Static and React implementations coexist; React migration and Python
+hot reload without owner restart/task resumption are not proved by this note.
+
+```mermaid
+flowchart LR
+  identity[Shared identity] --> recovery[Source recovery and whole-image proof]
+  identity --> runtime[Supported runtime adapter]
+  runtime --> observations[Observed behavior with provenance]
+  observations --> identity
+```
+
 **Target repos:** AgentDecompile (export + matcher docs), KotorPhasor (resolve by signature).
 
 **Product Contract preservation:** authored here. Recovery ladder plan stays `docs/plans/2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md`.

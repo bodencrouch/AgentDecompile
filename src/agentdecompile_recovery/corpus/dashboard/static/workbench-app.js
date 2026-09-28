@@ -26,6 +26,7 @@
     matchDecide: "/dashboard/api/workbench/match-decide",
     recoverStatus: "/dashboard/api/workbench/recover-status",
     corpusStatus: "/dashboard/api/workbench/corpus-status",
+    preparations: "/dashboard/api/workbench/preparations",
     ghidraDefaults: "/dashboard/api/workbench/ghidra-defaults",
     artifacts: "/dashboard/artifact",
     evidence: "/dashboard/evidence/database",
@@ -933,14 +934,15 @@
       ${title ? html`<h3 className="wb-ladder-title">${title}</h3>` : null}
       <ol className="wb-ladder-list">
         ${list.map(function (step) {
-          const st = step.state || "unmeasured";
-          const unattempted = (st === "not started" || st === "unmeasured") && !step.done;
+          const st = step.state || step.status || "unmeasured";
+          const completed = step.done != null ? step.done : step.completed;
+          const unattempted = (st === "not started" || st === "unmeasured" || st === "queued") && !completed;
           const count = unattempted
             ? "not attempted"
-            : (fmtCount(step.done) + " / " + fmtCount(step.total) + (step.unit ? " " + step.unit : ""));
+            : (fmtCount(completed) + " / " + fmtCount(step.total) + (step.unit ? " " + step.unit : ""));
           return html`<li key=${step.key || step.title} className=${stepStateClass(st)}>
             <div className="wb-step-head">
-              <span className="wb-step-no">${step.label || ""}</span>
+              <span className="wb-step-no">${step.label || step.key || ""}</span>
               <span className="wb-step-name">${step.title || step.key}</span>
               <span className="wb-step-state">${st}</span>
               <span className="wb-step-count">${count}</span>
@@ -948,12 +950,29 @@
                 disabled=${!step.action_enabled}
                 onClick=${function () { onRun(step); }}>Run</button>` : null}
             </div>
-            <p className="wb-hint">${step.why || ""}</p>
+            <p className="wb-hint">${step.why || step.reason || ""}</p>
+            ${step.currentProgram || step.currentTarget ? html`<p className="wb-hint"><code>${step.currentProgram || step.currentTarget}</code>${step.currentAction ? " · " + step.currentAction : ""}</p>` : null}
+            ${step.receipt ? html`<p className="wb-hint">Receipt: <code>${step.receipt}</code></p>` : null}
             ${step.next ? html`<p className="wb-hint">Next: ${step.next}</p>` : null}
           </li>`;
         })}
       </ol>
     </section>`;
+  }
+
+  function selectPreparationRun(runs, locator, program, slug) {
+    const normalizedLocator = String(locator || "").replace(/\/+$/, "");
+    return (runs || []).filter(function (run) {
+      const runLocator = String(run.locator || "").replace(/\/+$/, "");
+      if (normalizedLocator) {
+        return runLocator === normalizedLocator && (!program || !run.program || run.program === program || (run.programs || []).includes(program));
+      }
+      return Boolean(slug) && run.slug === slug;
+    }).sort(function (left, right) {
+      const active = ["queued", "running", "waiting", "cancelling", "disconnected", "resync"];
+      return Number(active.includes(right.status)) - Number(active.includes(left.status))
+        || Number(right.updatedAt || 0) - Number(left.updatedAt || 0);
+    })[0] || null;
   }
 
   function BinaryCompareTable({ binaries, onOpen }) {
@@ -1448,15 +1467,7 @@
     ],
     pipeline: [
       { id: "corpus.stages", label: "Stages" },
-      { id: "corpus.run", label: "Run pipeline", danger: true },
-      { id: "corpus.extract-stabs", label: "1 Extract", needsProject: true },
-      { id: "corpus.match-pair", label: "2 Match", needsProject: true, mutating: true },
-      { id: "corpus.calibrate-global", label: "3 Calibrate global", mutating: true },
-      { id: "corpus.workspace", label: "4 Link floor", mutating: true },
-      { id: "corpus.ghidra-bulk", label: "5 Ghidra bulk", mutating: true },
-      { id: "corpus.cross-place", label: "6 Cross-place" },
-      { id: "corpus.genproject", label: "7 Leftover" },
-      { id: "corpus.objdiff-check", label: "8 Objdiff audit", mutating: true }
+      { id: "corpus.run", label: "Run pipeline", danger: true }
     ],
     function: [
       { id: "mcp.decompile-function", label: "Decompile", needsFunction: true },
@@ -1485,6 +1496,23 @@
     return false;
   }
 
+  function pipelineQuickActions(baseItems, stages) {
+    return (baseItems || []).concat((stages || []).map(function (stage) {
+      return {
+        id: stage.actionId,
+        label: stage.label,
+        needsProject: stage.needsProject === true,
+        mutating: stage.mutating === true,
+        requiresCatalog: true
+      };
+    }));
+  }
+
+  function quickActionUnavailable(item, catalog, flags) {
+    const act = item.id ? catalog.find(function (row) { return row.id === item.id; }) : null;
+    return quickActionDisabled(item, flags) || (item.requiresCatalog && !act);
+  }
+
   function QuickActions({ items, catalog, onPress, flags }) {
     if (!items || !items.length) return null;
     const gate = flags || {};
@@ -1492,7 +1520,7 @@
       ${items.map(function (item, index) {
         const act = item.id ? catalog.find(function (row) { return row.id === item.id; }) : null;
         const label = item.label || (act && act.title) || item.id || "Action";
-        const off = quickActionDisabled(item, gate);
+        const off = quickActionUnavailable(item, catalog, gate);
         return html`<button key=${item.id || item.ui || String(index)} type="button"
           className=${"wb-qact" + (item.danger ? " danger" : "") + (off ? " off" : "")}
           disabled=${off}
@@ -1774,17 +1802,30 @@
     (nextList || []).forEach(function (job) {
       const was = prev[job.id];
       if (was === job.status) return;
+      const id = String(job.id || "unknown").slice(0, 80);
       if (!was && (job.status === "running" || job.status === "queued")) {
-        parts.push("Job " + job.id + " started");
-      } else if (job.status === "error" || job.status === "failed") {
-        parts.push("Job " + job.id + " failed");
-      } else if (job.status === "done" || job.status === "finished" || job.status === "ok" || job.status === "completed") {
-        parts.push("Job " + job.id + " finished. A finished job is not a match.");
-      } else if (job.status === "cancelled" || job.status === "canceled") {
-        parts.push("Job " + job.id + " cancelled");
+        parts.push("Job " + id + " started");
+      } else if (was && (job.status === "error" || job.status === "failed")) {
+        parts.push("Job " + id + " failed");
+      } else if (was && (job.status === "done" || job.status === "finished" || job.status === "ok" || job.status === "completed")) {
+        parts.push("Job " + id + " finished. A finished job is not a match.");
+      } else if (was && (job.status === "cancelled" || job.status === "canceled")) {
+        parts.push("Job " + id + " cancelled");
       }
     });
-    return parts.join(". ");
+    const shown = parts.slice(0, 3);
+    if (parts.length > shown.length) shown.push("and " + (parts.length - shown.length) + " more job updates");
+    return shown.join(". ");
+  }
+
+  function measuredJobPercent(job) {
+    const progress = job && job.workProgress;
+    if (!progress) return null;
+    const completed = progress.completed;
+    const total = progress.total;
+    if (typeof completed !== "number" || typeof total !== "number") return null;
+    if (!Number.isFinite(completed) || !Number.isFinite(total) || total <= 0 || completed < 0 || completed > total) return null;
+    return Math.round(100 * completed / total);
   }
 
   function JobLiveRegion({ text }) {
@@ -2287,10 +2328,10 @@
     const [detail, setDetail] = useState(null);
     const [overview, setOverview] = useState(null);
     const [corpusStatus, setCorpusStatus] = useState(null);
+    const [preparationRuns, setPreparationRuns] = useState([]);
     const [graph, setGraph] = useState(null);
     const [actions, setActions] = useState([]);
     const [jobs, setJobs] = useState([]);
-    const [programProgress, setProgramProgress] = useState({});
     const [reaction, setReaction] = useState(null);
     const [path, setPath] = useState("");
     const [newSlug, setNewSlug] = useState("");
@@ -2316,7 +2357,7 @@
     const [openTab, setOpenTab] = useState("local");
     const [openPaste, setOpenPaste] = useState("");
     const [funcNote, setFuncNote] = useState("");
-    const [program, setProgram] = useState("");
+    const [program, setProgram] = useState(start.get("program") || "");
     const [sessions, setSessions] = useState([]);
     const [activeSession, setActiveSession] = useState("");
     const [sessionRevision, setSessionRevision] = useState(0);
@@ -2336,6 +2377,7 @@
     const [dropCandidates, setDropCandidates] = useState([]);
     const [treeExpanded, setTreeExpanded] = useState(true);
     const [envDefaults, setEnvDefaults] = useState({ db: "", work_dir: "", kb: "", mcp_url: "" });
+    const [pipelineStages, setPipelineStages] = useState([]);
     const [recoveredRoot, setRecoveredRoot] = useState("");
     const [bsimStatus, setBsimStatus] = useState(null);
     const [recoverInfo, setRecoverInfo] = useState(null);
@@ -2363,10 +2405,8 @@
     const [checkedAddrs, setCheckedAddrs] = useState([]);
     const [checkAnchor, setCheckAnchor] = useState("");
     const [jobLiveText, setJobLiveText] = useState("");
-    const jobsSnapshotRef = useRef([]);
-    const pipelineChainedRef = useRef({});
+    const jobsSnapshotRef = useRef(null);
     const ensureSeqRef = useRef(0);
-    const chainAfterAnalyzeRef = useRef(function () {});
     const funcSeqRef = useRef(0);
     const funcSlugRef = useRef(slug);
     const fileRef = useRef(null);
@@ -2419,6 +2459,16 @@
         setCorpusStatus(data);
       } catch (err) {
         setCorpusStatus({ ok: false, error: String(err && err.message || err) });
+      }
+    }, []);
+
+    const loadPreparations = useCallback(async function () {
+      try {
+        const res = await fetch(API.preparations, { cache: "no-store" });
+        const data = await res.json();
+        setPreparationRuns(data.runs || []);
+      } catch (_err) {
+        /* Keep the last durable preparation receipt visible while reconnecting. */
       }
     }, []);
 
@@ -2551,11 +2601,17 @@
 
     const loadContext = useCallback(async function () {
       try {
-        const res = await fetch(API.context, { cache: "no-store" });
+        const query = "?slug=" + encodeURIComponent(slug || "")
+          + "&program=" + encodeURIComponent(program || "");
+        const res = await fetch(API.context + query, { cache: "no-store" });
         const data = await res.json();
         if (data.defaults) setEnvDefaults(data.defaults);
+        if (Array.isArray(data.pipelineStages)) setPipelineStages(data.pipelineStages);
+        const session = data.session || {};
+        if (!program && session.program) setProgram(session.program);
+        if (!slug && session.slug) setSlug(session.slug);
       } catch (_err) { /* optional */ }
-    }, []);
+    }, [program, slug]);
 
     const loadActions = useCallback(async function () {
       const res = await fetch(API.actions, { cache: "no-store" });
@@ -2563,6 +2619,7 @@
       const list = data.actions || [];
       setActions(list);
       if (data.context && data.context.defaults) setEnvDefaults(data.context.defaults);
+      if (data.context && Array.isArray(data.context.pipelineStages)) setPipelineStages(data.context.pipelineStages);
     }, []);
 
     const loadMatchStatus = useCallback(async function () {
@@ -2674,6 +2731,33 @@
       }
     }, [sessionRevision]);
 
+    const sessionsRef = useRef([]);
+    const activeSessionRef = useRef("");
+    const sessionRevisionRef = useRef(0);
+    useEffect(function () { sessionsRef.current = sessions; }, [sessions]);
+    useEffect(function () { activeSessionRef.current = activeSession; }, [activeSession]);
+    useEffect(function () { sessionRevisionRef.current = sessionRevision; }, [sessionRevision]);
+    useEffect(function () {
+      function flushSessions() {
+        fetch(API.sessions, {
+          method: "PUT",
+          headers: { "content-type": "application/json", "X-Requested-With": "fetch" },
+          body: JSON.stringify({
+            active: activeSessionRef.current,
+            sessions: sessionsRef.current,
+            revision: sessionRevisionRef.current
+          }),
+          keepalive: true
+        });
+      }
+      window.addEventListener("pagehide", flushSessions);
+      window.addEventListener("beforeunload", flushSessions);
+      return function () {
+        window.removeEventListener("pagehide", flushSessions);
+        window.removeEventListener("beforeunload", flushSessions);
+      };
+    }, []);
+
     const persistSessions = useCallback(async function (nextSessions, nextActive) {
       setSessions(nextSessions);
       setActiveSession(nextActive);
@@ -2739,11 +2823,6 @@
       if (!target || !locator) return null;
       ensureSeqRef.current += 1;
       const seq = ensureSeqRef.current;
-      setProgramProgress(function (prev) {
-        const next = Object.assign({}, prev);
-        next[target] = { pct: 12, tool: "open", status: "running" };
-        return next;
-      });
       if (!opts.quiet) showToast("Opening " + target + "…");
       try {
         const res = await fetch(API.ensureProgram, {
@@ -2752,6 +2831,11 @@
           body: JSON.stringify({ locator: locator, program: target })
         });
         const data = await res.json();
+        if (!res.ok || data.ok !== true || data.ensured !== true) {
+          const message = data.error || ("Could not open " + target + " in Ghidra.");
+          if (!opts.quiet || opts.reportFailure) showToast(message, "error");
+          return null;
+        }
         if (seq !== ensureSeqRef.current) return data;
         if (data.results && data.results.length) {
           setRows(data.results);
@@ -2777,35 +2861,17 @@
                 + " functions from the Ghidra project\n" + (first.name || "") + "  @ " + (first.addr || "")
             };
           });
-          setProgramProgress(function (prev) {
-            const next = Object.assign({}, prev);
-            next[target] = { pct: 70, tool: "workspace", status: "running" };
-            return next;
-          });
           await loadWorkspace(target, first, locator);
-          setProgramProgress(function (prev) {
-            const next = Object.assign({}, prev);
-            next[target] = { pct: 100, tool: "list-functions", status: "ok" };
-            return next;
-          });
           if (!opts.quiet) showToast(target + " — " + (data.total || data.results.length) + " functions", "success");
           return data;
         }
-        setProgramProgress(function (prev) {
-          const next = Object.assign({}, prev);
-          next[target] = { pct: 40, tool: "list-functions", status: data.next === "analyze-program" ? "ok" : "failed" };
-          return next;
-        });
         await loadFuncs();
         if (data.error && !opts.quiet) showToast(data.error, data.next === "analyze-program" ? "" : "error");
         return data;
       } catch (err) {
-        setProgramProgress(function (prev) {
-          const next = Object.assign({}, prev);
-          next[target] = { pct: 0, tool: "open", status: "failed" };
-          return next;
-        });
-        if (!opts.quiet) showToast("Could not open " + target + " in Ghidra.", "error");
+        if (!opts.quiet || opts.reportFailure) {
+          showToast("Could not open " + target + " in Ghidra: " + String((err && err.message) || err), "error");
+        }
         return null;
       }
     }
@@ -2872,9 +2938,10 @@
         /* A deep link that names a build wins over the restored tab, otherwise
            /dashboard?window=…&binary=X silently shows a different build. */
         const pinned = start.get("slug") || start.get("binary") || "";
+        const pinnedProgram = start.get("program") || "";
         if (cur && cur.locator) {
           if (!pinned) setSlug(cur.projectSlug || "");
-          setProgram(cur.program || "");
+          if (!pinnedProgram) setProgram(cur.program || "");
           loadPreview(cur.locator);
         } else if (!pinned && cur && (cur.imports || []).length) {
           const first = importSlug(cur.imports[0]);
@@ -2936,6 +3003,12 @@
         window.removeEventListener("keydown", onKey);
       };
     }, [loadBinaries, loadContext, loadActions, loadBrowse, loadPreview]);
+
+    useEffect(function () {
+      loadPreparations();
+      const timer = window.setInterval(loadPreparations, 2000);
+      return function () { window.clearInterval(timer); };
+    }, [loadPreparations]);
 
     useEffect(function () {
       if (!dossier || !dossier.ok || program) return;
@@ -3145,25 +3218,13 @@
           const res = await fetch(API.jobs, { cache: "no-store" });
           const data = await res.json();
           const list = data.jobs || [];
-          const note = jobLiveAnnouncement(jobsSnapshotRef.current, list);
+          const note = jobsSnapshotRef.current === null ? "" : jobLiveAnnouncement(jobsSnapshotRef.current, list);
           jobsSnapshotRef.current = list;
           if (note) {
             setJobLiveText(note);
             showToast(note, /failed|cancelled/.test(note) ? "error" : "info");
           }
           setJobs(list);
-          const nextProgress = {};
-          list.forEach(function (job) {
-            chainAfterAnalyzeRef.current(job);
-            const params = job.params || {};
-            const key = String(params.program || params.programPath || params.binary || params.name || "").trim();
-            if (!key) return;
-            const pct = typeof job.progress === "number" ? job.progress : (job.status === "ok" ? 100 : job.status === "queued" ? 4 : 22);
-            nextProgress[key] = { pct: pct, tool: job.actionId || "", status: job.status };
-          });
-          if (Object.keys(nextProgress).length) {
-            setProgramProgress(function (prev) { return Object.assign({}, prev, nextProgress); });
-          }
           const sig = list.map(function (job) { return job.id + job.status + job.returncode; }).join("|");
           if (sig !== last) {
             last = sig;
@@ -3845,7 +3906,6 @@
         const target = program || "";
         if (!target) { showToast("Select a program first", "error"); return; }
         startImportPipeline(target);
-        showToast("analyze-program started on " + target);
         return;
       }
       if (id === "analyze.bsim-ingest") {
@@ -3995,6 +4055,28 @@
       };
     }, [binaries, slug, program, selected, rows, currentSession, dossier, envDefaults, recoveredRoot]);
 
+    const programProgress = useMemo(function () {
+      const locator = currentLocator();
+      if (!locator) return {};
+      const projection = {};
+      jobs.forEach(function (job) {
+        const params = job.params || {};
+        const jobLocator = String(params.locator || "").trim();
+        const jobProgram = String(params.program || params.programPath || "").trim();
+        if (jobLocator !== locator || !jobProgram) return;
+        const active = job.status === "running" || job.status === "queued";
+        const previous = projection[jobProgram];
+        if (previous && (previous.active || !active)) return;
+        projection[jobProgram] = {
+          active: active,
+          pct: measuredJobPercent(job),
+          tool: job.actionId || "",
+          status: job.status
+        };
+      });
+      return projection;
+    }, [jobs, dossier, currentSession]);
+
     async function executeAction(actionId, paramOverrides, options) {
       const opts = options || {};
       if (!actionId) return null;
@@ -4041,10 +4123,15 @@
         return ok;
       }
       const row = opts.targetRow;
+      const targetContext = opts.targetContext || {};
+      const captured = function (key, fallback) {
+        return Object.prototype.hasOwnProperty.call(targetContext, key) ? targetContext[key] : fallback;
+      };
       const ctx = {
-        slug: toolContext.slug || "",
-        program: toolContext.program || "",
-        repo: toolContext.repo || "",
+        slug: captured("slug", toolContext.slug) || "",
+        program: captured("program", toolContext.program) || "",
+        repo: captured("repo", toolContext.repo) || "",
+        locator: captured("locator", currentLocator()) || "",
         addr: (row && row.addr) || params.addr || toolContext.addr || "",
         name: (row && row.name) || params.name || toolContext.name || "",
         db: toolContext.db || "",
@@ -4052,13 +4139,22 @@
         kb: toolContext.kb || ""
       };
       if (!opts.quiet) showToast("Starting " + (act.title || actionId) + "…", "info");
-      const body = Object.assign({ confirm: true, context: ctx }, params);
-      const res = await fetch("/api/v1/actions/" + actionId.replace(/\./g, "/"), {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body)
-      });
-      const data = await res.json();
+      const body = Object.assign({}, params, { confirm: true, context: ctx });
+      let res;
+      let data;
+      try {
+        res = await fetch("/api/v1/actions/" + actionId.replace(/\./g, "/"), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        data = await res.json();
+      } catch (err) {
+        const message = "Action request failed: " + String((err && err.message) || err);
+        if (!opts.quiet) showToast(message, "error");
+        reactJob(actionId, { error: message });
+        return null;
+      }
       if (!res.ok) {
         if (!opts.quiet) showToast(data.error || "Action failed", "error");
         reactJob(actionId, data);
@@ -4111,49 +4207,29 @@
       const target = String(programName || "").trim();
       if (!target) return;
       const force = !!(opts && opts.force);
-      setProgramProgress(function (prev) {
-        const next = Object.assign({}, prev);
-        next[target] = { pct: 4, tool: "open", status: "queued" };
-        return next;
-      });
-      Promise.resolve(ensureGhidraProgram(target, { quiet: true, locator: currentLocator() })).then(function (data) {
+      const targetContext = {
+        slug: toolContext.slug || "",
+        program: target,
+        repo: toolContext.repo || "",
+        locator: currentLocator()
+      };
+      Promise.resolve(ensureGhidraProgram(target, {
+        quiet: true,
+        reportFailure: true,
+        locator: targetContext.locator
+      })).then(function (data) {
+        if (!data) return;
         if (!force && programAlreadyAnalyzed(data)) {
-          setProgramProgress(function (prev) {
-            const next = Object.assign({}, prev);
-            next[target] = { pct: 100, tool: "list-functions", status: "ok" };
-            return next;
-          });
           return;
         }
-        executeAction("mcp.analyze-program", {
+        return executeAction("mcp.analyze-program", {
           program: target,
-          locator: currentLocator()
-        }, { skipConfirm: true, quiet: true });
+          locator: targetContext.locator
+        }, { skipConfirm: true, targetContext: targetContext });
+      }).catch(function (err) {
+        showToast("Analyze request failed: " + String((err && err.message) || err), "error");
       });
     }
-
-    function chainAfterAnalyze(job) {
-      if (!job || job.status !== "ok") return;
-      const actionId = String(job.actionId || "");
-      if (actionId !== "mcp.analyze-program" && actionId.indexOf("analyze-program") < 0) return;
-      if (pipelineChainedRef.current[job.id]) return;
-      pipelineChainedRef.current[job.id] = true;
-      const prog = String((job.params && (job.params.program || job.params.programPath || job.params.binary)) || program || "").trim();
-      const loc = currentLocator();
-      const after = { program: prog, locator: loc };
-      executeAction("corpus.extract-stabs", after, { skipConfirm: true, quiet: true });
-      executeAction("corpus.bsim-ingest", after, { skipConfirm: true, quiet: true });
-      if (prog) {
-        setProgramProgress(function (prev) {
-          const next = Object.assign({}, prev);
-          next[prog] = { pct: 70, tool: "extract-stabs", status: "running" };
-          return next;
-        });
-        loadFuncs();
-        loadBinaries();
-      }
-    }
-    chainAfterAnalyzeRef.current = chainAfterAnalyze;
 
     function runFromActionStrip() {
       const act = actions.find(function (item) { return item.id === pendingActionId; });
@@ -4259,7 +4335,6 @@
       closeDialog();
       setIngestNote("Imported " + prog + " into the project");
       showToast("Imported " + prog + " into the project", "success");
-      if (prog) startImportPipeline(prog);
       return data;
     }
 
@@ -4516,8 +4591,11 @@
     }
 
     function quickBar(setName) {
+      const items = setName === "pipeline"
+        ? pipelineQuickActions(QUICK_ACTION_SETS.pipeline, pipelineStages)
+        : (QUICK_ACTION_SETS[setName] || []);
       return html`<${QuickActions}
-        items=${QUICK_ACTION_SETS[setName] || []}
+        items=${items}
         catalog=${actions}
         onPress=${runQuickAction}
         flags=${quickActionFlags()} />`;
@@ -4649,6 +4727,7 @@
 
     function renderEditorBody() {
       const tab = centerTab || "decompile";
+      const recoveryRun = selectPreparationRun(preparationRuns, currentLocator(), program, slug);
       if (tab === "graph") {
         return html`<${Surface} id="wb-graph" title="Call trees">
           <p className="wb-hint">Incoming and outgoing calls for this function. This is not Ghidra Function Graph.</p>
@@ -4716,6 +4795,7 @@
           ${quickBar("pipeline")}
           <${StepLadder} title="Corpus" steps=${ladder.corpus_steps} onRun=${runLadderStep} />
           ${active ? html`<${StepLadder} title=${"Build " + active.slug} steps=${active.steps} onRun=${runLadderStep} />` : null}
+          ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + recoveryRun.status} steps=${recoveryRun.stages} />` : null}
         </${Surface}>`;
       }
       if (tab === "wb-jobs") {
@@ -4912,12 +4992,16 @@
         const steps = ((corpusStatus && corpusStatus.ladder && corpusStatus.ladder.corpus_steps) || []).filter(function (s) {
           return s.key === "leftover-recover" || s.key === "verify-byte-accuracy" || s.key === "apply-cross-build";
         });
+        const recoverySteps = recoveryRun ? (recoveryRun.stages || []).filter(function (stage) {
+          return ["calibrate-global", "materialize-target", "assembly-floor", "recover-source", "apply-cross-build", "leftover-recover", "verify-byte-accuracy"].includes(stage.key);
+        }) : [];
         return html`<${Surface} id="wb-roundtrip" title="Roundtrip" actions=${panelActions(
           runActionButton("reconstruct.run", "Reconstruct run"),
           runActionButton("corpus.verify-legacy-recovered", "Verify legacy"),
           runActionButton("corpus.external-bridge", "External bridge")
         )}>
           <${CorpusHeadline} headline=${corpusStatus && corpusStatus.headline} claim="Compile and byte-accuracy stay separate columns." />
+          ${recoveryRun ? html`<${StepLadder} title=${"Self-contained recovery · " + (recoveryRun.program || program || slug || recoveryRun.status)} steps=${recoverySteps} />` : null}
           <${StepLadder} title="Compile and verify" steps=${steps} onRun=${runLadderStep} />
         </${Surface}>`;
       }
@@ -5153,7 +5237,6 @@
                 onClick=${function () {
                   if (!program) { showToast("Select a program first", "error"); return; }
                   startImportPipeline(program);
-                  showToast("analyze-program started on " + program);
                 }}>Analyze</button>
               <button type="button" id="wb-listing-decompile" className="wb-btn wb-btn-mini"
                 onClick=${function () {
@@ -5608,7 +5691,8 @@
                 ${((projectCard.programs || []).length) ? html`<ul className="wb-programs">
                   ${(projectCard.programs || []).map(function (name) {
                     const meter = programProgress[name] || null;
-                    const live = meter && (meter.status === "queued" || meter.status === "running");
+                    const live = meter && meter.active;
+                    const measured = live && Number.isFinite(meter.pct);
                     return html`<li key=${"prog-" + name} className=${"wb-program" + (program === name && slug === activeProjectSlug ? " on" : "") + (live ? " live" : "")}
                       onContextMenu=${function (ev) { openCtx(ev, programCtxItems(name)); }}>
                       <button type="button" className="wb-text-action"
@@ -5633,8 +5717,8 @@
                           ev.stopPropagation();
                           removeProgramFromProject(name);
                         }}>Remove</button>
-                      ${live ? html`<span className="wb-prog-pct" title=${meter.tool || ""}>${meter.pct}%</span>` : null}
-                      ${live ? html`<span className="wb-prog-meter" aria-hidden="true"><i style=${{ transform: "scaleX(" + (Number(meter.pct) / 100) + ")" }}></i></span>` : null}
+                      ${live ? html`<span className="wb-prog-pct" title=${meter.tool || ""}>${measured ? meter.pct + "%" : meter.status}</span>` : null}
+                      ${measured ? html`<span className="wb-prog-meter" aria-hidden="true"><i style=${{ transform: "scaleX(" + (meter.pct / 100) + ")" }}></i></span>` : null}
                     </li>`;
                   })}
                 </ul>` : html`<ul className="wb-programs">

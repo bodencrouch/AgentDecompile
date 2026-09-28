@@ -14,7 +14,7 @@ MIN_COVERAGE = 0.20
 def annotate_variant_groups(binaries: list[dict[str, Any]]) -> list[dict[str, Any]]:
     by_path = {path: row for row in binaries for path in row.get('sourcePaths', [row.get('repo')]) if path}
     by_id = {row['id']: row for row in binaries}
-    inventories, error = query_db('SELECT b.repo_path,b.md5,COUNT(f.id) FROM binary b LEFT JOIN func f ON f.binary_id=b.id GROUP BY b.id')
+    inventories, error = query_db('SELECT repo_path,md5,func_count FROM binary')
     inventory = {row[0]: list(row) for row in inventories} if not error else {}
     evidence: dict[tuple[int, int], dict[str, Any]] = {}
     root = live_root()

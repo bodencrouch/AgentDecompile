@@ -9,6 +9,7 @@ import {
   type Selection,
   type SurfaceProps,
 } from "./contracts";
+import { validApproval } from "./ai/approval";
 import "./actions.css";
 const RECENT = "agentdecompile.react.recent-actions";
 function recents(): string[] {
@@ -231,6 +232,8 @@ export function ActionRunner({
     [busy, setBusy] = useState(false),
     [advanced, setAdvanced] = useState(false),
     [confirm, setConfirm] = useState(false),
+    [approvalRecords, setApprovalRecords] = useState<Data[]>([]),
+    [approvalId, setApprovalId] = useState(""),
     [preview, setPreview] = useState<Data | null>(null);
   useEffect(() => {
     if (!request) return;
@@ -238,6 +241,8 @@ export function ActionRunner({
     setAction(null);
     setError("");
     setConfirm(false);
+    setApprovalRecords([]);
+    setApprovalId("");
     setPreview(null);
     setAdvanced(false);
     const frozen = (
@@ -246,16 +251,22 @@ export function ActionRunner({
     setContext(frozen[0]);
     setTargets(frozen);
     Promise.all([
-      apiRequest("/dashboard/api/actions", { signal: c.signal }),
+      apiRequest(
+        `/dashboard/api/actions/${encodeURIComponent(request.id)}`,
+        { signal: c.signal },
+      ),
       apiRequest(`${API}/context?${query(frozen[0])}`, { signal: c.signal }),
     ])
-      .then(([catalog, ctx]) => {
-        const found = (catalog.actions || []).find(
-          (a: Data) => a.id === request.id,
-        );
+      .then(([descriptor, ctx]) => {
+        const found = descriptor.action;
         if (!found) throw new Error(`Action ${request.id} is unavailable.`);
-        const defaults = { ...catalog.context?.defaults, ...ctx.defaults };
-        const binaries = catalog.context?.binaries || [];
+        const defaults = { ...ctx.defaults };
+        const approvals =
+          ctx.approvalRecords ||
+          ctx.approvals ||
+          [];
+        setApprovalRecords(Array.isArray(approvals) ? approvals : []);
+        const binaries = ctx.binaries || [];
         const contexts = frozen.map((s) =>
           selectionContext(s, defaults, binaries),
         );
@@ -331,16 +342,37 @@ export function ActionRunner({
       });
       if (!dryRun && (action.mutating || action.danger) && !confirm) {
         setConfirm(true);
+        setApprovalId("");
         setError("");
         return;
       }
+      const requiresApproval = Boolean(action.mutating || action.danger);
+      const approval = requiresApproval
+        ? validApproval(
+            approvalRecords,
+            String(action.id),
+            params,
+            context.targetRevision || context.revisionId || context.revision,
+          )
+        : undefined;
+      if (!dryRun && requiresApproval && !approval) {
+        setApprovalId("");
+        setError(
+          "No current durable approval record covers this action, its exact parameters, and its target revision. Browser confirmation alone cannot submit a mutation.",
+        );
+        return;
+      }
+      if (approval) setApprovalId(approval.id);
       setBusy(true);
       setError("");
       const payload = {
         action: action.id,
         params,
         context,
-        confirm: Boolean(confirm || dryRun),
+        // The approval record is a client-side preflight until the action API
+        // advertises durable approval enforcement. Never treat confirm alone as
+        // authorization in this UI.
+        confirm: Boolean((confirm && approval) || dryRun),
         dryRun,
       };
       const signature = JSON.stringify({ ...payload, targets });
@@ -487,6 +519,9 @@ export function ActionRunner({
               ? `${targets.length} selected functions`
               : context.program || context.slug || "the selected target"}
             . Review the fields and targets above before confirming.
+            {approvalId
+              ? ` Durable approval record ${approvalId} covers this request.`
+              : " A durable approval record from the action context is also required; this browser confirmation is not approval."}
           </p>
         )}
         {error && (

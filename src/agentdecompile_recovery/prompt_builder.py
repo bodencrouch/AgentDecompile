@@ -18,6 +18,7 @@ from .codebase_context import get_func_context
 from .craft_prompt import craft_prompt
 from .curated_project import load_curated_signatures, load_curated_type_definitions
 from .decomp_function_corpus import DecompFunctionCorpus, DecompFunctionDoc
+from .languages import SourceLanguage
 
 _TYPE_TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_:]*")
 _PRIMITIVE_TYPES = {
@@ -151,12 +152,39 @@ def _curated_prompt_context(
     return CuratedPromptContext(target_decl, declarations, rendered)
 
 
-def create_decompile_prompt(
+def craft_platform_for_target_format(target_format: str | None) -> str | None:
+    """Map recovery target/container format to a craft_prompt platform key."""
+    fmt = str(target_format or "").strip().lower()
+    if fmt == "nds":
+        return "nds"
+    if fmt == "pe":
+        return "win32"
+    if fmt in {"elf", "macho"}:
+        return None
+    return None
+
+
+def resolve_craft_platform(
+    platform: str | None,
+    *,
+    target_format: str | None = None,
+) -> str:
+    """Choose a craft_prompt platform label from explicit platform or target format."""
+    mapped = craft_platform_for_target_format(target_format)
+    if mapped:
+        return mapped
+    candidate = str(platform or "").strip()
+    return candidate or "win32"
+
+
+def build_craft_prompt(
     *,
     corpus: DecompFunctionCorpus,
     function_id: str,
     platform: str,
     project_root: Path | None = None,
+    target_language: SourceLanguage | str | None = None,
+    target_format: str | None = None,
 ) -> str:
     func = corpus.get_function_by_id(function_id)
     if func is None:
@@ -174,7 +202,7 @@ def create_decompile_prompt(
         )
 
     return craft_prompt(
-        platform=platform,
+        platform=resolve_craft_platform(platform, target_format=target_format),
         module_path=func.asm_module_path,
         asm_name=func.name,
         asm_declaration=context.asm_declaration,
@@ -182,4 +210,24 @@ def create_decompile_prompt(
         called_functions_declarations=context.called_functions_declarations,
         sampling=context.sampling,
         type_definitions=context.type_definitions,
+        target_language=target_language,
+    )
+
+
+def create_decompile_prompt(
+    *,
+    corpus: DecompFunctionCorpus,
+    function_id: str,
+    platform: str,
+    project_root: Path | None = None,
+    target_language: SourceLanguage | str | None = None,
+    target_format: str | None = None,
+) -> str:
+    return build_craft_prompt(
+        corpus=corpus,
+        function_id=function_id,
+        platform=platform,
+        project_root=project_root,
+        target_language=target_language,
+        target_format=target_format,
     )

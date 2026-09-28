@@ -14,6 +14,7 @@ Nothing here uses the decompiler. `tier1` / `tier2` need a live Ghidra program.
 
 from __future__ import annotations
 
+import hashlib
 from collections import Counter
 
 # Mnemonics collapsed into equivalence classes so that x86/ARM/PPC builds of the
@@ -64,6 +65,12 @@ def mnemonic_class(m: str) -> str:
 def mnemonic_profile(counts: dict[str, int]) -> dict[str, float]:
     total = max(sum(counts.values()), 1)
     return {key: round(value / total, 5) for key, value in counts.items()}
+
+
+def block_mnemonic_hash(mnems: list[str]) -> str:
+    """Stable digest of a basic block's classed mnemonic sequence."""
+    blob = "\0".join(mnemonic_class(str(token)) for token in mnems)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
 
 
 def _demangler():
@@ -163,10 +170,18 @@ def tier2(program, monitor, addrs=None) -> dict[int, dict]:
         data_refs = 0
         ext_calls: list[str] = []
         indirect_calls = 0
+        instruction_bytes = bytearray()
+        instruction_bytes_complete = True
 
         for instr in listing.getInstructions(body, True):
             n_instr += 1
             mn[mnemonic_class(str(instr.getMnemonicString()))] += 1
+            if instruction_bytes_complete:
+                try:
+                    instruction_bytes.extend(int(value) & 0xFF for value in instr.getBytes())
+                except Exception:
+                    instruction_bytes.clear()
+                    instruction_bytes_complete = False
             for i in range(instr.getNumOperands()):
                 for obj in instr.getOpObjects(i):
                     try:
@@ -200,29 +215,47 @@ def tier2(program, monitor, addrs=None) -> dict[int, dict]:
         nblocks = 0
         nedges = 0
         back_edges = 0
+        block_hashes: list[str] = []
+        cfg_nodes: list[int] = []
+        cfg_edges: list[tuple[int, int]] = []
         try:
             it = bbm.getCodeBlocksContaining(body, monitor)
+            blocks_by_addr: dict[int, int] = {}
+            blocks: list[tuple[int, object]] = []
             while it.hasNext():
                 blk = it.next()
                 nblocks += 1
                 bs = int(blk.getFirstStartAddress().getOffset())
+                blocks_by_addr[bs] = nblocks - 1
+                blocks.append((bs, blk))
+            cfg_nodes = list(range(len(blocks)))
+            for bs, blk in blocks:
                 dit = blk.getDestinations(monitor)
                 while dit.hasNext():
                     d = dit.next()
                     dst = d.getDestinationAddress()
                     if body.contains(dst):
                         nedges += 1
+                        dst_id = blocks_by_addr.get(int(dst.getOffset()))
+                        if dst_id is not None:
+                            cfg_edges.append((blocks_by_addr[bs], dst_id))
                         if int(dst.getOffset()) <= bs:
                             back_edges += 1
+                block_mnems = [str(instr.getMnemonicString()) for instr in listing.getInstructions(blk, True)]
+                if block_mnems:
+                    block_hashes.append(block_mnemonic_hash(block_mnems))
         except Exception:
             pass
 
         total = max(n_instr, 1)
         profile = {k: round(v / total, 5) for k, v in mn.items()}
-        out[off] = {
+        from .fingerprint_hashes import attach_hashes, hash_raw_bytes
+
+        row = {
             "n_instr": n_instr,
             "mnemonic_counts": dict(mn),
             "mnemonic_profile": profile,
+            "mnem": dict(mn),
             "n_blocks": nblocks,
             "n_edges": nedges,
             "back_edges": back_edges,
@@ -234,7 +267,12 @@ def tier2(program, monitor, addrs=None) -> dict[int, dict]:
             "strings": sorted(set(strings)),
             "consts": sorted(consts),
             "data_refs": data_refs,
+            "block_hashes": block_hashes,
+            "cfg_nodes": cfg_nodes,
+            "cfg_edges": cfg_edges,
+            "hash_raw": hash_raw_bytes(instruction_bytes) if instruction_bytes_complete else "",
         }
+        out[off] = attach_hashes(row)
     return out
 
 

@@ -15,6 +15,7 @@ as rewrite_provider. No credentialed HTTP client.
 from __future__ import annotations
 
 import os
+import pathlib
 import re
 import shutil
 import subprocess
@@ -23,8 +24,37 @@ from typing import Callable
 
 from .source_claims import is_recovered_source
 
-DEFAULT_CLI = "claude"
-DEFAULT_GET_FUNCTION_CLI = "agentdecompile-cli"
+def _resolve_cli(name: str, env_var: str) -> str:
+    """Absolute path to a helper CLI.
+
+    Jobs launched by the dashboard inherit a trimmed PATH that omits the
+    user-local bin dirs, so a bare name silently fails to resolve and the
+    tier becomes a no-op. Probe the usual install roots before giving up.
+    """
+    override = os.environ.get(env_var, "").strip()
+    if override:
+        return override
+    found = shutil.which(name)
+    if found:
+        return found
+    home = pathlib.Path.home()
+    roots = (
+        home / ".local" / "bin",
+        home / "bin",
+        home / ".npm-global" / "bin",
+        pathlib.Path("/usr/local/bin"),
+        pathlib.Path("/opt/homebrew/bin"),
+        pathlib.Path("/home/linuxbrew/.linuxbrew/bin"),
+    )
+    for root in roots:
+        cand = root / name
+        if cand.is_file() and os.access(cand, os.X_OK):
+            return str(cand)
+    return name
+
+
+DEFAULT_CLI = _resolve_cli("claude", "AGENT_DECOMPILE_LLM_CLI")
+DEFAULT_GET_FUNCTION_CLI = _resolve_cli("agentdecompile-cli", "AGENT_DECOMPILE_CLI")
 DEFAULT_TIMEOUT_SECONDS = 180
 GET_FUNCTION_TIMEOUT_SECONDS = 90
 GET_FUNCTION_PROMPT_CHARS = 16000

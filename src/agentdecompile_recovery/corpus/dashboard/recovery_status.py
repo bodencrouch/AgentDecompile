@@ -150,7 +150,11 @@ def corpus_status(*, locator: str = '', slug: str = '', program: str = '', scope
     }
     return {'ok': True, 'available': not errors, 'scope': selection, 'workflow': {'runs': public_runs, 'source': 'durable-workflow'}, 'recovery': recovery,
             'claimBoundary': 'Source availability, compilation, and byte verification are separate claims.',
-            'headline': {'real_c': totals['sourceRecords'] if source_measured else None, 'byte_exact': 'unmeasured', 'placed_concrete': totals['bound'], 'unplaced_real_c': None, 'queued': None},
+            # A missing receipt is an active measurement state, never a claim
+            # that verification is absent as an unknown property.  Consumers
+            # render this as "Byte audit pending" and retain the exact work
+            # queue that will produce the receipt.
+            'headline': {'real_c': totals['sourceRecords'] if source_measured else None, 'byte_exact': 'pending', 'placed_concrete': totals['bound'], 'unplaced_real_c': None, 'queued': None},
             'builds': builds, 'ladder': {'binaries': builds, 'corpus_steps': [], 'project_steps': stages, 'errors': []},
             'report': report, 'review': {'by_status': matching, 'rows': [], 'errors': []}, 'evidenceSources': evidence_sources,
             'errors': errors, 'probes': [], 'mission': {}, 'atlas': {'in_tree': '/atlas'}}

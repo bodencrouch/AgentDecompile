@@ -614,7 +614,7 @@ class SessionContextStore:
             exact = [path for path in paths if path.lower().lstrip('/') == want_l.lstrip('/')]
             if exact:
                 resolved = '/' + exact[0].lstrip('/')
-            elif '/' not in want_l:
+            elif '/' not in want_l.strip('/'):
                 candidates = {('/' + path.lstrip('/')) for path in paths if path.rsplit('/', 1)[-1].lower() == want_base}
                 if len(candidates) == 1:
                     resolved = next(iter(candidates))

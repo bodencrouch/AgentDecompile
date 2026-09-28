@@ -20,6 +20,7 @@ from .match_engine import (  # noqa: F401
     shape_key,
     status_for,
 )
+from .callgraph_propagate import propagate_call_graph, unique_neighbor_matches
 from .match_store import Binary, candidate_pairs, match_binaries
 
 __all__ = [
@@ -31,7 +32,9 @@ __all__ = [
     "decomp_similarity",
     "jaccard",
     "match_binaries",
+    "propagate_call_graph",
     "relsim",
+    "unique_neighbor_matches",
     "score_features",
     "shape_key",
     "status_for",

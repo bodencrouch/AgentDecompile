@@ -140,3 +140,12 @@
 
 /* Older callers provide their own body/footer or unwrapped content. Keep all content reachable. */
 .ad-dialog-scrollable { overflow: auto; overscroll-behavior: contain; }
+
+/* Opt-in browser compute contribution control (shared by every shell). */
+.exchange-contribution-trigger { margin-left: auto; }
+.exchange-contribution { display: grid; gap: 10px; min-width: min(420px, 76vw); }
+.exchange-contribution > label { display: grid; gap: 3px; font-weight: 600; }
+.exchange-contribution input, .exchange-contribution select { width: 100%; }
+.exchange-primary { background: var(--selection, var(--accent, #2f6feb)); }
+.exchange-status { border-left: 3px solid var(--accent, #2f6feb); padding-left: 8px; }
+.exchange-status strong { text-transform: capitalize; }

@@ -9,6 +9,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 from agentdecompile_recovery.corpus.dashboard.common import (
     as_root,
@@ -25,6 +26,8 @@ _CACHE: dict[str, tuple[float, Any]] = {}
 _CACHE_TTL = 8.0
 _STORE_CACHE_TTL = 45.0
 _REGISTRATION_LOCK = threading.RLock()
+_BINARY_INVENTORY_LOCK = threading.Lock()
+_BINARY_INVENTORY_WAITERS: dict[str, threading.Event] = {}
 
 
 def _cached(key: str, fn):
@@ -410,19 +413,22 @@ def _register_path_binary(
         name = (slug or src.name).strip()
     if not name:
         return {"ok": False, "error": "slug is required"}
-    if kind == "binary" or kind not in ("shared-project", "shared-fs", "ghidra-project"):
-        # An explicitly requested slug is the caller's key for every later call
-        # (DELETE/PATCH/select), so it is kept verbatim. Only derive a slug — including
-        # the platform suffix that keeps sibling builds apart — when none was requested.
-        name = name if slug else _slug_from_disk_path(Path(repo), "")
+    if kind in ("shared-project", "shared-fs", "ghidra-project"):
+        return {
+            "ok": False,
+            "error": "This is a project locator, not an executable. Open it as a project instead of registering it as a binary.",
+        }
+    # An explicitly requested slug is the caller's key for every later call
+    # (DELETE/PATCH/select), so it is kept verbatim. Only derive a slug — including
+    # the platform suffix that keeps sibling builds apart — when none was requested.
+    name = name if slug else _slug_from_disk_path(Path(repo), "")
     con, err = _open_store()
     if err:
         return err
     try:
         from .library_identity import binary_sha256
-        is_binary = kind not in ("shared-project", "shared-fs", "ghidra-project")
-        digest = binary_sha256(repo) if is_binary else ""
-        if is_binary and not digest:
+        digest = binary_sha256(repo)
+        if not digest:
             return {"ok": False, "error": "Cannot confirm binary identity. The source must remain readable and unchanged during hashing."}
         con.execute("CREATE TABLE IF NOT EXISTS binary_content_identity (source_path TEXT PRIMARY KEY, sha256 TEXT NOT NULL)")
         previous_identity = con.execute("SELECT sha256 FROM binary_content_identity WHERE source_path=?", (repo,)).fetchone()
@@ -442,7 +448,7 @@ def _register_path_binary(
                 return {"ok": True, "binary": _binary_row(name), "reused": True, "sha256": digest}
         existing = con.execute("SELECT slug FROM binary WHERE repo_path=?", (repo,)).fetchone()
         collision = next((item for item in candidates if item[0] == name and item[1] != repo), None)
-        if collision and is_binary:
+        if collision:
             prior_digest = binary_sha256(collision[1] or "")
             if not prior_digest:
                 return {"ok": False, "error": "An entry with this name has unavailable bytes. Resolve its identity or choose an explicit distinct name before importing."}
@@ -580,16 +586,90 @@ def record_import_bindings(payload: dict[str, Any]) -> None:
         for item in imported:
             source, program = item.get("sourcePath"), item.get("programPath")
             if source and program:
-                con.execute("INSERT INTO program_binding VALUES(?,?,?,?) ON CONFLICT(source_path,locator) DO UPDATE SET program=excluded.program,updated=excluded.updated", (str(Path(source).resolve()), locator, program, time.time()))
+                source_path = Path(str(source)).expanduser()
+                # MCP may report a Ghidra DomainFile path (for example,
+                # /K1/game.exe) here.  It is not an original executable path
+                # and must never become source metadata for target binding.
+                if not source_path.is_file():
+                    continue
+                con.execute("INSERT INTO program_binding VALUES(?,?,?,?) ON CONFLICT(source_path,locator) DO UPDATE SET program=excluded.program,updated=excluded.updated", (str(source_path.resolve()), locator, program, time.time()))
         con.commit()
     finally:
         con.close()
     _CACHE.clear()
 
 
-def list_binaries() -> dict[str, Any]:
+def _shared_program_rows(locator: str) -> list[dict[str, Any]]:
+    """Expose a shared Ghidra folder's durable program inventory as library rows.
+
+    These are project entries, not original-byte records: they retain the
+    canonical Ghidra folder/name identity and intentionally have no SHA-256
+    until a source artifact is bound to the program.
+    """
+    if not locator:
+        return []
+    from agentdecompile_recovery.corpus.ghidra_project import inspect_locator
+
+    try:
+        info = inspect_locator(locator)
+    except (OSError, ValueError):
+        return []
+    if str(info.get("kind") or "") != "shared-fs":
+        return []
+    canonical = str(info.get("canonical") or info.get("locator") or locator).rstrip("/")
+    paths = info.get("program_paths") or {}
+    bound_rows, _ = query_db(
+        "SELECT b.id,b.repo_path,b.func_count,b.named_count,b.role,b.variant,b.game,b.platform,b.format,p.program,b.slug "
+        "FROM binary b JOIN program_binding p ON p.source_path=b.repo_path WHERE p.locator=?",
+        (canonical,),
+    )
+    bound = {"/" + str(row[9] or "").replace("\\", "/").strip().lstrip("/"): row for row in bound_rows}
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for display, raw_program in sorted(paths.items(), key=lambda item: str(item[1]).casefold()):
+        program = "/" + str(raw_program or "").replace("\\", "/").strip().lstrip("/")
+        if not program:
+            continue
+        key = f"{canonical.casefold()}:{program.casefold()}"
+        if key in seen:
+            continue
+        seen.add(key)
+        name = str(display or Path(program).name)
+        recorded = bound.get(program)
+        binary_id, source_path, funcs, named, role, label, game, platform, binary_format, _, artifact_slug = recorded or (None, "", 0, 0, "member", "", "", "", "", "", name)
+        rows.append({
+            "id": f"shared-program:{key}",
+            "libraryId": f"shared-program:{key}",
+            "slug": name,
+            "repo": source_path or f"ghidra:{canonical}#{program}",
+            "program": program,
+            "role": role or "member",
+            "label": label or "",
+            "funcs": int(funcs or 0),
+            "named": int(named or 0),
+            "game": game or "",
+            "platform": platform or "",
+            "format": binary_format or "",
+            "kind": "shared-program",
+            "programs": [program],
+            "locator": canonical,
+            "imported": True,
+            "projectBindings": [{"locator": canonical, "program": program}],
+            "sha256": None,
+            "identityStatus": "project-entry",
+            "identityReason": "Shared Ghidra program identity is confirmed by folder and name; original-byte SHA-256 has not been bound.",
+            "aliasSlugs": [name],
+            "binaryIds": [binary_id] if binary_id is not None else [],
+            "sourcePaths": [source_path] if source_path else [],
+            "decomp": decomp_rollup(str(artifact_slug or name), int(funcs or 0)),
+            "validate": validate_rollup(str(artifact_slug or name), int(funcs or 0)),
+        })
+    return rows
+
+
+def _build_binary_inventory(locator: str = "") -> dict[str, Any]:
     rows, err = query_db(
-        "SELECT id, slug, repo_path, role, variant, func_count, named_count, game, platform "
+        "SELECT id, slug, repo_path, role, variant, func_count, named_count, game, platform, format, content_sha256 "
         "FROM binary ORDER BY slug"
     )
     binaries: list[dict[str, Any]] = []
@@ -604,9 +684,16 @@ def list_binaries() -> dict[str, Any]:
         bindings.setdefault(source_path, (project_locator, project_program))
         all_bindings.setdefault(source_path, []).append({"locator": project_locator, "program": project_program})
 
-    for binary_id, slug, repo, role, variant, funcs, named, game, platform in rows:
+    registered_identities: dict[str, str] = {}
+    for binary_id, slug, repo, role, variant, funcs, named, game, platform, binary_format, content_sha256 in rows:
         total = int(funcs or 0)
         source = describe_source(repo or "")
+        if source.get("kind") in ("shared-project", "shared-fs", "ghidra-project"):
+            # Older dashboard versions stored opened projects in the binary
+            # table. They are workspace locators, not matching inputs.
+            continue
+        if repo and content_sha256:
+            registered_identities[str(repo)] = str(content_sha256)
         binaries.append(
             {
                 "id": int(binary_id),
@@ -619,6 +706,7 @@ def list_binaries() -> dict[str, Any]:
                 "named": int(named or 0),
                 "game": game or "",
                 "platform": platform or "",
+                "format": binary_format or "",
                 "kind": source.get("kind") or "binary",
                 "programs": source.get("programs") or [],
                 "locator": bindings[repo][0] if repo in bindings else source.get("locator") or repo or "",
@@ -630,6 +718,8 @@ def list_binaries() -> dict[str, Any]:
         )
     from .library_identity import canonical_library
     canonical, unresolved = canonical_library(binaries)
+    identities, _ = query_db("SELECT source_path,sha256 FROM binary_content_identity")
+    registered_identities.update(dict(identities))
     aliases, _ = query_db("SELECT source_path,binary_slug,sha256 FROM binary_source_alias")
     for row in canonical:
         for path, alias_slug, digest in aliases:
@@ -642,14 +732,80 @@ def list_binaries() -> dict[str, Any]:
     for row in canonical:
         if row["projectBindings"] and not row["imported"]:
             row.update(imported=True, locator=row["projectBindings"][0]["locator"], program=row["projectBindings"][0]["program"])
+    # A shared project can be reopened after a service restart without its
+    # historic original-byte registrations being present in the current corpus
+    # DB. Add its canonical folder/name entries for the active project only.
+    # Existing byte-backed rows win whenever they already bind that program.
+    shared_rows = _shared_program_rows(locator)
+    known_bindings = {
+        (str(binding.get("locator") or "").rstrip("/"), str(binding.get("program") or "").lstrip("/"))
+        for row in canonical
+        for binding in row.get("projectBindings") or []
+    }
+    for row in shared_rows:
+        binding = row["projectBindings"][0]
+        key = (str(binding["locator"]).rstrip("/"), str(binding["program"]).lstrip("/"))
+        if key not in known_bindings:
+            canonical.append(row)
+            known_bindings.add(key)
+
+    from .binary_coverage import annotate_binary_coverage
+    byte_backed = [row for row in canonical if row.get("kind") == "binary"]
+    shared_inventory = [row for row in canonical if row.get("kind") == "shared-program"]
+    annotate_binary_coverage(byte_backed, registered_identities)
+    annotate_binary_coverage(shared_inventory, {})
+    annotate_binary_coverage(unresolved, registered_identities)
     from .protection import inspect_protection
     for row in canonical:
         row["protection"] = inspect_protection(row["repo"]) if row["kind"] == "binary" else {"status": "unknown", "encryption": "unknown", "drm": "unknown"}
     from .variant_groups import annotate_variant_groups
-    canonical = annotate_variant_groups(canonical)
+    byte_backed = annotate_variant_groups(byte_backed)
     from .library_identity import annotate_containers
-    canonical = annotate_containers(canonical)
+    byte_backed = annotate_containers(byte_backed)
+    canonical = sorted([*byte_backed, *shared_inventory], key=lambda row: str(row.get("slug") or "").casefold())
     return {"ok": True, "binaries": canonical, "unresolvedBinaries": unresolved, "recovered": str(recovered_root() or "")}
+
+
+def _refresh_binary_inventory(key: str, locator: str, done: threading.Event) -> dict[str, Any]:
+    try:
+        payload = _build_binary_inventory(locator)
+        _CACHE[key] = (time.time(), payload)
+        return payload
+    finally:
+        with _BINARY_INVENTORY_LOCK:
+            _BINARY_INVENTORY_WAITERS.pop(key, None)
+            done.set()
+
+
+def list_binaries(locator: str = "") -> dict[str, Any]:
+    """Return a shared-project inventory snapshot while refreshing it once."""
+    key = f"binaries:{locator.strip()}"
+    now = time.time()
+    hit = _CACHE.get(key)
+    if hit and now - hit[0] < _STORE_CACHE_TTL:
+        return hit[1]
+    with _BINARY_INVENTORY_LOCK:
+        hit = _CACHE.get(key)
+        if hit and now - hit[0] < _STORE_CACHE_TTL:
+            return hit[1]
+        done = _BINARY_INVENTORY_WAITERS.get(key)
+        if hit:
+            if done is None:
+                done = threading.Event()
+                _BINARY_INVENTORY_WAITERS[key] = done
+                threading.Thread(target=_refresh_binary_inventory, args=(key, locator, done), daemon=True).start()
+            return hit[1]
+        if done is None:
+            done = threading.Event()
+            _BINARY_INVENTORY_WAITERS[key] = done
+            leader = True
+        else:
+            leader = False
+    if leader:
+        return _refresh_binary_inventory(key, locator, done)
+    done.wait()
+    hit = _CACHE.get(key)
+    return hit[1] if hit else _build_binary_inventory(locator)
 
 
 def browse_sources(path: str = "") -> dict[str, Any]:
@@ -916,14 +1072,14 @@ def import_program_into_project(
     """Keep project selection and import in the same Ghidra session transaction."""
     from .mcp_bridge import CONTEXT_LOCK
 
-    from .protection import prepare_protected_binary
+    from .protection import prepare_analysis_binary
     from agentdecompile_recovery.corpus.ghidra_project import classify_locator
 
     with CONTEXT_LOCK:
         protection = None
         source_path = path
         if classify_locator(path).get("kind") == "binary":
-            protection = prepare_protected_binary(path, live_root() or Path(path).parent)
+            protection = prepare_analysis_binary(path, live_root() or Path(path).parent)
             if protection.get("handling") == "blocked":
                 return {"ok": False, "error": protection.get("reason") or protection.get("blocker") or "Protection handling is unavailable", "protection": protection}
             path = protection.get("analysisPath") or path
@@ -1208,6 +1364,13 @@ def workbench_context_payload(
         "slug": slug.strip(),
         "locator": locator.strip(),
     }
+    if session["slug"] and not session["program"]:
+        rows, _ = query_db(
+            "SELECT repo_path FROM binary WHERE slug=? LIMIT 1", (session["slug"],),
+            ignore_missing=True,
+        )
+        if rows and rows[0][0]:
+            session["program"] = str(rows[0][0])
     if not any(session.values()):
         data = load_sessions(live_root())
         active_id = str(data.get("active") or "")
@@ -1234,10 +1397,16 @@ def list_sessions() -> dict[str, Any]:
 
 
 def write_sessions(payload: dict[str, Any]) -> dict[str, Any]:
-    from agentdecompile_recovery.corpus.ghidra_project import fresh_draft_session, save_sessions_merged
+    from agentdecompile_recovery.corpus.ghidra_project import fresh_draft_session, load_sessions, save_sessions_merged
 
     sessions = list((payload or {}).get("sessions") or [])
     if not sessions:
+        # An empty list never wipes stored tabs; a client that lost its state
+        # must not erase the server's. With nothing stored, keep one draft tab
+        # so the workbench always has somewhere to land.
+        stored = load_sessions(live_root())
+        if stored.get("sessions"):
+            return {"ok": True, **stored, "ignored": True}
         return fresh_draft_session(live_root())
     return save_sessions_merged(live_root(), payload)
 
@@ -1255,17 +1424,26 @@ def list_functions(
 ) -> dict[str, Any]:
     slug = (slug or "").strip()
     program = (program or "").strip()
-    locator = (locator or "").strip()
+    locator = (locator or "").strip().replace("\\", "/").rstrip("/")
+    if locator and "://" not in locator:
+        locator = str(Path(locator).expanduser().resolve(strict=False)).replace("\\", "/").rstrip("/")
+    binding_program = program.replace("\\", "/").lstrip("/")
     if not slug and not program:
         return {"ok": False, "error": "pick a binary", "results": [], "total": 0}
-    if not slug:
-        return _list_functions_fallback(
-            program, q=q, offset=offset, limit=limit, bsim_url=bsim_url, locator=locator,
+    rows: list[Any] = []
+    err = None
+    if locator and binding_program:
+        rows, err = query_db(
+            "SELECT b.id,b.bits,b.slug FROM binary b JOIN program_binding p ON p.source_path=b.repo_path "
+            "WHERE rtrim(replace(p.locator,char(92),'/'),'/')=? "
+            "AND ltrim(replace(p.program,char(92),'/'),'/')=? LIMIT 1",
+            (locator, binding_program),
         )
-    rows, err = query_db(
-        "SELECT id, bits FROM binary WHERE slug=? LIMIT 1",
-        (slug,),
-    )
+    if not rows and not err and not (locator and binding_program):
+        rows, err = query_db(
+            "SELECT id, bits FROM binary WHERE slug=? LIMIT 1",
+            (slug,),
+        )
     if err:
         return {"ok": False, "error": err, "results": [], "total": 0}
     if not rows:
@@ -1275,6 +1453,7 @@ def list_functions(
             )
         return {"ok": False, "error": f"no build called {slug}", "results": [], "total": 0}
     bid, bits = rows[0][0], rows[0][1] or 32
+    artifact_slug = str(rows[0][2] if len(rows[0]) > 2 else slug)
     start, cap = page_window(offset, limit)
     from agentdecompile_recovery.corpus.dashboard.common import table_exists
 
@@ -1328,7 +1507,7 @@ def list_functions(
     for addr, name, size, logical_id, namespace, source_file, name_origin, source_type in data or []:
         addr_i = int(addr)
         shown = name or f"FUN_{format_address(addr_i, bits)[2:]}"
-        unit = _find_unit(slug, addr_i, shown)
+        unit = _find_unit(artifact_slug, addr_i, shown)
         decomp = _classify_c(unit) if unit else "none"
         obj_hit = False
         objs = obj_root()
@@ -1558,6 +1737,7 @@ def _list_functions_from_bsim(
     listed = bo.list_program_functions(
         program,
         bsim_url=bsim_url,
+        datadir=_bsim_datadir(),
         offset=offset,
         limit=limit,
     )
@@ -1897,6 +2077,13 @@ def function_detail(slug: str, raw_addr: str, *, locator: str = "", program: str
                 payload[field] = witness[field]
                 payload["sourceWitnessProvenance"] = witness.get("provenance")
         return payload
+    if observed and observed.get('evidenceComplete'):
+        # A completed Ghidra read is already the richest source/assembly view
+        # for this function. Returning it before a full on-disk project walk
+        # keeps selection responsive and avoids submitting the same read again.
+        listing = dict(observed)
+        listing.update(ok=True, slug=slug)
+        return with_source_witness(listing)
     if (locator or "").strip() and (program or "").strip():
         workspace = program_workspace(locator, program, addr=raw_addr, slug=slug)
         if workspace.get("ok"):
@@ -1970,14 +2157,20 @@ def function_detail(slug: str, raw_addr: str, *, locator: str = "", program: str
     return with_source_witness(result)
 
 
-def render_workbench() -> str:
+def render_workbench(*, static_mode: bool = False) -> str:
+    def dashboard_href(**query: str) -> str:
+        pairs = [("mode", "static")] if static_mode else []
+        pairs.extend(query.items())
+        return "/dashboard?" + urlencode(pairs)
+
     payload = list_binaries()
     rows = payload.get("binaries") or []
     items = []
     for row in rows:
+        href = esc(dashboard_href(window="wb-corpus", binary=str(row["slug"])))
         items.append(
             f'<li data-slug="{esc(row["slug"])}">'
-            f'<a href="/dashboard?window=wb-corpus&amp;binary={esc(row["slug"])}">{esc(row["slug"])}</a>'
+            f'<a href="{href}">{esc(row["slug"])}</a>'
             f' <span>{int(row.get("funcs") or 0)}</span></li>'
         )
     binary_html = "".join(items) or "<li>No binaries. Set AGENT_DECOMPILE_CORPUS_DB.</li>"
@@ -2101,8 +2294,8 @@ def render_workbench() -> str:
   </div>
 </div>
 <noscript>
-  <p>JavaScript is off. Use <a href="/dashboard?window=wb-overview">Overview</a>,
-  <a href="/dashboard?window=wb-fnbrowse">Functions</a>, or <a href="/docs">Docs</a>.</p>
+  <p>JavaScript is off. Use <a href="{esc(dashboard_href(window="wb-overview"))}">Overview</a>,
+  <a href="{esc(dashboard_href(window="wb-fnbrowse"))}">Functions</a>, or <a href="/docs">Docs</a>.</p>
 </noscript>
 <script src="/dashboard/static/react.js"></script>
 <script src="/dashboard/static/react-dom.js"></script>

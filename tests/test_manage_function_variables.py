@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from mcp import types
 
 from agentdecompile_cli.mcp_server.providers.getfunction import (
     GetFunctionToolProvider,
@@ -12,6 +11,7 @@ from agentdecompile_cli.mcp_server.providers.getfunction import (
 )
 from agentdecompile_cli.mcp_server.tool_providers import create_success_response
 from agentdecompile_cli.registry import Tool, resolve_tool_name
+from mcp import types
 
 
 @pytest.mark.unit
@@ -68,12 +68,13 @@ async def test_rename_variable_alias_presets_mode() -> None:
     provider = GetFunctionToolProvider()
     captured: dict[str, Any] = {}
 
-    async def fake_handle_manage(args: dict[str, Any]) -> list[types.TextContent]:
+    async def fake_handle_manage(args: dict[str, Any], *, program_info) -> list[types.TextContent]:
+        assert program_info is None
         captured.update(args)
         return create_success_response({"action": "rename_variable", "success": True})
 
     provider._handle_manage = fake_handle_manage  # type: ignore[method-assign]
-    await provider._handle_rename_variable_alias({})
+    await provider.call_tool("rename-variable", {}, program_info=None)
     assert captured.get("mode") == "rename_variable"
 
 
@@ -83,10 +84,11 @@ async def test_set_variable_type_alias_presets_mode() -> None:
     provider = GetFunctionToolProvider()
     captured: dict[str, Any] = {}
 
-    async def fake_handle_manage(args: dict[str, Any]) -> list[types.TextContent]:
+    async def fake_handle_manage(args: dict[str, Any], *, program_info) -> list[types.TextContent]:
+        assert program_info is None
         captured.update(args)
         return create_success_response({"action": "set_variable_type", "success": True})
 
     provider._handle_manage = fake_handle_manage  # type: ignore[method-assign]
-    await provider._handle_set_variable_type_alias({})
+    await provider.call_tool("set-local-variable-type", {}, program_info=None)
     assert captured.get("mode") == "set_variable_type"

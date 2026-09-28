@@ -68,28 +68,24 @@ def test_workbench_js_exposes_tool_field_helpers() -> None:
     assert "function ActionStrip" in js
     assert "readActionParams" in js
     assert "wb-mcp-list" not in js
-    assert "corpus.calibrate-global" in js
-    assert 'id: "corpus.objdiff-check"' in js
+    # Pipeline stage actions are derived from the server contract at runtime,
+    # not hard-coded in the static bundle.
+    from agentdecompile_recovery.corpus.contract import PIPELINE_STAGE_ACTIONS
+
+    assert "function pipelineQuickActions" in js
+    assert "pipelineStages" in js
     assert "QUICK_ACTION_SETS.pipeline" in js or "pipeline:" in js
-    pipe = js[js.find("pipeline: [") : js.find("function:", js.find("pipeline: ["))]
-    assert "corpus.calibrate-global" in pipe
-    assert "corpus.calibrate\"" not in pipe.replace("corpus.calibrate-global", "")
+    assert PIPELINE_STAGE_ACTIONS["calibrate-global"] == "corpus.calibrate-global"
+    assert PIPELINE_STAGE_ACTIONS["verify-byte-accuracy"] == "corpus.objdiff-check"
+    assert "corpus.calibrate" not in {value.replace("-global", "") for value in PIPELINE_STAGE_ACTIONS.values() if value != "corpus.calibrate-global"}
     recover = js[js.find("function RecoverWorkbench") : js.find("function HtmlIsland")]
     assert "Ghidra bulk" in recover
     assert "reconstruct.one-shot" not in recover
     assert 'selected.decomp === "c"' in js
     assert "One-shot leftover" in recover
     assert 'runActionButton("reconstruct.one-shot"' not in js
-    chain = js[
-        js.find("function chainAfterAnalyze(job)") : js.find(
-            "chainAfterAnalyzeRef.current = chainAfterAnalyze"
-        )
-    ]
-    assert "corpus.cross-place" not in chain
-    assert "mcp.match-function" not in chain
-    assert "corpus.bsim-report" not in chain
-    assert "corpus.extract-stabs" in chain
-    assert "corpus.bsim-ingest" in chain
+    # Browser-side analysis chaining was removed; follow-on stages are server-owned.
+    assert "chainAfterAnalyze" not in js
     assert "function programAlreadyAnalyzed" in js
     assert 'executeAction("mcp.analyze-program"' in js
     assert "if (!force && programAlreadyAnalyzed(data))" in js

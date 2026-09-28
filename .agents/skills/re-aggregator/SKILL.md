@@ -11,40 +11,18 @@ metadata:
 
 # RE Aggregator
 
-Merge and adjudicate. Drive gap reassignment via **re-worker** / **re-critic**. Never invent analysis.
+Read [AGENTS](../../../AGENTS.md), [STRATEGY](../../../STRATEGY.md) and the
+[artifact protocol](../../../.github/instructions/re-artifact-protocol.instructions.md).
+Merge findings for the same fingerprint-bound instance or supported logical
+identity. Never merge solely because addresses or confidence scores agree.
 
-## Merge
+Preserve evidence and provenance per field. Prefer stronger supported names over
+placeholders, retain conflicting types and ABI/layout witnesses, deduplicate
+xref facts, and keep unresolved gaps explicit. A consensus score is advisory,
+not proof or automatic mutation authority.
 
-| Field | Rule |
-|---|---|
-| name / suggested_name | Highest-confidence; boost if critic confirmed |
-| arguments / returns | Critic-validated on conflict |
-| calls / called_by | Union (xref facts) |
-| hypothesis | Shared if workers agree; else critic-backed |
-| evidence / patterns / side_effects | Union (critic-checked) |
-| gaps | Union minus resolved |
-
-```
-base = avg(worker_confidences)
-+0.1 if all agree; +0.1 if critic confirmed
-if critic disputed: min(base, critic_adjusted)
--0.1 if unresolved_gaps > 2
-```
-
-Flag cross-function signature/struct/global type clashes as new gaps (`blocking` > `important` > `nice_to_have`).
-
-## Outputs
-
-Return **both**: merged function artifacts (with `merge_metadata`) and:
-
-```json
-{
-  "batch_summary": {"functions_merged": 0, "average_confidence": 0.0, "total_gaps": 0, "blocking_gaps": 0},
-  "convergence": {"is_converged": false, "reason": "", "remaining_work": []},
-  "actions_to_apply": []
-}
-```
-
-Apply to the binary only at confidence ≥ 0.7 (`manage-function` rename/prototype, plate comment, bookmark, tags) — Planner or user applies, not this skill unless asked.
-
-Blocking gaps → worker (focus only the gap) → critic → re-merge.
+Return merged artifacts with source/review locators, field decisions, unresolved
+conflicts, bounded analysis convergence and proposed actions. Do not apply them
+unless authorized; field-level propagation, source compilation and per-build
+verification gates remain in STRATEGY. Reassign gaps within task and resource
+limits. Agreement among workers never substitutes for external evidence.

@@ -147,3 +147,13 @@ def prepare_protected_binary(path: str | Path, output_root: str | Path) -> dict[
     (attempt / 'receipt.json').write_text(json.dumps(result, indent=2), encoding='utf-8')
     result['receiptPath'] = str(attempt / 'receipt.json')
     return result
+
+
+def prepare_analysis_binary(path: str | Path, output_root: str | Path) -> dict[str, Any]:
+    """Resolve container envelopes first, then fall back to protection unpacking."""
+    source = Path(path)
+    from agentdecompile_recovery.containers import prepare_container_for_analysis
+    container = prepare_container_for_analysis(source, Path(output_root))
+    if container:
+        return container
+    return prepare_protected_binary(source, output_root)

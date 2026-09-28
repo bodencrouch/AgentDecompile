@@ -21,7 +21,7 @@ import time
 from . import canon
 from . import permuter_harness as ph
 from .export_types import definitions_for
-from .genproject import pe_va_mapper
+from .exact_universal import mapper_for
 from .source_claims import is_real_c
 from .seed_validation import destination_bytes
 
@@ -510,7 +510,7 @@ def evaluate_one(case: dict, compiler: str, permuter_seconds: int,
         target = destination_bytes(
             case["slug"], f"{case['addr']:08x}", case["size"], raw_cache,
             raw_dir=raw_dir,
-            mapper_for=lambda raw: ((m, "pe") if (m := pe_va_mapper(raw)) else (None, None)),
+            mapper_for=mapper_for,
         )
     except ValueError as exc:
         return {**case, "outcome": "no_target_bytes", "detail": str(exc),

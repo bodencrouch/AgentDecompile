@@ -3728,9 +3728,10 @@ class ProjectToolProvider(ToolProvider):
 
                 # Same policy as import-binary (_handle_import): bytes already in the
                 # project are opened, not imported again.
+                source_digest = file_sha256(entry)
                 existing_file = find_project_file_by_sha256(
                     self._project_root_folder(ghidra_project, project_handle),
-                    file_sha256(entry),
+                    source_digest,
                 )
                 program: GhidraProgram | None
                 if existing_file is not None:
@@ -3748,6 +3749,7 @@ class ProjectToolProvider(ToolProvider):
                     # DomainFileProxy: nothing reaches <name>.rep/idata, every later
                     # GhidraProject.save() throws "Location does not exist for a save
                     # operation!" (DomainFileProxy.save), and a new process sees 0 files.
+                    record_source_sha256(program, source_digest)
                     self._persist_imported_program(ghidra_project, project_handle, program)
                 # A failure recorded for an earlier program at this path must not
                 # suppress analysis of the one just imported (key = domain path).

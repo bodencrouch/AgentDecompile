@@ -7,12 +7,14 @@ table is refused rather than silently comparing different function sets.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 import hashlib
 import json
 from pathlib import Path
 from statistics import median
 from typing import Iterable
+
+from .manifest import Manifest, addr16
 
 
 class CompletionMismatch(ValueError):
@@ -21,6 +23,10 @@ class CompletionMismatch(ValueError):
 
 class CorpusMismatch(ValueError):
     """A benchmark input no longer matches its recorded corpus manifest."""
+
+
+class CompletionIdentityError(ValueError):
+    """A lane completion ID cannot be resolved unambiguously in the manifest."""
 
 
 def verify_corpus(manifest_path: Path, corpus: str, *, repo_root: Path) -> dict[str, object]:
@@ -59,6 +65,56 @@ class Lane:
     def __post_init__(self) -> None:
         if self.wall_s < 0 or len(self.completed) != len(self.elapsed_ms):
             raise ValueError("lane must have one non-negative timing per completed address")
+
+
+def normalize_lanes(lanes: Iterable[Lane], manifest: Manifest) -> list[Lane]:
+    """Resolve every lane completion to the manifest's space-qualified identity.
+
+    Current producers emit ``<space>:<addr>``. Historical lane JSONL emitted a
+    numeric address alone; that form remains usable only when one successful
+    manifest entry has the address. Unknown and ambiguous identities are
+    rejected so address-space collisions cannot be hidden by set comparison.
+    """
+    stable_ids: set[str] = set()
+    by_addr: dict[str, list[str]] = {}
+    for entry in manifest.ok_entries():
+        if entry.stable_id in stable_ids:
+            raise CompletionIdentityError(f"duplicate stable manifest ID: {entry.stable_id}")
+        stable_ids.add(entry.stable_id)
+        by_addr.setdefault(entry.addr.lower(), []).append(entry.stable_id)
+
+    normalized: list[Lane] = []
+    for lane in lanes:
+        completed: list[str] = []
+        for raw_id in lane.completed:
+            identity = raw_id.strip()
+            if identity in stable_ids:
+                stable_id = identity
+            else:
+                try:
+                    numeric = identity[2:] if identity.lower().startswith("0x") else identity
+                    canonical_addr = addr16(int(numeric, 16))
+                except (ValueError, OverflowError):
+                    candidates: list[str] = []
+                else:
+                    candidates = by_addr.get(canonical_addr, [])
+                if len(candidates) == 1:
+                    stable_id = candidates[0]
+                elif len(candidates) > 1:
+                    raise CompletionIdentityError(
+                        f"lane {lane.name!r} has ambiguous legacy completion ID {raw_id!r}: {sorted(candidates)}"
+                    )
+                else:
+                    raise CompletionIdentityError(
+                        f"lane {lane.name!r} completion ID {raw_id!r} is missing from the manifest"
+                    )
+            if stable_id in completed:
+                raise CompletionIdentityError(
+                    f"lane {lane.name!r} completion ID {raw_id!r} duplicates normalized ID {stable_id!r}"
+                )
+            completed.append(stable_id)
+        normalized.append(replace(lane, completed=tuple(completed)))
+    return normalized
 
 
 def _percentile(values: tuple[float, ...], percent: float) -> float:

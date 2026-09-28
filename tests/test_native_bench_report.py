@@ -4,7 +4,17 @@ import sys
 
 import pytest
 
-from agentdecompile_recovery.native_snapshot.bench import CompletionMismatch, CorpusMismatch, Lane, report, verify_corpus, write_report
+from agentdecompile_recovery.native_snapshot.bench import (
+    CompletionIdentityError,
+    CompletionMismatch,
+    CorpusMismatch,
+    Lane,
+    normalize_lanes,
+    report,
+    verify_corpus,
+    write_report,
+)
+from agentdecompile_recovery.native_snapshot.manifest import load_manifest
 
 
 def lane(name: str, wall: float, addresses: tuple[str, ...] = ("a", "b")) -> Lane:
@@ -76,8 +86,8 @@ def test_bench_script_refuses_completion_drift(tmp_path: Path) -> None:
     lanes.write_text(
         "\n".join(
             [
-                '{"name":"serial","completed":["a","b"],"wall_s":2.0,"elapsed_ms":[1.0,1.0]}',
-                '{"name":"native-batch","completed":["a"],"wall_s":1.0,"elapsed_ms":[1.0]}',
+                '{"name":"serial","completed":["0000000000000001","0000000000000002"],"wall_s":2.0,"elapsed_ms":[1.0,1.0]}',
+                '{"name":"native-batch","completed":["ram:0000000000000001"],"wall_s":1.0,"elapsed_ms":[1.0]}',
             ]
         )
         + "\n",
@@ -100,6 +110,58 @@ def test_bench_script_refuses_completion_drift(tmp_path: Path) -> None:
     )
     assert completed.returncode == 3
     assert "REFUSED (completion mismatch)" in completed.stderr
+
+
+def test_manifest_identity_normalization_accepts_matching_multilane_results(tmp_path: Path) -> None:
+    snapshot = tmp_path / "snapshot"
+    snapshot.mkdir()
+    (snapshot / "manifest.json").write_text(
+        json_manifest(addresses=("a", "b"), options_sha256="a" * 64),
+        encoding="utf-8",
+    )
+    manifest = load_manifest(snapshot)
+    numeric = ("0000000000000001", "0000000000000002")
+    stable = ("ram:0000000000000001", "ram:0000000000000002")
+    lanes = normalize_lanes(
+        [
+            lane("serial", 4, numeric),
+            lane("export", 3, numeric),
+            lane("native-console", 2, stable),
+            lane("native-batch", 1, stable),
+        ],
+        manifest,
+    )
+
+    assert all(result.completed == stable for result in lanes)
+    payload = report("tiny", lanes, options_sha256=manifest.options.sha256, timeout_s=60)
+    assert payload["held_constant"]["completed_addresses"] == list(stable)
+    assert payload["best_native_lane"] == "native-batch"
+
+
+def test_manifest_identity_normalization_rejects_ambiguous_legacy_address(tmp_path: Path) -> None:
+    snapshot = tmp_path / "snapshot"
+    snapshot.mkdir()
+    payload = __import__("json").loads(json_manifest(addresses=("a", "b"), options_sha256="a" * 64))
+    payload["functions"][1].update(
+        {
+            "addr": "0000000000000001",
+            "space": "overlay",
+            "name": "overlay_fn",
+            "load_name": "overlay_fn",
+            "savefile": "functions/overlay__0000000000000001.xml",
+            "oracle_c": "oracle/overlay__0000000000000001.c",
+            "oracle_json": "oracle/overlay__0000000000000001.json",
+            "overlay": True,
+        }
+    )
+    payload["capabilities"]["overlay_spaces"] = ["overlay"]
+    (snapshot / "manifest.json").write_text(__import__("json").dumps(payload), encoding="utf-8")
+    manifest = load_manifest(snapshot)
+
+    with pytest.raises(CompletionIdentityError, match="ambiguous legacy completion ID"):
+        normalize_lanes([lane("serial", 1, ("0000000000000001",))], manifest)
+    with pytest.raises(CompletionIdentityError, match="missing from the manifest"):
+        normalize_lanes([lane("native-batch", 1, ("missing:0000000000000001",))], manifest)
 
 
 def json_manifest(*, addresses: tuple[str, ...], options_sha256: str) -> str:

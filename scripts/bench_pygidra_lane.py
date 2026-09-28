@@ -25,7 +25,7 @@ if sys.path and Path(sys.path[0]).resolve() == _SCRIPT_DIR:
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from agentdecompile_recovery.native_snapshot.manifest import load_manifest
+from agentdecompile_recovery.native_snapshot.manifest import FunctionEntry, load_manifest
 from agentdecompile_recovery.native_snapshot.procstat import TreeSampler
 
 
@@ -90,11 +90,11 @@ def _lane_threads(name: str) -> int:
     return 1
 
 
-def _addresses(snapshot: Path, limit: int | None) -> tuple[str, ...]:
+def _entries(snapshot: Path, limit: int | None) -> tuple[FunctionEntry, ...]:
     entries = load_manifest(snapshot).ok_entries()
     if limit is not None:
         entries = entries[: max(0, int(limit))]
-    return tuple(entry.addr for entry in entries)
+    return tuple(entries)
 
 
 def _java_decompile_lane(args: argparse.Namespace, binary: Path) -> dict[str, object]:
@@ -102,8 +102,17 @@ def _java_decompile_lane(args: argparse.Namespace, binary: Path) -> dict[str, ob
 
     from agentdecompile_cli.mcp_utils.parallel_decompile import batch_candidates, decompile_functions_iter, function_addr, serial_decompile_one
 
-    wanted = _addresses(args.snapshot, args.limit)
-    wanted_offsets = {int(addr, 16) for addr in wanted}
+    entries = _entries(args.snapshot, args.limit)
+    stable_by_offset: dict[int, str] = {}
+    for entry in entries:
+        offset = int(entry.addr, 16)
+        if offset in stable_by_offset:
+            raise ValueError(
+                "Java benchmark lane cannot disambiguate manifest entries "
+                f"{stable_by_offset[offset]!r} and {entry.stable_id!r} by numeric offset"
+            )
+        stable_by_offset[offset] = entry.stable_id
+    wanted_offsets = set(stable_by_offset)
     started = time.perf_counter()
     sampler = TreeSampler(os.getpid(), interval_s=0.1).start()
     elapsed: list[float] = []
@@ -120,13 +129,13 @@ def _java_decompile_lane(args: argparse.Namespace, binary: Path) -> dict[str, ob
         program = flat.getCurrentProgram()
         functions = batch_candidates(program, addrs=wanted_offsets)
         by_addr = {function_addr(fn): fn for fn in functions}
-        ordered = [by_addr[int(addr, 16)] for addr in wanted if int(addr, 16) in by_addr]
+        ordered = [by_addr[offset] for offset in stable_by_offset if offset in by_addr]
         if args.lane == "serial":
             for fn in ordered:
                 at = time.perf_counter()
                 result = serial_decompile_one(program, fn, timeout_s=args.timeout_s)
                 if result.status == "ok":
-                    completed.append(f"{result.addr:016x}")
+                    completed.append(stable_by_offset[result.addr])
                     elapsed.append((time.perf_counter() - at) * 1000.0)
         else:
             gen = decompile_functions_iter(program, ordered, threads=_lane_threads(args.lane), timeout_s=args.timeout_s)
@@ -137,7 +146,7 @@ def _java_decompile_lane(args: argparse.Namespace, binary: Path) -> dict[str, ob
                     except StopIteration:
                         break
                     if result.status == "ok":
-                        completed.append(f"{result.addr:016x}")
+                        completed.append(stable_by_offset[result.addr])
                         elapsed.append(result.elapsed_ms)
             finally:
                 gen.close()
@@ -201,7 +210,7 @@ def _export_lane(args: argparse.Namespace, binary: Path) -> dict[str, object]:
     if proc.returncode:
         raise RuntimeError(stderr.strip() or f"export lane exited {proc.returncode}")
     manifest = load_manifest(args.export_out)
-    completed = tuple(entry.addr for entry in manifest.ok_entries())
+    completed = tuple(entry.stable_id for entry in manifest.ok_entries())
     elapsed = tuple(float(entry.decompile_ms or 0.0) for entry in manifest.ok_entries())
     return {
         "name": "export",

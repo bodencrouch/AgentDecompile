@@ -26,8 +26,15 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from agentdecompile_recovery.native_snapshot.bench import CompletionMismatch, Lane, report, write_report
-from agentdecompile_recovery.native_snapshot.manifest import load_manifest
+from agentdecompile_recovery.native_snapshot.bench import (
+    CompletionIdentityError,
+    CompletionMismatch,
+    Lane,
+    normalize_lanes,
+    report,
+    write_report,
+)
+from agentdecompile_recovery.native_snapshot.manifest import Manifest, load_manifest
 from agentdecompile_recovery.native_snapshot.procstat import TreeSampler
 from agentdecompile_recovery.native_snapshot.replay import ConsoleReplayer
 
@@ -63,9 +70,9 @@ def parser() -> argparse.ArgumentParser:
     return p
 
 
-def _completed_entries(snapshot: Path) -> tuple[object, tuple[str, ...]]:
+def _completed_entries(snapshot: Path) -> tuple[Manifest, tuple[str, ...]]:
     manifest = load_manifest(snapshot)
-    return manifest, tuple(entry.addr for entry in manifest.ok_entries())
+    return manifest, tuple(entry.stable_id for entry in manifest.ok_entries())
 
 
 def _run_sampled(command: list[str], *, timeout_s: float, cwd: Path | None = None) -> ProcessResult:
@@ -187,6 +194,11 @@ def main(argv: list[str] | None = None) -> int:
     if not lanes:
         print("error: no lanes selected", file=sys.stderr)
         return 2
+    try:
+        lanes = normalize_lanes(lanes, manifest)
+    except CompletionIdentityError as exc:
+        print(f"REFUSED (completion identity): {exc}", file=sys.stderr)
+        return 3
     drift = _completion_drift(lanes)
     if drift > int(args.max_completion_drift):
         print(f"REFUSED (completion mismatch): drift={drift} max={args.max_completion_drift}", file=sys.stderr)

@@ -97,7 +97,9 @@ class LazyArgparseGroup(click.Group):
 
     def _load(self) -> dict[str, str]:
         if self._verbs is None:
-            parser = _build_parser(self._module(), f"agentdecompile-cli {self.name}")
+            ctx = click.get_current_context(silent=True)
+            prog = ctx.command_path if ctx is not None else f"agentdecompile-cli {self.name}"
+            parser = _build_parser(self._module(), prog)
             action = _subparsers_action(parser)
             helps = {choice.dest: choice.help or "" for choice in action._choices_actions}
             seen: set[int] = set()
@@ -120,7 +122,7 @@ class LazyArgparseGroup(click.Group):
         verbs = self._load()
         if cmd_name not in self._all_verbs:
             return None
-        return _verb_leaf(self.module_name, self.name, cmd_name, verbs.get(cmd_name, ""))
+        return _verb_leaf(self.module_name, cmd_name, verbs.get(cmd_name, ""))
 
 
 class _ForwardAllCommand(click.Command):
@@ -137,11 +139,21 @@ class _ForwardAllCommand(click.Command):
         return []
 
 
-def _verb_leaf(module_name: str, group: str, verb: str, short_help: str) -> click.Command:
+def _current_group_prog() -> str:
+    ctx = click.get_current_context()
+    parent = ctx.parent
+    return parent.command_path if parent is not None else ctx.command_path
+
+
+def _current_command_prog() -> str:
+    return click.get_current_context().command_path
+
+
+def _verb_leaf(module_name: str, verb: str, short_help: str) -> click.Command:
     def _callback(args: tuple[str, ...]) -> None:
         # Resolve main at call time so patched entry points are honoured.
         entrypoint = importlib.import_module(module_name).main
-        _run_embedded_cli(entrypoint, [verb, *args], prog=f"agentdecompile-cli {group}")
+        _run_embedded_cli(entrypoint, [verb, *args], prog=_current_group_prog())
 
     command = _ForwardAllCommand(
         verb,
@@ -178,7 +190,7 @@ def _flat_leaf(name: str, help_text: str, callback: Callable[[tuple[str, ...]], 
 def _reconstruct(args: tuple[str, ...]) -> None:
     from agentdecompile_recovery.frontdoor import main as reconstruct_main
 
-    _run_embedded_cli(reconstruct_main, args, prog="agentdecompile-cli reconstruct")
+    _run_embedded_cli(reconstruct_main, args, prog=_current_command_prog())
 
 
 def _grid(args: tuple[str, ...]) -> None:
@@ -187,7 +199,7 @@ def _grid(args: tuple[str, ...]) -> None:
     except ImportError:
         click.echo("agentdecompile-cli grid: the agentdecompile_grid package is not installed", err=True)
         raise SystemExit(2) from None
-    _run_embedded_cli(grid_cli.main, args, prog="agentdecompile-cli grid")
+    _run_embedded_cli(grid_cli.main, args, prog=_current_command_prog())
 
 
 def build_commands() -> list[click.Command]:

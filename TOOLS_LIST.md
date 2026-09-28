@@ -929,7 +929,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `programPath` (string, optional): Path to the program in the project.
   - Synonyms: `programPath`, `programp`, `program`, `path`, `binaryPath`, `filePath`, `targetProgram`.
 - `mode` (string, required): Inspection mode (`bytes`, `disasm`, `data`).
-  - Synonyms: `mode`, `analysisMode`, `action`, `view`, `operation`, `type`, `kind`, `strategy`, `behaviorMode`, `format`.
+  - Synonyms: `mode`, `analysisMode`, `action`, `view`, `operation`, `type`, `kind`, `strategy`, `behaviorMode`.
 - `address` (string, required): Starting address.
   - Synonyms: `address`, `addr`, `startAddress`, `targetAddress`, `location`, `offsetAddress`, `addressValue`, `memAddress`, `va`, `addressOrSymbol`, `symbol`, `target`, `nameOrAddress`, `addrOrSym`.
 - `length` (integer, optional): Bytes to inspect (default: 256).
@@ -942,7 +942,7 @@ Use the returned preparation `id` for controls. Names also accept snake_case; `p
 - `list_data_items(offset, limit)` → forwards to `inspect-memory`.
 - `list_segments(offset, limit)` → forwards to `inspect-memory`.
 - `get-memory-blocks(programPath)` → forwards to `inspect-memory`.
-- `read-memory(programPath, addressOrSymbol, length, format)` → forwards to `inspect-memory`.
+- `read-memory(programPath, addressOrSymbol, length)` → forwards to `inspect-memory`.
 
 **Synonyms**: `inspect-memory`, `tool_inspect_memory`, `inspect_memory_tool`, `cmd_inspect_memory`, `run_inspect_memory`, `do_inspect_memory`, `api_inspect_memory`, `mcp_inspect_memory`, `ghidra_inspect_memory`, `agentdecompile_inspect_memory`, `inspect_memory_command`, `inspect_memory_action`, `inspect_memory_op`, `inspect_memory_task`, `execute_inspect_memory`, `list_segments`, `list_data_items`, `get-memory-blocks`, `read-memory`
 

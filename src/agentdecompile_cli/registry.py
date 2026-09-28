@@ -1246,15 +1246,12 @@ RESPONSE_FORMAT_VALUES: frozenset[str] = frozenset({"markdown", "json"})
 
 
 # Explicit fallback for tools whose own overloaded param collides with the
-# rendering-choice meaning of "format" (get-data -> addressOrSymbol/view style
-# overloads, inspect-memory -> mode). Protection here must not depend solely on
-# TOOL_PARAM_ALIASES, which is currently empty (see TOOL_PARAM_ALIASES above) —
-# without this explicit set, an empty/stale alias table would silently let the
-# CLI read or write "format" as a rendering flag for these tools.
+# rendering-choice meaning of "format" (get-data view style). Protection
+# must also work when TOOLS_LIST.md is absent: TOOL_PARAM_ALIASES normally
+# loads its synonyms at import, but may then contain only built-in aliases.
 _FORMAT_OWNING_TOOLS_FALLBACK: frozenset[Tool] = frozenset(
     {
         Tool.GET_DATA,
-        Tool.INSPECT_MEMORY,
     },
 )
 
@@ -1265,7 +1262,7 @@ def tool_owns_format_param(tool_name: str) -> bool:
     That holds when the tool declares ``format`` (export, export-context,
     gen-callgraph, manage-files), when TOOL_PARAM_ALIASES maps ``format`` onto
     another of its params, or when the tool is in the explicit
-    ``_FORMAT_OWNING_TOOLS_FALLBACK`` set (get-data, inspect-memory). For those
+    ``_FORMAT_OWNING_TOOLS_FALLBACK`` set (get-data). For those
     tools ``format`` must never be read or written as a rendering choice.
     """
     logger.debug("diag.enter %s", "registry.py:tool_owns_format_param")

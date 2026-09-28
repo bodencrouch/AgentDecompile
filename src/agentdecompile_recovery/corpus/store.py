@@ -164,11 +164,27 @@ def connect(path: pathlib.Path | str) -> sqlite3.Connection:
     dest = pathlib.Path(path)
     dest.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(dest, timeout=30)
-    con.execute("PRAGMA busy_timeout=30000")
-    con.row_factory = sqlite3.Row
-    con.executescript(SCHEMA)
-    ensure_func_columns(con)
-    ensure_match_columns(con)
+    # Schema maintenance must not outlive connect().  In legacy transaction
+    # control the recovery_family backfill UPDATE opens an implicit
+    # transaction, and every later ALTER joins it; left open, a read-only verb
+    # held SQLite's write lock for its whole run and the maintenance was
+    # discarded at close.  The connection is fresh, so anything pending here is
+    # ours: commit it, or roll it back and close on failure.
+    try:
+        con.execute("PRAGMA busy_timeout=30000")
+        con.row_factory = sqlite3.Row
+        con.executescript(SCHEMA)
+        ensure_func_columns(con)
+        ensure_match_columns(con)
+        if con.in_transaction:
+            con.commit()
+    except BaseException:
+        try:
+            if con.in_transaction:
+                con.rollback()
+        finally:
+            con.close()
+        raise
     return con
 
 
@@ -236,7 +252,17 @@ def ensure_match_columns(con: sqlite3.Connection) -> None:
             con.execute(f"ALTER TABLE match ADD COLUMN {col} {decl}")
 
 
+# Primary result codes that mean "cannot write right now", not "broken schema".
+_BACKFILL_SKIP_CODES = frozenset({sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED, sqlite3.SQLITE_READONLY})
+
+
 def ensure_binary_columns(con: sqlite3.Connection) -> None:
+    """Add missing binary columns and backfill recovery_family.
+
+    Never commits: extract, match_store and propagate call the column helpers
+    on their own connections, where a commit would also commit the caller's
+    pending work.  connect() commits the maintenance it opened itself.
+    """
     cols = {row[1] for row in con.execute("PRAGMA table_info(binary)")}
     if "content_sha256" not in cols:
         con.execute("ALTER TABLE binary ADD COLUMN content_sha256 TEXT")
@@ -257,13 +283,22 @@ def ensure_binary_columns(con: sqlite3.Connection) -> None:
         # it -- so a read-only consumer that cannot get the write lock (many
         # concurrent orchestrator watchers hold WAL read locks) must proceed
         # rather than crash. Whichever connection wins the lock backfills it.
+        # Callers other than connect() may pass a connection with their own
+        # pending work, so only undo a transaction this UPDATE opened.  A
+        # failed UPDATE (busy, read-only file) otherwise leaves the implicit
+        # BEGIN open.
+        owned = not con.in_transaction
         try:
             con.execute(
                 "UPDATE binary SET recovery_family='unclassified:' || id "
                 "WHERE recovery_family IS NULL OR trim(recovery_family)=''"
             )
-        except sqlite3.OperationalError:
-            pass
+        except sqlite3.OperationalError as exc:
+            if owned and con.in_transaction:
+                con.rollback()
+            code = getattr(exc, "sqlite_errorcode", None)
+            if code is None or (code & 0xFF) not in _BACKFILL_SKIP_CODES:
+                raise
 
 
 def ensure_priority_index(con: sqlite3.Connection) -> None:

@@ -37,6 +37,7 @@ from collections import defaultdict
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from . import canon, corpus_config, db, ghidra_env as ge
+from .ingest_recovered import ensure_recovered_function
 
 MIZUCHI = pathlib.Path("/run/media/brunner56/MyBook/Workspaces/MizuchiRE")
 OUTDIR = ge.resolve_workspace() / "output" / "mizuchi"
@@ -97,6 +98,8 @@ def emit_enrichment(con) -> dict:
 
 def load_recovered(con) -> list[dict]:
     """Load only recoveries admitted by the authoritative coverage-gated ingest."""
+    # db.SCHEMA does not create recovered_function; share the canonical shape.
+    ensure_recovered_function(con)
     return [
         {
             "program": row["program"],

@@ -368,6 +368,20 @@ def dispatch(args: argparse.Namespace) -> int | None:
         from .store import connect
 
         con = connect(args.db)
+        row = con.execute(
+            "SELECT slug FROM binary WHERE repo_path=?", (args.repo_path,)
+        ).fetchone()
+        if row is None:
+            print(f"error: not in database: {args.repo_path}", file=sys.stderr)
+            return 2
+        # Mirrors the raw-image path generate() itself computes and checks
+        # (stabs_manifest.py); pre-checking here means the raw-image case
+        # is reported without also catching FileNotFoundError raised by
+        # anything else inside generate()'s analysis.
+        raw = Path(args.raw_dir) / row["slug"]
+        if not raw.is_file():
+            print(f"error: raw image not found: {raw} (check --raw-dir)", file=sys.stderr)
+            return 2
         manifest, summary_path, summary = sm.generate(
             con, args.repo_path, raw_dir=args.raw_dir, out_dir=args.out_dir
         )
@@ -479,6 +493,12 @@ def dispatch(args: argparse.Namespace) -> int | None:
         row = con.execute("SELECT id FROM binary WHERE repo_path=?", (args.repo_path,)).fetchone()
         if row is None:
             print(f"error: not in database: {args.repo_path}", file=sys.stderr)
+            return 2
+        has_table = con.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='ghidra_type'"
+        ).fetchone()
+        if has_table is None:
+            print("error: no ghidra_type table (run export-types first)", file=sys.stderr)
             return 2
         result = bth.build_header(con, int(row["id"]), args.out, program=args.repo_path)
         print(json.dumps(result, indent=2))

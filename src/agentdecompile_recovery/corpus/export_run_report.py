@@ -10,22 +10,10 @@ import json
 import time
 from pathlib import Path
 
+# RECOVERED_FUNCTION_DDL is re-exported for restore_recovered_tree. The
+# canonical DDL lives in ingest_recovered, the only module that writes rows.
+from .ingest_recovered import RECOVERED_FUNCTION_DDL, ensure_recovered_function  # noqa: F401
 from .store import connect
-
-RECOVERED_FUNCTION_DDL = """
-CREATE TABLE IF NOT EXISTS recovered_function (
-    program TEXT,
-    name TEXT,
-    addr INTEGER,
-    size INTEGER,
-    convention TEXT,
-    real_c INTEGER,
-    logical_id INTEGER,
-    path TEXT,
-    evidence TEXT,
-    machine_code TEXT
-)
-"""
 
 
 def _iso(ts: float) -> str:
@@ -41,7 +29,7 @@ def match_source(logical_id: int | None, evidence: str | None) -> str:
 
 
 def build(con) -> dict:
-    con.executescript(RECOVERED_FUNCTION_DDL)
+    ensure_recovered_function(con)
     rows = con.execute("SELECT program, name, addr, size, convention, real_c, logical_id, path, evidence FROM recovered_function ORDER BY program, addr").fetchall()
 
     now = time.time()

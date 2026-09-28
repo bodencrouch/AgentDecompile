@@ -26,7 +26,7 @@ records delivery; [STRATEGY](../../STRATEGY.md) remains the recovery priority po
 | [September 21 portable-signatures/codecaves plan](2026-09-21-portable-signatures-codecaves-generic-plan.md) | Complete Phases 0–15, every named D/U unit and suffix variant, cross-build entity substrate, runtime resolution, export bundle, surfaces and compute adapters |
 | [September 21 distributed-compute design](2026-09-21-distributed-compute-design.md) | Reusable grid-of-one foundation, bounded tasks, content-addressed proposals, independent verification, materialized views, capability access and later fleet scaling |
 | [September 21 requirements ledger](2026-09-21-user-requirements-ledger.md) and [goal](2026-09-21-goal.md) | User intent, deterministic usable exports, unattended progress and the original unit-level acceptance requirements |
-| [September 20 workstation specification](../dashboard-design/2026-09-20-unified-workstation-spec.md), [implementation plan](2026-09-20-unified-reversing-workstation.md) and [frontend intent](../FRONTEND_INTENT.md) | Dense unified workspace, source/history locators, actual-work visibility, two real consumers of shared capabilities/state |
+| [September 20 workstation specification](../dashboard-design/2026-09-20-unified-workstation-spec.md), [implementation plan](2026-09-20-unified-reversing-workstation.md) and [frontend intent](../FRONTEND_INTENT.md) | Dense unified workspace, source/history locators, actual-work visibility, two real consumers of shared capabilities/state — narrowed 2026-09-28: the two surfaces are fundamentally different presentations over one backend (static restructures to the Ghidra-guide CodeBrowser by default per a 7-slice spec; Vite stays the differentiated real-time AIO workstation), not a shared CodeBrowser/GuideWorkflows shell; see `docs/FRONTEND_INTENT.md`'s supersessions table |
 | [Guide capability inventory](../dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md) and [donor capability inventory](../dashboard-design/2026-09-20-kotorxid-capability-inventory.md) | All substantive workflow families inherited by F01–F28 and the workstation's eight implementation tasks; inventory labels are not current runtime proof |
 | [September 21 improvement recommendations](../dashboard-design/2026-09-21-improvement-recommendations.md), [risk register](2026-09-21-risk-register.md), [loop charter](2026-09-21-loop-charter.md) and audits [2](2026-09-21-plan-audit-2.md), [3](2026-09-21-plan-audit-3.md), [4](2026-09-21-plan-audit-4.md) | Failure findings, continuation requirements and explicit corrections to the detailed plan; historical commands and completion marks require current qualification |
 | [Diagram sources and companions](../dashboard-design/pipeline-diagram/README.md) | Preserve the recovery stages and all capability lanes, including the extended runtime/entity/distributed scope; overview and companion diagrams are views of the same requirements |
@@ -79,6 +79,11 @@ derive/backfill evidence, accessibility and narrow layouts, agent context,
 collaboration/CI and extensibility. Static 8080, packaged `/react/` and the optional
 full Vite app share capabilities and data; current operational port restrictions
 do not turn Vite into a preview or remove a frontend from the done definition.
+A 2026-09-28 user directive makes the two surfaces' presentation fundamentally
+different rather than parallel views: static 8080 follows the reversing guide's
+conventional browsing layout, and Vite is the real-time all-in-one workstation.
+Shared backend identity, jobs, receipts and claim semantics are unchanged by
+that split.
 
 ## Precedence and delivery order
 

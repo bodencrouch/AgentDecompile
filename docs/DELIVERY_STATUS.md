@@ -30,6 +30,15 @@ optional Vite app can show any of it. The hand-written `static/workbench-app.js`
 has no behavior tests of its own; only `node --check` (syntax) and the parallel
 TypeScript logic, which `tsc` covers, back it.
 
+**2026-09-28 flag, not resolved:** this section reports 90 tests passed and 3
+skipped, and other 2026-09-27 sections report further test runs (23 frontend
+tests, `tsc --noEmit` clean), while Phase 15 adapters and other units remain
+open. This tension is with the test moratorium
+(`docs/plans/2026-09-21-loop-charter.md` §6b, 2026-09-21: no tests are created
+or run until the plan, design and diagrams are fully completed and built to
+completion). Needs an explicit decision: was the moratorium lifted, scoped to
+the SDD build units only, or is this a breach — not resolved here.
+
 Packaging status is separate from this frontend work: the `.18` overlay is in
 qualification (built from the accepted `.16` wheel plus checkpoint fixes; it
 excludes match-review and frontend changes). `.16` remains the accepted wheel.
@@ -324,6 +333,18 @@ Verified bounded delivery, not whole-workstation acceptance:
   not promise migration of active frames, native code or incompatible class
   layouts, and is not a PyPI publication or fresh behavioral reload receipt.
 
+**2026-09-28:** a process now owns 8080 again (PID observed at capture time,
+in-process hot reload, NVMe runtime tree), correcting the "no process owns
+8080 in this session" statement above for that date. This does not by itself
+mean the 2026-09-27 match-review UI work has now been exercised in a browser;
+that still needs its own dated observation. Also landed as source, uncommitted
+at the time of that observation: add-to-project upload-staging/identity fix,
+indexed shard-folder placement fix, Honest Save As, and new CLI save-as/save
+commands qualified by an 11-case acceptance matrix (all pass) including a real
+reversing-tool open of the converted 32-program project; receipt:
+`cli-qualification/save-as-20260928/ACCEPTANCE.md` (machine-local). No package
+or installed-artifact evidence exists for any of this yet.
+
 Still open: end-to-end parity, the current max-C ZIP, runtime-reuse proof,
 distributed worker flow, optional Vite runtime acceptance, and fresh whole-image
 recovery proof. The historical `k1gog_byteaccurate_build.zip` is not a current
@@ -348,7 +369,7 @@ the sole recovery ordering authority; this is not another priority-zero gate.
 | ID | Delivery action | Evidence required to close |
 |---|---|---|
 | Delivery 0 | Reconcile executing, canonical and isolated source/build identities; preserve live owners and durable state. | File/revision/loaded-module and process-owner receipt; reviewed selective-transfer list. |
-| Delivery 1 | Keep `/dashboard` complete as the static alternative; reconcile the optional Vite root around WorkstationApp without App/AtlasApp auto-prepare behavior. | Source review plus explicit proof that selecting/browsing cannot admit recovery. |
+| Delivery 1 | Keep `/dashboard` complete as the static alternative; reconcile the optional Vite root around WorkstationApp without App/AtlasApp auto-prepare behavior. **2026-09-28: superseded.** Per the 2026-09-28 directive, "reconcile the optional Vite root around WorkstationApp" is superseded: Vite is not reconciled around the static surface's app root but built as a fundamentally different real-time workstation; static instead reconciles toward the Ghidra-guide CodeBrowser layout (7-slice spec). | Source review plus explicit proof that selecting/browsing cannot admit recovery. |
 | Delivery 2 | Unify project/logical-entity/concrete-build selection, navigation, compatibility links and stale-response rejection across both alternatives. | Real reload/back/forward/deep-link/target-switch interactions with preserved identity and no duplicate work. |
 | Delivery 3 | Deliver the corpus-first Code Browser, Compare, Recovery and Evidence workflows, all guide/KotORXID inventory rows, and genuine target-bound editing. | Requirement-to-live-evidence matrix; unsupported backend gaps named rather than represented by inert controls. |
 | Delivery 4 | Connect one backend-owned start/pause/resume flow and evidence-bound actual-work events; remove routine manual stage launch controls. | Owner transitions, safe pause/resume, reconnect/failover and inspected entity/diff/event evidence; no fabricated progress. |

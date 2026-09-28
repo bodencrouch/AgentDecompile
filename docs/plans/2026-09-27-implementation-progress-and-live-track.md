@@ -38,8 +38,8 @@ remain separate; closing a slice does not close its parent weekend workstream.
 | Every entity, field/layout, data root and ordered accessor | Portable plan Phases 8–9 | Function matching alone does not satisfy entity or data-access coverage |
 | Complete export bundle: hookpack/v2, Lua, headers and readiness/divergence evidence | Portable plan Phase 12 | Required product output, not an optional runtime example |
 | Exhaustive applicable fallback ladders and learn-build feedback | Portable plan Phase 13, ladders A–F | Keep structured residue and ambiguity; bounded attempts do not justify silently dropping applicable methods |
-| Autonomous visible workspace in both surfaces | Portable plan Phase 14; September 20–21 workstation/consolidated design | Automatic eligible project admission, scoped pause/resume, actual work, readiness/review/residue and starvation/hang views remain required |
-| Reusable compute/state substrate and grid-of-one | Portable plan Phase 15; distributed-compute design | Required architecture and adapters; fleet expansion follows local qualification without blocking safe existing local RE |
+| Autonomous visible workspace in both surfaces | Portable plan Phase 14; September 20–21 workstation/consolidated design | Automatic eligible project admission, scoped pause/resume, actual work, readiness/review/residue and starvation/hang views remain required; per the 2026-09-28 directive the two surfaces are no longer one shared IA — static restructures to the Ghidra-guide CodeBrowser by default (7-slice spec) while Vite stays the differentiated real-time workstation; already reflected in `FRONTEND_INTENT.md` but not yet in this ledger or the weekend scope index |
+| Reusable compute/state substrate and grid-of-one | Portable plan Phase 15; distributed-compute design | Required architecture and adapters; fleet expansion follows local qualification without blocking safe existing local RE; a manual grid-of-one CLI walkthrough (2026-09-21) already exercised publish -> work -> verify -> materialize end to end and confirmed the U125 entry-point discovery gap plus several pre-acceptance fixes (INTENT fencing, POISON fields, transport path nesting), but only over the local transport / null operator signer / ed25519 node keys path — fleet, HTTPS/S3, compaction, poison and offline Keyring verification remain unexercised |
 | Recovery and original-code runtime reuse | STRATEGY and consolidated design; subsequent M0–M7 extensions | Advance both on their own prerequisites; whole-image source and live runtime claims keep separate acceptance |
 
 The [weekend scope index](2026-09-27-weekend-design-scope.md) links the requirement
@@ -147,6 +147,18 @@ The host has also regressed since earlier checks:
 - There is no clang or Wine on PATH.
 - A stray `pathlib.py` in the 3.14 user site-packages shadows the standard library.
 
+**2026-09-28 amendment to every "8080 has no owner" statement above and below
+(lines 80-81, 126, 136, 277, 673-676, and the diagram-status table):** a
+process now owns 8080 again — PID 1659672, `inplace_hotreload` wrapping
+`agentdecompile_cli.server:main`, NVMe runtime tree, `LISTEN 127.0.0.1:8080`.
+This resolves only the specific listener-absence blocker named at this
+continuation session; it does not by itself close L0.1 identity
+reconciliation, run L0.6 live qualification, or execute a stage-8 whole-image
+acceptance. Which of the two `kotorxid.sqlite` copies this owner reads is not
+re-established by this fact alone and stays an open question. P1.3 keeps its
+other blockers (no reccmp/ReAgent tools installed, no original/rebuild/PDB
+set).
+
 **Installed: `.16` remains the latest accepted artifact.** The user authorized ending
 the Codex `.17` run, and it was terminated. Its log already showed two failures in
 `test_byteexact_target_observation.py`, so `.17` is not accepted. An independent review
@@ -199,6 +211,7 @@ built as its own module. Every match row stays unaccepted.
 **Findings routed elsewhere:**
 - P1.3 reccmp/ReAgent is blocked beyond 8080. There is no execution action, no
   original/rebuild/PDB set, and neither tool is installed. A request packet is ready.
+  (design: [P1.3 execution actions](2026-09-27-p13-external-execution-plan.md))
 - M3–M5 inventory: the F12 console, the harness and the hook pack each use their own
   operation IDs. Undo, Copy as Lua, an owned pause and checkpoint identity do not
   exist. The next offline slices are in KotorPhasor, where one writer holds the
@@ -292,6 +305,40 @@ flowchart LR
   V --> I
   P[Remaining approved implementation roadmap] --> I
 ```
+
+### Uncommitted branch changes landed as source (2026-09-28)
+
+Landed as source on this branch (commit `094af5f`), live-verified, uncommitted
+to the accepted package (no package, no installed-artifact qualification):
+
+- Uploads stage content-addressed and atomically, and reuse identity when the
+  digest matches, instead of re-registering the same bytes under a new source.
+- Indexed stores place PARENT-less items under their own `~index.dat` folder,
+  fixing a repaired shared-repository index entry that had been misplaced.
+- `rebuild_index` now writes every ancestor folder line, not just the
+  immediate parent; copied items keep their `NAME` and `PARENT`.
+- Honest Save As: an empty source is refused explicitly instead of silently
+  producing an empty destination, and a names-only shared store is recorded
+  with an explicit note (`origin_note`, `source_program_count`) rather than
+  presented as fully resolved.
+- The CLI gains `save-as` and `save` commands, qualified by an 11-case
+  acceptance matrix run through the real packaging tool (all 11 rows pass,
+  including a real reversing-tool open of the converted 32-program project).
+- `FRONTEND_INTENT.md` records the 2026-09-28 static/Vite split.
+
+None of this is an installed package, a live 8080 exercise of the new code, or
+a catalog acceptance event.
+
+**Open item:** the live store index is still missing one ancestor folder line
+that `rebuild_index` would now write. Fixing it on the live store needs the
+Ghidra server owner to stop the server first — the index file cannot be
+rewritten safely under an active server.
+
+**Open item:** the upload-dialog fix is committed in source (`094af5f`), but
+the packaged Vite bundle that 8080 serves under `/react/` is stale (built
+2026-09-15). Until that bundle is rebuilt from current sources, the served
+`/react/` app still has the pre-fix bug regardless of what the source tree
+now contains.
 
 ## Immediate delivery: useful and continuously updating
 
@@ -714,9 +761,10 @@ Both source reviews are approved; the `.12` wheel passed all 113 installed check
 and independent artifact review approved. Provider-internal work, external subprocess usage, shared circuits and live
 qualification remain open.
 
-The contract register has 110 items: **100 unverified, eight partial, one
-superseded and one achieved**. The partial items are D13, D15, D16, D31, D36,
-D44, D47 and RC-02. D49 is superseded by the later build authorization; D50 records the
+The contract register has 110 items: **94 unverified, 14 partial, one
+superseded and one achieved** (2026-09-28 live recount). The partial items are
+D12, D13, D15, D16, D28, D31, D36, D44, D47, RC-02, RC-03, A02, A17 and FP-02.
+D49 is superseded by the later build authorization; D50 records the
 completed collaborative design review. These counts measure accepted contract
 states, not percentage of engineering effort.
 
@@ -811,7 +859,9 @@ artifact review approved. This is
 synthetic product evidence, not a recovery operation. The detailed flow is in the
 [acceptance design](2026-09-22-task-acceptance-and-continuation-design.md#fresh-source-revalidation-after-process-loss).
 
-[P0.3 native package-verifier ownership](../verification/2026-09-27-native-verify-ownership.md) is now delivered as the bounded `.14` increment after the `.13`
+[P0.3 native package-verifier ownership](../verification/2026-09-27-native-verify-ownership.md) is now delivered as the bounded `.14` increment (design:
+[Qualifying the native package verifier](2026-09-22-task-acceptance-and-continuation-design.md#qualifying-the-native-package-verifier))
+after the `.13`
 source-revalidation artifact was accepted. It uses the actual `recover.verify-package`
 output tree, with enforcement inside the child that reads compiler metadata and
 launches the compiler. The design includes the guarded execution/clearance flow;
@@ -835,6 +885,7 @@ will not grant Wine, arbitrary flags or external wrappers automatic release.
    dependency closure, durable wake cursor/outbox and restart reconciliation.
 4. Run P1.3 one catalog-owned reccmp original/rebuild/PDB comparison and one configured
    ReAgent candidate-consuming check with raw and normalized receipts.
+   (design: [P1.3 execution actions](2026-09-27-p13-external-execution-plan.md))
 5. Complete P1.4 recipient-specific acceptance, dependency lineage, generation recheck,
    scoped withdrawal and deterministic replay.
 6. Deliver P2 trustworthy region/fixup roundtrip, compiled replacement, toolchain/group
@@ -855,10 +906,15 @@ inventory may proceed concurrently.
 
 | Artifact family | Design state | Software state |
 |---|---|---|
-| Recovery overview: `agentdecompile-recovery-pipeline` SVG/draw.io/PNG + generator | Current September 22 design; canonical and Documents SVG hashes match | Stages and lanes are partly implemented; whole-image acceptance remains open. 8080 has no owner today, so stage 8 acceptance cannot run; two differently-dated copies of `kotorxid.sqlite` exist and which is authoritative is unresolved (session 7a1c2b) |
+| Recovery overview: `agentdecompile-recovery-pipeline` SVG/draw.io/PNG + generator | Current September 22 design; canonical and Documents SVG hashes match | Stages and lanes are partly implemented; whole-image acceptance remains open. 8080 has no owner today, so stage 8 acceptance cannot run; two differently-dated copies of `kotorxid.sqlite` exist and which is authoritative is unresolved (session 7a1c2b). **2026-09-28: a process now owns 8080 again** (see the amendment above); stage 8 acceptance still has not run and the `kotorxid.sqlite` question is unresolved by this fact alone |
 | Execution contracts SVG/draw.io/PNG + generator | Complete design for admission, evidence, fencing, quarantine and progress | Late-worker and acceptance scenarios remain partly or wholly unverified. Four new modules landed as source with synthetic tests only and no consumer wired in: recipient-specific acceptance, the COFF relocation roundtrip, the recovered-project manifest, and the runtime lifecycle owner (session 7a1c2b) |
 | Resilience contracts SVG/draw.io/PNG + generator | Complete design for detect/classify/repair/wait/resume and control-plane failures | Retry/quarantine/freshness/accounting slices exist; full FP matrix remains open |
 | Autonomous capabilities SVG/draw.io/PNG | M0 partly verified; M1–M7 acceptance remains future | M2 now has partial preparation in the milestone table; the diagram's future-delivery label denotes missing acceptance, not absence of source |
+
+**2026-09-28:** a redesign spec for the static dashboard surface exists outside
+the repository (7 slices, none implemented). It is design-only; it has no
+receipt and does not change the current autonomous-capabilities or overview
+diagrams until it is imported and a topology decision is made.
 
 No diagram topology changed in this reconciliation, so the rendered artifacts were not
 regenerated. Update their source and all formats together when an actual design contract
@@ -870,6 +926,13 @@ its qualification rerun is blocked on a host capacity gate). Neither changes
 diagram topology while unmerged/unqualified; see the pipeline diagram README's
 ["diagram regeneration pending"](../dashboard-design/pipeline-diagram/README.md#diagram-regeneration-pending--2026-09-27)
 note for the specific edit a merged veto would need.
+
+**2026-09-28 correction:** "proposed, but did not merge" is wrong. A
+calling-contract veto for the matching lane merged as source (commit
+`d14949e`, 2026-09-27) with a full opt-in `_contract_veto` path; its commit message
+records 38 tests passing, but no production caller (`identity.py`, `propagate.py`,
+`evaluate.py`) passes the `contract_features` argument that activates it, so
+the matching pipeline does not run it yet. Merged-but-unwired, not unmerged.
 
 ## Reporting rule
 

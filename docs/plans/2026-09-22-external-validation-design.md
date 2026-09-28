@@ -124,6 +124,11 @@ retained raw and require an adapter update before normalized acceptance.
 
 ## reccmp route
 
+**2026-09-28:** the concrete execution design (pinned tool versions, field/argv
+names, refusal codes and jobs.py resource claims) is
+`docs/plans/2026-09-27-p13-external-execution-plan.md`; it operationalizes this
+route and has not yet been implemented.
+
 Inputs: exact original image; rebuilt image and matching PDB; source snapshot with
 build-specific annotations; provider project/build configuration; supported target
 profile. Validate these identities before comparing. The output proposal retains
@@ -137,6 +142,11 @@ from another PDB/build can be re-keyed as current. Known unsupported compiler or
 format is a named provider limitation; other providers and runtime lanes continue.
 
 ## ReAgent route
+
+**2026-09-28:** the concrete execution design (pinned tool versions, field/argv
+names, refusal codes and jobs.py resource claims) is
+`docs/plans/2026-09-27-p13-external-execution-plan.md`; it operationalizes this
+route and has not yet been implemented.
 
 Input snapshot export/conversion is a dedicated read-only task. It maps exact
 program digest, addresses/regions, decompile/assembly/CFG/type evidence, limitations

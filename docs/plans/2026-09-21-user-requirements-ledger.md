@@ -146,6 +146,11 @@ the supersession is stated.
   can be updated and improved easily; the 170-engineer-day estimate is a human-team figure
   and is not the plan. (2026-09-22.)
 
+- **Hands-off development (2026-09-28).** The implementation loop itself runs unattended
+  once dispatched — no user action gates a build wave — extending the existing one-shot
+  Autonomy rule (§1) from the pipeline's own analysis output to the development process
+  that builds the pipeline.
+
 - **Research first, meticulously**, across all past conversations, before designing;
   fan out subagents; collaborate; grill a prototype expert. (2026-09-21.)
 - **Plan first; do not begin implementation early**; "we haven't even finished building
@@ -186,6 +191,14 @@ the supersession is stated.
   saving; long jobs offload and the dialog closes. (2026-08-31 → 2026-09-09.)
 - The interactive frontend mockup produced this session uses illustrative sample names
   and lives outside the repo; genericize before landing.
+- **Vite is fundamentally different from the static workbench, by default the Ghidra
+  reversing guide (2026-09-28, supersedes the shared-CodeBrowser framing):** the two
+  surfaces are differentiated presentations over one backend — the static workbench is
+  the conventional RE GUI and follows the reversing guide's CodeBrowser arrangement (a
+  7-slice restructuring spec exists); the optional rich app is the real-time all-in-one
+  workstation built from the browser-RE references, not a shell that reuses the static
+  surface's CodeBrowser/GuideWorkflows/evidence children. Already applied in
+  `docs/FRONTEND_INTENT.md`'s supersessions table (line 432).
 
 ## 8. Supersessions (later wins)
 
@@ -207,6 +220,7 @@ the supersession is stated.
 | distributed compute as a late optional feature | a reusable package with donated idle compute and free cloud nodes; miniature non-blocking tasks (thesis 2–3) |
 | "one start/pause/resume control" | no Start button: analysis starts by itself on open / add / resume; the one control is pause/resume + scope |
 | review as a gate before propagation or export | review is an override applied afterwards; ambiguous/contested entities export with evidence and refuse at use time (Autonomy rule) |
+| a shared Code Browser/GuideWorkflows/evidence shell reused by both the static workbench and the optional Vite app (2026-09-20 workstation plan, Tasks 2 and 4) | the two surfaces are fundamentally different presentations over one backend; static follows the Ghidra-guide CodeBrowser, Vite is the real-time reference-inspired workstation (2026-09-28) |
 
 ## Source ledger
 

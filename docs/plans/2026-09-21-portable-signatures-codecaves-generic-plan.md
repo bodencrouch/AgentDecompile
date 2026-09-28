@@ -2015,6 +2015,10 @@ ids as the detailed specification; read them through this map:
   `test_view_stale_under_foreign_lock` (H1), `test_match_shard_equals_monolithic_scores`,
   `test_compile_masked_coff_equal_across_timestamps`, `test_parity_sides_named`,
   `test_plan_no_slug_in_any_spec`, `test_cli_publish_refuses_foreign_basis`.
+  **2026-09-28:** per design Q25 (§10), and because the Phase 15 map absorbs
+  design-U128 into this unit, `view/applier.py` also owns the `runtime-claim` and
+  `override` record kinds applied at materialisation, so no surface remains a
+  foreign writer of the view once U157 retires the coordinator.
 - **U124. Worker + verify + fleet + transport ✔** (`8eb5202`, `a4e4aca`; the audit-4 brief
   listed it in flight — the branch carries it; the builder's report is reconciled in U125).
   `worker/{agent,loop,canaries,identity,outbox,records,sandbox}.py` (attach-first join,
@@ -2042,7 +2046,21 @@ ids as the detailed specification; read them through this map:
   the rows; a documented walkthrough under `docs/` (generic names only). Acceptance (named):
   `test_grid_of_one_cycle_publish_work_verify_materialize`,
   `test_every_assumed_name_resolves` (one import per reconciled name),
-  `test_cli_join_attaches_never_starts`.
+  `test_cli_join_attaches_never_starts`. **2026-09-28:** a manual pre-acceptance
+  walkthrough (`docs/plans/2026-09-21-grid-of-one-walkthrough.md`) already ran
+  publish -> work -> verify -> materialize end to end and confirmed the entry-point
+  group mismatch this bullet names (`agentdecompile_grid.lanes` assumed,
+  `agentdecompile_grid.task_kinds` discovered; exercised via `ADGRID_LANES` instead
+  of discovery), and fixed in flight: `publish` reading a `results/<task_id>`
+  directory instead of `log.frontier.derive`/`tasks.results.is_done`; missing loop
+  constructors, now built the way `worker.agent.build_loops` does; INTENT bodies
+  missing the `issued_seq` fence and using a float `ttl_s`; POISON missing
+  `reason`/`evidence`; and `transport.local.from_root` nesting `log/log` and
+  `heads/heads` instead of keeping the object root at `<root>/objects`. Only the
+  local transport, the null operator signer and ed25519 node keys ran — no fleet
+  provider, HTTPS/S3 adapter, compaction, poison path, live `join`, or offline
+  `Keyring` verification — so this unit's own named acceptance tests remain
+  unwritten and unrun (test moratorium, charter §6b).
 
 **15.1 Adapters — each unit turns a declared adapter into a working one (listed in the order
 of the interfaces they unblock; interleaved with Phases 2–14 per the Recommended order)**

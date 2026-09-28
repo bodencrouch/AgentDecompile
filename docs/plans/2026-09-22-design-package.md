@@ -39,7 +39,7 @@ and verify each result at the level where it will be used.**
 | [STRATEGY](../../STRATEGY.md) | Pipeline priorities, claim boundaries and governing policy |
 | [Recovery contracts](2026-09-22-recovery-contracts-and-validation-plan.md) | Region reconstruction, compilation units, identity/variant/instance, three binding predicates, scoped facts, early/final verification |
 | [Task and acceptance design](2026-09-22-task-acceptance-and-continuation-design.md) | Task/attempt/resource/scenario schemas, admission, progress, retry, fencing, storage, continuation and exhaustive accounting |
-| [External validation design](2026-09-22-external-validation-design.md) | Proposed reccmp/ReAgent/AgentDecompile interfaces, report normalization and relocatable recovered-project recipes; isle as reference |
+| [External validation design](2026-09-22-external-validation-design.md) | Proposed reccmp/ReAgent/AgentDecompile interfaces, report normalization and relocatable recovered-project recipes; isle as reference; the P1.3 execution-actions plan gives its reccmp/ReAgent routes concrete fields, pinned versions and refusal codes |
 | [Consolidated product design](../dashboard-design/2026-09-21-consolidated-design-plan.md) | Existing workspace appearance, interaction, two surfaces and observable workflow, with current contract reconciliation |
 | [Runtime assessment](../RUNTIME_REUSE.md) | Historical implementation evidence distinguished from the required runtime contract |
 | [Autonomous capability roadmap](2026-09-22-autonomous-capability-product-roadmap.md) | Subsequent authorized implementation and M0–M7 ambition, with [companion diagram](../dashboard-design/pipeline-diagram/autonomous-capabilities.svg) |

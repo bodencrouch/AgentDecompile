@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from typing import Callable
+from typing import Any, Callable, Mapping
 
 from . import canon
 from .callgraph_propagate import (
@@ -20,6 +20,8 @@ from .callgraph_propagate import (
     record_pairs,
     unique_index_anchors,
 )
+from .channel_confidence import allows_verify, channel_confidence
+from .contract_features import contract_compatibility
 from .correspondence import enrich_evidence
 from .fingerprint_hashes import attach_hashes
 from .fuzzy_fingerprint import fuzzy_bits
@@ -384,6 +386,7 @@ def match_binaries(
     use_name_features: bool = True,
     quiet: bool = True,
     progress: Callable[[dict], None] | None = None,
+    contract_features: Callable[[str, int], Mapping[str, Any] | None] | None = None,
 ) -> dict:
     sa, sb = Binary(con, src_id), Binary(con, dst_id)
     early = short_circuit_match(sa, sb)
@@ -569,7 +572,6 @@ def match_binaries(
                 identity_claim=True,
                 stage="anchor",
             )
-    from .channel_confidence import allows_verify, channel_confidence
     for addr, result in list(results.items()):
         if result.get("kind") != "anchor" or addr not in mapping:
             continue
@@ -702,6 +704,76 @@ def match_binaries(
                             and item.get("round") == "bsim-callgraph"
                             and src not in mapping})
 
+    def _contract_veto(a: int, b: int, best: float, second: float, second_b: int | None) -> dict | None:
+        """Opt-in calling-contract check for the current best/runner-up pair.
+
+        Returns ``None`` when the top candidate is not vetoed (nothing to
+        change). Otherwise returns a dict describing whether the row should
+        be dropped entirely (a lone ``Unwind@`` hard negative with no
+        alternative) or kept/promoted under review, plus the ``contract``
+        evidence block and an ``alternatives`` list carrying each
+        candidate's veto reason.
+        """
+        window: list[dict] = []
+        compat_by_addr: dict[int, tuple[str, list[str]]] = {}
+        hard_negatives: list[dict] = []
+        eligible: list[tuple[int, float]] = []
+        candidates = [(b, best)]
+        if second_b is not None and second > 0:
+            candidates.append((second_b, second))
+        src_features = contract_features("src", a)
+        for addr, score_val in candidates:
+            dst_features = contract_features("dst", addr)
+            compat = contract_compatibility(src_features, dst_features)
+            verdict = compat.get("verdict")
+            reasons = [reason.get("axis") for reason in (compat.get("reasons") or ())]
+            is_unwind = "Unwind@" in str(sb.funcs.get(addr, {}).get("name") or "")
+            if is_unwind:
+                veto = "unwind_target"
+                hard_negatives.append({"dst": addr, "score": round(score_val, 4), "veto": veto})
+            elif verdict == "incompatible" and "ret_cleanup" in reasons:
+                veto = "ret_cleanup"
+            else:
+                veto = None
+            compat_by_addr[addr] = (verdict, reasons)
+            window.append({"dst": addr, "contract": verdict, "veto": veto})
+            if veto is None:
+                eligible.append((addr, score_val))
+        best_veto = window[0]["veto"]
+        if best_veto is None:
+            kept_addr, promoted = b, False
+        elif eligible:
+            kept_addr, promoted = eligible[0][0], eligible[0][0] != b
+        else:
+            kept_addr, promoted = b, False
+        kept_score = next(score_val for addr, score_val in candidates if addr == kept_addr)
+        kept_veto = next(row["veto"] for row in window if row["dst"] == kept_addr)
+        verdict, reasons = compat_by_addr[kept_addr]
+        drop = not eligible and best_veto == "unwind_target"
+        return {
+            "drop": drop,
+            "vetoed_best": best_veto is not None,
+            "kept_addr": kept_addr,
+            "kept_score": kept_score,
+            "alternatives": [
+                {
+                    "dst": addr,
+                    "score": round(score_val, 4),
+                    "veto": next(row["veto"] for row in window if row["dst"] == addr),
+                }
+                for addr, score_val in candidates
+            ],
+            "contract": {
+                "verdict": verdict,
+                "reasons": reasons,
+                "veto": kept_veto,
+                "vetoed_best": best_veto is not None,
+                "promoted": promoted,
+                "window": window,
+                "hard_negatives": hard_negatives,
+            },
+        }
+
     for rnd in range(rounds):
         # Every earlier stage can claim destinations, including BSim and its
         # propagated neighbors. Exclude all of them before scoring residue.
@@ -775,6 +847,31 @@ def match_binaries(
         for best, margin, a, b, ev, second, second_b in scored:
             if a in mapping or b in taken:
                 continue
+            if contract_features is not None:
+                veto_info = _contract_veto(a, b, best, second, second_b)
+                if veto_info["drop"]:
+                    continue
+                if veto_info["vetoed_best"]:
+                    kept_addr = veto_info["kept_addr"]
+                    if kept_addr in taken:
+                        continue
+                    results[a] = {
+                        "dst": kept_addr,
+                        "score": round(veto_info["kept_score"], 4),
+                        "margin": round(margin, 4),
+                        "evidence": enrich_evidence(
+                            {**ev, "contract": veto_info["contract"]},
+                            status="review",
+                            alternatives=veto_info["alternatives"],
+                            identity_claim=False,
+                            stage="fuzzy_residue",
+                        ),
+                        "round": rnd,
+                        "status": "review",
+                        "kind": "ambiguous" if veto_info["contract"]["promoted"] else "fuzzy",
+                    }
+                    continue
+                ev = {**ev, "contract": veto_info["contract"]}
             confidence = channel_confidence(
                 primary=str(ev.get("primary_channel") or "fuzzy"), evidence=ev,
                 n_instr=sa.funcs[a].get("n_instr"), margin=margin, unique=True,

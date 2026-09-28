@@ -19,6 +19,8 @@ execution: code
 
 **Product authority:** The user's 2026-09-28 directives, `docs/FRONTEND_INTENT.md`, and the 2026-09-28 scope-change directives recorded under Product Contract Preservation below. This plan now covers the static dashboard, cross-matching availability, the targeted-AI toggle, the Vite workstation and the report/progress spine.
 
+**Source implementation update:** [September 28 implementation and acceptance boundaries](../FRONTEND_IMPLEMENTATION_STATUS.md). Commit `ef08633` implements a substantial subset; the plan is not complete.
+
 **Execution profile:** Multi-phase implementation plan for `ce-work` or an equivalent executor. Start phases A–C in order; Phase A's U8 finishes after B supplies U14. D (Vite) and E (report spine) can run in parallel after B, honoring individual dependencies; neither phase depends on the other. G (exports and runtime reuse) follows its own unit dependencies. U43 adds report-backed matrix counts after U8 and U26. F (U30, tests last) follows all implementation units, including G and U43. Phase names are grouping labels, not additional dependency edges.
 
 **Stop conditions:** Stop and return to planning if an owner-locked file (see Planning Contract) must be edited to close a requirement, or if a unit's fix requires renumbering the `match` table's primary key or removing a column another live consumer reads.
@@ -484,7 +486,7 @@ anything that wants to know an export is reproducible before trusting it.
 No export in this plan emits a WASM build of a hook pack, bindings, or the runtime
 harness itself. What the source docs do name, in a browser/WASM context, is distinct
 from the entity exports above and must not be conflated with them:
-- A **separate, currently unauthorized workstream** ("whole-game browser execution") that
+- A **separate roadmap workstream** ("whole-game browser execution") that
   would run an entire build inside a browser via an emulation route, with the runtime
   harness proxying calls into it. This is assessed feasibility, not a delivered export;
   nothing in the corpus produces this today. A job result, syntax pass, browser shell, or
@@ -502,6 +504,10 @@ from the entity exports above and must not be conflated with them:
 None of the three is "a WASM-usable export of the hook pack." If the frontends plan needs
 a WASM-consumable pack, that is an unscoped requirement today and should be logged as a
 gap (see report), not implied by any of the above.
+
+The U40 documentation receipt is recorded in [export scope](../EXPORT_SCOPE.md).
+Its `not_in_scope` applies to the unspecified WASM export target, not to the
+independent M7 whole-game browser delivery objective authorized for implementation.
 
 ### Evidence every export must carry, and the honesty rules
 

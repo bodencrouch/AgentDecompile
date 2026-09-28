@@ -12,6 +12,11 @@ competing recovery priority ladder. Source keys and limitations are at the end.
 The evidence-limited implementation ledger and prioritized remaining work are in
 [DELIVERY_STATUS.md](DELIVERY_STATUS.md).
 
+The [product and workspace guide](PRODUCT_AND_WORKSPACE_GUIDE.md) explains the
+practical outcomes, deterministic pipeline, optional AI, donated compute and
+concrete static/Vite workflows against all four recovery diagrams. It separates
+intended capabilities, inspected source and observed results.
+
 ## 1. The product in one paragraph
 
 Open compiled software as naturally as a source repository. See its packages,

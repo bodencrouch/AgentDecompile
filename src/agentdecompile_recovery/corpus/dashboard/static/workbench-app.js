@@ -1032,6 +1032,22 @@
     </article>`;
   }
 
+  function MatchAvailability({ match, selection }) {
+    const [open,setOpen]=useState(false),[data,setData]=useState(null),[error,setError]=useState("");
+    useEffect(function () {
+      let alive=true;const controller=new AbortController();setData(null);setError("");
+      if(open&&selection)fetch("/dashboard/api/workbench/matching-availability?"+new URLSearchParams({match_ids:String(match.id),selection:selection}),{signal:controller.signal,cache:"no-store"})
+        .then(function(r){return r.json().then(function(body){if(!r.ok||!body.ok)throw new Error(body.error||"Matching availability unavailable");return body;});})
+        .then(function(body){if(!alive)return;const row=(body.rows||[]).find(function(item){return item.matchId===match.id&&item.srcBinary===match.src_binary&&item.dstBinary===match.dst_binary&&item.srcAddr===match.src_addr&&item.run===match.run;});if(body.selection!==selection||!row)throw new Error("The matching evidence changed. Refresh this page.");setData(row);})
+        .catch(function(e){if(alive)setError(String(e.message||e));});
+      return function(){alive=false;controller.abort();};
+    },[open,selection,match.id,match.src_binary,match.dst_binary,match.src_addr,match.run]);
+    return html`<details onToggle=${function(e){setOpen(e.currentTarget.open);}}><summary>Matching methods</summary>
+      ${error?html`<p className="wb-dialog-error">${error}</p>`:open&&!data?html`<p role="status">Reading recorded method availability…</p>`:null}
+      <ul>${(data&&data.channels||[]).map(function(channel){return html`<li key=${channel.channel}><strong>${channel.channel} · ${channel.label}</strong>: ${channel.state} · ${channel.reason}</li>`;})}</ul>
+    </details>`;
+  }
+
   function ReviewReact({ onRefresh }) {
     /* Deep links from panels/entities.py carry review_after_id and
        review_page_size. The retired score:id cursor is refused by name. */
@@ -1219,7 +1235,7 @@
             <td>${String(row.match.score)} / ${String(row.match.margin)}</td>
             <td>${slug(row, 0)} <code>${hex(row.match.src_addr)}</code></td>
             <td>${slug(row, 1)} <code>${hex(row.match.dst_addr)}</code></td>
-            <td><details><summary>${row.match.relation || "Recorded evidence"}</summary><pre>${row.match.evidence || "No recorded evidence"}</pre><p>Run: ${row.match.run}</p></details></td>
+            <td><details><summary>${row.match.relation || "Recorded evidence"}</summary><pre>${row.match.evidence || "No recorded evidence"}</pre><p>Run: ${row.match.run}</p></details><${MatchAvailability} match=${row.match} selection=${page.selection}/></td>
             <td>${waiting ? html`<span>Waiting for its job</span>` : html`<button type="button" className="wb-btn wb-btn-mini" disabled=${busy || Boolean(confirm) || !eligible(row)} onClick=${function () { ask([row], "accept"); }}>Accept</button>
               <button type="button" className="wb-btn wb-btn-mini" disabled=${busy || Boolean(confirm) || !eligible(row)} onClick=${function () { ask([row], "reject"); }}>Reject</button>`}</td>
           </tr>`;

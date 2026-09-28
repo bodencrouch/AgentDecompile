@@ -434,3 +434,86 @@ body.workbench-page.wb-density-compact .wb-func-row {
 body.workbench-page.wb-density-compact .wb-sidebar-section {
   padding: var(--wb-space-2) 0;
 }
+
+/* --- Symbol Tree (slice 1) --- */
+
+.workbench-page .wb-symbol-tree {
+  flex: 1 1 auto;
+  min-height: 12rem;
+  border-top: 1px solid var(--border);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.workbench-page .wb-symtree-root {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0 0 var(--wb-space-2);
+  list-style: none;
+  overflow-y: auto;
+}
+
+.workbench-page .wb-symtree-li {
+  margin: 0;
+  padding: 0;
+}
+
+.workbench-page .wb-symtree-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 2px var(--wb-space-3);
+  text-align: left;
+  font-size: var(--wb-type-body, 13px);
+  color: var(--fg-body);
+  border: 0;
+  background: transparent;
+}
+
+.workbench-page .wb-symtree-row:hover {
+  color: var(--fg-head);
+  background: color-mix(in srgb, var(--border) 35%, transparent);
+}
+
+.workbench-page .wb-symtree-caret {
+  flex: 0 0 auto;
+  width: 1em;
+  color: var(--text-muted);
+}
+
+.workbench-page .wb-symtree-label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-page .wb-symtree-loading,
+.workbench-page .wb-symtree-error {
+  flex: 0 0 auto;
+  font-size: var(--wb-type-kicker);
+  color: var(--text-muted);
+}
+
+.workbench-page .wb-symtree-error {
+  margin: 0;
+  padding: 2px var(--wb-space-3);
+}
+
+.workbench-page .wb-symtree-children {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workbench-page .wb-symtree-leaf {
+  color: var(--fg-body);
+}
+
+.workbench-page .wb-symtree-more {
+  color: var(--text-muted);
+  font-style: italic;
+}

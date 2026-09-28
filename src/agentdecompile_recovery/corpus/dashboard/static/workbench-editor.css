@@ -1220,3 +1220,55 @@ body.workbench-page.wb-density-compact .wb-editor-body .wb-surface {
     display: block;
   }
 }
+
+/* --- Continuous Listing rows (slice 2) --- */
+
+.workbench-page .wb-listing-rows-wrap {
+  min-height: 22rem;
+}
+
+.workbench-page table.wb-listing-rows {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.9rem;
+}
+
+.workbench-page table.wb-listing-rows th {
+  text-align: left;
+  padding: 2px var(--wb-space-2);
+  color: var(--fg-head);
+  font-size: var(--wb-type-kicker);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  border-bottom: 1px solid var(--border);
+}
+
+.workbench-page table.wb-listing-rows td {
+  padding: 1px var(--wb-space-2);
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.workbench-page table.wb-listing-rows td code {
+  color: var(--addr);
+}
+
+.workbench-page tr.wb-listing-row {
+  outline: none;
+}
+
+.workbench-page tr.wb-listing-row:hover {
+  background: color-mix(in srgb, var(--border) 30%, transparent);
+}
+
+.workbench-page tr.wb-listing-row:focus,
+.workbench-page tr.wb-listing-row:focus-visible {
+  outline: 2px solid var(--focus, #4d9de0);
+  outline-offset: -2px;
+}
+
+.workbench-page .wb-listing-xref {
+  color: var(--danger, #e07a5f);
+  font-weight: 600;
+}

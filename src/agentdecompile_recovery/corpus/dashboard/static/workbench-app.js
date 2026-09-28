@@ -2401,6 +2401,358 @@
     </nav>`;
   }
 
+  /* Symbol Tree (slice 1, redesign §5.1/§6 row 1). Lives under Explorer in the
+     left column. Every node is fetched lazily, through `runReadAction`
+     (same POST-then-poll idiom `executeAction` and `loadFunctionEvidence`
+     already use), and only the read-only catalog actions confirmed
+     `danger:false, mutating:false, long_running:false`:
+     mcp.search-symbols, mcp.list-imports, mcp.list-exports,
+     mcp.get-current-program. Nothing here ever calls a mutating action.
+
+     Classes and Namespaces both derive from one cached mcp.search-symbols
+     sweep, grouped client-side by the `namespace` field each symbol already
+     carries -- the action has no dedicated class-vs-namespace filter, so
+     "Classes" narrows that same grouping to namespaces that look like real
+     C++ types (not an import DLL, not the external/global bucket). This is
+     a heuristic, not a guarantee, and is called out as such in the slice
+     report.
+
+     The Functions node never renders its own rows (FRONTEND_INTENT §4.2 /
+     §9 -- two Functions surfaces are banned): clicking it only calls
+     onOpenFunctions(), which switches the existing wb-fnbrowse tab. */
+  const SYMTREE_PAGE = 200;
+
+  function looksLikeClassNamespace(name) {
+    if (!name) return false;
+    if (name === "Global" || name === "<EXTERNAL>") return false;
+    if (/\.(DLL|dll|EXE|exe)$/.test(name)) return false;
+    return true;
+  }
+
+  function SymbolTreeNode({ id, title, depth, expanded, loading, error, onToggle, children, isLeaf, onActivate, hint }) {
+    const indent = { paddingLeft: (depth * 14) + "px" };
+    return html`<li className="wb-symtree-li" role="treeitem" aria-expanded=${isLeaf ? undefined : Boolean(expanded)}>
+      <button type="button" className=${"wb-symtree-row wb-text-action" + (isLeaf ? " wb-symtree-leaf" : "")}
+        style=${indent}
+        title=${hint || title}
+        onClick=${function () { (isLeaf ? onActivate : onToggle)(id); }}>
+        ${!isLeaf ? html`<span className="wb-symtree-caret" aria-hidden="true">${expanded ? "▾" : "▸"}</span>` : null}
+        <span className="wb-symtree-label">${title}</span>
+        ${loading ? html`<span className="wb-hint wb-symtree-loading">loading…</span>` : null}
+      </button>
+      ${error ? html`<p className="wb-hint wb-symtree-error" style=${{ paddingLeft: ((depth + 1) * 14) + "px" }}>${error}</p>` : null}
+      ${expanded && children ? html`<ul className="wb-symtree-children" role="group">${children}</ul>` : null}
+    </li>`;
+  }
+
+  function SymbolTree({ program, hint, runReadAction, onOpenFunctions, onSelectFunction }) {
+    const [expanded, setExpanded] = useState({});
+    const [nodes, setNodes] = useState({}); // key -> { items, error, offset, hasMore, loading }
+    const [symbolSweep, setSymbolSweep] = useState(null); // shared cache for classes/namespaces
+
+    useEffect(function () {
+      setExpanded({});
+      setNodes({});
+      setSymbolSweep(null);
+    }, [program]);
+
+    function patchNode(key, patch) {
+      setNodes(function (prev) {
+        return Object.assign({}, prev, { [key]: Object.assign({}, prev[key], patch) });
+      });
+    }
+
+    async function ensureSymbolSweep() {
+      if (symbolSweep) return symbolSweep;
+      const pending = { loading: true };
+      setSymbolSweep(pending);
+      const result = await runReadAction("mcp.search-symbols", {
+        query: "", includeExternal: false, limit: 500
+      }, { timeoutMs: 8000 });
+      const next = result.ok
+        ? { items: (result.data && result.data.results) || [] }
+        : { error: result.error || "Could not read symbols." };
+      setSymbolSweep(next);
+      return next;
+    }
+
+    async function loadNamespaceGroup(key, filterFn) {
+      patchNode(key, { loading: true, error: "" });
+      const sweep = await ensureSymbolSweep();
+      if (sweep.error) { patchNode(key, { loading: false, error: sweep.error }); return; }
+      const seen = new Set();
+      const names = [];
+      (sweep.items || []).forEach(function (sym) {
+        const ns = sym.namespace || "";
+        if (!ns || seen.has(ns) || !filterFn(ns)) return;
+        seen.add(ns);
+        names.push(ns);
+      });
+      names.sort();
+      patchNode(key, { loading: false, items: names.slice(0, SYMTREE_PAGE), hasMore: names.length > SYMTREE_PAGE, allNames: names, offset: SYMTREE_PAGE });
+    }
+
+    async function loadNamespaceMembers(nsKey, namespace) {
+      patchNode(nsKey, { loading: true, error: "" });
+      const sweep = await ensureSymbolSweep();
+      if (sweep.error) { patchNode(nsKey, { loading: false, error: sweep.error }); return; }
+      const members = (sweep.items || []).filter(function (sym) { return sym.namespace === namespace; });
+      patchNode(nsKey, { loading: false, items: members.slice(0, SYMTREE_PAGE), hasMore: members.length > SYMTREE_PAGE });
+    }
+
+    async function loadFlatAction(key, actionId, offset) {
+      patchNode(key, { loading: true, error: "" });
+      const result = await runReadAction(actionId, { limit: SYMTREE_PAGE, offset: offset || 0 }, { timeoutMs: 8000 });
+      if (!result.ok) { patchNode(key, { loading: false, error: result.error || "Could not load this list." }); return; }
+      const results = (result.data && result.data.results) || [];
+      const hasMore = Boolean(result.data && result.data.hasMore);
+      setNodes(function (prev) {
+        const prior = (offset && prev[key] && prev[key].items) || [];
+        return Object.assign({}, prev, {
+          [key]: { loading: false, error: "", items: prior.concat(results), hasMore: hasMore, offset: (offset || 0) + results.length }
+        });
+      });
+    }
+
+    function toggle(key, loader) {
+      setExpanded(function (prev) {
+        const next = Object.assign({}, prev, { [key]: !prev[key] });
+        if (next[key] && !nodes[key]) loader();
+        return next;
+      });
+    }
+
+    function activateFunction(name, addr) {
+      onSelectFunction({ name: name, addr: addr });
+    }
+
+    if (!program) {
+      return html`<div id="wb-symtree" className="wb-sidebar-section wb-symbol-tree">
+        <header className="wb-sidebar-head"><h3>Symbol Tree</h3></header>
+        <p className="wb-hint">Pick a program in Explorer to browse its symbols.</p>
+      </div>`;
+    }
+    if (hint) {
+      return html`<div id="wb-symtree" className="wb-sidebar-section wb-symbol-tree">
+        <header className="wb-sidebar-head"><h3>Symbol Tree</h3></header>
+        <p className="wb-hint">${hint}</p>
+      </div>`;
+    }
+
+    function namespaceChildren(key) {
+      const node = nodes[key];
+      if (!node || !node.items) return null;
+      return node.items.map(function (ns) {
+        const nsKey = key + ":" + ns;
+        const nsNode = nodes[nsKey];
+        return html`<${SymbolTreeNode} key=${nsKey} id=${nsKey} title=${ns} depth=${1}
+          expanded=${Boolean(expanded[nsKey])} loading=${nsNode && nsNode.loading} error=${nsNode && nsNode.error}
+          onToggle=${function () { toggle(nsKey, function () { loadNamespaceMembers(nsKey, ns); }); }}
+          isLeaf=${false}
+          children=${expanded[nsKey] && nsNode && nsNode.items ? nsNode.items.map(function (sym) {
+            return html`<${SymbolTreeNode} key=${nsKey + "#" + sym.address} id=${nsKey + "#" + sym.address}
+              title=${(sym.name || sym.address) + " " + (sym.address || "")} depth=${2}
+              isLeaf=${true}
+              onActivate=${function () { activateFunction(sym.name, sym.address); }} />`;
+          }).concat(nsNode.hasMore ? [html`<li key=${nsKey + "-more"} className="wb-symtree-li" style=${{ paddingLeft: "28px" }}>
+            <span className="wb-hint">${nsNode.items.length} shown, more available</span>
+          </li>`] : []) : null} />`;
+      }).concat(node.hasMore ? [html`<li key=${key + "-more"} className="wb-symtree-li">
+        <button type="button" className="wb-text-action wb-symtree-more" style=${{ paddingLeft: "14px" }}
+          onClick=${function () {
+            const shown = node.items.length;
+            patchNode(key, { items: node.allNames.slice(0, shown + SYMTREE_PAGE), hasMore: node.allNames.length > shown + SYMTREE_PAGE });
+          }}>Show more…</button>
+      </li>`] : []);
+    }
+
+    function flatChildren(key) {
+      const node = nodes[key];
+      if (!node || !node.items) return null;
+      const items = node.items.map(function (item, i) {
+        const label = (item.name || "") + "  " + (item.address || "") + (item.library ? "  (" + item.library + ")" : "");
+        return html`<${SymbolTreeNode} key=${key + "#" + i + "#" + item.address} id=${key + "#" + i}
+          title=${label} depth=${1} isLeaf=${true}
+          onActivate=${function () { activateFunction(item.name, item.address); }} />`;
+      });
+      if (node.hasMore) {
+        items.push(html`<li key=${key + "-more"} className="wb-symtree-li">
+          <button type="button" className="wb-text-action wb-symtree-more" style=${{ paddingLeft: "14px" }}
+            onClick=${function () { loadFlatAction(key, key === "imports" ? "mcp.list-imports" : "mcp.list-exports", node.offset); }}>Show more…</button>
+        </li>`);
+      }
+      return items;
+    }
+
+    return html`<div id="wb-symtree" className="wb-sidebar-section wb-symbol-tree">
+      <header className="wb-sidebar-head"><h3>Symbol Tree</h3></header>
+      <ul className="wb-symtree-root" role="tree" aria-label="Symbol tree">
+        <${SymbolTreeNode} key="classes" id="classes" title="Classes" depth=${0}
+          expanded=${Boolean(expanded.classes)} loading=${nodes.classes && nodes.classes.loading} error=${nodes.classes && nodes.classes.error}
+          onToggle=${function () { toggle("classes", function () { loadNamespaceGroup("classes", looksLikeClassNamespace); }); }}
+          isLeaf=${false}
+          children=${expanded.classes ? namespaceChildren("classes") : null} />
+        <${SymbolTreeNode} key="namespaces" id="namespaces" title="Namespaces" depth=${0}
+          expanded=${Boolean(expanded.namespaces)} loading=${nodes.namespaces && nodes.namespaces.loading} error=${nodes.namespaces && nodes.namespaces.error}
+          onToggle=${function () { toggle("namespaces", function () { loadNamespaceGroup("namespaces", function () { return true; }); }); }}
+          isLeaf=${false}
+          children=${expanded.namespaces ? namespaceChildren("namespaces") : null} />
+        <${SymbolTreeNode} key="imports" id="imports" title="Imports" depth=${0}
+          expanded=${Boolean(expanded.imports)} loading=${nodes.imports && nodes.imports.loading} error=${nodes.imports && nodes.imports.error}
+          onToggle=${function () { toggle("imports", function () { loadFlatAction("imports", "mcp.list-imports", 0); }); }}
+          isLeaf=${false}
+          children=${expanded.imports ? flatChildren("imports") : null} />
+        <${SymbolTreeNode} key="exports" id="exports" title="Exports" depth=${0}
+          expanded=${Boolean(expanded.exports)} loading=${nodes.exports && nodes.exports.loading} error=${nodes.exports && nodes.exports.error}
+          onToggle=${function () { toggle("exports", function () { loadFlatAction("exports", "mcp.list-exports", 0); }); }}
+          isLeaf=${false}
+          children=${expanded.exports ? flatChildren("exports") : null} />
+        <li className="wb-symtree-li" role="treeitem">
+          <button type="button" className="wb-symtree-row wb-text-action" style=${{ paddingLeft: "0" }}
+            title="Open the Functions tab"
+            onClick=${onOpenFunctions}>
+            <span className="wb-symtree-caret" aria-hidden="true">▸</span>
+            <span className="wb-symtree-label">Functions</span>
+          </button>
+        </li>
+      </ul>
+    </div>`;
+  }
+
+  /* Continuous Listing rows (slice 2, redesign §5.1/§6 row 2). Replaces the
+     #wb-listing-preview text blob with an address/bytes/mnemonic/operands/
+     xref row table, backed by mcp.inspect-memory (mode: "instruction",
+     chained through each row's own fallThrough address) plus one
+     mcp.get-references call (mode: "to") for the function entry. Both are
+     confirmed danger:false/mutating:false/long_running:false in the catalog
+     -- same runReadAction reader the Symbol Tree uses.
+
+     Each inspect-memory round trip on this backend is a real Ghidra bridge
+     call, not a local computation -- measured against repos-local.gpr /
+     DragonAge2.exe it runs ~1.1s per instruction (see slice report). A
+     continuous table of any real size will blow past a 5s budget, so this
+     component fetches what it can inside `budgetMs` and falls back to the
+     existing detail.preview text -- with the measured elapsed time shown --
+     rather than pretend a partial or synthetic result is the whole listing. */
+  function ListingRows({ addr, name, program, runReadAction, fallbackText, onJumpAddr, budgetMs }) {
+    const [state, setState] = useState({ status: "idle" });
+    const [focusIdx, setFocusIdx] = useState(0);
+    const seqRef = useRef(0);
+    const rowRefs = useRef([]);
+
+    useEffect(function () {
+      let cancelled = false;
+      const seq = ++seqRef.current;
+      setFocusIdx(0);
+      if (!addr || !program) { setState({ status: "idle" }); return undefined; }
+      setState({ status: "loading" });
+      const t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+      const now = function () { return (window.performance && performance.now) ? performance.now() : Date.now(); };
+      const budget = budgetMs || 5000;
+      const maxRows = 64;
+
+      async function run() {
+        const rows = [];
+        let cur = addr;
+        let inboundCount = null;
+        const refResult = await runReadAction("mcp.get-references", { target: addr, mode: "to", limit: 200 }, { timeoutMs: Math.max(1000, budget - (now() - t0)) });
+        if (cancelled || seq !== seqRef.current) return;
+        if (refResult.ok && refResult.data) inboundCount = refResult.data.count != null ? refResult.data.count : (refResult.data.references || []).length;
+        while (rows.length < maxRows) {
+          const elapsed = now() - t0;
+          if (elapsed >= budget) {
+            if (cancelled || seq !== seqRef.current) return;
+            if (rows.length) {
+              setState({ status: "ok", rows: rows, elapsedMs: elapsed, budgetHit: true, inboundCount: inboundCount });
+            } else {
+              setState({ status: "fallback", reason: "5s budget exceeded before the first row loaded", elapsedMs: elapsed });
+            }
+            return;
+          }
+          const result = await runReadAction("mcp.inspect-memory", { mode: "instruction", address: cur }, { timeoutMs: Math.max(500, budget - elapsed) });
+          if (cancelled || seq !== seqRef.current) return;
+          if (!result.ok) {
+            if (rows.length) {
+              setState({ status: "ok", rows: rows, elapsedMs: now() - t0, budgetHit: true, inboundCount: inboundCount });
+            } else {
+              setState({ status: "fallback", reason: result.error || "inspect-memory failed", elapsedMs: result.elapsedMs || (now() - t0) });
+            }
+            return;
+          }
+          const d = result.data || {};
+          const flows = (d.flows || []).map(function (f) { return typeof f === "string" ? f : (f && (f.address || f.target || f.to)); }).filter(Boolean);
+          rows.push({
+            addr: d.address || cur,
+            bytes: d.bytes || "",
+            mnemonic: d.mnemonic || "",
+            operands: (d.operands || []).map(function (o) { return o && o.text; }).filter(Boolean).join(", "),
+            flows: flows
+          });
+          if (!d.fallThrough || d.fallThrough === d.address) break;
+          cur = d.fallThrough;
+        }
+        if (cancelled || seq !== seqRef.current) return;
+        setState({ status: "ok", rows: rows, elapsedMs: now() - t0, budgetHit: false, inboundCount: inboundCount });
+      }
+      run();
+      return function () { cancelled = true; };
+    }, [addr, program]);
+
+    function onRowKeyDown(ev, idx, row) {
+      if (ev.key === "ArrowDown") {
+        ev.preventDefault();
+        const next = Math.min(idx + 1, state.rows.length - 1);
+        setFocusIdx(next);
+        const el = rowRefs.current[next];
+        if (el) el.focus();
+      } else if (ev.key === "ArrowUp") {
+        ev.preventDefault();
+        const prev = Math.max(idx - 1, 0);
+        setFocusIdx(prev);
+        const el = rowRefs.current[prev];
+        if (el) el.focus();
+      } else if ((ev.key === "Enter" || ev.key === " ") && row.flows && row.flows.length) {
+        ev.preventDefault();
+        onJumpAddr(row.flows[0]);
+      }
+    }
+
+    if (state.status === "ok" && state.rows && state.rows.length) {
+      return html`<div className="wb-listing-rows-wrap">
+        <table id="wb-listing-rows" className="wb-listing-rows" role="table" aria-label=${"Listing for " + (name || addr)}>
+          <thead>
+            <tr><th scope="col">Address</th><th scope="col">Bytes</th><th scope="col">Mnemonic</th><th scope="col">Operands</th><th scope="col">Xref</th></tr>
+          </thead>
+          <tbody>
+            ${state.rows.map(function (row, idx) {
+              return html`<tr key=${row.addr} ref=${function (el) { rowRefs.current[idx] = el; }}
+                tabIndex=${idx === focusIdx ? 0 : -1}
+                className="wb-listing-row"
+                onFocus=${function () { setFocusIdx(idx); }}
+                onKeyDown=${function (ev) { onRowKeyDown(ev, idx, row); }}>
+                <td><code>${row.addr}</code></td>
+                <td><code className="wb-hint">${row.bytes}</code></td>
+                <td>${row.mnemonic}</td>
+                <td>${row.operands}</td>
+                <td>${row.flows.map(function (target) {
+                  return html`<button key=${target} type="button" className="wb-text-action wb-listing-xref"
+                    title=${"Jump to " + target}
+                    onClick=${function (ev) { ev.stopPropagation(); onJumpAddr(target); }}>→${target}</button>`;
+                })}</td>
+              </tr>`;
+            })}
+          </tbody>
+        </table>
+        <p className="wb-hint">${state.rows.length} instructions${state.budgetHit ? ", stopped at the " + Math.round((budgetMs || 5000) / 1000) + "s read budget" : ""}${state.inboundCount != null ? " · " + state.inboundCount + " inbound reference" + (state.inboundCount === 1 ? "" : "s") : ""} (${Math.round(state.elapsedMs)}ms)</p>
+      </div>`;
+    }
+    return html`<div>
+      ${state.status === "fallback" ? html`<p className="wb-hint">Structured listing unavailable here (${state.reason}, ${Math.round(state.elapsedMs || 0)}ms) -- showing the text preview.</p>` : null}
+      ${state.status === "loading" ? html`<p className="wb-hint">Reading instructions…</p>` : null}
+      <pre className="wb-preview" id="wb-listing-preview">${fallbackText}</pre>
+    </div>`;
+  }
+
   function CorpusNavBar({ active, onJump, moreOpen, onMoreToggle }) {
     const primaryIds = {};
     EDITOR_PRIMARY.forEach(function (item) { primaryIds[item.id] = true; });
@@ -4784,6 +5136,93 @@
       return data;
     }
 
+    /* Quiet, budget-bounded reader for catalog actions the Symbol Tree (slice 1)
+       and the continuous Listing rows (slice 2) use. Same POST-then-poll idiom
+       as executeAction/loadFunctionEvidence above, but: (1) refuses to run
+       anything the catalog doesn't mark danger:false, mutating:false --
+       belt-and-suspenders on top of these call sites only ever naming
+       read-only ids; (2) never opens the Jobs dock or shows a toast --
+       these fire on every tree expand / row scroll, which would otherwise
+       spam both; (3) gives up at `timeoutMs` (default 5000ms, per the
+       redesign spec's "too slow" escape hatch for listing rows) and reports
+       how long it actually waited so the caller can fall back to text and
+       say why. */
+    async function runReadAction(actionId, params, options) {
+      const opts = options || {};
+      const t0 = (window.performance && performance.now) ? performance.now() : Date.now();
+      const elapsed = function () { return ((window.performance && performance.now) ? performance.now() : Date.now()) - t0; };
+      const act = actions.find(function (item) { return item.id === actionId; });
+      if (!act) return { ok: false, error: "Unknown action " + actionId, elapsedMs: elapsed() };
+      if (act.danger || act.mutating || act.long_running) {
+        return { ok: false, error: actionId + " is not a confirmed read-only action; refusing to auto-run it.", elapsedMs: elapsed() };
+      }
+      const loc = (typeof currentLocator === "function" ? currentLocator() : "") || "";
+      const ctx = {
+        slug: toolContext.slug || "",
+        program: toolContext.program || "",
+        repo: toolContext.repo || "",
+        addr: params.addr || toolContext.addr || "",
+        name: params.name || toolContext.name || "",
+        db: toolContext.db || "",
+        work_dir: toolContext.work_dir || "",
+        kb: toolContext.kb || ""
+      };
+      const body = Object.assign({ confirm: true, context: ctx, locator: loc, program: toolContext.program || "" }, params);
+      let res, data;
+      try {
+        res = await fetch("/api/v1/actions/" + actionId.replace(/\./g, "/"), {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        data = await res.json();
+      } catch (err) {
+        return { ok: false, error: String((err && err.message) || err), elapsedMs: elapsed() };
+      }
+      if (!res.ok || !data || data.ok === false) {
+        return { ok: false, error: (data && data.error) || "Action failed", elapsedMs: elapsed() };
+      }
+      if (!(data.job && data.job.id)) {
+        // A handful of actions answer synchronously; take that if it happens.
+        return { ok: true, data: data, elapsedMs: elapsed() };
+      }
+      const jobId = data.job.id;
+      const timeoutMs = opts.timeoutMs || 5000;
+      let job = data.job;
+      while (job.status === "running" || job.status === "queued" || job.status === "admitted" || !job.status) {
+        if (elapsed() >= timeoutMs) {
+          return { ok: false, timedOut: true, error: "Timed out waiting for " + actionId, elapsedMs: elapsed(), jobId: jobId };
+        }
+        await new Promise(function (resolve) { setTimeout(resolve, 250); });
+        try {
+          const jres = await fetch(API.jobs + "/" + encodeURIComponent(jobId), { cache: "no-store" });
+          const jdata = await jres.json();
+          job = (jdata && jdata.job) || job;
+        } catch (err) {
+          // Keep polling until the deadline; a transient fetch error isn't fatal.
+        }
+      }
+      if (job.status !== "ok") {
+        const log = String(job.log || "");
+        const stateMatch = /\*\*State:\*\* `([^`]+)`/.exec(log) || /"state":\s*"([^"]+)"/.exec(log) || /"cause":\s*"([^"]+)"/.exec(log);
+        const cause = stateMatch ? stateMatch[1] : "";
+        const friendly = cause === "authentication-failed"
+          ? "The Ghidra server refused the login for this repository."
+          : (job.error || cause || "Action failed");
+        return { ok: false, error: friendly, cause: cause, elapsedMs: elapsed() };
+      }
+      const log = String(job.log || "");
+      const nl = log.indexOf("\n");
+      const jsonText = nl >= 0 ? log.slice(nl + 1) : log;
+      let parsed = null;
+      try {
+        parsed = JSON.parse(jsonText);
+      } catch (err) {
+        return { ok: false, error: "Could not parse the response for " + actionId, elapsedMs: elapsed() };
+      }
+      return { ok: true, data: parsed, elapsedMs: elapsed() };
+    }
+
     useEffect(function () {
       window.AgentDecompileUI = Object.assign(window.AgentDecompileUI || {}, {
         getToolContext: function () { return toolContext; },
@@ -5210,6 +5649,16 @@
     function onSearch(value) {
       setQuery(value);
       setFuncOffset(0);
+    }
+
+    /* Symbol Tree function leaves (and Listing xref jumps) select through the
+       existing wb-fnbrowse path, never a second row list: switch to the
+       Functions tab, narrow its own search so the row loads into view, then
+       reuse selectRow -- the same click handler the table itself uses. */
+    function selectFunctionLeaf(name, addr) {
+      jumpTo("wb-fnbrowse");
+      onSearch(name || addr || "");
+      selectRow({ name: name || "", addr: addr || "" });
     }
 
     function onIngestDragOver(ev) {
@@ -5850,9 +6299,14 @@
                 </li>`;
               })}
             </ul>` : null}
-            <pre className="wb-preview" id="wb-listing-preview">${(detail && detail.preview) || (program
-              ? ("Reading " + program + " from the Ghidra project on disk…")
-              : "Pick a program in Explorer.")}</pre>
+            ${selected && selected.addr
+              ? html`<${ListingRows} addr=${selected.addr} name=${selected.name} program=${program}
+                  runReadAction=${runReadAction}
+                  fallbackText=${(detail && detail.preview) || ("Reading " + program + " from the Ghidra project on disk…")}
+                  onJumpAddr=${function (target) { selectRow({ addr: target, name: target }); }} />`
+              : html`<pre className="wb-preview" id="wb-listing-preview">${(detail && detail.preview) || (program
+                  ? ("Reading " + program + " from the Ghidra project on disk…")
+                  : "Pick a program in Explorer.")}</pre>`}
           </div>` : html`<div className="wb-empty wb-empty-surface">
             <p>${hasProject
               ? "Pick a program in Explorer. Listing comes from that program."
@@ -6438,6 +6892,11 @@
                 onClick=${function () { runCommand("view.browse"); }}>Browse all functions</button>
             </p>
           </div>
+          <${SymbolTree} program=${program}
+            hint=${dossier && dossier.error ? "Symbols need a readable project. " + dossier.error : ""}
+            runReadAction=${runReadAction}
+            onOpenFunctions=${function () { jumpTo("wb-fnbrowse"); }}
+            onSelectFunction=${function (fn) { selectFunctionLeaf(fn.name, fn.addr); }} />
         </aside>
         <${SplitHandle} axis="x" label="Resize explorer"
           value=${sideW} min=${180} max=${900}

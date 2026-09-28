@@ -2338,8 +2338,8 @@ def render_workbench(*, static_mode: bool = False) -> str:
 <link rel="stylesheet" href="/dashboard/static/workbench-tokens.css?v=onepage1">
 <link rel="stylesheet" href="/dashboard/static/workbench-controls.css?v=onepage1">
 <link rel="stylesheet" href="/dashboard/static/workbench-chrome.css?v=onepage2">
-<link rel="stylesheet" href="/dashboard/static/workbench-sidebar.css?v=live11">
-<link rel="stylesheet" href="/dashboard/static/workbench-editor.css?v=live26">
+<link rel="stylesheet" href="/dashboard/static/workbench-sidebar.css?v=live12">
+<link rel="stylesheet" href="/dashboard/static/workbench-editor.css?v=live27">
 <link rel="stylesheet" href="/dashboard/static/workbench-dialogs.css?v=onepage1">
 <link rel="stylesheet" href="/dashboard/static/workbench-overlays.css?v=onepage1">
 </head>
@@ -2453,7 +2453,7 @@ def render_workbench(*, static_mode: bool = False) -> str:
 <script src="/dashboard/static/react-dom.js"></script>
 <script src="/dashboard/static/htm.js"></script>
 <script src="/dashboard/static/dashboard.js" defer></script>
-<script src="/dashboard/static/workbench-app.js?v=live36" defer></script>
+<script src="/dashboard/static/workbench-app.js?v=live39" defer></script>
 </body>
 </html>
 """

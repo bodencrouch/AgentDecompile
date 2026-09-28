@@ -1,0 +1,340 @@
+{
+ "build": "gog",
+ "cacheName": "operator=",
+ "cacheSize": 73,
+ "capstoneBanner": "capstone 5.0.7 ",
+ "capstoneRows": [
+  {
+   "hex": "56",
+   "text": "push esi",
+   "va": 4645440
+  },
+  {
+   "hex": "57",
+   "text": "push edi",
+   "va": 4645441
+  },
+  {
+   "hex": "8bf9",
+   "text": "mov edi, ecx",
+   "va": 4645442
+  },
+  {
+   "hex": "8b0f",
+   "text": "mov ecx, dword ptr [edi]",
+   "va": 4645444
+  },
+  {
+   "hex": "85c9",
+   "text": "test ecx, ecx",
+   "va": 4645446
+  },
+  {
+   "hex": "7406",
+   "text": "je 0x46e250",
+   "va": 4645448
+  },
+  {
+   "hex": "57",
+   "text": "push edi",
+   "va": 4645450
+  },
+  {
+   "hex": "e8306efdff",
+   "text": "call 0x445080",
+   "va": 4645451
+  },
+  {
+   "hex": "8b74240c",
+   "text": "mov esi, dword ptr [esp + 0xc]",
+   "va": 4645456
+  },
+  {
+   "hex": "85f6",
+   "text": "test esi, esi",
+   "va": 4645460
+  },
+  {
+   "hex": "8937",
+   "text": "mov dword ptr [edi], esi",
+   "va": 4645462
+  },
+  {
+   "hex": "7428",
+   "text": "je 0x46e282",
+   "va": 4645464
+  },
+  {
+   "hex": "8b4608",
+   "text": "mov eax, dword ptr [esi + 8]",
+   "va": 4645466
+  },
+  {
+   "hex": "394604",
+   "text": "cmp dword ptr [esi + 4], eax",
+   "va": 4645469
+  },
+  {
+   "hex": "7515",
+   "text": "jne 0x46e277",
+   "va": 4645472
+  },
+  {
+   "hex": "85c0",
+   "text": "test eax, eax",
+   "va": 4645474
+  },
+  {
+   "hex": "7404",
+   "text": "je 0x46e26a",
+   "va": 4645476
+  },
+  {
+   "hex": "03c0",
+   "text": "add eax, eax",
+   "va": 4645478
+  },
+  {
+   "hex": "eb05",
+   "text": "jmp 0x46e26f",
+   "va": 4645480
+  },
+  {
+   "hex": "b808000000",
+   "text": "mov eax, 8",
+   "va": 4645482
+  },
+  {
+   "hex": "50",
+   "text": "push eax",
+   "va": 4645487
+  },
+  {
+   "hex": "8bce",
+   "text": "mov ecx, esi",
+   "va": 4645488
+  },
+  {
+   "hex": "e849211700",
+   "text": "call 0x5e03c0",
+   "va": 4645490
+  },
+  {
+   "hex": "8b4604",
+   "text": "mov eax, dword ptr [esi + 4]",
+   "va": 4645495
+  },
+  {
+   "hex": "8b0e",
+   "text": "mov ecx, dword ptr [esi]",
+   "va": 4645498
+  },
+  {
+   "hex": "893c81",
+   "text": "mov dword ptr [ecx + eax*4], edi",
+   "va": 4645500
+  },
+  {
+   "hex": "ff4604",
+   "text": "inc dword ptr [esi + 4]",
+   "va": 4645503
+  },
+  {
+   "hex": "8bc7",
+   "text": "mov eax, edi",
+   "va": 4645506
+  },
+  {
+   "hex": "5f",
+   "text": "pop edi",
+   "va": 4645508
+  },
+  {
+   "hex": "5e",
+   "text": "pop esi",
+   "va": 4645509
+  },
+  {
+   "hex": "c20400",
+   "text": "ret 4",
+   "va": 4645510
+  }
+ ],
+ "effectTable": {
+  "callees": "GOG remove 0x445080, allocate 0x5e03c0",
+  "eaxAtRet": "M (@0x46e282)",
+  "nListBase": "N+0 (count N+4, capacity N+8, alloc ECX=N @0x46e270)",
+  "receiver": "M (mov edi,ecx @0x46e242)",
+  "removeThisOffset": "O+0 (no ECX write 0x46e245-0x46e24b)",
+  "retImm": "ret 4"
+ },
+ "image": {
+  "fileOffset": 451136,
+  "imageSha256": "9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435"
+ },
+ "instructions": [
+  {
+   "hex": "56",
+   "text": "PUSH ESI",
+   "va": 4645440
+  },
+  {
+   "hex": "57",
+   "text": "PUSH EDI",
+   "va": 4645441
+  },
+  {
+   "hex": "8bf9",
+   "text": "MOV EDI,ECX",
+   "va": 4645442
+  },
+  {
+   "hex": "8b0f",
+   "text": "MOV ECX,dword ptr [EDI]",
+   "va": 4645444
+  },
+  {
+   "hex": "85c9",
+   "text": "TEST ECX,ECX",
+   "va": 4645446
+  },
+  {
+   "hex": "7406",
+   "text": "JZ LAB_0046e250  ; -> LAB_0046e250 (0046e250)",
+   "va": 4645448
+  },
+  {
+   "hex": "57",
+   "text": "PUSH EDI",
+   "va": 4645450
+  },
+  {
+   "hex": "e8306efdff",
+   "text": "CALL CExoArrayList::Remove  ; -> CExoArrayList::Remove (00445080)",
+   "va": 4645451
+  },
+  {
+   "hex": "8b74240c",
+   "text": "MOV ESI,dword ptr [ESP + param_1]",
+   "va": 4645456
+  },
+  {
+   "hex": "85f6",
+   "text": "TEST ESI,ESI",
+   "va": 4645460
+  },
+  {
+   "hex": "8937",
+   "text": "MOV dword ptr [EDI],ESI",
+   "va": 4645462
+  },
+  {
+   "hex": "7428",
+   "text": "JZ LAB_0046e282  ; -> LAB_0046e282 (0046e282)",
+   "va": 4645464
+  },
+  {
+   "hex": "8b4608",
+   "text": "MOV EAX,dword ptr [ESI + 0x8]",
+   "va": 4645466
+  },
+  {
+   "hex": "394604",
+   "text": "CMP dword ptr [ESI + 0x4],EAX",
+   "va": 4645469
+  },
+  {
+   "hex": "7515",
+   "text": "JNZ LAB_0046e277  ; -> LAB_0046e277 (0046e277)",
+   "va": 4645472
+  },
+  {
+   "hex": "85c0",
+   "text": "TEST EAX,EAX",
+   "va": 4645474
+  },
+  {
+   "hex": "7404",
+   "text": "JZ LAB_0046e26a  ; -> LAB_0046e26a (0046e26a)",
+   "va": 4645476
+  },
+  {
+   "hex": "03c0",
+   "text": "ADD EAX,EAX",
+   "va": 4645478
+  },
+  {
+   "hex": "eb05",
+   "text": "JMP LAB_0046e26f  ; -> LAB_0046e26f (0046e26f)",
+   "va": 4645480
+  },
+  {
+   "hex": "b808000000",
+   "text": "MOV EAX,0x8",
+   "va": 4645482
+  },
+  {
+   "hex": "50",
+   "text": "PUSH EAX",
+   "va": 4645487
+  },
+  {
+   "hex": "8bce",
+   "text": "MOV ECX,ESI",
+   "va": 4645488
+  },
+  {
+   "hex": "e849211700",
+   "text": "CALL CExoArrayList::Allocate  ; -> CExoArrayList::Allocate (005e03c0)",
+   "va": 4645490
+  },
+  {
+   "hex": "8b4604",
+   "text": "MOV EAX,dword ptr [ESI + 0x4]",
+   "va": 4645495
+  },
+  {
+   "hex": "8b0e",
+   "text": "MOV ECX,dword ptr [ESI]",
+   "va": 4645498
+  },
+  {
+   "hex": "893c81",
+   "text": "MOV dword ptr [ECX + EAX*0x4],EDI",
+   "va": 4645500
+  },
+  {
+   "hex": "ff4604",
+   "text": "INC dword ptr [ESI + 0x4]",
+   "va": 4645503
+  },
+  {
+   "hex": "8bc7",
+   "text": "MOV EAX,EDI",
+   "va": 4645506
+  },
+  {
+   "hex": "5f",
+   "text": "POP EDI",
+   "va": 4645508
+  },
+  {
+   "hex": "5e",
+   "text": "POP ESI",
+   "va": 4645509
+  },
+  {
+   "hex": "c20400",
+   "text": "RET 0x4",
+   "va": 4645510
+  }
+ ],
+ "source": {
+  "evidence": "/home/brunner56/agentdecompile-deliverables/2026-09-27-contract-pairing/evidence.json",
+  "evidenceSha256": "0d9974efa803a3d9156e2897d68f9d3b8cee85850e3c15ea73846b45dbbb530c",
+  "jsonPath": "bodies.w46e240"
+ },
+ "spanHex": "56578bf98b0f85c9740657e8306efdff8b74240c85f6893774288b4608394604751585c0740403c0eb05b808000000508bcee8492117008b46048b0e893c81ff46048bc75f5ec20400",
+ "spanSha256": "533f00e8edee1371a3b0671fe233c5fca0755a2f88094db6e3f7c1b96a45fa00",
+ "va": 4645440
+}

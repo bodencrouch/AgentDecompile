@@ -453,6 +453,7 @@ def merge_evidence(db: str, run: str) -> dict[str, Any]:
     from agentdecompile_recovery.corpus.store import connect
     from agentdecompile_recovery.corpus.stabs_link import ensure_columns
     from agentdecompile_recovery.corpus.correspondence import allows_identity_binding
+    from agentdecompile_recovery.corpus.match_store import quarantined_source_tokens
 
     con = connect(Path(db))
     try:
@@ -460,11 +461,8 @@ def merge_evidence(db: str, run: str) -> dict[str, Any]:
         con.execute('BEGIN IMMEDIATE')
         existing = {(r['binary_id'], r['addr']): r['logical_id'] for r in con.execute('SELECT * FROM identity')}
         parent, anchors, binaries, witnesses = {}, {}, {}, {}
-        quarantined_sources = {
-            f"{row['src_binary']}:{row['src_addr']}"
-            for row in con.execute('SELECT src_binary,src_addr,evidence FROM match WHERE run=?', (run,))
-            if json.loads(row['evidence'] or '{}').get('quarantine')
-        }
+        # Same token the matcher persists in evidence.dependencies (A3).
+        quarantined_sources = quarantined_source_tokens(con, run)
 
         def find(node):
             if node not in parent:

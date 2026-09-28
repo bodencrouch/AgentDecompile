@@ -20,13 +20,21 @@ from agentdecompile_recovery.corpus.cli import main as corpus_main
 pytestmark = pytest.mark.unit
 
 _WRITE_VERBS = ("INSERT", "UPDATE", "DELETE", "REPLACE", "ALTER", "DROP")
+_HASHES = ("a" * 64, "b" * 64)
+_EXPECTED_FAMILIES = [f"unclassified:{value[:16]}" for value in _HASHES]
 
 
 def _unclassified_store(path: Path) -> Path:
     """A store holding two binaries whose recovery_family predates the catalog."""
     con = store.connect(path)
-    con.execute("INSERT INTO binary (slug, repo_path) VALUES ('a', 'repoA')")
-    con.execute("INSERT INTO binary (slug, repo_path) VALUES ('b', 'repoB')")
+    con.execute(
+        "INSERT INTO binary (slug, repo_path, content_sha256) VALUES ('a', 'repoA', ?)",
+        (_HASHES[0],),
+    )
+    con.execute(
+        "INSERT INTO binary (slug, repo_path, content_sha256) VALUES ('b', 'repoB', ?)",
+        (_HASHES[1],),
+    )
     con.commit()
     con.execute("UPDATE binary SET recovery_family=NULL")
     con.commit()
@@ -49,7 +57,7 @@ def test_connect_commits_backfill_and_leaves_no_transaction(tmp_path: Path) -> N
     try:
         assert con.in_transaction is False
         # Visible from an independent connection while the first is still open.
-        assert _families(db) == ["unclassified:1", "unclassified:2"]
+        assert _families(db) == _EXPECTED_FAMILIES
     finally:
         con.close()
 
@@ -75,6 +83,8 @@ def test_connect_persists_alters_that_run_after_the_backfill(tmp_path: Path) -> 
     legacy = sqlite3.connect(db)
     legacy.executescript(
         """
+        DROP TABLE schema_migration;
+        PRAGMA user_version=0;
         DROP TABLE match;
         CREATE TABLE match (
             id INTEGER PRIMARY KEY, run TEXT,
@@ -94,7 +104,7 @@ def test_connect_persists_alters_that_run_after_the_backfill(tmp_path: Path) -> 
     finally:
         check.close()
     assert {"relation", "src_end", "dst_end"} <= cols
-    assert _families(db) == ["unclassified:1", "unclassified:2"]
+    assert _families(db) == _EXPECTED_FAMILIES
 
 
 def test_two_read_verbs_in_one_process_both_succeed(
@@ -113,7 +123,26 @@ def test_two_read_verbs_in_one_process_both_succeed(
         probe.rollback()
     finally:
         probe.close()
-    assert _families(db) == ["unclassified:1", "unclassified:2"]
+    assert _families(db) == _EXPECTED_FAMILIES
+
+
+def test_hashless_rows_remain_unclassified_without_holding_a_write_lock(tmp_path: Path) -> None:
+    db = tmp_path / "hashless.sqlite"
+    con = store.connect(db)
+    con.execute("INSERT INTO binary (slug, repo_path) VALUES ('a', 'repoA')")
+    con.commit()
+    con.close()
+
+    holder = store.connect(db)
+    other = sqlite3.connect(db, timeout=0.2)
+    try:
+        assert holder.in_transaction is False
+        assert _families(db) == [None]
+        other.execute("BEGIN IMMEDIATE")
+        other.rollback()
+    finally:
+        other.close()
+        holder.close()
 
 
 def _readonly(path: Path) -> None:

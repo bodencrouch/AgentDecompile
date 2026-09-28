@@ -60,23 +60,31 @@ def is_authentic_symbol(row: Mapping[str, Any]) -> bool:
     return False
 
 
-def authentic_named_index(funcs: Mapping[Any, Mapping[str, Any]]) -> dict[str, list]:
-    """canon_key → addrs, authentic symbols only."""
-    from collections import defaultdict
+def _addr_order(addr: Any) -> tuple[bool, Any]:
+    # Ints before strs; values of one kind compare among themselves only.
+    return (isinstance(addr, str), addr)
 
-    out: dict[str, list] = defaultdict(list)
-    for addr, f in funcs.items():
+
+def authentic_named_index(funcs: Mapping[Any, Mapping[str, Any]]) -> dict[str, list]:
+    """canon_key → addrs, authentic symbols only.
+
+    Keys and addr lists are sorted, so the result does not depend on the
+    order ``funcs`` was populated in.
+    """
+    from . import canon
+
+    out: dict[str, list] = {}
+    for addr in sorted(funcs, key=_addr_order):
+        f = funcs[addr]
         key = f.get("canon_key")
         if not key:
             continue
         if not is_authentic_symbol(f):
             continue
-        from . import canon
-
         if canon.is_library(key):
             continue
-        out[key].append(addr)
-    return out
+        out.setdefault(key, []).append(addr)
+    return {key: out[key] for key in sorted(out)}
 
 
 __all__ = [

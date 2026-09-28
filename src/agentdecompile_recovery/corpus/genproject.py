@@ -13,11 +13,11 @@ import os
 import pathlib
 import re
 import sqlite3
-import struct
 import subprocess
 import sys
 
 from . import prompt_evidence
+from .exact_universal import pe_mapper
 from .ghidra_sanitize import c_name
 
 DECOMP_HINT_LIMIT = 12000
@@ -34,27 +34,14 @@ def entry_hex_map(fns: list[dict]) -> dict[str, int]:
     return out
 
 
-def pe_va_mapper(raw: bytes):
-    if raw[:2] != b"MZ":
-        return None
-    pe = struct.unpack_from("<I", raw, 0x3C)[0]
-    nsec = struct.unpack_from("<H", raw, pe + 6)[0]
-    opt = struct.unpack_from("<H", raw, pe + 20)[0]
-    base = struct.unpack_from("<I", raw, pe + 24 + 28)[0]
-    secs = []
-    for i in range(nsec):
-        o = pe + 24 + opt + i * 40
-        vsize, vaddr, rsize, roff = struct.unpack_from("<IIII", raw, o + 8)
-        secs.append((vaddr, max(vsize, rsize), roff))
+def pe_va_mapper(raw: bytes, load_base: int | None = None):
+    """Deprecated alias for :func:`exact_universal.pe_mapper`.
 
-    def va2off(va: int):
-        r = va - base
-        for vaddr, size, roff in secs:
-            if vaddr <= r < vaddr + size:
-                return roff + (r - vaddr)
-        return None
-
-    return va2off
+    Kept so older callers keep importing from here. The former local copy
+    read a 32-bit ImageBase unconditionally and returned wrong offsets for
+    PE32+ images.
+    """
+    return pe_mapper(raw, load_base)
 
 
 def load_queue(
@@ -474,12 +461,12 @@ def generate_project(
     outdir = pathlib.Path(out_dir)
     outdir.mkdir(parents=True, exist_ok=True)
     brow = con.execute(
-        "SELECT id, bits, slug FROM binary WHERE repo_path=?", (repo_path,)
+        "SELECT id, bits, slug, image_base FROM binary WHERE repo_path=?", (repo_path,)
     ).fetchone()
     if brow is None:
         raise ValueError(f"not in database: {repo_path}")
     raw = pathlib.Path(raw_path).read_bytes()
-    va2off = pe_va_mapper(raw)
+    va2off = pe_mapper(raw, brow["image_base"])
     if va2off is None:
         raise ValueError("not a PE image (only x86/x64 PE is in scope)")
 

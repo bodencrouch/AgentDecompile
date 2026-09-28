@@ -185,7 +185,7 @@ def place_tree(
         }
     index = load_index(con, src_bid)
     placed = skipped = 0
-    for cfile in src_dir.glob("*.c"):
+    for cfile in sorted(src_dir.glob("*.c")):
         if cfile.name.startswith("_"):
             continue
         head = cfile.read_text(errors="replace")[:800]
@@ -212,7 +212,7 @@ def watch(src_dir: Path, src_bid: int, out_root: Path, con, interval: float) -> 
     print(f"cross-place watch {src_dir} -> {len(index)} linked addrs", flush=True)
     while True:
         n = 0
-        for cfile in src_dir.glob("*.c"):
+        for cfile in sorted(src_dir.glob("*.c")):
             if cfile.name.startswith("_"):
                 continue
             try:

@@ -20,11 +20,11 @@
   padding: var(--wb-space-2) 0;
 }
 
-/* Explorer stays a short tree. Functions gets the leftover height and width. */
+/* Functions live in the editor tab; the sidebar belongs to the project tree. */
 .workbench-page #wb-sources {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
   min-height: calc(22px * 3 + var(--wb-ctrl-h));
-  max-height: 22%;
+  max-height: none;
 }
 
 .workbench-page .wb-sidebar-section + .wb-sidebar-section,
@@ -414,7 +414,7 @@
   }
 
   .workbench-page #wb-sources {
-    max-height: 20%;
+    max-height: none;
     min-height: calc(22px * 3);
   }
 

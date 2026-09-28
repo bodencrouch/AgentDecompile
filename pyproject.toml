@@ -74,6 +74,7 @@ agentdecompile        = "agentdecompile_cli.cli:cli_entry_point"
 agentdecompile-cli    = "agentdecompile_cli.cli:cli_entry_point"
 agentdecompile-recover = "agentdecompile_recovery.cli:main"
 agentdecompile-corpus = "agentdecompile_recovery.corpus.cli:main"
+agentdecompile-acquisition-query = "agentdecompile_recovery.acquisition_mcp:main"
 adgrid = "agentdecompile_grid.cli:main"
 # MCP stdio entrypoint.
 agentdecompile-mcp    = "agentdecompile_cli.__main__:main"
@@ -84,7 +85,7 @@ agentdecompile-server = "agentdecompile_cli.server:main"
 # Proxy entry point: forward MCP to a remote backend (no local PyGhidra).
 agentdecompile-proxy = "agentdecompile_cli.server:proxy_main"
 
-# Grid extension points.
+# Grid extension points (design 1.1: the grid never imports the pipeline; lanes register by name).
 [project.entry-points."agentdecompile_grid.lanes"]
 recovery = "agentdecompile_recovery.grid_lanes"
 
@@ -275,6 +276,7 @@ python_functions = ["test_*"]
 addopts = "-v --tb=short"
 #addopts = "-ra -q -m \"not slow\""
 markers = [
+    "determinism_cascade: cascade-level determinism gate (U5c-b); red until Phase 0 ordering fixes land",
     "cli: All CLI-specific tests",
     "e2e: End-to-end tests via subprocess",
     "gui: marks tests that require a GUI (deselect with '-m \"not gui\"')",

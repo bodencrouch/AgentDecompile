@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from typing import Callable
+from typing import Any, Callable, Mapping
 
 from . import canon
 from .callgraph_propagate import (
@@ -20,6 +20,8 @@ from .callgraph_propagate import (
     record_pairs,
     unique_index_anchors,
 )
+from .channel_confidence import allows_verify, channel_confidence
+from .contract_features import contract_compatibility
 from .correspondence import enrich_evidence
 from .fingerprint_hashes import attach_hashes
 from .fuzzy_fingerprint import fuzzy_bits
@@ -39,6 +41,51 @@ from .match_engine import (
     shape_key,
     status_for,
 )
+
+
+def dependency_token(content_sha256: str | None, addr: int, *, slug: str | None = None) -> str:
+    """The build-invariant token for one function in ``match.evidence``.
+
+    ``<content_sha256[:16]>:<addr>``: the same value however the build rows
+    were ingested. A build with no hash cannot be named, so this refuses
+    (``ContentHashError``, kind ``missing``) instead of falling back to a
+    rowid, which is exactly the value that moved with ingest order (A3).
+    """
+    digest = str(content_sha256 or "").strip()
+    if not digest:
+        from .logical import BACKFILL_HINT, ContentHashError
+
+        name = slug if slug is not None else "(unknown build)"
+        raise ContentHashError(
+            f"binary.content_sha256 is NULL or blank for {name}; the dependency token keys on it "
+            f"and refuses to guess; {BACKFILL_HINT}",
+            kind="missing",
+            slugs=[str(name)],
+        )
+    return f"{digest[:16]}:{int(addr)}"
+
+
+def quarantined_source_tokens(con, run: str) -> set[str]:
+    """Dependency tokens of every quarantined source function in *run*.
+
+    The one consumer-side producer of the token: ``bind_identities`` and the
+    dashboard merge intersect this set with each match's stored
+    ``dependencies`` / ``dependency_ancestry``. Built through
+    :func:`dependency_token`, so producer and consumers cannot drift; a
+    quarantined source on a build with no hash refuses (a silent skip would
+    let a quarantined ancestor bind its descendants).
+    """
+    tokens: set[str] = set()
+    rows = con.execute(
+        "SELECT m.src_addr, m.evidence, b.slug, b.content_sha256"
+        "  FROM match m LEFT JOIN binary b ON b.id=m.src_binary WHERE m.run=?",
+        (run,),
+    )
+    for row in rows:
+        if not json.loads(row["evidence"] or "{}").get("quarantine"):
+            continue
+        tokens.add(dependency_token(row["content_sha256"], int(row["src_addr"]), slug=row["slug"]))
+    return tokens
 
 
 class Binary:
@@ -62,7 +109,7 @@ class Binary:
                       cyclomatic,n_callees,indirect_calls,data_refs,mnem,strings,consts,
                       ext_calls,block_hashes,cfg_nodes,cfg_edges,plate,signature,source,param_count,
                       source_file,object_file,calling_convention{hash_select}
-                 FROM func WHERE binary_id=?""",
+                 FROM func WHERE binary_id=? ORDER BY addr""",
             (binary_id,),
         ):
             d = dict(rec)
@@ -91,7 +138,7 @@ class Binary:
             for rec in con.execute(
                 f"""SELECT addr,n_tokens,n_lines,max_nest,n_calls,n_locals,n_deref,
                           n_index,n_field,ctrl,ops,skeleton_hash{fp_select}
-                     FROM decomp WHERE binary_id=? AND ok=1""",
+                     FROM decomp WHERE binary_id=? AND ok=1 ORDER BY addr""",
                 (binary_id,),
             ):
                 d = dict(rec)
@@ -104,7 +151,8 @@ class Binary:
         self.callees: dict[int, set[int]] = defaultdict(set)
         self.callers: dict[int, set[int]] = defaultdict(set)
         for a, b in con.execute(
-            "SELECT caller_addr, callee_addr FROM calledge WHERE binary_id=?", (binary_id,)
+            "SELECT caller_addr, callee_addr FROM calledge WHERE binary_id=? ORDER BY caller_addr, callee_addr",
+            (binary_id,),
         ):
             self.callees[a].add(b)
             self.callers[b].add(a)
@@ -271,7 +319,8 @@ def _fuse_bsim(con, sa: Binary, sb: Binary, mapping: dict[int, int], results: di
     try:
         rows = con.execute(
             """SELECT src_addr, dst_addr, similarity, significance
-               FROM bsim_hit WHERE src_binary=? AND dst_binary=?""",
+               FROM bsim_hit WHERE src_binary=? AND dst_binary=?
+               ORDER BY src_addr, dst_addr""",
             (sa.id, sb.id),
         ).fetchall()
     except Exception as exc:
@@ -284,10 +333,10 @@ def _fuse_bsim(con, sa: Binary, sb: Binary, mapping: dict[int, int], results: di
         if sim_f > 1.0:
             sim_f = sim_f / 100.0
         by_src[int(src)].append((int(dst), max(0.0, min(1.0, sim_f)), float(sig or 0)))
-    for src, hits in by_src.items():
+    for src, hits in sorted(by_src.items()):
         if src in mapping or src not in sa.funcs:
             continue
-        hits = sorted(hits, key=lambda t: (-t[2], -t[1]))
+        hits = sorted(hits, key=lambda t: (-t[2], -t[1], t[0]))
         if not hits:
             continue
         best_dst, sim, sig = hits[0]
@@ -308,8 +357,8 @@ def _fuse_bsim(con, sa: Binary, sb: Binary, mapping: dict[int, int], results: di
         taken.add(best_dst)
         results[src] = {
             "dst": best_dst,
-            "score": min(0.95, 0.55 + sim * 0.4),
-            "margin": max(0.1, (sig - second_sig) / 100.0),
+            "score": round(min(0.95, 0.55 + sim * 0.4), 4),
+            "margin": round(max(0.1, (sig - second_sig) / 100.0), 4),
             "evidence": enrich_evidence(
                 {"bsim": sim, "bsim_significance": sig, "channel": "S"},
                 kind="bsim",
@@ -337,6 +386,7 @@ def match_binaries(
     use_name_features: bool = True,
     quiet: bool = True,
     progress: Callable[[dict], None] | None = None,
+    contract_features: Callable[[str, int], Mapping[str, Any] | None] | None = None,
 ) -> dict:
     sa, sb = Binary(con, src_id), Binary(con, dst_id)
     early = short_circuit_match(sa, sb)
@@ -467,7 +517,7 @@ def match_binaries(
         if len(destinations) != 1 or conflicting_destinations:
             quarantined.add(src)
             mapping.pop(src, None)
-            dst = next(iter(destinations))
+            dst = min(destinations)
             results[src] = {
                 "dst": dst, "score": 0.0, "margin": 0.0, "kind": "anchor", "status": "review", "round": "anchor",
                 "evidence": enrich_evidence({"channels": sorted({channel for _, channel in candidates}), "conflict": "source" if len(destinations) != 1 else "destination"}, kind="anchor", status="ambiguous", alternatives=[{"dst": value} for value in sorted(destinations)], identity_claim=False, quarantine=True, stage="anchor"),
@@ -522,7 +572,6 @@ def match_binaries(
                 identity_claim=True,
                 stage="anchor",
             )
-    from .channel_confidence import allows_verify, channel_confidence
     for addr, result in list(results.items()):
         if result.get("kind") != "anchor" or addr not in mapping:
             continue
@@ -552,12 +601,32 @@ def match_binaries(
         right_lookup=sb.funcs,
         pair_class=pair_class,
     )
-    dependency_ancestry: dict[int, set[int]] = {}
-    for src, result in results.items():
-        if result.get("kind") == "callgraph":
-            direct = [f"{src_id}:{int(parent)}" for parent in (result.get("evidence", {}).get("dependencies") or ())]
+    dependency_ancestry: dict[int, set[str]] = {}
+
+    def src_token(addr: int) -> str:
+        # Persisted tokens key on the source build's content hash, never its
+        # rowid (A3). The refusal is lazy: a hash-less build only fails when
+        # a callgraph match actually needs a token.
+        return dependency_token(sa.meta.get("content_sha256"), addr, slug=sa.slug)
+
+    def tokenise_callgraph_results() -> None:
+        """Rewrite fresh callgraph results' raw parent addrs into tokens.
+
+        ``record_pairs`` stores the parents ``propagate_call_graph`` found as
+        plain addresses; every result that reaches ``match.evidence`` must
+        carry tokens instead, or the identity gate's intersection with the
+        quarantine set (also tokens) is empty and a quarantined ancestor
+        binds its descendants. Called once after every propagation site;
+        ``results`` keeps insertion order, so a parent matched by an earlier
+        propagation is tokenised before its child reads the ancestry.
+        """
+        for src, result in results.items():
+            if result.get("kind") != "callgraph" or src in dependency_ancestry:
+                continue
+            raw_direct = list(result.get("evidence", {}).get("dependencies") or ())
+            direct = [src_token(int(parent)) for parent in raw_direct]
             ancestry = set(direct)
-            for parent in (result.get("evidence", {}).get("dependencies") or ()):
+            for parent in raw_direct:
                 ancestry.update(dependency_ancestry.get(int(parent), ()))
             dependency_ancestry[src] = ancestry
             result["evidence"] = enrich_evidence(
@@ -565,13 +634,15 @@ def match_binaries(
                 dependencies=direct, stage="callgraph",
             )
             result["evidence"]["dependency_ancestry"] = sorted(ancestry)
+
+    tokenise_callgraph_results()
     # CFG MD-index plus mnemonic SPP is a cheap, exact leftover stage.  It
     # precedes BSim and weighted/decompiler residue scoring so fuzzy evidence
     # cannot consume a candidate that has a unique structural correspondence.
     taken = set(mapping.values())
     for src_addr, dst_addr in unique_structural_pairs(
         [sa.funcs[a] for a in src_addrs if a not in mapping],
-        [sb.funcs[b] for b in dst_eligible if b not in taken],
+        [sb.funcs[b] for b in sorted(dst_eligible) if b not in taken],
         id_of=lambda fn: fn["addr"],
     ):
         if src_addr in mapping or dst_addr in taken:
@@ -624,11 +695,84 @@ def match_binaries(
             ), id_field="addr", left_lookup=sa.funcs, right_lookup=sb.funcs,
             round_label="bsim-callgraph", pair_class=pair_class,
         )
+        # Not left to the residue loop below: it only converts when a round
+        # grows the mapping, and a pair with no residue would persist raw addrs.
+        tokenise_callgraph_results()
         if propagated:
             mapping.update({src: int(item["dst"]) for src, item in results.items()
                             if item.get("kind") == "callgraph"
                             and item.get("round") == "bsim-callgraph"
                             and src not in mapping})
+
+    def _contract_veto(a: int, b: int, best: float, second: float, second_b: int | None) -> dict | None:
+        """Opt-in calling-contract check for the current best/runner-up pair.
+
+        Returns ``None`` when the top candidate is not vetoed (nothing to
+        change). Otherwise returns a dict describing whether the row should
+        be dropped entirely (a lone ``Unwind@`` hard negative with no
+        alternative) or kept/promoted under review, plus the ``contract``
+        evidence block and an ``alternatives`` list carrying each
+        candidate's veto reason.
+        """
+        window: list[dict] = []
+        compat_by_addr: dict[int, tuple[str, list[str]]] = {}
+        hard_negatives: list[dict] = []
+        eligible: list[tuple[int, float]] = []
+        candidates = [(b, best)]
+        if second_b is not None and second > 0:
+            candidates.append((second_b, second))
+        src_features = contract_features("src", a)
+        for addr, score_val in candidates:
+            dst_features = contract_features("dst", addr)
+            compat = contract_compatibility(src_features, dst_features)
+            verdict = compat.get("verdict")
+            reasons = [reason.get("axis") for reason in (compat.get("reasons") or ())]
+            is_unwind = "Unwind@" in str(sb.funcs.get(addr, {}).get("name") or "")
+            if is_unwind:
+                veto = "unwind_target"
+                hard_negatives.append({"dst": addr, "score": round(score_val, 4), "veto": veto})
+            elif verdict == "incompatible" and "ret_cleanup" in reasons:
+                veto = "ret_cleanup"
+            else:
+                veto = None
+            compat_by_addr[addr] = (verdict, reasons)
+            window.append({"dst": addr, "contract": verdict, "veto": veto})
+            if veto is None:
+                eligible.append((addr, score_val))
+        best_veto = window[0]["veto"]
+        if best_veto is None:
+            kept_addr, promoted = b, False
+        elif eligible:
+            kept_addr, promoted = eligible[0][0], eligible[0][0] != b
+        else:
+            kept_addr, promoted = b, False
+        kept_score = next(score_val for addr, score_val in candidates if addr == kept_addr)
+        kept_veto = next(row["veto"] for row in window if row["dst"] == kept_addr)
+        verdict, reasons = compat_by_addr[kept_addr]
+        drop = not eligible and best_veto == "unwind_target"
+        return {
+            "drop": drop,
+            "vetoed_best": best_veto is not None,
+            "kept_addr": kept_addr,
+            "kept_score": kept_score,
+            "alternatives": [
+                {
+                    "dst": addr,
+                    "score": round(score_val, 4),
+                    "veto": next(row["veto"] for row in window if row["dst"] == addr),
+                }
+                for addr, score_val in candidates
+            ],
+            "contract": {
+                "verdict": verdict,
+                "reasons": reasons,
+                "veto": kept_veto,
+                "vetoed_best": best_veto is not None,
+                "promoted": promoted,
+                "window": window,
+                "hard_negatives": hard_negatives,
+            },
+        }
 
     for rnd in range(rounds):
         # Every earlier stage can claim destinations, including BSim and its
@@ -662,7 +806,7 @@ def match_binaries(
             fa_score = {**fa, "canon_arity": None} if use_name_features is False else fa
             if sa.decomp.get(a):
                 fa_score = {**fa_score, "decomp": sa.decomp[a]}
-            for b in cands:
+            for b in sorted(cands):
                 raw_fb = sb.funcs[b]
                 needs_copy = use_name_features is False or bool(sb.decomp.get(b))
                 fb = dict(raw_fb) if needs_copy else raw_fb
@@ -699,10 +843,35 @@ def match_binaries(
 
         report(len(src_addrs), round_index=rnd)
 
-        scored.sort(key=lambda t: (-t[0], -t[1]))
+        scored.sort(key=lambda t: (-t[0], -t[1], t[2], t[3]))
         for best, margin, a, b, ev, second, second_b in scored:
             if a in mapping or b in taken:
                 continue
+            if contract_features is not None:
+                veto_info = _contract_veto(a, b, best, second, second_b)
+                if veto_info["drop"]:
+                    continue
+                if veto_info["vetoed_best"]:
+                    kept_addr = veto_info["kept_addr"]
+                    if kept_addr in taken:
+                        continue
+                    results[a] = {
+                        "dst": kept_addr,
+                        "score": round(veto_info["kept_score"], 4),
+                        "margin": round(margin, 4),
+                        "evidence": enrich_evidence(
+                            {**ev, "contract": veto_info["contract"]},
+                            status="review",
+                            alternatives=veto_info["alternatives"],
+                            identity_claim=False,
+                            stage="fuzzy_residue",
+                        ),
+                        "round": rnd,
+                        "status": "review",
+                        "kind": "ambiguous" if veto_info["contract"]["promoted"] else "fuzzy",
+                    }
+                    continue
+                ev = {**ev, "contract": veto_info["contract"]}
             confidence = channel_confidence(
                 primary=str(ev.get("primary_channel") or "fuzzy"), evidence=ev,
                 n_instr=sa.funcs[a].get("n_instr"), margin=margin, unique=True,
@@ -718,21 +887,21 @@ def match_binaries(
                 taken.add(b)
                 results[a] = {
                     "dst": b,
-                    "score": best,
-                    "margin": margin,
+                    "score": round(best, 4),
+                    "margin": round(margin, 4),
                     "evidence": enrich_evidence(ev, status="verify", identity_claim=True, stage="fuzzy_residue"),
                     "round": rnd,
                     "kind": "fuzzy",
                 }
                 new += 1
             elif a not in results or (results[a].get("kind") not in {"callgraph", "anchor", "bsim"} and best > results[a]["score"]):
-                alts = [{"dst": b, "score": best}]
+                alts = [{"dst": b, "score": round(best, 4)}]
                 if second_b is not None and second > 0 and abs(best - second) < 0.05:
-                    alts.append({"dst": second_b, "score": second})
+                    alts.append({"dst": second_b, "score": round(second, 4)})
                     results[a] = {
                         "dst": b,
-                        "score": best,
-                        "margin": margin,
+                        "score": round(best, 4),
+                        "margin": round(margin, 4),
                         "evidence": enrich_evidence(ev, status="ambiguous", alternatives=alts, identity_claim=False, stage="fuzzy_residue"),
                         "round": rnd,
                         "status": "review",
@@ -741,8 +910,8 @@ def match_binaries(
                 else:
                     results[a] = {
                         "dst": b,
-                        "score": best,
-                        "margin": margin,
+                        "score": round(best, 4),
+                        "margin": round(margin, 4),
                         "evidence": enrich_evidence(ev, stage="fuzzy_residue"),
                         "round": rnd,
                         "kind": "fuzzy",
@@ -767,19 +936,7 @@ def match_binaries(
                 round_label=rnd,
                 pair_class=pair_class,
             )
-            for src, result in results.items():
-                if result.get("kind") == "callgraph" and src not in dependency_ancestry:
-                    raw_direct = list(result.get("evidence", {}).get("dependencies") or ())
-                    direct = [f"{src_id}:{int(parent)}" for parent in raw_direct]
-                    ancestry = set(direct)
-                    for parent in raw_direct:
-                        ancestry.update(dependency_ancestry.get(int(parent), ()))
-                    dependency_ancestry[src] = ancestry
-                    result["evidence"] = enrich_evidence(
-                        result["evidence"], kind="callgraph", status="auto",
-                        dependencies=direct, stage="callgraph",
-                    )
-                    result["evidence"]["dependency_ancestry"] = sorted(ancestry)
+            tokenise_callgraph_results()
             taken = set(mapping.values())
             new += grown
         if new == 0:
@@ -808,6 +965,9 @@ def match_binaries(
             id_field="addr", left_lookup=sa.funcs, right_lookup=sb.funcs,
             round_label="bsim-callgraph", pair_class=pair_class,
         )
+        # The post-BSim site persisted raw parent addrs: no conversion ran
+        # after it, so its rows could never intersect the quarantine set.
+        tokenise_callgraph_results()
         if grown:
             bsim_receipt["propagated"] = grown
             mapping.update({src: int(item["dst"]) for src, item in results.items()
@@ -819,7 +979,7 @@ def match_binaries(
     # therefore cannot establish a block-level non-1:1 correspondence.
     inlines = [] if src_id == dst_id else leftover_inlines(
         [sa.funcs[a] for a in src_addrs if a not in mapping],
-        [sb.funcs[b] for b in dst_eligible if b not in mapping.values()],
+        [sb.funcs[b] for b in sorted(dst_eligible) if b not in mapping.values()],
     )
     for hit in inlines:
         src_addr = hit["missing_id"]

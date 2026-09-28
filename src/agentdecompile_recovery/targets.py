@@ -130,6 +130,8 @@ def inspect_magic(path: Path) -> tuple[str, str]:
     if data.startswith(b"\x7fELF"):
         cls = {1: "x86", 2: "x86_64"}.get(data[4], "unknown")
         return ("elf", cls)
+    if data.startswith(b"XBEH"):
+        return ("xbe", "x86")
     if data[:4] in {b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe"}:
         return ("macho", macho_machine(data))
     return ("unknown", "unknown")

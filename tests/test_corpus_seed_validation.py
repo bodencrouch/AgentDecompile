@@ -32,7 +32,10 @@ def test_static_audit_cannot_overwrite_destination_compile_ledger() -> None:
 def test_retry_keeps_prior_byte_exact_result_only_for_same_inputs() -> None:
     prior = {
         "seed": "seed.c", "source_path": "/source.c",
-        "destination_bytes": "c3", "compile_status": "byte_exact",
+        "destination_bytes": "c3", "compile_status": "byte_exact", "comparisonPolicy": "raw-region-v1", "compileBasis": {"key": "d"*64, "closureComplete": True},
+        "sourceSha256": "a" * 64,
+        "targetSnapshot": {"sha256": "b" * 64},
+        "targetRegion": {"address": 0, "offset": 0, "size": 1, "sha256": "c" * 64},
     }
     assert can_reuse_compile_result(dict(prior), prior)
     changed = dict(prior, destination_bytes="90c3")

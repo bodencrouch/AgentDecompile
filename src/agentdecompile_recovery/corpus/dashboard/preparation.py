@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Any
 
 from .common import live_db, live_root, query_db
+from . import admission_budget, mcp_budget
+from .retry_policy import MAX_ACTION_ATTEMPTS, decide_retry, refusal_outcome
 from agentdecompile_recovery.corpus.ghidra_project import ghidra_program_path
 from agentdecompile_recovery.corpus.donor_schedule import spanning_forest_pairs
 from .workflow import DEFAULT_BUDGET_SECONDS, MAX_BUDGET_SECONDS, STAGES as RECOVERY_STAGES, VERSION, transient_failure
@@ -215,8 +217,42 @@ def _write(row: dict[str, Any]) -> None:
     row['updatedAt'] = time.time()
     path = _directory() / (row['id'] + '.json')
     temporary = path.with_suffix('.tmp')
-    temporary.write_text(json.dumps(row), encoding='utf-8')
+    with temporary.open('w', encoding='utf-8') as stream:
+        json.dump(row, stream)
+        stream.flush()
+        os.fsync(stream.fileno())
     temporary.replace(path)
+    # The admission intent and spent budget must survive a crash before a
+    # subprocess is dispatched. Rename alone does not persist its directory.
+    if os.name == 'posix':
+        directory_fd = os.open(str(path.parent), os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0))
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+
+
+def _mcp_reservation_capability(row, lease, *, dispatch_id=None, action_id=None):
+    """Capture this row and lease generation; never hydrate authority from JSON."""
+    def reserve(tool):
+        with _LOCK:
+            if lease is None or getattr(lease, 'closed', False) or _LEASES.get(row['id']) is not lease or row['id'] not in _ACTIVE:
+                raise mcp_budget.DispatchRefused({
+                    'nextAction': 'provider_authority_lost',
+                    'reason': 'Preparation lease no longer authorizes MCP dispatch.',
+                    'wakeCondition': 'explicit_owner_reconciliation'})
+            try:
+                attempt = mcp_budget.reserve(row, tool, dispatch_id=dispatch_id, action_id=action_id)
+                _write(row)
+                return attempt
+            except mcp_budget.DispatchRefused:
+                raise
+            except Exception as exc:
+                raise mcp_budget.DispatchRefused({
+                    'nextAction': 'provider_budget_persistence_failed',
+                    'reason': f'MCP dispatch intent could not be persisted: {exc}',
+                    'wakeCondition': 'explicit_owner_reconciliation'}) from exc
+    return reserve
 
 
 def _read(run_id: str) -> dict[str, Any]:
@@ -281,9 +317,15 @@ def _public_run(row: dict[str, Any], *, detailed: bool = True, live_jobs: list[A
         'updatedAt', 'workflowVersion', 'queuePriority', 'priorityReason',
         'queuePosition', 'budgetSeconds', 'budgetOrigin', 'deadline', 'error',
         'jobId', 'admissionPending', 'executionLocator',
-        'executionProgramPaths', 'stages',
+        'executionProgramPaths', 'stages', 'retryDecisions', 'objectiveBudget',
     }
     result = {key: row[key] for key in fields if key in row}
+    if isinstance(result.get('objectiveBudget'), dict):
+        result['objectiveBudget'] = {key: value for key, value in result['objectiveBudget'].items()
+                                     if key in {'schema', 'objectiveId', 'maxActionAdmissions', 'consumed',
+                                                'allocationRevision', 'priorUsageUnknown', 'accountingScope'}}
+    if 'providerBudget' in row:
+        result['providerBudget'] = mcp_budget.public(row)
     result['stages'] = []
     for stage in row.get('stages') or []:
         if not isinstance(stage, dict):
@@ -844,7 +886,8 @@ def submit(context: dict[str, Any], *, resume: bool = False, _admit: bool = Fals
     run_id = hashlib.sha256(key.encode()).hexdigest()[:32]
     with _LOCK:
         if run_id in _ACTIVE:
-            return _read(run_id)
+            result = _read(run_id)
+            return {**result, **({'providerBudget': mcp_budget.public(result)} if 'providerBudget' in result else {})}
         lease = (_directory() / (run_id + '.lock')).open('a+')
         try:
             _lock_lease(lease)
@@ -852,7 +895,8 @@ def submit(context: dict[str, Any], *, resume: bool = False, _admit: bool = Fals
             lease.close()
             for _ in range(20):
                 try:
-                    return _read(run_id)
+                    result = _read(run_id)
+                    return {**result, **({'providerBudget': mcp_budget.public(result)} if 'providerBudget' in result else {})}
                 except FileNotFoundError:
                     time.sleep(0.01)
             return {'id': run_id, 'status': 'queued', 'locator': context.get('locator', ''),
@@ -860,16 +904,18 @@ def submit(context: dict[str, Any], *, resume: bool = False, _admit: bool = Fals
                     'stages': [], 'events': [], 'reason': 'Another server is recording this preparation admission.'}
         _LEASES[run_id] = lease
         try:
-            return _submit(context, resume=resume, _admit=_admit)
+            result = _submit(context, resume=resume, _admit=_admit)
+            return {**result, **({'providerBudget': mcp_budget.public(result)} if 'providerBudget' in result else {})}
         finally:
             if run_id not in _ACTIVE:
                 _release_lease(run_id)
 
 
 def _release_lease(run_id: str) -> None:
-    lease = _LEASES.pop(run_id, None)
-    if lease is not None:
-        lease.close()
+    with _LOCK:
+        lease = _LEASES.pop(run_id, None)
+        if lease is not None:
+            lease.close()
 
 
 def _submit(context: dict[str, Any], *, resume: bool = False, _admit: bool = False) -> dict[str, Any]:
@@ -902,7 +948,7 @@ def _submit(context: dict[str, Any], *, resume: bool = False, _admit: bool = Fal
                 # them as ``running`` makes the renewed coordinator wait on
                 # a process that no longer exists.  Preserve their recorded
                 # parameters and output, but make their state explicit so
-                # the normal safe-replay policy can submit them once.
+                # retry policy can reconcile their terminal receipt before replay.
                 for action_row in (previous.get('actions') or {}).values():
                     if isinstance(action_row, dict) and action_row.get('status') in {'submitting', 'queued', 'running', 'cancelling'}:
                         action_row['status'] = 'interrupted'
@@ -926,8 +972,15 @@ def _submit(context: dict[str, Any], *, resume: bool = False, _admit: bool = Fal
                'deadline': previous.get('deadline'),
                'budgetOrigin': previous.get('budgetOrigin', 'default'),
                'actions': previous.get('actions', {}), 'jobTimingContexts': previous.get('jobTimingContexts', {}),
+               'retryDecisions': previous.get('retryDecisions', {}),
                'events': previous.get('events', []), 'programs': [], 'checkpoints': previous.get('checkpoints', {}),
                'stages': _merge_stages(previous)}
+        if 'objectiveBudget' in previous:
+            row['objectiveBudget'] = previous['objectiveBudget']
+        if 'providerBudget' in previous:
+            row['providerBudget'] = previous['providerBudget']
+        mcp_budget.initialize(row, context.get('maxMcpToolCalls'))
+        admission_budget.initialize(row, context.get('maxActionAdmissions'))
         if resume:
             _reset_resume_projection(row)
         if len(_ACTIVE) >= 4 or (_WAITING and not _admit):
@@ -961,6 +1014,9 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
     run_id = params['preparation_id']
     with _LOCK:
         row = _read(run_id)
+        admission_budget.initialize(row, row.get('maxActionAdmissions'))
+        mcp_budget.initialize(row, row.get('maxMcpToolCalls'))
+        mcp_lease = _LEASES.get(run_id)
         _ensure_stages(row)
         row['status'] = 'running'
         _write(row)
@@ -979,6 +1035,8 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             if status == 'running':
                 stage.pop('nextFallback', None)
                 stage.pop('retryAt', None)
+                for retry_field in ('nextAction', 'wakeCondition', 'retryDecision'):
+                    stage.pop(retry_field, None)
                 # Starting an unlimited child must not inherit a limit from
                 # a prior bounded probe or legacy execution attempt.
                 if values.get('jobId') and 'executionLimitSeconds' not in values:
@@ -1033,8 +1091,8 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         # Admission and terminal receipts are durable. An uncertain external
         # mutation is blocked after owner death rather than replayed blindly.
         probe = bool(fields.get('_preparationProbe')) or name == 'workbench.merge-evidence'
-        from .workflow import input_revision
-        identity_parts = [name, fields, input_revision(fields), context.get('locator'), context.get('program'),
+        retry_revision = _retry_input_revision(name, fields)
+        identity_parts = [name, fields, retry_revision, context.get('locator'), context.get('program'),
                           context.get('slug'), row['checkpoints'].get(context.get('program', ''), {}).get('programFingerprint')]
         # Automatic probes do not mutate Ghidra.  Bind their durable action
         # identity to the route revision so a repaired shared DomainFile path
@@ -1042,48 +1100,70 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         # receipt from an older execution route.
         if fields.get('_preparationProbe'):
             identity_parts.append(row.get('executionRouteRevision', ''))
+        retry_basis = None
         if name == 'corpus.match-pair':
-            identity_parts.append(_comparison_inventory(str(fields.get('src') or ''), str(fields.get('dst') or ''), comparison_inputs))
+            retry_basis = _comparison_inventory(str(fields.get('src') or ''), str(fields.get('dst') or ''), comparison_inputs)
+            identity_parts.append(retry_basis)
         identity = json.dumps(identity_parts, sort_keys=True)
         action_id = hashlib.sha256(identity.encode()).hexdigest()
         with _LOCK:
             history = row.setdefault('actions', {})
-            prior = dict(history.get(action_id, {}))
-        if probe or (prior.get('status') == 'ok' and key in {'facts', 'calibrate-global', 'verify-byte-accuracy'}):
+            prior = (_matching_retry_prior(history, action_id, fields) if name == 'corpus.match-pair'
+                     else dict(history.get(action_id, {})))
+        if prior.get('status') == 'ok' and not (prior.get('result') or {}).get('ownershipUnresolved') and (probe or key in {'facts', 'calibrate-global', 'verify-byte-accuracy'}):
             prior = {}
-        if not probe and prior.get('status') == 'ok' and key not in {'facts', 'calibrate-global', 'verify-byte-accuracy'}:
+        if not probe and prior.get('status') == 'ok' and not (prior.get('result') or {}).get('ownershipUnresolved') and key not in {'facts', 'calibrate-global', 'verify-byte-accuracy'}:
             return prior['result']
-        # Inventory and analysis are idempotent under the owning native lock;
-        # most external subprocess mutations need a recovered terminal
-        # receipt before replay. corpus.match-pair is the one exception:
-        # propagate.run_pair() opens with `DELETE FROM match WHERE run=?
-        # AND src_binary=? AND dst_binary=?` before inserting, so replaying
-        # it is a clean overwrite, not a duplicate-write risk. Without this,
-        # a single dead owner process permanently wedges every pair it had
-        # in flight — the retry loop below is never reached, so that pair
-        # can never complete for the life of the run.
-        safe_replay = name in {'mcp.analyze-program', 'mcp.execute-script', 'corpus.match-pair'}
-        # The facts inventory first reconciles durable SQLite state before it
-        # submits, so an owner-reload interruption — or this terminal
-        # 600-second tool timeout with no reconciled inventory — has no
-        # partial write to preserve. Do not broadly replay timed-out actions.
-        retry_missing_facts_timeout = (
-            key == 'facts' and name == 'mcp.execute-script'
-            and prior.get('status') == 'failed' and fields.get('timeout') == 600
-            and str((prior.get('result') or {}).get('error') or '').strip().lower() == 'error: timed out'
-        )
-        if key == 'facts' and name == 'mcp.execute-script' and (
-            prior.get('status') == 'interrupted' or retry_missing_facts_timeout
-        ):
-            prior = {}
+        # A successful observation may be refreshed; failed/uncertain attempts
+        # retain their spending. Relevant input changes already change action_id.
         prior = _action_prior_for_retry(name, prior)
         prior_job = jobs.get_job(prior.get('jobId', '')) if prior.get('jobId') else None
-        unavailable = prior_job is None or getattr(prior_job, 'history_only', False) or getattr(prior_job, 'owner_unavailable', False) or prior_job.status == 'interrupted'
-        if prior.get('status') in {'submitting', 'queued', 'running'} and unavailable and not safe_replay:
-            return {'ok': False, 'error': 'interrupted-action: completion of the accepted job is unknown; reconcile its output before resubmission.', 'jobId': prior.get('jobId')}
-        if not probe and prior.get('status') == 'failed' and not transient_failure(prior.get('result', {})):
-            return prior['result']
-        for attempt in range(int(prior.get('attempts', 0)), 3):
+        unsettled = (prior.get('status') in {'submitting', 'queued', 'running', 'interrupted', 'cancelling'}
+                     or bool((prior.get('result') or {}).get('unknownOutcome'))
+                     or bool((prior.get('result') or {}).get('ownershipUnresolved')))
+        if unsettled and prior_job is not None and prior_job.status in {'ok', 'failed', 'cancelled'}:
+            # A terminal job receipt closes the dispatch/recording crash gap.
+            # Reconcile it instead of launching the same accepted action again.
+            terminal_data = _decode_job_output(prior_job.log or '')
+            terminal_outcome = {
+                'ok': prior_job.status == 'ok', 'data': terminal_data,
+                'log': (prior_job.log or '')[-4000:], 'jobId': prior_job.id,
+                'finishedAt': prior_job.finished_at, 'error': prior_job.error,
+                'ownershipUnresolved': getattr(prior_job, 'resource_disposition', '') == 'quarantined' or _unresolved_job_ownership(terminal_data, prior.get('result')),
+                'unknownOutcome': bool((prior.get('result') or {}).get('unknownOutcome')) and terminal_data is None,
+            }
+            prior.update(status='ok' if terminal_outcome['ok'] else 'failed', result=terminal_outcome)
+            with _LOCK:
+                history[action_id] = prior
+                _write(row)
+            if terminal_outcome['ok'] and not terminal_outcome['ownershipUnresolved'] and not terminal_outcome['unknownOutcome']:
+                return terminal_outcome
+        available = bool(prior_job is not None and not getattr(prior_job, 'history_only', False)
+                         and not getattr(prior_job, 'owner_unavailable', False)
+                         and prior_job.status in {'queued', 'running', 'cancelling'})
+        previous_provider = (prior.get('result') or {}).get('data') or {}
+        provider_revised = (isinstance(previous_provider, dict)
+            and previous_provider.get('nextAction') == 'provider_budget_exhausted'
+            and mcp_budget.initialize(row)['allocationRevision'] > previous_provider.get('allocationRevision', 0))
+        decision = decide_retry(
+            prior, transient=transient_failure(prior.get('result', {})),
+            prerequisite_recovered=bool(prior.get('retryPrerequisiteRecovered')) or provider_revised,
+            owner_available=available,
+        )
+        if name.startswith('mcp.') and decision['nextAction'] not in {'unknown_outcome', 'await_existing', 'reuse_result'}:
+            decision = mcp_budget.exhausted(row) or decision
+        with _LOCK:
+            history.setdefault(action_id, dict(prior))['retryDecision'] = decision
+            if retry_basis is not None:
+                history[action_id].update(action=name, params=fields, retryBasis=retry_basis)
+            _remember_retry_decision(row, action_id, name, decision)
+            _write(row)
+        if decision['nextAction'] != 'dispatch':
+            update(key, 'waiting' if available else 'blocked', decision['reason'],
+                   nextAction=decision['nextAction'], wakeCondition=decision['wakeCondition'],
+                   retryDecision=decision, attempts=decision['attemptsSpent'])
+            return refusal_outcome(prior, decision)
+        for attempt in range(int(prior.get('attempts', 0)), MAX_ACTION_ATTEMPTS):
             # Matching submits several independent candidates into the shared
             # job store. A pause must freeze that admission queue, while a
             # child already executing gets to write its durable receipt.
@@ -1092,15 +1172,37 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             if stopped():
                 raise InterruptedError('Workflow stopped or its execution budget was reached.')
             with _LOCK:
+                provider_decision = mcp_budget.exhausted(row) if name.startswith('mcp.') else None
+                if provider_decision:
+                    _remember_retry_decision(row, action_id, name, provider_decision)
+                    _write(row)
+                    update(key, 'blocked', provider_decision['reason'], nextAction=provider_decision['nextAction'], wakeCondition=provider_decision['wakeCondition'], retryDecision=provider_decision)
+                    return refusal_outcome(prior, provider_decision)
+                dispatch_id = uuid.uuid4().hex
+                objective_decision = admission_budget.reserve(row, dispatch_id, action_id, name)
+                if objective_decision['nextAction'] != 'dispatch':
+                    history.setdefault(action_id, {})['retryDecision'] = objective_decision
+                    _remember_retry_decision(row, action_id, name, objective_decision)
+                    _write(row)
+                    update(key, 'blocked', objective_decision['reason'],
+                           nextAction=objective_decision['nextAction'],
+                           wakeCondition=objective_decision['wakeCondition'], retryDecision=objective_decision)
+                    return refusal_outcome(prior, objective_decision)
                 history[action_id] = {
+                    'dispatchId': dispatch_id,
                     'status': 'submitting', 'action': name, 'params': fields,
                     'target': context.get('program') or context.get('locator'),
+                    **({'retryBasis': retry_basis} if retry_basis is not None else {}),
                     'attempts': attempt + 1, 'at': time.time(),
+                    'retryDecision': {**decision, 'attemptsSpent': attempt + 1,
+                                      'attemptsRemaining': MAX_ACTION_ATTEMPTS - attempt - 1},
                     **({'executionRouteRevision': row.get('executionRouteRevision', ''),
                         'executionRoute': {'locator': context.get('locator', ''), 'program': context.get('program', '')}}
                        if fields.get('_preparationProbe') else {}),
                 }
+                _remember_retry_decision(row, action_id, name, history[action_id]['retryDecision'])
                 _write(row)
+            mcp_reserve = _mcp_reservation_capability(row, mcp_lease, dispatch_id=dispatch_id, action_id=action_id)
             job_fields = dict(fields)
             if name == 'corpus.match-pair':
                 # This records the project's explicit budget decision with
@@ -1109,16 +1211,17 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 job_fields['_preparationUnlimited'] = row.get('deadline') is None
                 job_fields['progress_json'] = True
             if key == 'facts' and name == 'mcp.execute-script':
-                response, status = jobs._start_preparation_facts_inventory(job_fields, context)
+                response, status = jobs._start_preparation_facts_inventory(job_fields, context, _mcp_reserve=mcp_reserve)
             elif fields.get('_preparationProbe') and name == 'mcp.execute-script':
-                response, status = jobs._start_preparation_probe(job_fields, context)
+                response, status = jobs._start_preparation_probe(job_fields, context, _mcp_reserve=mcp_reserve)
             else:
-                response, status = jobs.start_job(name, job_fields, context=context, confirm=True)
+                response, status = jobs.start_job(name, job_fields, context=context, confirm=True, **({"_mcp_reserve": mcp_reserve} if name.startswith("mcp.") else {}))
             if status >= 400:
                 outcome = {'ok': False, 'error': response.get('error')}
             else:
                 job_id = response['job']['id']
                 with _LOCK:
+                    admission_budget.acknowledge(row, dispatch_id, job_id)
                     history[action_id].update(status='queued', jobId=job_id)
                     checkpoint = row['checkpoints'].get(context.get('program', ''), {})
                     row.setdefault('jobTimingContexts', {})[job_id] = {key: checkpoint.get(key) for key in ('architecture', 'ghidraVersion', 'workSize', 'toolchain')}
@@ -1195,7 +1298,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                             job = jobs.get_job(job_id)
                         raise InterruptedError('Workflow stopped after its accepted operation drained.')
                     if job is None:
-                        outcome = {'ok': False, 'error': 'The accepted stage job is unavailable; output reconciliation is required.', 'jobId': job_id}
+                        outcome = {'ok': False, 'error': 'The accepted stage job is unavailable; output reconciliation is required.', 'jobId': job_id, 'unknownOutcome': True}
                         break
                     if wait_deadline is not None and time.monotonic() >= wait_deadline:
                         jobs.cancel_job(job_id)
@@ -1203,12 +1306,13 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                         while job is not None and job.status in {'queued', 'running', 'cancelling'} and time.monotonic() < drain_deadline:
                             cancel.wait(.25)
                             job = jobs.get_job(job_id)
-                        if job is not None and job.status in {'queued', 'running', 'cancelling'}:
+                        if job is None or job.status in {'queued', 'running', 'cancelling', 'interrupted'}:
                             outcome = {
                                 'ok': False,
                                 'error': f'{key}-timeout: cancellation did not reach a terminal state; project ownership is quarantined and this operation will not be retried.',
                                 'jobId': job_id,
                                 'ownershipUnresolved': True,
+                                'unknownOutcome': job is None or job.status == 'interrupted',
                             }
                         else:
                             outcome = {'ok': False, 'error': f'{key}-timeout: the {"read-only probe" if probe else "bounded operation"} exceeded {int(wait_limit)} seconds and drained after cancellation.', 'jobId': job_id}
@@ -1224,41 +1328,40 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                         update(key, 'running', jobStatus=job.status, lastJobUpdateAt=now,
                                heartbeatAt=now)
                     if job.status not in {'queued', 'running', 'cancelling'}:
-                        data = None
                         text = job.log.strip()
-                        try:
-                            data, _ = json.JSONDecoder().raw_decode(text[text.index('{'):])
-                            if isinstance(data, dict) and isinstance(data.get('result'), str):
-                                executed = data.get('executedProgram')
-                                try:
-                                    result = json.loads(data['result'])
-                                except ValueError:
-                                    result = data
-                                if isinstance(result, dict) and isinstance(executed, dict):
-                                    # Immutable shared snapshots expose /Untitled as their
-                                    # transient DomainFile. The provider's executed target is
-                                    # the canonical project identity for this exact MCP call.
-                                    target_path = str(executed.get('path') or '')
-                                    if target_path:
-                                        result['programPath'] = target_path
-                                data = result
-                        except (ValueError, TypeError):
-                            pass
+                        data = _decode_job_output(text)
                         with _LOCK:
                             row['jobTimingContexts'][job_id].update(status=job.status, startedAt=job.started_at, finishedAt=job.finished_at)
-                        outcome = {'ok': job.status == 'ok', 'data': data, 'log': text[-4000:], 'jobId': job_id, 'finishedAt': job.finished_at, 'error': job.error}
+                        outcome = {'ok': job.status == 'ok', 'data': data, 'log': text[-4000:], 'jobId': job_id, 'finishedAt': job.finished_at, 'error': job.error, 'unknownOutcome': job.status == 'interrupted', 'ownershipUnresolved': getattr(job, 'resource_disposition', '') == 'quarantined' or _unresolved_job_ownership(data)}
                         break
                     cancel.wait(.25)
             with _LOCK:
                 history[action_id].update(status='ok' if outcome['ok'] else 'failed', result=outcome)
                 _write(row)
-            if outcome['ok'] or not transient_failure(outcome) or attempt == 2:
+            provider_decision = outcome.get('data')
+            if isinstance(provider_decision, dict) and str(provider_decision.get('nextAction', '')).startswith('provider_'):
+                decision = {k: provider_decision[k] for k in ('nextAction', 'reason', 'wakeCondition', 'attemptsSpent', 'attemptsRemaining', 'allocationRevision') if k in provider_decision}
+                decision.setdefault('attemptsSpent', mcp_budget.initialize(row)['consumed'])
+            else:
+                decision = decide_retry(history[action_id], transient=transient_failure(outcome))
+            with _LOCK:
+                history[action_id]['retryDecision'] = decision
+                _remember_retry_decision(row, action_id, name, decision)
+                _write(row)
+            if outcome['ok'] and decision['nextAction'] == 'reuse_result':
                 return outcome
+            if decision['nextAction'] != 'dispatch':
+                update(key, 'blocked', decision['reason'], nextAction=decision['nextAction'],
+                       wakeCondition=decision['wakeCondition'], retryDecision=decision,
+                       attempts=decision['attemptsSpent'])
+                return {**outcome, 'ok': False, 'retryDecision': decision, 'nextAction': decision['nextAction'],
+                        'wakeCondition': decision['wakeCondition'], 'error': decision['reason'],
+                        'previousError': outcome.get('error', '')}
             delay = 2 ** (attempt + 1)
             update(key, 'waiting', f'Temporary service failure. Another attempt follows in {delay} seconds.', attempts=attempt + 1, nextFallback='Retry transient service failure', retryAt=time.time() + delay)
             if cancel.wait(delay):
                 raise InterruptedError('Workflow stopped during service backoff.')
-        return prior.get('result') or {'ok': False, 'error': 'Transient retry budget exhausted.'}
+        return refusal_outcome(prior, decide_retry(prior))
 
     try:
         locator, selected = row['locator'], row['program']
@@ -1508,11 +1611,11 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         )
         inventory_rows = inventory_rows if not inventory_error else []
         inventory_by_binding = {
-            (str(item[5] or '').replace('\\', '/').rstrip('/'), str(item[6] or '').replace('\\', '/').lstrip('/')): item[:5]
+            (str(item[5] or '').replace('\\', '/').rstrip('/'), str(item[6] or '').replace('\\', '/').lstrip('/')): item
             for item in inventory_rows if item[5] and item[6]
         }
         inventory_by_source = {
-            str(Path(str(item[2] or '')).expanduser().resolve(strict=False)): item[:5]
+            str(Path(str(item[2] or '')).expanduser().resolve(strict=False)): item
             for item in inventory_rows if item[2]
         }
         extracted = 0
@@ -1860,6 +1963,9 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
         row.update(status='blocked', error=str(exc))
     finally:
         with _LOCK:
+            provider_block = next((stage for stage in row['stages'] if str(stage.get('nextAction', '')).startswith('provider_')), None)
+            if provider_block is not None:
+                row.update(status='blocked', error=provider_block.get('reason', 'MCP dispatch budget blocked this preparation.'))
             for stage in row['stages']:
                 if stage['status'] in {'running', 'queued', 'waiting', 'cancelling'}:
                     stage.update(status='blocked', reason=row.get('error') or 'A prerequisite prevented this stage from running.')
@@ -1867,7 +1973,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             _ACTIVE.discard(run_id)
             _release_lease(run_id)
             _ADMISSION_WAKE.set()
-    return (0 if row['status'] in {'completed', 'partial', 'paused'} else 1), json.dumps(row, indent=2)
+    return (0 if row['status'] in {'completed', 'partial', 'paused'} else 1), json.dumps({**row, 'providerBudget': mcp_budget.public(row)}, indent=2)
 
 
 class _PauseRequested(Exception):
@@ -2014,15 +2120,83 @@ finally:
 """
 
 
-def _action_prior_for_retry(name: str, prior: dict[str, Any]) -> dict[str, Any]:
-    """Allow idempotent corpus.match-pair to retry prior terminal failures.
+def _retry_input_revision(name: str, fields: dict[str, Any]) -> list[Any]:
+    from .workflow import input_revision
+    # Matcher semantic inputs are the frozen source/target inventory below.
+    # A shared SQLite KB's mtime/size also changes for unrelated programs.
+    observed = {key: value for key, value in fields.items() if key != 'kb'} if name == 'corpus.match-pair' else fields
+    return input_revision(observed)
 
-    propagate.run_pair() deletes existing rows for the run/pair before insert,
-    so a failed attempt from an earlier infra outage does not permanently block
-    the pair when comparison receipts are still absent.
-    """
-    if name == 'corpus.match-pair' and prior.get('status') == 'failed':
+
+def _matching_retry_prior(history: dict[str, Any], action_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+    if action_id in history:
+        return dict(history[action_id])
+    siblings = [(key, value) for key, value in history.items()
+                if isinstance(value, dict) and value.get('action') == 'corpus.match-pair'
+                and value.get('params') == fields]
+    if any('retryBasis' in value for _, value in siblings):
+        # A new semantic inventory after migration is a genuinely new basis.
         return {}
+    legacy = [(key, value) for key, value in siblings if value.get('status') != 'ok']
+    if not legacy:
+        return {}
+    # Legacy hashes cannot reveal which KB revision they included. Conservatively
+    # carry spending once instead of silently refunding old failures on upgrade.
+    attempts = sum(value.get('attempts', 0) if isinstance(value.get('attempts', 0), int)
+                   else MAX_ACTION_ATTEMPTS for _, value in legacy)
+    unresolved = next((value for _, value in legacy if value.get('status') in
+                       {'submitting', 'queued', 'running', 'interrupted', 'cancelling'}), None)
+    previous = dict(unresolved or legacy[-1][1])
+    previous.update(attempts=attempts, retryMigratedFrom=[key for key, _ in legacy])
+    return previous
+
+
+def _decode_job_output(text: str) -> Any:
+    """Decode both ordinary and crash-reconciled receipts identically."""
+    try:
+        data, _ = json.JSONDecoder().raw_decode(text[text.index('{'):])
+        if isinstance(data, dict) and isinstance(data.get('result'), str):
+            envelope = data
+            try:
+                result = json.loads(data['result'])
+            except ValueError:
+                return data
+            if isinstance(result, dict):
+                executed = envelope.get('executedProgram')
+                if isinstance(executed, dict) and executed.get('path'):
+                    result['programPath'] = str(executed['path'])
+                # Do not discard ownership warnings carried by an outer tool
+                # envelope when its nested scientific payload is decoded.
+                if envelope.get('ownershipResolved') is False or envelope.get('ownershipUnresolved'):
+                    result['ownershipUnresolved'] = True
+            data = result
+        return data
+    except (ValueError, TypeError):
+        return None
+
+
+def _unresolved_job_ownership(data: Any, previous: Any = None) -> bool:
+    current = data if isinstance(data, dict) else {}
+    old = previous if isinstance(previous, dict) else {}
+    return bool(current.get('ownershipResolved') is False or current.get('ownershipUnresolved')
+                or (old.get('ownershipUnresolved') and current.get('ownershipResolved') is not True))
+
+
+def _remember_retry_decision(row: dict[str, Any], action_id: str, name: str, decision: dict[str, Any]) -> None:
+    """Bounded public projection; complete decision history remains on actions."""
+    decisions = row.setdefault('retryDecisions', {})
+    decisions.pop(action_id, None)
+    decisions[action_id] = {'action': name, **decision}
+    while len(decisions) > 64:
+        decisions.pop(next(iter(decisions)))
+
+
+def _action_prior_for_retry(name: str, prior: dict[str, Any]) -> dict[str, Any]:
+    """Observe one repaired prerequisite without discarding attempt history.
+
+    Matching idempotence never grants fresh retries. A repaired BSim launcher
+    makes a prior missing-launcher failure eligible only within its original cap.
+    """
     data = (prior.get('result') or {}).get('data') or {}
     if (
         name == 'corpus.bsim-createdatabase' and prior.get('status') == 'failed'
@@ -2031,7 +2205,7 @@ def _action_prior_for_retry(name: str, prior: dict[str, Any]) -> dict[str, Any]:
     ):
         from agentdecompile_recovery.corpus.bsim_ops import find_bsim_launcher
         if find_bsim_launcher() is not None:
-            return {}
+            return {**prior, 'retryPrerequisiteRecovered': 'bsim_launcher_available'}
     return prior
 
 
@@ -2165,10 +2339,44 @@ def _read_control(run_id: str) -> dict[str, Any]:
         return {}
 
 
+def _revise_admission_budget(run_id: str, params: dict[str, Any], *, provider: bool = False) -> dict[str, Any]:
+    # An active coordinator owns a long-lived row snapshot. Require its existing
+    # lease to drain so neither its heartbeat nor its next intent can lose this
+    # revision. The OS lease also fences other server processes.
+    allocation = 'maxMcpToolCalls' if provider else 'maxActionAdmissions'
+    label = 'MCP provider' if provider else 'Admission'
+    accounting = mcp_budget if provider else admission_budget
+    with _LOCK:
+        _read(run_id)  # Validate identity before constructing its lease path.
+        if run_id in _ACTIVE or run_id in _LEASES:
+            raise ValueError(f'Pause and drain the preparation before changing its {label.lower()} allocation')
+        with (_directory() / (run_id + '.lock')).open('a+') as lease:
+            try:
+                _lock_lease(lease)
+            except BlockingIOError as exc:
+                raise ValueError('Preparation is owned by an active coordinator; pause and drain before revising') from exc
+            row = _read(run_id)
+            if allocation not in params and params.get('unlimited') is not True:
+                raise ValueError(f'Supply {allocation} or explicit unlimited=true')
+            accounting.revise(
+                row, expected_revision=params.get('expectedAllocationRevision'),
+                maximum=params.get(allocation), unlimited=params.get('unlimited', False))
+            _write(row)
+        _ADMISSION_WAKE.set()
+        queued = (run_id in _WAITING or bool(row.get('admissionPending'))) and _read_control(run_id).get('operation') not in {'pause', 'stop'}
+        return {**_public_run(row), 'controlAcknowledged': True,
+                'nextAction': 'wait_for_admission' if queued else 'resume',
+                'wakeCondition': 'admission_capacity' if queued else 'explicit_resume',
+                'reason': (f'{label} allocation revised without changing spending; existing queued work remains eligible.' if queued else
+                           f'{label} allocation revised without changing spending; resume the preparation to continue.')}
+
+
 def control(params: dict[str, Any]) -> dict[str, Any]:
     """Shared pause/stop/budget controls, independent of the browser lifecycle."""
     run_id = str(params.get('preparation_id') or '')
     operation = str(params.get('operation') or '')
+    if operation in {'admission-budget', 'provider-budget'}:
+        return _revise_admission_budget(run_id, params, provider=operation == 'provider-budget')
     if operation not in {'pause', 'resume', 'stop', 'budget', 'priority'}:
         raise ValueError('Choose pause, resume, stop, budget, or priority.')
     with _LOCK:
@@ -2207,7 +2415,7 @@ def control(params: dict[str, Any]) -> dict[str, Any]:
             row.update(deadline=command['deadline'], budgetSeconds=command.get('budgetSeconds'))
             _write(row)
         return submit({key: row.get(key, '') for key in ('locator', 'program', 'slug')}, resume=True)
-    return {**row, 'deadline': command.get('deadline', row.get('deadline')), 'budgetSeconds': command.get('budgetSeconds', row.get('budgetSeconds')), 'queuePriority': command.get('priority', row.get('queuePriority', 50)), 'priorityReason': command.get('priorityReason', 'FIFO among projects with equal priority.'), 'control': command, 'controlAcknowledged': True}
+    return {**row, 'providerBudget': _public_run(row).get('providerBudget'), 'objectiveBudget': _public_run(row).get('objectiveBudget'), 'deadline': command.get('deadline', row.get('deadline')), 'budgetSeconds': command.get('budgetSeconds', row.get('budgetSeconds')), 'queuePriority': command.get('priority', row.get('queuePriority', 50)), 'priorityReason': command.get('priorityReason', 'FIFO among projects with equal priority.'), 'control': command, 'controlAcknowledged': True}
 
 
 def recover_interrupted() -> list[dict[str, Any]]:

@@ -34,12 +34,6 @@ REDIRECTS: dict[str, dict[str, str]] = {
     "corpus": {},
 }
 
-_PASSTHROUGH_SETTINGS_BASE: dict[str, Any] = {
-    "ignore_unknown_options": True,
-    "allow_extra_args": True,
-    "allow_interspersed_args": False,
-}
-
 
 def _run_embedded_cli(
     entrypoint: Callable[..., Any],
@@ -62,10 +56,6 @@ def _token_normalizer() -> Callable[[str], str]:
     # import of cli here would be circular when this module is imported first.
     cli_mod = sys.modules.get("agentdecompile_cli.cli")
     return getattr(cli_mod, "_identity_cli_token", _identity_token)
-
-
-def _passthrough_settings() -> dict[str, Any]:
-    return {**_PASSTHROUGH_SETTINGS_BASE, "token_normalize_func": _token_normalizer()}
 
 
 def _mark(command: click.Command) -> click.Command:
@@ -132,18 +122,29 @@ class LazyArgparseGroup(click.Group):
         return _verb_leaf(self.module_name, self.name, cmd_name, verbs.get(cmd_name, ""))
 
 
+class _ForwardAllCommand(click.Command):
+    """A leaf whose args are forwarded byte-exact, bypassing Click parsing.
+
+    Click's own option parsing (even with ``ignore_unknown_options`` and
+    ``allow_extra_args``) can drop a bare ``--`` when only flags precede it.
+    Since these leaves hand every token to an argparse-based ``main``
+    verbatim, Click must not interpret the tokens at all.
+    """
+
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        ctx.params["args"] = tuple(args)
+        return []
+
+
 def _verb_leaf(module_name: str, group: str, verb: str, short_help: str) -> click.Command:
     def _callback(args: tuple[str, ...]) -> None:
         # Resolve main at call time so patched entry points are honoured.
         entrypoint = importlib.import_module(module_name).main
         _run_embedded_cli(entrypoint, [verb, *args], prog=f"agentdecompile-cli {group}")
 
-    command = click.Command(
+    command = _ForwardAllCommand(
         verb,
         callback=_callback,
-        params=[click.Argument(["args"], nargs=-1, type=click.UNPROCESSED)],
-        context_settings=_passthrough_settings(),
-        add_help_option=False,
         help=short_help,
         short_help=short_help,
     )
@@ -155,12 +156,9 @@ def _redirect_leaf(verb: str, replacement: str) -> click.Command:
         click.echo(f"use: agentdecompile-cli {replacement}", err=True)
         raise SystemExit(2)
 
-    command = click.Command(
+    command = _ForwardAllCommand(
         verb,
         callback=_callback,
-        params=[click.Argument(["args"], nargs=-1, type=click.UNPROCESSED)],
-        context_settings=_passthrough_settings(),
-        add_help_option=False,
         hidden=True,
         help=f"Moved: use agentdecompile-cli {replacement}.",
     )
@@ -168,12 +166,9 @@ def _redirect_leaf(verb: str, replacement: str) -> click.Command:
 
 
 def _flat_leaf(name: str, help_text: str, callback: Callable[[tuple[str, ...]], None]) -> click.Command:
-    command = click.Command(
+    command = _ForwardAllCommand(
         name,
         callback=callback,
-        params=[click.Argument(["args"], nargs=-1, type=click.UNPROCESSED)],
-        context_settings=_passthrough_settings(),
-        add_help_option=False,
         help=help_text,
     )
     return _mark(command)

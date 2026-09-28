@@ -68,6 +68,7 @@ from agentdecompile_cli.cli_agent_help import (
     tool_seq_json_error_message,
 )
 from agentdecompile_cli.cli_param_types import ADVERTISED_PARAM_TYPES
+from agentdecompile_cli.mcp_utils.resource_text import resource_texts
 from agentdecompile_cli.registry import (
     ADVERTISED_TOOLS,
     NON_ADVERTISED_TOOL_ALIASES,
@@ -727,27 +728,10 @@ def _render_result(ctx: click.Context, result: Any) -> str:
 
 
 def _extract_text(result: Any) -> str | None:
-    """First text item of a resources/read result.
-
-    Handles every shape the CLI receives: the remote JSON-RPC dict
-    ``{"contents": [{"text": ...}]}``, the local backend dict
-    ``{"uri", "raw", "parsed"}``, and SDK objects with a ``.contents`` list.
-    """
+    """Return the first text value from a resources/read result."""
     logger.debug("diag.enter %s", "cli.py:_extract_text")
-    if isinstance(result, dict):
-        raw = result.get("raw")
-        if isinstance(raw, bytes):
-            return raw.decode("utf-8", errors="replace")
-        if isinstance(raw, str) and raw:
-            return raw
-        contents: Any = result.get("contents")
-    else:
-        contents = getattr(result, "contents", None)
-    for c in contents or []:
-        text = c.get("text") if isinstance(c, dict) else getattr(c, "text", None)
-        if text:
-            return text
-    return None
+    texts = resource_texts(result)
+    return texts[0] if texts else None
 
 
 def _safe_json_loads(value: Any) -> Any:

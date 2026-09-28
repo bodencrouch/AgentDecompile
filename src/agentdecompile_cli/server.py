@@ -34,6 +34,7 @@ from typing import TYPE_CHECKING, Any
 
 from agentdecompile_cli.executor import normalize_backend_url
 from agentdecompile_cli.launcher import AgentDecompileLauncher
+from agentdecompile_cli.mcp_utils.resource_text import resource_texts
 from agentdecompile_cli.mcp_server.auth import AuthConfig, AuthConfigError, resolve_auth_config
 from agentdecompile_cli.project_manager import ProjectManager
 from agentdecompile_cli.registry import Tool
@@ -53,30 +54,9 @@ _HTTP_TRANSPORTS: frozenset[str] = frozenset({"streamable-http", "http", "sse"})
 
 
 def _resource_texts(result: Any) -> list[Any]:
-    """Text items of a resources/read result, in order.
-
-    ``AgentDecompileMcpClient.read_resource`` returns the JSON-RPC ``result``
-    dict ``{"contents": [{"text": ...}]}``. Also accepts the local backend
-    dict ``{"uri", "raw", "parsed"}`` and SDK objects with ``.contents``.
-    Unlike ``cli._extract_text`` (which only reads ``.contents`` off an SDK
-    object holding ``TextContent`` items and returns the first match), this
-    also reads dict-shaped results and returns every text item, in order.
-    Kept local so the server entry point does not import the Click CLI.
-    """
+    """Return all text values from a resources/read result, in order."""
     logger.debug("diag.enter %s", "server.py:_resource_texts")
-    if isinstance(result, dict):
-        raw = result.get("raw")
-        if isinstance(raw, str) and raw:
-            return [raw]
-        contents: Any = result.get("contents")
-    else:
-        contents = getattr(result, "contents", None)
-    texts: list[Any] = []
-    for c in contents or []:
-        text = c.get("text") if isinstance(c, dict) else getattr(c, "text", None)
-        if text:
-            texts.append(text)
-    return texts
+    return resource_texts(result)
 
 
 def _get_pyghidra_vmargs() -> list[str]:

@@ -1,24 +1,8 @@
 #!/usr/bin/env python3
-"""Matching-decompilation status for a single binary.
+"""Keep local observations, compiled placement and historical diagnostics separate.
 
-Fuses three sources into one honest per-function ledger and a whole-image
-byte-identity check:
-
-  * the fresh relocation-aware byte-exact receipts
-    (verify_recovered_byteexact --out), which prove a function's recovered C
-    compiles to the shipped bytes (objdiff-0),
-  * the corpus DB func list (the denominator: every code function with a size),
-  * the recovered-source tree on disk (real C vs original-byte asm floor).
-
-A function is counted "recovered" only when its receipt is byte-exact. Compiling
-but not byte-exact is NOT recovery for a matching build; original-byte asm floor
-is the substrate that keeps the rebuild runnable until real C lands.
-
-Can emit an exact-placement assembly-floor diagnostic via whole_image_relink,
-plus a per-function manifest. Its equal hash is not a whole-program compiler
-proof.
-
-No hardcoded paths; every location is an argument.
+Only the shared current-artifact evaluator supplies placed contribution. Receipt
+flags, filename classifications and historical floors never supply that count.
 """
 from __future__ import annotations
 
@@ -29,6 +13,9 @@ import sqlite3
 from pathlib import Path
 
 from . import whole_image_relink as wir
+from .finish_binary import load_byte_exact
+from .verify_recovered_byteexact import file_region_offset
+from .source_contribution import evaluate_reconstruction
 
 _HEX = re.compile(r"([0-9a-fA-F]{6,8})")
 
@@ -37,15 +24,22 @@ def load_receipts(path: Path) -> dict[int, dict]:
     """addr(int) -> receipt. Tolerates partial (still-running) receipt files."""
     if not path or not path.is_file():
         return {}
-    doc = json.loads(path.read_text())
+    try:
+        doc = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(doc, dict) or not isinstance(doc.get("results", []), list):
+        return {}
     out: dict[int, dict] = {}
     for r in doc.get("results", []):
+        if not isinstance(r, dict):
+            continue
         a = r.get("addr")
         if a is None:
             continue
         try:
             out[int(str(a), 16) if isinstance(a, str) else int(a)] = r
-        except ValueError:
+        except (ValueError, TypeError):
             continue
     return out
 
@@ -70,7 +64,7 @@ def index_disk(src_dir: Path) -> dict[int, str]:
     return idx
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, reconstruction_observation=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--target", required=True, help="shipped PE (raw image)")
     ap.add_argument("--db", required=True)
@@ -78,8 +72,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--src-dir", required=True, help="recovered-source dir for this program")
     ap.add_argument("--receipts", help="verify_recovered_byteexact --out JSON (may be partial)")
     ap.add_argument("--byte-exact-floor", help="JSON list of addresses proven byte-exact by "
-                    "prior authoritative passes; unioned in so the count never regresses "
-                    "below the established baseline (a single fresh pass is not the total)")
+                    "prior passes; diagnostic only, never accepted contribution")
     ap.add_argument("--out-exe", help="write the exact-placement diagnostic image here")
     ap.add_argument("--out-manifest", help="write the per-function manifest JSON here")
     ap.add_argument("--out-report", help="write the compact variants report (for the dashboard panel)")
@@ -102,32 +95,33 @@ def main(argv: list[str] | None = None) -> int:
         "SELECT addr, size FROM func WHERE binary_id=? AND size>0", (args.binary_id,))]
     con.close()
 
+    local_rejections = []
+    local = load_byte_exact([args.receipts] if args.receipts else [], target_path=args.target,
+                            expected_sizes=dict(funcs), rejected=local_rejections)
+    contribution = evaluate_reconstruction(reconstruction_observation, target_path=args.target,
+                                            db=args.db, binary_id=args.binary_id)
+    placed = {row['candidate']['addr'] for row in contribution['candidates'] if row['accepted']}
     pe = wir.parse_pe(target)
-    text = wir.text_section(pe)
-    base = pe["image_base"]
-    t_lo, t_hi = text["rptr"], text["rptr"] + text["rsize"]
+    code_sections = [section for section in pe["sections"] if section["code"]]
 
     manifest = []
     counts = {"byte_exact": 0, "compiles_not_exact": 0, "asm_floor": 0,
               "absent_c": 0, "out_of_text": 0, "verified_reloc_free": 0}
     for addr, size in funcs:
-        off = addr - base
-        in_text = t_lo <= off < t_hi and off + size <= t_hi
+        off = file_region_offset(target, addr, size)
+        in_text = off is not None and any(section["rptr"] <= off and off + size <= section["rptr"] + section["rsize"] for section in code_sections)
         rc = receipts.get(addr)
         kind = disk.get(addr, "absent") if in_text else "data/thunk"
         if not in_text:
             counts["out_of_text"] += 1
             status = "out-of-text"
+        elif addr in placed:
+            counts["byte_exact"] += 1
+            counts["verified_reloc_free"] += 1
+            status = "observed-compiled-contribution"
         elif kind == "asm-floor":
-            # Assembly floor: original bytes in a naked stub. It is the
-            # substrate, never counted as recovery even if it "verifies".
             counts["asm_floor"] += 1
             status = "asm-floor"
-        elif (rc and rc.get("ok") and kind == "real-c") or (addr in floor and kind != "asm-floor"):
-            counts["byte_exact"] += 1
-            if rc and not rc.get("relocs"):
-                counts["verified_reloc_free"] += 1
-            status = "byte-exact"
         elif kind == "real-c":
             counts["compiles_not_exact"] += 1
             status = "compiles-not-exact"
@@ -151,8 +145,8 @@ def main(argv: list[str] | None = None) -> int:
             "shim": code_total - bx,
             "c_pct": round(100 * bx / max(code_total, 1), 1),
             "byte_identical": False,
-            "exact_placement_hash_equal": True,
-            "note": "byte-exact C where proven, asm floor elsewhere; exact-placement diagnostic only",
+            "exact_placement_hash_equal": contribution["wholeFileByteIdentical"],
+            "note": "independently evaluated compiled-object contribution; preserved floor elsewhere",
         },
         "max_c": {
             "c": bx + nx,
@@ -161,11 +155,11 @@ def main(argv: list[str] | None = None) -> int:
             "byte_exact_c": bx,
             "readable_only_c": nx,
             "byte_identical": False,
-            "note": "any compiling C (byte-exact preferred); more readable, not byte-identical",
+            "note": "candidate source availability diagnostic; no compilation or max-C contribution inferred",
         },
     }
     print(f"binary_id={args.binary_id}  code functions={code_total}  (out-of-text={counts['out_of_text']})")
-    print(f"  byte-exact (recovered)      : {bx:6d}  ({100*bx/max(code_total,1):.1f}%)")
+    print(f"  placed compiled regions     : {bx:6d}  ({100*bx/max(code_total,1):.1f}%)")
     print(f"    of which relocation-free  : {counts['verified_reloc_free']:6d}  (raw-substitutable today)")
     print(f"  compiles, not byte-exact    : {nx:6d}")
     print(f"  asm floor only              : {counts['asm_floor']:6d}")
@@ -179,15 +173,24 @@ def main(argv: list[str] | None = None) -> int:
               f"{' — PARTIAL, verify still running' if len(receipts) < code_total else ''})")
 
     if args.out_exe:
+        if reconstruction_observation is not None:
+            raise ValueError("--out-exe cannot replace an observed reconstruction; supply its output directly")
         rebuilt, stats = wir.rebuild(target, args.db, args.binary_id, None)
         Path(args.out_exe).write_bytes(rebuilt)
         import hashlib
         same = hashlib.sha256(rebuilt).hexdigest() == hashlib.sha256(target).hexdigest()
+        variants["byte_accurate"]["exact_placement_hash_equal"] = same
+        contribution["wholeFileByteIdentical"] = same
         print(f"  exact-placement hash equal: {same} (not compiler-produced) -> {args.out_exe}")
 
     report = {"binary_id": args.binary_id, "code_total": code_total,
               "counts": counts, "variants": variants,
-              "receiptsPartial": bool(args.receipts and len(receipts) < code_total)}
+              "receiptsPartial": bool(args.receipts and len(receipts) < code_total),
+              "rawLocalObservedC": len(local), "localReceiptRejections": local_rejections,
+              "historicalFloorDiagnostic": len(floor), "contribution": contribution,
+              "placedCompiledRegions": contribution["placedCompiledRegions"],
+              "placedCompiledBytes": contribution["placedCompiledBytes"],
+              "wholeFileByteIdentical": contribution["wholeFileByteIdentical"]}
     if args.out_manifest:
         Path(args.out_manifest).write_text(json.dumps(
             {**report, "functions": manifest}, indent=1))

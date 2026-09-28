@@ -134,6 +134,17 @@ Disassembly/Decompiler in the live shell are flat `SourceEditor` text
 listing↔decompiler back/forward the design plan calls the highest-value missing
 piece.
 
+> **Superseded 2026-09-28:** composing the literal `<CodeBrowser>` component into
+> React is no longer the right fix — that address-centered, guide-following pattern
+> is now static-8080-only (`../FRONTEND_INTENT.md` §2, 2026-09-28 note). The
+> underlying gap this recommendation named (Vite has no continuous navigable
+> Listing / synchronized decompiler) still needs solving, but as a real-time-styled
+> equivalent drawn from the browser-RE reference set (FRONTEND_INTENT §7:
+> r2web / objdiff-web / Rev·Deck), not a composition of the Ghidra-styled
+> CodeBrowser. See
+> [`2026-09-28-static-codebrowser-guide-redesign.md`](2026-09-28-static-codebrowser-guide-redesign.md)
+> for the static-side implementation this pattern now belongs to instead.
+
 **N3 · Add a corpus-first Compare / counterparts surface in React.** Selection
 already carries `logicalId` (`navigation.ts:8`) but nothing renders siblings; Open
 is flat-by-binary (`WorkstationApp.tsx:194`). Add a Compare view keyed on

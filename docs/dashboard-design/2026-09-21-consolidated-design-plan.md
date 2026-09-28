@@ -512,6 +512,15 @@ does **not** authorize starting 5174 during a live recovery mission.
 > governs live work: no 5174 or 8767 starts, and no filesystem test suites for documentation
 > validation, until AGENTS.md itself is changed.
 
+> **Sharpened 2026-09-28:** the split is no longer just control-dense vs
+> visual-pipeline-view. Static 8080 is the conventional RE GUI following the
+> Ghidra reversing guide's CodeBrowser arrangement; Vite is the real-time "draw
+> the work" AIO workstation built from the browser-RE reference set
+> (FRONTEND_INTENT §7), not a restyled copy of the static layout. One backend,
+> field parity unchanged (§4.7). See
+> [`2026-09-28-static-codebrowser-guide-redesign.md`](2026-09-28-static-codebrowser-guide-redesign.md)
+> for the static-side implementation spec.
+
 > Chronology note: `verification/2026-09-11-react-aio-redesign.md` records checks on
 > port 5174 and a final PASS at `8767/react`; the "no 5174 process" guard is
 > 2026-09-20, so that acceptance *predates* the guard. Port **8767** appears in
@@ -588,6 +597,7 @@ does **not** authorize starting 5174 during a live recovery mission.
 | 2026-09-20 | `dashboard-design/2026-09-20-{unified-workstation-spec,delivery-reconciliation}.md`; `plans/2026-09-20-unified-reversing-workstation.md`; **`FRONTEND_INTENT.md` consolidation** | all three |
 | 2026-09-20/21 | Initial post-consolidation review captured implementation fixes (pause-drains-safely, measured facets, draft tab, configured roots); its research cutoff did not establish absence of later human requirements | implementation history |
 | 2026-09-21 | Requirements ledger, audit 3 and Phase 14 explicitly add autonomous open/add/resume, no-Start control semantics, derive/backfill visibility and complete surface acceptance | adopted product requirements |
+| 2026-09-28 | `FRONTEND_INTENT.md` §2/§9 amendment; `dashboard-design/2026-09-28-static-codebrowser-guide-redesign.md` | look/feel |
 
 ### Supersessions / reversals (all confirmed against primary sources)
 

@@ -4,6 +4,21 @@ Status: implementation specification; not a completion or recovery receipt.
 Current completion claims and prioritized closeout are tracked in
 [`../DELIVERY_STATUS.md`](../DELIVERY_STATUS.md).
 
+> **Superseded in part 2026-09-28:** this spec's "Guide coverage" section and its
+> "Shared interaction contract" describe one GUI design ported to two delivery
+> alternatives ("ONE shared codebase" navigation, "Reuse CodeBrowser, GuideWorkflows,
+> FunctionEditor" for both surfaces below). The user has since required the two
+> surfaces be fundamentally different ([`../FRONTEND_INTENT.md`](../FRONTEND_INTENT.md)
+> §2, 2026-09-28 note): the static 8080 workbench alone follows the Ghidra reversing
+> guide's CodeBrowser arrangement (7-slice spec at
+> [`2026-09-28-static-codebrowser-guide-redesign.md`](2026-09-28-static-codebrowser-guide-redesign.md));
+> the Vite app is the real-time AIO workstation built from the browser-RE reference
+> set (FRONTEND_INTENT §7), not a second CodeBrowser. This spec's Code
+> Browser/Compare/Recovery/Evidence work-area breakdown and pipeline-control
+> semantics still apply generally; its guide-coverage instruction now binds the
+> static surface only. Reconcile per-section before treating this file as current
+> for the static surface.
+
 ## Authority and scope
 
 User request: redesign the entire AgentDecompile dashboard around all KotORXID

@@ -15,6 +15,12 @@ The parameter-storage gap below was subsequently implemented and source-reviewed
 in `a6bbe36`; live acceptance remains open. Historical line references below
 describe the initial inspection, not a claim that these files never changed.
 
+**2026-09-28:** a concrete UI redesign closing these gaps for the static (8080)
+surface only is in
+[`2026-09-28-static-codebrowser-guide-redesign.md`](2026-09-28-static-codebrowser-guide-redesign.md).
+That doc's guide-chapter table and gap analysis build directly on the rows below;
+read this inventory first, then that doc for the implementation plan.
+
 ## Status meanings
 
 - **Implemented**: the guide capability has a first-class source-wired UI and backing MCP/API path.

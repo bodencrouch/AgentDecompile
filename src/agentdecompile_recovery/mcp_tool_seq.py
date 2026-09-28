@@ -202,8 +202,12 @@ def _parse_step_outcome(stdout: str, stderr: str, returncode: int, *, step_index
             ok = bool(row.get("success"))
             result = row.get("result") if isinstance(row.get("result"), dict) else {}
             if parsed.get("json") and "content" not in result:
-                # Tool data, not an envelope: the CLI already judged success.
+                # Tool data, not an envelope: the CLI already judged success at the
+                # step level, but the unwrapped tool payload can still carry its own
+                # success=False/isError (the outer step wrapper does not always see it).
                 conflict_id = str(result.get("conflictId") or result.get("conflict_id") or "") or None
+                if result.get("success") is False or result.get("isError"):
+                    ok = False
                 if not ok:
                     error = str(result.get("error") or result.get("message") or json.dumps(result, default=str))[:500] or None
                 return {"ok": ok and not conflict_id, "conflictId": conflict_id, "error": error}

@@ -88,3 +88,34 @@ Root layout after the run: `objects/{layout.json, objects/<ab>/<hex>, named/{res
   `reason`/`evidence`; `Appender.write_batch`/`draft_for` seal every worker intent as a fresh issue.
 - `transport.local.from_root` nested `log/log` and `heads/heads`; the object store root is
   `<root>/objects` everywhere (config `paths.objects`), the log and heads adapters own their subdirs.
+
+## Addendum (2026-09-28): the trust config this walkthrough now needs
+
+Line 77 above named "offline `Keyring` verification of node-signed records" as unproven. It
+landed afterward (`authorize_record` enforcement on every reader: `log/frontier.py`,
+`worker/records.py`, `view/applier.py`). Re-running the sequence above verbatim on a fresh root
+now reproduces `ready 0, eligible 0` forever: the laptop-grid default operator signer is `null`
+(`cli.py Grid.signer`), but the default `KeyringConfig` (`allow_null=False`,
+`trust_local_nodes=False`) refuses every null-signed record by name, so the published TASK is
+folded past as `unknown-signer` and never reaches the frontier. `worker/loop.py`'s `pulled` event
+now names this directly (`untrusted` / `untrusted_sample`) instead of leaving `ready 0` to look
+like an empty log.
+
+To reproduce the sequence above on one host, export before `publish`/`work`/`verify`/`view`:
+
+```
+export ADGRID_KEYRING__ALLOW_NULL=true ADGRID_KEYRING__TRUST_LOCAL_NODES=true
+```
+
+This is the documented one-host opt-in (`KeyringConfig.allow_null`/`.trust_local_nodes`
+docstrings: "turn it on only for a one-host dev grid"), not a code change: the secure default
+(refuse an unattributed or unknown signer) is correct and is left alone. A second, harder
+requirement surfaces once two separate roots are involved (two local state directories sharing
+one objects/log/heads store, `ADGRID_PATHS__OBJECTS`/`__LOG`/`__HEADS` pointed cross-root): a
+joining node's key is not enough to be *offered* an invite either — `verify_invite` requires the
+invite's issuer to already be in the joiner's own keyring before the token can be validated at
+all, and nothing in `join` distributes that seed. Every producing identity (including a node
+trusting its own previously-written records on a later `view materialize`) needs an explicit
+`keys/trusted/<name>.json` entry from whoever operates that reader. See
+`docs/plans/2026-09-28-grid-multi-node-gaps.md` for the full two-root trace this was checked
+against.

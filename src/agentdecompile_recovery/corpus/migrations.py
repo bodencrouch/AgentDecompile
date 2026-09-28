@@ -189,12 +189,32 @@ def _function_storage(con: sqlite3.Connection) -> None:
     )""")
 
 
+def _typed_fields(con: sqlite3.Connection) -> None:
+    """Version 6: typed layout witnesses alongside byte-accurate headers."""
+    con.execute("""CREATE TABLE IF NOT EXISTS ghidra_field (
+        binary_id INTEGER NOT NULL REFERENCES binary(id),
+        type_name TEXT NOT NULL,
+        ordinal INTEGER NOT NULL,
+        offset INTEGER NOT NULL,
+        size INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        dt_kind TEXT NOT NULL,
+        pointee_type TEXT,
+        composite_type TEXT,
+        element_type TEXT,
+        array_count INTEGER,
+        type_json TEXT NOT NULL,
+        PRIMARY KEY(binary_id, type_name, ordinal)
+    )""")
+
+
 MIGRATIONS: list[Migration] = [
     Migration(1, "baseline", _baseline),
     Migration(2, "analyzer_identity", _analyzer_identity),
     Migration(3, "basis_supersession", _basis_supersession),
     Migration(4, "match_review", _match_review),
     Migration(5, "function_storage", _function_storage),
+    Migration(6, "typed_fields", _typed_fields),
 ]
 
 SCHEMA_VERSION = MIGRATIONS[-1].version

@@ -1,7 +1,7 @@
 """Emit recovered game types as a compilable header.
 
 Field names starting with a digit or that are C keywords are renamed. Size-check
-assertions are dropped and counted. Enum constants are prefixed with the enum
+assertions are retained and counted. Enum constants are prefixed with the enum
 name so they cannot rewrite later type identifiers.
 """
 
@@ -34,7 +34,6 @@ def sanitise(defn: str, type_name: str) -> tuple[str, bool, int]:
 
     had = bool(SIZECHECK_RE.search(defn))
     defn = FIELD_RE.sub(field, defn)
-    defn = SIZECHECK_RE.sub("", defn)
     n_const = 0
     if DEFINE_RE.search(defn):
         seen: set[str] = set()
@@ -80,7 +79,8 @@ def build_header(con, binary_id: int, out: Path | str, *, program: str = "") -> 
         " * Enum constants are prefixed with their enum's name.\n"
         " */\n\n"
     )
-    dest.write_text(header + "\n".join(parts), encoding="utf-8")
+    dest.write_text(header + "#pragma once\n#pragma pack(push, 1)\n\n" + "\n".join(parts)
+                    + "\n#pragma pack(pop)\n", encoding="utf-8")
     return {
         "types": len(rows),
         "had_sizecheck": n_sizecheck,

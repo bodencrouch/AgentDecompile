@@ -916,6 +916,24 @@ the repository (7 slices, none implemented). It is design-only; it has no
 receipt and does not change the current autonomous-capabilities or overview
 diagrams until it is imported and a topology decision is made.
 
+### Delta Update — 2026-09-28 (frontends)
+
+- Landed (branch `codex/branch-consolidation-20260928`, source only; no live
+  8080 check yet because the running server imports another tree):
+  - static redesign slices 0, 1, 2, 3, 5 and 6 (`461d2cf`…`9374e01`);
+  - zero-trigger surfaces: pipeline-trigger controls removed and
+    pause/resume/stop added (`af761fe`);
+  - strategy update recording two surfaces, always-available matching methods
+    and optional targeted AI (`9f7a75b`).
+- Partial: `static/actions.js` still lists five pipeline quick actions. The
+  8080 server must be relaunched with the intended `PYTHONPATH` before any UI
+  claim is checked live.
+- Next: the frontends plan
+  [`2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`](2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md)
+  is the single active plan for both frontends, matching-method availability,
+  the targeted-AI setting and the report spine. It supersedes the external
+  7-slice redesign spec as the working plan for that surface.
+
 No diagram topology changed in this reconciliation, so the rendered artifacts were not
 regenerated. Update their source and all formats together when an actual design contract
 changes, then keep the Documents overview synchronized.

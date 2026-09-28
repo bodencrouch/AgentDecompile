@@ -1272,28 +1272,9 @@ async def _call_raw(
     logger.debug("diag.enter %s", "cli.py:_call_raw")
     call_tool_name, safe_payload = _resolve_tool_call_target(tool, payload)
 
-    # Default to markdown for human-readable output. Use -f json when you need
-    # machine-readable output (shell/json/xml/table modes parse structured data).
-    #
-    # Guard, keyed on the *resolved* canonical tool name (so `read-memory` /
-    # `get-memory-blocks` aliases hit the same check as `inspect-memory`):
-    # skip the injection only when TOOL_PARAM_ALIASES maps "format" onto a
-    # *different*, still-absent canonical param (currently only
-    # inspect-memory: TOOLS_LIST.md documents `read-memory(..., format)` as a
-    # synonym for its `mode` param). If that canonical param is already in
-    # the payload (e.g. `memory run --mode read`), aliasing can't touch it --
-    # alias resolution only fills an empty canonical slot -- so injecting
-    # format=markdown there is unaffected and still applies normally.
-    # Without this guard, omitting --mode on `memory run` (F10 fix) let this
-    # injected rendering default get aliased into `mode="markdown"` by
-    # _prepare_tool_payload_with_program_fallback below -- silently sending a
-    # bogus mode instead of no key, defeating the backend-default fallback.
-    _format_alias_targets = TOOL_PARAM_ALIASES.get(normalize_identifier(call_tool_name), {}).get("format", {"format"})
-    _alias_would_hijack_empty_slot = _format_alias_targets != {"format"} and not any(
-        target in safe_payload for target in _format_alias_targets
-    )
-    if not _alias_would_hijack_empty_slot:
-        safe_payload.setdefault("format", "markdown")
+    # No `format` is added here. `format` belongs to tools (get-data hex/ascii/both,
+    # export c/cpp/sarif, export-context json/md, inspect-memory's format->mode
+    # alias), and the server already renders markdown when nothing is requested.
 
     prepared_payload, _ = _prepare_tool_payload_with_program_fallback(ctx, call_tool_name, dict(safe_payload))
 

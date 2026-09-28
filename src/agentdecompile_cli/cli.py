@@ -66,6 +66,7 @@ from agentdecompile_cli.cli_agent_help import (
     resolve_tool_seq_steps,
     tool_seq_json_error_message,
 )
+from agentdecompile_cli.cli_param_types import ADVERTISED_PARAM_TYPES
 from agentdecompile_cli.registry import (
     ADVERTISED_TOOLS,
     NON_ADVERTISED_TOOL_ALIASES,
@@ -2333,7 +2334,19 @@ _CLI_OPTION_TYPE_OVERRIDES: dict[tuple[str, str], Any] = {
 
 
 def _generated_option_type(tool_name: str, param: str) -> Any:
-    """Derive a generated command's click option type from evidenced fragments (P3).
+    """Derive a generated command's click option type (P3).
+
+    First choice is the type the server advertises for this tool and param
+    (cli_param_types.ADVERTISED_PARAM_TYPES, a snapshot of
+    ToolProviderManager.list_tools() where a provider's own inputSchema wins).
+    The name-fragment fallback below only runs for params the server does not
+    advertise. Relying on the fragments alone typed 17 advertised integers
+    (`timeout`, get-function `max_callees`, `output_limit`, ...) as str, so
+    `run-decomp-match --timeout abc` was sent and the server fell back to its
+    default; and 46 advertised booleans (`dry_run`, `confirm`, `try_yara`...)
+    as str. Booleans stay value-taking options (`--dry-run true`), as before.
+
+    Fallback: derive from evidenced fragments.
 
     Precedence mirrors `_infer_param_schema()` in mcp_server/tool_providers.py
     exactly (array, then int, then bool, then bool-prefix) so the CLI agrees
@@ -2362,6 +2375,19 @@ def _generated_option_type(tool_name: str, param: str) -> Any:
     if override is not None:
         return override
     norm = normalize_identifier(param)
+    advertised = ADVERTISED_PARAM_TYPES.get(tool_name, {}).get(norm)
+    if advertised == "integer":
+        return _CLI_HEX_INT
+    if advertised == "number":
+        return click.FLOAT
+    if advertised == "boolean":
+        return bool
+    if advertised == "array":
+        return str
+    if advertised == "string":
+        if "path" in param.lower() or "file" in param.lower():
+            return click.Path(exists=False)
+        return str
     if norm in _CLI_ARRAY_PARAMS:
         return str
     if norm in _CLI_INT_FRAGMENTS:

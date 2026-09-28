@@ -157,7 +157,7 @@ class StringToolProvider(ToolProvider):
                         "limit": {"type": "integer", "default": 10, "description": "Number of results to return."},
                         "offset": {"type": "integer", "default": 0, "description": "Pagination offset."},
                     },
-                    "required": ["query"],
+                    "required": [],
                 },
             ),
         ]

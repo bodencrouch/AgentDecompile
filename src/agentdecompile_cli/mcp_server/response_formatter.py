@@ -1133,6 +1133,19 @@ def _render_execute_script(data: dict[str, Any]) -> str:
     success = data.get("success", True)
     lines.append(_md_bold_kv("Status", "Success" if success else "Error"))
 
+    error_text = data.get("error")
+    exception_type = data.get("exceptionType")
+    traceback_text = data.get("traceback")
+    if error_text:
+        lines.append(_md_bold_kv("Error", _md_code_inline(str(error_text))))
+    if exception_type:
+        lines.append(_md_bold_kv("Exception Type", _md_code_inline(str(exception_type))))
+    if traceback_text:
+        lines.append("")
+        lines.append(_md_heading(3, "Traceback"))
+        lines.append("")
+        lines.append(_md_code_block(str(traceback_text).rstrip(), ""))
+
     stdout_text = str(data.get("stdout", ""))
     stderr_text = str(data.get("stderr", ""))
     result_text = str(data.get("result", ""))
@@ -2172,8 +2185,22 @@ def _render_dataflow(data: dict[str, Any]) -> str:
     if direction == "variable_accesses":
         variables: list[dict[str, Any]] = data.get("variables", [])
         if variables:
-            headers: list[str] = ["Name", "Type", "Storage", "Size"]
-            rows: list[list[str]] = [[v.get("name", ""), v.get("dataType", ""), v.get("storage", ""), str(v.get("size", ""))] for v in variables]
+            if data.get("accessCount") is not None:
+                lines.append(_md_bold_kv("Access Count", data.get("accessCount", 0)))
+                lines.append("")
+            headers: list[str] = ["Name", "Type", "Storage", "Size", "Accesses"]
+            rows: list[list[str]] = []
+            for variable in variables:
+                accesses = variable.get("accesses", []) or []
+                access_text = ", ".join(
+                    f"{access.get('address', '')} ({access.get('kind', '')})"
+                    for access in accesses
+                    if isinstance(access, dict)
+                )
+                access_count = variable.get("accessCount", len(accesses))
+                if variable.get("hasMore"):
+                    access_text = f"{access_text}, ..." if access_text else "..."
+                rows.append([variable.get("name", ""), variable.get("dataType", ""), variable.get("storage", ""), str(variable.get("size", "")), f"{access_count}: {access_text}"])
             lines.append(_md_table(headers, rows))
         else:
             lines.append("*No variable accesses found.*")
@@ -2511,7 +2538,11 @@ def _render_import_export(data: dict[str, Any]) -> str:
             lines.append(_md_bold_kv("Count", data.get("count", len(processors))))
             lines.append("")
             for p in processors[:50]:
-                lines.append(f"- {p}")
+                lines.append(f"- {_md_table_cell(p)}")
+            total = data.get("count", len(processors))
+            if len(processors) > 50:
+                lines.append("")
+                lines.append(f"*Showing 50 of {total} processors.*")
         else:
             lines.append(_md_bold_kv("Language", data.get("language", "")))
             lines.append(_md_bold_kv("Compiler", data.get("compiler", "")))

@@ -61,6 +61,43 @@ def test_report_writes_content_diff(tmp_path: Path) -> None:
     assert (tmp_path / results[0].diff_path).read_text(encoding="utf-8").startswith("--- java-oracle")
 
 
+def test_report_keeps_same_offset_spaces_and_artifacts_distinct(tmp_path: Path) -> None:
+    (tmp_path / "oracle").mkdir()
+    (tmp_path / "oracle/base.c").write_text("int base(void) { return 1; }\n")
+    (tmp_path / "oracle/overlay.c").write_text("int overlay(void) { return 2; }\n")
+    base = FunctionEntry(
+        addr="0000000000002000", space="ram", name="base", load_name="base", size=1,
+        status=STATUS_OK, oracle_c="oracle/base.c",
+    )
+    overlay = FunctionEntry(
+        addr="0000000000002000", space="ovl0", name="overlay", load_name="overlay", size=1,
+        status=STATUS_OK, oracle_c="oracle/overlay.c", overlay=True,
+    )
+    snapshot = Manifest(
+        schema="agentdecompile.native-snapshot/v0", export_requires_java_decompile=True,
+        created_at="now", timeout_s=1, wall_s=0,
+        producer=Producer("12.1.3", "x", "x"),
+        program=ProgramInfo("x", "x86:LE:64:default", "default", "0x0"),
+        engine=EngineInfo(1, 1), options=OptionsInfo("x" * 64, "options.xml", "decompile"),
+        capabilities=Capabilities(True, ["decompile-c"], ["JVM"], []),
+        revision=Revision(0, 0, False), counts=Counts(total=2, ok=2), total_bytes=0,
+        functions=[base, overlay],
+    )
+    results = write_report(
+        tmp_path,
+        snapshot,
+        {
+            base.stable_id: "int base(void) { return 1; }\n",
+            overlay.stable_id: "int overlay(void) { return 3; }\n",
+        },
+    )
+    assert [result.function_id for result in results] == [base.stable_id, overlay.stable_id]
+    assert [result.classification for result in results] == [MATCH, MISMATCH_CONTENT]
+    assert (tmp_path / "differential/native/ram__0000000000002000.c").is_file()
+    assert (tmp_path / "differential/native/ovl0__0000000000002000.c").is_file()
+    assert (tmp_path / "differential/diff/ovl0__0000000000002000.diff").is_file()
+
+
 def test_report_records_global_parity_errors(tmp_path: Path) -> None:
     (tmp_path / "oracle").mkdir()
     (tmp_path / "oracle/add.c").write_text("int add(void) { return 1; }\n")

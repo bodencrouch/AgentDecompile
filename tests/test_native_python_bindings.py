@@ -40,11 +40,26 @@ def test_shared_library_raw_image_round_trip(monkeypatch):
 
 
 def test_batch_client_uses_file_contract(monkeypatch):
+    seen = {}
+
     def fake_run(command, **kwargs):
         assert "--sleigh-home" in command and "--input" in command and "--output" in command
+        seen["command"] = command
+        seen["timeout"] = kwargs["timeout"]
         output = Path(command[command.index("--output") + 1])
-        output.write_text('{"id":"one","status":"ok"}\n')
+        output.write_text("".join(f'{{"id":"{index}","status":"ok"}}\n' for index in range(5)))
         import subprocess
         return subprocess.CompletedProcess(command, 0, "", "")
     monkeypatch.setattr(batch.subprocess, "run", fake_run)
-    assert list(batch.run([{"id": "one"}], sleigh_home="/specs", executable="fake")) == [{"id": "one", "status": "ok"}]
+    records = list(
+        batch.run(
+            ({"id": str(index)} for index in range(5)),
+            sleigh_home="/specs",
+            executable="fake",
+            timeout_s=30,
+            workers=2,
+        )
+    )
+    assert records == [{"id": str(index), "status": "ok"} for index in range(5)]
+    assert seen["command"][seen["command"].index("--workers") + 1] == "2"
+    assert seen["timeout"] == 220

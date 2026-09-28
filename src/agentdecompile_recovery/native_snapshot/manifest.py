@@ -21,6 +21,7 @@ import json
 import os
 from pathlib import Path
 import re
+from urllib.parse import quote
 from typing import Any
 
 SCHEMA = "agentdecompile.native-snapshot/v0"
@@ -314,6 +315,16 @@ class FunctionEntry:
     skip_reason: str | None = None
     overlay: bool = False
     load_mode: str = "function"
+
+    @property
+    def stable_id(self) -> str:
+        """Space-qualified identity used by replay transports and receipts."""
+        return f"{self.space}:{self.addr}"
+
+    @property
+    def stable_stem(self) -> str:
+        """Filesystem-safe form of :attr:`stable_id` for collision-free artifacts."""
+        return f"{quote(self.space, safe='')}__{self.addr}"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

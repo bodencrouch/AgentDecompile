@@ -48,5 +48,5 @@ def test_checked_in_snapshot_replays_through_native_batch(tmp_path: Path, gnsdk_
     assert completed.returncode == 0, completed.stderr
     native = {record["id"]: record["result"]["c"] for record in map(json.loads, output.read_text().splitlines())}
     manifest = load_manifest(FIXTURE)
-    results = [classify(entry, FIXTURE, native.get(entry.addr)) for entry in manifest.ok_entries()]
+    results = [classify(entry, FIXTURE, native.get(entry.stable_id)) for entry in manifest.ok_entries()]
     assert all(result.classification == MATCH for result in results), results

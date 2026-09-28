@@ -261,9 +261,11 @@ def run_replay(args: argparse.Namespace) -> int:
     output.parent.mkdir(parents=True, exist_ok=True)
     with output.open("w", encoding="utf-8") as handle:
         for entry in manifest.ok_entries():
-            result = replay.get(entry.addr)
+            result = replay.get(entry.stable_id)
             record = {
+                "id": entry.stable_id,
                 "addr": entry.addr,
+                "space": entry.space,
                 "name": entry.name,
                 "status": "missing" if result is None else ("ok" if result.c_text is not None else "error"),
                 "c": None if result is None else result.c_text,
@@ -272,7 +274,7 @@ def run_replay(args: argparse.Namespace) -> int:
                 "engines": [] if result is None else list(result.engines),
             }
             handle.write(json.dumps(record, sort_keys=True) + "\n")
-            print(f"{record['addr']}\t{record['status']}\t{record['name']}")
+            print(f"{record['id']}\t{record['status']}\t{record['name']}")
     return EXIT_OK
 
 
@@ -288,7 +290,10 @@ def run_diff(args: argparse.Namespace) -> int:
         return EXIT_USAGE
     replay = replayer.replay_manifest(args.snapshot, manifest)
     replay_engines = next((result.engines for result in replay.values() if result.engines), ())
-    parity = parity_errors(manifest, replay_engines) if args.mode == "batch" else []
+    # Strict differential acceptance always requires engine identity. The
+    # console transport currently exposes no metadata, so it is an explicitly
+    # unverified text comparison and must fail the parity gate.
+    parity = parity_errors(manifest, replay_engines)
     warnings = parity_warnings(manifest, replay_engines) if args.mode == "batch" else []
     results = write_report(
         args.snapshot, manifest, {address: result.c_text for address, result in replay.items()},
@@ -300,7 +305,7 @@ def run_diff(args: argparse.Namespace) -> int:
         output=args.output,
     )
     for result in results:
-        print(f"{result.addr}\t{result.classification}\t{result.name}")
+        print(f"{result.function_id}\t{result.classification}\t{result.name}")
     for error in parity:
         print(f"parity-failure\t{error}", file=sys.stderr)
     for warning in warnings:

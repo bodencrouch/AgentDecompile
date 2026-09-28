@@ -2,7 +2,7 @@ from pathlib import Path
 import subprocess
 
 from agentdecompile_recovery.native_snapshot.manifest import Capabilities, Counts, EngineInfo, FunctionEntry, Manifest, OptionsInfo, Producer, ProgramInfo, Revision, STATUS_OK
-from agentdecompile_recovery.native_snapshot.replay import BatchReplayer, ConsoleReplayer, _extract, _native_sla_hashes, _script
+from agentdecompile_recovery.native_snapshot.replay import BatchReplayer, ConsoleReplayer, _extract, _native_sla_hashes, _script, batch_process_timeout_s
 
 
 def entry() -> FunctionEntry:
@@ -33,7 +33,7 @@ def test_replayer_uses_fresh_console_process(monkeypatch, tmp_path: Path):
         seen["args"] = args
         seen["input"] = kwargs["input"]
         seen["env"] = kwargs["env"]
-        return subprocess.CompletedProcess(args, 0, "__GNSDK_REPLAY_0000000000401000__:BEGIN\nint add(void) {}\n__GNSDK_REPLAY_0000000000401000__:END\n", "")
+        return subprocess.CompletedProcess(args, 0, "__GNSDK_REPLAY_ram__0000000000401000__:BEGIN\nint add(void) {}\n__GNSDK_REPLAY_ram__0000000000401000__:END\n", "")
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     result = ConsoleReplayer(Path("/fake/console"), sleigh_home=Path("/fake/sleigh")).replay(tmp_path, entry())
@@ -58,8 +58,8 @@ def test_console_replay_manifest_reuses_process_per_chunk(monkeypatch, tmp_path:
     def fake_run(args, **kwargs):
         calls.append(kwargs["input"])
         stdout = (
-            "__GNSDK_REPLAY_0000000000401000__:BEGIN\nint add(void) {}\n__GNSDK_REPLAY_0000000000401000__:END\n"
-            "__GNSDK_REPLAY_0000000000401001__:BEGIN\nint sub(void) {}\n__GNSDK_REPLAY_0000000000401001__:END\n"
+            "__GNSDK_REPLAY_ram__0000000000401000__:BEGIN\nint add(void) {}\n__GNSDK_REPLAY_ram__0000000000401000__:END\n"
+            "__GNSDK_REPLAY_ram__0000000000401001__:BEGIN\nint sub(void) {}\n__GNSDK_REPLAY_ram__0000000000401001__:END\n"
         )
         return subprocess.CompletedProcess(args, 0, stdout, "")
 
@@ -68,8 +68,31 @@ def test_console_replay_manifest_reuses_process_per_chunk(monkeypatch, tmp_path:
     assert len(calls) == 1
     assert calls[0].count("restore ") == 2
     assert calls[0].rstrip().endswith("quit")
-    assert result["0000000000401000"].c_text == "int add(void) {}\n"
-    assert result["0000000000401001"].c_text == "int sub(void) {}\n"
+    assert result["ram:0000000000401000"].c_text == "int add(void) {}\n"
+    assert result["ram:0000000000401001"].c_text == "int sub(void) {}\n"
+
+
+def test_console_replay_keeps_same_offset_spaces_distinct(monkeypatch, tmp_path: Path) -> None:
+    entries = [
+        FunctionEntry(addr="0000000000002000", space="ram", name="base", load_name="base", size=1, status=STATUS_OK, savefile="functions/base.xml"),
+        FunctionEntry(addr="0000000000002000", space="ovl0", name="overlay", load_name="overlay", size=1, status=STATUS_OK, savefile="functions/overlay.xml", overlay=True),
+    ]
+    for item in entries:
+        path = tmp_path / item.savefile
+        path.parent.mkdir(exist_ok=True)
+        path.write_text("<xml_savefile/>")
+
+    def fake_run(args, **kwargs):
+        stdout = (
+            "__GNSDK_REPLAY_ram__0000000000002000__:BEGIN\nint base(void) {}\n__GNSDK_REPLAY_ram__0000000000002000__:END\n"
+            "__GNSDK_REPLAY_ovl0__0000000000002000__:BEGIN\nint overlay(void) {}\n__GNSDK_REPLAY_ovl0__0000000000002000__:END\n"
+        )
+        return subprocess.CompletedProcess(args, 0, stdout, "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    result = ConsoleReplayer(Path("/fake/console")).replay_manifest(tmp_path, manifest(*entries))
+    assert result["ram:0000000000002000"].c_text == "int base(void) {}\n"
+    assert result["ovl0:0000000000002000"].c_text == "int overlay(void) {}\n"
 
 
 def test_batch_replayer_parses_snapshot_jsonl(monkeypatch, tmp_path: Path):
@@ -80,7 +103,7 @@ def test_batch_replayer_parses_snapshot_jsonl(monkeypatch, tmp_path: Path):
         seen["timeout"] = kwargs["timeout"]
         output = Path(args[args.index("--output") + 1])
         output.write_text(
-            '{"id":"0000000000401000","status":"ok","engines":[{"source":"Ghidra_12.1.3_build","abi":"0.1.0","sig_major":6,"sig_minor":1}],"result":{"name":"add","c":"int add(void) {}\\n"}}\n',
+            '{"id":"ram:0000000000401000","status":"ok","engines":[{"source":"Ghidra_12.1.3_build","abi":"0.1.0","sig_major":6,"sig_minor":1}],"result":{"name":"add","c":"int add(void) {}\\n"}}\n',
             encoding="utf-8",
         )
         return subprocess.CompletedProcess(args, 0, "", "")
@@ -96,9 +119,15 @@ def test_batch_replayer_parses_snapshot_jsonl(monkeypatch, tmp_path: Path):
     assert seen["args"][:5] == ["/fake/gnsdk-batch", "--sleigh-home", "/fake/sleigh", "--snapshot", str(tmp_path)]
     assert "--workers" in seen["args"] and seen["args"][seen["args"].index("--workers") + 1] == "2"
     assert "--tmpdir" in seen["args"]
-    assert seen["timeout"] == 40
-    assert result["0000000000401000"].c_text == "int add(void) {}\n"
-    assert result["0000000000401000"].engines == ({"source": "Ghidra_12.1.3_build", "abi": "0.1.0", "sig_major": 6, "sig_minor": 1, "sla_sha256": {}},)
+    assert seen["timeout"] == 100
+    assert result["ram:0000000000401000"].c_text == "int add(void) {}\n"
+    assert result["ram:0000000000401000"].engines == ({"source": "Ghidra_12.1.3_build", "abi": "0.1.0", "sig_major": 6, "sig_minor": 1, "sla_sha256": {}},)
+
+
+def test_batch_process_timeout_scales_by_two_operations_and_worker_waves() -> None:
+    assert batch_process_timeout_s(0, 4, 60) == 40
+    assert batch_process_timeout_s(5, 2, 30) == 220
+    assert batch_process_timeout_s(50, 1, 2) == 240
 
 
 def test_native_sla_hashes_reads_language_definitions(tmp_path: Path) -> None:

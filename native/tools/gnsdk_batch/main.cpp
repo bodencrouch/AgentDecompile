@@ -107,10 +107,14 @@ std::vector<Job> snapshot_jobs(const std::string &root)
     std::vector<Job> jobs;
     for (const auto &entry : functions->items())
     {
-        std::string status, savefile, addr;
-        if (!entry.get_string("status", status) || status != "ok" ||
-            !entry.get_string("savefile", savefile) || !entry.get_string("addr", addr))
+        std::string status, savefile, addr, space;
+        if (!entry.get_string("status", status))
+            throw BadInput("snapshot function is missing status");
+        if (status != "ok")
             continue;
+        if (!entry.get_string("savefile", savefile) || !entry.get_string("addr", addr) ||
+            !entry.get_string("space", space) || space.empty())
+            throw BadInput("snapshot ok function is missing savefile, addr, or space");
         const std::filesystem::path relative(savefile);
         auto part = relative.begin();
         const bool has_functions_prefix = part != relative.end() && *part++ == "functions";
@@ -119,7 +123,8 @@ std::vector<Job> snapshot_jobs(const std::string &root)
             savefile.find('\\') != std::string::npos || !has_functions_prefix || !has_one_filename ||
             relative.extension() != ".xml")
             throw BadInput("snapshot savefile must be functions/<name>.xml");
-        jobs.push_back({addr, (std::filesystem::path(root) / relative).string(), "0x" + addr});
+        jobs.push_back(
+            {space + ":" + addr, (std::filesystem::path(root) / relative).string(), "0x" + addr});
     }
     return jobs;
 }
@@ -365,8 +370,18 @@ int main(int argc, char **argv)
         for (const std::string &record : records)
         {
             if (!record.empty())
+            {
                 output << record;
+                if (!output)
+                    throw BadInput("cannot write output");
+            }
         }
+        output.flush();
+        if (!output)
+            throw BadInput("cannot flush output");
+        output.close();
+        if (!output)
+            throw BadInput("cannot close output");
         return 0;
     }
     catch (const BadInput &exc)

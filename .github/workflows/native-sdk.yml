@@ -129,12 +129,15 @@ jobs:
           sudo apt-get install -y ninja-build cmake clang libfl-dev flex bison
 
       - name: Configure ASan lane
-        run: cmake --preset asan -S native
+        working-directory: native
+        run: cmake --preset asan
 
       - name: Build ASan lane
+        working-directory: native
         run: cmake --build --preset asan --parallel 4
 
       - name: Run ASan CTest lane
+        working-directory: native
         run: ctest --preset asan --output-on-failure -j1
 
   rust:

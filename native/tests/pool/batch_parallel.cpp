@@ -61,6 +61,19 @@ Run run_batch(const std::filesystem::path &dir, int workers)
                      "out-" + std::to_string(workers) + ".jsonl");
 }
 
+Run run_batch_to(const std::filesystem::path &dir, const std::filesystem::path &output)
+{
+    const std::string command =
+        std::string("\"") + GNSDK_BATCH_FAKE_PATH + "\"" + " --sleigh-home /nonexistent" +
+        " --input \"" + (dir / "jobs.jsonl").string() + "\"" + " --output \"" +
+        output.string() + "\" --timeout 5 --workers 1 --tmpdir \"" + dir.string() +
+        "\" >/dev/null 2>\"" + (dir / "stderr-write-failure.log").string() + "\"";
+    const auto begin = std::chrono::steady_clock::now();
+    const int code = std::system(command.c_str());
+    return {code, std::chrono::duration_cast<std::chrono::milliseconds>(
+                      std::chrono::steady_clock::now() - begin)};
+}
+
 std::vector<std::string> ok_ids(const std::filesystem::path &path)
 {
     std::ifstream input(path);
@@ -115,6 +128,8 @@ int main()
     REQUIRE(exit_status(run_batch(dir, 1, GNSDK_BATCH_MISSING_WORKER_PATH, "jobs.jsonl",
                                   "missing-worker-output.jsonl")
                             .code) == 1);
+    if (std::filesystem::exists("/dev/full"))
+        REQUIRE(exit_status(run_batch_to(dir, "/dev/full").code) == 2);
 
     std::error_code ignored;
     std::filesystem::remove_all(dir, ignored);

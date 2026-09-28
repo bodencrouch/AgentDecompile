@@ -31,6 +31,8 @@ class DifferentialResult:
     native_path: str | None
     diff_path: str | None = None
     error: str | None = None
+    space: str = "ram"
+    function_id: str = ""
 
     def to_dict(self) -> dict[str, str | None]:
         return asdict(self)
@@ -72,12 +74,50 @@ def classify(
         else:
             kind = MISMATCH_CONTENT
         error = None
-    return DifferentialResult(entry.addr, entry.name, kind, entry.oracle_c, None, error=error)
+    return DifferentialResult(
+        entry.addr,
+        entry.name,
+        kind,
+        entry.oracle_c,
+        None,
+        error=error,
+        space=entry.space,
+        function_id=entry.stable_id,
+    )
+
+
+def _address_counts(entries: list[FunctionEntry]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for entry in entries:
+        counts[entry.addr] = counts.get(entry.addr, 0) + 1
+    return counts
+
+
+def _entry_value(values: dict[str, object], entry: FunctionEntry, counts: dict[str, int]):
+    if entry.stable_id in values:
+        return values[entry.stable_id]
+    if counts.get(entry.addr) == 1:
+        return values.get(entry.addr)
+    return None
+
+
+def _entry_present(values: set[str] | dict[str, object], entry: FunctionEntry, counts: dict[str, int]) -> bool:
+    return entry.stable_id in values or (counts.get(entry.addr) == 1 and entry.addr in values)
 
 
 def summary(manifest: Manifest, root: Path, replay: dict[str, str | None], crashed: set[str] | None = None) -> list[DifferentialResult]:
     crashed = crashed or set()
-    return [classify(entry, root, replay.get(entry.addr), crashed=entry.addr in crashed) for entry in manifest.ok_entries()]
+    entries = list(manifest.ok_entries())
+    counts = _address_counts(entries)
+    return [
+        classify(
+            entry,
+            root,
+            _entry_value(replay, entry, counts),
+            crashed=_entry_present(crashed, entry, counts),
+        )
+        for entry in entries
+    ]
 
 
 def _write_diff(path: Path, java_text: str, native_text: str) -> None:
@@ -111,9 +151,11 @@ def _markdown_report(results: list[DifferentialResult], parity: list[str], warni
     ])
     for key in sorted(counts):
         lines.append(f"| {key} | {counts[key]} |")
-    lines.extend(["", "| Address | Name | Classification |", "|---|---|---|"])
+    lines.extend(["", "| Function ID | Address | Name | Classification |", "|---|---|---|---|"])
     for result in results:
-        lines.append(f"| `{result.addr}` | `{result.name}` | {result.classification} |")
+        lines.append(
+            f"| `{result.function_id}` | `{result.addr}` | `{result.name}` | {result.classification} |"
+        )
     lines.append("")
     return "\n".join(lines)
 
@@ -194,26 +236,29 @@ def write_report(root: Path, manifest: Manifest, replay: dict[str, str | None], 
     errors = errors or {}
     parity = parity or []
     parity_warnings = parity_warnings or []
-    for entry in manifest.ok_entries():
-        text = replay.get(entry.addr)
+    entries = list(manifest.ok_entries())
+    address_counts = _address_counts(entries)
+    for entry in entries:
+        text = _entry_value(replay, entry, address_counts)
         native_path: str | None = None
+        artifact_stem = entry.stable_stem if address_counts[entry.addr] > 1 else entry.addr
         if text is not None:
-            native_file = native_dir / f"{entry.addr}.c"
+            native_file = native_dir / f"{artifact_stem}.c"
             native_file.write_text(text, encoding="utf-8")
             native_path = _report_relative(native_file, root, output)
         classified = classify(
             entry,
             root,
             text,
-            crashed=entry.addr in crashed,
-            timed_out=entry.addr in timed_out,
-            native_error=errors.get(entry.addr),
+            crashed=_entry_present(crashed, entry, address_counts),
+            timed_out=_entry_present(timed_out, entry, address_counts),
+            native_error=_entry_value(errors, entry, address_counts),
         )
         diff_path: str | None = None
         if classified.classification == MISMATCH_CONTENT and text is not None and entry.oracle_c:
             oracle = root / entry.oracle_c
             if oracle.is_file():
-                diff_file = diff_dir / f"{entry.addr}.diff"
+                diff_file = diff_dir / f"{artifact_stem}.diff"
                 _write_diff(diff_file, oracle.read_text(encoding="utf-8", errors="replace"), text)
                 diff_path = _report_relative(diff_file, root, output)
         results.append(
@@ -225,6 +270,8 @@ def write_report(root: Path, manifest: Manifest, replay: dict[str, str | None], 
                 native_path,
                 diff_path,
                 classified.error,
+                classified.space,
+                classified.function_id,
             )
         )
     effective_parity = list(parity)

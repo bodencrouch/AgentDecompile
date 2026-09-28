@@ -34,14 +34,20 @@ def persist_text(con, repo_path: str, addr: int, *, ok: bool, signature: str | N
     con.commit()
 
 
-def pending_addrs(store_con, ctext_con, repo_path: str, binary_id: int, *, min_instr: int = 1) -> list[int]:
-    want = [
+def wanted_addrs(store_con, binary_id: int, *, min_instr: int = 1) -> list[int]:
+    """Complete ordered identity-store want-list, without ctext filtering."""
+    return [
         r[0]
         for r in store_con.execute(
             "SELECT addr FROM func WHERE binary_id=? AND n_instr>=? AND size>0",
             (binary_id, min_instr),
         )
     ]
+
+
+def pending_addrs(store_con, ctext_con, repo_path: str, binary_id: int, *, min_instr: int = 1) -> list[int]:
+    """Backward-compatible never-decompile-twice selection including failed rows."""
+    want = wanted_addrs(store_con, binary_id, min_instr=min_instr)
     done = {r[0] for r in ctext_con.execute("SELECT addr FROM ctext WHERE repo_path=?", (repo_path,))}
     return [addr for addr in want if addr not in done]
 

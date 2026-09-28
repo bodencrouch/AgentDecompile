@@ -35,7 +35,12 @@ def test_checked_in_snapshot_replays_as_exact_native_matches(gnsdk_build_dir: Pa
     manifest = load_manifest(FIXTURE)
     replay = ConsoleReplayer(console, sleigh_home=sleigh_home, timeout_s=30).replay_manifest(FIXTURE, manifest)
     results = [
-        classify(entry, FIXTURE, replay[entry.addr].c_text, crashed=replay[entry.addr].returncode < 0)
+        classify(
+            entry,
+            FIXTURE,
+            replay[entry.stable_id].c_text,
+            crashed=replay[entry.stable_id].returncode < 0,
+        )
         for entry in manifest.ok_entries()
     ]
     assert len(results) == 3

@@ -457,7 +457,17 @@ Supervisor::~Supervisor()
     stop();
 }
 Supervisor::Supervisor(Supervisor &&) noexcept = default;
-Supervisor &Supervisor::operator=(Supervisor &&) noexcept = default;
+Supervisor &Supervisor::operator=(Supervisor &&other) noexcept
+{
+    if (this == &other)
+        return *this;
+    // ``Impl`` owns child PIDs and descriptors but deliberately has no
+    // destructor: Supervisor::stop() performs the ordered cancel/reap/close
+    // sequence. Run it before replacing an already-live destination.
+    stop();
+    impl_ = std::move(other.impl_);
+    return *this;
+}
 
 void Supervisor::start()
 {

@@ -166,9 +166,30 @@ def render_batch_markdown(summary: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def select_decompile_batch_pending(
+    by_addr: dict[int, object],
+    ctext_con,
+    repo_path: str,
+    *,
+    store_con=None,
+    binary_id: int | None = None,
+    min_instr: int = 1,
+    retry_failed: bool = False,
+) -> tuple[list[int], set[int], list[int]]:
+    """Select the actual CLI batch want/done/pending sets in one filtering pass."""
+    from agentdecompile_recovery.corpus.decompile_text import done_addrs, pending_from, wanted_addrs
+
+    if store_con is not None and binary_id is not None:
+        want = [addr for addr in wanted_addrs(store_con, binary_id, min_instr=min_instr) if addr in by_addr]
+    else:
+        want = list(by_addr)
+    done = done_addrs(ctext_con, repo_path, include_failed=not retry_failed)
+    return want, done, pending_from(want, done)
+
+
 def run_decompile_batch_command(args: argparse.Namespace) -> int:
     """Open the program read-only, decompile pending addresses with the private parallel pool, persist to ctext."""
-    from agentdecompile_recovery.corpus.decompile_text import connect_ctext, done_addrs, pending_addrs, pending_from, persist_batch_results
+    from agentdecompile_recovery.corpus.decompile_text import connect_ctext, done_addrs, pending_from, persist_batch_results
 
     if args.binary is None and not (args.project_location and args.project_name and args.program_name):
         print("error: --binary or (--project-location, --project-name, --program) is required", file=sys.stderr)
@@ -205,13 +226,24 @@ def run_decompile_batch_command(args: argparse.Namespace) -> int:
         if args.db is not None and args.binary_id is not None:
             from agentdecompile_recovery.corpus.store import connect as store_connect
 
-            want = [a for a in pending_addrs(store_connect(args.db), ctext_con, repo_path, args.binary_id, min_instr=args.min_instr) if a in by_addr]
-            want_total = len(want)
+            store_con = store_connect(args.db)
+            try:
+                want, done, pending = select_decompile_batch_pending(
+                    by_addr,
+                    ctext_con,
+                    repo_path,
+                    store_con=store_con,
+                    binary_id=args.binary_id,
+                    min_instr=args.min_instr,
+                    retry_failed=args.retry_failed,
+                )
+            finally:
+                store_con.close()
         else:
-            want = list(by_addr)
-            want_total = len(want)
-        done = done_addrs(ctext_con, repo_path, include_failed=not args.retry_failed)
-        pending = pending_from(want, done)
+            want, done, pending = select_decompile_batch_pending(
+                by_addr, ctext_con, repo_path, retry_failed=args.retry_failed
+            )
+        want_total = len(want)
         if args.limit is not None:
             pending = pending[: max(0, int(args.limit))]
         summary.update({"want": want_total, "already_done": len([a for a in want if a in done]), "pending": len(pending)})

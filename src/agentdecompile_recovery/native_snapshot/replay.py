@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import subprocess
@@ -22,6 +23,26 @@ class ReplayResult:
     stderr: str
     returncode: int
     engines: tuple[dict[str, object], ...] = ()
+    space: str = "ram"
+
+    @property
+    def stable_id(self) -> str:
+        return f"{self.space}:{self.addr}"
+
+
+def batch_process_timeout_s(job_count: int, workers: int, per_operation_timeout_s: float) -> float:
+    """Conservative whole-process deadline for snapshot batch replay.
+
+    Each job performs two independently bounded worker operations (open snapshot
+    and decompile). Worker lanes run concurrently; each lane also gets the
+    supervisor's 30-second startup budget and ten seconds for process I/O and
+    orderly teardown.
+    """
+    if job_count < 0 or workers <= 0 or per_operation_timeout_s <= 0:
+        raise ValueError("job_count must be non-negative and workers/timeout must be positive")
+    lanes = min(workers, max(job_count, 1))
+    waves = math.ceil(job_count / lanes)
+    return 30.0 + (2.0 * per_operation_timeout_s * waves) + 10.0
 
 
 def _script(savefile: Path, load_name: str, token: str, *, quit_after: bool = True) -> str:
@@ -115,16 +136,23 @@ class ConsoleReplayer:
 
     def replay(self, root: Path, entry: FunctionEntry) -> ReplayResult:
         if not entry.savefile or not entry.load_name:
-            return ReplayResult(entry.addr, entry.name, None, "entry has no savefile/load_name", 2)
+            return ReplayResult(entry.addr, entry.name, None, "entry has no savefile/load_name", 2, space=entry.space)
         savefile = root / entry.savefile
         if not savefile.is_file():
-            return ReplayResult(entry.addr, entry.name, None, f"missing savefile: {savefile}", 2)
-        token = f"__GNSDK_REPLAY_{entry.addr}__"
+            return ReplayResult(entry.addr, entry.name, None, f"missing savefile: {savefile}", 2, space=entry.space)
+        token = f"__GNSDK_REPLAY_{entry.stable_stem}__"
         try:
             completed = self._run_script(_script(savefile, entry.load_name, token), timeout_s=self.timeout_s)
         except (OSError, subprocess.TimeoutExpired) as exc:
-            return ReplayResult(entry.addr, entry.name, None, str(exc), 124)
-        return ReplayResult(entry.addr, entry.name, _extract(completed.stdout, token), completed.stderr, completed.returncode)
+            return ReplayResult(entry.addr, entry.name, None, str(exc), 124, space=entry.space)
+        return ReplayResult(
+            entry.addr,
+            entry.name,
+            _extract(completed.stdout, token),
+            completed.stderr,
+            completed.returncode,
+            space=entry.space,
+        )
 
     def replay_manifest(self, root: Path, manifest: Manifest) -> dict[str, ReplayResult]:
         entries = list(manifest.ok_entries())
@@ -136,14 +164,18 @@ class ConsoleReplayer:
             valid: list[FunctionEntry] = []
             for entry in chunk:
                 if not entry.savefile or not entry.load_name:
-                    results[entry.addr] = ReplayResult(entry.addr, entry.name, None, "entry has no savefile/load_name", 2)
+                    results[entry.stable_id] = ReplayResult(
+                        entry.addr, entry.name, None, "entry has no savefile/load_name", 2, space=entry.space
+                    )
                     continue
                 savefile = root / entry.savefile
                 if not savefile.is_file():
-                    results[entry.addr] = ReplayResult(entry.addr, entry.name, None, f"missing savefile: {savefile}", 2)
+                    results[entry.stable_id] = ReplayResult(
+                        entry.addr, entry.name, None, f"missing savefile: {savefile}", 2, space=entry.space
+                    )
                     continue
-                token = f"__GNSDK_REPLAY_{entry.addr}__"
-                tokens[entry.addr] = token
+                token = f"__GNSDK_REPLAY_{entry.stable_stem}__"
+                tokens[entry.stable_id] = token
                 scripts.append(_script(savefile, entry.load_name, token, quit_after=False))
                 valid.append(entry)
             if not valid:
@@ -153,15 +185,18 @@ class ConsoleReplayer:
                 completed = self._run_script(script, timeout_s=self.timeout_s * len(valid) + 10)
             except (OSError, subprocess.TimeoutExpired) as exc:
                 for entry in valid:
-                    results[entry.addr] = ReplayResult(entry.addr, entry.name, None, str(exc), 124)
+                    results[entry.stable_id] = ReplayResult(
+                        entry.addr, entry.name, None, str(exc), 124, space=entry.space
+                    )
                 continue
             for entry in valid:
-                results[entry.addr] = ReplayResult(
+                results[entry.stable_id] = ReplayResult(
                     entry.addr,
                     entry.name,
-                    _extract(completed.stdout, tokens[entry.addr]),
+                    _extract(completed.stdout, tokens[entry.stable_id]),
                     completed.stderr,
                     completed.returncode,
+                    space=entry.space,
                 )
         return results
 
@@ -211,7 +246,7 @@ class BatchReplayer:
             if self.tmpdir is not None:
                 command.extend(("--tmpdir", str(self.tmpdir)))
             entry_count = len(list(manifest.ok_entries()))
-            subprocess_timeout_s = max(self.timeout_s + 10, self.timeout_s * max((entry_count + 49) // 50, 1) + 10)
+            subprocess_timeout_s = batch_process_timeout_s(entry_count, self.workers, self.timeout_s)
             try:
                 completed = subprocess.run(
                     command,
@@ -223,6 +258,10 @@ class BatchReplayer:
             except (OSError, subprocess.TimeoutExpired):
                 return {}
             results: dict[str, ReplayResult] = {}
+            entries_by_id = {entry.stable_id: entry for entry in manifest.ok_entries()}
+            entries_by_addr: dict[str, list[FunctionEntry]] = {}
+            for entry in manifest.ok_entries():
+                entries_by_addr.setdefault(entry.addr, []).append(entry)
             if output.is_file():
                 for line in output.read_text(encoding="utf-8", errors="replace").splitlines():
                     if not line.strip():
@@ -231,8 +270,15 @@ class BatchReplayer:
                         record = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-                    addr = str(record.get("id") or record.get("seq") or "")
-                    if not addr:
+                    record_id = str(record.get("id") or record.get("seq") or "")
+                    if not record_id:
+                        continue
+                    entry = entries_by_id.get(record_id)
+                    if entry is None and len(entries_by_addr.get(record_id, ())) == 1:
+                        # Compatibility with pre-space-qualified batch output is
+                        # safe only when the numeric address is unique.
+                        entry = entries_by_addr[record_id][0]
+                    if entry is None:
                         continue
                     result = record.get("result") if isinstance(record.get("result"), dict) else {}
                     c_text = result.get("c") if record.get("status") == "ok" and isinstance(result.get("c"), str) else None
@@ -242,5 +288,13 @@ class BatchReplayer:
                     for engine in engine_records:
                         engine["sla_sha256"] = sla_hashes
                     engine_tuple: tuple[dict[str, object], ...] = tuple(engine_records)
-                    results[addr] = ReplayResult(addr, str(result.get("name") or addr), c_text, stderr, completed.returncode, engine_tuple)
+                    results[entry.stable_id] = ReplayResult(
+                        entry.addr,
+                        str(result.get("name") or entry.name),
+                        c_text,
+                        stderr,
+                        completed.returncode,
+                        engine_tuple,
+                        entry.space,
+                    )
             return results

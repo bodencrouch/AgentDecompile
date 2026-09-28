@@ -84,7 +84,21 @@ Full command sequence and raw JSON: `multi-node/01..11-*.txt` in the delivered s
    can call them against an actual instance API from here — `adgrid fleet up` cannot create a
    single real node on any provider today. This needs a second machine (or a cloud account) by
    construction; it was not attempted.
-6. **Self-trust is not implicit.** Not anticipated going in: a node's own previously-written
+6. **No toolchain-capable donor can prove its capability today, for any toolchain.**
+   `ToolchainCanary.prove` (`worker/canaries.py:96-154`) raises `NotConfigured` unless it is given
+   all of `toolchain_path`, `identity_hash`, `probe_ref`, `expected_masked_hash` and
+   `compile_command`, plus a `masker` callable. `adgrid join --toolchain-path <dir> --with
+   toolchain <hash>` (`cli.py` `_canary_plan`) only ever supplies the first two; `grep -n
+   "probe_ref\|expected_masked_hash\|compile_command\|masker" src/agentdecompile_grid/config.py`
+   returns nothing, for MSVC 7.1 or any other toolchain identity. This was found trying to exercise
+   the era-exact-toolchain donor class (design §1.3 row 2) for real, against a genuine MSVC 7.1
+   `cl.exe` reachable through the given wrappers (compiler banner "Version 13.10.3077 for 80x86"
+   obtained; see `real-contribution/RECEIPT.md`) — the compiler itself works, but nothing in this
+   checkout pins a probe TU or an expected masked-COFF hash for it, so `compile-attempt` can never
+   be offered to any node. Closing this needs picking a probe TU, compiling it once per toolchain
+   identity to record the pinned hash, and wiring those into config or a CLI flag; it does not need
+   a second machine.
+7. **Self-trust is not implicit.** Not anticipated going in: a node's own previously-written
    records are not trusted by a later reader (including a `view materialize` run by the same
    operator) unless that node's key is *also* in `keys/trusted/`. `08-opA-verify-after-trust.txt`
    read the frontier fine after trusting `peerB`; `view materialize` still went `ViewUntrusted:

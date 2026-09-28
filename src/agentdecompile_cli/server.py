@@ -657,6 +657,24 @@ def _cleanup_resources(
             pass
 
 
+def _add_targeted_ai_arguments(parser: argparse.ArgumentParser) -> None:
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("--enable-targeted-ai", dest="enable_targeted_ai", action="store_true",
+                       help="Enable targeted AI for this server lifetime. Precedence: CLI > AGENT_DECOMPILE_TARGETED_AI_ENABLED > dashboard > off.")
+    group.add_argument("--no-enable-targeted-ai", dest="enable_targeted_ai", action="store_false",
+                       help="Disable targeted AI for this server lifetime, overriding environment and dashboard settings.")
+    parser.set_defaults(enable_targeted_ai=None)
+
+
+def _configure_targeted_ai(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
+    from agentdecompile_recovery.targeted_ai import TargetedAIConfigError, configure_targeted_ai
+
+    try:
+        configure_targeted_ai(args.enable_targeted_ai)
+    except TargetedAIConfigError as exc:
+        parser.error(str(exc))
+
+
 def build_server_parser() -> argparse.ArgumentParser:
     """Build the ``agentdecompile-server`` argument parser (no side effects).
 
@@ -849,6 +867,7 @@ def build_server_parser() -> argparse.ArgumentParser:
         help="Binaries to import, with analysis, once the server is up. Default: none.",
     )
     parser.add_argument("--config", type=Path, default=None, help="AgentDecompile config file for the launcher. Default: unset.")
+    _add_targeted_ai_arguments(parser)
     return parser
 
 
@@ -857,6 +876,7 @@ def main() -> None:
     logger.debug("diag.enter %s", "server.py:main")
     parser = build_server_parser()
     args = parser.parse_args()
+    _configure_targeted_ai(parser, args)
 
     # ---------------------------------------------------------------
     # Local mode only: agentdecompile-server always runs PyGhidra locally.
@@ -1094,6 +1114,7 @@ def build_proxy_parser() -> argparse.ArgumentParser:
         help="Turn the work exchange off even when AGENT_DECOMPILE_EXCHANGE_ENABLED is set. Default: AGENT_DECOMPILE_EXCHANGE_ENABLED, else off.",
     )
     parser.set_defaults(enable_exchange=None)
+    _add_targeted_ai_arguments(parser)
     return parser
 
 
@@ -1114,6 +1135,7 @@ def proxy_main() -> None:
     logger.debug("diag.enter %s", "server.py:proxy_main")
     parser = build_proxy_parser()
     args = parser.parse_args()
+    _configure_targeted_ai(parser, args)
 
     backend_url = _resolve_proxy_backend_url(
         getattr(args, "backend_url", None),

@@ -106,6 +106,7 @@ class StructureToolProvider(ToolProvider):
                         "fields": {"type": "array", "items": {"type": "object"}, "description": "An array of multiple field definitions to apply at once."},
                         "addressOrSymbol": {"type": "string", "description": "The memory address where you want to drop/apply the struct template."},
                         "isUnion": {"type": "boolean", "default": False, "description": "If true, treats the object as a C-union (all fields overlap at offset 0)."},
+                        "type": {"type": "string", "enum": ["structure", "struct", "union"], "description": "Create a struct or a union. \"union\" is the same as isUnion=true."},
                         "nameFilter": {"type": "string", "description": "Case-insensitive text to filter the struct list by."},
                         "query": {"type": "string", "description": "Alternative parameter for nameFilter."},
                         "filter": {"type": "string", "description": "Alternative parameter for nameFilter."},
@@ -197,8 +198,9 @@ class StructureToolProvider(ToolProvider):
         name = self._require_str(args, "name", "structurename", name="name")
         size = self._get_int(args, "size", default=0)
         cat_path = self._get_str(args, "categorypath", "category", default="/")
-        # Honour `type="union"` too: generated/`tool`/`tool-seq` clients send
-        # the schema-free `type` field without `isUnion`.
+        # Honour `type="union"` too: it is an advertised schema field (see the
+        # inputSchema above), and generated/`tool`/`tool-seq` clients send it
+        # without `isUnion`.
         is_union = self._get_bool(args, "isunion", default=False) or self._get_str(args, "type").strip().lower() == "union"
 
         assert program_info is not None  # for type checker

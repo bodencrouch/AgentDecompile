@@ -67,6 +67,7 @@ from agentdecompile_cli.registry import (  # pyright: ignore[reportMissingImport
     RESPONSE_FORMAT_PARAM,
     RESPONSE_FORMAT_VALUES,
     SELECTOR_PARAM_ALIASES as _SELECTOR_PARAM_ALIASES,
+    MODE_PARAM_PRECEDENCE,
     TOOL_ALIASES,
     TOOL_PARAM_ALIASES,
     Tool,
@@ -395,6 +396,14 @@ _ARRAY_PARAMS = frozenset(
         "tags",
     },
 )
+
+# Deterministic order for the selector-schema fallback in `list_tools`:
+# registry precedence first, then any selector not ranked there, sorted.
+# Iterating the frozenset directly made the chosen schema depend on
+# PYTHONHASHSEED.
+_SELECTOR_PARAM_FALLBACK_ORDER: tuple[str, ...] = tuple(
+    alias for alias in MODE_PARAM_PRECEDENCE if alias in _SELECTOR_PARAM_ALIASES
+) + tuple(sorted(_SELECTOR_PARAM_ALIASES.difference(MODE_PARAM_PRECEDENCE)))
 
 
 T = TypeVar("T")
@@ -2580,7 +2589,7 @@ class ToolProviderManager:
                             provider_param_schema = props_by_norm[alias]
                             break
                 if provider_param_schema is None and normalized_param in _SELECTOR_PARAM_ALIASES:
-                    for selector_alias in _SELECTOR_PARAM_ALIASES:
+                    for selector_alias in _SELECTOR_PARAM_FALLBACK_ORDER:
                         provider_param_schema = props_by_norm.get(selector_alias)
                         if provider_param_schema is not None:
                             break

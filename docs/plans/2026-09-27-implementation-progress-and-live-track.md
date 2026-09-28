@@ -105,6 +105,30 @@ alternate counterpart or prove recovered-source parity.
 
 ### Continuation session 7a1c2b (2026-09-27, late morning)
 
+#### Branch consolidation follow-up (September 28, 2026 UTC)
+
+The resumed branch audit started at `666cfac` (19 local commits after `8b4706d`).
+All 127 changed Python files parsed; this is source syntax evidence only. The
+previous verification checkout's `pytest.log` was empty, so no test pass is claimed.
+The audit found that committed cross-place/catalog paths imported an untracked
+`native_verify_contract.py`; `9fe9d96` retains that module and its existing ownership
+tests. Native execution remains unqualified in this continuation.
+
+`fc4ca10` ports the multiplayer investigation from `0b7305b`, excluding its
+worktree-specific environment file. Evidence remains historical and reused; JSON
+and relative documentation links were checked without recovery or game execution.
+
+The CLI integration worktree has another active owner. Its moving tip was not
+merged. The inventory covers 115 local/cached origin refs, 22 already ancestors
+of the audit baseline. Older-branch patch-equivalence checks repeatedly timed out
+under disk I/O stalls and remain unresolved. No branch deletion, push, PR action,
+filesystem test, build, server start or recovery action occurred. Port 8080 had no
+listener. Installed `.16`/`.18` acceptance is unchanged by this source audit.
+
+Machine-local report and partial inventory:
+`/home/brunner56/agentdecompile-deliverables/2026-09-28-branch-consolidation/report.md`.
+
+
 Evidence lives under `/home/brunner56/agentdecompile-deliverables/`. Each packet has
 its own report, capture script and checksums. The results fall into five evidence
 classes.

@@ -180,13 +180,24 @@ def connect(path: pathlib.Path | str, *, read_only: bool = False) -> sqlite3.Con
     else:
         dest.parent.mkdir(parents=True, exist_ok=True)
         con = sqlite3.connect(dest, timeout=30)
-    con.execute("PRAGMA busy_timeout=30000")
-    con.row_factory = sqlite3.Row
-    if not read_only:
-        # Cannot run inside a transaction, so it stays out of the migration.
-        con.execute("PRAGMA journal_mode=WAL")
-    migrations.apply_pending(con)
-    backfill_recovery_family(con)
+    try:
+        con.execute("PRAGMA busy_timeout=30000")
+        con.row_factory = sqlite3.Row
+        if not read_only:
+            # Cannot run inside a transaction, so it stays out of the migration.
+            con.execute("PRAGMA journal_mode=WAL")
+        migrations.apply_pending(con)
+        backfill_recovery_family(con)
+    except BaseException:
+        # This function owns the newly opened handle until it returns.  Failed
+        # initialization must not leak it through a retained traceback, even
+        # for interruption-like exceptions or when rollback itself fails.
+        try:
+            if con.in_transaction:
+                con.rollback()
+        finally:
+            con.close()
+        raise
     return con
 
 
@@ -252,6 +263,18 @@ def ensure_match_columns(con: sqlite3.Connection) -> None:
     ):
         if col not in cols:
             con.execute(f"ALTER TABLE match ADD COLUMN {col} {decl}")
+
+
+# Primary SQLite result codes meaning "the write cannot run right now". Use
+# numeric fallbacks because sqlite3 did not expose the named constants on every
+# supported Python 3.10 build.
+_BACKFILL_SKIP_CODES = frozenset(
+    {
+        getattr(sqlite3, "SQLITE_BUSY", 5),
+        getattr(sqlite3, "SQLITE_LOCKED", 6),
+        getattr(sqlite3, "SQLITE_READONLY", 8),
+    }
+)
 
 
 def ensure_binary_columns(con: sqlite3.Connection) -> None:
@@ -337,8 +360,27 @@ def backfill_recovery_family(con: sqlite3.Connection) -> int:
 
 
 def _is_lock_or_readonly(exc: sqlite3.OperationalError) -> bool:
+    code = getattr(exc, "sqlite_errorcode", None)
+    if code is not None:
+        # Extended result codes retain their primary class in the low byte.
+        return (int(code) & 0xFF) in _BACKFILL_SKIP_CODES
+
+    # Python 3.10 did not attach sqlite_errorcode. Match only SQLite's complete
+    # canonical messages; arbitrary identifiers containing "busy" or "locked"
+    # are schema errors and must propagate.
     text = str(exc).lower()
-    return "locked" in text or "busy" in text or "readonly" in text or "read-only" in text
+    if text in {
+        "database is locked",
+        "database table is locked",
+        "database schema is locked",
+        "database is busy",
+        "attempt to write a readonly database",
+        "attempt to write a read-only database",
+        "readonly database",
+        "read-only database",
+    }:
+        return True
+    return text.startswith(("database table is locked: ", "database schema is locked: "))
 
 
 def ensure_priority_index(con: sqlite3.Connection) -> None:

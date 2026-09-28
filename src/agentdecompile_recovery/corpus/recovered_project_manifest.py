@@ -102,6 +102,8 @@ def relocations_from_receipt(receipt: dict) -> list[dict]:
         raise ManifestError("relocation_receipt_schema")
     if receipt.get("refusal") is not None or receipt.get("relocations") is None:
         raise ManifestError("relocation_receipt_refused", str(receipt.get("refusal")))
+    if receipt.get("byte_equal_at_origin") is not True:
+        raise ManifestError("relocation_receipt_not_byte_equal", str(receipt.get("byte_equal_at_origin")))
     return sorted((dict(r) for r in receipt["relocations"]), key=lambda r: (r["offset"], r["type"]))
 
 
@@ -220,9 +222,13 @@ def _check_relocations(place: dict, unit_id, refuse) -> int:
             continue
         spans.append((rel["offset"], width))
     spans.sort()
-    for (a_off, a_w), (b_off, _b_w) in zip(spans, spans[1:]):
-        if b_off < a_off + a_w:
-            refuse("overlapping_relocations", unit_id, f"{place.get('symbol')}+{b_off}")
+    max_end = None
+    for off, w in spans:
+        if max_end is not None and off < max_end:
+            refuse("overlapping_relocations", unit_id, f"{place.get('symbol')}+{off}")
+        end = off + w
+        if max_end is None or end > max_end:
+            max_end = end
     return len(relocs)
 
 
@@ -255,12 +261,26 @@ def validate(manifest: dict, project_root: Path, image: bytes) -> dict:
     elif img["sha256"] != observed:
         refuse("stale_image_digest", None, f"manifest {img['sha256'][:16]} observed {observed[:16]}")
 
-    rebuildable = (manifest.get("claims") or {}).get("rebuildable")
+    claims = manifest.get("claims")
+    rebuildable = claims.get("rebuildable") if isinstance(claims, dict) else None
     receipt["rebuildable_claim"] = rebuildable
-    if rebuildable is True and not _is_hex64(manifest.get("basis_hash")):
+    if not isinstance(rebuildable, bool):
+        refuse("invalid_rebuildable_claim", None, repr(rebuildable))
+    elif rebuildable and not _is_hex64(manifest.get("basis_hash")):
         refuse("basis_unrecorded_in_rebuildable_project")
 
-    units = manifest.get("units") or []
+    raw_units = manifest.get("units")
+    if raw_units is None:
+        refuse("no_units")
+        units: list = []
+    elif not isinstance(raw_units, list):
+        refuse("invalid_units", None, type(raw_units).__name__)
+        units = []
+    elif not raw_units:
+        refuse("no_units")
+        units = []
+    else:
+        units = raw_units
     counts = {"units": len(units), "placements": 0, "placed_bytes": 0, "relocations": 0,
               "provenance": {p: 0 for p in PROVENANCES}, "toolchain": {s: 0 for s in TOOLCHAIN_STATES}}
     seen_ids: set = set()
@@ -268,13 +288,20 @@ def validate(manifest: dict, project_root: Path, image: bytes) -> dict:
     placed: list[tuple[int, int, str, str]] = []
     skip = set()
     for index, u in enumerate(units):
+        if not isinstance(u, dict):
+            refuse("invalid_unit", None, repr(u)[:80])
+            continue
         uid = u.get("id")
         skip.add(f"$.units[{index}].source.path")  # judged by the relocatable-path rule
+        skip.add(f"$.units[{index}].toolchain.flags")  # compiler switches (e.g. "/O2"), not paths
         if uid in seen_ids:
             refuse("duplicate_unit", uid)
         seen_ids.add(uid)
 
-        source = u.get("source") or {}
+        source = u.get("source")
+        if not isinstance(source, dict):
+            refuse("invalid_unit_source", uid, repr(source)[:80])
+            source = {}
         path = source.get("path")
         if not _relocatable(path):
             refuse("non_relocatable_path", uid, "source path is absolute, escaping or empty")
@@ -307,7 +334,16 @@ def validate(manifest: dict, project_root: Path, image: bytes) -> dict:
             if state == "unpinned" and rebuildable is True:
                 refuse("unpinned_toolchain_in_rebuildable_project", uid)
 
-        for place in u.get("placements") or []:
+        raw_placements = u.get("placements")
+        if raw_placements is None:
+            raw_placements = []
+        elif not isinstance(raw_placements, list):
+            refuse("invalid_placements", uid, type(raw_placements).__name__)
+            raw_placements = []
+        for place in raw_placements:
+            if not isinstance(place, dict):
+                refuse("invalid_placement", uid, repr(place)[:80])
+                continue
             va, size, sym = place.get("va"), place.get("size"), str(place.get("symbol"))
             if not (_is_int(va) and _is_int(size) and size > 0):
                 refuse("invalid_placement", uid, sym)
@@ -320,9 +356,15 @@ def validate(manifest: dict, project_root: Path, image: bytes) -> dict:
             counts["relocations"] += _check_relocations(place, uid, refuse)
 
     placed.sort()
-    for (a_va, a_size, a_uid, a_sym), (b_va, _b_size, b_uid, b_sym) in zip(placed, placed[1:]):
-        if b_va < a_va + a_size:
-            refuse("overlapping_placements", b_uid, f"{b_sym} 0x{b_va:x} overlaps {a_uid}:{a_sym}")
+    max_end = None
+    max_end_owner = None
+    for va, size, uid, sym in placed:
+        if max_end is not None and va < max_end:
+            refuse("overlapping_placements", uid, f"{sym} 0x{va:x} overlaps {max_end_owner}")
+        end = va + size
+        if max_end is None or end > max_end:
+            max_end = end
+            max_end_owner = f"{uid}:{sym}"
 
     for pointer in _leaks(manifest, "$", skip):
         refuse("absolute_path_leak", None, pointer)

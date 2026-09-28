@@ -206,6 +206,18 @@ def test_absolute_path_leak_anywhere_refused(tmp_path):
     assert "/run/media" not in rpm.receipt_bytes(receipt).decode()
 
 
+def test_msvc_style_flags_are_not_absolute_path_leaks(tmp_path):
+    # RN-B-12: "/O2", "/Gy" etc. are MSVC compiler switches, not host paths.
+    manifest = project(tmp_path)
+    manifest["units"][0]["toolchain"]["flags"] = ["/O2", "/Gy"]
+    receipt = rpm.validate(manifest, tmp_path, IMAGE_BYTES)
+    assert receipt["verdict"] == "accepted", receipt["refusals"]
+    # a real absolute path elsewhere in the manifest is still refused
+    manifest["units"][0]["toolchain"]["compiler"] = "/home/x/y.c"
+    receipt = rpm.validate(manifest, tmp_path, IMAGE_BYTES)
+    assert reasons(receipt) == ["absolute_path_leak"]
+
+
 def test_invalid_provenance_refused(tmp_path):
     manifest = project(tmp_path)
     manifest["units"][0]["provenance"] = "guessed"
@@ -220,6 +232,21 @@ def test_basis_required_for_rebuildable_claim(tmp_path):
         ["basis_unrecorded_in_rebuildable_project"]
     assert rpm.validate(project(tmp_path, basis=None, rebuildable=False), tmp_path,
                         IMAGE_BYTES)["verdict"] == "accepted"
+
+
+@pytest.mark.parametrize("units_value", [[], None, "units", {"a": 1}, 5])
+def test_empty_or_non_list_units_refused(tmp_path, units_value):
+    # RN-B-13: an empty/missing units list, or a non-list units value,
+    # must not be silently treated as an empty project.
+    manifest = project(tmp_path)
+    if units_value is None:
+        del manifest["units"]
+    else:
+        manifest["units"] = units_value
+    receipt = rpm.validate(manifest, tmp_path, IMAGE_BYTES)
+    assert receipt["verdict"] == "refused"
+    expected = "no_units" if units_value == [] or units_value is None else "invalid_units"
+    assert expected in reasons(receipt)
 
 
 def test_schema_mismatch_refused_without_further_checks(tmp_path):
@@ -285,6 +312,16 @@ def test_roundtrip_receipt_must_match_placement(tmp_path):
     assert exc.value.reason == "relocation_receipt_schema"
 
 
+def test_failed_roundtrip_receipt_refused_in_placement(tmp_path):
+    # RN-B-14: a receipt whose byte_equal_at_origin is not True is a
+    # mismatch, not a set of relocation expectations to trust.
+    receipt, size = mkobj_receipt(TEXT + 0x100)
+    bad = dict(receipt, byte_equal_at_origin=False)
+    with pytest.raises(rpm.ManifestError) as exc:
+        rpm.placement("_F", TEXT + 0x100, size, relocation_receipt=bad)
+    assert exc.value.reason == "relocation_receipt_not_byte_equal"
+
+
 def test_bad_relocation_expectations_refused(tmp_path):
     manifest = project(tmp_path)
     relocs = manifest["units"][0]["placements"][0]["relocations"]
@@ -301,6 +338,71 @@ def test_bad_relocation_expectations_refused(tmp_path):
 
 
 # ------------------------------------------------------------------ U148 shard merge
+
+
+# ------------------------------------------------------------------ RN-B-15/16: type guards and overlap coverage
+
+
+@pytest.mark.parametrize("bad_unit", ["not-a-dict", 5, ["nested"]])
+def test_malformed_unit_refused_not_crashed(tmp_path, bad_unit):
+    manifest = project(tmp_path)
+    manifest["units"] = [bad_unit]
+    receipt = rpm.validate(manifest, tmp_path, IMAGE_BYTES)
+    assert receipt["verdict"] == "refused"
+    assert "invalid_unit" in reasons(receipt)
+
+
+def test_malformed_source_refused_not_crashed(tmp_path):
+    manifest = project(tmp_path)
+    manifest["units"][0]["source"] = ["not-a-dict"]
+    receipt = rpm.validate(manifest, tmp_path, IMAGE_BYTES)
+    assert receipt["verdict"] == "refused"
+    assert "invalid_unit_source" in reasons(receipt)
+
+
+def test_malformed_placement_refused_not_crashed(tmp_path):
+    manifest = project(tmp_path)
+    manifest["units"][0]["placements"] = ["not-a-dict"]
+    receipt = rpm.validate(manifest, tmp_path, IMAGE_BYTES)
+    assert receipt["verdict"] == "refused"
+    assert "invalid_placement" in reasons(receipt)
+
+
+def test_malformed_relocation_refused_not_crashed(tmp_path):
+    manifest = project(tmp_path)
+    manifest["units"][0]["placements"][0]["relocations"] = "not-a-list"
+    receipt = rpm.validate(manifest, tmp_path, IMAGE_BYTES)
+    assert receipt["verdict"] == "refused"
+    assert "invalid_relocation" in reasons(receipt)
+
+
+def test_every_overlapping_placement_is_reported_not_just_adjacent(tmp_path):
+    # RN-B-15: A=(0,100), B=(10,5), C=(20,5) must report both B and C as
+    # overlapping A, not just B against its immediate neighbor.
+    manifest = project(tmp_path)
+    manifest["units"][0]["placements"][0].update(va=TEXT, size=100)
+    manifest["units"][1]["placements"][0].update(va=TEXT + 10, size=5)
+    extra_src = write_source(tmp_path, "src/c.c", "int c(void) { return 3; }\n")
+    extra = rpm.unit("c", source_path="src/c.c", source_sha256=extra_src, image_sha256=IMAGE_SHA,
+                     provenance="recovered",
+                     toolchain=rpm.pinned_toolchain(TOOLCHAIN_ID, compiler="synthetic-cc 1.0"),
+                     placements=[rpm.placement("_c", TEXT + 20, 5)])
+    manifest["units"].append(extra)
+    receipt = rpm.validate(manifest, tmp_path, IMAGE_BYTES)
+    overlap_refusals = [r for r in receipt["refusals"] if r["reason"] == "overlapping_placements"]
+    assert len(overlap_refusals) == 2
+    assert {r["unit"] for r in overlap_refusals} == {"b", "c"}
+
+
+def test_non_bool_rebuildable_claim_refused(tmp_path):
+    # RN-B-16: a truthy-but-not-bool rebuildable claim must not silently
+    # skip the basis/toolchain checks it is supposed to trigger.
+    manifest = project(tmp_path, basis=None)
+    manifest["claims"]["rebuildable"] = "yes"
+    receipt = rpm.validate(manifest, tmp_path, IMAGE_BYTES)
+    assert receipt["verdict"] == "refused"
+    assert "invalid_rebuildable_claim" in reasons(receipt)
+    assert "basis_unrecorded_in_rebuildable_project" not in reasons(receipt)
 
 
 def test_merge_of_shards_is_byte_identical_to_single_manifest(tmp_path):

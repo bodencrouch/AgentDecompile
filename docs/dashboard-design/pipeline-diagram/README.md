@@ -172,3 +172,9 @@ matcher veto and the four new modules are unmerged and have no wired consumer,
 not pipeline design. If the matcher veto merges, the recovery-overview diagram's
 identity-fusion lane (Lane A) would need a new decision node for a vetoed tie
 inside the score-margin window; that edit is not made here.
+
+## Supplied originals reconciled — 2026-09-28
+
+The [two supplied September 21 SVGs](history/2026-09-21/README.md) are preserved
+with exact hashes and source paths. They are historical inputs; the current
+overview and its later contract refinements remain in place.

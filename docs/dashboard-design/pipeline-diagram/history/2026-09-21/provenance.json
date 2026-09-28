@@ -1,0 +1,22 @@
+{
+  "artifacts": [
+    {
+      "source": "/home/brunner56/agentdecompile-pipeline.svg",
+      "archived_path": "docs/dashboard-design/pipeline-diagram/history/2026-09-21/agentdecompile-pipeline.svg",
+      "sha256": "8dd7ebd9a4c22e58117d9824d27f28b6423129b178797a9da0f4fe6d232758bf",
+      "bytes": 131139,
+      "text_nodes": 566,
+      "status": "historical source preserved; superseded by current overview and companion contracts"
+    },
+    {
+      "source": "/home/brunner56/agentdecompile-pipeline-figma.svg",
+      "archived_path": "docs/dashboard-design/pipeline-diagram/history/2026-09-21/agentdecompile-pipeline-figma.svg",
+      "sha256": "a3472e94b3e24da5b9135adc8e176ec89027b840208e6a3a8d6a944e84986b65",
+      "bytes": 131394,
+      "text_nodes": 566,
+      "status": "historical source preserved; superseded by current overview and companion contracts"
+    }
+  ],
+  "canonical": "../../agentdecompile-recovery-pipeline.svg",
+  "proof": "XML parsed and copies hash-equal; no rendering, tests, build, or runtime proof implied"
+}

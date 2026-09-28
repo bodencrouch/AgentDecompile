@@ -2545,13 +2545,10 @@ def _supported_cli_tool_params(tool_name: str) -> list[str]:
     params: list[str] = get_tool_params(tool_name)
     # Defensive de-dupe, keyed by normalized identifier: a genuine repeat
     # (same param spelled/cased two ways) would otherwise declare the CLI
-    # option twice and let one declaration silently win. This used to also
-    # catch an accidental collapse where `_canonical_param_name` turned a
-    # tool's own real parameter (e.g. manage-bookmarks'/manage-structures'
-    # "type") into a second literal "mode" entry; that collapse is fixed at
-    # the source in registry.py's `_merge_tools_list_params` /
-    # `_canonical_param_name`, which now leave a tool-declared alias like
-    # "type" alone, so "mode" and "type" no longer collide here.
+    # option twice and let one declaration silently win. A tool's own
+    # mode-alias-shaped parameter (e.g. manage-bookmarks'/manage-structures'
+    # "type") arrives here under its own name, not as "mode": registry.py's
+    # `_canonical_param_name` leaves tool-declared aliases alone.
     seen: set[str] = set()
     unique: list[str] = []
     for param in params:
@@ -4238,6 +4235,12 @@ def structures_grp() -> None:
     pass
 
 
+# `structures run` actions whose server handler reads the top-level "type"
+# argument (mcp_server/providers/structures.py `_create`, `_add_field`,
+# `_modify_field`).
+_STRUCTURES_TYPE_ACTIONS: frozenset[str] = frozenset({"create", "add_field", "modify_field"})
+
+
 @structures_grp.command("run", help="Run manage-structures with --action")
 @click.option("-b", "--binary", "program_path")
 @click.option(
@@ -4312,13 +4315,14 @@ def structures_run(
         payload["name"] = name
     if size is not None:
         payload["size"] = size
-    if type_ is not None:
-        # "type" (structure/union) is passed through under its own name so
-        # registry-level alias resolution never collapses it into "mode" --
-        # see registry.py MODE_PARAM_PRECEDENCE. The server's `_create`
-        # (mcp_server/providers/structures.py) is the source of truth and
-        # honours `type="union"` itself; `isUnion` is also sent only so this
-        # command still creates a union against servers predating that.
+    if type_ is not None and action in _STRUCTURES_TYPE_ACTIONS:
+        # manage-structures declares "type" as its own parameter, so the
+        # registry keeps it apart from "mode" (`declared_for_tool` in
+        # registry.py). Only create (struct/union kind) and add_field/
+        # modify_field (fieldType fallback) read it; other actions ignore
+        # it, so it is not sent for them. The server's `_create` honours
+        # type="union"; `isUnion` is also sent so this command still creates
+        # a union against servers that predate that.
         payload["type"] = type_
         if action == "create":
             payload["isUnion"] = type_ == "union"

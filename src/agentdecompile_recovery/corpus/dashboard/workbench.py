@@ -1989,10 +1989,13 @@ def program_workspace(
                 db_stamp = entry.database_path.stat().st_mtime_ns
             except OSError:
                 db_stamp = time.time_ns()
-            fn_key = f"fnlist:{entry.database_path}:{entry.version}:{db_stamp}"
+            # One slot per database: a new analysis replaces the old list instead of
+            # leaving it behind under a stale stamp.
+            fn_key = f"fnlist:{entry.database_path}"
+            fn_stamp = f"{entry.version}:{db_stamp}"
             fn_hit = _CACHE.get(fn_key)
-            if fn_hit is not None:
-                functions, raw_keys, named = fn_hit[1]
+            if fn_hit is not None and fn_hit[1][0] == fn_stamp:
+                functions, raw_keys, named = fn_hit[1][1]
             else:
                 functions: list[tuple[int, str]] = []
                 raw_keys: dict[int, int] = {}
@@ -2006,7 +2009,7 @@ def program_workspace(
                     if func.name and not func.name.startswith(("FUN_", "Unwind@", "thunk_")):
                         named += 1
                 functions.sort(key=lambda item: item[0])
-                _CACHE[fn_key] = (time.time(), (functions, raw_keys, named))
+                _CACHE[fn_key] = (time.time(), (fn_stamp, (functions, raw_keys, named)))
             if not functions:
                 overview = {
                     "program": name,
@@ -2330,11 +2333,11 @@ def render_workbench(*, static_mode: bool = False) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AgentDecompile — {esc(WORKSPACE_NAME)}</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23d07a3a'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-size='13' font-family='ui-sans-serif,system-ui,sans-serif' font-weight='800' fill='%231a120c'%3EAD%3C/text%3E%3C/svg%3E">
-<link rel="stylesheet" href="/dashboard/static/dashboard.css">
-<link rel="stylesheet" href="/dashboard/static/workbench.css?v=live12">
+<link rel="stylesheet" href="/dashboard/static/dashboard.css?v=a11y1">
+<link rel="stylesheet" href="/dashboard/static/workbench.css?v=live13">
 <link rel="stylesheet" href="/dashboard/static/workbench-tokens.css?v=onepage1">
 <link rel="stylesheet" href="/dashboard/static/workbench-controls.css?v=onepage1">
-<link rel="stylesheet" href="/dashboard/static/workbench-chrome.css?v=onepage1">
+<link rel="stylesheet" href="/dashboard/static/workbench-chrome.css?v=onepage2">
 <link rel="stylesheet" href="/dashboard/static/workbench-sidebar.css?v=live11">
 <link rel="stylesheet" href="/dashboard/static/workbench-editor.css?v=live26">
 <link rel="stylesheet" href="/dashboard/static/workbench-dialogs.css?v=onepage1">
@@ -2450,7 +2453,7 @@ def render_workbench(*, static_mode: bool = False) -> str:
 <script src="/dashboard/static/react-dom.js"></script>
 <script src="/dashboard/static/htm.js"></script>
 <script src="/dashboard/static/dashboard.js" defer></script>
-<script src="/dashboard/static/workbench-app.js?v=live34" defer></script>
+<script src="/dashboard/static/workbench-app.js?v=live36" defer></script>
 </body>
 </html>
 """

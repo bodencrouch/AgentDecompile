@@ -1895,12 +1895,33 @@
     </section>`;
   }
 
-  function Modal({ open, title, onClose, children, footer, error }) {
+  function Modal({ open, title, onClose, children, footer, error, menuInvokerRef }) {
     const boxRef = useRef(null);
+    const capturedInvokerRef = useRef(null);
     useEffect(function () {
       if (!open || !boxRef.current) return;
+      /* A2: remember what had focus before the modal opened, so closing it
+         (Escape, backdrop click, or the × button) can put focus back there
+         instead of dropping it to <body>. Dialogs opened from a menu item
+         are a special case: the item itself unmounts (its menu closes) in
+         the same render that opens the dialog, so document.activeElement
+         is already <body> by the time this effect runs. menuInvokerRef is
+         the surviving menu-trigger button captured at click time, before
+         that unmount -- prefer it when present. */
+      const menuInvoker = menuInvokerRef && menuInvokerRef.current;
+      capturedInvokerRef.current = (menuInvoker && document.contains(menuInvoker))
+        ? menuInvoker
+        : document.activeElement;
+      if (menuInvokerRef) menuInvokerRef.current = null;
       const first = boxRef.current.querySelector("input, select, textarea, button.wb-btn-primary");
       if (first && typeof first.focus === "function") first.focus();
+      return function () {
+        const invoker = capturedInvokerRef.current;
+        if (invoker && typeof invoker.focus === "function" && document.contains(invoker)) {
+          invoker.focus();
+        }
+        capturedInvokerRef.current = null;
+      };
     }, [open]);
     if (!open) return null;
     /* Tab stays inside the dialog, the way a modal window behaves on a desktop. */
@@ -2390,13 +2411,16 @@
     const more = overflow.filter(function (item) { return !promoted || item.id !== promoted.id; });
     return html`<nav id="wb-corpus-nav" className="wb-corpus-nav wb-editor-tabs" aria-label="Windows">
       ${EDITOR_PRIMARY.map(function (item) {
-        const on = active === item.id ? " on" : "";
+        const isActive = active === item.id;
+        const on = isActive ? " on" : "";
         return html`<button type="button" key=${item.id} className=${"wb-corpus-nav-item" + on}
           data-surface=${item.id}
+          aria-current=${isActive ? "page" : undefined}
           onClick=${function () { onJump(item.id); }}>${item.title}</button>`;
       })}
       ${promoted ? html`<button type="button" key=${promoted.id} className="wb-corpus-nav-item on wb-nav-promoted"
         data-surface=${promoted.id}
+        aria-current="page"
         onClick=${function () { onJump(promoted.id); }}>${promoted.title}</button>` : null}
       <details className=${"wb-editor-more" + (promoted ? " on" : "")} open=${Boolean(moreOpen)}
         onToggle=${function (ev) {
@@ -2418,11 +2442,29 @@
     </nav>`;
   }
 
-  function CommandPalette({ open, query, onQuery, actions, surfaces, jobs, recentActionIds, commands, onPickAction, onPickSurface, onPickJob, onPickCommand, onClose }) {
+  function CommandPalette({ open, query, onQuery, actions, surfaces, jobs, recentActionIds, commands, onPickAction, onPickSurface, onPickJob, onPickCommand, onClose, menuInvokerRef }) {
     const inputRef = useRef(null);
+    const capturedInvokerRef = useRef(null);
     const [activeIdx, setActiveIdx] = useState(0);
     useEffect(function () {
-      if (open && inputRef.current) inputRef.current.focus();
+      if (!open) return;
+      /* A2: same invoker-focus contract as Modal -- remember what triggered
+         the palette (Ctrl+K, a menu item, …) and give it focus back on close.
+         menuInvokerRef covers the "View > Command palette" menu-item case,
+         where the item unmounts before this effect can see it as active. */
+      const menuInvoker = menuInvokerRef && menuInvokerRef.current;
+      capturedInvokerRef.current = (menuInvoker && document.contains(menuInvoker))
+        ? menuInvoker
+        : document.activeElement;
+      if (menuInvokerRef) menuInvokerRef.current = null;
+      if (inputRef.current) inputRef.current.focus();
+      return function () {
+        const invoker = capturedInvokerRef.current;
+        if (invoker && typeof invoker.focus === "function" && document.contains(invoker)) {
+          invoker.focus();
+        }
+        capturedInvokerRef.current = null;
+      };
     }, [open]);
     useEffect(function () {
       if (open) setActiveIdx(0);
@@ -2509,16 +2551,20 @@
       return "wb-palette-item" + (idx === safeIdx ? " active" : "");
     }
     return html`<div className="wb-palette-backdrop" onClick=${onClose}>
-      <div className="wb-palette" role="dialog" aria-label="Command palette" onClick=${function (ev) { ev.stopPropagation(); }}>
+      <div className="wb-palette" role="dialog" aria-modal="true" aria-label="Command palette" onClick=${function (ev) { ev.stopPropagation(); }}>
         <input ref=${inputRef} type="search" className="wb-palette-input" placeholder="Run an action or go to a surface…"
           value=${query} onInput=${function (ev) { onQuery(ev.target.value); }}
-          onKeyDown=${onPaletteInputKey} autocomplete="off" aria-activedescendant=${picks.length ? "wb-palette-pick-" + safeIdx : undefined} />
+          onKeyDown=${onPaletteInputKey} autocomplete="off"
+          role="combobox" aria-expanded="true" aria-controls="wb-palette-results"
+          aria-activedescendant=${picks.length ? "wb-palette-pick-" + safeIdx : undefined} />
+        <div id="wb-palette-results" role="listbox" aria-label="Command palette results">
         ${commandHits.length ? html`<section className="wb-palette-section">
           <h3>Workbench</h3>
           <ul>${commandHits.map(function (cmd) {
             const idx = pickCursor++;
             return html`<li key=${"cmd-" + cmd.id}>
               <button type="button" id=${"wb-palette-pick-" + idx} className=${itemClass(idx)}
+                role="option" aria-selected=${idx === safeIdx}
                 data-cmd=${cmd.id}
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickCommand(cmd.id); }}>
@@ -2534,6 +2580,7 @@
             const idx = pickCursor++;
             return html`<li key=${"recent-" + act.id}>
               <button type="button" id=${"wb-palette-pick-" + idx} className=${itemClass(idx)}
+                role="option" aria-selected=${idx === safeIdx}
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickAction(act.id); }}>
                 <strong>${act.title || act.id}</strong>
@@ -2548,6 +2595,7 @@
             const idx = pickCursor++;
             return html`<li key=${act.id}>
               <button type="button" id=${"wb-palette-pick-" + idx} className=${itemClass(idx)}
+                role="option" aria-selected=${idx === safeIdx}
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickAction(act.id); }}>
                 <strong>${act.title || act.id}</strong>
@@ -2562,6 +2610,7 @@
             const idx = pickCursor++;
             return html`<li key=${item.id}>
               <button type="button" id=${"wb-palette-pick-" + idx} className=${itemClass(idx)}
+                role="option" aria-selected=${idx === safeIdx}
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickSurface(item.id); }}>
                 <strong>${item.title}</strong>
@@ -2576,6 +2625,7 @@
             const idx = pickCursor++;
             return html`<li key=${job.id}>
               <button type="button" id=${"wb-palette-pick-" + idx} className=${itemClass(idx)}
+                role="option" aria-selected=${idx === safeIdx}
                 onMouseEnter=${function () { setActiveIdx(idx); }}
                 onClick=${function () { onPickJob(job.id); }}>
                 <strong>${job.actionId || job.id}</strong>
@@ -2584,6 +2634,7 @@
             </li>`;
           })}</ul>
         </section>` : null}
+        </div>
         ${!picks.length
           ? html`<p className="wb-hint">No matches. Try “ghidra”, “cross-match”, or “jobs”.</p>`
           : html`<p className="wb-hint wb-palette-kbd">↑↓ to move · Enter to select · Esc to close</p>`}
@@ -2618,11 +2669,38 @@
     </div>`;
   }
 
-  function SplitHandle({ axis, label, onDrag }) {
+  function SplitHandle({ axis, label, onDrag, value, min, max, step, onStep }) {
+    const orientation = axis === "x" ? "vertical" : "horizontal";
+    const stepSize = step || 16;
+    function onKeyDown(ev) {
+      if (!onStep) return;
+      let delta = 0;
+      if (orientation === "vertical") {
+        if (ev.key === "ArrowLeft") delta = -stepSize;
+        else if (ev.key === "ArrowRight") delta = stepSize;
+      } else {
+        if (ev.key === "ArrowUp") delta = stepSize;
+        else if (ev.key === "ArrowDown") delta = -stepSize;
+      }
+      if (!delta) return;
+      ev.preventDefault();
+      onStep(delta);
+    }
     return html`<div className=${"wb-split wb-split-" + axis} role="separator"
-      aria-orientation=${axis === "x" ? "vertical" : "horizontal"}
+      tabIndex="0"
+      aria-orientation=${orientation}
       aria-label=${label}
-      onMouseDown=${onDrag}></div>`;
+      aria-valuenow=${value != null ? Math.round(value) : undefined}
+      aria-valuemin=${min != null ? min : undefined}
+      aria-valuemax=${max != null ? max : undefined}
+      onMouseDown=${onDrag}
+      onKeyDown=${onKeyDown}></div>`;
+  }
+
+  function clampResize(next, min, max, setter, key) {
+    const clamped = Math.round(Math.min(max, Math.max(min, next)));
+    setter(clamped);
+    writeUiPref(key, String(clamped));
   }
 
   function beginResize(ev, startPx, setter, key, axis, min, max, invert) {
@@ -2631,9 +2709,7 @@
     document.body.classList.add(axis === "x" ? "wb-resizing-x" : "wb-resizing-y");
     function move(e) {
       const delta = (axis === "x" ? e.clientX : e.clientY) - origin;
-      const next = Math.round(Math.min(max, Math.max(min, startPx + (invert ? -delta : delta))));
-      setter(next);
-      writeUiPref(key, String(next));
+      clampResize(startPx + (invert ? -delta : delta), min, max, setter, key);
     }
     function up() {
       document.removeEventListener("mousemove", move);
@@ -2646,7 +2722,7 @@
 
   function LogDock({
     entries, tab, onTab, open, onToggle, selectedId, onSelect,
-    jobs, selectedJobId, jobDetail, onSelectJob, onCancel, actions, height, onResize
+    jobs, selectedJobId, jobDetail, onSelectJob, onCancel, actions, height, onResize, onKeyResize
   }) {
     const list = jobs || [];
     const running = list.filter(function (job) { return job.status === "running" || job.status === "queued"; });
@@ -2656,7 +2732,8 @@
     return html`<aside id="wb-log-dock" className=${"wb-log-dock" + (open ? " open" : "")}
       style=${open ? { height: height + "px" } : undefined}>
       <${SplitHandle} axis="y" label="Resize log"
-        onDrag=${onResize} />
+        value=${height} min=${72} max=${640}
+        onDrag=${onResize} onStep=${onKeyResize} />
       <header className="wb-log-dock-head">
         <button type="button" className=${"wb-log-tab" + (tab === "log" ? " on" : "")}
           onClick=${function () { onTab("log"); if (!open) onToggle(true); }}>Log</button>
@@ -2772,6 +2849,13 @@
     const [dialogError, setDialogError] = useState("");
     const [ctxMenu, setCtxMenu] = useState(null);
     const [dialog, setDialog] = useState("");
+    /* A2: when a dialog is opened from a menu item, the item itself is
+       unmounted (its menu closes) in the same render that opens the dialog,
+       so by the time Modal's own effect runs document.activeElement is
+       already <body>. The stable ~menu trigger~ button survives that
+       unmount, so it's captured here and handed to Modal as the fallback
+       invoker to restore focus to. */
+    const dialogInvokerRef = useRef(null);
     const [openTab, setOpenTab] = useState("local");
     const [openPaste, setOpenPaste] = useState("");
     const [funcNote, setFuncNote] = useState("");
@@ -3001,7 +3085,8 @@
             .then(function (res) { return res.json(); });
           const record = (job && (job.job || job)) || {};
           const output = String(record.log || record.output || "");
-          const state = /\*\*State:\*\* `([^`]+)`/.exec(output);
+          // The job log carries the tool's markdown error, or its JSON form.
+          const state = /\*\*State:\*\* `([^`]+)`/.exec(output) || /"state":\s*"([^"]+)"/.exec(output);
           cause = state ? state[1] : "";
         } catch (err) {
           cause = "";
@@ -5949,7 +6034,7 @@
           return html`<div key=${id} className=${"wb-menu" + (menu === id ? " on" : "")}
             onMouseEnter=${function () { if (menu) setMenu(id); }}>
             <button type="button" className="wb-menu-btn" aria-haspopup="true" aria-expanded=${menu === id}
-              onClick=${function () { setMenu(menu === id ? "" : id); }}>${label}</button>
+              onClick=${function (ev) { dialogInvokerRef.current = ev.currentTarget; setMenu(menu === id ? "" : id); }}>${label}</button>
             ${menu === id ? html`<ul className="wb-menu-list">${items.map(function (item, index) {
               if (item[0] === "—") return html`<li key=${id + "-s" + index} className="wb-menu-sep" />`;
               const cmdId = item[1];
@@ -6061,7 +6146,8 @@
         onPickSurface=${onPaletteSurface}
         onPickJob=${onPaletteJob}
         onPickCommand=${function (id) { setPaletteOpen(false); setPaletteQuery(""); runCommand(id); }}
-        onClose=${function () { setPaletteOpen(false); setPaletteQuery(""); }} />
+        onClose=${function () { setPaletteOpen(false); setPaletteQuery(""); }}
+        menuInvokerRef=${dialogInvokerRef} />
       <${ContextMenu} menu=${ctxMenu} onClose=${function () { setCtxMenu(null); }}
         onPick=${function (item) {
           setCtxMenu(null);
@@ -6081,7 +6167,7 @@
         onChange=${function (ev) { if (ev.target.files && ev.target.files.length) uploadFiles(ev.target.files); }} />
       <input id="wb-bin-folder-global" type="file" webkitdirectory="true" hidden ref=${folderRef}
         onChange=${function (ev) { if (ev.target.files && ev.target.files.length) uploadFiles(ev.target.files); }} />
-      <${Modal} open=${dialog === "open"} title="Open project" onClose=${closeDialog} error=${dialogError} footer=${html`
+      <${Modal} open=${dialog === "open"} title="Open project" onClose=${closeDialog} error=${dialogError} menuInvokerRef=${dialogInvokerRef} footer=${html`
         <button type="button" className="wb-btn" onClick=${closeDialog}>Cancel</button>
         <button type="button" className="wb-btn wb-btn-primary" id="wb-open-paste-go" onClick=${openPastedPath}>Open path</button>
       `}>
@@ -6147,7 +6233,7 @@
         </form>`}
       </${Modal}>
 
-      <${Modal} open=${dialog === "save-as"} title="Save As" onClose=${closeDialog} error=${dialogError}
+      <${Modal} open=${dialog === "save-as"} title="Save As" onClose=${closeDialog} error=${dialogError} menuInvokerRef=${dialogInvokerRef}
         footer=${html`
           <button type="button" className="wb-btn" onClick=${closeDialog}>Cancel</button>
           <button type="submit" form="wb-save-as-form" className="wb-btn wb-btn-primary">Save</button>
@@ -6176,7 +6262,7 @@
         </form>
       </${Modal}>
 
-      <${Modal} open=${dialog === "add-binary"} title="Add binary to this project" onClose=${closeDialog} error=${dialogError}
+      <${Modal} open=${dialog === "add-binary"} title="Add binary to this project" onClose=${closeDialog} error=${dialogError} menuInvokerRef=${dialogInvokerRef}
         footer=${html`
           <button type="button" className="wb-btn" onClick=${closeDialog}>Cancel</button>
           <button type="button" className="wb-btn" onClick=${triggerFileUpload}>Choose file…</button>
@@ -6194,7 +6280,7 @@
         </form>
       </${Modal}>
 
-      <${Modal} open=${dialog === "access"} title="Shortcuts and menus" onClose=${closeDialog}
+      <${Modal} open=${dialog === "access"} title="Shortcuts and menus" onClose=${closeDialog} menuInvokerRef=${dialogInvokerRef}
         footer=${html`<button type="button" className="wb-btn wb-btn-primary" onClick=${closeDialog}>Close</button>`}>
         <p className="wb-hint">Use the menu, the command palette, a right-click, a shortcut, or a button.</p>
         <table className="wb-access-table">
@@ -6354,7 +6440,9 @@
           </div>
         </aside>
         <${SplitHandle} axis="x" label="Resize explorer"
-          onDrag=${function (ev) { beginResize(ev, sideW, setSideW, "wb-side-w", "x", 180, 900, false); }} />
+          value=${sideW} min=${180} max=${900}
+          onDrag=${function (ev) { beginResize(ev, sideW, setSideW, "wb-side-w", "x", 180, 900, false); }}
+          onStep=${function (delta) { clampResize(sideW + delta, 180, 900, setSideW, "wb-side-w"); }} />
 
       <div className="wb-editor"
         onContextMenu=${function (ev) {
@@ -6400,7 +6488,8 @@
         onCancel=${cancelJob}
         actions=${actions}
         height=${logH}
-        onResize=${function (ev) { beginResize(ev, logH, setLogH, "wb-log-h", "y", 72, 640, true); }} />
+        onResize=${function (ev) { beginResize(ev, logH, setLogH, "wb-log-h", "y", 72, 640, true); }}
+        onKeyResize=${function (delta) { clampResize(logH + delta, 72, 640, setLogH, "wb-log-h"); }} />
         <input id="wb-bin-slug" type="hidden" value=${newSlug} />
         <input id="wb-bin-role" type="hidden" value=${role} />
         <input id="wb-bin-label" type="hidden" value=${label} />
@@ -6417,7 +6506,7 @@
           ? html`<span id="wb-status-error" className="wb-status-error" role="alert">${statusError}
               <button type="button" className="wb-status-dismiss" aria-label="Dismiss error"
                 onClick=${function () { setStatusError(""); }}>×</button></span>`
-          : html`<span id="wb-last-action" className="wb-hint">${lastNote}</span>`}
+          : html`<span id="wb-last-action" className="wb-hint" aria-live="polite" aria-atomic="true">${lastNote}</span>`}
       </footer>
     </div>`;
   }

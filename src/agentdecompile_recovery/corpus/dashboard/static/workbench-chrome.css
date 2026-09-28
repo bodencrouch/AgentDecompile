@@ -93,7 +93,7 @@
 
 .workbench-page .wb-search #wb-q::placeholder,
 .workbench-page .wb-chrome #wb-q::placeholder {
-  color: var(--text-dim);
+  color: var(--text-muted);
 }
 
 .workbench-page .wb-search #wb-q:hover,
@@ -125,7 +125,7 @@
 }
 
 .workbench-page .wb-status-line #job-pulse {
-  color: var(--text-dim);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -281,7 +281,7 @@
 
 .workbench-page .wb-accel {
   margin-left: auto;
-  color: var(--text-dim);
+  color: var(--text-muted);
   font-size: var(--wb-type-kicker);
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -457,7 +457,7 @@
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--text-dim);
+  color: var(--text-muted);
   font: 400 12px/1 var(--font-ui);
   cursor: pointer;
 }
@@ -568,7 +568,7 @@
   overflow: hidden;
   border-top: 1px solid var(--border);
   background: var(--bg-panel);
-  color: var(--text-dim);
+  color: var(--text-muted);
   font-size: var(--wb-type-kicker);
   line-height: 22px;
 }
@@ -585,7 +585,7 @@
 .workbench-page footer.wb-status #wb-status-kind,
 .workbench-page #wb-status-kind {
   flex: 0 0 auto;
-  color: var(--text-dim);
+  color: var(--text-muted);
   font-size: var(--wb-type-kicker);
   letter-spacing: .04em;
   text-transform: uppercase;
@@ -594,7 +594,7 @@
 .workbench-page footer.wb-status .wb-hint {
   min-width: 0;
   overflow: hidden;
-  color: var(--text-dim);
+  color: var(--text-muted);
   font-size: var(--wb-type-kicker);
   text-overflow: ellipsis;
   white-space: nowrap;

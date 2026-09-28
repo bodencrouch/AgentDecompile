@@ -847,7 +847,7 @@ button:hover {
   margin-block-start: var(--space-6);
   padding-block-start: var(--space-4);
   border-block-start: 1px solid var(--border);
-  color: var(--text-dim);
+  color: var(--text-muted);
   font-size: .75rem;
 }
 

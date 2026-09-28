@@ -1,10 +1,10 @@
 # SessionTab
 
-A persistent project session: one tab per open project or binary, with a kind chip.
+A persistent project session tab with its project-kind chip.
 
-**Consumer provides** the human title, the project kind (`gpr`, `shared-fs`, `shared-http`, `bin`, `draft`), selected state and a close action.
+**Consumer provides** the human title, the kind (`gpr`, `shared-fs`, `shared-http`, `bin`, `draft`), selected state and a close action.
 
-- The active tab is `pane` with a 2px `accent` top rule and `ink-strong` title; inactive tabs are `ink-muted` on `chassis`.
-- The kind chip is outlined in its `kind-*` color with an uppercase mono label; the word always accompanies the color.
-- Double-click renames inline. Closing a tab clears its session, never the corpus binaries.
-- A saved tab is not proof that its locator is reachable; show a StateNotice in the workspace when it is not.
+- Active tab: `pane` fill, 2px `tab-active-rule` top rule, `ink-strong` title. Inactive: `ink-muted` on `chassis`.
+- The chip is outlined in its `kind-*` color with an uppercase word; the word always accompanies the color.
+- One active project and mutation context: opening another project offers an explicit switch or merge with both identified. Tabs are views, not competing writers.
+- Double-click renames inline. Closing a tab clears its session, never corpus binaries. A saved tab is not proof its locator is reachable; show a StateNotice when it is not.

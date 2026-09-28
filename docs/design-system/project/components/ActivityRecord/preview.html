@@ -1,9 +1,10 @@
-<!-- @dsCard group="Activity" height=300 -->
-<div class="ad" style="padding:16px;display:grid;gap:12px"><div class="ad-dock" style="border:1px solid var(--line)">
-<div class="ad-dock-tabs"><span>Activity</span><span>Recovery</span><span>Logs</span><span aria-selected="true">Jobs</span><span>Problems</span></div>
-<div class="ad-job live"><div><strong>corpus.cross-place</strong><span class="mono muted" style="font-size:11px">a3f9 · pid 48211 · since 13:41</span></div>
-<dl><dt>Donor</dt><dd>k1.exe 1.03</dd><dt>Recipient</dt><dd>k2.exe 1.0b</dd></dl>
-<div><span class="muted" style="font-size:12px">Recipient 14 of 31 compiled</span><div class="ad-steps"><i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i><i></i><i></i></div></div>
-<div class="tail">…LoadFromTemplate: recipient ABI check passed · compiling CSWSCreature.cpp (cl 13.10) · last event 13:58:07</div></div>
-<div class="ad-job"><div><strong>corpus.ghidra-bulk</strong><span class="mono muted" style="font-size:11px">77c0 · external owner</span></div>
-<dl><dt>Target</dt><dd>nwmain-linux-x86</dd><dt>State</dt><dd>Not measured</dd></dl><div class="muted" style="font-size:12px">Last event 13:52:40</div></div></div></div>
+<!-- @dsCard group="Activity" height=310 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<div class="ad-dock"><div class="ad-subtabs"><span>Activity</span><span>Recovery</span><span>Logs</span><span aria-selected="true">Jobs</span><span>Problems</span></div>
+<div class="ad-job live"><div><span class="strong">corpus.cross-place</span><br><span class="mono muted small">a3f9 · managed · since 13:41</span></div>
+<dl class="ad-readout"><dt>Liveness</dt><dd>heartbeat 2s ago</dd><dt>Execution</dt><dd>recipient 14 of 31 compiled</dd><dt>Goal</dt><dd>0 accepted · verification not run</dd></dl>
+<div><span class="small">build-a → build-b</span><div class="ad-units" style="margin-top:6px"><i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i><i></i><i></i></div></div>
+<div class="tail">…Actor.cpp: recipient ABI check passed · compiling ResourceRef.cpp (cl 13.10) · last event 13:58:07</div></div>
+<div class="ad-job"><div><span class="strong">corpus.ghidra-bulk</span><br><span class="mono muted small">77c0 · external owner · pid 48211</span></div>
+<dl class="ad-readout"><dt>Liveness</dt><dd>process alive</dd><dt>Execution</dt><dd>Progress unknown</dd><dt>Goal</dt><dd>—</dd></dl><div class="small muted">last event 13:52:40 · not cancellable here</div></div></div>
+</div>

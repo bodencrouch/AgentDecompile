@@ -1,0 +1,16 @@
+<!-- @dsCard group="Diagram" height=304 -->
+<div class="ad ad-dia" style="padding:16px;display:grid;gap:12px">
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;align-items:start">
+<div class="ad-stage f-identity"><header><span class="n">1</span>Identity</header><span class="tag fi">∥ extraction + indexing run in parallel</span>
+<div class="sec"><span class="lbl fi">Trying to:</span><div class="try">Decide which functions and entities across builds are the same logical entity; similarity does not prove interchangeable behavior.</div></div>
+<div class="sec"><span class="lbl fi">How:</span><div class="how">• extract facts once; short-circuit identical images
+• cheap-first cascade: symbols → exact hashes → rare refs → CFG → BSim → ABI
+• require uniqueness + margin; keep ambiguity</div></div>
+<div class="sec"><span class="lbl fi">In → out:</span><div class="io">in: analyzed programs, debug info, formats<br>out: entity / variant / instance + evidence lineage</div></div>
+<div class="gate"><b>Gate: </b>candidate ≠ acceptance</div></div>
+<div class="ad-stage f-recovery"><header><span class="n">5</span>Propagation (cross-place)</header><span class="tag fi">the cross-match tier</span>
+<div class="sec"><span class="lbl fi">Trying to:</span><div class="try">Reuse a donor candidate only for compatible recipient implementation variants; each recipient earns its own acceptance.</div></div>
+<div class="sec"><span class="lbl fi">How:</span><div class="how">• compile + variant/ABI/layout compatibility gate
+• a logical_id bind alone NEVER authorizes copying</div></div>
+<div class="gate"><b>Gate: </b>candidate distribution ≠ accepted source</div></div></div>
+</div>

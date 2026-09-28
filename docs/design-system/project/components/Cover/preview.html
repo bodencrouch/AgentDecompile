@@ -1,36 +1,30 @@
-<!-- @dsCard height=320 -->
+<!-- @dsCard height=260 -->
 <style>
   html, body { margin: 0; background: var(--chassis); }
-  .cv { position: relative; width: 960px; height: 320px; background: var(--chassis); overflow: hidden; }
+  .cv { position: relative; width: 960px; height: 260px; background: var(--chassis); overflow: hidden; }
   .cv svg { position: absolute; left: 0; top: 0; }
-  .b-id { fill: var(--lane-identity-fill); } .b-rec { fill: var(--lane-recovery-fill); } .b-uni { fill: var(--lane-unify-fill); }
-  .b-ver { fill: var(--lane-verify-fill); } .b-acc { fill: var(--accent); } .b-pane { fill: var(--pane); }
-  .dot { fill: var(--accent); } .rule { stroke: var(--line); stroke-width: 1; }
-  .t { position: absolute; left: 48px; top: 146px; width: 640px; }
-  .t h1 { margin: 0; font: 600 60px/.95 var(--font-sans); letter-spacing: -.01em; color: var(--ink-strong); }
-  .t p { margin: 14px 0 0; font: 400 14px/20px var(--font-sans); color: var(--ink-muted); }
+  .b-in { fill: var(--lane-intake-fill); } .b-id { fill: var(--lane-identity-fill); } .b-rec { fill: var(--lane-recovery-fill); }
+  .b-ver { fill: var(--lane-verify-fill); } .b-uni { fill: var(--lane-unify-fill); }
+  .gate { fill: var(--chassis); stroke: var(--gate); stroke-width: 2; }
+  .t { position: absolute; left: 48px; top: 150px; width: 640px; }
+  .t h1 { margin: 0; font: 700 64px/.95 var(--font-sans); letter-spacing: -.01em; color: var(--ink-strong); }
+  .t p { margin: 16px 0 0; font: 400 14px/20px var(--font-sans); color: var(--ink-muted); }
 </style>
 <div class="cv">
-  <svg width="960" height="110" viewBox="0 0 960 110" aria-hidden="true">
+  <svg width="960" height="112" viewBox="0 0 960 112" aria-hidden="true">
     <!--
-      blocks: lane-identity-fill × navigator-w (288) · lane-recovery-fill × dock-h (200) · lane-unify-fill 120 · lane-verify-fill 80 · accent × space-7 (24) · pane remainder 248; all 110 tall, radius-none
-      arrangement: one flush strip of unequal bands across the top, read left to right like the recovery lanes; the name sits beneath because it is wider than the 440px zone
-      pattern: dot grid, row "precise, technical, mono" — the system is a square, monospace instrument where evidence lines up on a grid
-      steps and radii: dots at space-7 (24px) pitch inset space-5 (12px), r = space-1 (2px); corners radius-none; 1px line rule under the band
+      blocks: stage row (0-56): lane-intake-fill × 1 stage unit (106.67 = 960/9) · lane-identity-fill × 1 · lane-recovery-fill × 5 (stages 2-6) · lane-verify-fill × 2 (stages 7-8); lane row: lane-unify-fill from stage 1 to the edge (y 64-86, lanes A-B run beside stages 1-8) · lane-intake-fill again for lane E (y 94-112)
+      arrangement: the overview diagram's own composition, flush strips read left to right as dependency order and top to bottom as concurrency; the name sits beneath because it is wider than the 440px zone
+      pattern: gate diamonds (gate stroke, chassis fill) on the eight stage boundaries — the literal motif row: every stage in this system is defined by the gate that admits it
+      steps and radii: stage unit = 960/9; row gap space-4 (8px); diamond half-diagonal space-5 (12px), stroke-arrow 2px; corners radius-none (app chrome is square)
     -->
-    <rect class="b-id" x="0" y="0" width="288" height="110"/>
-    <rect class="b-rec" x="288" y="0" width="200" height="110"/>
-    <rect class="b-uni" x="488" y="0" width="120" height="110"/>
-    <rect class="b-ver" x="608" y="0" width="80" height="110"/>
-    <rect class="b-acc" x="688" y="0" width="24" height="110"/>
-    <rect class="b-pane" x="712" y="0" width="248" height="110"/>
-    <g>
-      <circle class="dot" cx="736" cy="19" r="2"/><circle class="dot" cx="760" cy="19" r="2"/><circle class="dot" cx="784" cy="19" r="2"/><circle class="dot" cx="808" cy="19" r="2"/><circle class="dot" cx="832" cy="19" r="2"/><circle class="dot" cx="856" cy="19" r="2"/><circle class="dot" cx="880" cy="19" r="2"/><circle class="dot" cx="904" cy="19" r="2"/><circle class="dot" cx="928" cy="19" r="2"/>
-      <circle class="dot" cx="736" cy="43" r="2"/><circle class="dot" cx="760" cy="43" r="2"/><circle class="dot" cx="784" cy="43" r="2"/><circle class="dot" cx="808" cy="43" r="2"/><circle class="dot" cx="832" cy="43" r="2"/><circle class="dot" cx="856" cy="43" r="2"/><circle class="dot" cx="880" cy="43" r="2"/><circle class="dot" cx="904" cy="43" r="2"/><circle class="dot" cx="928" cy="43" r="2"/>
-      <circle class="dot" cx="736" cy="67" r="2"/><circle class="dot" cx="760" cy="67" r="2"/><circle class="dot" cx="784" cy="67" r="2"/><circle class="dot" cx="808" cy="67" r="2"/><circle class="dot" cx="832" cy="67" r="2"/><circle class="dot" cx="856" cy="67" r="2"/><circle class="dot" cx="880" cy="67" r="2"/><circle class="dot" cx="904" cy="67" r="2"/><circle class="dot" cx="928" cy="67" r="2"/>
-      <circle class="dot" cx="736" cy="91" r="2"/><circle class="dot" cx="760" cy="91" r="2"/><circle class="dot" cx="784" cy="91" r="2"/><circle class="dot" cx="808" cy="91" r="2"/><circle class="dot" cx="832" cy="91" r="2"/><circle class="dot" cx="856" cy="91" r="2"/><circle class="dot" cx="880" cy="91" r="2"/><circle class="dot" cx="904" cy="91" r="2"/><circle class="dot" cx="928" cy="91" r="2"/>
-    </g>
-    <line class="rule" x1="0" y1="109.5" x2="960" y2="109.5"/>
+    <rect class="b-in" x="0" y="0" width="106.67" height="56"/>
+    <rect class="b-id" x="106.67" y="0" width="106.67" height="56"/>
+    <rect class="b-rec" x="213.33" y="0" width="533.33" height="56"/>
+    <rect class="b-ver" x="746.67" y="0" width="213.33" height="56"/>
+    <rect class="b-uni" x="106.67" y="64" width="853.33" height="22"/>
+    <rect class="b-in" x="106.67" y="94" width="853.33" height="18"/>
+    <polygon class="gate" points="106.67,16 118.67,28 106.67,40 94.67,28"/><polygon class="gate" points="213.33,16 225.33,28 213.33,40 201.33,28"/><polygon class="gate" points="320.0,16 332.0,28 320.0,40 308.0,28"/><polygon class="gate" points="426.67,16 438.67,28 426.67,40 414.67,28"/><polygon class="gate" points="533.33,16 545.33,28 533.33,40 521.33,28"/><polygon class="gate" points="640.0,16 652.0,28 640.0,40 628.0,28"/><polygon class="gate" points="746.67,16 758.67,28 746.67,40 734.67,28"/><polygon class="gate" points="853.33,16 865.33,28 853.33,40 841.33,28"/>
   </svg>
-  <div class="t"><h1>AgentDecompile<br>Workstation</h1><p>Real C and a complete executable are separate facts.</p></div>
+  <div class="t"><h1>AgentDecompile</h1><p>Compiled reality in; agent-usable understanding out.</p></div>
 </div>

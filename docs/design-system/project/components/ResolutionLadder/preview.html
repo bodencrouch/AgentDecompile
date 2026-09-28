@@ -1,0 +1,16 @@
+<!-- @dsCard group="Diagram" height=250 -->
+<div class="ad ad-dia" style="padding:16px;display:grid;gap:12px">
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;align-items:start">
+<div class="ad-ladder f-unify"><header style="background:var(--lane-unify-fill)">C · Data root unresolved</header><ol style="color:var(--lane-unify-ink)">
+<li><b style="background:var(--lane-unify-fill)">1</b><span style="color:var(--ink)"><code>known build</code> identity → RVA → live check</span></li>
+<li><b style="background:var(--lane-unify-fill)">2</b><span style="color:var(--ink)"><code>unknown</code> symbol / debug info</span></li>
+<li><b style="background:var(--lane-unify-fill)">3</b><span style="color:var(--ink)"><code>xref_from_function</code> xref from identified function</span></li>
+<li><b style="background:var(--lane-unify-fill)">4</b><span style="color:var(--ink)"><code>pointer_chain</code> from a resolved root</span></li>
+<li><b style="background:var(--lane-unify-fill)">5</b><span style="color:var(--ink)">value-shape probe + independent confirmation</span></li></ol>
+<div class="then">then: unresolved — never a silent zero</div></div>
+<div class="ad-ladder f-runtime"><header style="background:var(--lane-runtime-fill)">F · Unknown build</header><ol style="color:var(--lane-runtime-ink)">
+<li><b style="background:var(--lane-runtime-fill)">1</b><span style="color:var(--ink)">admit in signature-only mode</span></li>
+<li><b style="background:var(--lane-runtime-fill)">2</b><span style="color:var(--ink)">run applicable ladders within declared budget</span></li>
+<li><b style="background:var(--lane-runtime-fill)">3</b><span style="color:var(--ink)">ingest as runtime_claim → bind_identities confirms → KNOWN</span></li></ol>
+<div class="then">coverage may regress when collisions are found</div></div></div>
+</div>

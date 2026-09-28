@@ -1,0 +1,40 @@
+<!-- @dsCard group="Shell" height=590 -->
+<div class="ad" style="padding:12px">
+<div class="ad-ws">
+ <div class="ad-ws-head"><span class="brand">AgentDecompile</span><span class="ad-chip shared-fs">shared-fs</span><span class="small">corpus-alpha · 4 related builds</span>
+  <button class="ad-btn search">Search functions <span class="ad-kbd">Ctrl P</span></button><button class="ad-btn">Commands <span class="ad-kbd">Ctrl K</span></button>
+  <span class="ad-control" style="margin-left:auto"><span class="scope"><span>Admission</span><strong>corpus-alpha</strong></span><button>❙❙ Pause admission</button></span></div>
+ <div class="ad-tabs"><div class="ad-tab" aria-selected="true"><span class="ad-chip shared-fs">shared-fs</span>corpus-alpha</div><div class="ad-tab"><span class="ad-chip bin">bin</span>installer-payload</div></div>
+ <div class="ad-subtabs"><span aria-selected="true">Code Browser</span><span>Compare</span><span>Recovery</span><span>Evidence</span><span class="muted">·</span><span>Disassembly</span><span aria-selected="true">Decompiler</span><span>Hex</span><span>Xrefs</span><span>More…</span></div>
+ <div class="ad-ws-body">
+  <section><div class="ad-pane-h"><span class="kicker">Functions</span><span class="mono muted small">2,418</span></div>
+   <table class="ad-table"><tbody>
+    <tr><td class="addr">0041a3f0</td><td>Actor::LoadFromTemplate</td></tr>
+    <tr aria-selected="true"><td class="addr">0041b210</td><td>ResourceRef::Resolve</td></tr>
+    <tr><td class="addr">0041c880</td><td class="muted">FUN_0041c880</td></tr>
+    <tr><td class="addr">0041d0a0</td><td>Archive::OpenMember</td></tr>
+    <tr><td class="addr">0041e310</td><td>TextureCache::Load</td></tr></tbody></table></section>
+  <div class="split"></div>
+  <section><div class="ad-pane-h"><span class="strong">ResourceRef::Resolve</span><span class="small muted">logical #88 · build-a <span class="addr">0041b210</span></span></div>
+   <div class="ad-listing well" style="flex:1;border:0">
+    <div class="ad-ln label"><span></span><span class="addr">0041b210</span><span></span><span>ResourceRef::Resolve:</span><span></span><span class="xref">XREF[12]</span></div>
+    <div class="ad-ln"><span class="flow"> </span><span class="addr">0041b210</span><span class="bytes">55</span><span class="mn">push</span><span>ebp</span><span></span></div>
+    <div class="ad-ln"><span class="flow"> </span><span class="addr">0041b211</span><span class="bytes">8b ec</span><span class="mn">mov</span><span>ebp, esp</span><span></span></div>
+    <div class="ad-ln" aria-current="true"><span class="flow">▸</span><span class="addr">0041b213</span><span class="bytes">8b 45 08</span><span class="mn">mov</span><span>eax, [ebp + 0x8]</span><span></span></div>
+    <div class="ad-ln"><span class="flow">┌</span><span class="addr">0041b216</span><span class="bytes">e8 45 12 00 00</span><span class="mn">call</span><span><span class="sym">String::CStr</span></span><span class="xref">→ 0041c460</span></div>
+    <div class="ad-ln"><span class="flow">└</span><span class="addr">0041b21b</span><span class="bytes">5d</span><span class="mn">pop</span><span>ebp</span><span></span></div></div></section>
+  <div class="split"></div>
+  <section><div class="ad-pane-h"><span class="kicker">Evidence</span><span class="ad-tier advisory">advisory</span></div>
+   <div style="padding:10px 12px;display:grid;gap:8px;font-size:12px">
+    <span class="kicker">Facts</span><span class="ad-facts" title="Compilation: passed · ABI checks: not_run · Tested behavior: not_run · Local match: passed · Linked match: stale · Replacement contribution: unknown · Whole-file equality: not_run"><b class="passed">✓</b><b class="not_run">○</b><b class="not_run">○</b><b class="passed">✓</b><b class="stale">◷</b><b class="unknown">?</b><b class="not_run">○</b></span>
+    <span class="kicker">Counterparts</span>
+    <span class="ad-loc resolved"><b>●</b>build-b <span class="addr">0041b2c0</span></span>
+    <span class="ad-loc pinned"><b>◎</b>build-c <span class="addr">module_rva</span></span>
+    <span class="ad-loc unresolved"><b>◌</b>build-d <span class="muted">unresolved</span></span>
+    <span class="kicker">Name</span><span>ResourceRef::Resolve <span class="muted">· debug info</span></span></div></section>
+ </div>
+ <div class="ad-dock" style="border-width:1px 0 0"><div class="ad-subtabs"><span>Activity</span><span>Recovery</span><span>Logs</span><span aria-selected="true">Jobs</span><span>Problems</span></div>
+  <div class="ad-job live" style="grid-template-columns:1fr 1fr 1fr"><div><span class="strong">corpus.cross-place</span><br><span class="mono muted small">a3f9 · managed · since 13:41</span></div><div class="small">build-a → build-b · recipient 14 of 31 compiled</div><div><div class="ad-units"><i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i><i></i><i></i></div><span class="muted small">last event 13:58:07</span></div></div></div>
+ <div class="ad-ws-status"><span>A finished job is not a match.</span><span class="mono">basis 9f3c…a1e0 · snapshot 13:58</span></div>
+</div>
+</div>

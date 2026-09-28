@@ -226,3 +226,153 @@ migration from generated assets.
 introspection. [Runtime reuse](docs/RUNTIME_REUSE.md) describes the existing
 KotorPhasor consumer, target bindings and unverified readiness/behavior gates.
 An exported pack is not proof of a safe call or recovered source.
+
+
+## Durable continuation and verification controls
+
+The September 22 foundation adds controls to the existing action catalog and CLI
+implementation parsers. Recovery operations still use the existing 8080 action
+catalog, discovered through `GET /api/v1/actions`; CLI names below identify the
+implementation contract and are not instructions to bypass that catalog.
+
+| Action | New behavior / parameters |
+|---|---|
+| `corpus.recovery-orchestrator` | Requires explicit `input-basis` for dispatch; `max-failed-exits` defaults to 3, `backoff` to 30 seconds and `success-backoff` to 300. Worker defaults are 1. `status` reads without dispatch; `once` performs one admission cycle and does not establish completion. |
+| `corpus.verify-byteexact` | `cache-input-manifest` declares the compiler dependency closure; `transient-retry-seconds` defaults to 300. Cache identity uses content, relevant database rows, tool code and declared environment. |
+| `corpus.verify-periodic` | `full-interval-seconds` defaults to 86400, `force-full` requests an explicit fresh pass. Legacy `full-every` defaults to 0. Failed full attempts consume the time interval too. |
+
+The supervisor persists its state in the output directory's `.supervision` folder.
+Its lock excludes other instances of this supervisor for that output root; it does
+not prove exclusive ownership of all external compiler, Ghidra, Wine or corpus
+writers. Unknown prior launches remain `needs_reconciliation`, even when their stage
+is now disabled. Do not delete state to bypass a reservation or exhausted allowance.
+A zero process exit records a completed pass, never recovery acceptance. The explicit
+input basis must describe a real changed input set; arbitrary new labels are not a
+repair. Automatic input-basis generation and cross-provider ownership reconciliation
+remain roadmap work.
+
+A cache manifest is a JSON object such as:
+
+```json
+{
+  "complete": true,
+  "files": ["toolchain/compiler.exe", "toolchain/runtime.dll", "include/header.h"],
+  "environment": ["INCLUDE", "LIB"]
+}
+```
+
+File paths resolve relative to the manifest. Include every material toolchain,
+header, runtime and configuration dependency; completeness is asserted by the
+provider, not automatically discovered by the verifier. Without complete closure,
+a fresh comparison can run, but later unchanged cached positives are withheld with
+`cache-basis-incomplete` rather than silently trusted or continuously recompiled.
+Transient/unclassified failures expire under a rate limit. This TTL is not a total
+objective spending cap. Only known deterministic compiler diagnostics are classified
+as `compile-rejected`. Local function comparisons retain their existing comparison
+semantics and do not establish fresh whole-image byte identity.
+
+Preparation now records retry decisions, reasons, remaining attempts and wake
+conditions. Both preparation interfaces expose them under **Recorded continuation
+decisions**. Same-input resume preserves attempts, including after unrelated KB
+writes. Unknown job outcomes hold the affected action while independent eligible
+comparisons can proceed. A missing job during cancellation is not proof its work
+stopped. The displayed history is a record, not proof every old condition remains
+active. See the [roadmap](docs/plans/2026-09-22-autonomous-capability-product-roadmap.md)
+and [verification receipt](docs/verification/2026-09-22-autonomy-foundation.md).
+
+
+### External diagnostic report reader
+
+`corpus.normalize-validation-report` is a read-only catalog action and CLI command.
+It takes `provider` (`reagent-benchmark` or `reccmp-compare`) and `report` (a JSON
+report file), returning a normalized diagnostic proposal. It does not run the
+provider or accept recovery claims. Invalid/empty/unknown-schema reports return
+`invalid_output` and CLI exit 2; CLI exit 0 means normalization succeeded.
+
+A ReAgent benchmark can meet its expected negative while the candidate mismatches.
+The reader retains those separate outcomes. reccmp scores retain their comparison
+scope, omitted-entity caveat and unknown eligible denominator. A standalone report
+cannot prove input identity, freshness or the actual provider revision. Those gaps
+remain explicit for the future execution adapter and independent acceptor.
+
+### Resource reservations after uncertain outcomes
+
+Catalog jobs now expose `resourceDisposition`, `resourceKeys` and
+`ownershipUnresolved`. Unknown child/remote outcomes and failed terminal receipt
+writes retain identity/pair/Ghidra reservations in the existing job receipt store.
+A receipt-root owner lock serializes admission authorities for that directory;
+restart restores reservations before admitting scoped work. Unrelated resources
+can proceed after the worker slot is released. Both activity surfaces show unknown
+ownership, and React suppresses its retry shortcut for a quarantined job.
+
+`workbench.resource-reconciliation-report` inspects a job's retained reservation;
+`workbench.resource-reconcile` repairs a stale reservation only when a qualified
+terminal release was already durably committed. Both accept `job_id`. The same
+eligible repair runs during the next scoped admission. The initial qualified local
+provider is `corpus.logical-build`; unknown remote/crash outcomes remain reserved.
+Internal clearance binds the exact attempt, arguments, resource keys, process and
+receipt generation. Child log claims and caller-supplied proof cannot release keys.
+
+These changes do not infer clearance from age or a stopped coordinator. General
+reconciliation of uncertain provider outcomes remains forthcoming. Different receipt roots,
+external writers and deliberately detached children require the broader resource
+contract; this local authority is not proof of universal writer exclusion.
+
+### Cached evidence for ReAgent
+
+`corpus.export-reagent-snapshot` exports selected existing `func_knowledge` rows
+without live analysis. Its parameters are `kb`, `program`, repeated `address`, a
+new `destination`, and optional `max_functions` (default 100, maximum 1000). The
+action creates private artifacts and is marked mutating; the input cache is opened
+read-only. Use the catalog for recovery operations.
+
+The schema-1 snapshot preserves available source and assembly, records row/file
+hashes, and publishes its manifest last. Missing context remains explicit gaps.
+A cache program name is not verified original-binary identity. See the
+[actual cached-evidence consumer receipt](docs/verification/2026-09-22-reagent-cache-export.md).
+
+### Reusing local comparison evidence
+
+Current source ingestion and collection require `sourceSha256` from the observation
+that actually compiled those source bytes. Old coverage flags paired only by function
+name remain historical evidence. Revalidate through the existing catalog route for
+current-source verification; do not add a digest to an old success by hand. Rejected
+files remain candidates. Collection preserves exact verified bytes and moves stale
+prior verified output under `unverified/`, reporting each preserved path.
+
+This local source binding does not establish semantic identity, complete compiler
+inputs or linked contribution. See the [verification scope](docs/verification/2026-09-26-current-source-binding.md).
+
+Recovered-source ingestion now persists nullable `source_sha256`. Legacy rows remain
+unbound until a producer supplies a checked observation; schema migration does not
+hash today's files as proof of historical compilation. Covered automatic skip readers
+recheck current source bytes, and database-backed packaging exports the same checked
+byte snapshot. New restoration ledger rows are reused/unverified, even if their stored
+source digest matches. See the [consumer freshness receipt](docs/verification/2026-09-26-recovered-source-freshness.md).
+
+### Seed comparison reuse inputs
+
+`corpus.seed-validation` accepts `compile-input-manifest` (CLI
+`--compile-input-manifest`). It forwards the existing closure declaration format:
+`complete: true`, a nonempty `files` list resolved relative to the manifest, and an
+optional `environment` list. Known compiler/context/verifier inputs are also included;
+receipts retain the basis digest and completeness state, without environment values.
+
+The configured audit API accepts the compiler provider, object parsers and optional
+objdiff checker. Missing compiler/verifier setup or an incomplete declaration cannot
+qualify positive reuse. The standalone command still requires its supported compiler
+configuration path to be completed for real compilation; the manifest option alone
+is not a compiler setup. Fresh attempts and reusable positive evidence remain distinct.
+See the [compile-input receipt](docs/verification/2026-09-27-seed-compile-input-basis.md).
+
+### Preparation admission allocations
+
+The existing action catalog exposes `workbench.prepare.maxActionAdmissions` as an
+optional nonnegative initial allocation. Omit it for Unlimited accounting. Resume
+preserves the current allocation and spending. To revise an inactive preparation,
+use `workbench.workflow-control` with `operation: "admission-budget"`, its
+`preparation_id`, current `expectedAllocationRevision`, and a new total
+`maxActionAdmissions`; explicit `unlimited: true` allows null. Active preparations
+must pause and drain first. Existing nonpaused queued work remains eligible; paused
+work requires resume. These are action admissions, not CPU/token/provider costs.
+See the [accounting contract and proof](docs/verification/2026-09-27-objective-admission-accounting.md).

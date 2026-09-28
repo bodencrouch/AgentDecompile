@@ -1,23 +1,108 @@
 ---
 name: AgentDecompile
-last_updated: 2026-09-20
+last_updated: 2026-09-27
 charter: VISION.md
-active_living_plan: docs/plans/2026-09-08-0156-feat-recovery-pipeline-ladder-plan.md
+active_living_plan: docs/plans/2026-09-27-implementation-progress-and-live-track.md
+governing_design_scope: docs/plans/2026-09-27-weekend-design-scope.md
 ---
 
 # AgentDecompile Strategy
 
 Charter lives in [VISION.md](VISION.md). Operators start at [README.md](README.md). This file is the investment bet under that charter, not a second north star.
 
+## Governing design scope: September 18–21, 2026
+
+This strategy and the [living implementation plan](docs/plans/2026-09-27-implementation-progress-and-live-track.md)
+represent the user's September 18–21 designs, diagrams, plans and brainstorms.
+The [scope index](docs/plans/2026-09-27-weekend-design-scope.md) preserves the full
+[September 21 portable-substrate plan](docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md),
+its Phases 0–15 and named units, the [distributed design](docs/plans/2026-09-21-distributed-compute-design.md),
+and the [consolidated product/workstation design](docs/dashboard-design/2026-09-21-consolidated-design-plan.md).
+The September 22 package supplies later contracts and refinements; it is not a
+replacement scope. The 110-item later register does not exhaust the weekend units.
+The [weekend unit delivery ledger](docs/plans/2026-09-27-weekend-unit-delivery.json)
+preserves 193 source-qualified identifiers and their definition/acceptance spans,
+including explicit withdrawals and absorbed aliases. Its initial unverified states
+require current evidence; historical checkmarks do not establish delivery.
+Changes to either this strategy or the living plan must retain traceability to
+that baseline: name the affected original plan units and diagram views, record
+any explicit supersession, and keep remaining requirements visible. A narrower
+implementation slice or newer summary cannot silently redefine completion.
+
+Carry these commitments through delivery:
+
+- A deterministic, model-free path produces usable exports; bounded model help may
+  accelerate diagnosed residue but cannot be the only mechanism for continuation.
+- Cross-match every supported entity kind and data-access path, preserving per-build
+  layouts, divergence and ordered locator fallbacks; pursue applicable strategies
+  and learn new builds rather than treating an initial miss as the endpoint.
+- Deliver the complete export bundle: portable `hookpack/v2`, generated Lua,
+  per-build headers, readiness/divergence and evidence, alongside recovered projects.
+  Ambiguous or contested records remain structured outputs and refuse unsafe use;
+  they do not wait indefinitely for human triage before the rest can advance.
+- Make the dense shared workspace show actual work and its evidence in both the
+  static workbench and full React app. Explicit project open/add/resume admits
+  eligible work automatically; ordinary browsing remains read-only. Preserve the
+  September 21 pause/resume control model and readiness/review/residue views.
+  Keep F01–F28, Phase 14 U104–U112 and both guide/donor workflow inventories:
+  corpus-first comparison, project lifecycle, synchronized code/data/evidence,
+  genuine type/storage editing, accessibility and inspectable work are required.
+  The full optional Vite application and packaged `/react/` remain product scope;
+  the 8080 recovery-operation rule does not reduce them to development previews.
+- Build the reusable bounded-task compute/state foundation, starting with a local
+  publish → work → verify → materialize cycle. Independent verification, resumable
+  adapters and a materialized local view are architectural requirements. Remote
+  fleet growth follows local qualification; it is not permission to postpone the
+  foundation or make an unqualified shared SQLite file the permanent authority.
+
+Historical progress marks and operating recipes are not current acceptance or
+authorization. Current ownership/catalog constraints still govern execution.
+Useful qualified RE/cross-match work and implementation proceed together; missing
+unrelated milestones cannot become global gates.
+
 ## Target problem
 
-A Ghidra project holds dozens of builds of the same codebase. Each build has its own addresses, but the functions, labels, and types are the same logical objects. Without cross-build identity and a propagation path, every recovery pass repeats work and metadata edits on one binary never reach the others. The crux is telling honest source from a wrapper that only compiles because it still contains the original bytes.
+A Ghidra project holds dozens of builds of the same codebase. Each build has its own addresses and may share logical functions and fields while changing their behavior, layout, or physical representation. Without cross-build identity and a propagation path, every recovery pass repeats work and metadata edits on one binary never reach the others. The crux is telling honest source from a wrapper that only compiles because it still contains the original bytes.
 
 The end state is not per-function byte parity — it is a **whole-image byte-identical rebuild**: a source project that recompiles and *relinks* into a file bit-identical to the shipped executable. Per-function objdiff-0 is necessary but not sufficient. A stock linker assigns its own layout — section order, virtual addresses, padding, the PE/ELF headers, the import table, and base relocations — none of which reproduce the original image unless placement is enforced. This exact-placement gap is a first-class, unsolved part of the problem, not a footnote: the goal is a rebuilt binary whose whole-file hash equals the original's.
 
 ## Our approach
 
-Link the builds, recover on the easiest one, and propagate. Treat **cross-build identity**, **code equality**, and **behavioral equivalence** as separate claims—never collapse them into one similarity score. Extract fingerprints once; reuse them. Prefer authoritative debug/provenance and unique exact evidence, then rare refs and neighborhood propagation, then structure/BSim, then optional second-opinion tools and emulation only on the residue. Require uniqueness and a margin; keep ambiguity and alternatives instead of inventing a pair. When inlining or fission breaks one-to-one boundaries, match regions—not forced 1↔1. A `logical_id` bind does not by itself authorize copying types, layouts, or recovered source; those have their own gates. Hook-pack export still picks one portable signature family. Do not re-run Ghidra analysis on a program that already has it. Calibrate compiler/ABI/layout once, scaffold, compile C, cross-place, leftover AI, objdiff, then fresh whole-image acceptance. One catalog on 8080.
+Recover from the best available evidence, reuse only what transfers, and verify each result at the level where it will be used. Distinguish logical entities, implementation variants and physical instances. Similarity, logical identity, code equality and behavioral test agreement are separate claims. Prefer authoritative debug/provenance and unique exact evidence, then rare references and neighborhood propagation, structure/BSim, and applicable second opinions on diagnosed residue. Preserve ambiguity, absent entities, folded bodies, inline occurrences and split regions. A `logical_id` never establishes source interchangeability or ABI/layout compatibility.
+
+Reuse valid unchanged analysis and receipts. Revisit only affected dependencies when bytes, types, callees, toolchain or analysis evidence changes, or when a recorded uncertainty warrants an independent view. Establish minimum platform facts first; identity and calibration refine each other. Start reconstruction infrastructure during scaffolding and verify candidates continuously. Keep one operational catalog on 8080. The [design package](docs/plans/2026-09-22-design-package.md), [recovery contracts](docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md) and [editable diagram](docs/dashboard-design/pipeline-diagram/README.md) carry the concrete contracts and current delivery limits.
+
+### Failure containment and acceptance
+
+The [failure prevention and recovery specification](docs/plans/2026-09-22-failure-prevention-and-recovery-contracts.md)
+turns historical incidents into mandatory prevention, detection, containment,
+recovery, wake and future acceptance contracts, including failures of the control
+plane itself. It refines the design; it does not claim deployed resilience.
+
+Missing evidence blocks the claim requiring it; an unhealthy resource blocks its
+dependent work. Neither blocks the whole project by default. A byte signature
+cannot authenticate the semantic label that selected its address. Binding acceptance
+requires distinct presence and independent target identity predicates; each runtime
+operation additionally needs current ABI/layout/lifetime/ownership/policy checks.
+Original-code capabilities never require reconstructed source unless the requested
+operation actually replaces that source.
+
+[Task and acceptance contracts](docs/plans/2026-09-22-task-acceptance-and-continuation-design.md)
+define dependency-local scheduling, complete input bundles, task-specific measured
+resource budgets, capability-unlock priorities with aging, short acceptance commits
+and one persistent retry owner. Actual resource ownership—not a stage name—controls
+serialization. Publication generation fencing and mutable-resource quarantine are
+separate; expiry and byte equality cannot clear unsafe access. Conditional continuation
+requires suitable capacity, valid complete inputs and a compatible available worker.
+Worker containment, restart recovery and host-loss failover are distinct claims.
+
+Implementation and useful reverse-engineering/cross-match work advance in parallel
+under the user's subsequent build and continuation directives. Do not wait for the
+whole architecture to be finished before admitting an eligible target/build pair.
+Actual recovery operations still require the authorized 8080 catalog, corroborated
+ownership and their own complete prerequisites. Future execution contracts describe
+required mechanisms and acceptance; they do not establish checks already passed or
+authorize bypassing those operational constraints.
 
 ## Who it's for
 
@@ -27,12 +112,12 @@ Link the builds, recover on the easiest one, and propagate. Treat **cross-build 
 
 ## Key metrics
 
-- **Verified readable C:** distinct logical functions with objdiff 0 (coverage or isolated audit receipts). Can regress on audit. Not the same as `real_c`.
+- **Verified readable C:** source contributions with relocation-aware objdiff 0 against validated targets, plus linked-region checks when needed (with scope and receipts). Can regress on audit. Not the same as `real_c`.
 - **Compiling Ghidra C share:** functions whose decompiled C is assembly-free and compiles (`ghidra-bulk` tally, `real_c=1`). Leading indicator, not proof.
-- **Cross-placed compiling C:** compiling functions placed on sibling builds via `logical_id` (`cross-place` receipts).
+- **Cross-placed compiling C:** compiling candidates distributed to compatible recipient implementation variants, with recipient acceptance still separate (`cross-place` receipts).
 - **Identity coverage:** inventoried functions bound to a logical function (`identity` table). Must stay high before propagation claims. Auto-accept precision matters more than forcing 100% paired; unresolved/ambiguous counts should stay visible.
-- **Portable resolve:** share of those `logical_id`s that resolve on every registered build from one signature family, not a per-build VA. Can regress when a rebuild changes the window.
-- **Loop completion:** catalog jobs from `/dashboard` end with named files on disk, not hang or silence.
+- **Runtime capability coverage:** accepted entity × build × operation claims against a named eligible inventory. Report known-build RVA resolution and unknown-build portable discovery separately; both need independent target identity and live operation checks. Preserve absent, unsupported, ambiguous, unclassified and excluded-with-reason counts. New collisions may reduce coverage.
+- **Progress:** report liveness, durable distinct execution-unit results and accepted goal progress separately. A file, process, heartbeat or job completion alone is not acceptance.
 
 ## Tracks
 
@@ -44,13 +129,15 @@ _Why it serves the approach:_ Agents and humans must share one catalog and one p
 
 ### Corpus recovery pipeline
 
-Extract facts → `logical_id` (evidence-fusion cascade) → global calibration → scaffolding (assembly floor) → readable C (`ghidra-bulk`) → propagation (`cross-place`) → targeted AI on leftovers → parity (objdiff) → fresh whole-image acceptance. Skip a step when its receipt or Ghidra state already exists. Within measured memory/swap and ownership limits, parallelize independent analysis, evidence extract, bulk C, and cheap index queries; run pairwise graph or emulation only on the residue. Serialize `logical_id` writes, mutations to one Ghidra project, and isolated compiler/objdiff environments.
+The named stages describe dependencies, not a rigid one-pass schedule. Identity ↔ calibration → validated linkable-region scaffold → compiling C/C++ candidates → compatible-recipient candidate propagation → diagnosed source repair, with continuous local/linked parity and early reconstruction checks. Terminal acceptance remains a fresh whole-image rebuild and comparison. A receipt is reusable only while its relevant dependency hashes remain valid.
 
-_Why it serves the approach:_ Recover once on the easy build and share the win. Do not reverse twenty versions independently.
+**Cross match pipeline:** `ghidra-bulk` → compile admission → compatible implementation variant and recipient ABI/layout gate → distribute candidate → recipient compile/local/linked verification. Compile success authorizes candidate distribution, not replacement, runtime calls or verified-source credit. Keep candidate storage separate from accepted replacement selection; legacy `real_c=1` records compilation only. A failed compile routes through behavior-preserving deterministic repair and then bounded AI when applicable. Diagnose behavior/types, ABI, compilation context, code generation and placement before source search or permutation.
 
-**Cross match pipeline** names the compile-gated tier of this: `ghidra-bulk` → compile check → (pass) propagate that `.c` onto every sibling bound to the same `logical_id`, then byte-exact in order verify → permuter → LLM last; (fail) sanitizer/preparse helpers retry compile, then one LLM cleanup pass on that Ghidra body, then retry. Identity binding is a separate, already-run layer — cross match never runs before compile succeeds, and a `logical_id` bind alone never authorizes copying source that hasn't compiled. Elsewhere in this repo, "cross match pipeline" refers to exactly this tier; no further restatement needed.
+Recovery units, compilation units and comparison units are distinct. Per-function fragments may be assembled into translation units or LTCG groups; compare the final emitted region when an intermediate object is insufficient. Toolchain records include compiler/linker hashes, headers/libraries, language, macros, packing, floating-point mode, grouping and scoped overrides. Probe legacy toolchain support instead of copying modern switches.
 
-The point is to reverse each function once and share the result across every build, not to reverse twenty versions independently. Byte parity is proven on the easiest build for a given `logical_id`; recovered source then propagates (compile-gated) to its siblings. Knowledge cross-match runs concurrently with source recovery and is **bidirectional per field**: function labels, user comments, structures/types, and STABS-derived names merge across every build sharing a `logical_id`, with the strongest source for each field winning — a name or struct recovered on one binary flows to the rest, and where another build carries better evidence (richer STABS, authored comments, a fuller type) that flows back the other way. Merge is field-level and precedence-gated (naming precedence in the priority ladder; types and source keep their own gates), never a wholesale copy, so a weaker build never overwrites a stronger one. A build with the most complete metadata for a field becomes the donor for that field, not for everything.
+Knowledge fusion remains bidirectional and per field. The best donor may differ for every field or function. Human naming preference changes the display name, not physical-layout evidence. Logical field correspondence is separate from each build's physical layout; pointer-width scaling is only a search hint. Export known offsets and opaque unknown spans. Track evidence lineage: withdrawing an identity seed invalidates unsupported descendants, not independent corroboration. New evidence may reduce accepted coverage.
+
+Workers read versioned snapshots and return proposals against those versions. Acceptance rechecks relevant dependencies, commits once, and rejects stale proposals. Local compilation keys exclude unrelated corpus additions; matching keys include their comparison evidence; publication keys include the corpus snapshot. Record exact AI proposals and runtime observations as immutable replay inputs. Shared read-only compiler installations are allowed; mutable compiler/PDB/temp output and Wine state require isolated ownership.
 
 ### Ghidra shared state
 
@@ -72,7 +159,7 @@ Runtime reuse is a parallel branch after sufficient identity/ABI evidence, not a
 
 [Runtime reuse](docs/RUNTIME_REUSE.md) records source pointers, architecture/ABI limits and missing readiness proof. Keep the core generic with target adapters and build profiles: all BioWare corpus builds remain in scope, with future other-game support requiring adapter work. A resolved address is not a universal C-call interface.
 
-## Priority ladder (do not reorder)
+## Priority ladder (preserve prerequisites; allow feedback)
 
 ### Per-target loop and corpus roll-up
 
@@ -87,7 +174,7 @@ loop must not block those useful branches or runtime reuse.
 
 Within a target, reuse STABS-derived workspace/templates where available, then
 Ghidra decompilation and deterministic preparse/sanitizer/helpers, compile, and
-cross-place only on compile success. Retry supported helpers on failures, then a
+distribute candidates only on compile success and recipient compatibility. Retry supported helpers on failures, then a
 bounded LLM cleanup and recompile. Byte verification, applicable m2c/permuter,
 Mizuchi and other recovery plugins address measured residue under cheap-first,
 LLM-last policy. Continue safe independent lanes when one tool/provider fails;
@@ -100,18 +187,21 @@ and evidence gaps without becoming a separate priority authority.
 
 ### Stages
 
-1. **Identity:** extract facts once; short-circuit identical images; then bind `logical_id` by independent channels (authentic symbols/provenance → unique exact/reloc hashes → rare refs / C++ metadata → neighborhood propagation → CFG/SPP → BSim significance → ABI → optional BinDiff/BinExport → optional emulation). Candidate generation is not acceptance. Preserve ambiguity; quarantine bad seeds. Do not re-analyze a program that already has Ghidra analysis unless incomplete or corrupted.
-2. **Global calibration:** compiler versions, flags, ABIs, and global struct layouts before per-function recovery.
-3. **Scaffolding:** donor workspace: one file per function, exact inline asm if no C, must link.
-4. **Readable C:** `ghidra-bulk` replaces asm when C compiles; keep asm on failure.
-5. **Propagation:** only after compile succeeds; sibling `.c` via `logical_id`. Identity match does not auto-copy ABI-sensitive types or unrevalidated source.
-6. **Targeted AI:** leftovers only, leaves before callers; not before tiers 4–5 for functions Ghidra C already compiles. LLM output never creates a trusted identity edge alone.
-7. **Parity:** objdiff 0 per function when claiming verified readable C; isolated toolchain; rebuild-validation stage—not a cross-architecture identity oracle.
-8. **Whole-image byte identity (exact placement):** the terminal goal. After every function is objdiff-0, relink into a file bit-identical to the shipped image. Requires exact placement — pin each function and data object to its original VA, reproduce section order/sizes/padding, headers, import/IAT layout, and base relocations — then verify by whole-file hash, not per-function diff. Per-function parity that does not survive a whole-image relink is not done. This tier is an open engineering problem (a stock linker will not reproduce the original layout); treat it as core scope, not a stretch.
+0. **Open/resume:** reconcile bindings and actual ownership; reuse receipts with unchanged relevant dependencies. No blanket reanalysis.
+1. **Identity:** evidence-fusion cascade; logical entity → implementation variant → physical instance relationships. Similarity proposes; independent evidence accepts. Quarantine bad seeds and invalidate unsupported descendants.
+2. **Calibration:** establish format, architecture and ABI minima, then refine toolchain/layout hypotheses with stage 1 and function evidence. Record build/library/translation-unit/function scope.
+3. **Scaffolding:** reconstruct linkable regions with bytes, boundaries, external references, reconstructed fixups, associated data, exception/unwind metadata and provenance. Image base relocations are not original COFF relocations. Preserve larger regions when splitting is uncertain. Use architecture-appropriate objects or external assembly, not universal inline asm. Prove an unchanged extract → emit → place → compare round trip early, then prove a compiled replacement actually contributes.
+4. **Readable C/C++:** admit compiling candidates; preserve the floor until the required acceptance checks pass. Repairs explain preserved machine behavior. Compilation is not source verification.
+5. **Propagation:** distribute compiled candidates only to compatible recipient implementation variants. Each recipient has its own compile, ABI, local and linked checks; identity alone is insufficient.
+6. **Targeted AI:** bounded diagnosed tasks after cheaper applicable methods, leaves before callers where useful. Record exact proposals, limits and evidence; outputs never establish trusted identity or parity by assertion.
+7. **Parity:** run as candidates arrive. Separate compilation, ABI checks, tested behavior, local relocation-aware match and linked-region match. Validate reconstructed comparison objects independently against the original linked image. reccmp is an optional diagnostic companion to objdiff; neither a similarity percentage nor ReAgent GREEN is whole-file equality.
+8. **Whole image:** develop placement/reconstruction alongside stage 3; final acceptance freshly compiles the current source, proves replacement contribution, and compares the entire output against the original. Distinguish reconstruction with preserved regions from original-style rebuilding. Record C+floor and max-C separately.
+
+Named non-success outcomes include `absent`, `inlined_only`, `ambiguous`, `unsupported`, `insufficient_evidence`, `budget_exhausted` and `contested`. Try applicable methods within the declared budget; do not force a winner or run every method on a nonexistent standalone function.
 
 ## Whole-image byte identity (dedicated track)
 
-Per-function objdiff-0 and a whole-image byte-identical rebuild are **separate claims** — the second is the project's terminal deliverable and the harder one. A source project can have every function compile byte-exact and still relink to a different file, because the linker owns layout: virtual addresses, section order and padding, the PE/ELF header fields, the import table / IAT, TLS, resources, and the base-relocation table. Closing this needs an exact-placement link: a layout spec derived from the original image (per-symbol VA, section geometry, header bytes, reloc sites) that the link honors, plus a rebuild-validation stage that compares whole-file hashes and localizes any residual byte delta back to the owning function/section. Assembly-floor bodies preserve original instruction bytes and let the image link early; placement and relocation still require verification. Each is then replaced by real C that must still pass both the per-function gate and the whole-image relink. Until a build produces a file whose hash equals the shipped binary, whole-image recovery is unproven — say so plainly and keep the exact-placement work visible on the ladder.
+Per-function objdiff-0 and a whole-image byte-identical rebuild are **separate claims** — the second is the project's terminal deliverable and the harder one. A source project can have every function compile byte-exact and still relink to a different file, because the linker owns layout: virtual addresses, section order and padding, the PE/ELF header fields, the import table / IAT, TLS, resources, and the base-relocation table. Closing this needs an exact-placement link: a layout spec derived from the original image (per-symbol VA, section geometry, header bytes, reloc sites) that the link honors, plus a rebuild-validation stage that compares whole-file hashes and localizes any residual byte delta back to the owning function/section. The floor preserves machine-code regions, associated data and required metadata through a supported object/assembly backend; placement and reconstructed fixups require independent verification. An unchanged round trip proves infrastructure only. Link maps and emitted-byte provenance must show that compiled replacements reach the checked image despite elimination, folding or preserved fallback code. An ordering directive alone is not exact placement. Each accepted C/C++ contribution must pass the relevant local/linked gate and the whole-image reconstruction. Record reconstruction and original-style compiler/linker rebuilding as different methods, even if both reach byte equality. Until a build produces a file whose hash equals the shipped binary, whole-image recovery is unproven — say so plainly and keep the exact-placement work visible on the ladder.
 
 _Why it serves the approach:_ "Decompiled" means rebuildable to the original artifact, not just readable per function. Without this tier the corpus can look 100% recovered while no build reproduces the shipped file — the exact gap the mission audit flagged as never proven.
 
@@ -119,4 +209,4 @@ Maintain two separately measured variants: **byte-accurate C+assembly-floor**, w
 
 ## Marketing
 
-**Key message:** Identity first—and identity is not an address, not byte equality, and not a single score. Extract once. Fuse independent evidence. Keep ambiguity. Separate gates for types, source, and byte audit. One catalog.
+**Key message:** Recover from the best available evidence, reuse only what transfers, and verify each result at the level where it will be used. One catalog; separate source, identity and runtime claims.

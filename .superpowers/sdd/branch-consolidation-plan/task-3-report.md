@@ -54,16 +54,18 @@ The twelve conflicted paths were resolved as follows:
 | `src/agentdecompile_recovery/corpus/cli.py` | Preserved the current native `decompile-batch` selection, registration, and dispatch plus current recovery verbs; added the incoming `DEFAULT_PROG`/`prog` embedding contract. |
 | `src/agentdecompile_recovery/corpus/export_run_report.py` | Kept the current richer report/provenance fields and replaced its private narrow table creator with the shared incoming recovered-table helper. |
 | `src/agentdecompile_recovery/corpus/ingest_recovered.py` | Kept the current source/target hashes, semantic evidence, and expanded candidate key; ported the incoming order-independent canonical creation, additive legacy upgrade, caller-transaction savepoint, and read-only fast-path behavior. |
-| `src/agentdecompile_recovery/corpus/store.py` | Kept the current forward-only migration ledger, content-hash recovery families, read-only connection behavior, and lock-safe backfill. The incoming implementation predates these contracts. |
+| `src/agentdecompile_recovery/corpus/store.py` | Kept the current forward-only migration ledger, content-hash recovery families, and read-only behavior. Repair `91b7183a9e4a068e9ee38c14c9e91e809b637636` then restored two independent incoming guarantees: a failed initializer closes its owned connection, and transient backfill failures use primary SQLite result-code classification. |
 | `tests/test_cli_contract.py` | Kept unconditional `adgrid` coverage because this final tree includes the package, then aligned bridge callbacks/byte-exact `-f` forwarding and `responseFormat` assertions with the integrated CLI. The bridge resolution matches the separately reviewed PR207 conflict fix without importing unrelated PR content. |
 | `tests/test_recovered_function_schema.py` | Rewrote the add/add test for the current expanded schema. It verifies report/bridge order independence, reuse-table separation, exact empty-table rebuild, preservation of nonconforming historical rows, caller rollback, and the no-write-lock canonical fast path. |
 
-`tests/test_store_connect_transactions.py` was the sole incoming-only path not
-retained. It asserted the old row-ID `unclassified:<id>` family and older
-connection behavior. Current `tests/test_store_migrations.py` has 561 lines of
-current content-hash, migration-ledger, read-only, transaction, rollback, and
-write-lock coverage. Keeping the old file would prescribe behavior the current
-schema intentionally replaced.
+The first merge omitted `tests/test_store_connect_transactions.py` because its
+fixtures asserted the old row-ID `unclassified:<id>` family. Independent review
+showed that this blanket disposition also dropped useful behavior unrelated to
+the obsolete fixture. Repair `91b7183a9e4a068e9ee38c14c9e91e809b637636`
+restores a focused version using current content-hash fixtures. It covers
+initializer interruption and close ownership, rollback-failure closure,
+unrelated `SQLITE_ERROR` text containing `busy`/`locked`, Python 3.10 message
+fallback, actual busy/read-only failures, and caller-owned transactions.
 
 The first focused run also exposed one fixture drift in
 `tests/test_cli_live_regressions.py`: the integrated structure provider now
@@ -87,8 +89,10 @@ tree. The classification here is per ref, not an aggregate branch count.
 
 The evolved set had four paths absent from the frozen tree; each was inspected:
 
-- `tests/test_store_transaction_hygiene.py` from `cli-t20` asserts the obsolete
-  row-ID store contract and is superseded by `tests/test_store_migrations.py`.
+- `tests/test_store_transaction_hygiene.py` from `cli-t20` contains obsolete
+  row-ID fixtures. Its useful connection cleanup and error-classification
+  guarantees are adapted to the current content-hash schema in
+  `tests/test_store_connect_transactions.py` by repair `91b7183`.
 - `tests/test_cli_generated_commands.py` from the `cli-t9` family was folded
   into `tests/test_cli_contract.py`; frozen follow-up history contains the
   generated-command and response-format repairs.
@@ -100,7 +104,8 @@ The evolved set had four paths absent from the frozen tree; each was inspected:
   this bounded source merge. The production wait implementation is present and
   evolved in `mcp_utils/program_analysis.py`.
 
-No meaningful CLI source residue remained to port from these refs.
+After repair `91b7183`, no meaningful CLI source residue identified by this
+audit remains unported; fixture-specific row-ID expectations stay retired.
 
 ## Verification
 

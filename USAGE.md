@@ -74,6 +74,8 @@ Those credentials authenticate Ghidra Server, not the MCP HTTP listener. See [do
 `agentdecompile-cli grid` expose the corpus, staged recovery, and grid command
 surfaces. Use `<group> --help` to list verbs and `<group> <verb> --help` for
 options. Arguments, including a literal `--`, are forwarded to the backing CLI.
+The optional `agentdecompile[s3]` and `agentdecompile[signing]` extras supply
+grid S3 storage and Ed25519 signing dependencies.
 
 Use `agentdecompile-cli reconstruct` for the reconstruction front door. The
 standalone `agentdecompile-reconstruct` and `agentdecompile-acquisition-query`

@@ -97,7 +97,7 @@ class Ed25519Algorithm:
             from cryptography.hazmat.primitives import serialization
             from cryptography.hazmat.primitives.asymmetric import ed25519
         except Exception as exc:  # pragma: no cover - depends on the environment
-            raise NotConfigured("key algorithm 'ed25519' needs the 'cryptography' package (the slim distribution's signing extra); use key_algorithm='hash-token' for a single-host grid") from exc
+            raise NotConfigured("key algorithm 'ed25519' needs the 'cryptography' package (the 'agentdecompile[signing]' extra); use key_algorithm='hash-token' for a single-host grid") from exc
         return serialization, ed25519
 
     def generate(self) -> tuple[bytes, bytes]:

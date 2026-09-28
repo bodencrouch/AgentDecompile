@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import importlib.util
 import inspect
 import sys
 from typing import Any, Callable
@@ -212,6 +213,8 @@ def build_commands() -> list[click.Command]:
         "Run the agentdecompile grid CLI (same as adgrid). All arguments are forwarded.",
         _grid,
     )
+    if importlib.util.find_spec("agentdecompile_grid") is None:
+        grid.hidden = True
     return [corpus, recover, reconstruct, grid]
 
 

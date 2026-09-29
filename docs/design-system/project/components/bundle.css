@@ -207,7 +207,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-control>button[aria-expanded]::after{content:"▸" / "";font:400 10px/1 var(--font-mono);color:var(--ink-muted)}
 .ad-control>button[aria-expanded="true"]::after{content:"▾" / ""}
 .ad>.ad-control,.adl-wfc>.ad-control{flex-wrap:wrap;max-width:100%;justify-self:start}
-.ad>.ad-control>button,.adl-wfc>.ad-control>button{min-height:28px}
+.ad-control button{min-height:var(--control-h-comfortable)}
 /* Below 700px the control wraps and collapses to its buttons and state; the scope moves into its disclosure (never a Start) */
 @media (max-width:699px){
  .ad-control{display:flex;flex-wrap:wrap;max-width:100%}
@@ -420,7 +420,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
  .ad .ad-tab{height:auto}
  .ad .ad-check,.ad .ad-seg>button{min-width:var(--touch-h);min-height:var(--touch-h)}
  .ad .ad-tab-close,.ad .ad-peek-x,.ad .ad-sib{width:var(--touch-h);height:var(--touch-h)}
- .ad .adl-factbtn,.ad .adl-capbtn,.ad .adl-disc,.ad .adl-eqbtn,.ad .adl-hlchip,.ad .adl-cl,.ad .adl-t24,.ad a.ad-fact,.ad a.ad-outcome,.ad .ad-gp-more,.ad .ad-gp-chip,.ad .adc-olv{min-height:var(--touch-h)}
+ .ad .ad-control button,.ad .adl-factbtn,.ad .adl-capbtn,.ad .adl-disc,.ad .adl-eqbtn,.ad .adl-hlchip,.ad .adl-cl,.ad .adl-t24,.ad a.ad-fact,.ad a.ad-outcome,.ad .ad-gp-more,.ad .ad-gp-chip,.ad .adc-olv{min-height:var(--touch-h)}
  .ad .ad-goto input{height:auto;align-self:stretch}
 }
 /* Splitters are focusable separators: a 1px rule, a hit zone of splitter-hit (6px; WCAG 2.5.8 Equivalent exception: the splitter keys, the

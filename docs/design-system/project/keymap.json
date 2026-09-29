@@ -535,7 +535,7 @@
     "i"
    ],
    "scope": "composite",
-   "where": "XrefPanel and CallHierarchy grids only",
+   "where": "XrefPanel and CallHierarchy grids, and the GraphPane Calls graph, only",
    "note": "Switches the direction to incoming."
   },
   {
@@ -545,7 +545,7 @@
     "o"
    ],
    "scope": "composite",
-   "where": "XrefPanel and CallHierarchy grids only",
+   "where": "XrefPanel and CallHierarchy grids, and the GraphPane Calls graph, only",
    "note": "Switches the direction to outgoing. g then o stays the outline chord: after g, the next key belongs to the leader."
   },
   {

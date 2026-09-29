@@ -96,7 +96,7 @@ Alt+F2, the pane-header button, or the palette and the Help menu where the opera
 - It is a snapshot labelled "as read ‹time›". If the basis moves while it is open, it shows "◷ Basis changed since opened · Refresh" and never swaps text under the caret.
 - Opened on a Held pane, a Kept card or a historical receipt, its first line reads "Held · ‹target› · ‹age›", "Kept · ‹target› · ‹age›" or "historical", then the ProvenanceStamp text.
 - Code rows follow the one Screen-reader verbosity View setting. Accessible View shows the current value and links to View settings; it has no toggles of its own.
-- Diffs prefix lines with "+ added", "− removed", "≠ differs". The caret starts on the focused line, and Esc returns to the same row.
+- Diffs prefix lines with "+ added", "− removed", "± differs" (the diff marker; "≠" is reserved for claim boundaries such as "local ≠ whole-image proof"). The caret starts on the focused line, and Esc returns to the same row.
 - Its soft wrap with a hanging indent is the WCAG 1.4.10 path for code at 320px, and the path for exact text where screen-reader punctuation settings would alter speech. Sighted users get exact copyable text too.
 
 ## Help that stays put (WCAG 3.2.6) and no retyping (WCAG 3.3.7)

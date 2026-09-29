@@ -45,7 +45,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 ## Linking
 
 - **Publishes:** a range button replaces `addr` in the primary location with the range start and marks the range (reflection). That is a cursor move, so it uses replaceState. Enter on an endpoint address or the "From" source link is Go. "Show all" is a Go that removes the filter.
-- **Follows:** `entity` and `cmp`, on Enter. Holdable (proposed hold kind `xform`).
+- **Follows:** `entity` and `cmp`, on Enter. Holdable (registered hold kind `xform`).
 - **Targets rendered:** address (observed bytes, per build) · symbol (inlinee, folded entities) · compiler diagnostic or source line (`f=src.line:…`, the candidate "From") · research section (native `/docs` link).
 - **Peek source:** the stored annotation record and its evidence; the candidate source excerpt when cached.
 - **Absent copy:** "No transformations reconstructed for build-c" · "absent in build-d" · "unknown" · "No candidate source; the timeline starts at the observed bytes of both builds" · "The legacy toolchains here emit no optimization remarks."
@@ -55,7 +55,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 
 - The list is a composite with one tab stop. ↑/↓ move between items; Enter on an item presses its first range button and moves the Listing cursor to the range start; Tab reaches the item's own buttons and links.
 - Alt+↓ peeks the item's evidence; Shift+F10 opens the link menu (Reveal in: CompilerLayer, MatchExplain).
-- `g then t` (proposed) moves focus to the timeline from a code well.
+- `g then t` (registered `code.timeline`) moves focus to the timeline from a code well.
 - Esc follows `keymap.json` `escapeOrder`.
 
 ## Accessibility

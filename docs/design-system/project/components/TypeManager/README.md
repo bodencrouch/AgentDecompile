@@ -57,8 +57,8 @@ The Types navigator scope: one tree of archives, categories and data types, keye
 
 **Linking**
 
-- **Publishes:** the `type` parameter. Enter on a type row is Go: it pushes one stop and opens TypeEditor for that type at the inspected build. Arrow moves only replace the URL after the settle. The scope and find text are `f=` filters (proposed axes `type.scope` and `type.find`) and replace the URL.
-- **Follows:** the project. "This build" follows the inspected build after the settle; "All builds" does not follow the build. It is a navigator scope and cannot be held. A type row can be kept as a card through Peek → Keep (proposed kind `type`).
+- **Publishes:** the `type` parameter. Enter on a type row is Go: it pushes one stop and opens TypeEditor for that type at the inspected build. Arrow moves only replace the URL after the settle. The scope and find text are `f=` filters (registered axes `type.scope` and `type.find`) and replace the URL.
+- **Follows:** the project. "This build" follows the inspected build after the settle; "All builds" does not follow the build. It is a navigator scope and cannot be held. A type row can be kept as a card through Peek → Keep (registered kind `type`).
 - **Targets rendered:**
   - type → TypeEditor for that type and build (`type=CacheEntry&build=build-a`);
   - a use count → the uses of the type on that build (ResultsTable, `f=type.use:CacheEntry`);
@@ -73,7 +73,7 @@ The Types navigator scope: one tree of archives, categories and data types, keye
 
 - APG Treegrid: ↑/↓ rows; → expands, then moves into the cells; ← moves out of the cells, then collapses, then goes to the parent; Home/End; Ctrl+Home/End; `*` expands siblings (`tree.expandSiblings`). Typeahead starts with `/` because single letters are commands here.
 - Enter is Go (it opens TypeEditor). Shift+Enter opens it beside. Alt+↓ peeks. Shift+F10 opens the link menu. F2 renames in place.
-- Proposed keymap ids, all in the composite scope:
+- Keymap ids (registered), all in the composite scope:
   - `types.favourite` (`f`): toggles a favourite; it is per-viewer state, not a mutation;
   - `types.scope` (`a`): switches between This build and All builds;
   - `types.uses` (`u`): reveals uses on the inspected build;

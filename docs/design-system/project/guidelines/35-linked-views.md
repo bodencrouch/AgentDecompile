@@ -107,7 +107,16 @@ Listing, DecompileView, HexStrip and GraphPane share the one cursor in the prima
 - **`r`** moves focus to the first reflected row: Listing → Decompile, Decompile → Listing, Hex → Listing, Graph → Listing at the block's first instruction. A hidden target view is shown in the same slot, and the switch is announced once. With no mapping, focus stays and the status says "No mapping; focus stays".
 - **Highlight all** (`h`) on a register, variable or constant marks every occurrence in each visible view of the same build, up to four at once, lettered A–D. Each occurrence gets a 1px `ink-strong` box (`highlight-box`) and its letter, never an underline, because an underline means a link in code wells. The key is variable identity where the decompile projection gives it, otherwise exact text. The legend chip says which and counts in words ("A eax · 7 in this function · text match"); activating the chip removes the highlight. Another build gets a highlight only through recorded anchors or identity ("via anchor"); otherwise it reads "text match on build-c". A fifth `h` does nothing and says "Four highlights in use; remove one". Highlights are per-viewer view state, never in the URL.
 - **Pointer and touch.** The link menu and the 44px row-menu button carry "Show reflected row" and "Highlight all"; both are palette commands.
+- **Flow arrows** (ListingFieldLayout's flow-arrow margin) are recorded flow references, so they are solid: heavy line glyphs for an unconditional jump, light ones for a conditional jump. They are **never dashed**, except for a computed target inferred by analysis (a switch-table guess), which is a hypothesis: it is dashed and its row says "hypothesis · basis: jump-table inference". Arrows are `aria-hidden`; each row restates its arrow in words. `{` and `}` go to the source and target and push one stop.
 - **Proof wells.** A candidate source line maps to rebuilt rows through that compile's line table ("rebuilt r15 · line table") and to target rows through the ObjectDiff alignment receipt ("aligned by receipt ‹id› · aligned ≠ equivalent"). If the source changed since that compile, the mapping reads "◷ compiled from r14; source is r15".
+
+## Result sets and searches
+
+- **Row focus moves the cursor only on the inspected build.** In a ResultsTable, ↑/↓ on a row whose location is on the inspected build moves the Listing cursor there with replaceState after the settle (selection-to-listing, like Ghidra's click-to-navigate, with no history stop). A row on another build never changes the build on focus; Enter goes there, pushes one stop and is announced.
+- **A result set is a snapshot.** It follows nothing, says "as of ‹time›", keeps its source link and marks the row containing the primary location ("contains cursor"). It can be kept as a card (`keep=results:‹id›@‹build›`) or held with its pane. Refresh re-reads the same scope and never widens it.
+- **Searches never carry an address across builds.** With All builds in scope, an address-valued search (direct references, "Compare to…" re-checks) searches each build for **its own counterpart address**, taken from that build's locator and an accepted identity edge ("build-c: 00082f40 · accepted"). A build without a resolved counterpart through an accepted edge is skipped and says why ("build-d: unresolved; not searched"). A candidate edge is not enough. Pattern hits on another build are candidates, never identity, and are never aligned by offset.
+- **Cross-build rows join only by the kind's stated rule** (State vocabularies, Defined state and result joins). An unsearched build reads "not searched", never 0.
+- SearchWorkbench lives at `panel=search` in the Code Browser workspace; its mode and scope are the `f=search.mode:` and `f=search.scope:` axes, and the byte pattern stays in the result set's source, never in the URL. A ProgramTreeView view restriction is the `f=ptree.view:` axis (replaceState, not a stop); OverviewBar and the View search scope use the same restriction.
 
 ## Confirming edits
 
@@ -144,7 +153,7 @@ Both surfaces load one machine-readable schema, [`location-schema.json`](../loca
 | `entity` | logical entity |
 | `build` · `addr` | inspected build, and address or cursor |
 | `ws` | workspace: `code`, `compare`, `recovery`, `evidence` (four values only) |
-| `panel` | a full corpus view inside a workspace, such as `report`, `atlas`, `outputs`, `toolchain` or `variants`; the target of every "Show all" |
+| `panel` | a full corpus view inside a workspace, such as `report`, `atlas`, `outputs`, `toolchain` or `variants`, or `search` (SearchWorkbench in the Code Browser); the target of every "Show all" |
 | `views` | co-visible code views: listing, decompile, hex, graph |
 | `layers` | annotation layers over the code wells: `compiler` (CompilerLayer). View state, like `views` |
 | `walk` | the PointerWalk chain and current step, `chain[:step]`, e.g. `this.cache.entries[i].name_len:4`; requires `entity`, `build` and `addr` |

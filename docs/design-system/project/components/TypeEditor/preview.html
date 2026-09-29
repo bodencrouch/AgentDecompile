@@ -6,7 +6,7 @@
  <div class="ade-tgt">
   <span class="kicker">Target · bound when opened</span>
   <span class="ade-bld target">build-a</span><span>program types <code translate="no">/resource</code></span><span>basis gen 41</span>
-  <span class="ade-lock"><b aria-hidden="true">●</b>writer: this session</span>
+  <span class="ad-writer"><b aria-hidden="true">●</b>writer: this session</span>
   <span class="muted">Other builds are read for comparison only; they change only through Propose below.</span>
  </div>
  <div class="ade-sec">
@@ -27,9 +27,9 @@
    <tr><th scope="row"><span class="muted">filler</span></th><td><span class="muted">undefined 2 → none</span></td><td class="b target">+0x2 : 2 → 0</td><td class="b">+0x2 : 2</td><td class="b">+0x2 : 2</td><td class="b">+0x2 : 2</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>same</span></td><td></td></tr>
    <tr><th scope="row"><code translate="no">flags</code></th><td><a class="ad-link" href="?project=corpus-alpha&amp;type=CacheEntryFlags&amp;build=build-a" translate="no" aria-label="Type CacheEntryFlags, build-a">CacheEntryFlags</a></td><td class="b target">+0x4 : 4</td><td class="b">+0x4 : 4</td><td class="b">+0x4 : 4</td><td class="b">+0x4 : 4</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>same</span></td><td></td></tr>
    <tr><th scope="row"><span class="muted">filler</span></th><td><span class="muted">undefined</span></td><td class="b target">+0x8 : 8</td><td class="b">+0x8 : 8</td><td class="b">+0x8 : 0xc</td><td class="b">+0x8 : 0x10</td><td><span class="ade-m diff"><b aria-hidden="true">±</b>resized</span></td><td></td></tr>
-   <tr><th scope="row"><code translate="no">next</code></th><td><code translate="no">CacheEntry *</code></td><td class="b target">+0x10 : 4</td><td class="b">+0x10 : 4</td><td class="b">+0x18 : 4</td><td class="b">+0x18 : 8</td><td><span class="ade-m diff"><b aria-hidden="true">±</b>shifted on build-c, build-d</span><span class="w"><span class="ade-var hyp"><b>compile variance</b> hypothesis · <span class="basis">basis: same fields in the same order</span></span></span></td><td>chain in the bucket</td></tr>
+   <tr><th scope="row"><code translate="no">next</code></th><td><code translate="no">CacheEntry *</code></td><td class="b target">+0x10 : 4</td><td class="b">+0x10 : 4</td><td class="b">+0x18 : 4</td><td class="b">+0x18 : 8</td><td><span class="ade-m diff"><b aria-hidden="true">±</b>shifted on build-c, build-d</span><span class="w"><span class="ad-evd hyp"><b class="cls">compile variance</b> hypothesis · <span class="basis">basis: same fields in the same order</span></span></span></td><td>chain in the bucket</td></tr>
    <tr><th scope="row"><span class="muted">filler</span></th><td><span class="muted">undefined</span></td><td class="b target">+0x14 : 4</td><td class="b">+0x14 : 4</td><td class="b">+0x1c : 0</td><td class="b">+0x20 : 0</td><td><span class="ade-m diff"><b aria-hidden="true">±</b>resized</span></td><td></td></tr>
-   <tr><th scope="row"><span class="muted">size · align</span></th><td></td><td class="b target">0x18 · 4</td><td class="b">0x18 · 4</td><td class="b">0x1c · 4</td><td class="b">0x20 · 8<span class="w">as read 13:40</span></td><td><span class="ade-var"><b>compile variance</b> <span class="basis">witness: build-d language is x86-64, pointer width 8</span></span></td><td></td></tr>
+   <tr><th scope="row"><span class="muted">size · align</span></th><td></td><td class="b target">0x18 · 4</td><td class="b">0x18 · 4</td><td class="b">0x1c · 4</td><td class="b">0x20 · 8<span class="w">as read 13:40</span></td><td><span class="ad-evd solid"><b class="cls">compile variance</b> <span class="basis">witness: build-d language is x86-64, pointer width 8</span></span></td><td></td></tr>
   </tbody>
  </table>
  </div>
@@ -49,7 +49,7 @@
   <h5 id="te-prop-t">Propose to build-b, build-c · a separate step after Save's terminal result</h5>
   <p>Only builds with an accepted identity edge for <span translate="no">CacheEntry</span> are listed. A layout that differs blocks its recipient and says why.</p>
   <div class="ade-grid ad-scroll"><table class="ad-table"><caption class="sr-only">Recipients for the name_len retype</caption><thead><tr><th scope="col">Recipient</th><th scope="col">Edge</th><th scope="col">Preview on that build</th><th scope="col">Layout check</th><th scope="col">Include</th></tr></thead><tbody>
-   <tr><th scope="row">build-b</th><td><span class="ad-edge" aria-hidden="true"></span> accepted</td><td class="mono">name_len +0x0 : 2 → 4 · size 0x18</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>identical</span></td><td><label class="ade-flag"><input type="checkbox" class="ade-cb" checked><span class="sr-only">Include build-b</span></label></td></tr>
+   <tr><th scope="row">build-b</th><td><span class="ad-edge" aria-hidden="true"></span> accepted</td><td class="mono">name_len +0x0 : 2 → 4 · size 0x18</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>identical</span></td><td><label class="ad-flag"><input type="checkbox" checked><span class="sr-only">Include build-b</span></label></td></tr>
    <tr><th scope="row">build-c</th><td><span class="ad-edge" aria-hidden="true"></span> accepted</td><td class="mono">not previewed</td><td><span class="ade-m bad"><b aria-hidden="true">✕</b>blocked: layout differs (next +0x18 vs +0x10)</span></td><td><span class="muted">blocked</span></td></tr>
   </tbody></table></div>
   <div class="ade-foot"><button class="ad-btn" type="button">Propose to build-b…</button><span class="note">Opens ConfirmDialog naming build-b and its 14 uses. Each recipient gets its own outcome.</span></div>

@@ -33,7 +33,7 @@ Ghidra Server version control for every build of the project in one grid: each b
 
 **Linking**
 
-- **Publishes:** `panel=versions` (proposed) with `build` for the focused row. Dialogs and the history disclosure are not location. Nothing here changes the primary selection except Open read-only, which opens that version as a Held pane.
+- **Publishes:** `panel=versions` (registered) with `build` for the focused row. Dialogs and the history disclosure are not location. Nothing here changes the primary selection except Open read-only, which opens that version as a Held pane.
 - **Follows:** the inspected build, settle, to focus its row. Not holdable.
 - **Targets rendered:** jobs → the dock Jobs record · the writer lock → OwnershipPanel and `?node=lock-1` · conflicts → MergeReview for that build and category · analysis options → AnalyzerPanel (`panel=analysis`) · a version → a read-only Held pane of that version.
 - **Peek source:** Alt+↓ on a version reads its stored comment and change summary; on a lock or job, the stored record. Nothing is fetched from the server on Peek.
@@ -43,7 +43,7 @@ Ghidra Server version control for every build of the project in one grid: each b
 **Keyboard**
 
 - The builds grid is an APG Grid, one tab stop; Enter on a row's verb opens its dialog; the history is a table in reading order. Dialogs follow ConfirmDialog (focus starts on Cancel; Esc cancels).
-- Proposed keymap id `vcs.open` ("Version control", `g then v` in composite and code scopes; palette). No key checks in, updates or checks out.
+- Keymap id `vcs.open` (registered; "Version control"; no default key, menu and palette only, because `g then v` belongs to VTableBrowser). No key checks in, updates or checks out.
 
 **Accessibility**
 

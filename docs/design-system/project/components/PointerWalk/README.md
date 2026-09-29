@@ -65,16 +65,16 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 
 ## Linking
 
-- **Publishes:** Enter on a step's type or field is Go to that type (`type=CacheEntry.name_len`), and it keeps `entity`, `build` and `addr`. Moving between steps replaces `walk=this.cache.entries[i].name_len:4` (proposed) after the settle. Shift+Enter holds the step's type as a Held pane or kept card (`keep=type:CacheEntry.name_len@build-b`, proposed kind). A counterpart target in a vtable step is a counterpart link and switches the build by the position-keeping rule.
+- **Publishes:** Enter on a step's type or field is Go to that type (`type=CacheEntry.name_len`), and it keeps `entity`, `build` and `addr`. Moving between steps replaces `walk=this.cache.entries[i].name_len:4` (registered) after the settle. Shift+Enter holds the step's type as a Held pane or kept card (`keep=type:CacheEntry.name_len@build-b`, registered kind `type`). A counterpart target in a vtable step is a counterpart link and switches the build by the position-keeping rule.
 - **Follows:** the primary cursor after the settle. It follows as I move because it is cheap: it reads stored operand decomposition, dataflow and layouts only. Holdable.
-- **Targets rendered:** type and field (proposed typed-link target; below) · address and symbol (vtable targets, thunk targets) · counterpart (vtable slot target on another build, with its edge word) · receipt and job (in the Peek provenance) · research section (a native `/docs` link).
+- **Targets rendered:** type and field (registered typed-link target; below) · address and symbol (vtable targets, thunk targets) · counterpart (vtable slot target on another build, with its edge word) · receipt and job (in the Peek provenance) · research section (a native `/docs` link).
 - **Peek source:** the stored type record and layout store for that build, the recorded witness (PDB type record, RTTI), and cached access sites. Nothing is re-typed or re-analyzed.
 - **Absent copy:** "absent in build-a" (plain word, `.ad-absent`, never a link) · "unknown" · "unresolved: no dataflow origin for eax at 0041c88d" · "Not loaded. Open build-d to read it." · union: "Conflicting uses at one offset. Neither is picked." · contested vtable target: "2 addresses · contested · no winner", with both as candidate links.
 - **Target-size exception:** type links in step headers are inline text inside a 24px step row (the inline-link exception). Steps are reached by row focus. With a coarse pointer, each step has the 44px row-menu button.
 
 ## Keyboard
 
-- `p` (proposed `code.walk`, code scope) opens the walk for the cursor's expression and focuses the current step.
+- `p` (registered `code.walk`, code scope) opens the walk for the cursor's expression and focuses the current step.
 - The step list is a composite with one tab stop. ↑/↓ or j/k step back and forward through the chain (`list.move`), and Home/End go to the root and the last step.
 - **Enter** on a step follows its dereference: Go to the step's type or field, one history stop. On a vtable step it goes to the inspected build's slot target. Shift+Enter opens it beside; Alt+↓ peeks the type definition; Shift+F10 opens the link menu (Reveal in: Code Browser, Evidence › Types, VTableBrowser, FrameLayout for stack bases).
 - Tab moves from the steps to the layout key table (an APG Grid). `r` in a step moves focus to the reflected Listing row of that hop's instruction.

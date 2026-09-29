@@ -25,7 +25,7 @@ Calm engineer. Plain, operational English from the operator's side. Say what hap
 
 ## Claim boundaries use ≠
 
-candidate ≠ acceptance · compile admits candidate, not replacement · floor ≠ recovered C · local zero ≠ full-image or behavior proof · exported plan ≠ live detour permission · result exists ≠ independently accepted claim · deadline ≠ termination · byte journal rollback ≠ undo of executed side effects · liveness ≠ execution progress ≠ goal progress · Accuracy ≠ acceptance · Compiling C ≠ verified recovery · effective ≠ byte match · aligned ≠ equivalent.
+candidate ≠ acceptance · compile admits candidate, not replacement · floor ≠ recovered C · local zero ≠ full-image or behavior proof · exported plan ≠ live detour permission · result exists ≠ independently accepted claim · deadline ≠ termination · byte journal rollback ≠ undo of executed side effects · liveness ≠ execution progress ≠ goal progress · Accuracy ≠ acceptance · Compiling C ≠ verified recovery · effective ≠ byte match · aligned ≠ equivalent · aligned by name ≠ same contents · joined by content ≠ same entity.
 
 ## Outputs, reports and compiler-aware views
 
@@ -52,6 +52,20 @@ Keep verbatim:
 - "Patched bytes are not recovery evidence."
 - "Propose to build-b, build-c": propagation is a separate step after the terminal result, never an "all builds" write.
 - "Scripts are an advanced tool. Turn on Advanced in View settings to show Scripts."
+
+## Search, results and listing views
+
+Keep verbatim:
+
+- "Stopped at 500 hits on build-a; more may exist." A count is never rounded or projected; a cut table counts "≥500".
+- "not searched" is not 0: an unsearched build reads "build-d not loaded · not searched", never "0" or "no hits".
+- "zero hits is not absence": zero pattern hits on a build never mean the function is absent there, because compile variance changes encodings.
+- "hits are candidates; a pattern match is not identity".
+- "aligned by name ≠ same contents" (program trees) and "aligned by name ≠ same role" (memory blocks).
+- "Byte entropy" is a statistic of bytes; "entropy variance" is a variance class (build state differs). They are unrelated and never shortened together to "entropy".
+- "Keep at address on rebase" names Ghidra's pin symbol. Never write "pin symbol" or "pinned" for it: ◎ pinned is a locator status.
+- "Removed 3 rows from this table; nothing in the program changed."
+- "A selection belongs to one build."
 
 ## Coverage phrasing
 

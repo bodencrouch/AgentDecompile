@@ -67,7 +67,7 @@ One build's program trees (named organizations of folders and fragments over its
 
 - **Publishes:**
   - Go on a node pushes one stop to the Code Browser at the fragment's first address on this build.
-  - Restrict view changes the Listing's view. It is carried as the proposed `f=ptree.view:‹tree›/‹path›` axis (replaceState) and is not a history stop.
+  - Restrict view changes the Listing's view. It is carried as the registered `f=ptree.view:‹tree›/‹path›` axis (replaceState) and is not a history stop.
   - Select in Listing sets the address-set selection (client state, never in the URL).
 - **Follows:** the inspected build, and the cursor, to mark the fragment containing it ("contains cursor"). A **Select fragment at cursor** toggle mirrors Ghidra's option; it marks and scrolls, and never moves the cursor. Not holdable.
 - **Targets rendered:** address (range starts) → the Code Browser at that build · build → its Navigator row · job → the dock Jobs record.
@@ -78,8 +78,8 @@ One build's program trees (named organizations of folders and fragments over its
 ## Keyboard
 
 - APG Treegrid: ↑/↓, →/← open, close and move to the parent, Home/End, `*` expands siblings, `/` typeahead. Enter goes, Shift+Enter opens beside, Alt+↓ peeks, Shift+F10 opens the menu, F2 renames inline.
-- Proposed composite-scope ids (where "Program trees"; not yet in `keymap.json`):
-  - `ptree.restrict` (`v`) restricts the Listing view to the focused node, or adds it with Shift+`v`.
+- Composite-scope ids (the ProgramTreeView treegrid only; registered in `keymap.json`):
+  - `ptree.restrict` (`v`) restricts the Listing view to the focused node; `ptree.addToView` (Shift+V) adds it.
   - `ptree.clearView` has no default key; it is on the view band and in the palette.
   - `ptree.select` (`s`) selects the node's addresses in the Listing.
 - Tree tabs are APG Tabs with manual activation. Moves use the menu or arm the ActionStrip; drag and drop is an optional path to the same armed Move.

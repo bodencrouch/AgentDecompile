@@ -2,7 +2,7 @@
 
 Which compiler, linker and flags produced each build, as a facts × builds grid where every value shows its evidence level. A byte witness or a record is solid. An inference from code-generation idioms is a dashed "hypothesis (heuristic)" that names its basis. No evidence is the word unknown. A pinned-rebuild row warns when the rebuild toolchain differs from the evidence.
 
-**Use it** as the corpus view `ws=evidence&panel=toolchain` (a proposed `panel` value), reached from a build header's toolchain line, from ArtifactCard's provider line, and from VariantRelation's toolchain column. It answers "can these builds be the same source compiled differently, and can our rebuild toolchain byte-match each one?"
+**Use it** as the corpus view `ws=evidence&panel=toolchain` (a registered `panel` value), reached from a build header's toolchain line, from ArtifactCard's provider line, and from VariantRelation's toolchain column. It answers "can these builds be the same source compiled differently, and can our rebuild toolchain byte-match each one?"
 
 **Consumer provides** per build: the stored PE parse (Rich header entries decoded to product id, build number and count, including LTCG kinds; linker version; debug directory CodeView; imports); the PDB records when one is matched by GUID and age (S_COMPILE3, S_ENVBLOCK compiler and linker command lines, and source file checksums); the detector aggregates, each with its detector id, sample size and the example addresses (frame shape, jmp-thunk runs, hotpatch prologues, alias and fold map, duplicate literals, cookie and EH idioms, CRT Function ID matches); and the toolchain registry's pinned compiler and linker for rebuild, with their hashes. Each value comes with its source kind: witness, record or detector.
 

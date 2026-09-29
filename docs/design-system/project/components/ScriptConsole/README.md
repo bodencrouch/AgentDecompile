@@ -33,9 +33,9 @@ An advanced panel that holds the script manager, a read-only console transcript,
 
 **Linking**
 
-- **Publishes:** `panel=scripts` (proposed) with `q` for the filter text. The interpreter session and scroll lock are durable workspace state, not location. Running never changes the selection.
+- **Publishes:** `panel=scripts` (registered) with `q` for the filter text. The interpreter session and scroll lock are durable workspace state, not location. Running never changes the selection.
 - **Follows:** the inspected build and selection, settle, for the next run's target; a confirmed dialog and an interpreter session keep their binding when the selection moves ("Bound to build-a · selection is now build-c · Rebind"). Not holdable.
-- **Targets rendered:** job ids → the dock Jobs and Logs records · addresses in the transcript → the Code Browser at that build · a committed transaction → EditHistory for that build (`panel=history`, proposed) · owners → OwnershipPanel.
+- **Targets rendered:** job ids → the dock Jobs and Logs records · addresses in the transcript → the Code Browser at that build · a committed transaction → EditHistory for that build (`panel=history`) · owners → OwnershipPanel.
 - **Peek source:** Alt+↓ on a script reads its stored header and description; on a job, the stored job record. Nothing is compiled or fetched.
 - **Absent copy:** "writes: unknown" · "never run" · "no counterpart on ‹build›" · "Not loaded. Open to read it." · "not bound here; scripts are not catalog entries".
 - **Target-size exception:** addresses inside the transcript are inline code tokens (the inline exception); all controls are 24px, 44px below 700px and with a coarse pointer.
@@ -44,7 +44,7 @@ An advanced panel that holds the script manager, a read-only console transcript,
 
 - The tablist is APG Tabs with manual activation (Interpreter and Bundles read more). The category tree is an APG Tree; the scripts grid is an APG Grid with typeahead behind `/`.
 - In the interpreter input, Enter posts the line within the confirmed session, ↑/↓ recall earlier lines, Esc leaves the input (the one Esc order). Ctrl/Cmd+F in the transcript opens Find, as in code wells.
-- Proposed keymap ids: `scripts.open` (no keys · menu and palette only), `scripts.runLast` (no keys; arms only). No key posts a run.
+- Keymap ids (registered): `scripts.open` (no keys · menu and palette only), `scripts.runLast` (no keys; arms only). No key posts a run.
 
 **Accessibility**
 

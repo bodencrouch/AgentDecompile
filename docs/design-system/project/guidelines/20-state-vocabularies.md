@@ -57,6 +57,28 @@ Display order: contested, unresolved, ambiguous, pinned, degraded, resolved.
 
 Call trees reuse these words for per-build reachability (resolved, absent, unresolved, ambiguous, contested) plus "not loaded". There is no present/absent pair.
 
+**Presence words (SymbolTree, ResultsTable).** A per-build presence cell uses the locator glyph and word above, or one of these words. They are words, not new glyphs, and each is a separate reading, never a locator status:
+
+- **absent**: the plain word; never an empty cell.
+- **folded**: identical-code folding, where one address carries several symbols ("folded with Actor::Release at 0041d2a0"). Every symbol at that address is listed; none is chosen as the name. It is the `ICF` compiler annotation seen from the symbol side.
+- **inlined only**: the OutcomeTag `inlined_only`, where the function has no out-of-line body on that build ("inlined only on build-b"). It is not absent and not unresolved.
+- **namespace differs**: the namespace path differs between builds; each build's path is shown, never merged.
+
+## Defined state and result joins (ResultsTable, SearchWorkbench)
+
+**Defined state** of a string or data hit, from the build's own listing: **defined** · **not defined** · **partially defined** · **conflicts** (with an instruction or other defined data; the row names which). The words are evidence, not a quality, and are never shortened to a check mark. Filter values (`f=results.defined:`): `defined`, `not-defined`, `partial`, `conflicts`.
+
+**Join rules.** A result table spanning builds joins rows into one logical row only by its kind's stated rule, and the header states it in these words:
+
+| Rule | Words | Kinds |
+|---|---|---|
+| identity | joined by accepted identity edge (candidates show their edge word and are not joined) | symbols, functions, tags, comments on entities |
+| content or name | joined by content ≠ same entity | strings, equates by name, types by name |
+| none | never joined · grouped per build | memory, instruction, scalar, direct-reference and address-table hits |
+
+- A hit inside an anchored function says "in ‹entity› on build-a, build-c · via anchor". Nothing is aligned by offset or order.
+- **Per-build hit cells** read a LocatorGlyph word with its address, or: **absent** (searched, no hit) · **not searched** (not loaded or excluded; never 0) · **not indexed** (no index for this kind) · **no anchor** (the join needs an anchor and none is recorded).
+
 ## Identity edges (IdentityEdge)
 
 candidate (dashed `lane-identity-ink`) · accepted (solid) · rejected (struck, `fact-failed`) · unresolved (dotted, `fact-unknown`). An edge animates from candidate to accepted only after its acceptance event exists.

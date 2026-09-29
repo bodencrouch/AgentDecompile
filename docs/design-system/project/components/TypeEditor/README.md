@@ -97,7 +97,7 @@ The editor for one data type on one explicit build target: structure, union, enu
 **Keyboard**
 
 - APG Grid with cell focus. Arrows move between cells. Enter or F2 enters edit mode on a cell and Esc leaves it, restoring the text. Tab moves between cells only in edit mode. Ctrl/Cmd+S saves (the `save` command).
-- Proposed keymap ids (composite scope, active inside the component grid):
+- Keymap ids (registered; composite scope, active inside the component grid):
   - `typeEditor.moveUp` and `typeEditor.moveDown` (Alt+Shift+↑ and Alt+Shift+↓; plain Alt+↓ stays Peek);
   - `typeEditor.insertUndefined` (`u`);
   - `typeEditor.duplicate` (`d`);

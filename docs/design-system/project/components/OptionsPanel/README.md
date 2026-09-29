@@ -1,6 +1,6 @@
 # OptionsPanel
 
-The per-viewer tool options for each code viewer (Listing display, cross-reference hints, the decompiler, the byte viewer, the structure editor and search) beside a read-only, per-build view of the program options that shape analysis and decompilation (decompiler analysis options and specification extensions), which change only through the catalog.
+The per-viewer tool options for each code viewer (the decompiler, the byte viewer, the structure editor and search, with links to ListingFieldLayout for Listing display and cross-reference hints) beside a read-only, per-build view of the program options that shape analysis and decompilation (decompiler analysis options and specification extensions), which change only through the catalog.
 
 **Use it** as **Tool options…** in the View menu and the palette ("Options", "Tool options", or an option's name), and from a viewer's pane-header menu, which opens it at that viewer's section. It replaces Ghidra's Tool Options dialog and the decompiler, byte viewer and structure editor option pages. It sits beside two existing homes and does not repeat them: **View settings** (Density, Increase contrast, Reduce motion, Screen-reader verbosity, the pointer options and Advanced) and **KeymapSettings** (keys). Listing columns and field layout belong to ListingFieldLayout. The header links all three as buttons.
 
@@ -9,7 +9,7 @@ The per-viewer tool options for each code viewer (Listing display, cross-referen
 **Anatomy**
 
 - **Header.** "Tool options", the override count ("6 overrides by you, stored beside View settings and keys · never in a link or browser storage"), the three sibling buttons (View settings…, Keyboard…, Listing fields…) and a Find field that filters every section by option name.
-- **Section tree** (APG Tree) in two groups. **Viewers · per viewer:** Listing display (operand display: block names, register-variable markup, reference underline, line wrap; EOL comment options), Cross-reference hints (the XREF hint: maximum shown, group by function, ref-type letter, sort, namespace prefix, delimiter), Decompiler (display options and the two request options), Byte viewer (bytes per line, group size, alignment offset, charset, char width, and which formats the HexStrip offers), Structure editor (offsets and sizes in hex or decimal, show undefined bytes), Search (default scope this build or all builds, highlight hits, result limit). **Program · per build:** Decompiler analysis, Specification extensions. Each section shows its override count.
+- **Section tree** (APG Tree) in two groups. **Viewers · per viewer:** Listing display and Cross-reference hints are link rows only: ListingFieldLayout owns the operand display options (row L04), the XREF field options (row L09) and the EOL comment options (row L08), and these rows open its Field settings group at Operands, XREF field or EOL comments. They hold no values here, so there is one store and one set of words; their counts are ListingFieldLayout's changes. Decompiler (display options and the two request options), Byte viewer (bytes per line, group size, alignment offset, charset, char width, and which formats the HexStrip offers), Structure editor (offsets and sizes in hex or decimal, show undefined bytes), Search (default scope this build or all builds, highlight hits, result limit). **Program · per build:** Decompiler analysis, Specification extensions. Each section shows its override count.
 - **Option rows.** Name, a short description with the kind ("display", "request option · part of the basis") and "changed by you, default X" or "default X", then the control (segmented buttons, a select or a short field) and **Reset** for an overridden value. Changes apply to the viewer at once, post nothing and start no job.
 - **Request options** (Show unreachable code, Respect read-only flags) are per viewer but enter the decompile basis. Changing one never re-decompiles: views decompiled under other options show "decompiled with ‹option› ‹value› · Enter to decompile", and the panel counts them in a notice.
 - **Program options, per build, read-only.** A table with one column per build and "differs" (±) where builds disagree, "not read" where a build was not read. **Set on ‹build› (catalog)…** arms the ActionStrip for one build, with ConfirmDialog because it changes every later decompile of that build; today it is disabled with "catalog action needed · not offered yet".
@@ -33,7 +33,7 @@ The per-viewer tool options for each code viewer (Listing display, cross-referen
 
 - **Publishes:** nothing. Options are a per-viewer diff in durable workspace state; the open section is remembered there too. It never navigates or changes the selection.
 - **Follows:** opened from a viewer's pane-header menu, it opens at that viewer's section; otherwise nothing. Not holdable.
-- **Targets rendered:** views decompiled under other options → those decompile views at their build · program option rows → AnalyzerPanel for analysis options (`panel=analysis`, proposed) · sibling homes as buttons, not links.
+- **Targets rendered:** views decompiled under other options → those decompile views at their build · program option rows → AnalyzerPanel for analysis options (`panel=analysis`) · Listing display and Cross-reference hints → ListingFieldLayout's Field settings group (Operands, XREF field, EOL comments), which owns those options · sibling homes as buttons, not links.
 - **Peek source:** none.
 - **Absent copy:** "not read" · "catalog action needed · not offered yet" · "build-a only" · "Program caching is a server setting".
 - **Target-size exception:** none; controls are 24px, 44px below 700px and with a coarse pointer.
@@ -41,7 +41,7 @@ The per-viewer tool options for each code viewer (Listing display, cross-referen
 **Keyboard**
 
 - The section tree is an APG Tree (typeahead needs no prefix); option rows are in Tab order; segmented controls move with ←/→. Ctrl/Cmd+F is not bound here; the Find field is the first control after the header buttons.
-- Proposed keymap id `options.open` (no keys · menu and palette only; Cmd+, is taken by the browser on macOS).
+- Keymap id `options.open` (no keys · menu and palette only; Cmd+, is taken by the browser on macOS).
 
 **Accessibility**
 
@@ -59,7 +59,7 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 - **D05** Eliminate Unreachable Code and Respect Read-only Flags as request options in the basis (DecompileView shows their state; this panel sets them).
 - **N11** Byte Viewer options: bytes per line, alignment offset, group size, charset, char width (HexStrip reads them).
 - **T19** structure editor options such as hex display.
-- Supports **L04**, **L08** and **L09** display options (Listing and XrefPanel read them).
+- Links to **L04**, **L08** and **L09** display options, which ListingFieldLayout owns (Listing and XrefPanel read them).
 
 **Prior art**
 

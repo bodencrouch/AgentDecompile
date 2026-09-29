@@ -90,10 +90,10 @@ After the terminal result, BeforeAfterBand shows old → new under the signature
 **Keyboard**
 
 - Tab moves through the fields. The parameter grid is an APG Grid: Enter or F2 edits a cell and Esc leaves it. Ctrl/Cmd+S saves. Esc follows `keymap.json` `escapeOrder` and returns focus to the invoking token.
-- Proposed keymap ids:
-  - `code.editSignature` (code scope, `ida` profile only: `y` on a function name already means set type, so default gets no single key; the path is Shift+F10 → Edit signature…);
+- Keymap ids (registered):
+  - `code.editSignature` (code scope; no default key in any profile, because `y` on a function name already means set type in the ida profile; the path is Shift+F10 → Edit signature… and the palette);
   - `signature.paramUp` and `signature.paramDown` (Alt+Shift+↑ and Alt+Shift+↓, grid);
-  - `signature.editStorage` (Alt+S inside the editor; it opens StorageEditor for the focused parameter).
+  - `signature.editStorage` (no default key; the proposed Alt+S was not registered. It is palette and row menu only and opens StorageEditor for the focused parameter).
 
 **Accessibility**
 

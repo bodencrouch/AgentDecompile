@@ -92,7 +92,7 @@ The symbol hierarchy of the project as an APG treegrid: Imports, Exports, Functi
 
 - APG Treegrid: ↑/↓ move rows; → opens a node or moves into its cells; ← closes a node, moves to its parent, or moves back out of cells; Home/End; `*` expands siblings (`tree.expandSiblings`). Typeahead starts with `/` because the tree binds letter commands.
 - Enter goes; Shift+Enter opens beside; Alt+↓ peeks; Shift+F10 opens the link menu; F2 renames in place (`tabs.rename` / `code.rename` semantics: InlineRename).
-- Proposed composite-scope ids (where "Symbol tree"; not yet in `keymap.json`):
+- Composite-scope ids (the SymbolTree treegrid only; registered in `keymap.json`):
   - `symbols.cut` (Ctrl/Cmd+X) marks the focused or checked nodes as cut. It is client state only.
   - `symbols.paste` (Ctrl/Cmd+V) on a destination arms the Move action in the ActionStrip bound to that build. It never posts.
   - `symbols.delete` (Delete) arms Delete in the ActionStrip.
@@ -102,7 +102,7 @@ The symbol hierarchy of the project as an APG treegrid: Imports, Exports, Functi
 
 ## Accessibility
 
-- `role="treegrid"` named "Symbols, corpus-alpha, logical, 4 builds", with `aria-level`, `aria-expanded`, `aria-setsize` and `aria-posinset` on rows. The name cell is the row header. Presence cells are grid cells named in words ("build-c: resolved, 0041b210, accepted").
+- `role="treegrid"` named "Symbols, corpus-alpha, logical, 4 builds", with `aria-level`, `aria-expanded`, `aria-setsize` and `aria-posinset` on rows. The name cell is the row header. Presence cells are grid cells named in words ("build-c: resolved, 00082f40, accepted").
 - LocatorGlyph glyphs are `aria-hidden`; the word is always visible. "absent" is never an empty cell.
 - Rows with a pending or finished edit carry their OutcomeCell words. Transitions are announced once in the polite region ("Rename on build-a finished, job a3f9").
 - The writer line is text, not color: "lock held by another session".

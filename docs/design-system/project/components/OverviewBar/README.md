@@ -38,7 +38,7 @@ A vertical navigation margin beside the Listing that shows one build's whole vie
    - For entropy, the ramp with its numbers and each configured range.
    - A **ranges list**: a grid of the view's regions in address order, each a typed address link (start, end, kind, value).
    - The ranges list is the accessible and keyboard form of the bar. The graphic is never the only carrier.
-4. **Side-by-side builds** (row L17 in Compare). One bar per build, build-a…build-d, each in its own address scale and each labelled with its range. Bars are never aligned by offset. A cursor position is drawn on another build's bar only through a recorded anchor pair ("▸ via anchor 0041c880 ↔ 0041b210"). Without an anchor pair nothing is drawn, and the key says "no anchor; not drawn on build-d".
+4. **Side-by-side builds** (row L17 in Compare). One bar per build, build-a…build-d, each in its own address scale and each labelled with its range. Bars are never aligned by offset. A cursor position is drawn on another build's bar only through a recorded anchor pair ("▸ via anchor 0041b210 ↔ 00082f40"). Without an anchor pair nothing is drawn, and the key says "no anchor; not drawn on build-d".
 
 **Terms.** *Byte entropy* is the statistic of this lane. *Entropy variance* is the build-state variance class (paths, declaration or link order). They are unrelated and never abbreviated to "entropy" together. Equal byte entropy across builds is cheap divergence evidence only; it is advisory (NP) and never a match.
 
@@ -56,7 +56,7 @@ A vertical navigation margin beside the Listing that shows one build's whole vie
 
 ## Linking
 
-- **Publishes:** Go from the ranges list, a key row, or a click on a pixel row moves the primary location to that build and address and pushes one stop. With the pointer, the click lands on the first address of that pixel row, and the key says "row covers about 1.5 KB; lands on 0041c800". A click on another build's bar in Compare goes to that build explicitly and is announced.
+- **Publishes:** Go from the ranges list, a key row, or a click on a pixel row moves the primary location to that build and address and pushes one stop. With the pointer, the click lands on the first address of that pixel row, and the key says "row covers about 1.5 KB; lands on 0041b000". A click on another build's bar in Compare goes to that build explicitly and is announced.
 - **Follows:** the inspected build, the view (whole image or the ProgramTreeView restriction), the cursor (drawn as the rule), the Listing selection, highlights, the active ResultsTable and marks, after the settle. It is a cached pane; reads that are not cached wait for Enter. It can be held with the Listing (a held Listing's bar freezes with it).
 - **Targets rendered:** address (range starts and ends, markers) → the Code Browser at that build · job id ("changed by job a3f9") → the dock Jobs record · search result set → its ResultsTable · divergence range → ImageDeltaMap region (the Listing at the range start in that build, with the ObjectDiff pair) · receipt id for a classified range → its receipt card.
 - **Peek source:** Alt+↓ on a key row peeks the cached Listing lines at the range start, and for a divergence range the receipt that classified it. Nothing is fetched.
@@ -65,8 +65,8 @@ A vertical navigation margin beside the Listing that shows one build's whole vie
 
 ## Keyboard
 
-- The bar itself takes no focus. **Show key**, or the palette command `overview.focus` (no default key; `g then v` belongs to VTableBrowser), moves focus to the ranges list, an APG Grid with row focus: ↑/↓ move by region, PageUp/PageDown by a screenful, Home/End go to the first and last region, Enter goes, Shift+Enter opens beside, Alt+↓ peeks, Shift+F10 opens the link menu.
-- Proposed composite-scope ids (where "Overview ranges list"; not yet in `keymap.json`):
+- The bar itself takes no focus. **Show key**, or the palette command `overview.focus` (registered; no default key, palette only, because `g then v` belongs to VTableBrowser), moves focus to the ranges list, an APG Grid with row focus: ↑/↓ move by region, PageUp/PageDown by a screenful, Home/End go to the first and last region, Enter goes, Shift+Enter opens beside, Alt+↓ peeks, Shift+F10 opens the link menu.
+- Composite-scope ids (the OverviewBar ranges list only; registered in `keymap.json`):
   - `overview.nextMarker` and `overview.prevMarker`: `]` and `[` move to the next or previous region of the lane in focus.
   - `overview.lane`: no default key, because `m` is `list.mark` in lists. The lane menu and the key's lane rows filter the list to one lane, and Esc clears the filter.
   - `]` and `[` match the typed character.

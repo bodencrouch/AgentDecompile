@@ -2,7 +2,7 @@
 
 One output or result artifact in full. It says what the artifact proves and what it does not, and gives its identity (schema, hash, basis), the job and receipt that produced it, its members if it is a bundle, its coverage on each build, its determinism rule and its 8080 observation, with historical provenance labelled as historical.
 
-**Use it** when an artifact name is opened from OutputsCatalog, a member list, a receipt, a job's Changed line or the PipelineMap export band (`ws=evidence&panel=outputs&artifact=‹id›`, a proposed parameter). It sits in the Evidence workspace beside the catalog, or in the evidence rail. Alt+↓ on an artifact link shows its header and first two sections as a Peek. Keep keeps it (`keep=artifact:‹id›`, a proposed kind).
+**Use it** when an artifact name is opened from OutputsCatalog, a member list, a receipt, a job's Changed line or the PipelineMap export band (`ws=evidence&panel=outputs&artifact=‹id›`, a registered parameter). It sits in the Evidence workspace beside the catalog, or in the evidence rail. Alt+↓ on an artifact link shows its header and first two sections as a Peek. Keep keeps it (`keep=artifact:‹id›`, a proposed kind).
 
 **Consumer provides** the inventory row (name, kind, group, format or schema version, tier, the proves and does-not-prove sentences, and the determinism rule text with its source); the stored bytes hash and basis digest per build; the producing verb, job and receipt, with the provider requested and the provider served; per-build coverage with each measure kept separate (matched, linked, fuzzy) and the report state; for a bundle, its members with each member's status, hash and verify-gate outcome; the previous report per build, for changes; and the 8080 observation record, plus any historical observation with its port class.
 
@@ -47,7 +47,7 @@ One output or result artifact in full. It says what the artifact proves and what
   - StageChip and node id → PipelineMap node;
   - member → its ArtifactCard;
   - entity in a change table → the Code Browser at that build and address (always with `build`);
-  - provider line → ToolchainEvidence for that build (`panel=toolchain`, proposed).
+  - provider line → ToolchainEvidence for that build (`panel=toolchain`).
 
   Link names read "Job a61f, corpus.objdiff-check, finished, no report".
 - **Peek source:** stored receipt headers, the inventory row, the stored change summary. Nothing is fetched.

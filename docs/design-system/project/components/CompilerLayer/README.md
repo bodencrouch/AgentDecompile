@@ -62,7 +62,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 
 ## Linking
 
-- **Publishes:** the layer toggle and Kind filter replace `layers=compiler` and `f=xform:inline,eh…` (both proposed) in the URL after the settle. Enter on a band is Go to the transformation's subject (the inlinee entity, a folded entity, the switch table), with one history stop. Enter on a tag highlights its range (reflection marks) without moving history.
+- **Publishes:** the layer toggle and Kind filter replace `layers=compiler` and `f=xform:inline,eh…` (both registered) in the URL after the settle. Enter on a band is Go to the transformation's subject (the inlinee entity, a folded entity, the switch table), with one history stop. Enter on a tag highlights its range (reflection marks) without moving history.
 - **Follows:** the well it decorates. It is on whenever the toggle is on, and holdable with that well.
 - **Targets rendered:** logical id (inlinee, folded entities) · address and symbol (twin body, table, thunk target) · counterpart (presence cells for other builds, with edge words) · receipt (detector receipt in the Peek) · research section (native `/docs` link).
 - **Peek source:** the stored detector record (detector id, version, evidence, parameters) and the per-build presence row. Nothing is re-detected.
@@ -71,7 +71,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 
 ## Keyboard
 
-- `c` (proposed `code.compilerLayer`, code scope) toggles the layer. It only changes view state and posts nothing.
+- `c` (registered `code.compilerLayer`, code scope) toggles the layer. It only changes view state and posts nothing.
 - `a` / Shift+A (`code.annotationNext` / `code.annotationPrev`; `{`/`}` stay with ListingFieldLayout's flow arrows) move the cursor to the next or previous annotation of the visible kinds and announce it ("Annotation 3 of 9: inlined ResourceRef::Resolve, hypothesis").
 - Enter on a band's subject is Go; Enter on a tag highlights its range; Alt+↓ peeks the detector record; Shift+F10 opens the link menu (Reveal in: TransformTimeline, MatchExplain, Evidence).
 - The FilterChips follow FilterChip's keys. Esc follows `keymap.json` `escapeOrder`.

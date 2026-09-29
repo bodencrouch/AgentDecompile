@@ -5,7 +5,7 @@
  <header><h4 id="rv-t">Register values</h4><span class="end">Set register values (catalog)</span></header>
  <div class="ade-tgt">
   <span class="ade-bld target">build-a</span><span>registers from build-a's language · x86 32-bit</span>
-  <span class="ade-lock"><b aria-hidden="true">●</b>writer: this session</span>
+  <span class="ad-writer"><b aria-hidden="true">●</b>writer: this session</span>
  </div>
  <div class="ade-2col">
   <div>
@@ -24,7 +24,7 @@
   <div>
    <div class="ade-sec">
     <h5>DF on build-a · explicit values</h5>
-    <label class="ade-flag"><input type="checkbox" class="ade-cb">Show language defaults</label>
+    <label class="ad-flag"><input type="checkbox">Show language defaults</label>
    </div>
    <div class="ade-grid ad-scroll"><table class="ad-table" role="grid" aria-label="Value ranges of DF on build-a"><thead><tr><th scope="col">Start</th><th scope="col">End</th><th scope="col">Value</th><th scope="col">Source</th><th scope="col">Action</th></tr></thead><tbody>
     <tr><td><a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" translate="no" aria-label="Address 0041c880, build-a">0041c880</a></td><td class="mono">0041c8ff</td><td class="mono">0x0</td><td>user</td><td><button class="ad-btn compact" type="button" aria-label="Delete range 0041c880 to 0041c8ff">Delete…</button></td></tr>
@@ -45,7 +45,7 @@
   <h5 id="rv-cmp-t">DF across builds · program-local, compared side by side</h5>
   <div class="ade-grid ad-scroll"><table class="ad-table"><caption class="sr-only">DF ranges per build, anchor-mapped</caption><thead><tr><th scope="col">Range on build-a</th><th scope="col" class="b target">build-a</th><th scope="col" class="b">build-b</th><th scope="col" class="b">build-c</th><th scope="col" class="b">build-d</th></tr></thead><tbody>
    <tr><th scope="row" class="mono">0041c880–0041c8ff</th><td class="b target">0x0</td><td class="b">0x0 <span class="w">via anchor 0041c880</span></td><td class="b"><span class="muted">no value</span><span class="w">via anchor 0041b210</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
-   <tr><th scope="row" class="mono">context</th><td class="b target"><code translate="no">addrsize</code>, <code translate="no">opsize</code></td><td class="b">same</td><td class="b">same</td><td class="b"><span class="ade-var"><b>compile variance</b> <span class="basis">witness: x86-64 language adds longMode</span></span></td></tr>
+   <tr><th scope="row" class="mono">context</th><td class="b target"><code translate="no">addrsize</code>, <code translate="no">opsize</code></td><td class="b">same</td><td class="b">same</td><td class="b"><span class="ad-evd solid"><b class="cls">compile variance</b> <span class="basis">witness: x86-64 language adds longMode</span></span></td></tr>
   </tbody></table></div>
   <p>Register values are never proposed to other builds. Ranges are compared only through recorded anchors; between anchors the row names the anchor it used.</p>
  </div>

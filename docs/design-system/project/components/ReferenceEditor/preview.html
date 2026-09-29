@@ -7,7 +7,7 @@
   <span class="kicker">Source · bound when opened</span>
   <span class="ade-bld target">build-a</span><span>in <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041c880" translate="no" aria-label="Function ResourceRef::Resolve, 0041c880, build-a">ResourceRef::Resolve</a></span>
   <span><label for="rf-op" class="muted">Operand</label> <select class="adc-in" id="rf-op"><option>operand 0 · [0041f020]</option><option>mnemonic</option></select></span>
-  <span class="ade-lock"><b aria-hidden="true">●</b>writer: this session</span>
+  <span class="ad-writer"><b aria-hidden="true">●</b>writer: this session</span>
  </div>
  <div class="ade-grid ad-scroll"><table class="ad-table" role="grid" aria-label="References from 0041c89a on build-a"><thead><tr><th scope="col">Operand</th><th scope="col">Kind</th><th scope="col">Destination</th><th scope="col">Ref-type</th><th scope="col">Primary</th><th scope="col">Source</th><th scope="col">Action</th></tr></thead><tbody>
   <tr aria-selected="true"><td>op 0</td><td>memory</td><td><a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041f020" translate="no" aria-label="Address 0041f020, build-a">0041f020</a></td><td class="mono">INDIRECTION</td><td>primary</td><td>analysis</td><td><button class="ad-btn compact" type="button" aria-label="Delete reference to 0041f020 from operand 0">Delete</button></td></tr>
@@ -17,8 +17,8 @@
  <div class="ade-sec" role="tabpanel" id="rf-p-m" aria-labelledby="rf-tab-m">
   <div class="ade-flds">
    <label class="lbl" for="rf-to">To address</label><div class="val"><input class="adc-in num" id="rf-to" value="0041b210" translate="no"><span class="muted">an address on build-a; never re-resolved into another build</span></div>
-   <label class="lbl" for="rf-off">Offset reference</label><div class="val"><label class="ade-flag"><input type="checkbox" class="ade-cb" id="rf-off">base +</label><input class="adc-in num" id="rf-offv" value="0x0" translate="no" aria-label="Offset from the base"></div>
-   <label class="lbl" for="rf-rt">Ref-type</label><div class="val"><select class="adc-in" id="rf-rt"><option>COMPUTED_CALL</option><option>UNCONDITIONAL_CALL</option><option>DATA</option><option>READ</option><option>WRITE</option><option>INDIRECTION</option></select><label class="ade-flag"><input type="checkbox" class="ade-cb">Primary</label></div>
+   <label class="lbl" for="rf-off">Offset reference</label><div class="val"><label class="ad-flag"><input type="checkbox" id="rf-off">base +</label><input class="adc-in num" id="rf-offv" value="0x0" translate="no" aria-label="Offset from the base"></div>
+   <label class="lbl" for="rf-rt">Ref-type</label><div class="val"><select class="adc-in" id="rf-rt"><option>COMPUTED_CALL</option><option>UNCONDITIONAL_CALL</option><option>DATA</option><option>READ</option><option>WRITE</option><option>INDIRECTION</option></select><label class="ad-flag"><input type="checkbox">Primary</label></div>
   </div>
   <p class="small muted">Only memory references may share an operand; stack, register and external references are one per operand. A flow ref-type can change the function body; the stale decompile is named, nothing is re-analyzed.</p>
  </div>
@@ -58,7 +58,7 @@
  <span class="kicker">Offset references table from a selection · batch preview</span>
  <div class="ade" role="group" aria-labelledby="rf-ot-t">
   <header><h4 id="rf-ot-t">Create offset references table</h4><span class="end">build-a · 0041f020–0041f02f</span></header>
-  <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="rf-ob">Base</label><div class="val"><input class="adc-in num" id="rf-ob" value="0041b000" translate="no"></div><label class="lbl" for="rf-oe">Entry size</label><div class="val"><select class="adc-in" id="rf-oe"><option>4</option><option>2</option></select><label class="ade-flag"><input type="checkbox" class="ade-cb">Signed</label></div></div></div>
+  <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="rf-ob">Base</label><div class="val"><input class="adc-in num" id="rf-ob" value="0041b000" translate="no"></div><label class="lbl" for="rf-oe">Entry size</label><div class="val"><select class="adc-in" id="rf-oe"><option>4</option><option>2</option></select><label class="ad-flag"><input type="checkbox">Signed</label></div></div></div>
   <div class="ade-grid ad-scroll"><table class="ad-table"><caption class="sr-only">Computed destinations</caption><thead><tr><th scope="col">Entry</th><th scope="col">Value</th><th scope="col">Destination</th></tr></thead><tbody>
    <tr><td class="mono">0041f020</td><td class="mono">0x210</td><td><span class="mono">0041b210</span> · instruction</td></tr>
    <tr><td class="mono">0041f024</td><td class="mono">0x2a8</td><td><span class="mono">0041b2a8</span> · <span class="ad-absent">undefined bytes</span></td></tr>

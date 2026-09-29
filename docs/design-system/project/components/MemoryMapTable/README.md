@@ -91,7 +91,7 @@ The memory map of one build as a table: blocks with their range, length, permiss
 ## Keyboard
 
 - An APG Grid with row focus, and a checkable grid for the multi-block operations: Space or `x` checks, and Shift extends. Enter goes; Shift+Enter opens beside; Alt+↓ peeks; Shift+F10 opens the link menu; F2 opens the inline editor on the name.
-- Proposed composite-scope ids (where "Memory map"; not yet in `keymap.json`):
+- Composite-scope ids (the MemoryMapTable grid only; registered in `keymap.json`):
   - `mmap.edit` (`e`) opens the inline editor for the focused block.
   - `mmap.align` (`a`) switches between This build and Align builds.
 - Keys only open editors or arm the ActionStrip; Save and Run post. Esc follows `keymap.json` `escapeOrder`.

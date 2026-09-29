@@ -33,9 +33,9 @@ Undo and redo for one build's program as its list of recorded transactions, with
 
 **Linking**
 
-- **Publishes:** `panel=history` (proposed) with `build`. The focused row is durable workspace state, not location. Undo and Redo never change the primary selection.
+- **Publishes:** `panel=history` (registered) with `build`. The focused row is durable workspace state, not location. Undo and Redo never change the primary selection.
 - **Follows:** the inspected build, settle, unless the Program segment was set by hand in this panel. Not holdable.
-- **Targets rendered:** addresses and entities in transaction names → the Code Browser at that build · jobs → the dock Jobs record · propagation → PropagationTransfer's record for that job · receipts → the receipt card · a checked-in version → VersionControlPanel history (`panel=versions`, proposed).
+- **Targets rendered:** addresses and entities in transaction names → the Code Browser at that build · jobs → the dock Jobs record · propagation → PropagationTransfer's record for that job · receipts → the receipt card · a checked-in version → VersionControlPanel history (`panel=versions`).
 - **Peek source:** Alt+↓ on a transaction reads its stored change summary (what it changed, from the event store); on a job, the stored job record.
 - **Absent copy:** "cannot be undone here" · "No undo stack for ‹build›" · "Redo list cleared by ‹transaction› at ‹time›" · "catalog action needed · not offered yet" · "beyond the undo limit (20)".
 - **Target-size exception:** addresses and job ids inside transaction rows are inline tokens (the inline exception); row buttons are 24px, 44px below 700px and with a coarse pointer.

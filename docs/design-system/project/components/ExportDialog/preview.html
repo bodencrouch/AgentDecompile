@@ -25,11 +25,11 @@
 
   <fieldset>
    <legend>C/C++ options</legend>
-   <label class="ad-g3-chk"><input type="checkbox" checked>Create C file (.c)</label>
-   <label class="ad-g3-chk"><input type="checkbox" checked>Create header file (.h)</label>
-   <label class="ad-g3-chk"><input type="checkbox" checked>Emit data type definitions <span class="m">· CacheEntry (name_len, flags, next) and its uses</span></label>
-   <label class="ad-g3-chk"><input type="checkbox">Use C++ style comments (//)</label>
-   <label class="ad-g3-chk"><input type="checkbox">Decompile functions that have no cached decompile <span class="m">· part of the job; off by default</span></label>
+   <label class="ad-flag"><input type="checkbox" checked>Create C file (.c)</label>
+   <label class="ad-flag"><input type="checkbox" checked>Create header file (.h)</label>
+   <label class="ad-flag"><input type="checkbox" checked>Emit data type definitions <span class="m">· CacheEntry (name_len, flags, next) and its uses</span></label>
+   <label class="ad-flag"><input type="checkbox">Use C++ style comments (//)</label>
+   <label class="ad-flag"><input type="checkbox">Decompile functions that have no cached decompile <span class="m">· part of the job; off by default</span></label>
    <p class="ad-g3-note">Decompiler options in the basis: each build's program options, read-only (OptionsPanel). Builds exported with different options are flagged in the artifact's basis.</p>
   </fieldset>
 
@@ -70,7 +70,7 @@
   <div class="ad-g3-dlg" role="dialog" aria-modal="true" aria-labelledby="xp-g-t">
    <header><h3 id="xp-g-t">Export Calls graph of ResourceRef::Resolve</h3></header>
    <div class="body">
-    <div class="ad-g3-form"><label class="lbl" for="xp-g-f">Format</label><select id="xp-g-f"><option>GraphML</option><option>DOT</option><option>GML</option><option>JSON</option><option>CSV (vertices and edges)</option></select>
+    <div class="ad-g3-form"><label class="lbl" for="xp-g-f">Format</label><select class="adc-in sans auto" id="xp-g-f"><option>GraphML</option><option>DOT</option><option>GML</option><option>JSON</option><option>CSV (vertices and edges)</option></select>
     <span class="lbl">Basis</span><span class="small">build-a · depth 2 · the graph as drawn, including collapsed groups · read 14:02</span></div>
    </div>
    <footer><span class="note">catalog action needed · not offered yet</span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="xp-g-n">Export</button></footer>

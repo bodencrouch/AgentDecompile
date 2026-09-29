@@ -40,8 +40,8 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 ## Linking
 
 - **Publishes:** Enter on a slot target is Go to that build's function (a counterpart link, with the position-keeping build switch when the build differs). Enter on a class in the tree is Go to that type (`type=Base`). Shift+Enter holds the slot target beside.
-- **Follows:** the primary type or the class of the selected method, after the settle. Holdable (proposed hold kind `vtable`).
-- **Targets rendered:** counterpart (slot targets on other builds, with edge words) · address and symbol (thunk and destructor targets) · logical id (folded entities) · type (classes in the tree; proposed typed-link target) · receipt (RTTI parse receipt in the Peek).
+- **Follows:** the primary type or the class of the selected method, after the settle. Holdable (registered hold kind `vtable`).
+- **Targets rendered:** counterpart (slot targets on other builds, with edge words) · address and symbol (thunk and destructor targets) · logical id (folded entities) · type (classes in the tree; registered typed-link target) · receipt (RTTI parse receipt in the Peek).
 - **Peek source:** the stored RTTI parse, the vftable extents and the ICF alias map for the slot on every build.
 - **Absent copy:** "absent" · "unknown" · "slot added in build-c" · "no RTTI (/GR- recorded)" · "folded with N functions" (never one chosen name) · "contested · no winner" for a slot with two evidenced targets.
 - **Target-size exception:** address links in cells are inline in 24px grid rows; tree items are 24px, and 44px below 700px or with a coarse pointer.
@@ -50,7 +50,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 
 - The tree is an APG Tree view (→ opens, ← closes or moves to the parent, `*` expands siblings). The slot table is an APG Grid with cell focus: ↑/↓ slot, ←/→ build.
 - Enter goes; Alt+↓ peeks the slot on every build; Shift+F10 opens the link menu (Reveal in: Code Browser, PointerWalk, CompilerLayer).
-- `g then v` (proposed) moves focus to VTableBrowser from a code well.
+- `g then v` (registered `code.vtables`) moves focus to VTableBrowser from a code well.
 
 ## Accessibility
 

@@ -42,7 +42,7 @@ A dialog that runs one Ghidra exporter (C/C++, SARIF, XML, ASCII, HTML, GZF and 
 **Keyboard**
 
 - A modal dialog: Tab moves between the groups; arrows move within a radio group; Space toggles a build; Enter on the verb posts or opens the ConfirmDialog; Esc cancels and returns focus to the invoker.
-- Proposed keymap id `export.open` (no keys · menu and palette only; Ctrl/Cmd+E is browser-reserved).
+- Keymap id `export.open` (registered) (no keys · menu and palette only; Ctrl/Cmd+E is browser-reserved).
 
 **Accessibility**
 

@@ -49,9 +49,9 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 
 ## Linking
 
-- **Publishes:** nothing on focus. Enter on a class filters the rows to it (`f=diffclass:regalloc`, proposed; replaceState). Enter on an address is Go to the Listing at that build. The ToolchainEvidence link is a Go to that build's column in ToolchainEvidence. Open beside holds the pair (`hold=receipt:3e10@build-b`).
+- **Publishes:** nothing on focus. Enter on a class filters the rows to it (`f=diffclass:regalloc`, registered; replaceState). Enter on an address is Go to the Listing at that build. The ToolchainEvidence link is a Go to that build's column in ToolchainEvidence. Open beside holds the pair (`hold=receipt:3e10@build-b`).
 - **Follows:** the entity and the object pair recorded for it, on Enter (derived pane). Holdable.
-- **Targets rendered:** address (target rows) · receipt and job (stamp) · fact (badges open their Peek) · FrameLayout (kept card, proposed `keep=frame:88@build-b`) · ToolchainEvidence (`ws=evidence&panel=toolchain&build=build-b`) · research section.
+- **Targets rendered:** address (target rows) · receipt and job (stamp) · fact (badges open their Peek) · FrameLayout (kept card, `keep=frame:88@build-b`) · ToolchainEvidence (`ws=evidence&panel=toolchain&build=build-b`) · research section.
 - **Peek source:** the stored comparison receipt, classifier record and stack comparison.
 - **Absent copy:** "not run" · "No comparison receipt" · "none found" · "unknown: no row is explained only by source" · "(inferred)" on relocation sizes.
 - **Target-size exception:** address links sit one per 24px grid row (the inline exception); row focus and the 44px row-menu button apply.
@@ -60,7 +60,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 
 - F7 / Shift+F7 next and previous difference, in both the class table's filtered rows and the full rows. The class table and the rows are APG Grids with row focus.
 - Enter on a class filters; Enter on an address goes; Alt+↓ peeks the classifier record; Shift+F10 opens the link menu (Reveal in: ObjectDiff, FrameLayout, CompilerLayer).
-- `g then i` (proposed) moves focus to MatchExplain from a code well.
+- `g then i` (registered `code.explain`) moves focus to MatchExplain from a code well.
 
 ## Accessibility
 

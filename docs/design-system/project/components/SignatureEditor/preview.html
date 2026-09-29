@@ -6,7 +6,7 @@
  <div class="ade-tgt">
   <span class="kicker">Target · bound when opened</span>
   <span class="ade-bld target">build-a</span><span>function <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041c880" translate="no" aria-label="Function ResourceRef::Resolve, FUN_0041c880, 0041c880, build-a">0041c880</a></span><span>basis gen 41</span>
-  <span class="ade-lock"><b aria-hidden="true">●</b>writer: this session</span>
+  <span class="ad-writer"><b aria-hidden="true">●</b>writer: this session</span>
   <span class="muted wrap">Conventions, registers and call fixups come from build-a's compiler spec.</span>
  </div>
  <div class="ade-sec">
@@ -18,7 +18,7 @@
    <label class="lbl" for="sg-rt">Return type</label><div class="val"><input class="adc-in" id="sg-rt" value="int" translate="no"><span class="mono">storage EAX:4 · auto</span><button class="ad-btn compact" type="button" aria-expanded="false">Edit storage…</button></div>
    <label class="lbl" for="sg-cf">Call fixup</label><div class="val"><select class="adc-in" id="sg-cf"><option>none</option><option>alloca_probe</option></select></div>
    <label class="lbl" for="sg-pg">Purge</label><div class="val"><input class="adc-in num" id="sg-pg" value="8" translate="no"><span class="muted">bytes removed by the callee on return; "unknown" is allowed</span></div>
-   <span class="lbl" id="sg-fl">Attributes</span><div class="val"><div class="ade-flags" role="group" aria-labelledby="sg-fl"><label class="ade-flag"><input type="checkbox" class="ade-cb">Varargs</label><label class="ade-flag"><input type="checkbox" class="ade-cb">No return</label><label class="ade-flag"><input type="checkbox" class="ade-cb">Inline</label><label class="ade-flag"><input type="checkbox" class="ade-cb">Custom storage</label></div></div>
+   <span class="lbl" id="sg-fl">Attributes</span><div class="val"><div class="ade-flags" role="group" aria-labelledby="sg-fl"><label class="ad-flag"><input type="checkbox">Varargs</label><label class="ad-flag"><input type="checkbox">No return</label><label class="ad-flag"><input type="checkbox">Inline</label><label class="ad-flag"><input type="checkbox">Custom storage</label></div></div>
    <span class="lbl">Thunk</span><div class="val"><span>not a thunk</span><button class="ad-btn compact" type="button">Set thunk target…</button></div>
   </div>
  </div>
@@ -29,7 +29,7 @@
    <tr><td class="mono">0</td><th scope="row"><code translate="no">this</code></th><td class="mono">ResourceRef *</td><td class="b target">ECX:4</td><td class="b">ECX:4</td><td class="b">ECX:4</td><td class="b">RCX:8</td></tr>
    <tr aria-selected="true"><td class="mono">1</td><th scope="row"><code translate="no">name</code></th><td class="mono">char *</td><td class="b target">Stack[0x4]:4</td><td class="b">Stack[0x4]:4</td><td class="b"><span class="ade-m diff"><b aria-hidden="true">±</b>EAX:4</span></td><td class="b">RDX:8</td></tr>
    <tr><td class="mono">2</td><th scope="row"><code translate="no">size</code></th><td class="mono">uint</td><td class="b target">Stack[0x8]:4</td><td class="b">Stack[0x8]:4</td><td class="b"><span class="ade-m diff"><b aria-hidden="true">±</b>EDX:4</span></td><td class="b">R8D:4</td></tr>
-   <tr><td></td><th scope="row"><span class="muted">convention · purge</span></th><td></td><td class="b target">__thiscall · 8</td><td class="b">__thiscall · 8</td><td class="b">custom · 0<span class="w"><span class="ade-var hyp"><b>compile variance</b> hypothesis · <span class="basis">basis: LTCG objects in build-c's rich header; parameters arrive in EAX and EDX</span></span></span></td><td class="b">__fastcall · 0<span class="w"><span class="ade-var"><b>compile variance</b> <span class="basis">witness: build-d compiler spec is x86-64</span></span></span></td></tr>
+   <tr><td></td><th scope="row"><span class="muted">convention · purge</span></th><td></td><td class="b target">__thiscall · 8</td><td class="b">__thiscall · 8</td><td class="b">custom · 0<span class="w"><span class="ad-evd hyp"><b class="cls">compile variance</b> hypothesis · <span class="basis">basis: LTCG objects in build-c's rich header; parameters arrive in EAX and EDX</span></span></span></td><td class="b">__fastcall · 0<span class="w"><span class="ad-evd solid"><b class="cls">compile variance</b> <span class="basis">witness: build-d compiler spec is x86-64</span></span></span></td></tr>
   </tbody>
  </table>
  </div>

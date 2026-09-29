@@ -9,8 +9,8 @@
   "edit": "Active in edit mode inside an editable well or inline editor; other single keys are off."
  },
  "precedence": "edit > code > composite > region > global. A key bound in an inner active scope shadows the outer binding and is not a conflict. Inside a code well x focuses References; in a grid x checks the row. Code wells have no checked set.",
- "typeahead": "In composites that bind single-letter commands (the Functions grid, ProblemsList, the MarksList grids, OutputsCatalog, TypeManager, TypeEditor and StackFrameEditor), typeahead starts with / into a visible filter field and plain letters are commands. Elsewhere typeahead needs no prefix.",
- "punctuationKeys": "], [ and ' match the typed character (the key value), not the physical key, and accept AltGr and dead-key input. KeymapSettings shows the layout hint.",
+ "typeahead": "In composites that bind single-letter commands (the Functions grid, ProblemsList, the MarksList grids, OutputsCatalog, TypeManager, TypeEditor, StackFrameEditor, SymbolTree, ProgramTreeView, MemoryMapTable and ResultsTable), typeahead starts with / into a visible filter field and plain letters are commands. Elsewhere typeahead needs no prefix.",
+ "punctuationKeys": "], [, {, } and ' match the typed character (the key value), not the physical key, and accept AltGr and dead-key input. KeymapSettings shows the layout hint.",
  "browserReserved": [
   "Ctrl/Cmd+W",
   "Ctrl/Cmd+T",
@@ -565,7 +565,7 @@
     "*"
    ],
    "scope": "composite",
-   "where": "GraphPane list form and CallHierarchy only",
+   "where": "GraphPane list form, CallHierarchy, TypeManager, SymbolTree and ProgramTreeView only",
    "note": "Opens every sibling of the focused row within the depth limit (APG tree)."
   },
   {
@@ -575,7 +575,7 @@
     "F2"
    ],
    "scope": "composite",
-   "where": "session tabs, function rows and label rows",
+   "where": "session tabs, function rows, label rows, SymbolTree and ProgramTreeView nodes, and the MemoryMapTable block name",
    "note": "Opens the inline editor in place. Locals, parameters and labels in code wells use code.rename."
   },
   {
@@ -740,7 +740,7 @@
    ],
    "scope": "code",
    "where": "code wells while the compiler layer is on",
-   "note": "Moves the cursor to the next annotation of the visible kinds and announces it ('Annotation 3 of 9: inlined ResourceRef::Resolve, hypothesis'). Stops at the end and says so; never wraps. Proposed as } in the CompilerLayer README; } and { are proposed in code scope for arrow source and target (ListingFieldLayout), so annotation stepping uses a and Shift+A to keep one binding per key per scope. a is otherwise unbound in code wells (a in the TypeManager grid is composite scope inside that grid; g then a is a leader chord); the ida profile does not bind it. With the layer off it says 'Compiler layer is off'. Also the layer bar's next button and the palette ('Next compiler annotation')."
+   "note": "Moves the cursor to the next annotation of the visible kinds and announces it ('Annotation 3 of 9: inlined ResourceRef::Resolve, hypothesis'). Stops at the end and says so; never wraps. Proposed as } in the CompilerLayer README; } and { are code.arrowTarget and code.arrowSource (ListingFieldLayout), so annotation stepping uses a and Shift+A to keep one binding per key per scope. a is otherwise unbound in code wells (a in the TypeManager grid is composite scope inside that grid; g then a is a leader chord); the ida profile does not bind it. With the layer off it says 'Compiler layer is off'. Also the layer bar's next button and the palette ('Next compiler annotation')."
   },
   {
    "id": "code.annotationPrev",
@@ -777,7 +777,7 @@
     "g then f"
    ],
    "scope": "code",
-   "note": "Moves focus to FrameLayout for the selected function. Also the palette ('Stack frame') and Reveal in from MatchExplain and PointerWalk."
+   "note": "Moves focus to FrameLayout for the selected function. g then f was also proposed as a SearchWorkbench leader chord; search has no leader chord (search.open is Ctrl/Cmd+Shift+F). Also the palette ('Stack frame') and Reveal in from MatchExplain and PointerWalk."
   },
   {
    "id": "code.vtables",
@@ -786,7 +786,323 @@
     "g then v"
    ],
    "scope": "code",
-   "note": "Moves focus to VTableBrowser for the class of the selected method or type. g then v was also proposed for version control (vcs.open, now palette and menu only) and for OverviewBar (overview.focus, not registered here; it needs another key or stays on its Show key button and the palette). Also the palette ('Virtual table slots') and Reveal in from PointerWalk."
+   "note": "Moves focus to VTableBrowser for the class of the selected method or type. g then v was also proposed for version control (vcs.open, palette and menu only) and for OverviewBar (overview.focus, which has no default key and uses its Show key button and the palette). Also the palette ('Virtual table slots') and Reveal in from PointerWalk."
+  },
+  {
+   "id": "code.fold",
+   "label": "Collapse or expand function",
+   "keys": [
+    "z"
+   ],
+   "scope": "code",
+   "where": "the Listing, on a function header or body row",
+   "note": "Collapses or expands the function at the cursor when the Function row kind's Collapsible body option is on (ListingFieldLayout, row L31); view state only, nothing posts. Checked: z is unbound in code wells and in every composite, the ida profile adds only n, y, ; and d, and Ctrl/Cmd+Z (edit.undo) is a modifier global, not the same key. Find, Highlight all and F8 still reach collapsed rows and expand them on arrival. Also the header row's Collapse button and the palette ('Collapse function')."
+  },
+  {
+   "id": "code.arrowSource",
+   "label": "Go to flow-arrow source",
+   "keys": [
+    "{"
+   ],
+   "scope": "code",
+   "where": "the Listing, on a row with a flow arrow in the flow-arrow margin",
+   "note": "Moves the cursor to the source of the arrow at the cursor and pushes one history stop (ListingFieldLayout, row L15). { and } match the typed character (punctuationKeys), so they are distinct from [ and ] (code.xrefPrev, code.xrefNext) on every layout. They were also proposed for compiler-annotation stepping, which uses a and Shift+A instead. Unbound in the ida profile. Also the margin cell's link menu ('Go to source') and the palette."
+  },
+  {
+   "id": "code.arrowTarget",
+   "label": "Go to flow-arrow target",
+   "keys": [
+    "}"
+   ],
+   "scope": "code",
+   "where": "the Listing, on a row with a flow arrow in the flow-arrow margin",
+   "note": "Moves the cursor to the target of the arrow at the cursor and pushes one history stop. A computed target inferred by analysis is announced as 'hypothesis · basis: jump-table inference'. See code.arrowSource for the conflict check. Also the margin cell's link menu ('Go to target') and the palette."
+  },
+  {
+   "id": "listing.fields",
+   "label": "Listing fields",
+   "keys": [],
+   "scope": "region",
+   "where": "Listing pane header, palette",
+   "note": "No default key. The pane header's Fields toggle (aria-pressed) and the palette ('Listing fields…') open ListingFieldLayout; per-viewer view state only."
+  },
+  {
+   "id": "fields.move",
+   "label": "Move field",
+   "keys": [
+    "Ctrl/Cmd+Shift+ArrowLeft",
+    "Ctrl/Cmd+Shift+ArrowRight",
+    "Ctrl/Cmd+Shift+ArrowUp",
+    "Ctrl/Cmd+Shift+ArrowDown"
+   ],
+   "scope": "composite",
+   "where": "the ListingFieldLayout format rows only",
+   "note": "←/→ move the focused field within its format row; ↑/↓ move it to the previous or next format row. Never Alt+←/→, which stay history.back and history.forward. Composite scope, never in text fields, so the platform's Shift+Ctrl/Cmd+arrow text selection is untouched; not browser-reserved. Also each field control's menu (Move left, Move right, Move to row…); dragging is optional (WCAG 2.5.7)."
+  },
+  {
+   "id": "fields.toggle",
+   "label": "Field on or off",
+   "keys": [
+    "Space"
+   ],
+   "scope": "composite",
+   "where": "the ListingFieldLayout format rows only",
+   "note": "Switches the focused field between on and off (off keeps its space). The format rows are toolbars, not checkable grids, so this does not collide with list.check. Per-viewer view state."
+  },
+  {
+   "id": "fields.remove",
+   "label": "Remove field",
+   "keys": [
+    "Delete"
+   ],
+   "scope": "composite",
+   "where": "the ListingFieldLayout format rows only",
+   "note": "Moves the focused field to Available fields and says 'Removed Stack depth · Add to restore'. View state only; it never touches program data. Delete in the Sessions tablist (tabs.close) and other grids is a different composite."
+  },
+  {
+   "id": "fields.settings",
+   "label": "Field settings",
+   "keys": [
+    "Enter"
+   ],
+   "scope": "composite",
+   "where": "the ListingFieldLayout format rows only",
+   "note": "Opens the focused field's settings group. Field controls are not typed links, so the link meaning of Enter (link.go) does not apply there."
+  },
+  {
+   "id": "overview.focus",
+   "label": "Overview ranges",
+   "keys": [],
+   "scope": "region",
+   "where": "Listing well with the OverviewBar shown, palette",
+   "note": "No default key. g then v was proposed and belongs to VTableBrowser (code.vtables). The OverviewBar's Show key button and the palette ('Overview ranges') move focus to the ranges list."
+  },
+  {
+   "id": "overview.nextMarker",
+   "label": "Next region in lane",
+   "keys": [
+    "]"
+   ],
+   "scope": "composite",
+   "where": "the OverviewBar ranges list only",
+   "note": "Moves to the next region of the lane in focus; stops at the end and says so, never wraps. Composite scope inside the ranges list; ] in code wells (code.xrefNext) is code scope and [ in the TypeEditor and StackFrameEditor grids is composite inside those grids. Matches the typed character."
+  },
+  {
+   "id": "overview.prevMarker",
+   "label": "Previous region in lane",
+   "keys": [
+    "["
+   ],
+   "scope": "composite",
+   "where": "the OverviewBar ranges list only",
+   "note": "Moves to the previous region of the lane in focus. See overview.nextMarker."
+  },
+  {
+   "id": "overview.lane",
+   "label": "Filter to one lane",
+   "keys": [],
+   "scope": "composite",
+   "where": "the OverviewBar ranges list only",
+   "note": "No default key: m is list.mark in lists. The lane menu and the key's lane rows filter the list to one lane; Esc clears the filter (escapeOrder 6)."
+  },
+  {
+   "id": "symbols.cut",
+   "label": "Cut symbols",
+   "keys": [
+    "Ctrl/Cmd+X"
+   ],
+   "scope": "composite",
+   "where": "the SymbolTree treegrid only",
+   "note": "Marks the focused or checked nodes as cut ('cut · paste to move'). Client state only; it never posts. Composite scope, never in text fields, where the browser's cut applies; not browser-reserved. Esc clears the cut as a transient extent (escapeOrder 5); Esc never clears the checked set."
+  },
+  {
+   "id": "symbols.paste",
+   "label": "Paste symbols here",
+   "keys": [
+    "Ctrl/Cmd+V"
+   ],
+   "scope": "composite",
+   "where": "the SymbolTree treegrid only, on a destination namespace or class",
+   "note": "Arms the Move action in the ActionStrip bound to that build and names it; it never posts. Run posts, with ConfirmDialog for a batch. Composite scope, never in text fields."
+  },
+  {
+   "id": "symbols.delete",
+   "label": "Delete symbol",
+   "keys": [
+    "Delete"
+   ],
+   "scope": "composite",
+   "where": "the SymbolTree treegrid only",
+   "note": "Arms Delete in the ActionStrip; ConfirmDialog names the build, the count and the references that become unnamed. A single key never destroys."
+  },
+  {
+   "id": "symbols.newNamespace",
+   "label": "Create namespace",
+   "keys": [],
+   "scope": "composite",
+   "where": "the SymbolTree treegrid only",
+   "note": "No default key; the row menu and the palette ('Create namespace…'). Confirms in its inline editor."
+  },
+  {
+   "id": "symbols.scope",
+   "label": "Logical or one build",
+   "keys": [
+    "s"
+   ],
+   "scope": "composite",
+   "where": "the SymbolTree treegrid only",
+   "note": "Switches between Logical · all builds and one-build scope and announces it. s is composite inside this treegrid; s in the ProgramTreeView (ptree.select) and ResultsTable (results.makeSelection) grids is a different composite. Typeahead starts with /."
+  },
+  {
+   "id": "ptree.restrict",
+   "label": "Restrict Listing view",
+   "keys": [
+    "v"
+   ],
+   "scope": "composite",
+   "where": "the ProgramTreeView treegrid only",
+   "note": "Restricts the Listing view to the focused folder or fragment (f=ptree.view, replaceState; not a history stop). View state only. g then v is a leader chord, not this key. Typeahead starts with /."
+  },
+  {
+   "id": "ptree.addToView",
+   "label": "Add to Listing view",
+   "keys": [
+    "Shift+V"
+   ],
+   "scope": "composite",
+   "where": "the ProgramTreeView treegrid only",
+   "note": "Adds the focused node to the current view restriction. View state only."
+  },
+  {
+   "id": "ptree.clearView",
+   "label": "Clear Listing view",
+   "keys": [],
+   "scope": "composite",
+   "where": "the ProgramTreeView view band, palette",
+   "note": "No default key; the view band's Clear view button and the palette ('Clear Listing view'). Esc does not clear it: the restriction is view state, not a transient filter."
+  },
+  {
+   "id": "ptree.select",
+   "label": "Select in Listing",
+   "keys": [
+    "s"
+   ],
+   "scope": "composite",
+   "where": "the ProgramTreeView treegrid only",
+   "note": "Makes the Listing's address-set selection on this build from the node's addresses; client state, never in the URL, and read-only."
+  },
+  {
+   "id": "mmap.edit",
+   "label": "Edit block",
+   "keys": [
+    "e"
+   ],
+   "scope": "composite",
+   "where": "the MemoryMapTable grid only",
+   "note": "Opens the inline editor for the focused block (name, R/W/X, volatile, artificial, comment). It only opens; Save posts once. Ctrl/Cmd+E stays browser-reserved; e is a plain letter inside this grid. F2 opens the same editor on the name."
+  },
+  {
+   "id": "mmap.align",
+   "label": "This build or Align builds",
+   "keys": [
+    "a"
+   ],
+   "scope": "composite",
+   "where": "the MemoryMapTable grid only",
+   "note": "Switches between This build and Align builds. a is composite inside this grid; a in the TypeManager grid (types.scope) is another composite and code-scope a (code.annotationNext) applies only in code wells."
+  },
+  {
+   "id": "results.sortAdd",
+   "label": "Add sort key",
+   "keys": [
+    "Shift+Enter"
+   ],
+   "scope": "composite",
+   "where": "a ResultsTable header cell only",
+   "note": "Adds the column as the next sort key (order numbers ▲1, ▼2). Header cells are sort buttons, not typed links, so link.openBeside does not apply there."
+  },
+  {
+   "id": "results.makeSelection",
+   "label": "Make selection",
+   "keys": [
+    "s"
+   ],
+   "scope": "composite",
+   "where": "the ResultsTable grid only",
+   "note": "Sets the Listing's address-set selection on one build from the checked rows, or all rows; with all builds in scope it asks which build. Client state, never in the URL."
+  },
+  {
+   "id": "results.copy",
+   "label": "Copy",
+   "keys": [
+    "Ctrl/Cmd+C"
+   ],
+   "scope": "composite",
+   "where": "the ResultsTable grid only",
+   "note": "Copies the focused cell or the checked rows, in the chosen columns. Composite scope, never in text fields, where the browser's copy applies; not browser-reserved."
+  },
+  {
+   "id": "results.columns",
+   "label": "Columns",
+   "keys": [],
+   "scope": "composite",
+   "where": "the ResultsTable toolbar, palette",
+   "note": "No default key; the toolbar's Columns… button and the palette."
+  },
+  {
+   "id": "results.export",
+   "label": "Export CSV",
+   "keys": [],
+   "scope": "composite",
+   "where": "the ResultsTable toolbar, palette",
+   "note": "No default key; the toolbar's Export CSV… button and the palette. Ctrl/Cmd+E is browser-reserved."
+  },
+  {
+   "id": "results.remove",
+   "label": "Remove from table",
+   "keys": [
+    "Delete"
+   ],
+   "scope": "composite",
+   "where": "the ResultsTable grid only",
+   "note": "Removes the focused or checked rows from this view only ('Removed 3 rows from this table; nothing in the program changed'); never from the program. The rows return on Refresh."
+  },
+  {
+   "id": "search.open",
+   "label": "Search",
+   "keys": [
+    "Ctrl/Cmd+Shift+F"
+   ],
+   "scope": "global",
+   "note": "Opens SearchWorkbench (panel=search, Code Browser workspace) in the last mode and focuses the query; it never runs a search. No leader chord: g then f belongs to FrameLayout (code.frame). Not browser-reserved; it has a platform caution (see platformCautions). Also the palette ('Search…') and the Code Browser's Search menu."
+  },
+  {
+   "id": "search.next",
+   "label": "Search next",
+   "keys": [
+    "Ctrl/Cmd+ArrowDown"
+   ],
+   "scope": "region",
+   "where": "SearchWorkbench, memory, text and instruction modes",
+   "note": "Incremental search forward from the Listing cursor on this build only; moves the cursor with replaceState, like Find. In the one-line query field the platform's Cmd+↓ caret move is shadowed on purpose. Also the Next button."
+  },
+  {
+   "id": "search.prev",
+   "label": "Search previous",
+   "keys": [
+    "Ctrl/Cmd+ArrowUp"
+   ],
+   "scope": "region",
+   "where": "SearchWorkbench, memory, text and instruction modes",
+   "note": "Incremental search backward from the Listing cursor on this build only. See search.next. Also the Previous button."
+  },
+  {
+   "id": "search.loadSelection",
+   "label": "Load selection into pattern",
+   "keys": [],
+   "scope": "region",
+   "where": "SearchWorkbench instruction mode",
+   "note": "No default key; the pattern builder's Load selection button and the palette."
   },
   {
    "id": "analysis.open",
@@ -1407,6 +1723,11 @@
    "keys": "F8 / Shift+F8",
    "cause": "Needs Fn on many macOS keyboards.",
    "fallback": "The stepper buttons; the palette ('Next worklist item', 'Previous worklist item')."
+  },
+  {
+   "keys": "Ctrl/Cmd+Shift+F",
+   "cause": "Some input methods take Ctrl+Shift+F (for example to switch simplified and traditional characters), and some macOS browsers bind Cmd+Shift+F to a full-screen or toolbar command.",
+   "fallback": "The palette ('Search…') and the Code Browser's Search menu; the binding is remappable."
   },
   {
    "keys": "Alt+F1, Alt+F2",

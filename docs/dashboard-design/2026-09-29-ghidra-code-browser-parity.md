@@ -307,8 +307,10 @@ These terms are used in the Multi-variant column.
 | anchor-mapped | Cursor or range positions move between builds only through recorded anchor pairs, never by offset or order. |
 | viewer | Per-viewer presentation that applies to every build alike. |
 
-Example used throughout: `ResourceRef::Resolve` is FUN_0041c880 on build-a
-and sits at 0041b210 on build-c. Its first parameter points to a `CacheEntry`.
+Example used throughout: `ResourceRef::Resolve` (logical #88) is at 0041b210 on build-a,
+0041b2c0 on build-b and 00082f40 on build-c, and is unresolved on build-d.
+FUN_0041c880 on build-a is a different, unnamed function. The first parameter
+of `ResourceRef::Resolve` points to a `CacheEntry`.
 
 ## Full matrix
 
@@ -319,12 +321,12 @@ and sits at 0041b210 on build-c. Its first parameter points to a `CacheEntry`.
 | L01 | Listing view: continuous code-unit display with one address cursor [cb] | RO | Listing inside CodeBrowser | `inspect-memory` (mode `disasm`), `get-function`; catalog action needed for paged section-wide listing rows | per-build; switching builds keeps the entity (anchor-mapped); SplitCompare shows build-a beside build-c | RO, NA | partial (the inventory lists continuous Listing as the highest-value missing piece) |
 | L02 | Address field and its options: padding, block name [cbopt] | RO | Listing address column | `inspect-memory` | per-build addresses; the logical entity is in the composite header | RO | covered |
 | L03 | Bytes field and options: grouping, reverse order, max bytes shown [cbopt] | RO | Listing bytes column; moves into HexStrip when Hex is on | `inspect-memory` (mode `bytes`) | per-build | RO | partial (options) |
-| L04 | Mnemonic and Operands fields; operand display options: block names, register-variable markup, reference underline, line wrap [cbopt] | RO | Listing mnemonic and operand cells; symbol operands are typed links | `inspect-memory` (mode `disasm`), `get-references` | per-build; operands differ by register allocation; no alignment is inferred between builds | RO | partial (display options) |
+| L04 | Mnemonic and Operands fields; operand display options: block names, register-variable markup, reference underline, line wrap [cbopt] | RO | Listing mnemonic and operand cells; symbol operands are typed links; operand display options in NEW: ListingFieldLayout | `inspect-memory` (mode `disasm`), `get-references` | per-build; operands differ by register allocation; no alignment is inferred between builds | RO | partial (display options) |
 | L05 | Labels field: primary and non-primary labels, namespace display [cbopt] [lbl] | RO | Listing label cell with its NameProvenance tier word | `manage-symbols` | counterpart names via CounterpartStrip | RO | covered |
 | L06 | Function header fields: signature, signature source, call-fixup, purge, tags, repeatable comment, register values at entry [bff] | RO | Listing (extend: function header rows) | `get-function`, `manage-function-tags` | per-build; a signature difference shows as a divergence class in CounterpartMatrix | RO | partial |
 | L07 | Function variables display: stack and register annotations, open/close [cb] | RO | Listing (extend: collapsible variable rows); CodeBrowser Outline Locals | `get-function` | per-build storage | RO | partial |
 | L08 | Comment fields: EOL, pre, post, plate, repeatable; EOL options [bff] [cbopt] | RO | Listing (extend: one row kind per comment type); DecompileView comments | `manage-comments` | per-build; each comment carries its donor when propagated | RO | partial |
-| L09 | XREFs field: xref hints with delimiter, block, namespace prefix, ref-type letter, group by function, max count, sort [cbopt] | RO | Listing XREF[n] hint → XrefPanel; Peek shows the first 20 | `get-references` | scope one/all: the XrefPanel All builds mode has per-build counts | RO | partial (display options not configurable) |
+| L09 | XREFs field: xref hints with delimiter, block, namespace prefix, ref-type letter, group by function, max count, sort [cbopt] | RO | Listing XREF[n] hint → XrefPanel; Peek shows the first 20; XREF field options in NEW: ListingFieldLayout | `get-references` | scope one/all: the XrefPanel All builds mode has per-build counts | RO | partial (display options not configurable) |
 | L10 | Offset fields: file offset, function offset, image-base offset, block offset [cbopt] | RO | NEW: ListingFieldLayout (optional columns) | catalog action needed (address → file offset) | per-build; file offsets back `section_offset` pinned locators | RO | missing |
 | L11 | PCode, Stack Depth, Register Transition, Parallel and Source Map fields [bff] | RO | NEW: ListingFieldLayout (optional columns) | catalog action needed (per-instruction p-code, stack depth, source map) | per-build | RO | missing |
 | L12 | Browser Field Formatter: add, remove, move, enable fields and rows; custom formats; reset [bff] | RO | NEW: ListingFieldLayout | none (a per-viewer diff in durable workspace state) | viewer; SplitCompare panes share one layout | PV | missing |
@@ -467,7 +469,7 @@ Deferred and out of core scope: decompiler taint (source/sink slice tree)
 | P01 | Program Tree folders and fragments: create, delete, rename, move code units, merge, sort, select, restrict the view [ptree] | RO+MUT | NEW: ProgramTreeView (navigator scope); ContainerTree covers file containers only | catalog action needed | per-build; a logical module grouping may map to fragments | CAT, 1W | missing |
 | P02 | Program tree views and organizations: default tree, subroutine, dominance, complexity depth [pview] [porg] | MUT | NEW: ProgramTreeView | catalog action needed | per-build | CAT, 1W | missing |
 | P03 | Memory Map table: name, range, length, RWX, volatile, overlay, type, initialized, source, comment [mm] | RO | NEW: MemoryMapTable (the Sections navigator scope) | `inspect-memory` (`get-memory-blocks`) | side-by-side section maps per build; ImageDeltaMap for a rebuild | RO | partial |
-| P04 | Memory block edits: rename, permissions, volatile, artificial, initialize, comment; add, move, split, expand, merge, delete; set image base; rename overlay [mm] | MUT | NEW: MemoryMapTable → ActionStrip + ConfirmDialog | catalog action needed | program-local; never propagated; an image-base change invalidates pinned locators, and the dialog names the affected anchors | CAT, CF-dlg, 1W, MC, NA | missing |
+| P04 | Memory block edits: rename, permissions, volatile, artificial, initialize, comment; add, move, split, expand, merge, delete; set image base; rename overlay [mm] | MUT | NEW: MemoryMapTable → inline editor (one block) or ActionStrip + ConfirmDialog | catalog action needed | program-local; never propagated. Rename, permission, volatile, artificial and comment edits on one block confirm in place in the inline editor; restructuring (add, move, split, expand, merge), destructive changes (delete, initialize, set uninitialized, rename overlay) and set image base use ConfirmDialog. An image-base change invalidates absolute pinned locators, and the dialog names the affected anchors | CAT, CF-dlg, 1W, MC, NA | missing |
 | P05 | Relocation table [reloc] | RO | NEW: ResultsTable (relocations) | catalog action needed | program-local; feeds ObjectDiff's relocation-aware equality | RO | missing |
 | P06 | Equates: view table, rename, remove, edit/show/apply enum; convert display (signed/unsigned decimal, hex, octal, char, binary, float, double) [eq] | RO+MUT | NEW: ResultsTable (equates); Listing link menu on operands | catalog action needed | per-build; names offered to counterparts only at anchor-aligned operands | CAT, 1W, NC | missing |
 | P07 | Register Manager: register and context values over ranges; set, clear, delete ranges [reg] | RO+MUT | NEW: RegisterValuesEditor | catalog action needed | program-local; context registers differ by build language | CAT, CF-dlg, 1W, NA (re-disassembly follows only when admitted) | missing |
@@ -608,7 +610,7 @@ Deferred and out of core scope: decompiler taint (source/sink slice tree)
 | I03 | Checksum generator: checksum-8/16/32, Adler-32, CRC-16/32, MD5, SHA family, over a selection or everything [cks] | RO | HexStrip selection → link menu "Checksums" in a Peek (extend) | catalog action needed | anchor-mapped: the same range hashed on each build is cheap divergence evidence | RO | missing |
 | I04 | Evaluator: Ghidra has no help topic by that name; the nearest are Go To Expression [addrx] and equate Convert [eq] | RO | NavigationBar expression prefix; Peek scalar conversions | catalog action needed | per-build | RO | missing |
 | I05 | Key bindings: change, remove, import, export [tool] | RO | KeymapSettings (`keymap.json` plus a per-viewer diff) | none | viewer | PV | covered |
-| I06 | Tool Options dialog: restore defaults, tool and program caching [tool] | RO | View settings; NEW: OptionsPanel for listing, decompiler, byte viewer and search options | none | viewer | PV | missing |
+| I06 | Tool Options dialog: restore defaults, tool and program caching [tool] | RO | View settings; NEW: OptionsPanel for decompiler, byte viewer and search options, linking to NEW: ListingFieldLayout for Listing operand, EOL and xref options | none | viewer | PV | missing |
 | I07 | Keyboard navigation: component traversal and the Quick Action dialog [kbn] [acc] | RO | F6 regions; CommandPalette | `GET /api/v1/actions` | none | RO | covered |
 | I08 | Docking windows and tool configuration: move, stack, tab, rename transient windows; configure and save tools [dock] [tooladm] [cfgtool] | RO | Workstation regions; LayoutPresets (five presets plus a per-viewer diff) | none | viewer | PV | covered (free docking is not planned) |
 | I09 | Accessibility: screen-reader guidance [acc] | RO | AccessibleView and the accessibility guideline | none | viewer | RO | covered |
@@ -624,7 +626,7 @@ beside glyphs, the Linking block, and catalog-only mutation.
 
 | Component | Purpose | Rows |
 |---|---|---|
-| NEW: ListingFieldLayout | A per-viewer Listing column set: add, remove, move, enable, reset; optional offset, p-code, stack depth, register transition and source map columns. | L10, L11, L12, L31 |
+| NEW: ListingFieldLayout | A per-viewer Listing column set: add, remove, move, enable, reset; optional offset, p-code, stack depth, register transition and source map columns. It owns the operand, EOL and XREF field display options (L04, L08, L09); OptionsPanel links to it. | L10, L11, L12, L31 |
 | NEW: OverviewBar | A vertical margin beside the Listing: address-type, entropy, marker and search-hit modes; every value repeated in a text key; per-build bars side by side in Compare. | L16, L17, L18 |
 | NEW: ResultsTable | One sortable, filterable, column-choosable, CSV-exportable table for symbols, strings, defined data, comments, equates, relocations, tags, types, ranges and search hits. It has per-build hit columns, make-selection into a worklist, and a checked set for the ActionStrip. | L24, S05, S06, T17, P05, P06, A01, A02, A08, F14, Q01–Q10, Q12, I10 |
 | NEW: SymbolTree | The namespace, class, import, export and label hierarchy as an APG tree. Per-build presence is shown with LocatorGlyph. It supports create namespace or class, convert, move, and external locations. | S01–S03, S12, F05 |
@@ -636,13 +638,13 @@ beside glyphs, the Linking block, and catalog-only mutation.
 | NEW: RegisterValuesEditor | Register and context values over address ranges, with the consequence ("re-disassembly requires admission") stated before Save. | P07 |
 | NEW: MemoryMapTable | Blocks with permissions, overlay and initialization state; block edits through ActionStrip and ConfirmDialog. An image-base change names the affected anchors. | P03, P04 |
 | NEW: ProgramTreeView | Program trees, folders and fragments, organizations, and view restriction of the Listing. | P01, P02 |
-| NEW: SearchWorkbench | One search surface in memory, text, decompiled-text, instruction, wildcard, scalar, string, direct-reference, address-table and replace modes. Scope is this build or all builds. Results go to ResultsTable. | Q01–Q08, Q10–Q12 |
+| NEW: SearchWorkbench | One search surface in memory, text, decompiled-text, instruction, wildcard, scalar, string, direct-reference, address-table and replace modes, at `panel=search` in the Code Browser workspace. Scope is this build or all builds. Results go to ResultsTable. | Q01–Q08, Q10–Q12 |
 | NEW: AnalyzerPanel | Reads each build's analyzer configuration. Changes and one-shot runs are catalog verbs behind admission, never automatic. | Z02, Z04, Z08 |
 | NEW: PatchEditor | Assemble or patch bytes with an original-byte preview, the exact target, confirmation, the transaction receipt and a post-write read. Per build only. | N12, X01 |
 | NEW: ScriptConsole | A script list and REPL for `execute-script`. Advanced only; each run targets one build explicitly and posts through the catalog. | C01, C03 |
 | NEW: VersionControlPanel | Per-build checkout state: check out, check in, undo checkout, update, history. An exclusive checkout is shown as the one-writer lock. | V04 |
 | NEW: ExportDialog | Choose the exporter, options and build; the artifact lands in the dock with its basis. Covers C export, graph export and type export. | D03, G10, V06 |
-| NEW: OptionsPanel | Per-viewer display options for Listing operands, xrefs, the decompiler, the byte viewer, the structure editor and search. Program-affecting options (decompiler analysis, spec extensions) are shown read-only and change only through the catalog. | D05, D30, D31, N11, T19, I06 |
+| NEW: OptionsPanel | Per-viewer display options for the decompiler, the byte viewer, the structure editor and search; its Listing display and cross-reference rows link to ListingFieldLayout, which owns those options. Program-affecting options (decompiler analysis, spec extensions) are shown read-only and change only through the catalog. | D05, D30, D31, N11, T19, I06 |
 | NEW: EditHistory | A per-build list of program transactions with Undo and Redo as catalog verbs. Propagated edits are undone per recipient. | V01 |
 
 ### Extensions to existing components
@@ -789,8 +791,8 @@ batch verbs also need CF-dlg, and MC where custom data can be overwritten.
   relocations, register values, program trees, analyzer options and patches
   belong to one build. Across builds they are compared, never merged. Logical
   per-viewer marks are separate and resolve per build through LocatorGlyph.
-- **Addresses move only through anchors.** Moving the cursor from FUN_0041c880
-  on build-a to its counterpart on build-c uses recorded anchor pairs. Between
+- **Addresses move only through anchors.** Moving the cursor from ResourceRef::Resolve
+  at 0041b210 on build-a to its counterpart at 00082f40 on build-c uses recorded anchor pairs. Between
   anchors, the view says which preceding anchor it used.
 
 ## Doctrine that applies to every row

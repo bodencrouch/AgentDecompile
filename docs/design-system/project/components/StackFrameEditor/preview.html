@@ -6,7 +6,7 @@
  <div class="ade-tgt">
   <span class="kicker">Target · bound when opened</span>
   <span class="ade-bld target">build-a</span><span>function <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041c880" translate="no" aria-label="Function ResourceRef::Resolve, 0041c880, build-a">0041c880</a></span><span>EBP frame · offsets from EBP after the prologue</span>
-  <span class="ade-lock"><b aria-hidden="true">●</b>writer: this session</span>
+  <span class="ad-writer"><b aria-hidden="true">●</b>writer: this session</span>
  </div>
  <div class="ade-sec">
   <div class="ade-flds">
@@ -20,13 +20,13 @@
  <table class="ad-table" role="grid" aria-label="Stack frame of ResourceRef::Resolve by logical slot, draft on build-a, offset per build, higher addresses first" aria-describedby="sf-key">
   <thead><tr><th scope="col">Slot</th><th scope="col">Type (draft)</th><th scope="col" class="b target">build-a</th><th scope="col" class="b">build-b</th><th scope="col" class="b">build-c</th><th scope="col" class="b">build-d</th></tr></thead>
   <tbody>
-   <tr><th scope="row"><span class="ade-slot">arg</span> <code translate="no">size</code></th><td class="mono">uint</td><td class="b target">+0xc : 4</td><td class="b">+0xc : 4</td><td class="b"><span class="ade-m diff"><b aria-hidden="true">±</b>register EDX</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
-   <tr><th scope="row"><span class="ade-slot">arg</span> <code translate="no">name</code></th><td class="mono">char *</td><td class="b target">+0x8 : 4</td><td class="b">+0x8 : 4</td><td class="b"><span class="ade-m diff"><b aria-hidden="true">±</b>register EAX</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
-   <tr><th scope="row"><span class="ade-slot">return</span> return address</th><td></td><td class="b target">+0x4</td><td class="b">+0x4</td><td class="b">entry ESP +0x0</td><td class="b"><span class="muted">not loaded</span></td></tr>
-   <tr class="sep"><th scope="row"><span class="ade-slot">saved</span> ebp</th><td></td><td class="b target">+0x0</td><td class="b">+0x0</td><td class="b"><span class="ad-absent">none (FPO)</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
-   <tr><th scope="row"><span class="ade-slot">local</span> <code translate="no">entry</code></th><td class="mono">CacheEntry *</td><td class="b target">−0x4 : 4</td><td class="b">−0x4 : 4</td><td class="b">entry ESP −0x8<span class="w">raw [esp+0x4] after push esi</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
-   <tr aria-selected="true"><th scope="row"><span class="ade-slot">local</span> <code translate="no">slotIndex</code></th><td class="mono">int → uint</td><td class="b target">−0x8 : 4</td><td class="b">−0x8 : 4</td><td class="b">entry ESP −0x8<span class="w"><span class="ade-var hyp"><b>compile variance</b> hypothesis · <span class="basis">basis: shares a slot with entry; lifetimes do not overlap</span></span></span></td><td class="b"><span class="muted">not loaded</span></td></tr>
-   <tr class="draft"><th scope="row"><span class="ade-slot">local</span> <code translate="no">bucketIndex</code> <span class="small muted">new in draft</span></th><td class="mono">uint</td><td class="b target">−0xc : 4</td><td class="b"><span class="ad-absent">absent</span></td><td class="b"><span class="ad-absent">absent</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
+   <tr><th scope="row"><span class="adx-slot">arg</span> <code translate="no">size</code></th><td class="mono">uint</td><td class="b target">+0xc : 4</td><td class="b">+0xc : 4</td><td class="b"><span class="ade-m diff"><b aria-hidden="true">±</b>register EDX</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
+   <tr><th scope="row"><span class="adx-slot">arg</span> <code translate="no">name</code></th><td class="mono">char *</td><td class="b target">+0x8 : 4</td><td class="b">+0x8 : 4</td><td class="b"><span class="ade-m diff"><b aria-hidden="true">±</b>register EAX</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
+   <tr><th scope="row"><span class="adx-slot">return</span> return address</th><td></td><td class="b target">+0x4</td><td class="b">+0x4</td><td class="b">entry ESP +0x0</td><td class="b"><span class="muted">not loaded</span></td></tr>
+   <tr class="sep"><th scope="row"><span class="adx-slot">saved</span> ebp</th><td></td><td class="b target">+0x0</td><td class="b">+0x0</td><td class="b"><span class="ad-absent">none (FPO)</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
+   <tr><th scope="row"><span class="adx-slot">local</span> <code translate="no">entry</code></th><td class="mono">CacheEntry *</td><td class="b target">−0x4 : 4</td><td class="b">−0x4 : 4</td><td class="b">entry ESP −0x8<span class="w">raw [esp+0x4] after push esi</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
+   <tr aria-selected="true"><th scope="row"><span class="adx-slot">local</span> <code translate="no">slotIndex</code></th><td class="mono">int → uint</td><td class="b target">−0x8 : 4</td><td class="b">−0x8 : 4</td><td class="b">entry ESP −0x8<span class="w"><span class="ad-evd hyp"><b class="cls">compile variance</b> hypothesis · <span class="basis">basis: shares a slot with entry; lifetimes do not overlap</span></span></span></td><td class="b"><span class="muted">not loaded</span></td></tr>
+   <tr class="ad-draft"><th scope="row"><span class="adx-slot">local</span> <code translate="no">bucketIndex</code> <span class="small muted">new in draft</span></th><td class="mono">uint</td><td class="b target">−0xc : 4</td><td class="b"><span class="ad-absent">absent</span></td><td class="b"><span class="ad-absent">absent</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
   </tbody>
  </table>
  </div>

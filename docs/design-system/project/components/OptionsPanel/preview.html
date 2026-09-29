@@ -6,14 +6,14 @@
   <h3 id="op-t">Tool options</h3>
   <p class="ad-g3-sum"><span>6 overrides by you, stored beside View settings and keys</span><span>never in a link or browser storage</span></p>
   <p class="ad-opt-rel">Kept in their own homes, not repeated here: <button class="ad-btn compact" type="button" aria-describedby="op-vs">View settings…</button><button class="ad-btn compact" type="button">Keyboard…</button><button class="ad-btn compact" type="button" aria-describedby="op-lf">Listing fields…</button><span class="sr-only" id="op-vs">Density, Increase contrast, Reduce motion, Screen-reader verbosity, Advanced and the pointer options.</span><span class="sr-only" id="op-lf">Listing columns and field layout, in ListingFieldLayout.</span></p>
-  <div class="ad-tools" role="search" aria-label="Find an option"><span><label class="lbl" for="op-f">Find</label><input id="op-f" type="text" value=""></span></div>
+  <div class="ad-tools" role="search" aria-label="Find an option"><span><label class="lbl" for="op-f">Find</label><input class="adc-in sans auto" id="op-f" type="text" value=""></span></div>
  </header>
  <div class="ad-g3-cols">
   <ul class="ad-g3-tree" role="tree" aria-label="Option sections">
    <li role="treeitem" aria-expanded="true" aria-selected="false" tabindex="-1"><span><span class="chev" aria-hidden="true">▾</span>Viewers · per viewer</span>
     <ul role="group">
-     <li role="treeitem" aria-selected="false" tabindex="-1"><span>Listing display<span class="n">1</span></span></li>
-     <li role="treeitem" aria-selected="false" tabindex="-1"><span>Cross-reference hints<span class="n">2</span></span></li>
+     <li role="treeitem" aria-selected="false" tabindex="-1"><span>Listing display · in Listing fields<span class="n">1</span></span></li>
+     <li role="treeitem" aria-selected="false" tabindex="-1"><span>Cross-reference hints · in Listing fields<span class="n">2</span></span></li>
      <li role="treeitem" aria-selected="true" tabindex="0"><span>Decompiler<span class="n">2</span></span></li>
      <li role="treeitem" aria-selected="false" tabindex="-1"><span>Byte viewer<span class="n">1</span></span></li>
      <li role="treeitem" aria-selected="false" tabindex="-1"><span>Structure editor<span class="n">0</span></span></li>
@@ -34,7 +34,7 @@
    <ul class="ad-g3-opts" aria-label="Decompiler options">
     <li><span><span class="nm" id="op-o1">Show unreachable code</span><span class="d">request option · part of the basis · changed by you, default off</span></span><span class="ctl"><span class="ad-seg" role="group" aria-labelledby="op-o1"><button aria-pressed="true">On</button><button aria-pressed="false">Off</button></span><button class="ad-btn quiet compact" type="button" aria-label="Reset Show unreachable code to default, off">Reset</button></span></li>
     <li><span><span class="nm" id="op-o2">Respect read-only flags</span><span class="d">request option · part of the basis · default on</span></span><span class="ctl"><span class="ad-seg" role="group" aria-labelledby="op-o2"><button aria-pressed="true">On</button><button aria-pressed="false">Off</button></span></span></li>
-    <li><span><span class="nm"><label for="op-o3">Maximum line width</label></span><span class="d">display · changed by you, default 100</span></span><span class="ctl"><input id="op-o3" class="mono" type="text" value="120" size="4"><button class="ad-btn quiet compact" type="button" aria-label="Reset Maximum line width to default, 100">Reset</button></span></li>
+    <li><span><span class="nm"><label for="op-o3">Maximum line width</label></span><span class="d">display · changed by you, default 100</span></span><span class="ctl"><input id="op-o3" class="adc-in auto" type="text" value="120" size="4"><button class="ad-btn quiet compact" type="button" aria-label="Reset Maximum line width to default, 100">Reset</button></span></li>
     <li><span><span class="nm" id="op-o4">Comments shown</span><span class="d">display · EOL, pre, post, plate</span></span><span class="ctl"><span class="ad-seg" role="group" aria-labelledby="op-o4"><button aria-pressed="true">All kinds</button><button aria-pressed="false">EOL only</button><button aria-pressed="false">None</button></span></span></li>
    </ul>
    <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>2 views were decompiled with other options</h4><p>ResourceRef::Resolve on build-a and build-c show "decompiled with Show unreachable code off · Enter to decompile". Nothing re-decompiles by itself.</p></div><span></span></div>
@@ -77,10 +77,10 @@
  <div>
   <span class="kicker">Byte viewer and structure editor · per viewer</span>
   <ul class="ad-g3-opts" aria-label="Byte viewer options">
-   <li><span><span class="nm"><label for="op-b1">Bytes per line</label></span><span class="d">changed by you, default 16</span></span><span class="ctl"><select id="op-b1"><option>8</option><option>16</option><option selected>32</option></select></span></li>
-   <li><span><span class="nm"><label for="op-b2">Group size</label></span><span class="d">default 1</span></span><span class="ctl"><select id="op-b2"><option selected>1</option><option>2</option><option>4</option><option>8</option></select></span></li>
-   <li><span><span class="nm"><label for="op-b3">Alignment offset</label></span><span class="d">default 0</span></span><span class="ctl"><input id="op-b3" class="mono" type="text" value="0" size="3"></span></li>
-   <li><span><span class="nm"><label for="op-b4">Charset</label></span><span class="d">default US-ASCII</span></span><span class="ctl"><select id="op-b4"><option selected>US-ASCII</option><option>UTF-8</option><option>UTF-16LE</option></select></span></li>
+   <li><span><span class="nm"><label for="op-b1">Bytes per line</label></span><span class="d">changed by you, default 16</span></span><span class="ctl"><select class="adc-in sans auto" id="op-b1"><option>8</option><option>16</option><option selected>32</option></select></span></li>
+   <li><span><span class="nm"><label for="op-b2">Group size</label></span><span class="d">default 1</span></span><span class="ctl"><select class="adc-in sans auto" id="op-b2"><option selected>1</option><option>2</option><option>4</option><option>8</option></select></span></li>
+   <li><span><span class="nm"><label for="op-b3">Alignment offset</label></span><span class="d">default 0</span></span><span class="ctl"><input id="op-b3" class="adc-in auto" type="text" value="0" size="3"></span></li>
+   <li><span><span class="nm"><label for="op-b4">Charset</label></span><span class="d">default US-ASCII</span></span><span class="ctl"><select class="adc-in sans auto" id="op-b4"><option selected>US-ASCII</option><option>UTF-8</option><option>UTF-16LE</option></select></span></li>
    <li><span><span class="nm" id="op-s1">Structure editor offsets and sizes</span><span class="d">default hex</span></span><span class="ctl"><span class="ad-seg" role="group" aria-labelledby="op-s1"><button aria-pressed="true">Hex</button><button aria-pressed="false">Decimal</button></span></span></li>
   </ul>
  </div>

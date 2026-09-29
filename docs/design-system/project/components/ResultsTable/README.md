@@ -17,7 +17,7 @@ The one generic results table behind every Ghidra-style list: search hits, refer
 2. **Truncation line**, only when a limit was hit: "Stopped at 500 hits on build-a; more may exist. Raise the limit in the search's fields and run again." A count is never rounded or projected. An unsearched build reads "build-d not loaded · not searched", never "0".
 3. **Toolbar** (APG Toolbar):
    - **Filter** field with strategy (contains, starts with, exact, glob, regular expression), multi-term (all or any), and "match on" (visible columns, or the chosen column);
-   - **Column filters** as FilterChips carried as `f=` axes, for example "Build is build-c ×", "Kind is call ×", "Defined is not defined ×", "Refs ≥ 3 ×";
+   - **Column filters** as FilterChips carried as the registered `f=` axes `results.build`, `results.kind`, `results.defined`, `results.refs` and `results.source`, for example "Build is build-c ×" (`f=results.build:build-c`), "Kind is call ×" (`f=results.kind:call`), "Defined is not defined ×" (`f=results.defined:not-defined`), "Refs ≥ 3 ×" (`f=results.refs:≥3`), "Source is user ×" (`f=results.source:user`);
    - **Columns…** (choose, reorder, reset; Fit to content and Default width per column, so nothing needs dragging);
    - **Copy** (the focused cell, the row, or the checked rows; columns chosen);
    - **Export CSV…** (the chosen columns in displayed order, for the checked rows or for all loaded rows; the dialog states "exports the 500 loaded rows; the table was cut at the limit");
@@ -96,7 +96,7 @@ The one generic results table behind every Ghidra-style list: search hits, refer
   - Rows on another build never change the build on focus; they need Enter, which is announced.
   - Filters are `f=` axes (replace while typing; push when applied from a link).
   - `wl=` when a worklist is collected and made active.
-- **Follows:** nothing. A result set is a snapshot of its source. It marks the row containing the primary location ("contains cursor"). It can be kept as a card (`keep=results:‹id›@‹build›`, a proposed kind) and held with its pane.
+- **Follows:** nothing. A result set is a snapshot of its source. It marks the row containing the primary location ("contains cursor"). It can be kept as a card (`keep=results:‹id›@‹build›`, the registered kind `results`) and held with its pane.
 - **Targets rendered:** address, symbol → the Code Browser at that build · logical id → Compare · counterpart with its edge word · type → TypeManager at that type (`type=`) · job → the dock Jobs record · receipt → its card · source query → the SearchWorkbench with the same fields (a Go).
 - **Peek source:** Alt+↓ on a row peeks the cached Listing lines at its location, or the cached decompile line for decompiled-text hits. For a string, it peeks the full text and charset; for a relocation, the original and current bytes. Nothing is fetched.
 - **Absent copy:** "absent" · "not searched" · "not indexed" · "no anchor" · "Stopped at 500 hits on build-a; more may exist" · "no longer resolves on build-b" (a row whose target vanished).
@@ -105,9 +105,9 @@ The one generic results table behind every Ghidra-style list: search hits, refer
 ## Keyboard
 
 - An APG Grid with row focus and a checked set (Linked views, grid modifier precedence): ↑/↓ and j/k move; ←/→ move between cells; Home/End; Ctrl+Home/End; PageUp/PageDown. Space or `x` checks; Shift+↑/↓ and Shift+j/k extend; Ctrl/Cmd-click toggles; Shift-click extends. Enter goes; Shift+Enter opens beside; Alt+↓ peeks; Shift+F10 opens the link menu; `.` rebinds the armed action to the focused row (`list.repeat`).
-- In the header row, ←/→ move between sort buttons and Enter sorts. Proposed id `results.sortAdd`: Shift+Enter on a header adds the column as the next sort key. Header cells are not links, so the link meaning of Shift+Enter does not apply there.
+- In the header row, ←/→ move between sort buttons and Enter sorts. Registered id `results.sortAdd`: Shift+Enter on a header adds the column as the next sort key. Header cells are not links, so the link meaning of Shift+Enter does not apply there.
 - `w` collects into a worklist (`list.worklist`). `/` focuses the filter (`list.typeahead`), and ↓ from the filter returns to the grid.
-- Proposed composite-scope ids (where "Results table"; not yet in `keymap.json`):
+- Composite-scope ids (the ResultsTable grid only; registered in `keymap.json`):
   - `results.makeSelection` (`s`);
   - `results.copy` (Ctrl/Cmd+C, the focused cell or the checked rows);
   - `results.columns` (no default key; palette and toolbar);

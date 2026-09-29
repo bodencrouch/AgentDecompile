@@ -32,8 +32,8 @@ The per-viewer field formatter for the Listing: which fields each row kind shows
 
 | Column | Shows | Source | When it has nothing |
 |---|---|---|---|
-| Function offset | `ResourceRef::Resolve+0x16` | client, from the loaded function's entry | blank outside a function |
-| Block offset | `.text+0x1b216` | client, from the build's memory blocks | — |
+| Function offset | `ResourceRef::Resolve+0x6` | client, from the loaded function's entry | blank outside a function |
+| Block offset | `.text+0x1a216` | client, from the build's memory blocks | — |
 | Image-base offset | `imagebase+0x1b216` | client, from the build's image base | "other space" when the address is not in the image-base space |
 | File offset | `build-a:0x1a616` | catalog read (address → file offset) | "not mapped" when the importer recorded no file bytes; "catalog action needed" when the server has no such read |
 | P-code | one sub-row per p-code op | catalog read | "not read · Enter to read" |
@@ -48,7 +48,7 @@ Reading an optional column is read-only and never analyzes. A following Listing 
 - An unconditional jump uses heavy line glyphs (┏ ┃ ┗) and a conditional jump uses light ones (┌ │ └). Both are solid, because they are recorded flow.
 - Only a computed target inferred by analysis (a switch-table guess) is drawn dashed (┆), and its row says "hypothesis · basis: jump-table inference".
 - The arrow at the cursor is bold. A selected arrow (Enter on the margin cell) stays drawn while its ends scroll away, and its row says so.
-- **Go to source** and **Go to target** are link-menu items and keys on the margin cell. Arrows are `aria-hidden`; every row restates them in words ("jump target from 0041c8a4, conditional").
+- **Go to source** and **Go to target** are link-menu items and keys on the margin cell. Arrows are `aria-hidden`; every row restates them in words ("jump target from 0041b234, conditional").
 
 **Marker margin** (row L16). It sits left of the flow margin.
 - **Point markers** use one glyph each: ▪ program bookmark, a–z mark, • search hit, ✎ changed by job.
@@ -85,13 +85,13 @@ Reading an optional column is read-only and never analyzes. A following Listing 
 ## Keyboard
 
 - The band is a region. Row-kind tabs are APG Tabs with manual activation. Each format row is an APG Toolbar with one tab stop; ←/→ move between field controls; Home/End go to the ends.
-- Proposed keymap ids (composite scope, where "Listing fields band"; not yet in `keymap.json`):
+- Keymap ids (composite scope, the ListingFieldLayout format rows only; registered in `keymap.json`):
   - `fields.move`: Ctrl/Cmd+Shift+←/→ moves the focused field within its row, and Ctrl/Cmd+Shift+↑/↓ to the previous or next format row. It never uses Alt+←/→, which stay Back and Forward.
   - `fields.toggle`: Space switches the focused field between on and off.
   - `fields.remove`: Delete removes the focused field to Available fields, with "Removed Stack depth · Add to restore" in the status line.
   - `fields.settings`: Enter opens the focused field's settings.
   - `listing.fields`: toggles the band. It has no default key; use the pane-header button or the palette.
-- Proposed code-scope ids for the Listing (extensions this component configures):
+- Code-scope ids for the Listing (extensions this component configures; registered in `keymap.json`, checked against precedence, the leader, `browserReserved` and the ida profile):
   - `code.fold`: `z` collapses or expands the function at the cursor.
   - `code.arrowSource` and `code.arrowTarget`: `{` and `}` move the cursor to the source or target of the arrow at the cursor, pushing one history stop.
   - Both match the typed character.
@@ -114,7 +114,7 @@ Reading an optional column is read-only and never analyzes. A following Listing 
 - The display-option parts of **L02** (address), **L03** (bytes), **L04** (operand display options), **L08** (EOL options) and **L09** (XREF field options). The row kinds themselves remain Listing extensions.
 - The margin parts of **L15** (flow-arrow margin: select an arrow, go to source and target, width 0 to disable) and **L16** (marker margin). The navigation margin is the OverviewBar.
 
-**Overlap to resolve:** the spec also lists Listing operand and xref options under the NEW OptionsPanel. This component proposes to own them, with OptionsPanel linking to its Field settings group, so there is one store and one set of words.
+**Ownership (decided):** ListingFieldLayout owns the Listing operand (L04), EOL (L08) and XREF field (L09) display options. OptionsPanel's Listing display and Cross-reference hints rows are links to this component's Field settings group and hold no values, so there is one store and one set of words (guideline 30, Listing, navigation and search tools).
 
 ## Prior art
 

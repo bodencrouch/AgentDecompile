@@ -82,7 +82,7 @@ The editor adds these on top: the explicit target, editable cells on the target 
 **Keyboard**
 
 - APG Grid with cell focus, the same keys as FrameLayout: ↑/↓ move between slots, ←/→ between build columns, plus Home/End and Ctrl+Home/End. Enter or F2 edits a target cell. Esc leaves edit mode. Ctrl/Cmd+S saves.
-- Proposed keymap ids (grid scope): `frame.newVariable` (Insert); `frame.clear` (`c`); `frame.array` (`[`); `frame.delete` (Delete); `frame.hex` (Shift+H, shared with `typeEditor.hex`); `frame.gotoOffset` (`o`).
+- Keymap ids (registered; composite scope, the StackFrameEditor grid only): `frame.newVariable` (Insert); `frame.clear` (`c`); `frame.array` (`[`); `frame.delete` (Delete); `frame.hex` (Shift+H, shared with `typeEditor.hex`); `frame.gotoOffset` (`o`).
 
 **Accessibility**
 

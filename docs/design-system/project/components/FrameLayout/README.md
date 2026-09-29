@@ -37,7 +37,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 
 ## Linking
 
-- **Publishes:** Enter on a local or parameter is Go to its decompiler variable (`views=decompile`, `addr` of its first use, same build). Moving across cells replaces nothing (focus only). Keep adds the frame as a kept card (`keep=frame:‹entity›@‹build›`, proposed kind).
+- **Publishes:** Enter on a local or parameter is Go to its decompiler variable (`views=decompile`, `addr` of its first use, same build). Moving across cells replaces nothing (focus only). Keep adds the frame as a kept card (`keep=frame:‹entity›@‹build›`, registered kind `frame`).
 - **Follows:** the primary entity after the settle. Holdable.
 - **Targets rendered:** local and parameter (decompiler variable at a build) · address (the prologue instruction of a slot via the row menu) · research section.
 - **Peek source:** the stored stack-reference analysis for that slot and build: references with their instructions and live range.
@@ -48,7 +48,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 
 - An APG Grid with cell focus: ↑/↓ slot, ←/→ build column, Home/End, Ctrl+Home/End.
 - Enter on a local goes to its decompiler variable; `r` moves to the reflected Listing row (the slot's first reference); Alt+↓ peeks the slot's references; Shift+F10 opens the link menu (Rename… on locals where the catalog offers it; Reveal in: DecompileView, MatchExplain).
-- `g then f` (proposed) moves focus to FrameLayout from a code well.
+- `g then f` (registered `code.frame`) moves focus to FrameLayout from a code well.
 
 ## Accessibility
 

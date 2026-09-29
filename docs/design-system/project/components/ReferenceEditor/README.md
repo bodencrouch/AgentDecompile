@@ -82,7 +82,7 @@ The editor for references from one code unit on one explicit build: add and edit
 **Keyboard**
 
 - Tab moves through fields. The reference list is an APG Grid (↑/↓, Delete on a focused row arms that row's Delete button; nothing posts until Enter). The kind tabs follow APG Tabs with manual activation. Enter saves and Esc follows `escapeOrder`.
-- Proposed keymap ids:
+- Keymap ids (registered):
   - `code.references` (code scope; no default key, because Ctrl+R reloads the page; the path is the link menu or the palette entry "Edit references");
   - `refs.flowOverride` (palette only);
   - `refs.fallthrough` (palette only).

@@ -2,11 +2,11 @@
 
 How the project's builds relate, pair by pair: what differs in toolchain, flags and link settings, and how many entities fall into each variance class (compile, entropy, source, unknown), each count with its evidence level and a drill-down to the entities behind it. This is the "which differences are the compiler and which are the source" overview.
 
-**Use it** as the corpus view `ws=compare&panel=variants` (a proposed `panel` value), with `cmp=build-x..build-y` selecting one pair. It is reached from ToolchainEvidence's pair list, from a build header, and from CounterpartMatrix ("How do these builds relate?"). Rows and counts are corpus-level. The drill-down lands on entities, and every entity opens in Compare with the same `cmp`.
+**Use it** as the corpus view `ws=compare&panel=variants` (a registered `panel` value), with `cmp=build-x..build-y` selecting one pair. It is reached from ToolchainEvidence's pair list, from a build header, and from CounterpartMatrix ("How do these builds relate?"). Rows and counts are corpus-level. The drill-down lands on entities, and every entity opens in Compare with the same `cmp`.
 
 **Consumer provides** for each pair of builds: the toolchain, flag and link differences taken from ToolchainEvidence, each with its level; whether source, toolchain and flag identity are recorded for each build (PDB source checksums, command lines, toolchain registry); and the stored per-entity comparison result for the pair. That result has the class, the evidence level, the basis (the transformations checked, or the recorded digests that decided it), and the addresses on both builds. It also has the similarity opinions, each with the tool that produced it. Pairs whose bodies were never compared have no per-entity result.
 
-- **Four variance classes**, each a glyph and a word (proposed for guideline 20), plus "identical":
+- **Four variance classes**, each a glyph and a word (guideline 20, Variance class), plus "identical":
 
   | Class | Glyph | Meaning |
   |---|---|---|
@@ -29,7 +29,7 @@ How the project's builds relate, pair by pair: what differs in toolchain, flags 
 
   A pair with no comparison reads "unknown · nothing is counted until the bodies are compared".
 - **Never merged, never averaged.** Counts are per pair. They are never summed across pairs or turned into a similarity score. A report is never merged across builds with different recorded source revisions. Where per-build results differ, the other views say "varies across builds".
-- **Drill-down.** Activating a class count is a Go that applies a FilterChip (`f=vrel:source` with the pair's `cmp`; `vrel` is a proposed axis) and shows the entities behind it. Each row has the entity (a link that opens Compare with the pair), the address on each build (or "absent"), the evidence value that decided the class, and **Opinions**: each score with its own source ("0.81 BSim similarity", "38 bytes differ objdiff"). Scores from different tools are shown side by side and are never compared, ranked or averaged. The footer says "…and N more" and "opening one decides nothing".
+- **Drill-down.** Activating a class count is a Go that applies a FilterChip (`f=vrel:source` with the pair's `cmp`; `vrel` is a registered axis) and shows the entities behind it. Each row has the entity (a link that opens Compare with the pair), the address on each build (or "absent"), the evidence value that decided the class, and **Opinions**: each score with its own source ("0.81 BSim similarity", "38 bytes differ objdiff"). Scores from different tools are shown side by side and are never compared, ranked or averaged. The footer says "…and N more" and "opening one decides nothing".
 - Read-only by construction. It reads stored toolchain evidence, recorded identities and comparison results. It never compares bodies, runs a matcher or binds a program. A pair with no comparison names what is missing and arms nothing.
 
 **Linking**

@@ -71,6 +71,16 @@ Builds are variants of one application, so these views are keyed by logical enti
   - **FrameLayout**: the stack frame per build by logical slot.
   - **VTableBrowser**: the class hierarchy and vftable slots per build by logical method.
 
+## Listing, navigation and search tools
+
+Placement and ownership decisions for the listing and navigation parity components (2026-09-29):
+
+- **Navigator scopes.** SymbolTree is the Symbols, Imports and Exports scopes (its Functions category links into the one Functions grid), ProgramTreeView is "Program trees", and MemoryMapTable is Sections with its "Show all" corpus view. Each is keyed to one build or, where stated, logical across builds, and none is a second Functions surface.
+- **OverviewBar** sits at the inline end of the Listing well (above it as a strip below 700px), one bar per build in Compare, shown or hidden per viewer from the Listing header.
+- **SearchWorkbench** lives at `panel=search` in the Code Browser workspace (`ws=code`): a secondary area under the center with its ResultsTable below the form, never a new workspace. Below 700px it is a pane in NarrowFlow's Analyze group. Its mode and scope are the `f=search.mode:` and `f=search.scope:` axes.
+- **ListingFieldLayout owns the Listing's field display options**, including the operand options (row L04) and the XREF field options (row L09), as well as address, bytes, EOL, p-code, source-map, offset and margin options. OptionsPanel does not repeat them: its Listing entry links to ListingFieldLayout's Field settings group, so there is one store (per-viewer, durable workspace state) and one set of words.
+- **MemoryMapTable edits.** Single-block permission (R/W/X), flag (volatile, artificial), rename and comment edits confirm in place in the inline editor. Restructuring (add, move, split, expand, merge), destructive changes (delete, initialize, set uninitialized, rename overlay space) and image-base changes use ConfirmDialog. All are program-local and never propagated.
+
 ## Breakpoints
 
 - **≥1280px** (`bp-side-dock`): the dock may move to a side rail.

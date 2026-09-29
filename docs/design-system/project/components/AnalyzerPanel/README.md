@@ -37,7 +37,7 @@ The analyzers of every build in one grid: each build's enablement and per-analyz
 
 **Linking**
 
-- **Publishes:** `panel=analysis` (proposed) with `build` for the inspected build and `f=analyzer:differs` for the Show filter. Scope and the options disclosure are durable workspace state, not location. Arming or running never changes the selection.
+- **Publishes:** `panel=analysis` (registered) with `build` for the inspected build and `f=analyzer:differs` for the Show filter. Scope and the options disclosure are durable workspace state, not location. Arming or running never changes the selection.
 - **Follows:** the inspected build, settle; the one-shot strip is bound to the Listing selection and does not follow once armed ("Bound to 0041c880–0041c97f · selection is now …· Rebind"). Not holdable.
 - **Targets rendered:** receipts → the receipt card · jobs → the dock Jobs and Logs records · owners → OwnershipPanel for that lock · addresses in the log → the Code Browser at that build · a failed run → its FailureRecord.
 - **Peek source:** Alt+↓ on a receipt or job reads the stored record; on an analyzer name, its stored description and options. Nothing is fetched.
@@ -47,7 +47,7 @@ The analyzers of every build in one grid: each build's enablement and per-analyz
 **Keyboard**
 
 - The analyzers grid is an APG Grid, one tab stop: arrows between cells, Home/End, Ctrl+Home/End. Space on a build cell toggles that build's draft (a draft, never a post); Enter on "Options · N" expands the options table. Typeahead needs `/` because Space and `x` act in the grid.
-- Proposed keymap id `analysis.open` ("Analysis", `g then a` in composite and code scopes; palette). No key runs analysis: Run in the ActionStrip posts, ConfirmDialog for cross-build and forced runs.
+- Keymap id `analysis.open` (registered; "Analysis", `g then a` in composite and code scopes; palette). No key runs analysis: Run in the ActionStrip posts, ConfirmDialog for cross-build and forced runs.
 
 **Accessibility**
 

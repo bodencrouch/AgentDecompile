@@ -47,7 +47,7 @@ The register manager for one explicit build. Its register tree comes from that b
 **Linking**
 
 - **Publishes:** nothing. Selecting a register is local view state, not location. A range start link is Go.
-- **Follows:** the inspected build is chosen at open, not after it. With the editor open, a selection in the Listing prefills Start and End when Set over selection… is chosen. The editor can be kept as a card (read-only, proposed kind `registers`), but it cannot be held.
+- **Follows:** the inspected build is chosen at open, not after it. With the editor open, a selection in the Listing prefills Start and End when Set over selection… is chosen. The editor can be kept as a card (read-only, registered kind `registers`), but it cannot be held.
 - **Targets rendered:**
   - range start → the Code Browser at that build and address;
   - a counterpart value → that build's address through its anchor;
@@ -60,7 +60,7 @@ The register manager for one explicit build. Its register tree comes from that b
 **Keyboard**
 
 - The register tree is an APG Tree: ↑/↓, → opens, ← closes or goes to the parent, `*` expands siblings, and typeahead works without a prefix (no letter commands are bound there). The ranges grid is an APG Grid. F6 moves between regions, and Tab moves between tree, grid and editor.
-- Proposed keymap ids: `registers.open` (no default key; palette "Register values"); `registers.setOverSelection` and `registers.clearInSelection` (link menu and palette only; keys only arm).
+- Keymap ids (registered): `registers.open` (no default key; palette "Register values"); `registers.setOverSelection` and `registers.clearInSelection` (link menu and palette only; keys only arm).
 
 **Accessibility**
 

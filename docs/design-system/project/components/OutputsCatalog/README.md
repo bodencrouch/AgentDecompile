@@ -2,7 +2,7 @@
 
 Every export, output and result the project can produce, in one grid keyed by artifact with one cell per build: what each artifact is for, what produced it, its status on each build, its basis, and its claim tier with the sentence that says what it is not.
 
-**Use it** as the corpus view `ws=evidence&panel=outputs` (a proposed `panel` value), reached from go to, from "Show all" on any rail section that names an output, and from the PipelineMap export band. It answers "what does this project produce, for which builds, and how much of it is real today?" It is a catalog, never a launcher: nothing runs from here.
+**Use it** as the corpus view `ws=evidence&panel=outputs` (a registered `panel` value), reached from go to, from "Show all" on any rail section that names an output, and from the PipelineMap export band. It answers "what does this project produce, for which builds, and how much of it is real today?" It is a catalog, never a launcher: nothing runs from here.
 
 **Consumer provides** the served outputs inventory (artifact id, group, name, one plain-words purpose line, format or schema, producing verb and pipeline node, claim tier and its "is not" sentence, corpus or per-build scope); for each artifact × build, the status from the stored receipts, with the receipt id, the producing job when recorded, the basis digest and its age; whether a stored file exists (path, size, hash, download route); the 8080 observation record (none today); and `catalog_verbs` from the served `pipeline-model.json` for the StageChip.
 
@@ -36,15 +36,15 @@ Every export, output and result the project can produce, in one grid keyed by ar
   - **Download** appears only when the record names a stored file with its hash. It is a native link (never intercepted). Its accessible name gives the file name, size and "not observed on 8080". The preview's route is a placeholder for the one the record names.
 
   A historical-only archive offers no Download, only the reason.
-- **Filters use FilterChip**: an **Add filter** menu button offers status, build, group, tier, has a stored file, and observed on 8080. Each filter applied becomes one chip and one `f=` entry. Links apply chips too ("Show outputs at this tier" on a ClaimTier legend; "Outputs for build-c" from a build header). Proposed axes: `artifact.status`, `artifact.group`, `artifact.build`, `tier`, `artifact.file`, `observed`.
+- **Filters use FilterChip**: an **Add filter** menu button offers status, build, group, tier, has a stored file, and observed on 8080. Each filter applied becomes one chip and one `f=` entry. Links apply chips too ("Show outputs at this tier" on a ClaimTier legend; "Outputs for build-c" from a build header). Registered axes: `artifact.status`, `artifact.group`, `artifact.build`, `tier`, `artifact.file`, `observed`.
 - **Relationships strip**, under the grid, for the selected row: **bundle → members** (each member with its status glyph and link; the optional source-projects member dotted, "when absent, a not_in_scope receipt"), and **receipt → job → stage** as an ordered chain drawn only from what the records name ("receipt 5c1e → job not recorded → stage: unmapped"). Nothing is correlated by timing.
 - **Narrow form.** Below a 480px container, one list item per artifact: name, purpose, each build in words, tier and ≠ sentence, and the 8080 word. Otherwise the grid is a labelled horizontal scroll region.
 - Read-only by construction: it reads the served inventory, receipts, job records and file metadata. It never exports, verifies, rebuilds or opens a program.
 
 **Linking**
 
-- **Publishes:** `f` for its chips (pushState when a link applied one, replaceState when typed or removed). Expanded groups go to durable workspace state, never the URL. Open is a Go to the ArtifactCard (`artifact=` plus `ws=evidence&panel=outputs`; `artifact` is a proposed parameter).
-- **Follows:** `project` and `f`; commit-on-Enter (an expensive corpus view). Not holdable; a single artifact is kept as an ArtifactCard (`keep=artifact:‹id›`, a proposed kind).
+- **Publishes:** `f` for its chips (pushState when a link applied one, replaceState when typed or removed). Expanded groups go to durable workspace state, never the URL. Open is a Go to the ArtifactCard (`artifact=` plus `ws=evidence&panel=outputs`; `artifact` is a registered parameter).
+- **Follows:** `project` and `f`; commit-on-Enter (an expensive corpus view). Not holdable; a single artifact is kept as an ArtifactCard (`keep=artifact:‹id›`, a registered kind).
 - **Targets rendered:** artifact name → the ArtifactCard · build header → the Navigator program row · build cell with a receipt → that receipt card · receipt id → receipt card · job id → the dock Jobs record · StageChip → PipelineMap node · pipeline node id → PipelineMap node · member → its ArtifactCard. Link names read "Open artifact Portable pack v1, delivered bounded" and "Receipt 5c1e, export-hookpack, reused".
 - **Peek source:** the stored inventory row, the receipt header and the file metadata. Nothing is fetched and no file is read.
 - **Absent copy:** "no receipt" · "job not recorded" · "stage: unmapped" · "no report" · "never run" · "corpus scope" · "No stored path: ‹reason›" · "not observed on 8080". A future artifact never shows a tier chip.

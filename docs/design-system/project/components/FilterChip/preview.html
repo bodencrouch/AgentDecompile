@@ -1,11 +1,11 @@
-<!-- @dsCard group="Navigation" height=970 -->
+<!-- @dsCard group="Navigation" height=890 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<span class="kicker">Applied by a link (a Go, one stop) · the job record’s Changed line → the Functions list</span>
-<div class="ad-dock"><div class="ad-job"><div><span class="strong" translate="no">corpus.cross-place</span><br><span class="mono muted small">a3f9 · managed · finished 14:02</span></div>
- <dl class="ad-readout"><dt>Targets</dt><dd>12 recipients on build-b <span class="muted">· from the job request</span></dd><dt>Changed</dt><dd>3 (recorded units) · <a class="ad-link is-focus" href="?project=corpus-alpha&amp;build=build-b&amp;f=changed:a3f9" aria-label="Show in Functions: 3 functions job a3f9 recorded changing on build-b">Show in Functions</a></dd><dt>Goal</dt><dd>0 accepted · recipient verification: not run</dd></dl><div class="small muted">A finished job is not a match.</div></div></div>
+<span class="kicker">Applied by link<span class="sr-only"> (a Go, one stop) · the job record’s Changed line → the Functions list</span></span>
+<div class="ad-dock"><div class="ad-job"><div><span class="strong" translate="no">corpus.cross-place</span><br><span class="mono muted small">a3f9</span> <span class="muted small">· managed · finished 14:02</span></div>
+ <dl class="ad-readout"><dt>Targets</dt><dd>12 recipients on build-b <span class="muted">· <span aria-hidden="true">◇ request</span><span class="sr-only">from the job request</span></span></dd><dt>Changed</dt><dd>3 (recorded units) · <a class="ad-link is-focus" href="?project=corpus-alpha&amp;build=build-b&amp;f=changed:a3f9" aria-label="Show in Functions: 3 functions job a3f9 recorded changing on build-b">Show in Functions</a></dd><dt>Goal</dt><dd>0 accepted · <span class="adv-na" aria-hidden="true"><b>○</b>verification</span><span class="sr-only">recipient verification: not run</span></dd></dl><div><span class="adv-tip is-open"><button type="button" class="adv-bnd" aria-describedby="fc-nm"><b aria-hidden="true">≠</b>match</button><span role="tooltip" id="fc-nm">A finished job is not a match.</span></span></div></div></div>
 
 <section class="ad-fchip-host" aria-labelledby="fc1-h">
- <header><h4 id="fc1-h">Functions · build-b</h4>
+ <header><h4 id="fc1-h">Functions · build-b <span class="adv-tip"><button type="button" class="adv-q" aria-label="Key" aria-describedby="fc-key">?</button><span role="tooltip" id="fc-key">Chip words open the filter’s menu; ✕ removes the filter. “3 of 1,188”: rows shown of the build’s total. · so far: the source job is still running. ∅ no rows. ◇ from the record. ○ not run. ≠ a claim boundary.</span></span></h4>
   <div class="ad-fchips" role="toolbar" aria-label="Filters on Functions, build-b" aria-describedby="fc1-n">
    <span class="ad-fchip"><button class="w" aria-haspopup="menu" aria-expanded="false" aria-describedby="fc1-src">Changed by <span class="v" translate="no">a3f9</span></button><button class="x" aria-label="Remove filter: Changed by a3f9" aria-keyshortcuts="Delete"><span aria-hidden="true">✕</span></button></span>
    <span class="n" id="fc1-n">3 of 1,188 functions</span>
@@ -17,7 +17,7 @@
   <tbody>
    <tr aria-selected="true"><td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041b2c0&amp;f=changed:a3f9" tabindex="-1" translate="no">0041b2c0</a></td><th scope="row"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041b2c0&amp;f=changed:a3f9" tabindex="-1" translate="no">ResourceRef::Resolve</a></th><td class="muted">unit 12 · recipient compiled</td></tr>
    <tr><td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=90&amp;build=build-b&amp;addr=0041a4a0&amp;f=changed:a3f9" tabindex="-1" translate="no">0041a4a0</a></td><th scope="row"><a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;build=build-b&amp;addr=0041a4a0&amp;f=changed:a3f9" tabindex="-1" translate="no">Actor::LoadFromTemplate</a></th><td class="muted">unit 13 · recipient compiled</td></tr>
-   <tr><td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=91&amp;build=build-b&amp;addr=0041d160&amp;f=changed:a3f9" tabindex="-1" translate="no">0041d160</a></td><th scope="row"><a class="ad-link" href="?project=corpus-alpha&amp;entity=91&amp;build=build-b&amp;addr=0041d160&amp;f=changed:a3f9" tabindex="-1" translate="no">Archive::OpenMember</a></th><td class="muted">unit 14 · recipient ABI check failed</td></tr>
+   <tr><td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=91&amp;build=build-b&amp;addr=0041d160&amp;f=changed:a3f9" tabindex="-1" translate="no">0041d160</a></td><th scope="row"><a class="ad-link" href="?project=corpus-alpha&amp;entity=91&amp;build=build-b&amp;addr=0041d160&amp;f=changed:a3f9" tabindex="-1" translate="no">Archive::OpenMember</a></th><td class="muted"><span aria-hidden="true">unit 14 · ✕ ABI check</span><span class="sr-only">unit 14 · recipient ABI check failed</span></td></tr>
   </tbody></table></div>
  <p class="ad-url" translate="no"><span class="k">?project=</span>corpus-alpha<span class="k">&amp;build=</span>build-b<span class="k">&amp;f=</span>changed:a3f9</p>
  <p class="sr-only" role="status">Filter applied: Changed by a3f9. 3 of 1,188 functions on build-b.</p>
@@ -25,7 +25,7 @@
 
 <div class="ad-fchip-cols">
  <div class="stack" style="gap:8px">
-  <span class="kicker">Two filters on a matrix · Clear appears from two</span>
+  <span class="kicker">Two filters<span class="sr-only"> on a matrix · Clear appears from two</span></span>
   <div class="ad-fchips" role="toolbar" aria-label="Filters on Readiness, corpus-alpha" aria-describedby="fc2-n">
    <span class="ad-fchip"><button class="w" aria-haspopup="menu" aria-expanded="false">Only contested</button><button class="x is-focus" aria-label="Remove filter: Only contested" aria-keyshortcuts="Delete"><span aria-hidden="true">✕</span></button></span>
    <span class="ad-fchip"><button class="w" aria-haspopup="menu" aria-expanded="false">Unresolved on <span class="v" translate="no">build-c</span></button><button class="x" aria-label="Remove filter: Unresolved on build-c" aria-keyshortcuts="Delete"><span aria-hidden="true">✕</span></button></span>
@@ -40,12 +40,12 @@
    <div class="ad-fchip-bar"><div class="ad-fchips" role="toolbar" aria-label="Filters on Jobs" aria-describedby="fc3-n">
     <span class="ad-fchip"><button class="w" aria-haspopup="menu" aria-expanded="false">Selection only: <span class="v" translate="no">ResourceRef::Resolve</span> · build-b</button><button class="x" aria-label="Remove filter: Selection only" aria-keyshortcuts="Delete"><span aria-hidden="true">✕</span></button></span>
     <span class="n" id="fc3-n">2 of 17 jobs</span></div></div>
-   <div class="ad-fchip-bar"><button class="ad-btn compact" aria-pressed="true" aria-describedby="fc3-st">Selection only</button> <span class="small" id="fc3-st">On · ResourceRef::Resolve · build-b · Jobs, Problems and Logs</span></div>
-   <p class="small muted" style="margin:0;padding:0 8px 8px">One dock-level toggle and its chip are one filter; removing the chip releases the toggle. ProblemsList's checkbox reflects it. Logs narrow by job record, never by log text.</p>
+   <div class="ad-fchip-bar"><button class="ad-btn compact" aria-pressed="true" aria-describedby="fc3-st">Selection only</button> <span class="sr-only" id="fc3-st">On · ResourceRef::Resolve · build-b · Jobs, Problems and Logs</span><span class="adv-kv" aria-hidden="true"><span><i>on</i>ResourceRef::Resolve · build-b</span><span>Jobs</span><span>Problems</span><span>Logs</span></span><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Selection only, details" aria-describedby="fc3-why">?</button><span role="tooltip" id="fc3-why">One dock-level toggle and its chip are one filter; removing the chip releases the toggle. ProblemsList's checkbox reflects it. Logs narrow by job record, never by log text.</span></span></div>
+   
   </div>
  </div>
  <div class="stack" style="gap:8px">
-  <span class="kicker">Enter or Space on the words · the filter’s menu</span>
+  <span class="kicker">Filter menu<span class="sr-only">: Enter or Space on the words · the filter’s menu</span></span>
   <div class="ad-fchips" role="toolbar" aria-label="Filters on Functions, build-b">
    <span class="ad-fchip"><button class="w" aria-haspopup="menu" aria-expanded="true" aria-controls="fc4-m">Changed by <span class="v" translate="no">a3f9</span></button><button class="x" aria-label="Remove filter: Changed by a3f9" aria-keyshortcuts="Delete"><span aria-hidden="true">✕</span></button></span>
    <span class="n">3 of 1,188 functions</span>
@@ -53,28 +53,28 @@
   <div class="ad-pop" style="position:static;max-width:340px">
    <ul class="ad-menu" role="menu" id="fc4-m" aria-label="Filter Changed by a3f9">
     <li role="none"><a role="menuitem" class="is-active" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9"><span class="t">Open source: job <span class="mono" translate="no">a3f9</span></span><span class="m">Changed line</span></a></li>
-    <li role="none"><span role="menuitem" tabindex="-1"><span class="t">Collect rows as a worklist</span><span class="m">w</span></span></li>
-    <li role="none"><span role="menuitem" tabindex="-1"><span class="t">Copy link with this filter</span><span class="m"></span></span></li>
+    <li role="none"><span role="menuitem" tabindex="-1" aria-label="Collect rows as a worklist"><span class="t">Collect worklist</span><span class="m">w</span></span></li>
+    <li role="none"><span role="menuitem" tabindex="-1" aria-label="Copy link with this filter"><span class="t">Copy filter link</span><span class="m"></span></span></li>
     <li role="separator"></li>
     <li role="none"><span role="menuitem" tabindex="-1"><span class="t">Remove filter</span><span class="m">Delete</span></span></li>
    </ul>
   </div>
 
-  <span class="kicker">No rows · the cause and the explicit next step</span>
+  <span class="kicker">No rows<span class="sr-only"> · the cause and the explicit next step</span></span>
   <div class="ad-fchips" role="toolbar" aria-label="Filters on Functions, build-a" aria-describedby="fc5-n">
    <span class="ad-fchip"><button class="w" aria-haspopup="menu" aria-expanded="false">Changed by <span class="v" translate="no">a3f9</span></button><button class="x" aria-label="Remove filter: Changed by a3f9" aria-keyshortcuts="Delete"><span aria-hidden="true">✕</span></button></span>
    <span class="n" id="fc5-n">0 of 1,204 functions</span>
   </div>
-  <div class="ad-notice info"><b aria-hidden="true">∅</b><div><h4>No functions on build-a match</h4><p>The record of job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" translate="no">a3f9</a> names 3 changes, all on build-b. The inspected build does not switch by itself.</p></div><a class="ad-link" href="?project=corpus-alpha&amp;build=build-b&amp;f=changed:a3f9">Open build-b</a></div>
+  <div class="adv-empty"><span class="adv-tip"><b tabindex="0" role="img" aria-label="No functions on build-a match" aria-describedby="fc5-why">∅</b><span role="tooltip" id="fc5-why">No functions on build-a match. The record of job a3f9 names 3 changes, all on build-b. The inspected build does not switch by itself.</span></span><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" translate="no" aria-label="Job a3f9 record">a3f9</a><span class="adv-kv" aria-hidden="true"><span><i>build-a</i>0</span><span><i>build-b</i>3</span></span><a class="ad-btn primary" href="?project=corpus-alpha&amp;build=build-b&amp;f=changed:a3f9">Open build-b</a></div>
 
-  <span class="kicker">Source still running · hidden selection and checks stay</span>
+  <span class="kicker">Source running<span class="sr-only"> · hidden selection and checks stay</span></span>
   <div class="ad-fchips" role="toolbar" aria-label="Filters on Functions, build-b" aria-describedby="fc6-n">
    <span class="ad-fchip live"><button class="w" aria-haspopup="menu" aria-expanded="false">Changed by <span class="v" translate="no">b7e2</span> <span class="so">· so far</span></button><button class="x" aria-label="Remove filter: Changed by b7e2, so far" aria-keyshortcuts="Delete"><span aria-hidden="true">✕</span></button></span>
-   <span class="n" id="fc6-n">5 of 1,188 so far · job running</span>
+   <span class="n" id="fc6-n"><span aria-hidden="true">5 of 1,188 …</span><span class="sr-only">5 of 1,188 so far · job running</span></span>
   </div>
-  <p class="small" style="margin:0">Selection <a class="ad-link" href="?project=corpus-alpha&amp;build=build-b&amp;addr=0041c940" translate="no" aria-label="Address 0041c940, FUN_0041c940, build-b">FUN_0041c940</a> is outside these filters; panes still follow it. 2 checked rows are hidden and stay checked.</p>
+  <p class="sr-only" id="fc6-sel">Selection FUN_0041c940 is outside these filters; panes still follow it. 2 checked rows are hidden and stay checked.</p><ul class="adv-chips" aria-describedby="fc6-sel"><li><span>selection ⊄</span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-b&amp;addr=0041c940" translate="no" aria-label="Address 0041c940, FUN_0041c940, build-b">FUN_0041c940</a></li><li><span>hidden ✓</span>2</li></ul>
 
-  <span class="kicker">From a PipelineMap node · Enter pushed one stop</span>
+  <span class="kicker">From PipelineMap<span class="sr-only"> node · Enter pushed one stop</span></span>
   <div class="ad-fchips" role="toolbar" aria-label="Filters on Functions, build-a" aria-describedby="fc7-n">
    <span class="ad-fchip"><button class="w" aria-haspopup="menu" aria-expanded="false">Under <span class="v" translate="no">gate-4</span></button><button class="x" aria-label="Remove filter: Under gate-4" aria-keyshortcuts="Delete"><span aria-hidden="true">✕</span></button></span>
    <span class="n" id="fc7-n">64 of 1,204 functions</span>

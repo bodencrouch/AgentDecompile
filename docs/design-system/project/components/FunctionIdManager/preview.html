@@ -1,10 +1,11 @@
-<!-- @dsCard group="Project" height=1920 -->
+<!-- @dsCard group="Project" height=1540 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<span class="kicker">All builds · stored hashes and database metadata only · nothing is hashed or matched on open · FID names are candidates</span>
-<section class="ad-g3" aria-labelledby="fid-t">
+<span class="kicker">All builds</span>
+<section class="ad-g3" aria-labelledby="fid-t" aria-describedby="fid-d">
+<p class="sr-only" id="fid-d">All builds · stored hashes and database metadata only · nothing is hashed or matched on open · FID names are candidates</p>
  <header class="ad-g3-head">
   <h3 id="fid-t">Function ID <span class="sub">· corpus-alpha</span></h3>
-  <p class="ad-g3-note" role="note"><strong>A Function ID name is a candidate from a hash match.</strong> Equal hashes are not a byte match and not an identity edge.</p>
+  <div class="ad-tools" role="group" aria-label="View status" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="fid-n1"><b aria-hidden="true">H</b>candidate</button><span role="tooltip" id="fid-n1">A Function ID name is a candidate from a hash match.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="fid-n2"><b aria-hidden="true">≠</b>identity</button><span role="tooltip" id="fid-n2">Equal hashes are not a byte match and not an identity edge.</span></span><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="fid-rd"><b aria-hidden="true">▤</b><span class="mono">14:02</span></button><span role="tooltip" id="fid-rd">Stored hashes, read 14:02. Hashes compare only between builds with the same language.</span></span><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="fid-key">?</button><span role="tooltip" id="fid-key">≡ same full hash · ± differs · ◷ stale · ◌ unresolved · ⊘ not comparable (another language). Dashed chip: hypothesis. Solid chip: witness. Framed tile: the one database written; struck tiles are only read. ≠: a claim boundary.</span></span></div>
   <div class="ad-tabs" role="tablist" aria-label="Function ID views">
    <button class="ad-tab" role="tab" aria-selected="false" tabindex="-1" id="fid-tab1">Databases <span class="n mono">3</span></button>
    <button class="ad-tab" role="tab" aria-selected="true" aria-controls="fid-p2" id="fid-tab2">Hashes</button>
@@ -13,34 +14,33 @@
  </header>
 
  <div id="fid-p2" role="tabpanel" aria-labelledby="fid-tab2" class="ad-g3-sec">
-  <p>Stored hashes, read 14:02. Hashes compare only between builds with the same language.</p>
-  <div class="ad-scroll" role="region" aria-label="Function ID hashes grid, scrolls sideways">
+    <div class="ad-scroll" style="position:relative" role="region" aria-label="Function ID hashes grid, scrolls sideways">
   <table class="ad-table ad-g3-grid" role="grid" aria-label="Function ID hashes per build" aria-rowcount="4" aria-colcount="6" style="min-width:860px">
    <thead><tr><th scope="col">Entity</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th><th scope="col">Across builds</th></tr></thead>
    <tbody>
     <tr tabindex="-1">
      <th scope="row"><span class="nm" translate="no">ResourceRef::Resolve</span><span class="d">88</span></th>
-     <td role="gridcell"><span class="mono small" translate="no">FH 5b0e7d1a93c24f16<br>XH 0c77e2a4b91d3f58</span><br><span class="small muted">0041b210 · no match</span></td>
-     <td role="gridcell"><span class="mono small" translate="no">FH 9a41c3e07d52b8e1<br>XH 6e03b17f28c9d4a2</span><br><span class="small muted">0041b2c0 · no match</span></td>
-     <td role="gridcell"><span class="mono small" translate="no">FH 2d6f90b4e18a7c35<br>XH f1b82c07a64e9d13</span><br><span class="small muted">00082f40 · no match</span></td>
-     <td role="gridcell"><span class="ad-absent">◌ unresolved</span><br><span class="small muted">no function to hash</span></td>
-     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs<span class="m">no two builds share a full hash</span></span><br><span class="ad-evd hyp"><b>hypothesis (heuristic)</b>≈ compile variance: /Oy and LTCG on build-b; VC 7.1 → 8.0 on build-c (Rich header witness); no source identity recorded</span></td>
+     <td role="gridcell"><span class="mono small" translate="no">FH 5b0e7d1a93c24f16<br>XH 0c77e2a4b91d3f58</span><br><span class="small muted"><span class="mono">0041b210</span> · <span>no match</span></span></td>
+     <td role="gridcell"><span class="mono small" translate="no">FH 9a41c3e07d52b8e1<br>XH 6e03b17f28c9d4a2</span><br><span class="small muted"><span class="mono">0041b2c0</span> · <span>no match</span></span></td>
+     <td role="gridcell"><span class="mono small" translate="no">FH 2d6f90b4e18a7c35<br>XH f1b82c07a64e9d13</span><br><span class="small muted"><span class="mono">00082f40</span> · <span>no match</span></span></td>
+     <td role="gridcell"><span class="ad-absent">◌ unresolved</span><br><span class="small muted"><span class="sr-only">no function to hash</span><span aria-hidden="true">∅ hash</span></span></td>
+     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs<span class="sr-only">: no two builds share a full hash</span></span><br><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="fid-cv"><b aria-hidden="true">≈</b>compile</button><span role="tooltip" id="fid-cv">hypothesis (heuristic) · ≈ compile variance: /Oy and LTCG on build-b; VC 7.1 → 8.0 on build-c (Rich header witness); no source identity recorded</span></span></td>
     </tr>
     <tr aria-selected="true" class="is-focus" tabindex="0">
-     <th scope="row"><span class="nm" translate="no">FUN_0041c880</span><span class="d">build-a; folded counterpart FUN_0041c940 on build-b</span></th>
-     <td role="gridcell"><span class="mono small" translate="no">FH 7c19e05ad3b2f604<br>XH 31a8d6f0c42e7b95</span><br><span class="small">memset · crt 7.1 release · single match</span></td>
-     <td role="gridcell"><span class="mono small" translate="no">FH 7c19e05ad3b2f604<br>XH 31a8d6f0c42e7b95</span><br><span class="small">0041c940 · memset · single match</span></td>
+     <th scope="row"><span class="nm" translate="no">FUN_0041c880</span><span class="d"><span class="sr-only">build-a; folded counterpart FUN_0041c940 on build-b</span><span aria-hidden="true">⊕ <span translate="no">FUN_0041c940</span> · b</span></span></th>
+     <td role="gridcell"><span class="mono small" translate="no">FH 7c19e05ad3b2f604<br>XH 31a8d6f0c42e7b95</span><br><span class="small"><span class="sr-only">memset · crt 7.1 release · single match</span><span aria-hidden="true"><span class="mono">memset</span> · <span>crt 7.1</span> · <span class="mono">×1</span></span></span></td>
+     <td role="gridcell"><span class="mono small" translate="no">FH 7c19e05ad3b2f604<br>XH 31a8d6f0c42e7b95</span><br><span class="small"><span class="sr-only">0041c940 · memset · single match</span><span aria-hidden="true"><span class="mono">0041c940</span> · <span class="mono">memset</span> · <span class="mono">×1</span></span></span></td>
      <td role="gridcell" class="muted">no counterpart recorded</td>
      <td role="gridcell" class="muted">no counterpart recorded</td>
-     <td role="gridcell"><span class="ad-g3-st on col"><b aria-hidden="true">≡</b>same full hash on build-a and build-b<span class="m">not a byte match; constants are masked</span></span></td>
+     <td role="gridcell"><span class="ad-g3-st on col"><b aria-hidden="true">≡</b><span class="sr-only">same full hash on build-a and build-b</span><span aria-hidden="true"><span class="mono">a = b</span></span></span> <span class="adv-tip is-open end"><button type="button" class="adv-bnd" aria-describedby="fid-nb"><b aria-hidden="true">≠</b>bytes</button><span role="tooltip" id="fid-nb">not a byte match; constants are masked</span></span></td>
     </tr>
     <tr tabindex="-1">
      <th scope="row"><span class="nm" translate="no">Actor::LoadFromTemplate</span><span class="d">4127</span></th>
-     <td role="gridcell"><span class="mono small" translate="no">FH e31f0a9c57b2d468</span><br><span class="small muted">0041a280 · no match</span></td>
-     <td role="gridcell"><span class="mono small" translate="no">FH e31f0a9c57b2d468</span><br><span class="small muted">0041a4a0 · no match</span></td>
-     <td role="gridcell"><span class="ad-g3-st stale col"><b aria-hidden="true">◷</b>stale<span class="m">3 transactions since job b7e2</span></span></td>
-     <td role="gridcell"><span class="mono small" translate="no">FH 84c2d17e0b9fa635</span><br><span class="small muted">0041a7d0 · x86:LE:64</span></td>
-     <td role="gridcell"><span class="ad-g3-st on col"><b aria-hidden="true">≡</b>same full hash on build-a and build-b<span class="m">build-d not comparable: x86:LE:64 · build-c stale</span></span></td>
+     <td role="gridcell"><span class="mono small" translate="no">FH e31f0a9c57b2d468</span><br><span class="small muted"><span class="mono">0041a280</span> · <span>no match</span></span></td>
+     <td role="gridcell"><span class="mono small" translate="no">FH e31f0a9c57b2d468</span><br><span class="small muted"><span class="mono">0041a4a0</span> · <span>no match</span></span></td>
+     <td role="gridcell"><span class="ad-g3-st stale col"><b aria-hidden="true">◷</b>stale<span class="m"><span class="sr-only">3 transactions since job b7e2</span><span aria-hidden="true"><span class="mono">+3 · b7e2</span></span></span></span></td>
+     <td role="gridcell"><span class="mono small" translate="no">FH 84c2d17e0b9fa635</span><br><span class="small muted"><span class="mono">0041a7d0</span> · <span class="mono">x86:LE:64</span></span></td>
+     <td role="gridcell"><span class="ad-g3-st on col"><b aria-hidden="true">≡</b><span class="sr-only">same full hash on build-a and build-b</span><span aria-hidden="true"><span class="mono">a = b</span></span><span class="m"><span class="sr-only">build-d not comparable: x86:LE:64 · build-c stale</span><span aria-hidden="true"><span class="adv-nc"><i></i>⊘ d</span> · ◷ c</span></span></span></td>
     </tr>
    </tbody>
   </table>
@@ -49,15 +49,15 @@
 
  <div class="ad-g3-cols">
   <div class="ad-g3-sec">
-   <h4>Why this name · FUN_0041c880 · build-a</h4>
-   <div class="ad-scroll" role="region" aria-label="Name tiers for FUN_0041c880 on build-a">
+   <h4>Why this name <span class="n">· <span translate="no">FUN_0041c880</span> · build-a</span></h4>
+   <div class="ad-scroll" style="position:relative" role="region" aria-label="Name tiers for FUN_0041c880 on build-a">
    <table class="ad-table ad-g3-grid" style="min-width:0" aria-label="Name tiers, FUN_0041c880, build-a">
     <thead><tr><th scope="col">Tier</th><th scope="col">Value</th></tr></thead>
     <tbody>
      <tr><th scope="row">human annotation</th><td class="muted">none</td></tr>
-     <tr><th scope="row">debug info</th><td class="muted">none · build-a records no PDB</td></tr>
+     <tr><th scope="row">debug info</th><td class="muted"><span class="sr-only">none · build-a records no PDB</span><span aria-hidden="true">none · ∅ PDB</span></td></tr>
      <tr><th scope="row">authentic symbols</th><td class="muted">none</td></tr>
-     <tr aria-selected="true"><th scope="row"><span class="nm">analysis · Function ID</span></th><td><span class="mono" translate="no">memset</span> · winner · candidate<br><span class="ad-evd solid"><b>witness</b>crt-x86-32.fidbf · crt 7.1 release · FH and XH match · job c4e1</span></td></tr>
+     <tr aria-selected="true"><th scope="row"><span class="nm">analysis · Function ID</span></th><td><span class="mono" translate="no">memset</span> · winner · candidate<br><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="fid-w">witness</button><span role="tooltip" id="fid-w">crt-x86-32.fidbf · crt 7.1 release · FH and XH match · job c4e1</span></span></td></tr>
      <tr><th scope="row">placeholder</th><td><span class="mono" translate="no">FUN_0041c880</span> · rejected</td></tr>
     </tbody>
    </table>
@@ -66,9 +66,9 @@
   <div class="ad-g3-sec">
    <h4>Databases <span class="n">· 3</span></h4>
    <ul class="ad-g3-opts">
-    <li><span><span class="nm mono" translate="no">crt-x86-32.fidbf</span><span class="d">shipped · read-only · x86:LE:32 · 2 libraries</span></span><span class="ctl"><span class="ad-g3-st on"><b aria-hidden="true">●</b>active</span></span></li>
-    <li><span><span class="nm mono" translate="no">crt-x86-64.fidbf</span><span class="d">shipped · read-only · x86:LE:64 · 2 libraries</span></span><span class="ctl"><span class="ad-g3-st on"><b aria-hidden="true">●</b>active</span></span></li>
-    <li><span><span class="nm mono" translate="no">corpus-alpha-libs.fidb</span><span class="d">attached · writable · x86:LE:32 · 1 library</span></span><span class="ctl"><span class="ad-g3-st off"><b aria-hidden="true">○</b>inactive</span></span></li>
+    <li><span><span class="nm mono" translate="no">crt-x86-32.fidbf</span><span class="d"><span class="sr-only">shipped · read-only · x86:LE:32 · 2 libraries</span><span aria-hidden="true"><ul class="adv-chips" aria-hidden="true" style="display:inline-flex"><li>shipped</li><li>read-only</li><li>x86:LE:32</li><li><span>libs</span>2</li></ul></span></span></span><span class="ctl"><span class="ad-g3-st on"><b aria-hidden="true">●</b>active</span></span></li>
+    <li><span><span class="nm mono" translate="no">crt-x86-64.fidbf</span><span class="d"><span class="sr-only">shipped · read-only · x86:LE:64 · 2 libraries</span><span aria-hidden="true"><ul class="adv-chips" aria-hidden="true" style="display:inline-flex"><li>shipped</li><li>read-only</li><li>x86:LE:64</li><li><span>libs</span>2</li></ul></span></span></span><span class="ctl"><span class="ad-g3-st on"><b aria-hidden="true">●</b>active</span></span></li>
+    <li><span><span class="nm mono" translate="no">corpus-alpha-libs.fidb</span><span class="d"><span class="sr-only">attached · writable · x86:LE:32 · 1 library</span><span aria-hidden="true"><ul class="adv-chips" aria-hidden="true" style="display:inline-flex"><li>attached</li><li>writable</li><li>x86:LE:32</li><li><span>libs</span>1</li></ul></span></span></span><span class="ctl"><span class="ad-g3-st off"><b aria-hidden="true">○</b>inactive</span></span></li>
    </ul>
    <div class="ad-tools" role="group" aria-label="Database actions">
     <button class="ad-btn" type="button">Choose active…</button>
@@ -76,43 +76,44 @@
     <button class="ad-btn" type="button" aria-haspopup="dialog">Create new empty…</button>
     <button class="ad-btn" type="button">Search records</button>
    </div>
-   <p class="ad-g3-note">Choosing active databases affects every later Function ID run on every build; recorded runs retain their receipts.</p>
+   <div class="adv-chips"><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="fid-ch"><b aria-hidden="true">⇉</b>later runs</button><span role="tooltip" id="fid-ch">Choosing active databases affects every later Function ID run on every build; recorded runs retain their receipts.</span></span></div>
   </div>
  </div>
 
  <div class="ad-g3-sec">
   <h4>Confirm populate</h4>
   <div class="ad-g3-dlg" role="alertdialog" aria-modal="true" aria-labelledby="fid-cf-t" aria-describedby="fid-cf-d">
-   <header><h3 id="fid-cf-t">Populate corpus-alpha-libs.fidb from build-a</h3><span class="end">catalog: Manage FidDb · 1 job</span></header>
+   <header><h3 id="fid-cf-t">Populate <span translate="no">corpus-alpha-libs.fidb</span></h3><span class="end"><span class="muted">catalog</span> <span>Manage FidDb</span> · <span class="mono">1 job</span></span></header>
    <div class="body">
-    <p class="ad-g3-note" id="fid-cf-d">Writes corpus-alpha-libs.fidb only. build-a is read and not changed. One writer per database; this job waits if another holds it.</p>
+    <p class="sr-only" id="fid-cf-d">Populate corpus-alpha-libs.fidb from build-a. Writes corpus-alpha-libs.fidb only. build-a is read and not changed. One writer per database; this job waits if another holds it.</p>
+    <ul class="adv-tmap" aria-hidden="true"><li class="w"><b>✎</b>corpus-alpha-libs.fidb</li><li class="x"><b>⇠</b>build-a</li><li class="x"><b>—</b>build-b</li><li class="x"><b>—</b>build-c</li><li class="x"><b>—</b>build-d</li></ul>
+    <ul class="adv-chips" aria-hidden="true" style="margin:8px 0"><li><span>writer</span>1</li><li><span>busy</span>waits</li></ul>
     <dl class="ad-dl">
-     <dt>Library</dt><dd>archive-lib · 1.0 · variant vc7.1 release · no base library</dd>
+     <dt>Library</dt><dd><span class="sr-only">archive-lib · 1.0 · variant vc7.1 release · no base library</span><span aria-hidden="true"><ul class="adv-chips" aria-hidden="true" style="display:inline-flex"><li>archive-lib</li><li>1.0</li><li>vc7.1 release</li><li><span>base</span>∅</li></ul></span></dd>
      <dt>Language · compiler specs</dt><dd class="mono">x86:LE:32:default · windows</dd>
-     <dt>Names</dt><dd>only names at the authentic-symbols tier or stronger; 1,122 placeholders on build-a are skipped</dd>
+     <dt>Names</dt><dd><span class="sr-only">only names at the authentic-symbols tier or stronger; 1,122 placeholders on build-a are skipped</span><span aria-hidden="true"><ul class="adv-chips" aria-hidden="true" style="display:inline-flex"><li><span>tier ≥</span>authentic symbols</li><li><span>skipped</span>1,122</li></ul></span></dd>
     </dl>
     <fieldset><legend>Programs</legend>
      <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-a</span><span class="d">x86:LE:32:default · windows</span></label>
      <label class="ad-g3-choice"><input type="checkbox"><span class="nm">build-b</span><span class="d">eligible · not included</span></label>
-     <label class="ad-g3-choice dis"><input type="checkbox" disabled><span class="nm">build-c</span><span class="d">excluded: compiler spec gcc does not match windows (as imported; see Program settings)</span></label>
-     <label class="ad-g3-choice dis"><input type="checkbox" disabled><span class="nm">build-d</span><span class="d">excluded: language x86:LE:64 does not match x86:LE:32</span></label>
+     <label class="ad-g3-choice dis"><input type="checkbox" disabled><span class="nm">build-c</span><span class="d"><span class="sr-only">excluded: compiler spec gcc does not match windows (as imported; see Program settings)</span><span aria-hidden="true">⊘ gcc ≠ windows</span></span></label>
+     <label class="ad-g3-choice dis"><input type="checkbox" disabled><span class="nm">build-d</span><span class="d"><span class="sr-only">excluded: language x86:LE:64 does not match x86:LE:32</span><span aria-hidden="true">⊘ x86:LE:64</span></span></label>
     </fieldset>
    </div>
-   <footer><span class="note">A populated name is a candidate wherever it later matches.</span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Populate · 1 job</button></footer>
+   <footer><span class="note" style="margin-right:auto"><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="fid-pc"><b aria-hidden="true">H</b>candidate</button><span role="tooltip" id="fid-pc">A populated name is a candidate wherever it later matches.</span></span></span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Populate · 1 job</button></footer>
   </div>
  </div>
 </section>
 
 <div class="adc-states">
  <div>
-  <span class="kicker">Not hashed · nothing hashes on open</span>
-  <div class="ad-notice info"><b aria-hidden="true">○</b><div><h4>Archive::OpenMember is not hashed on any build</h4><p>Hashes are computed only by an admitted job: the Function ID analyzer in Analysis, or a hash-only run.</p></div><span></span></div>
+  <span class="kicker">Not hashed</span>
+  <div class="adv-empty"><span class="adv-tip"><b tabindex="0" role="img" aria-label="Archive::OpenMember is not hashed on any build" aria-describedby="fid-nh">○</b><span role="tooltip" id="fid-nh">Archive::OpenMember is not hashed on any build. Nothing hashes on open. Hashes are computed only by an admitted job: the Function ID analyzer in Analysis, or a hash-only run.</span></span><span translate="no">Archive::OpenMember</span><span class="mono muted">hash 0/4</span></div>
  </div>
  <div>
   <span class="kicker">No catalog action</span>
   <div class="ad-tools" role="group" aria-label="Populate unavailable">
-   <button class="ad-btn" type="button" aria-disabled="true" aria-describedby="fid-nocat">Populate…</button>
-   <span class="small muted"><span id="fid-nocat">Not available on this server yet. Stored hashes still read.</span> · <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span>
+   <span class="adv-tip"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="fid-nocat"><span class="adv-na"><b aria-hidden="true">⊘</b>Populate…</span></button><span role="tooltip" id="fid-nocat">Not available on this server yet. Stored hashes still read. <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span></span>
   </div>
  </div>
 </div>

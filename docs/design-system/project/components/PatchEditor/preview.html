@@ -1,20 +1,20 @@
-<!-- @dsCard group="Code" height=1410 -->
+<!-- @dsCard group="Code" height=1420 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<span class="kicker">Assemble, patch, clear, disassemble or create data · one explicit build · before and after bytes · never applied to all builds</span>
+<span class="sr-only">Assemble, patch, clear, disassemble or create data · one explicit build · before and after bytes · never applied to all builds</span>
 <form class="ade inline" aria-labelledby="pe-t">
- <header><h4 id="pe-t">Patch instruction at <code translate="no">0041b242</code></h4><span class="end">Patch bytes</span></header>
+ <header><h4 id="pe-t">Patch instruction at <code translate="no">0041b242</code></h4><span class="end">Patch bytes<span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="pe-key">?</button><span role="tooltip" id="pe-key">Target map: the one build a write touches, framed with ✎; other builds struck. Underlined byte: changed. Solid chip: backed by a check. ≠ chip: what the action does not do or claim; its tip holds the full sentence. ● writer.</span></span></span></header>
  <div class="ade-tgt">
-  <span class="kicker">Target · required, bound when opened</span>
-  <span class="ade-bld target">build-a</span><span>in <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a></span><span>block <code translate="no">.text</code> · initialized · writable in the program</span>
+  <span class="kicker">Target</span><span class="sr-only">Target · required, bound when opened</span>
+  <span class="ade-bld target">build-a</span><span>in <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a></span><ul class="adv-chips" aria-label="block .text · initialized · writable in the program"><li><span>block</span><code translate="no">.text</code></li><li>initialized</li><li>writable</li></ul>
   <span class="ad-writer"><b aria-hidden="true">●</b>writer: this session</span>
-  <span class="muted wrap">There is no "all builds" target. Another build is a new editor opened on that build.</span>
+  <span class="wrap"><span class="sr-only">There is no "all builds" target. Another build is a new editor opened on that build.</span><ul class="adv-tmap" aria-hidden="true"><li class="w"><b>✎</b>build-a</li><li class="x"><b>—</b>build-b</li><li class="x"><b>—</b>build-c</li><li class="x"><b>—</b>build-d</li></ul></span>
  </div>
  <div class="ad-subtabs" role="tablist" aria-label="Patch mode"><button role="tab" type="button" id="pe-tab-a" aria-selected="true" aria-controls="pe-p-a">Assemble</button><button role="tab" type="button" aria-selected="false" tabindex="-1">Patch data</button><button role="tab" type="button" aria-selected="false" tabindex="-1">Bytes</button><button role="tab" type="button" aria-selected="false" tabindex="-1">Clear</button><button role="tab" type="button" aria-selected="false" tabindex="-1">Disassemble</button><button role="tab" type="button" aria-selected="false" tabindex="-1">Create data</button></div>
  <div class="ade-sec" role="tabpanel" id="pe-p-a" aria-labelledby="pe-tab-a">
   <div class="ade-flds">
    <span class="lbl">Current</span><div class="val"><code translate="no">JZ 0041b250</code></div>
    <label class="lbl" for="pe-in">Assemble</label><div class="val"><input class="adc-in wide" id="pe-in" value="JMP 0041b250" translate="no" aria-describedby="pe-in-h"></div>
-   <span class="hint" id="pe-in-h">Assembled with build-a's language (x86 32-bit). Two encodings are valid.</span>
+   <span class="hint"><span class="sr-only" id="pe-in-h">Assembled with build-a's language (x86 32-bit). Two encodings are valid.</span><ul class="adv-chips" aria-hidden="true"><li><span>lang</span>x86 32-bit</li><li><span>encodings</span>2</li></ul></span>
    <span class="lbl" id="pe-enc-l">Encoding</span><div class="val"><div class="ad-seg" role="radiogroup" aria-labelledby="pe-enc-l"><span role="radio" aria-checked="true" tabindex="0" translate="no">EB 0C · 2 bytes</span><span role="radio" aria-checked="false" tabindex="-1" translate="no">E9 09 00 00 00 · 5 bytes</span></div></div>
   </div>
   <dl class="ade-bytes" aria-label="Bytes at 0041b240 to 0041b247 on build-a">
@@ -22,60 +22,60 @@
    <dt>current</dt><dd>0041b240  85 C0 74 0C 8B 4E 10 51</dd>
    <dt>after</dt><dd class="after">0041b240  85 C0 <mark>EB</mark> 0C 8B 4E 10 51</dd>
   </dl>
-  <p class="small muted">Changed byte underlined: 0041b242 74 → EB (1 byte). Same length; no following instruction is overwritten.</p>
+  <div class="adv-chips"><ul class="adv-chips" aria-label="Changed byte underlined: 0041b242 74 → EB (1 byte)."><li><span>0041b242</span>74 → EB</li><li>1 B</li></ul><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="pe-t1">= length</span><span role="tooltip" id="pe-t1">Same length; no following instruction is overwritten.</span></span></div>
  </div>
- <div class="ade-rev"><span class="kicker">Save opens ConfirmDialog · a byte write is destructive</span>Write 1 byte at <code translate="no">0041b242</code> on build-a (<code translate="no">74</code> → <code translate="no">EB</code>). After the terminal result the bytes are read back and compared with this preview. Cached decompile of ResourceRef::Resolve on build-a is marked stale; nothing is re-disassembled or re-analyzed. Patched bytes are not recovery evidence.</div>
- <footer><button class="ad-btn primary" type="submit">Patch build-a…</button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button><span class="note">Never proposed to counterparts.</span></footer>
+ <div class="ade-rev" style="display:grid;gap:8px"><span class="kicker">Destructive · confirm</span><span class="sr-only">Save opens ConfirmDialog · a byte write is destructive. Write 1 byte at 0041b242 on build-a (74 → EB).</span><div class="adv-chips"><ul class="adv-tmap" aria-hidden="true"><li class="w"><b>✎</b>build-a<span></span><span class="mono">1 B</span></li><li class="x"><b>—</b>build-b</li><li class="x"><b>—</b>build-c</li><li class="x"><b>—</b>build-d</li></ul></div><div class="adv-chips"><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="pe-t2">✓ read back</span><span role="tooltip" id="pe-t2">After the terminal result the bytes are read back and compared with this preview.</span></span><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="pe-t3">◷ decompile</span><span role="tooltip" id="pe-t3">Cached decompile of ResourceRef::Resolve on build-a is marked stale; nothing is re-disassembled or re-analyzed.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pe-t4"><b aria-hidden="true">≠</b>recovery</button><span role="tooltip" id="pe-t4">Patched bytes are not recovery evidence.</span></span></div></div>
+ <footer><button class="ad-btn primary" type="submit">Patch build-a…</button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pe-t5"><b aria-hidden="true">≠</b>counterparts</button><span role="tooltip" id="pe-t5">Never proposed to counterparts.</span></span></footer>
  <div class="ade-prop" role="group" aria-labelledby="pe-cp-t">
-  <h5 id="pe-cp-t">Counterparts · shown for comparison, never patched from here</h5>
-  <p>build-d: ResourceRef::Resolve is unresolved, so there is nothing to compare. build-c at <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=00082f40" translate="no" aria-label="Counterpart ResourceRef::Resolve on build-c, 00082f40, accepted">00082f40</a> (accepted) has <code translate="no">74 0C</code> at the anchor-mapped address 00082f72, via anchor 0041b242 ↔ 00082f72. To patch build-c, open PatchEditor on build-c.</p>
+  <h5 id="pe-cp-t">Counterparts <span class="sr-only">· shown for comparison, never patched from here</span></h5>
+  <p class="sr-only">build-d: ResourceRef::Resolve is unresolved, so there is nothing to compare. build-c at 00082f40 (accepted) has 74 0C at the anchor-mapped address 00082f72, via anchor 0041b242 ↔ 00082f72. To patch build-c, open PatchEditor on build-c.</p><div class="adv-chips" aria-hidden="true"><span class="ad-loc resolved"><b>●</b>build-c</span><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=00082f40" translate="no" tabindex="-1">00082f40</a><ul class="adv-chips"><li><span>00082f72</span><code translate="no">74 0C</code></li><li><span>anchor</span>0041b242 ↔ 00082f72</li></ul><span class="ad-loc unresolved"><b>◌</b>build-d</span></div><div><button class="ad-btn compact" type="button">Open on build-c…</button></div>
  </div>
 </form>
 
 <div class="adc-states">
 <div>
- <span class="kicker">Patch · destructive ConfirmDialog names the exact build and bytes</span>
- <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="pe-cd-t" aria-describedby="pe-cd-d"><h3 id="pe-cd-t">Patch 1 byte at <span translate="no">0041b242</span> on build-a</h3><p id="pe-cd-d">Writes EB over 74 in build-a's program only, leaves build-b, build-c and build-d untouched, and can be undone only as a program transaction in Edit history.</p><footer><button class="ad-btn is-focus">Cancel</button><button class="ad-btn primary">Patch build-a</button></footer></div>
+ <span class="kicker">Patch · confirm</span><span class="sr-only">Patch · destructive ConfirmDialog names the exact build and bytes</span>
+ <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="pe-cd-t" aria-describedby="pe-cd-d"><h3 id="pe-cd-t">Patch 1 byte at <span translate="no">0041b242</span> on build-a</h3><p class="sr-only" id="pe-cd-d">Writes EB over 74 in build-a's program only, leaves build-b, build-c and build-d untouched, and can be undone only as a program transaction in Edit history.</p><ul class="adv-tmap" aria-hidden="true"><li class="w"><b>✎</b>build-a<span></span><span class="mono">74 → EB</span></li><li class="x"><b>—</b>build-b</li><li class="x"><b>—</b>build-c</li><li class="x"><b>—</b>build-d</li></ul><footer><span class="adv-chips" aria-hidden="true" style="margin-right:auto"><span class="adv-w"><b>↶</b>Edit history</span></span><button class="ad-btn is-focus">Cancel</button><button class="ad-btn primary">Patch build-a</button></footer></div>
 </div>
 <div>
- <span class="kicker">Post-write read · after the terminal result</span>
- <div class="ad-notice info"><b aria-hidden="true">✓</b><div><h4>Read back · matches preview</h4><p>Job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, patch bytes, finished">a3f9</a> recorded one transaction on build-a. Read back at 14:06: <code translate="no">0041b242 EB 0C</code>, the same bytes as the preview. Patched bytes ≠ recovered source.</p></div><span></span></div>
- <div class="ad-notice caution"><b aria-hidden="true">±</b><div><h4>Read back differs from the preview</h4><p>0041b243 reads <code translate="no">0E</code>; the preview was <code translate="no">0C</code>. Nothing is corrected automatically.</p></div><span></span></div>
+ <span class="kicker">Read back</span><span class="sr-only">Post-write read · after the terminal result</span>
+ <div class="ad-notice info"><b aria-hidden="true">✓</b><div><h4>Read back · matches preview</h4><p class="sr-only">Job a3f9 recorded one transaction on build-a. Read back at 14:06: 0041b242 EB 0C, the same bytes as the preview.</p><div class="adv-chips"><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, patch bytes, finished">a3f9</a><ul class="adv-chips" aria-hidden="true"><li><span>tx</span>1 · build-a</li><li><span>14:06</span><code translate="no">0041b242 EB 0C</code></li></ul><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pe-t6"><b aria-hidden="true">≠</b>source</button><span role="tooltip" id="pe-t6">Patched bytes ≠ recovered source.</span></span></div></div><span></span></div>
+ <div class="ad-notice caution"><b aria-hidden="true">±</b><div><h4>Read back · differs</h4><div class="adv-chips"><ul class="adv-chips" aria-label="0041b243 reads 0E; the preview was 0C."><li><span>0041b243</span><code translate="no">0C → 0E</code></li></ul><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pe-t7"><b aria-hidden="true">≠</b>auto-fix</button><span role="tooltip" id="pe-t7">Nothing is corrected automatically.</span></span></div></div><span></span></div>
 </div>
 <div>
- <span class="kicker">Longer encoding · overwrites the next instruction</span>
+ <span class="kicker">Longer encoding</span><span class="sr-only">Longer encoding · overwrites the next instruction</span>
  <dl class="ade-bytes" aria-label="Bytes at 0041b240 to 0041b247 on build-a, 5-byte encoding">
   <dt>current</dt><dd>0041b240  85 C0 74 0C 8B 4E 10 51</dd>
   <dt>after</dt><dd class="after">0041b240  85 C0 <mark>E9 09 00 00 00</mark> 51</dd>
  </dl>
- <div class="ad-notice caution"><b aria-hidden="true">⚑</b><div><h4>Overwrites MOV ECX, [ESI+0x10] at 0041b244</h4><p>That instruction is cleared and not re-disassembled. Choose the 2-byte encoding to keep it.</p></div><span></span></div>
+ <div class="ad-notice caution"><b aria-hidden="true">⚑</b><div><h4>Overwrites <code translate="no">MOV ECX, [ESI+0x10]</code></h4><div class="adv-chips"><span class="adv-tip"><span tabindex="0" aria-describedby="pe-t8">0041b244 · cleared</span><span role="tooltip" id="pe-t8">Overwrites MOV ECX, [ESI+0x10] at 0041b244. That instruction is cleared and not re-disassembled.</span></span><button class="ad-btn compact" type="button" aria-describedby="pe-2b">Use 2 bytes</button><span class="sr-only" id="pe-2b">Choose the 2-byte encoding to keep it.</span></div></div><span></span></div>
 </div>
 <div>
- <span class="kicker">Clear with options · destructive, one build</span>
+ <span class="kicker">Clear · one build</span><span class="sr-only">Clear with options · destructive, one build</span>
  <div class="ade" role="group" aria-labelledby="pe-cl-t">
   <header><h4 id="pe-cl-t">Clear <code translate="no">0041c900–0041c917</code></h4><span class="end">Clear code units</span></header>
   <div class="ade-tgt"><span class="ade-bld target">build-a</span><span>24 bytes · 5 instructions</span></div>
-  <div class="ade-sec"><div class="ade-flags" role="group" aria-label="What to clear"><label class="ad-flag"><input type="checkbox" checked>Instructions</label><label class="ad-flag"><input type="checkbox" checked>Data</label><label class="ad-flag"><input type="checkbox">Symbols</label><label class="ad-flag"><input type="checkbox">Comments</label><label class="ad-flag"><input type="checkbox">User references</label><label class="ad-flag"><input type="checkbox">Functions</label><label class="ad-flag"><input type="checkbox">Registers</label><label class="ad-flag"><input type="checkbox">Equates</label><label class="ad-flag"><input type="checkbox">Bookmarks</label></div><p class="small muted">Bytes are kept; only the listed markup is removed. Clear flow and repair is a separate verb.</p></div>
+  <div class="ade-sec"><div class="ade-flags" role="group" aria-label="What to clear"><label class="ad-flag"><input type="checkbox" checked>Instructions</label><label class="ad-flag"><input type="checkbox" checked>Data</label><label class="ad-flag"><input type="checkbox">Symbols</label><label class="ad-flag"><input type="checkbox">Comments</label><label class="ad-flag"><input type="checkbox">User references</label><label class="ad-flag"><input type="checkbox">Functions</label><label class="ad-flag"><input type="checkbox">Registers</label><label class="ad-flag"><input type="checkbox">Equates</label><label class="ad-flag"><input type="checkbox">Bookmarks</label></div><div class="adv-chips" style="margin-top:8px"><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="pe-t9">= bytes</span><span role="tooltip" id="pe-t9">Bytes are kept; only the listed markup is removed.</span></span><span class="adv-tip"><span tabindex="0" aria-describedby="pe-t10">flow repair ↗</span><span role="tooltip" id="pe-t10">Clear flow and repair is a separate verb.</span></span></div></div>
   <footer><button class="ad-btn primary" type="button">Clear on build-a…</button><button class="ad-btn" type="button">Cancel</button></footer>
  </div>
 </div>
 <div>
- <span class="kicker">Disassemble · decodes only this range; follow-on analysis only if admitted</span>
+ <span class="kicker">Disassemble</span><span class="sr-only">Disassemble · decodes only this range; follow-on analysis only if admitted</span>
  <div class="ade" role="group" aria-labelledby="pe-ds-t">
   <header><h4 id="pe-ds-t">Disassemble at <code translate="no">0041c2a8</code></h4><span class="end">Disassemble</span></header>
   <div class="ade-tgt"><span class="ade-bld target">build-a</span><span id="pe-ds-l">Mode</span><div class="ad-seg" role="radiogroup" aria-labelledby="pe-ds-l"><span role="radio" aria-checked="true" tabindex="0">Follow flow</span><span role="radio" aria-checked="false" tabindex="-1">Restricted to selection</span><span role="radio" aria-checked="false" tabindex="-1">Static</span></div></div>
-  <div class="ade-sec"><p class="small">Preview from build-a's language: 4 instructions, 0041c2a8–0041c2b7, ending at <code translate="no">RET</code>. The preview decodes bytes only and is not program state; nothing is in build-a's listing until posted. Restricted to selection over a range is a batch and opens ConfirmDialog.</p></div>
-  <footer><button class="ad-btn primary" type="button">Disassemble on build-a</button><span class="note">Single target: Run posts once. No function is created and nothing is analyzed.</span></footer>
+  <div class="ade-sec"><div class="adv-chips"><ul class="adv-chips" aria-label="Preview from build-a's language: 4 instructions, 0041c2a8–0041c2b7, ending at RET."><li><span>instr</span>4</li><li>0041c2a8–0041c2b7</li><li><span>→</span><code translate="no">RET</code></li></ul><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pe-t11"><b aria-hidden="true">≠</b>program state</button><span role="tooltip" id="pe-t11">The preview decodes bytes only and is not program state; nothing is in build-a's listing until posted.</span></span><span class="adv-tip"><span tabindex="0" aria-describedby="pe-t12">range → confirm</span><span role="tooltip" id="pe-t12">Restricted to selection over a range is a batch and opens ConfirmDialog.</span></span></div></div>
+  <footer><button class="ad-btn primary" type="button">Disassemble on build-a</button><ul class="adv-chips" aria-label="Single target: Run posts once."><li><span>posts</span>1</li></ul><span class="adv-tip is-open"><button type="button" class="adv-bnd" aria-describedby="pe-t13"><b aria-hidden="true">≠</b>function</button><span role="tooltip" id="pe-t13">No function is created and nothing is analyzed.</span></span></footer>
  </div>
 </div>
 <div>
- <span class="kicker">Create data · array, pointer or string with its settings</span>
+ <span class="kicker">Create data</span><span class="sr-only">Create data · array, pointer or string with its settings</span>
  <div class="ade" role="group" aria-labelledby="pe-cd2-t">
   <header><h4 id="pe-cd2-t">Create data at <code translate="no">0041f060</code></h4><span class="end">Apply data type</span></header>
   <div class="ade-tgt"><span class="ade-bld target">build-a</span></div>
   <div class="ade-sec"><div class="ade-flds">
    <label class="lbl" for="pe-dt">Type</label><div class="val"><input class="adc-in" id="pe-dt" value="CacheEntry *[4]" translate="no"></div>
-   <span class="hint">An array of 4 pointers, 16 bytes on build-a (pointer width 4 in build-a's language). Counts and widths are never copied to other builds; each build's own data layout applies there.</span>
+   <span class="hint adv-chips"><ul class="adv-chips" aria-label="An array of 4 pointers, 16 bytes on build-a (pointer width 4 in build-a's language)."><li>4 × ptr</li><li>16 B</li><li><span>ptr</span>4</li></ul><span class="adv-tip end"><button type="button" class="adv-bnd" aria-describedby="pe-t14"><b aria-hidden="true">≠</b>copied</button><span role="tooltip" id="pe-t14">Counts and widths are never copied to other builds; each build's own data layout applies there.</span></span></span>
    <label class="lbl" for="pe-en">Endianness</label><div class="val"><select class="adc-in" id="pe-en"><option>program default (little)</option><option>big</option></select></div>
   </div></div>
   <dl class="ade-bytes" aria-label="Bytes at 0041f060 on build-a"><dt>bytes</dt><dd>0041f060  10 5A 42 00 30 5A 42 00</dd><dt>as data</dt><dd class="after">[0] 00425a10  [1] 00425a30  …</dd></dl>

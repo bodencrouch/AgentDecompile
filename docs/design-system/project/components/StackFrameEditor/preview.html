@@ -1,19 +1,20 @@
-<!-- @dsCard group="Code" height=1370 -->
+<!-- @dsCard group="Code" height=1360 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<span class="kicker">The editing counterpart of FrameLayout · same slot anatomy · edits one build's frame · other builds side by side</span>
-<form class="ade" aria-labelledby="sf-t">
- <header><h4 id="sf-t">Edit stack frame <code translate="no">ResourceRef::Resolve</code></h4><span class="end"><span>Edit stack frame</span><button class="ad-btn compact" type="button" aria-pressed="true">Hex</button></span></header>
+<span class="kicker">Frame editor</span>
+<form class="ade" aria-labelledby="sf-t" aria-describedby="sf-sc">
+ <header><h4 id="sf-t">Edit stack frame <code translate="no">ResourceRef::Resolve</code></h4><span class="end" style="display:inline-flex;gap:8px;align-items:center"><span>Edit stack frame</span><button class="ad-btn compact" type="button" aria-pressed="true">Hex</button><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="sf-key2">?</button><span role="tooltip" id="sf-key2">Rows are logical slots, never offsets. 2px rule: under the saved frame pointer. 3px bar: new in draft. ± differs. ◌ unresolved. Dashed chip: hypothesis. ≠ chip: never proposed or compared. Target map: the one build a save writes. ↔ eligible, ✕ blocked.</span></span></span></header>
+ <p class="sr-only" id="sf-sc">The editing counterpart of FrameLayout · same slot anatomy · edits one build's frame · other builds side by side</p>
  <div class="ade-tgt">
-  <span class="kicker">Target · bound when opened</span>
-  <span class="ade-bld target">build-a</span><span>function <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">0041b210</a></span><span>EBP frame · offsets from EBP after the prologue</span>
+  <span class="kicker" aria-label="Target · bound when opened">Target</span>
+  <span class="ade-bld target">build-a</span><span>function <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">0041b210</a></span><span class="adv-tip"><span class="ad-stamp" tabindex="0" aria-describedby="sf-ebp"><b>EBP frame</b></span><span role="tooltip" id="sf-ebp">EBP frame · offsets from EBP after the prologue</span></span>
   <span class="ad-writer"><b aria-hidden="true">●</b>writer: this session</span>
  </div>
  <div class="ade-sec">
   <div class="ade-flds">
-   <span class="lbl">Frame size</span><div class="val"><span class="mono">0x18 → 0x1c</span><span class="muted">computed from the fields below</span></div>
+   <span class="lbl">Frame size</span><div class="val"><span class="mono">0x18 → 0x1c</span><span class="muted" aria-label="computed from the fields below">= Σ ↓</span></div>
    <label class="lbl" for="sf-ls">Local size</label><div class="val"><input class="adc-in num" id="sf-ls" value="0xc" translate="no"><span class="muted">was 0x8</span></div>
-   <label class="lbl" for="sf-po">Parameter offset</label><div class="val"><input class="adc-in num" id="sf-po" value="+0x8" translate="no"><span class="muted">return address at +0x4</span></div>
-   <label class="lbl" for="sf-ps">Parameter size</label><div class="val"><input class="adc-in num" id="sf-ps" value="0x8" translate="no"><span class="muted">matches purge 8 in the signature</span></div>
+   <label class="lbl" for="sf-po">Parameter offset</label><div class="val"><input class="adc-in num" id="sf-po" value="+0x8" translate="no"><span class="muted"><span class="sr-only">return address at </span><span aria-hidden="true">ret </span>+0x4</span></div>
+   <label class="lbl" for="sf-ps">Parameter size</label><div class="val"><input class="adc-in num" id="sf-ps" value="0x8" translate="no"><span class="muted"><span aria-hidden="true">= purge 8</span><span class="sr-only">matches purge 8 in the signature</span></span></div>
   </div>
  </div>
  <div class="ade-grid ad-scroll" tabindex="0" role="region" aria-label="Stack frame slots, scrollable">
@@ -25,43 +26,46 @@
    <tr><th scope="row"><span class="adx-slot">return</span> return address</th><td></td><td class="b target">+0x4</td><td class="b">+0x4</td><td class="b">entry ESP +0x0</td><td class="b"><span class="ad-absent">◌ unresolved</span></td></tr>
    <tr class="sep"><th scope="row"><span class="adx-slot">saved</span> ebp</th><td></td><td class="b target">+0x0</td><td class="b">+0x0</td><td class="b"><span class="ad-absent">none (FPO)</span></td><td class="b"><span class="ad-absent">◌ unresolved</span></td></tr>
    <tr><th scope="row"><span class="adx-slot">local</span> <code translate="no">entry</code></th><td class="mono">CacheEntry *</td><td class="b target">−0x4 : 4</td><td class="b">−0x4 : 4</td><td class="b">entry ESP −0x8<span class="w">raw [esp+0x4] after push esi; sub esp, 8</span></td><td class="b"><span class="ad-absent">◌ unresolved</span></td></tr>
-   <tr aria-selected="true"><th scope="row"><span class="adx-slot">local</span> <code translate="no">slotIndex</code></th><td class="mono">int → uint</td><td class="b target">−0x8 : 4</td><td class="b">−0x8 : 4</td><td class="b">entry ESP −0x8<span class="w"><span class="ade-m diff"><b aria-hidden="true">±</b>shares entry's slot</span><span class="ad-evd hyp"><span class="lv">hypothesis (heuristic)</span><span class="v">≈ compile variance</span><span class="basis">basis: shares a slot with entry; lifetimes do not overlap. Not checked: source identity of build-c.</span></span></span></td><td class="b"><span class="ad-absent">◌ unresolved</span></td></tr>
-   <tr class="ad-draft"><th scope="row"><span class="adx-slot">local</span> <code translate="no">bucketIndex</code> <span class="small muted">new in draft</span></th><td class="mono">uint</td><td class="b target">−0xc : 4</td><td class="b"><span class="ad-absent">absent</span></td><td class="b"><span class="ad-absent">absent</span></td><td class="b"><span class="ad-absent">◌ unresolved</span></td></tr>
+   <tr aria-selected="true"><th scope="row"><span class="adx-slot">local</span> <code translate="no">slotIndex</code></th><td class="mono">int → uint</td><td class="b target">−0x8 : 4</td><td class="b">−0x8 : 4</td><td class="b">entry ESP −0x8<span class="w" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center"><span class="ade-m diff"><b aria-hidden="true">±</b>shares entry</span><span class="adv-tip end"><button type="button" class="adv-h" aria-describedby="sf-hyp"><b aria-hidden="true">≈</b>compile</button><span role="tooltip" id="sf-hyp">hypothesis (heuristic): ≈ compile variance · basis: shares a slot with entry; lifetimes do not overlap. Not checked: source identity of build-c.</span></span></span></td><td class="b"><span class="ad-absent">◌ unresolved</span></td></tr>
+   <tr class="ad-draft"><th scope="row"><span class="adx-slot">local</span> <code translate="no">bucketIndex</code> <span class="small muted">new</span><span class="sr-only"> in draft</span></th><td class="mono">uint</td><td class="b target">−0xc : 4</td><td class="b"><span class="ad-absent">absent</span></td><td class="b"><span class="ad-absent">absent</span></td><td class="b"><span class="ad-absent">◌ unresolved</span></td></tr>
   </tbody>
  </table>
  </div>
- <p class="small muted" id="sf-key" style="margin:0;padding:var(--space-3) var(--space-5)">Rows are logical slots, never offsets. build-c is an ESP (FPO) frame normalised to entry ESP and says so; frame-pointer and stack-pointer offsets are never compared raw. The 2px rule sits under the saved frame pointer. The new row has a 3px bar and the words "new in draft".</p>
- <div class="ade-rev"><span class="kicker">Save opens ConfirmDialog · the frame changes every reference to these slots</span>
+ <p class="sr-only" id="sf-key">Rows are logical slots, never offsets. build-c is an ESP (FPO) frame normalised to entry ESP and says so; frame-pointer and stack-pointer offsets are never compared raw. The 2px rule sits under the saved frame pointer. The new row has a 3px bar and the words "new in draft".</p>
+ <div class="row" style="gap:8px;padding:var(--space-3) var(--space-5)"><span class="adv-tip"><button type="button" class="adv-w" style="background:transparent" aria-describedby="sf-fpo"><b aria-hidden="true">▣</b>build-c · entry ESP</button><span role="tooltip" id="sf-fpo">build-c is an ESP (FPO) frame normalised to entry ESP and says so.</span></span><span class="adv-tip is-open"><button type="button" class="adv-bnd" aria-describedby="sf-raw"><b aria-hidden="true">≠</b>raw compare</button><span role="tooltip" id="sf-raw">Frame-pointer and stack-pointer offsets are never compared raw.</span></span></div>
+ <div class="ade-rev" role="group" aria-label="Save opens ConfirmDialog · the frame changes every reference to these slots" aria-describedby="sf-rev-d" style="margin-top:40px"><span class="kicker">Save · ConfirmDialog</span>
   <ul><li>Create stack variable <code translate="no">bucketIndex</code> : <code translate="no">uint</code> at −0xc on build-a; local size 0x8 → 0xc.</li><li>Retype <code translate="no">slotIndex</code> <code translate="no">int</code> → <code translate="no">uint</code> (same size).</li></ul>
-  Cached decompile of ResourceRef::Resolve on build-a is marked stale; nothing is re-decompiled. Other builds are unchanged.</div>
- <footer><button class="ad-btn primary" type="submit">Save frame on build-a <span class="ad-kbd">Ctrl+S</span></button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button><span class="note">Rename and comment alone confirm in place.</span></footer>
+  <p class="sr-only" id="sf-rev-d">Cached decompile of ResourceRef::Resolve on build-a is marked stale; nothing is re-decompiled. Other builds are unchanged.</p>
+  <ul class="adv-tmap" aria-hidden="true" style="margin-top:8px"><li class="w"><b>✎</b>build-a<span></span><span class="mono">◷ decompile</span></li><li class="x"><b>—</b>build-b</li><li class="x"><b>—</b>build-c</li><li class="x"><b>—</b>build-d</li></ul></div>
+ <footer><button class="ad-btn primary" type="submit">Save frame on build-a <span class="ad-kbd">Ctrl+S</span></button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button><span class="note adv-tip"><span class="ad-stamp" tabindex="0" aria-describedby="sf-inpl"><b>in place</b>rename · comment</span><span role="tooltip" id="sf-inpl">Rename and comment alone confirm in place.</span></span></footer>
  <div class="ade-prop" role="group" aria-labelledby="sf-prop-t">
-  <h5 id="sf-prop-t">Propose names and types to build-b, build-c · by slot mapping, never by offset</h5>
+  <h5 id="sf-prop-t">Propose names and types<span class="sr-only"> to build-b, build-c · by slot mapping, never by offset</span></h5>
   <div class="ade-grid ad-scroll"><table class="ad-table"><caption class="sr-only">Recipients for the frame edits</caption><thead><tr><th scope="col">Recipient</th><th scope="col">Slot mapping</th><th scope="col">Preview</th><th scope="col">Result</th></tr></thead><tbody>
-   <tr><th scope="row">build-b</th><td>bijective · 4 of 4 variables paired</td><td class="mono">slotIndex : uint at −0x8 · bucketIndex not proposed (absent)</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>eligible for the retype</span></td></tr>
-   <tr><th scope="row">build-c</th><td>non-bijective · slotIndex shares a slot</td><td class="mono">not previewed</td><td><span class="ade-m bad"><b aria-hidden="true">✕</b>blocked: insufficient alignment to pair slots</span></td></tr>
+   <tr><th scope="row">build-b</th><td><span class="adv-frac" role="img" aria-label="bijective · 4 of 4 variables paired" style="--v:100"><i></i>4 / 4</span></td><td class="mono">slotIndex : uint at −0x8 · <s>bucketIndex</s><span class="sr-only"> not proposed (absent)</span></td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>eligible<span class="sr-only"> for the retype</span></span></td></tr>
+   <tr><th scope="row">build-c</th><td><span aria-hidden="true">non-bijective · ± slotIndex</span><span class="sr-only">non-bijective · slotIndex shares a slot</span></td><td class="mono">not previewed</td><td><span class="ade-m bad"><b aria-hidden="true">✕</b>blocked<span class="sr-only">: insufficient alignment to pair slots</span></span></td></tr>
   </tbody></table></div>
-  <div class="ade-foot"><button class="ad-btn" type="button">Propose to build-b…</button><span class="note">Offsets, local size and parameter size are never proposed; each build keeps its own frame.</span></div>
+  <div class="ade-foot"><button class="ad-btn" type="button">Propose to build-b…</button><span class="note adv-tip"><button type="button" class="adv-bnd" aria-describedby="sf-np"><b aria-hidden="true">≠</b>offsets · sizes</button><span role="tooltip" id="sf-np">Offsets, local size and parameter size are never proposed; each build keeps its own frame.</span></span></div>
  </div>
 </form>
 
 <div class="adc-states">
 <div>
  <span class="kicker">Frame change · ConfirmDialog</span>
- <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="sf-cd-t" aria-describedby="sf-cd-d"><h3 id="sf-cd-t">Change the stack frame of <span translate="no">ResourceRef::Resolve</span> on build-a</h3><p id="sf-cd-d">Creates bucketIndex at −0xc, grows the local area to 0xc and retypes slotIndex, which changes every stack reference to these slots on build-a (9 known references); other builds are unchanged.</p><footer><button class="ad-btn is-focus">Cancel</button><button class="ad-btn primary">Change frame</button></footer></div>
+ <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="sf-cd-t" aria-describedby="sf-cd-d"><h3 id="sf-cd-t">Change stack frame · <span translate="no">ResourceRef::Resolve</span> · build-a</h3><p id="sf-cd-d" class="sr-only">Creates bucketIndex at −0xc, grows the local area to 0xc and retypes slotIndex, which changes every stack reference to these slots on build-a (9 known references); other builds are unchanged.</p>
+<div aria-hidden="true" style="display:grid;gap:8px;padding:0 16px 8px"><ul class="adv-tmap"><li class="w"><b>✎</b>build-a<span></span><span class="mono">9 refs</span></li><li class="x"><b>—</b>b</li><li class="x"><b>—</b>c</li><li class="x"><b>—</b>d</li></ul><ul class="adv-chips"><li><span>+</span>bucketIndex −0xc</li><li><span>locals</span>0xc</li><li><span>retype</span>slotIndex</li></ul></div><footer><button class="ad-btn is-focus">Cancel</button><button class="ad-btn primary">Change frame</button></footer></div>
 </div>
 <div>
- <span class="kicker">Overlap · validation before anything posts</span>
+ <span class="kicker">Overlap</span>
  <div class="ade" role="group" aria-labelledby="sf-v-t">
   <header><h4 id="sf-v-t">Create array at −0x10</h4></header>
-  <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="sf-ac">Elements</label><div class="val"><input class="adc-in num" id="sf-ac" value="16" aria-invalid="true" aria-describedby="sf-ac-e"></div><div class="adc-err" id="sf-ac-e"><b aria-hidden="true">✕</b><span>A char[16] at −0x10 would overwrite bucketIndex, slotIndex and entry. Use 4 or fewer, or clear those slots first.</span></div></div></div>
-  <footer><button class="ad-btn primary" type="button">Create array</button><button class="ad-btn" type="button">Cancel</button><span class="note">Nothing was posted.</span></footer>
+  <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="sf-ac">Elements</label><div class="val"><input class="adc-in num" id="sf-ac" value="16" aria-invalid="true" aria-describedby="sf-ac-e"></div><div class="adc-err" id="sf-ac-e"><b aria-hidden="true">✕</b><span><span aria-hidden="true">overlaps 3 slots · ≤ 4</span><span class="sr-only">Overlap · validation before anything posts. A char[16] at −0x10 would overwrite bucketIndex, slotIndex and entry. Use 4 or fewer, or clear those slots first.</span></span></div></div></div>
+  <footer><button class="ad-btn primary" type="button">Create array</button><button class="ad-btn" type="button">Cancel</button><span class="note"><span aria-hidden="true">∅ posted</span><span class="sr-only">Nothing was posted.</span></span></footer>
  </div>
 </div>
 <div>
- <span class="kicker">Register parameter and an unresolved build</span>
- <div class="ad-notice info"><b aria-hidden="true">◌</b><div><h4>ResourceRef::Resolve is unresolved on build-d</h4><p>No counterpart is located on build-d, so there is no frame to show. Nothing is guessed from build-a's offsets, and build-d is not a recipient.</p></div><span></span></div>
- <div class="ad-notice unknown"><b aria-hidden="true">?</b><div><h4>size lives in EDX on build-c</h4><p>A register parameter has no frame slot, so the stack frame editor cannot move it. Change its storage in the signature (StorageEditor) on build-c.</p></div><span></span></div>
+ <span class="kicker">Register · unresolved</span>
+ <div class="ad-notice info" role="group" aria-labelledby="sf-n1" aria-describedby="sf-n1d"><b aria-hidden="true">◌</b><div><h4 id="sf-n1">Unresolved · build-d</h4><p class="sr-only" id="sf-n1d">ResourceRef::Resolve is unresolved on build-d. No counterpart is located on build-d, so there is no frame to show. Nothing is guessed from build-a's offsets, and build-d is not a recipient.</p><ul class="adv-chips" aria-hidden="true" style="margin-top:6px"><li><span>frame</span>∅</li><li><span>guess</span>∅</li><li><span>recipient</span>✕</li></ul></div><span></span></div>
+ <div class="ad-notice unknown" role="group" aria-labelledby="sf-n2" aria-describedby="sf-n2d"><b aria-hidden="true">?</b><div><h4 id="sf-n2">size · EDX · build-c</h4><p class="sr-only" id="sf-n2d">size lives in EDX on build-c. A register parameter has no frame slot, so the stack frame editor cannot move it. Change its storage in the signature (StorageEditor) on build-c.</p><ul class="adv-chips" aria-hidden="true" style="margin-top:6px"><li><span>frame slot</span>∅</li><li><span>→</span>StorageEditor</li></ul></div><span></span></div>
 </div>
 </div>
 </div>

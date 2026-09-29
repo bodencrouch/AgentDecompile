@@ -121,7 +121,7 @@ export function Cockpit() {
         <DropZone />
         <div className="cp-section-h">
           <span>Programs</span>
-          <span className="cp-q" tabIndex={0} data-tip="Each program groups its builds · bars: blue bound to the shared identity, green byte-matching C">?</span>
+          <span className="cp-q" tabIndex={0} data-tip="Each program groups its builds · bars: blue bound to the shared identity, green C with a byte-exact receipt in this or a sibling build">?</span>
         </div>
         <ProgramList programs={programs} selected={programId} onChoose={choose} loading={!summary} />
         <CliStrip />
@@ -177,7 +177,7 @@ function TopBar({ summary, connection, error }: { summary: Summary | undefined; 
     ['functions', t?.functions, 'Functions across every build', ''],
     ['logical', t?.logical, 'Logical functions: one identity shared by every build', ''],
     ['bound', t?.bound, 'Build functions bound to a logical function', 'var(--c-bound-named)'],
-    ['recovered', t?.recovered_logical, 'Logical functions with byte-matching C', 'var(--c-rec)'],
+    ['recovered', t?.recovered_logical, 'Shared identities with byte-exact-receipt C in any build', 'var(--c-rec)'],
   ];
   return (
     <header className="cp-top">
@@ -296,7 +296,7 @@ function Legend({ counts, filter, onFilter, disabled }: { counts: ReturnType<typ
   const tips = [
     'No shared identity yet · click to highlight',
     'Bound to a logical function shared across builds · click to highlight',
-    'Byte-matching C recovered · click to highlight',
+    'C with a byte-exact receipt (this build or a sibling) · click to highlight',
   ];
   return (
     <div className="cp-legend" role="toolbar" aria-label="Highlight">

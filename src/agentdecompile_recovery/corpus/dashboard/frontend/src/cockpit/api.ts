@@ -106,7 +106,7 @@ export type CellChange = [number, number, number, number];
 export type CellsDiff = { program_id: string; changes: CellChange[] };
 export type Hello = { db: string; programs: string[] };
 
-export const STATE_LABELS = ['Unbound', 'Bound across builds', 'Byte-matching C'] as const;
+export const STATE_LABELS = ['Unbound', 'Bound across builds', 'C with a byte-exact receipt (this build or a sibling)'] as const;
 export const TIER_LABELS: Record<number, string> = {
   0: 'No name',
   1: 'Human',

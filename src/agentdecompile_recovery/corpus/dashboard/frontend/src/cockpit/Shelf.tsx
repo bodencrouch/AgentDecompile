@@ -20,7 +20,7 @@ export function productsFrom(t: Totals | undefined): Product[] {
     {
       id: 'source', name: 'Source that rebuilds', color: '--f-source', frac: source,
       value: t ? `${fmt(t.recovered_logical)} / ${fmt(t.logical)}` : '',
-      tip: 'C whose compiled output is the shipped bytes · ring: logical functions with byte-matching C',
+      tip: 'C with a recorded byte-exact receipt · ring: shared identities with such C in any build',
     },
     {
       id: 'signatures', name: 'Portable signatures', color: '--f-unify', frac: bound,

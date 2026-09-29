@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AgentDecompile · Cockpit</title>
+<link rel="stylesheet" href="/dashboard/cockpit/cockpit.css">
+</head>
+<body>
+<div class="ck" id="ck">
+  <header class="ck-top">
+    <strong class="ck-brand">AgentDecompile</strong>
+    <span class="ck-conn" id="ck-conn" role="status" aria-live="polite">Connecting…</span>
+    <dl class="ck-totals" id="ck-totals" aria-label="Corpus totals"></dl>
+    <nav class="ck-views" aria-label="Views">
+      <a href="/dashboard/cockpit" aria-current="page">Cockpit</a>
+      <a href="/dashboard/explorer">Explorer</a>
+      <a href="/react/#cockpit">App view</a>
+    </nav>
+  </header>
+  <aside class="ck-programs" aria-labelledby="ck-programs-h">
+    <h2 id="ck-programs-h">Programs</h2>
+    <ul id="ck-program-list" role="listbox" aria-label="Choose a program"></ul>
+  </aside>
+  <main class="ck-map" aria-labelledby="ck-map-h">
+    <div class="ck-map-bar">
+      <h1 id="ck-map-h">Program map</h1>
+      <form id="ck-search" role="search">
+        <label class="sr-only" for="ck-q">Find a function by name</label>
+        <input id="ck-q" type="search" placeholder="Find a function…" autocomplete="off">
+      </form>
+      <label class="ck-filter"><span class="sr-only">Show</span>
+        <select id="ck-filter" aria-label="Show cells">
+          <option value="all">All functions</option>
+          <option value="0">Unbound only</option>
+          <option value="1">Bound across builds</option>
+          <option value="2">Recovered C</option>
+          <option value="named">Named only</option>
+        </select>
+      </label>
+      <button type="button" id="ck-fit">Fit map</button>
+    </div>
+    <ul class="ck-legend" aria-label="Legend">
+      <li><i class="s0"></i>Unbound</li>
+      <li><i class="s1"></i>Bound to a shared identity</li>
+      <li><i class="s2"></i>C with a byte-exact receipt (this build or a sibling)</li>
+    </ul>
+    <div class="ck-canvas-wrap" id="ck-wrap">
+      <canvas id="ck-canvas" tabindex="0" role="application"
+        aria-label="Function map. Arrow keys move, Enter opens, plus and minus zoom."></canvas>
+      <p class="ck-empty" id="ck-empty" hidden></p>
+    </div>
+    <p class="ck-hint">Drag to pan · wheel or <kbd>+</kbd>/<kbd>−</kbd> to zoom · arrows to move · <kbd>Enter</kbd> opens the function</p>
+  </main>
+  <aside class="ck-lens" aria-labelledby="ck-lens-h">
+    <h2 id="ck-lens-h">Function</h2>
+    <div id="ck-lens" aria-live="polite"><p class="ck-muted">Select a cell to see where this function lives in every build.</p></div>
+  </aside>
+  <section class="ck-lanes" aria-labelledby="ck-lanes-h">
+    <h2 id="ck-lanes-h">Live work</h2>
+    <ol id="ck-activity" aria-live="polite"></ol>
+  </section>
+</div>
+<script src="/dashboard/cockpit/cockpit.js"></script>
+</body>
+</html>

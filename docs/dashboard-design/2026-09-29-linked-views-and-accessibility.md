@@ -179,7 +179,7 @@ Already in the design system: CounterpartStrip, SplitCompare, Ctrl/Cmd+\ (split)
 
 ### U176 · Follow, Hold and Kept, finished (P1; UX-06)
 Already in the design system: following after `settle-delay`, Update panes, Hold this pane, `hold` and `keep`, and HeldPane. Still missing:
-- **Drift**: "Link panes" in CodeBrowser and NavigationBar; "Current differs" instead of "◷ Basis changed since held · Refresh"; the Held icon in the stale color; "held at a stage gate" in 20 (it becomes "waiting").
+- **Drift** (fixed during integration, 2026-09-29): "Link panes" in CodeBrowser and NavigationBar; "Current differs" instead of "◷ Basis changed since held · Refresh"; the Held icon in the stale color; "held at a stage gate" in 20 (now "waiting").
 - **Follow boundaries**: following never crosses a project, opens a program or decompiles on a miss; aria-busy only on panes without focus; each following pane states its mode. A commit-on-Enter pane says "Shows ResourceRef::Resolve; selection is now Actor::LoadFromTemplate · Enter to load".
 - **The armed ActionStrip never retargets**: "Bound to ResourceRef::Resolve · selection is now Actor::LoadFromTemplate · Rebind".
 - **Hold** only on center and secondary panes, through PaneHeader. The HELD tag stays visible while scrolling, because the 2px ink-strong frame also marks fresh evidence. A third center Hold becomes a Kept card and says so.
@@ -405,7 +405,7 @@ Already in the design system: the 3px inset focus rule, ProvenanceStamp's Fresh 
 *Components:* bundle.css, tokens.json, 90, WorkTimeline, ImageDeltaMap, CodeBrowser, Workstation, design-system README.
 *Accessibility:* 1.4.1, 1.4.3, 1.4.11, 2.4.7, 2.4.11, 2.5.8; 2.4.13 as a house rule.
 *Safeguards:* Graphite stays the only theme; the accent only for focus, the active tab, links and the hovered splitter; no behavior change; the same tokens on both surfaces.
-*Acceptance (future):* no forced-colors block sets forced-color-adjust:none on a selected item; no `.ad-landed`; WorkTimeline uses neither the accent nor ◇.
+*Acceptance (future):* in forced colors, selected items render every descendant in HighlightText with no author color (they set forced-color-adjust:none only because the default Canvas text backplate hides HighlightText in common palettes; guideline 90); no `.ad-landed`; WorkTimeline uses neither the accent nor ◇.
 
 ### U191 · Narrow-viewport continuity (P1; UX-21)
 Already in the design system: NarrowFlow, CodeBrowser's narrow tablist and SplitCompare's narrow switcher. NarrowFlow becomes the one narrow contract, reconciled with 35.

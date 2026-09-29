@@ -1,5 +1,5 @@
 <!-- @dsCard group="Work view" height=180 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <div class="ad-notice fault"><b>✕</b><div><h4>C2440 · cl 13.10 /O2 /Gy</h4><p class="mono small">resource.c(41): cannot convert from 'int' to 'ResourceRef *'</p></div><span class="ad-stamp"><b>helper</b>preparse cast</span></div>
-<div class="well ad-diff"><div class="ctx">  ResourceRef *ref;</div><div class="del">  ref = lookup(table, key);</div><div class="add">  ref = (ResourceRef *)lookup(table, key);</div><div class="ctx">  return ref->name;</div></div>
+<div class="well ad-diff"><div class="ctx">  ResourceRef *ref;</div><div class="del"><span class="sr-only">removed: </span>  ref = lookup(table, key);</div><div class="add"><span class="sr-only">added: </span>  ref = (ResourceRef *)lookup(table, key);</div><div class="ctx">  return ref->name;</div></div>
 </div>

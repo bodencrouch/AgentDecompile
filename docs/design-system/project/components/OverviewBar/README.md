@@ -20,7 +20,7 @@ A vertical navigation margin beside the Listing that shows one build's whole vie
 
 ## Anatomy
 
-1. **Header.** "Overview · build-a · whole image 00401000–0046ffff · 1 row ≈ 1.5 KB". When the view is restricted: "Overview · build-a · view: .text, io (ProgramTreeView)". It has a lane menu, **Show key**, and the Following word.
+1. **Header.** "Overview · build-a · whole image 00401000–0046ffff · about 1.5 KB per row". When the view is restricted: "Overview · build-a · view: .text, io (ProgramTreeView)". It has a lane menu, **Show key**, and the Following word.
 2. **Lanes**, 16px wide each, separated by 2px `chassis` gaps. Each lane has a one-letter head that is restated in words in the key.
    - **T · Address type** (row L17). Precedence as in Ghidra: function, external reference, instruction outside a function, defined data, undefined bytes, uninitialized. Graphite steps plus patterns (solid, stripes, diagonal hatch, dots, outline) carry the kinds. A family or fact color is never used, because these are not states. The type map is an approximation: each pixel row shows one sample, and the key says so ("one sample per row; a mostly-data region can show as undefined").
    - **E · Byte entropy** (row L18). A graphite ramp from 0.0 (dark) to 8.0 (light) per chunk. The value is measured from bytes, so it is solid. A range label such as "machine code" or "compressed or encrypted" is a hypothesis: it names its basis ("entropy 7.6–8.0; range heuristic") and never becomes a claim. The chunk size and the configured ranges live in lane settings, per viewer.
@@ -56,7 +56,7 @@ A vertical navigation margin beside the Listing that shows one build's whole vie
 
 ## Linking
 
-- **Publishes:** Go from the ranges list, a key row, or a click on a pixel row moves the primary location to that build and address and pushes one stop. With the pointer, the click lands on the first address of that pixel row, and the key says "row ≈ 1.5 KB; lands on 0041c800". A click on another build's bar in Compare goes to that build explicitly and is announced.
+- **Publishes:** Go from the ranges list, a key row, or a click on a pixel row moves the primary location to that build and address and pushes one stop. With the pointer, the click lands on the first address of that pixel row, and the key says "row covers about 1.5 KB; lands on 0041c800". A click on another build's bar in Compare goes to that build explicitly and is announced.
 - **Follows:** the inspected build, the view (whole image or the ProgramTreeView restriction), the cursor (drawn as the rule), the Listing selection, highlights, the active ResultsTable and marks, after the settle. It is a cached pane; reads that are not cached wait for Enter. It can be held with the Listing (a held Listing's bar freezes with it).
 - **Targets rendered:** address (range starts and ends, markers) → the Code Browser at that build · job id ("changed by job a3f9") → the dock Jobs record · search result set → its ResultsTable · divergence range → ImageDeltaMap region (the Listing at the range start in that build, with the ObjectDiff pair) · receipt id for a classified range → its receipt card.
 - **Peek source:** Alt+↓ on a key row peeks the cached Listing lines at the range start, and for a divergence range the receipt that classified it. Nothing is fetched.
@@ -65,7 +65,7 @@ A vertical navigation margin beside the Listing that shows one build's whole vie
 
 ## Keyboard
 
-- The bar itself takes no focus. **Show key** or `g then v` (proposed leader id `overview.focus`) moves focus to the ranges list, an APG Grid with row focus: ↑/↓ move by region, PageUp/PageDown by a screenful, Home/End go to the first and last region, Enter goes, Shift+Enter opens beside, Alt+↓ peeks, Shift+F10 opens the link menu.
+- The bar itself takes no focus. **Show key**, or the palette command `overview.focus` (no default key; `g then v` belongs to VTableBrowser), moves focus to the ranges list, an APG Grid with row focus: ↑/↓ move by region, PageUp/PageDown by a screenful, Home/End go to the first and last region, Enter goes, Shift+Enter opens beside, Alt+↓ peeks, Shift+F10 opens the link menu.
 - Proposed composite-scope ids (where "Overview ranges list"; not yet in `keymap.json`):
   - `overview.nextMarker` and `overview.prevMarker`: `]` and `[` move to the next or previous region of the lane in focus.
   - `overview.lane`: `t`, `e`, `m` and `d` filter the list to one lane, and Esc clears the filter.

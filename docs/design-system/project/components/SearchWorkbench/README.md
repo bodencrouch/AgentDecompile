@@ -92,7 +92,7 @@ One search surface for memory bytes, program text, decompiled text, instruction 
 - Mode tabs: APG Tabs, manual activation. Scope: an APG radio group. The pattern builder: an APG Grid in which Space toggles the mask on the focused operand cell.
 - In the query field, Enter runs Search. Proposed ids (region scope, where "Search workbench"; not yet in `keymap.json`):
   - `search.next` and `search.prev`: Ctrl/Cmd+↓ and Ctrl/Cmd+↑, incremental from the Listing cursor on this build;
-  - `search.open`: Ctrl/Cmd+Shift+F, global, with a platform caution. It opens the workbench in the last mode and focuses the query. The palette's "Search…" and the leader `g then f` do the same;
+  - `search.open`: Ctrl/Cmd+Shift+F, global, with a platform caution. It opens the workbench in the last mode and focuses the query. The palette's "Search…" (the leader `g then f` belongs to FrameLayout, so there is no leader key) do the same;
   - `search.loadSelection`: no default key.
 - F8 steps the active worklist collected from its results. `w` in the ResultsTable collects.
 - Keys never post a mutation. Replace's Apply and every row action pass through the ActionStrip, and ConfirmDialog where required.

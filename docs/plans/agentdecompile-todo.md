@@ -1,0 +1,3409 @@
+---
+title: AgentDecompile comprehensive todo list
+type: todo
+date: 2026-09-28
+---
+
+# AgentDecompile comprehensive todo list
+
+Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdecompile-living-plan.md`. This is the sole consolidated execution queue. Check an item only after its current required evidence is entered in the living plan. Disposed source aliases are explicitly retained below.
+
+## Integration deliverables
+
+- [ ] U1. Scope, truth and evidence authority — prerequisites: none; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U2. Determinism, schema and generic data seams — prerequisites: U1; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors. Evidence 2026-09-29: E-0929-2 (fixture V3 pass at git `2c5d989f`; not installed).
+- [ ] U3. Identity, field fusion and compatible cross-build reuse — prerequisites: U1, U2; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U4. Recover, calibrate, reconstruct and compare — prerequisites: U1, U2; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U5. Portable entities, signatures, roots and layouts — prerequisites: U2, U3; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U6. Runtime consumer, caves and safe mutation — prerequisites: U5, U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U7. Exhaustive bounded fallback and learning — prerequisites: U5, U6; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U8. Complete deterministic export bundle — prerequisites: U5, U7; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U9. One durable task authority, resource admission and failure continuation — prerequisites: U1; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U10. External verification and portable recovered projects — prerequisites: U1, U4, U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U11. Reusable donated compute foundation and adapters — prerequisites: U1, U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U12. Autonomous capability product M1–M7 — prerequisites: U6, U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U13. Source and package reconciliation — prerequisites: none; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors. Evidence 2026-09-29: E-0929-1 (divergence assessed; merge, schema, backfill and restart outstanding).
+- [ ] U14. Project lifecycle, admission and tab contexts — prerequisites: U13, U29, U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U15. Shared selection, navigation and accessible shell — prerequisites: U13; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U16. Full CodeBrowser and Ghidra guide parity — prerequisites: U15, U29; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U17. Corpus and KotORXID integration — prerequisites: U15, U1; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U18. Match evidence, availability and review — prerequisites: U15, U3; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U19. Compare and recovery workspaces — prerequisites: U15, U4; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U20. Actual work visualization, supervision and spectators — prerequisites: U15, U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors. Evidence 2026-09-29: E-0929-3 (read-only cockpit on both surfaces; not on 8080; controls and spectator absent).
+- [ ] U21. Metric and publish contract — prerequisites: U17, U1; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U22. Optional AI and bounded context — prerequisites: U14, U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U23. ABI and type data preservation — prerequisites: U5; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U24. Hook pack v2 and compatible readers — prerequisites: U23, U2; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U25. Cave discovery and safe injection plans — prerequisites: U5; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U26. Generated Lua and C/C++ build headers — prerequisites: U23, U24; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U27. Readiness and divergence — prerequisites: U3, U24; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U28. Atomic export bundle and delivery — prerequisites: U24, U25, U26, U27; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U29. Explicit MCP program dispatch — prerequisites: U13; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors. Evidence 2026-09-29: E-0929-1 (dispatch module in git only).
+- [ ] U30. Input and ownership simplification preservation — prerequisites: U13; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U31. Browser rewrite contributor — prerequisites: U11; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U32. Durable exchange proposal lifecycle — prerequisites: U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U33. Source baseline and identity — prerequisites: U4; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U34. Local transport and dispatch — prerequisites: U33; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U35. Remote gameplay — prerequisites: U34, U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U36. Dedicated executable — prerequisites: U35; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U37. Directory — prerequisites: U35; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U38. In-game browser — prerequisites: U35, U37; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U39. Release proof — prerequisites: U36, U38; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U40. Semantic findings and extensibility — prerequisites: U16, U17; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U41. Collaboration, CI and controlled reporting — prerequisites: U1, U13; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+- [ ] U42. Packaging, standalone reload and final integration — prerequisites: U13; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
+
+## Named child obligations
+
+- [ ] `portable-plan-2026-09-21:D1` — U2: - **D1 `logical.py:39-64`** — the driving SELECT has no `ORDER BY` — and there are **two**; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:D2` — U2: - **D2 `export_hookpack.py:71,74,85`** — three unordered SELECTs → pack array/object order;; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:D3` — U2: - **D3 `propagate.py:157-209` `bind_identities`** — candidate SELECT unordered; sort on; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:D4` — U2: - **D4 `match_store.py:60-68,666,703`** — func SELECT unordered feeds the greedy cascade;; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:D5` — U2: - **D5 `match_engine.py:73-78` `cosine()`** — sums over a `set` of **string** keys →; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:D6` — U2: - **D6 `callgraph_propagate.py:131`** — `dependencies` evidence list in `mapping` insertion; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:D7` — U2: - **D7. Audit-and-fix the surfaces the determinism audit did not reach**, so no unaudited; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:D8` — U2: - **D8. Rowid tie-breaks.** `logical.py:48,60`, `propagate.py:168,209` and; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:D9` — U2: - **D9. `store.py:293` backfills `recovery_family='unclassified:' \|\| id`** — a value; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U1` — U5: - **U1. Emit `image_base` + `sha256` + `arch`/`bits` per binary.** `export_hookpack.py:133`;; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U2` — U5: - **U2. Always carry per-instance `expected_bytes`** and a per-site instance-window list the; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U3` — U5: - **U3. Emit site-`kind` + `required` + field `offset/size`.** Exporter change; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U1b` — U5: - **U1b. Adapter-key mapping + semantic-alias/overlay merge on the exporter side.**; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U4` — U5: - **U4. Reloc/immediate-masked byte pattern** per function, computed over the **raw file; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U5` — U5: - **U5. `logical_signature` table** keyed by `logical_id`: consensus masked pattern +; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U6` — U5: - **U6. Region-scoped, interior-anchored windows** (executable section only; prefer; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U7` — U5: - **U7. Rewire VA→offset to the correct mapper that already exists (one-import fix).**; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U7b` — U5: - **U7b. XBE mapper + container detection (any `.xbe` build).** **Landed (`f935db7`)** —; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U5b` — U5: - **U5b. Anchor-relative locators + verification hashes (runtime locator family members; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U5c` — U5: - **U5c. Determinism basis in every pack + two-level verification (ships in order step 1,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U5d` — U5: - **U5d. Persist BSim vectors as a first-class identity channel (gap 6).** `bsim_eval.py`; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U6b` — U5: - **U6b. Canonicalization layer for extents and blocks.** The audit found extents come; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U8` — U6: - **U8. Bridge the CLI tree's structured storage collector into the batch path.** The; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U9` — U6: - **U9. Persist `varargs`/`no_return`** (recovered at `features.py:135`, add columns).; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U10` — U6: - **U10. Stop collapsing thiscall/fastcall** (`propagate_conventions.py:13`); keep raw; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U11` — U6: - **U11. Structured ABI block in the pack** from U8/U9 data (`export_hookpack.py:120`,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U11b` — U6: - **U11b. Typed struct fields for marshalling.** `export_types.py:71-89` renders every; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U12` — U6: - **U12. Cave discovery writes into `hookpack/v2` `caves[]` — no separate artifact, no; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U13` — U6: - **U13. A cave helper in the runtime host's Lua API** — capacity-checked writes + restoration bookkeeping,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U13b` — U6: - **U13b. Arch-gate the the runtime host runtime so it can consume 64-bit / non-x86 packs.**; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U14` — U3: - **U14. `corpus/divergence.py`** — a pure, deterministic metric. **Hard dependency:; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U15` — U3: - **U15. Classify + store + gate:** evaluate thresholds by cross-multiplication against; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U16` — U3: - **U16. Per-`logical_id` rollup** at `bind_identities` (`propagate.py:215`) — "structural; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U17` — U3: - **U17. Display.** `review_queue_json` (`pages.py:771-772` today: no `relation`, names; satisfy the full inherited acceptance, not just this label.
+- DISPOSED `portable-plan-2026-09-21:U0` — withdrawn; owner U3; retain successor/evidence from master, do not count as implemented.
+- [ ] `portable-plan-2026-09-21:U17b` — U3: - **U17b. Gate the CLI `match-function` tool with the same classification.** The only; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U18` — U6: - **U18. One ABI adapter** consolidating the 4 MSVC-x86 copies (`ghidra_bulk.fix_thiscall`,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U19` — U6: - **U19. Compiler/toolchain profile** as a target-selected object (promote `TOOLCHAIN_SCRIPTS`; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U19a` — U6: - **U19a. Data-pack registry.** One loader for L3 packs: root path from config, `pack.json`; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U20` — U6: - **U20. Remove `arch='x86' AND bits=32` SQL gates** (`recover_named_ghidra.py:99`,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U21` — U6: Keep generic core defaults engine-independent while retaining named fixture, adapter and research provenance (C20); satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U21c` — U6: - **U21c. Gate.** The extended script ratchets against a recorded baseline, then zero.; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U21a` — U6: - **U21a. Scrub `src/`.** 57 files; 8 file renames with import shims; the `db.py` default; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U21b` — U6: - **U21b. Rewrite docs by class.** 49 files. Acceptance for the three: the gate returns 0; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U22` — U6: - **U22. Schema migration, versioning, and backfill.** New tables/columns (`func_param`,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U23` — U6: - **U23. Runtime-host consumption of pack v2 + version negotiation (this is real C++).**; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U24` — U6: - **U24. Pack integrity.** Packs drive code patching, so a tampered or stale pack is a; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U25` — U6: - **U25. Re-baseline procedure when the determinism basis changes.** A decoder/Ghidra; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U26` — U6: - **U26. Signature ⇄ identity conflict rule.** When a runtime-resolved site (by locator); satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U27` — U6: - **U27. Stripped and symbol-poor builds.** Name/symbol-keyed pieces (canon keys, the CLI; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U28` — U6: - **U28. Verification and test plan** (the no-tests guard is lifted). (a) **Determinism; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U28x` — U6: - **U28x. Inline-CLI attestation against the real corpus** (`corpus attest`, cataloged; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U29` — U6: - **U29. Concurrency × determinism.** The companion recommendations doc widens; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U30` — U5: - **U30. `entities[]` in pack v2 + `logical_entity` store — THE single identity schema.**; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U31` — U5: - **U31. Data-entity identity via the xref-from-identified-code cascade** (globals,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U32a` — U5: - **U32a. Field rows, not C blobs (prerequisite for every struct unit).** Add; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U32b` — U5: - **U32b. Parse STABS field bodies** (new `corpus/stabs_fields.py`, fed from; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U32c` — U5: - **U32c. Field-access fingerprint extractor.** Two paths, both deterministic: (a); satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U32` — U5: - **U32. `logical_struct` + per-build field map + correspondence (U30 applied to structs).**; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U32d` — U5: - **U32d. Stripped-build struct matching.** Candidates for logical struct S on build B:; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U33` — U5: - **U33. VTable slot correspondence + inheritance.** Persist only address-resolved slot; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U34a` — U5: - **U34a. Accessor descriptor recovery (all missing today).** `grep stride\|bitfield` hits; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U34` — U5: - **U34. Instruction-level entities: patch points, call sites, immediates.** Decode-stable; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U35` — U5: - **U35. Object lifecycle descriptors + library-signature DB.** `sizeof` from; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U36` — U5: - **U36. Imports, exports, dispatch/callback and script-VM tables.** Imports/exports by; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U37` — U5: - **U37. Format/structural entities.** Sections, relocation table, exception/unwind tables,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U38` — U5: - **U38. Integrity / anti-tamper routine identification.** Behavioral signature (self-; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U39` — U5: - **U39. Per-kind divergence + display.** Extend U14–U17 so the divergence signal and the; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U40` — U5: - **U40. Capture data-reference targets (one new column, many readers).** Touch set:; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U41` — U5: - **U41. Data-item persistence (`kind=global\|string\|table\|…` partitions of U30's; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U42` — U5: - **U42. `corpus/data_locator.py` — the locator family + resolver contract.** Per root, the; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U43` — U5: - **U43. Pointer-chain / deref-path descriptors** (greenfield). `{base: <root id>,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U44` — U5: - **U44. Per-root recipes + coverage in the pack.** Extend `export_hookpack.export:158`; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U45` — U5: - **U45. Accessor recovery (all blockers named).** (a) **Lossless type export** — same; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U46` — U5: - **U46. Runtime host: make the resolver real (this is C++ + Lua; pairs with U23).**; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U47` — U5: - **U47. Mod-script lint + port-a-mod tooling.** A lint that rejects any literal address; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U48` — U2: - **U48. Library / CRT exclusion set** (L1 + L3 data pack). Identify library functions; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U49` — U2: - **U49. Identical-body collision rule.** When two `logical_id`s share a masked body; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U50` — U2: - **U50. Packed / compressed-image gate.** Detect (entropy, section-name, entry-in-last-; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U51` — U2: - **U51. Anchor definition for U5b.** An anchor is the **reference site** or the **import; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U52` — U2: - **U52. Record `reloc_table_present` per build.** Old 32-bit images commonly set; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U53` — U2: - **U53. Producing-channel weight on divergence classes.** Record which cascade channel; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U54` — U2: - **U54. Land the full determinism basis** — absorbed into the normative basis object in; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U55` — U2: - **U55. Thread quiescence is mandatory in the C++ helper (U13/U23).** Suspend all other; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U56` — U2: - **U56. Control Flow Guard handling.** Per-site `cfg_target_required` for anything; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U57` — U2: - **U57. Cave ownership / claim tokens.** Claim identity = `(pack_sha, cave_id,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U58` — U2: - **U58. Filler and padding provenance in U12.** The allowed filler set is a toolchain; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U59` — U2: - **U59. Anti-tamper / integrity policy.** Build-profile flag `self_integrity_checks:; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U60` — U2: - **U60. Export-time detourability validation.** Run the MinHook-class length-disassembler; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U61` — U2: - **U61. `this` / custom-storage normalization in U8.** Persist `hasCustomVariableStorage`; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U62` — U2: - **U62. The C/D seam contract (one paragraph, binding).** `binaries[].sha256` **is** the; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U63` — U2: - **U63. sret triple + x64 rules.** Replace `ret.by_ref` with `ret.sret = {allocator,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U64` — U2: - **U64. Recompile-and-diff ABI verification** (added to U28). From the exported ABI; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U65` — U2: Bound analyzer lifecycle with durable progress, deadlines and checkpoint continuation (C19 replaces effectively-unbounded wording); satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U66` — U2: - **U66. Content-addressed receipts** (required — grill 6: the draw-the-work replay has; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U67` — U6: - **U67. Per-site calling shape from the pack, never from `#if _WIN32`.**; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U13c` — U6: - **U13c. Descriptor-driven native call layer in the host.** Every native call is a; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U68` — U6: - **U68. Unknown-build admission (signature-only mode) — the plan asserts it in §7; this; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U69` — U6: - **U69. Typed per-build platform/ABI descriptor.** New `binary` columns: `endian,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U70` — U6: - **U70. Platform-gate every cross-build donor.** `AD/corpus/propagate_conventions.py:44-; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U71` — U6: - **U71. Per-build, per-platform struct layouts loaded from the pack** (extends U32/U46).; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U72` — U6: - **U72. Rebase every site consumer; support PIE.** Three rebase paths exist; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U73` — U6: - **U73. Protect and journal every write, with before-bytes.** `RH/src/api/structs.cpp:; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U74` — U6: - **U74. Site/cave ownership registry + cross-mod collision refusal** (merges with U57).; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U75` — U6: - **U75. Multi-module entity axis.** A build is a *set of modules* (exe + DLLs/.so/dylib,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U76` — U6: - **U76. Endian-aware signature/decoder path.** Add `endian` to the determinism basis;; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U77` — U6: - **U77. Unpack state + code-section hash as first-class build identity; one build; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U78` — U6: - **U78. Cross-build compatibility keys for save/network.** Network compatibility today; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U79` — U6: - **U79. ABI-correct RTTI walk** (prerequisite for U33's slot maps on non-MSVC builds).; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U80` — U6: - **U80. Pack hot-reload + rollback-on-reload.** Script reload exists (`RH/src/lua/; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U81` — U6: - **U81. Workflow verbs** (merges with U47): `corpus.diff-builds A B` (per-entity; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U82` — U6: - **U82. Schema unification** (prerequisite for every new `binary` column). Two `binary`; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U83` — U6: - **U83. Corpus-side unwind / TLS / SEH parsers** so U37's `unwind`/`tls` entities have; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U84` — U6: - **U84. Allocator identity per build** (feeds U35's `spawn`). Only name-based exclusion; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U85` — U6: - **U85. Localization / string-table entities.** Per-function string features exist; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U86` — U6: - **U86. Integrity-check range awareness at runtime** (completes U38/U59). U38 identifies; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U87` — U8: - **U87. `corpus.export-bundle` — one deterministic verb, one output tree.** Runs every; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U88` — U8: - **U88. Generated Lua binding module from the pack** (new `corpus/export_lua_bindings.py`,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U89` — U8: - **U89. Per-build C/C++ headers + build manifest.** From U32a's field rows and U11's; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U90` — U8: - **U90. Readiness report** (new `corpus/readiness_report.py` + a versioned JSON schema,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U91` — U7: - **U91. Embedded decoder in the runtime host** — the **same** pure decoder library and revision U4 pins (a; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U92` — U7: - **U92. Via-caller / via-callee resolution** — pack carries, per function, its call-site; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U93` — U7: - **U93. Inverse data-reference scan** — masked access-instruction signatures per root; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U94` — U7: - **U94. Constructor-derived resolution** — vtable pointer from the resolved ctor (E-2),; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U95` — U7: - **U95. Positional neighbour resolution** — order-preserving placement between resolved; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U96` — U7: - **U96. Runtime structural matching** — corpus fingerprints (mnemonic class sequence,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U97` — U7: - **U97. Region sites for inlined/split logic** — locate a function's fragments inside its; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U98` — U7: - **U98. Offline residue attack** — a cataloged verb that re-runs BSim + emulation-based; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U99` — U7: - **U99. Learn-the-build loop** — runtime resolution results (per member, per entity) are; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U100` — U7: - **U100. Cave candidates, live discovery, section slack, header space** (B-1..B-4) —; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U101` — U7: - **U101. Executable allocation + image extension** — `mem.alloc_exec(size, near)` in the; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U102` — U7: - **U102. Initializer- and shape-derived data roots** (C-7, C-9) — decode resolved static; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U103` — U7: - **U103. Accessor-decode and constructor-derived field offsets** (D-2, D-3, D-5) — the; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U104` — U20: - **U104. Verb admission flags** (`corpus/cli.py`, `dashboard/actions/introspect.py`,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U105` — U20: - **U105. Autonomous start + single admission-scoped control.** Remove the per-stage; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U106` — U20: - **U106. Review lane U17 fields on 8080** (`ReviewReact`, `workbench-app.js:907-929`):; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U107` — U20: - **U107. Readiness × coverage matrix inside the corpus-first Logical view** (8080; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U108` — U20: - **U108. Evidence rail: ladder residue and contested pairs.** For the selected entity:; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U109` — U20: - **U109. 5174 Compare tab (REC N3)** rendering the same U17 object per pair;; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U110` — U20: - **U110. Draw the work from receipts.** U66 is required; receipts carry; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U111` — U20: - **U111. Starvation and hang metrics** (H1–H6). Age of the oldest unreviewed review; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U112` — U20: - **U112. Product vocabulary in the surfaces.** The `game` column/field and the fixture; satisfy the full inherited acceptance, not just this label.
+- DISPOSED `portable-plan-2026-09-21:U127` — absorbed; owner U11; retain successor/evidence from master, do not count as implemented.
+- DISPOSED `portable-plan-2026-09-21:U128` — absorbed; owner U11; retain successor/evidence from master, do not count as implemented.
+- [ ] `portable-plan-2026-09-21:U120` — U11: - **U120. Contract ✔** (`d8447f6`). `src/agentdecompile_grid/{core,__init__}.py`, packaging; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U121` — U11: - **U121. Objects + tasks + config ✔** (`b147f99`; `7cc0b63`, `c575411`).; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U122` — U11: - **U122. Log + heads + frontier + signing + compaction ✔** (`95e8428`; `515fd47`).; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U123` — U11: - **U123. View + pipeline lanes + CLI ✔** (`95e8428`; content at `eecfcaf`, `85784cc`).; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U124` — U11: - **U124. Worker + verify + fleet + transport ✔** (`8eb5202`, `a4e4aca`; the audit-4 brief; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U125` — U11: - **U125. Integrator pass.** Reconcile the names each slice assumed against what landed:; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U158` — U11: - **U158. Basis projection per kind** (`tasks/registry.py`, `core.py`): `basis_fields(kind)`; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U126` — U11: - **U126. Ed25519 as the default signer; invites, revocation, rate limits**; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U159` — U11: - **U159. S3-compatible objects, log and heads with conditional PUT** (`objects/s3.py`,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U160` — U11: - **U160. Static mirror index + rsync** (`objects/static.py`; index publication; refresh).; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U161` — U11: - **U161. Peer HTTP read endpoint** (`objects/peer.py`, `transport/peer.py`; fleet nodes as; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U162` — U11: - **U162. HTTPS outbound-only transport with presigned write-once PUT** (`transport/https.py`;; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U132` — U11: - **U132. Toolchain manifest identity** (`grid_lanes/toolchain.py`,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U163` — U11: - **U163. Toolchain canary** (`worker/canaries.py`, `grid_lanes/compile.py`): declared; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U164` — U11: - **U164. Analyzer canary**: a fixture packed program opened headless, function-inventory; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U165` — U11: - **U165. Parity canary**: hash-pinned checker binary + fixture pair yielding the pinned; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U129` — U11: - **U129. Cloud providers with `fleet up/down/status/replace`** (`fleet/providers.py`:; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U166` — U11: - **U166. Container sandbox** (`worker/sandbox.py`: a container as one packaging of the; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U167` — U11: - **U167. Idle policies** (`--idle-only`: battery, user-activity and load adapters; a; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U130` — U11: - **U130. Observer-path fixes** (design U130; prerequisite for the browser lane).; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U154` — U11: - **U154. Browser lane** (design U154: module worker, wasm parity, rewrite proposals under; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U131` — U11: - **U131. Measurements** (design U131 (a)–(h): R12 headless open and pack size, O2; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U133` — U11: - **Toolchain lanes — U133 compile-attempt adapter (persistent wineserver, per-node cap),; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U134` — U11: - **Toolchain lanes — U133 compile-attempt adapter (persistent wineserver, per-node cap),; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U135` — U11: - **Toolchain lanes — U133 compile-attempt adapter (persistent wineserver, per-node cap),; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U136` — U11: - **Toolchain lanes — U133 compile-attempt adapter (persistent wineserver, per-node cap),; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U137` — U11: - **Analyzer lanes — U137 import + analysis slices + deterministic two-key pin (the A2.2; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U138` — U11: - **Analyzer lanes — U137 import + analysis slices + deterministic two-key pin (the A2.2; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U139` — U11: - **Analyzer lanes — U137 import + analysis slices + deterministic two-key pin (the A2.2; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U140` — U11: - **Analyzer lanes — U137 import + analysis slices + deterministic two-key pin (the A2.2; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U141` — U11: - **Analyzer lanes — U137 import + analysis slices + deterministic two-key pin (the A2.2; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U142` — U11: - **Identity lanes — U142 match cascade decomposed (per-round checkpoint first), U143 delta; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U143` — U11: - **Identity lanes — U142 match cascade decomposed (per-round checkpoint first), U143 delta; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U144` — U11: - **Identity lanes — U142 match cascade decomposed (per-round checkpoint first), U143 delta; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U145` — U11: - **Residue lanes — U145 permuter cases + search shards, U146 rewrite adapter + win; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U146` — U11: - **Residue lanes — U145 permuter cases + search shards, U146 rewrite adapter + win; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U147` — U11: - **Residue lanes — U145 permuter cases + search shards, U146 rewrite adapter + win; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U148` — U11: - **Export and relink lanes — U148 export slices/shards/merge, U149 window index + shards,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U149` — U11: - **Export and relink lanes — U148 export slices/shards/merge, U149 window index + shards,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U150` — U11: - **Export and relink lanes — U148 export slices/shards/merge, U149 window index + shards,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U151` — U11: - **Export and relink lanes — U148 export slices/shards/merge, U149 window index + shards,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U152` — U11: - **Export and relink lanes — U148 export slices/shards/merge, U149 window index + shards,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U153` — U11: - **Export and relink lanes — U148 export slices/shards/merge, U149 window index + shards,; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U168` — U11: - **U168. `corpus-attest` lane** (after U28x): the attest verb as a `subprocess-verb` kind; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U169` — U11: - **U169. Similarity applier** (`view/similarity.py` working: verified `bsim-merge` objects; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U170` — U11: - **U170. Compaction pruning policies** (`log/compaction.py`: retention policies, prior-basis; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U155` — U11: - **U155. Bundle manifest stub; U156. Grid determinism and chaos harness** (named only:; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U156` — U11: - **U155. Bundle manifest stub; U156. Grid determinism and chaos harness** (named only:; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U157` — U11: - **U155. Bundle manifest stub; U156. Grid determinism and chaos harness** (named only:; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D01` — U1: A1 reconstruct trustworthy linkable regions, independent oracle; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D02` — U1: A2 separate recovery/compilation/comparison; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D03` — U1: A2 incremental calibration and legacy flags; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D04` — U1: A2 diagnose before permutation/AI; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D05` — U1: A3 architecture-specific floor with metadata; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D06` — U1: A3 early unchanged round trip; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D07` — U1: A3 source contribution and rebuild methods; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D08` — U1: A4 compile is candidate admission; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D09` — U1: A4 separate facts and bounded equivalence; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D10` — U1: A4 behavior-preserving repair, actual C++; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D11` — U1: A5 entity/variant/physical multiplicity; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D12` — U1: A5 compatible recipient candidate reuse; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D13` — U1: A5/A7 unchanged-work reuse, better evidence; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D14` — U1: A5 per-build layout, no pointer scaling; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D15` — U1: A5 naming preference vs facts; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D16` — U1: A6 known-build RVA first; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D17` — U1: A6 located/readable/callable/detourable/writable; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D18` — U1: A6 executable policy/caves; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D19` — U1: A6 install/remove/quiescence/lifetime; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D20` — U1: A6 rollback limits; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D21` — U1: A7 stable snapshots, relevant dependencies and cache sync; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D22` — U1: A7 corpus/local keys and replay; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D23` — U1: A7 shared compiler, isolated mutable outputs; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D24` — U1: A outcomes and regressing coverage; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D25` — U1: A agent roles and central acceptance; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D26` — U1: A first demonstrations, reccmp scope; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D27` — U1: H1A noncircular target binding; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D28` — U1: H1A automatic withdrawal, no platform ban; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D29` — U1: H1B original-code use without full recovery; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D30` — U1: H1C task-specific capacity, shared nested budget; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D31` — U1: H1D liveness/execution/goal and persistent attempts; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D32` — U1: H1E exhaustive accounting and proof scopes; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D33` — U1: H2 local dependency failures, capability priority/aging; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D34` — U1: H2 no spin, exact wake sets, objective preserved; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D35` — U1: H3 actual resources, scenario bundles, short transactions; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D36` — U1: H3 atomic ownership/fencing, quarantine/external jobs; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D37` — U1: H4 one retry owner, negative cache, bounded recovery; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D38` — U1: H4 checkpoint/exit and resource enforcement capability; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D39` — U1: H5 input closure, persistent storage, tmpfs limits; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D40` — U1: H5 publication, SQLite snapshots and bounded probes; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D41` — U1: H6 fixture/driver/recording prerequisites; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D42` — U1: H6 observation/mutation and unknown command outcome; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D43` — U1: H6 same-run oracle/video and local authentication limits; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D44` — U1: H7 namespaces/config and honest scanner limits; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D45` — U1: H8 paired rejection/continuation cases and useful metrics; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D46` — U1: H implementation order and conditional guarantees; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D47` — U1: User reccmp/ReAgent/AgentDecompile testing preference; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:D48` — U1: User many isle-like projects and universal-use matching; satisfy the full inherited acceptance, not just this label.
+- DISPOSED `session-contract-2026-09-22:D49` — superseded; owner U1; retain successor/evidence from master, do not count as implemented.
+- [ ] `session-contract-2026-09-22:D50` — U1: User collaborative grill/prove-the-effort completion; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:RC-01` — U1: Unchanged region with external code+data fixups; corrupt one reconstructed addend; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:RC-02` — U1: Compiled replacement; deliberately discard it at link/selection; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:RC-03` — U1: Held-out sibling with x+1→x+2 behavior change; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:RC-04` — U1: Folded bodies, inline-only and split regions; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:RC-05` — U1: Arithmetic, FP/NaN, methods, globals, indirect calls, exception metadata; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:RC-06` — U1: Type dependency changes mid-attempt; unrelated build added; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:RC-07` — U1: Same evidence/proposals, shuffled discovery/worker completion order; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:RC-08` — U1: Wrong target label with matching extracted bytes; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:RC-09` — U1: Original binding has valid identity/ABI but source is floor; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:RC-10` — U1: Genuine negative pair vs absent/inlined/unsupported/budget-limited; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A01` — U9: Correct bytes with false function label; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A02` — U9: Withdraw shared donor root; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A03` — U9: Kill compiler after N durable units; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A04` — U9: Churn child PIDs on identical failing input; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A05` — U9: Hang one device operation; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A06` — U9: Omit indirect staged library or fixture; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A07` — U9: Late old worker with correct result; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A08` — U9: Restart coordinator during retry wait; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A09` — U9: Occupy mutation channel; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A10` — U9: Missing party member/driver/authentication; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A11` — U9: Recorder fails after successful oracle; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A12` — U9: Disconnect after non-idempotent action; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A13` — U9: Interrupt destination copy/manifest commit; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A14` — U9: Expired lease but old worker still alive; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A15` — U9: Near-full swap with qualified small task; spare swap with overloaded class; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A16` — U9: Large eligible task surrounded by small work; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A17` — U9: Change acceptance policy/input during verification; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A18` — U9: Wrong Lua bridge arguments/config owner/log prefix; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A19` — U9: Lose only host/input replica; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A20` — U9: Shuffle valid proposal completion order; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-01` — U9: Acceptance authority; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-02` — U9: Acceptance authority; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-03` — U9: Scenario owner; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-04` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-05` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-06` — U9: Scenario owner; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-07` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-08` — U9: Storage owner; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-09` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-10` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-11` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-12` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-13` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-14` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-15` — U9: Scenario owner; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-16` — U9: Storage owner; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-17` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-18` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-19` — U9: Acceptance authority; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-20` — U9: Storage owner; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-21` — U9: Acceptance authority; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-22` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-23` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-24` — U9: Acceptance authority; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-25` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-26` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-27` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-28` — U9: Acceptance authority; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-29` — U9: Acceptance authority; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-30` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U1` — U14: Landed: pipeline-trigger removal; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U2` — U14: Remove remaining quick actions and add the R7 enforcement check; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U3` — U29: Per-call locator scoping; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U4` — U14: Multi-project session support; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U5` — U14: Admission on open and register; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U6` — U16: CodeBrowser provider build-out; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U7` — U14: Project-as-tab layer; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U8` — U18: Cross-build map dock; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U9` — U18: BSim hit persistence; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U10` — U18: X channel C++/RTTI metadata; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U11` — U18: Relabel the P-code skeleton stage; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U12` — U18: Wire the contract veto; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U13` — U18: Match row kind/confidence/algorithm columns; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U14` — U18: Per-pair and per-function availability surface; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U15` — U22: Config precedence resolver; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U16` — U22: Wire the resolver into the rewrite and LLM-cleanup paths; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U17` — U22: Dashboard AI setting; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U18` — U19: objdiff-web main view; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U19` — U19: decomp.me scratch view; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U20` — U19: Dogbolt compare view; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U21` — U19: RzWeb/r2web expert views; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U22` — U19: APKMan container tree; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U23` — U20: Pipeline stage DAG; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U24` — U20: Lane E fleet roster; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U25` — U20: Spectator view; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U26` — U21: report.json generation; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U27` — U21: Tier-split progress bar; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U28` — U21: Count-reconciliation gate; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U29` — U21: Explicit publish step; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U30` — U42: Write tests from verification sequences; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U31` — U23: Bridge the ABI storage collector into the batch/export path; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U32` — U23: Typed struct field export (replace `void *`/byte-array fallback); satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U33` — U24: Hook pack v2 format: `entities[]`, closed status set, basis-carrying root; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U34` — U25: Cave discovery into `caves[]`; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U35` — U26: Generated Lua bindings module; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U36` — U26: Per-build header manifest completion; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U37` — U27: Readiness report exporter; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U38` — U27: Divergence computation and report exporter; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U39` — U28: `export-bundle` verb; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U40` — U28: WASM export scoping receipt; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U41` — U28: 8080 workbench: export listing, readiness, and download per project/binary; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U42` — U28: Vite/React: export readiness per entity + bundle build as pipeline output; satisfy the full inherited acceptance, not just this label.
+- [ ] `frontend-plan-2026-09-28:U43` — U21: Tier-split counts in cross-build matrix cells; satisfy the full inherited acceptance, not just this label.
+
+## Detailed source clause closure
+
+These checks prevent non-ID requirements, risk mitigations, diagram cells, UI controls and research limitations from disappearing. A context-only clause closes through correct evidence treatment; a normative clause requires all its predicates. Resolve earlier conflicting text using C01–C24 before acting.
+
+- [ ] `S001-C0001` — Browser rewrite contributor; coverage owner U31; source `docs/plans/2026-09-10-browser-rewrite-contributor.md`:1–4.
+- [ ] `S001-C0002` — Decision; coverage owner U31; source `docs/plans/2026-09-10-browser-rewrite-contributor.md`:5–16.
+- [ ] `S001-C0003` — Non-negotiable boundaries; coverage owner U31; source `docs/plans/2026-09-10-browser-rewrite-contributor.md`:17–35.
+- [ ] `S001-C0004` — Tasks; coverage owner U31; source `docs/plans/2026-09-10-browser-rewrite-contributor.md`:36–49.
+- [ ] `S001-C0005` — Acceptance evidence; coverage owner U31; source `docs/plans/2026-09-10-browser-rewrite-contributor.md`:50–60.
+- [ ] `S001-C0006` — Ruling; coverage owner U31; source `docs/plans/2026-09-10-browser-rewrite-contributor.md`:61–67.
+- [ ] `S002-C0001` — Exchange rewrite consumption bridge; coverage owner U32; source `docs/plans/2026-09-10-exchange-rewrite-consumption-bridge.md`:1–2.
+- [ ] `S002-C0002` — Goal; coverage owner U32; source `docs/plans/2026-09-10-exchange-rewrite-consumption-bridge.md`:3–7.
+- [ ] `S002-C0003` — Constraints; coverage owner U32; source `docs/plans/2026-09-10-exchange-rewrite-consumption-bridge.md`:8–16.
+- [ ] `S002-C0004` — Stages; coverage owner U32; source `docs/plans/2026-09-10-exchange-rewrite-consumption-bridge.md`:17–25.
+- [ ] `S002-C0005` — Deferred; coverage owner U32; source `docs/plans/2026-09-10-exchange-rewrite-consumption-bridge.md`:26–29.
+- [ ] `S003-C0001` — Exchange submission durability follow-up; coverage owner U32; source `docs/plans/2026-09-10-exchange-submission-durability.md`:1–2.
+- [ ] `S003-C0002` — Context; coverage owner U32; source `docs/plans/2026-09-10-exchange-submission-durability.md`:3–11.
+- [ ] `S003-C0003` — Constraints; coverage owner U32; source `docs/plans/2026-09-10-exchange-submission-durability.md`:12–20.
+- [ ] `S003-C0004` — Task 1: Make submitted proposals and idempotency durable; coverage owner U32; source `docs/plans/2026-09-10-exchange-submission-durability.md`:21–36.
+- [ ] `S003-C0005` — Verification; coverage owner U32; source `docs/plans/2026-09-10-exchange-submission-durability.md`:37–46.
+- [ ] `S004-C0001` — ---; coverage owner U29; source `docs/plans/2026-09-10-program-info-call-scoped-refactor.md`:1–8.
+- [ ] `S004-C0002` — Make MCP provider program context call-scoped; coverage owner U29; source `docs/plans/2026-09-10-program-info-call-scoped-refactor.md`:9–10.
+- [ ] `S004-C0003` — Goal Capsule; coverage owner U29; source `docs/plans/2026-09-10-program-info-call-scoped-refactor.md`:11–22.
+- [ ] `S004-C0004` — Evidence and boundaries; coverage owner U29; source `docs/plans/2026-09-10-program-info-call-scoped-refactor.md`:23–40.
+- [ ] `S004-C0005` — Technical design; coverage owner U29; source `docs/plans/2026-09-10-program-info-call-scoped-refactor.md`:41–69.
+- [ ] `S004-C0006` — Implementation Units; coverage owner U29; source `docs/plans/2026-09-10-program-info-call-scoped-refactor.md`:70–71.
+- [ ] `S004-C0007` — Task 1: Establish the explicit dispatch contract (U1); coverage owner U29; source `docs/plans/2026-09-10-program-info-call-scoped-refactor.md`:72–94.
+- [ ] `S004-C0008` — Task 2: Thread program context through shared dispatch helpers (U2); coverage owner U29; source `docs/plans/2026-09-10-program-info-call-scoped-refactor.md`:95–110.
+- [ ] `S004-C0009` — Task 3: Migrate direct program and wrapper consumers (U3); coverage owner U29; source `docs/plans/2026-09-10-program-info-call-scoped-refactor.md`:111–127.
+- [ ] `S004-C0010` — Task 4: Resolve stateful and lifecycle-sensitive providers (U4); coverage owner U29; source `docs/plans/2026-09-10-program-info-call-scoped-refactor.md`:128–145.
+- [ ] `S004-C0011` — Task 5: Verify whole-server parity and document the resolved finding (U5); coverage owner U29; source `docs/plans/2026-09-10-program-info-call-scoped-refactor.md`:146–157.
+- [ ] `S004-C0012` — Verification Contract; coverage owner U29; source `docs/plans/2026-09-10-program-info-call-scoped-refactor.md`:158–171.
+- [ ] `S004-C0013` — Risks and execution notes; coverage owner U29; source `docs/plans/2026-09-10-program-info-call-scoped-refactor.md`:172–181.
+- [ ] `S005-C0001` — Simplify AgentDecompile around shared, composable capabilities; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:1–2.
+- [ ] `S005-C0002` — Spec; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:3–30.
+- [ ] `S005-C0003` — Global Constraints; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:31–48.
+- [ ] `S005-C0004` — Task 1: Normalize Click tokens at the actual CLI boundary; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:49–72.
+- [ ] `S005-C0005` — Task 2: Consolidate registry and executor argument lookup; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:73–95.
+- [ ] `S005-C0006` — Task 3: Remove redundant provider spelling lists and document the boundary; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:96–117.
+- [ ] `S005-C0007` — Task 4: Derive convenience commands and keep backend defaults implicit; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:118–163.
+- [ ] `S005-C0008` — Task 5: Consolidate container parsing at its package boundary; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:164–187.
+- [ ] `S005-C0009` — Task 6: Share the dependency-closed x86-64 decoder implementation; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:188–216.
+- [ ] `S005-C0010` — Task 7: One owner for MCP provider enrollment; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:217–246.
+- [ ] `S005-C0011` — Task 8: Capability policy belongs with its definition; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:247–274.
+- [ ] `S005-C0012` — Task 9: Operation-owned identity admission; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:275–309.
+- [ ] `S005-C0013` — Task 10: Derive pipeline presentation from its existing contract; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:310–340.
+- [ ] `S005-C0014` — Task 11: Keep stage dependency predicates in one place; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:341–358.
+- [ ] `S005-C0015` — Task 12: Share compatible corpus workspace defaults; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:359–377.
+- [ ] `S005-C0016` — Task 13: Finish shared Click shortcut wiring; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:378–403.
+- [ ] `S005-C0017` — Acceptance; coverage owner U30; source `docs/plans/2026-09-20-forgiving-input-cleanup.md`:404–417.
+- [ ] `S006-C0001` — Unified reversing workstation implementation plan; coverage owner U42; source `docs/plans/2026-09-20-unified-reversing-workstation.md`:1–4.
+- [ ] `S006-C0002` — Global Constraints; coverage owner U42; source `docs/plans/2026-09-20-unified-reversing-workstation.md`:5–24.
+- [ ] `S006-C0003` — Task 1: Make parameter storage genuinely editable; coverage owner U23; source `docs/plans/2026-09-20-unified-reversing-workstation.md`:25–49.
+- [ ] `S006-C0004` — Task 2: Reconcile delivery without collapsing either alternative; coverage owner U42; source `docs/plans/2026-09-20-unified-reversing-workstation.md`:50–62.
+- [ ] `S006-C0005` — Task 3: Unify selection and navigation; coverage owner U15; source `docs/plans/2026-09-20-unified-reversing-workstation.md`:63–77.
+- [ ] `S006-C0006` — Task 4: Compose the primary Code Browser shell; coverage owner U16; source `docs/plans/2026-09-20-unified-reversing-workstation.md`:78–90.
+- [ ] `S006-C0007` — Task 5: Close guide interaction gaps; coverage owner U16; source `docs/plans/2026-09-20-unified-reversing-workstation.md`:91–99.
+- [ ] `S006-C0008` — Task 6: Integrate all KotORXID analysis/evidence workflows; coverage owner U42; source `docs/plans/2026-09-20-unified-reversing-workstation.md`:100–108.
+- [ ] `S006-C0009` — Task 7: Connect one durable pipeline controller; coverage owner U42; source `docs/plans/2026-09-20-unified-reversing-workstation.md`:109–133.
+- [ ] `S006-C0010` — Task 8: Package, activate and validate each delivery boundary; coverage owner U42; source `docs/plans/2026-09-20-unified-reversing-workstation.md`:134–145.
+- [ ] `S006-C0011` — Completion ledger; coverage owner U42; source `docs/plans/2026-09-20-unified-reversing-workstation.md`:146–154.
+- [ ] `S007-C0001` — ---; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:1–7.
+- [ ] `S007-C0002` — Distributed compute design: `agentdecompile_grid`; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:8–12.
+- [ ] `S007-C0003` — Scope note (governing set); coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:13–24.
+- [ ] `S007-C0004` — 1. Decision; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:25–26.
+- [ ] `S007-C0005` — 1.1 Architecture in one paragraph; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:27–30.
+- [ ] `S007-C0006` — 1.2 Package name; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:31–50.
+- [ ] `S007-C0007` — 1.3 The one command, per donor class; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:51–65.
+- [ ] `S007-C0008` — 1.4 Free cloud node and the operator's fleet bootstrap; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:66–75.
+- [ ] `S007-C0009` — 1.5 Why the others lost, and what was grafted from each; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:76–87.
+- [ ] `S007-C0010` — 2. Coordination state; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:88–89.
+- [ ] `S007-C0011` — 2.1 Three layers; one mutable; the mutable one is a pointer; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:90–99.
+- [ ] `S007-C0012` — 2.2 Partitioning, batching and fairness (fix for hot-key CAS starvation); coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:100–103.
+- [ ] `S007-C0013` — 2.3 Compaction; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:104–107.
+- [ ] `S007-C0014` — 2.4 The SQLite store as a materialized view; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:108–113.
+- [ ] `S007-C0015` — 2.5 Trust-the-hash, applied to everyone (fix for fleet-by-role); coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:114–126.
+- [ ] `S007-C0016` — 2.6 The verification frontier (fix for the funnel livelock); coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:127–130.
+- [ ] `S007-C0017` — 2.7 Budgets are kill deadlines, not labels (fix for hangs); coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:131–134.
+- [ ] `S007-C0018` — 2.8 Determinism basis and content addressing; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:135–160.
+- [ ] `S007-C0019` — 3. Micro-task catalogue per stage; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:161–164.
+- [ ] `S007-C0020` — 3.1 Stage 1 extract: analyzer import and auto-analysis per binary; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:165–178.
+- [ ] `S007-C0021` — 3.2 Stage 1-2: bulk decompile; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:179–189.
+- [ ] `S007-C0022` — 3.3 Stage 5-7: compile one function under the era-exact toolchain; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:190–203.
+- [ ] `S007-C0023` — 3.4 Stage 7: parity check per function; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:204–214.
+- [ ] `S007-C0024` — 3.5 Stage 2-6: identity cascade and cross-place; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:215–231.
+- [ ] `S007-C0025` — 3.6 Stage 7: permuter and LLM candidate generation; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:232–245.
+- [ ] `S007-C0026` — 3.7 Stage 2: similarity signatures and queries; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:246–256.
+- [ ] `S007-C0027` — 3.8 Stage 0 and substrate: backfill and export; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:257–271.
+- [ ] `S007-C0028` — 3.9 Stage 8: whole-image relink and byte identity; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:272–284.
+- [ ] `S007-C0029` — 3.10 What is retired; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:285–290.
+- [ ] `S007-C0030` — 4. Compile strategy decision; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:291–312.
+- [ ] `S007-C0031` — 5. Analyzer strategy; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:313–314.
+- [ ] `S007-C0032` — 5.1 Avoid re-analysis entirely; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:315–318.
+- [ ] `S007-C0033` — 5.2 Checkpoint the long step; shard across binaries, never inside one; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:319–322.
+- [ ] `S007-C0034` — 5.3 Pinning behind a deterministic check (fix for first-wins); coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:323–326.
+- [ ] `S007-C0035` — 5.4 Fact extraction and decompile without the coordinator; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:327–330.
+- [ ] `S007-C0036` — 5.5 Fleet placement and the unmeasured precondition; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:331–334.
+- [ ] `S007-C0037` — 5.6 Who runs the packed-program lanes; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:335–340.
+- [ ] `S007-C0038` — 6. Transport, NAT, security; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:341–342.
+- [ ] `S007-C0039` — 6.1 Transport; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:343–346.
+- [ ] `S007-C0040` — 6.2 Identity and roles; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:347–350.
+- [ ] `S007-C0041` — 6.3 Object tags and capability-scoped fetch; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:351–354.
+- [ ] `S007-C0042` — 6.4 Proposals only; nothing donated writes identity tables; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:355–358.
+- [ ] `S007-C0043` — 6.5 Abuse and poison; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:359–362.
+- [ ] `S007-C0044` — 6.6 Privacy of donated data; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:363–368.
+- [ ] `S007-C0045` — 7. Speedup and work estimate; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:369–372.
+- [ ] `S007-C0046` — 7.1 Bounded work per corpus pass (node-hours); coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:373–395.
+- [ ] `S007-C0047` — 7.2 The levers, in the order they matter (requirement 2); coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:396–402.
+- [ ] `S007-C0048` — 7.3 Per-stage speedup at 5 / 20 / 100 donors (4 fleet nodes assumed: 2 analyzer + 2 toolchain, plus the laptop); coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:403–416.
+- [ ] `S007-C0049` — 7.4 End-to-end: cold start versus steady state; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:417–442.
+- [ ] `S007-C0050` — 7.5 Work estimate — agent-hours, walking skeleton first; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:443–456.
+- [ ] `S007-C0051` — 8. Plan phase: Phase 15 — distributed compute; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:457–475.
+- [ ] `S007-C0052` — 15.0 Substrate — the walking skeleton and the adapters it declares; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:476–501.
+- [ ] `S007-C0053` — 15.1 Toolchain lanes; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:502–513.
+- [ ] `S007-C0054` — 15.2 Analyzer lanes; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:514–525.
+- [ ] `S007-C0055` — 15.3 Identity lanes; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:526–533.
+- [ ] `S007-C0056` — 15.4 Residue lanes; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:534–541.
+- [ ] `S007-C0057` — 15.5 Export and relink lanes; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:542–555.
+- [ ] `S007-C0058` — 15.6 Surfaces and hardening; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:556–567.
+- [ ] `S007-C0059` — 9. Risks and the register rows they add; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:568–571.
+- [ ] `S007-C0060` — 9.1 Hangs and starvation; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:572–583.
+- [ ] `S007-C0061` — 9.2 Determinism and trust; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:584–595.
+- [ ] `S007-C0062` — 9.3 Resources and providers; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:596–605.
+- [ ] `S007-C0063` — 9.4 Scope and product; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:606–617.
+- [ ] `S007-C0064` — 10. Open questions with defaults; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:618–648.
+- [ ] `S007-C0065` — 11. Compliance table; coverage owner U11; source `docs/plans/2026-09-21-distributed-compute-design.md`:649–665.
+- [ ] `S008-C0001` — Goal — cross-build memory-mod substrate, deterministic, ready-to-use exports; coverage owner U18; source `docs/plans/2026-09-21-goal.md`:1–7.
+- [ ] `S008-C0002` — Objective (single string, for the goal tool); coverage owner U1; source `docs/plans/2026-09-21-goal.md`:8–45.
+- [ ] `S008-C0003` — Quality-bar answers; coverage owner U1; source `docs/plans/2026-09-21-goal.md`:46–59.
+- [ ] `S008-C0004` — Order of work (from the plan, audit 2); coverage owner U1; source `docs/plans/2026-09-21-goal.md`:60–73.
+- [ ] `S009-C0001` — Grid of one: walkthrough (U125 integration acceptance); coverage owner U11; source `docs/plans/2026-09-21-grid-of-one-walkthrough.md`:1–6.
+- [ ] `S009-C0002` — Commands and outputs; coverage owner U11; source `docs/plans/2026-09-21-grid-of-one-walkthrough.md`:7–57.
+- [ ] `S009-C0003` — What was proven; coverage owner U11; source `docs/plans/2026-09-21-grid-of-one-walkthrough.md`:58–70.
+- [ ] `S009-C0004` — What was not proven; coverage owner U11; source `docs/plans/2026-09-21-grid-of-one-walkthrough.md`:71–78.
+- [ ] `S009-C0005` — What did not work at first and what changed; coverage owner U11; source `docs/plans/2026-09-21-grid-of-one-walkthrough.md`:79–90.
+- [ ] `S010-C0001` — ---; coverage owner U1; source `docs/plans/2026-09-21-loop-charter.md`:1–7.
+- [ ] `S010-C0002` — Loop charter; coverage owner U1; source `docs/plans/2026-09-21-loop-charter.md`:8–13.
+- [ ] `S010-C0003` — 1. Modes; coverage owner U1; source `docs/plans/2026-09-21-loop-charter.md`:14–25.
+- [ ] `S010-C0004` — 2. "Addressed as much as realistically possible" — convergence; coverage owner U1; source `docs/plans/2026-09-21-loop-charter.md`:26–44.
+- [ ] `S010-C0005` — 3. When building starts without a user — phase readiness; coverage owner U27; source `docs/plans/2026-09-21-loop-charter.md`:45–53.
+- [ ] `S010-C0006` — 4. Hindsight — when to go back; coverage owner U1; source `docs/plans/2026-09-21-loop-charter.md`:54–69.
+- [ ] `S010-C0007` — 5. Living plan — maintenance rules (skill `maintain-living-plan`); coverage owner U1; source `docs/plans/2026-09-21-loop-charter.md`:70–88.
+- [ ] `S010-C0008` — 6. Cadence and limits — grill sparingly; coverage owner U1; source `docs/plans/2026-09-21-loop-charter.md`:89–109.
+- [ ] `S010-C0009` — 6b. Test moratorium (user directive 2026-09-21); coverage owner U1; source `docs/plans/2026-09-21-loop-charter.md`:110–120.
+- [ ] `S010-C0010` — 6c. Engineering rules for every unit (user directives 2026-09-22); coverage owner U1; source `docs/plans/2026-09-21-loop-charter.md`:121–132.
+- [ ] `S010-C0011` — 7. Restart (the loop is session-bound); coverage owner U1; source `docs/plans/2026-09-21-loop-charter.md`:133–137.
+- [ ] `S010-C0012` — 8. Meta-problems found and fixed in the loop itself; coverage owner U1; source `docs/plans/2026-09-21-loop-charter.md`:138–148.
+- [ ] `S011-C0001` — ---; coverage owner U1; source `docs/plans/2026-09-21-plan-audit-2.md`:1–7.
+- [ ] `S011-C0002` — Plan audit 2; coverage owner U1; source `docs/plans/2026-09-21-plan-audit-2.md`:8–19.
+- [ ] `S011-C0003` — 1. Contradictions resolved (the decided semantics); coverage owner U1; source `docs/plans/2026-09-21-plan-audit-2.md`:20–58.
+- [ ] `S011-C0004` — 2. Defects (ranked, de-duplicated; pre-amendment plan lines); coverage owner U1; source `docs/plans/2026-09-21-plan-audit-2.md`:59–100.
+- [ ] `S011-C0005` — 3. Open questions — resolved 2026-09-21; coverage owner U1; source `docs/plans/2026-09-21-plan-audit-2.md`:101–118.
+- [ ] `S011-C0006` — 4. Anchor deviations noted while applying; coverage owner U1; source `docs/plans/2026-09-21-plan-audit-2.md`:119–137.
+- [ ] `S012-C0001` — ---; coverage owner U1; source `docs/plans/2026-09-21-plan-audit-3.md`:1–7.
+- [ ] `S012-C0002` — Plan audit 3; coverage owner U1; source `docs/plans/2026-09-21-plan-audit-3.md`:8–15.
+- [ ] `S012-C0003` — 1. Decided (design and plan agree; recorded so nobody reopens them); coverage owner U1; source `docs/plans/2026-09-21-plan-audit-3.md`:16–26.
+- [ ] `S012-C0004` — 2. Defects found (generic; severity as the grill rated it); coverage owner U1; source `docs/plans/2026-09-21-plan-audit-3.md`:27–42.
+- [ ] `S012-C0005` — 3. Amendments applied; coverage owner U1; source `docs/plans/2026-09-21-plan-audit-3.md`:43–62.
+- [ ] `S012-C0006` — 4. User directives folded in (2026-09-21; in spirit, no product names); coverage owner U1; source `docs/plans/2026-09-21-plan-audit-3.md`:63–91.
+- [ ] `S012-C0007` — 5. Verify next; coverage owner U1; source `docs/plans/2026-09-21-plan-audit-3.md`:92–101.
+- [ ] `S013-C0001` — ---; coverage owner U1; source `docs/plans/2026-09-21-plan-audit-4.md`:1–7.
+- [ ] `S013-C0002` — Plan audit 4; coverage owner U1; source `docs/plans/2026-09-21-plan-audit-4.md`:8–15.
+- [ ] `S013-C0003` — 1. Directives applied; coverage owner U1; source `docs/plans/2026-09-21-plan-audit-4.md`:16–23.
+- [ ] `S013-C0004` — 2. Phase 15 — old → new numbering (nothing lost); coverage owner U1; source `docs/plans/2026-09-21-plan-audit-4.md`:24–46.
+- [ ] `S013-C0005` — 3. Companion edits; coverage owner U1; source `docs/plans/2026-09-21-plan-audit-4.md`:47–59.
+- [ ] `S013-C0006` — 4. Verify next; coverage owner U1; source `docs/plans/2026-09-21-plan-audit-4.md`:60–76.
+- [ ] `S014-C0001` — ---; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1–9.
+- [ ] `S014-C0002` — Portable Signatures, Codecaves, and ABI Export — engine-generic; coverage owner U23; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:10–11.
+- [ ] `S014-C0003` — Revision log; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:12–38.
+- [ ] `S014-C0004` — Delta Update (2026-09-22, audit 4 — round 5 on the distributed design; grid skeleton landed); coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:39–59.
+- [ ] `S014-C0005` — Program thesis (recorded 2026-09-21 from the user's own words; migrates to STRATEGY.md at convergence); coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:60–83.
+- [ ] `S014-C0006` — The governing principle; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:84–138.
+- [ ] `S014-C0007` — Source trees and scope — read this first; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:139–202.
+- [ ] `S014-C0008` — The picture from the audit (what already exists); coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:203–255.
+- [ ] `S014-C0009` — Design spine; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:256–257.
+- [ ] `S014-C0010` — 1. Two orderings — do not conflate them; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:258–271.
+- [ ] `S014-C0011` — 2. Signature is a *family*, split by where it runs; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:272–282.
+- [ ] `S014-C0012` — 3. Codecave = a signature-anchored *plan template*, not a fixed VA+bytes; coverage owner U25; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:283–291.
+- [ ] `S014-C0013` — 4. The generic seam is three layers; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:292–310.
+- [ ] `S014-C0014` — 5. Divergence is a first-class L1 signal, not a display afterthought; coverage owner U27; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:311–316.
+- [ ] `S014-C0015` — 6. Beyond functions: the cross-build entity model; coverage owner U18; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:317–391.
+- [ ] `S014-C0016` — 7. Data acquisition: portable roots, ordered fallbacks, idempotent resolution; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:392–459.
+- [ ] `S014-C0017` — Determinism — a hard requirement, and what it takes; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:460–495.
+- [ ] `S014-C0018` — What the code does today (determinism audit, nvme tree); coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:496–511.
+- [ ] `S014-C0019` — Binding design decisions (RE-analysis review); coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:512–554.
+- [ ] `S014-C0020` — Phase 0 — the minimal ordering fix set (makes the hookpack byte-reproducible today); coverage owner U24; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:555–625.
+- [ ] `S014-C0021` — Grounding in known-working practice; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:626–657.
+- [ ] `S014-C0022` — Target artifact: `agentdecompile.hookpack/v2`; coverage owner U24; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:658–705.
+- [ ] `S014-C0023` — Surface ownership (FI §2 rule); coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:706–727.
+- [ ] `S014-C0024` — Implementation units (phased, ranked); coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:728–729.
+- [ ] `S014-C0025` — Phase 1 — Close the exporter↔consumer asymmetry (exporter side; the consumer half is U23); coverage owner U5; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:730–746.
+- [ ] `S014-C0026` — Phase 2 — Portable signature core (the "find it across all builds" ask) — L1/L2; coverage owner U5; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:747–850.
+- [ ] `S014-C0027` — Phase 3 — ABI/param export for Lua (the "params/codecaves in Lua" ask) — L1 + L3; coverage owner U23; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:851–876.
+- [ ] `S014-C0028` — Phase 4 — Codecave discovery + Lua patch path (greenfield top gap) — L1 core + L2/L3 + the runtime host; coverage owner U25; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:877–913.
+- [ ] `S014-C0029` — Phase 5 — Cross-build divergence (the "too different, display it" ask) — L1; coverage owner U27; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:914–980.
+- [ ] `S014-C0030` — Phase 6 — Genericity hardening (the "any game" ask) — L2/L3 adapters; coverage owner U6; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:981–1018.
+- [ ] `S014-C0031` — Phase 7 — Lifecycle, safety, and verification (gap pass); coverage owner U6; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1019–1145.
+- [ ] `S014-C0032` — Phase 8 — Entity coverage beyond functions (the memory-mod / injection substrate); coverage owner U25; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1146–1304.
+- [ ] `S014-C0033` — Phase 9 — Data roots, accessors, and the runtime resolver (the memory-mod substrate); coverage owner U5; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1305–1436.
+- [ ] `S014-C0034` — Phase 10 — Practice-derived units (every documented failure mode, addressed); coverage owner U2; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1437–1535.
+- [ ] `S014-C0035` — Phase 11 — Unify the machine the mod runs on (cross-platform sweep); coverage owner U6; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1536–1681.
+- [ ] `S014-C0036` — The export bundle — what analysis produces, ready to use; coverage owner U28; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1682–1697.
+- [ ] `S014-C0037` — Phase 12 — The export bundle as a first-class deliverable; coverage owner U28; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1698–1734.
+- [ ] `S014-C0038` — Exhaustive resolution ladders — pushing coverage as far as physically possible; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1735–1747.
+- [ ] `S014-C0039` — Ladder A — a function whose masked window does not match on build B; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1748–1783.
+- [ ] `S014-C0040` — Ladder B — a cave that is missing or too small on build B; coverage owner U25; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1784–1804.
+- [ ] `S014-C0041` — Ladder C — a data root that does not resolve on build B; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1805–1820.
+- [ ] `S014-C0042` — Ladder D — a struct field that moved, or a struct on a stripped build; coverage owner U23; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1821–1832.
+- [ ] `S014-C0043` — Ladder E — vtable slots and dispatch tables; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1833–1840.
+- [ ] `S014-C0044` — Ladder F — an unknown build; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1841–1849.
+- [ ] `S014-C0045` — Phase 13 — Exhaustive-ladder units; coverage owner U7; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1850–1891.
+- [ ] `S014-C0046` — Phase 14 — Surfaces (both frontends draw what Phases 1–13 produce); coverage owner U20; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1892–1946.
+- [ ] `S014-C0047` — Phase 15 — Distributed compute (`agentdecompile_grid`; design: docs/plans/2026-09-21-distributed-compute-design.md); coverage owner U11; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:1947–2169.
+- [ ] `S014-C0048` — Feasibility determination; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:2170–2193.
+- [ ] `S014-C0049` — Genericity: cost by target class (no product names — classes only); coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:2194–2212.
+- [ ] `S014-C0050` — Honest limits; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:2213–2222.
+- [ ] `S014-C0051` — Recommended order of first units; coverage owner U1; source `docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md`:2223–2283.
+- [ ] `S015-C0001` — ---; coverage owner U1; source `docs/plans/2026-09-21-risk-register.md`:1–7.
+- [ ] `S015-C0002` — Risk register; coverage owner U1; source `docs/plans/2026-09-21-risk-register.md`:8–14.
+- [ ] `S015-C0003` — Open; coverage owner U1; source `docs/plans/2026-09-21-risk-register.md`:15–30.
+- [ ] `S015-C0004` — Attestation findings (real store copy, 2026-09-21); coverage owner U1; source `docs/plans/2026-09-21-risk-register.md`:31–42.
+- [ ] `S015-C0005` — Hangs and starvation — the user's top class (grilled first every iteration); coverage owner U1; source `docs/plans/2026-09-21-risk-register.md`:43–58.
+- [ ] `S015-C0006` — Distributed compute (design 2026-09-21, merged by audit 4 on 2026-09-22; hangs rows H7–H13 sit above); coverage owner U1; source `docs/plans/2026-09-21-risk-register.md`:59–79.
+- [ ] `S015-C0007` — Anticipated — think-ahead rows (speculative until the risk grill verifies each); coverage owner U1; source `docs/plans/2026-09-21-risk-register.md`:80–105.
+- [ ] `S015-C0008` — Resume point; coverage owner U1; source `docs/plans/2026-09-21-risk-register.md`:106–118.
+- [ ] `S016-C0001` — User requirements ledger — everything the user asked for, in one place; coverage owner U1; source `docs/plans/2026-09-21-user-requirements-ledger.md`:1–17.
+- [ ] `S016-C0002` — 1. The product and its bar; coverage owner U1; source `docs/plans/2026-09-21-user-requirements-ledger.md`:18–48.
+- [ ] `S016-C0003` — 2. The recovery pipeline (order and rules); coverage owner U1; source `docs/plans/2026-09-21-user-requirements-ledger.md`:49–79.
+- [ ] `S016-C0004` — 3. Cross-build unification — the memory-mod / code-injection substrate; coverage owner U25; source `docs/plans/2026-09-21-user-requirements-ledger.md`:80–110.
+- [ ] `S016-C0005` — 4. Determinism and engineering standard; coverage owner U1; source `docs/plans/2026-09-21-user-requirements-ledger.md`:111–123.
+- [ ] `S016-C0006` — 5. Genericity and naming; coverage owner U1; source `docs/plans/2026-09-21-user-requirements-ledger.md`:124–131.
+- [ ] `S016-C0007` — 6. Process and safety rules; coverage owner U1; source `docs/plans/2026-09-21-user-requirements-ledger.md`:132–161.
+- [ ] `S016-C0008` — 7. Frontends (context for the export/visualization surfaces); coverage owner U1; source `docs/plans/2026-09-21-user-requirements-ledger.md`:162–189.
+- [ ] `S016-C0009` — 8. Supersessions (later wins); coverage owner U1; source `docs/plans/2026-09-21-user-requirements-ledger.md`:190–210.
+- [ ] `S016-C0010` — Source ledger; coverage owner U1; source `docs/plans/2026-09-21-user-requirements-ledger.md`:211–224.
+- [ ] `S017-C0001` — ---; coverage owner U12; source `docs/plans/2026-09-22-autonomous-capability-product-roadmap.md`:1–7.
+- [ ] `S017-C0002` — Autonomous capability delivery; coverage owner U12; source `docs/plans/2026-09-22-autonomous-capability-product-roadmap.md`:8–25.
+- [ ] `S017-C0003` — Input session and ambition traceability; coverage owner U12; source `docs/plans/2026-09-22-autonomous-capability-product-roadmap.md`:26–50.
+- [ ] `S017-C0004` — Research and feasibility decisions; coverage owner U12; source `docs/plans/2026-09-22-autonomous-capability-product-roadmap.md`:51–71.
+- [ ] `S017-C0005` — Product contracts; coverage owner U12; source `docs/plans/2026-09-22-autonomous-capability-product-roadmap.md`:72–73.
+- [ ] `S017-C0006` — Capability request and procedure; coverage owner U12; source `docs/plans/2026-09-22-autonomous-capability-product-roadmap.md`:74–88.
+- [ ] `S017-C0007` — Generated operation bundle; coverage owner U12; source `docs/plans/2026-09-22-autonomous-capability-product-roadmap.md`:89–102.
+- [ ] `S017-C0008` — Effective scenario, capture and project bundles; coverage owner U12; source `docs/plans/2026-09-22-autonomous-capability-product-roadmap.md`:103–124.
+- [ ] `S017-C0009` — Capability roadmap and acceptance; coverage owner U12; source `docs/plans/2026-09-22-autonomous-capability-product-roadmap.md`:125–159.
+- [ ] `S017-C0010` — Reduce the remaining human work; coverage owner U12; source `docs/plans/2026-09-22-autonomous-capability-product-roadmap.md`:160–173.
+- [ ] `S017-C0011` — Implementation being built now; coverage owner U12; source `docs/plans/2026-09-22-autonomous-capability-product-roadmap.md`:174–195.
+- [ ] `S017-C0012` — Delivery and learning loop; coverage owner U12; source `docs/plans/2026-09-22-autonomous-capability-product-roadmap.md`:196–211.
+- [ ] `S018-C0001` — ---; coverage owner U1; source `docs/plans/2026-09-22-design-package.md`:1–8.
+- [ ] `S018-C0002` — AgentDecompile design package; coverage owner U1; source `docs/plans/2026-09-22-design-package.md`:9–32.
+- [ ] `S018-C0003` — Read the package; coverage owner U1; source `docs/plans/2026-09-22-design-package.md`:33–59.
+- [ ] `S018-C0004` — Design decisions and why these options win; coverage owner U1; source `docs/plans/2026-09-22-design-package.md`:60–80.
+- [ ] `S018-C0005` — Requirement traceability; coverage owner U23; source `docs/plans/2026-09-22-design-package.md`:81–141.
+- [ ] `S018-C0006` — Implementation dependency order (authorized by the later user build request); coverage owner U1; source `docs/plans/2026-09-22-design-package.md`:142–169.
+- [ ] `S018-C0007` — Design completion gate; coverage owner U1; source `docs/plans/2026-09-22-design-package.md`:170–190.
+- [ ] `S018-C0008` — Collaboration and resolved challenges; coverage owner U1; source `docs/plans/2026-09-22-design-package.md`:191–212.
+- [ ] `S018-C0009` — Source provenance and interpretation; coverage owner U1; source `docs/plans/2026-09-22-design-package.md`:213–231.
+- [ ] `S018-C0010` — Failure prevention and recovery refinement; coverage owner U1; source `docs/plans/2026-09-22-design-package.md`:232–244.
+- [ ] `S019-C0001` — External validation integration design; coverage owner U10; source `docs/plans/2026-09-22-external-validation-design.md`:1–9.
+- [ ] `S019-C0002` — Implementation progress after build authorization; coverage owner U10; source `docs/plans/2026-09-22-external-validation-design.md`:10–35.
+- [ ] `S019-C0003` — Selected integration architecture; coverage owner U10; source `docs/plans/2026-09-22-external-validation-design.md`:36–99.
+- [ ] `S019-C0004` — Adapter envelope and result normalization; coverage owner U10; source `docs/plans/2026-09-22-external-validation-design.md`:100–124.
+- [ ] `S019-C0005` — reccmp route; coverage owner U10; source `docs/plans/2026-09-22-external-validation-design.md`:125–138.
+- [ ] `S019-C0006` — ReAgent route; coverage owner U10; source `docs/plans/2026-09-22-external-validation-design.md`:139–158.
+- [ ] `S019-C0007` — AgentDecompile route and test responsibilities; coverage owner U10; source `docs/plans/2026-09-22-external-validation-design.md`:159–169.
+- [ ] `S019-C0008` — Exported project layout (illustrative, not created); coverage owner U10; source `docs/plans/2026-09-22-external-validation-design.md`:170–193.
+- [ ] `S019-C0009` — Future negative acceptance cases — NOT RUN; coverage owner U10; source `docs/plans/2026-09-22-external-validation-design.md`:194–207.
+- [ ] `S019-C0010` — Relocatable project recipe and input resolver; coverage owner U10; source `docs/plans/2026-09-22-external-validation-design.md`:208–260.
+- [ ] `S020-C0001` — ---; coverage owner U9; source `docs/plans/2026-09-22-failure-prevention-and-recovery-contracts.md`:1–7.
+- [ ] `S020-C0002` — Failure prevention and recovery contracts; coverage owner U9; source `docs/plans/2026-09-22-failure-prevention-and-recovery-contracts.md`:8–18.
+- [ ] `S020-C0003` — 1. One authority and an immutable acceptance boundary; coverage owner U9; source `docs/plans/2026-09-22-failure-prevention-and-recovery-contracts.md`:19–43.
+- [ ] `S020-C0004` — 2. Failure protocol; coverage owner U9; source `docs/plans/2026-09-22-failure-prevention-and-recovery-contracts.md`:44–72.
+- [ ] `S020-C0005` — Shared recovery, durable wakes and decision criteria; coverage owner U9; source `docs/plans/2026-09-22-failure-prevention-and-recovery-contracts.md`:73–143.
+- [ ] `S020-C0006` — 3. Concrete failure contracts; coverage owner U9; source `docs/plans/2026-09-22-failure-prevention-and-recovery-contracts.md`:144–168.
+- [ ] `S020-C0007` — 4. Control-plane failure contracts; coverage owner U9; source `docs/plans/2026-09-22-failure-prevention-and-recovery-contracts.md`:169–194.
+- [ ] `S020-C0008` — Audit cadence and external capability denial; coverage owner U9; source `docs/plans/2026-09-22-failure-prevention-and-recovery-contracts.md`:195–214.
+- [ ] `S020-C0009` — 5. Ownership and escalation; coverage owner U9; source `docs/plans/2026-09-22-failure-prevention-and-recovery-contracts.md`:215–232.
+- [ ] `S020-C0010` — 6. Future paired acceptance checks — not run; coverage owner U9; source `docs/plans/2026-09-22-failure-prevention-and-recovery-contracts.md`:233–279.
+- [ ] `S020-C0011` — 7. What would prove the effort; coverage owner U9; source `docs/plans/2026-09-22-failure-prevention-and-recovery-contracts.md`:280–305.
+- [ ] `S020-C0012` — 8. Historical incident traceability; coverage owner U9; source `docs/plans/2026-09-22-failure-prevention-and-recovery-contracts.md`:306–325.
+- [ ] `S021-C0001` — ---; coverage owner U1; source `docs/plans/2026-09-22-history-grounded-maintainability-design.md`:1–8.
+- [ ] `S021-C0002` — History-grounded recovery and harness maintainability; coverage owner U23; source `docs/plans/2026-09-22-history-grounded-maintainability-design.md`:9–22.
+- [ ] `S021-C0003` — Evidence selection and limits; coverage owner U15; source `docs/plans/2026-09-22-history-grounded-maintainability-design.md`:23–33.
+- [ ] `S021-C0004` — Historical incident ledger; coverage owner U1; source `docs/plans/2026-09-22-history-grounded-maintainability-design.md`:34–54.
+- [ ] `S021-C0005` — Current code: reuse before introducing new machinery; coverage owner U1; source `docs/plans/2026-09-22-history-grounded-maintainability-design.md`:55–70.
+- [ ] `S021-C0006` — Coding architecture: one reconciliation loop, small deterministic core; coverage owner U1; source `docs/plans/2026-09-22-history-grounded-maintainability-design.md`:71–112.
+- [ ] `S021-C0007` — Self-healing is a bounded policy, with a reason to expect a different result; coverage owner U1; source `docs/plans/2026-09-22-history-grounded-maintainability-design.md`:113–133.
+- [ ] `S021-C0008` — Reduce developer nitpicking at the contract boundary; coverage owner U1; source `docs/plans/2026-09-22-history-grounded-maintainability-design.md`:134–166.
+- [ ] `S021-C0009` — Incremental implementation sequence and future falsifiers; coverage owner U1; source `docs/plans/2026-09-22-history-grounded-maintainability-design.md`:167–196.
+- [ ] `S021-C0010` — Measure maintenance cost and goal progress; coverage owner U1; source `docs/plans/2026-09-22-history-grounded-maintainability-design.md`:197–214.
+- [ ] `S021-C0011` — Review and static verification; coverage owner U1; source `docs/plans/2026-09-22-history-grounded-maintainability-design.md`:215–225.
+- [ ] `S021-C0012` — Mandatory failure-response refinement; coverage owner U1; source `docs/plans/2026-09-22-history-grounded-maintainability-design.md`:226–231.
+- [ ] `S022-C0001` — ---; coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:1–7.
+- [ ] `S022-C0002` — Recovery contracts and external validation; coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:8–23.
+- [ ] `S022-C0003` — Decisions and stage contracts; coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:24–46.
+- [ ] `S022-C0004` — Data contracts (required additions, not yet a database migration); coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:47–100.
+- [ ] `S022-C0005` — External tools: depend on them, keep acceptance in AgentDecompile; coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:101–110.
+- [ ] `S022-C0006` — reccmp; coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:111–126.
+- [ ] `S022-C0007` — ReAgent; coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:127–143.
+- [ ] `S022-C0008` — isle as an output reference; coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:144–155.
+- [ ] `S022-C0009` — Vanilla memory-modding lane; coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:156–180.
+- [ ] `S022-C0010` — Cache and acceptance invalidation; coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:181–195.
+- [ ] `S022-C0011` — Implementation slices and acceptance owner; coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:196–213.
+- [ ] `S022-C0012` — Required demonstrations; coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:214–231.
+- [ ] `S022-C0013` — Historical design-only scope and completion; coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:232–251.
+- [ ] `S022-C0014` — Binding acceptance: presence, identity and operation; coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:252–287.
+- [ ] `S022-C0015` — Worked counterexample: Foo label over Bar bytes; coverage owner U21; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:288–301.
+- [ ] `S022-C0016` — Worked reuse counterexamples; coverage owner U21; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:302–313.
+- [ ] `S022-C0017` — Reconstruction mechanism and evidence route; coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:314–349.
+- [ ] `S022-C0018` — Future acceptance specifications — NOT RUN; coverage owner U4; source `docs/plans/2026-09-22-recovery-contracts-and-validation-plan.md`:350–367.
+- [ ] `S023-C0001` — Independent recovery design review — 2026-09-22; coverage owner U1; source `docs/plans/2026-09-22-recovery-design-review.md`:1–15.
+- [ ] `S023-C0002` — Findings at initial review; coverage owner U1; source `docs/plans/2026-09-22-recovery-design-review.md`:16–29.
+- [ ] `S023-C0003` — Admissible independent identity evidence; coverage owner U1; source `docs/plans/2026-09-22-recovery-design-review.md`:30–59.
+- [ ] `S023-C0004` — Architecture requirement traceability and future proof obligations; coverage owner U23; source `docs/plans/2026-09-22-recovery-design-review.md`:60–83.
+- [ ] `S023-C0005` — External integration option decision; coverage owner U1; source `docs/plans/2026-09-22-recovery-design-review.md`:84–100.
+- [ ] `S023-C0006` — Review status; coverage owner U1; source `docs/plans/2026-09-22-recovery-design-review.md`:101–107.
+- [ ] `S023-C0007` — Independent final review of revised artifacts; coverage owner U1; source `docs/plans/2026-09-22-recovery-design-review.md`:108–145.
+- [ ] `S023-C0008` — Final closure after corrective edits; coverage owner U1; source `docs/plans/2026-09-22-recovery-design-review.md`:146–165.
+- [ ] `S024-C0001` — ---; coverage owner U1; source `docs/plans/2026-09-22-session-obligation-audit.md`:1–7.
+- [ ] `S024-C0002` — Conversation obligation audit; coverage owner U1; source `docs/plans/2026-09-22-session-obligation-audit.md`:8–25.
+- [ ] `S024-C0003` — Scope and instruction precedence; coverage owner U1; source `docs/plans/2026-09-22-session-obligation-audit.md`:26–51.
+- [ ] `S024-C0004` — Directives and current evidence; coverage owner U1; source `docs/plans/2026-09-22-session-obligation-audit.md`:52–70.
+- [ ] `S024-C0005` — Priority order; coverage owner U1; source `docs/plans/2026-09-22-session-obligation-audit.md`:71–94.
+- [ ] `S024-C0006` — Concrete audit findings beyond the last delivery; coverage owner U1; source `docs/plans/2026-09-22-session-obligation-audit.md`:95–122.
+- [ ] `S024-C0007` — Evidence and completion rule; coverage owner U1; source `docs/plans/2026-09-22-session-obligation-audit.md`:123–139.
+- [ ] `S024-C0008` — Latest bounded implementation evidence; coverage owner U1; source `docs/plans/2026-09-22-session-obligation-audit.md`:140–264.
+- [ ] `S025-C0001` — ---; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:1–7.
+- [ ] `S025-C0002` — Task acceptance, continuation and failure containment; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:8–16.
+- [ ] `S025-C0003` — 1. Governing contract and scope; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:17–33.
+- [ ] `S025-C0004` — 2. Task and acceptance schemas; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:34–82.
+- [ ] `S025-C0005` — Cross-place admission and recipient candidates; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:83–240.
+- [ ] `S025-C0006` — Match-review decisions against the observed basis; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:241–287.
+- [ ] `S025-C0007` — Fresh source revalidation after process loss; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:288–322.
+- [ ] `S025-C0008` — 3. State transitions and recovery; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:323–365.
+- [ ] `S025-C0009` — 4. Dependency-local admission and priorities; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:366–435.
+- [ ] `S025-C0010` — 5. Resource ownership, fencing and quarantine; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:436–485.
+- [ ] `S025-C0011` — Qualifying the native package verifier; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:486–540.
+- [ ] `S025-C0012` — 6. Bounded failure continuation; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:541–564.
+- [ ] `S025-C0013` — 7. Prepared storage and durable publication; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:565–593.
+- [ ] `S025-C0014` — 8. Runtime scenario and observation contracts; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:594–627.
+- [ ] `S025-C0015` — 9. Worked dependency and accounting examples; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:628–659.
+- [ ] `S025-C0016` — 10. Failure-injection acceptance specifications — not run; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:660–694.
+- [ ] `S025-C0017` — 11. Delivery order and conditional guarantees; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:695–717.
+- [ ] `S025-C0018` — 12. Design review referent and requirement map; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:718–746.
+- [ ] `S025-C0019` — History-grounded coding sequence; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:747–755.
+- [ ] `S025-C0020` — Prevention, repair and control-plane failure refinement; coverage owner U9; source `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md`:756–763.
+- [ ] `S026-C0001` — Acceptance and objective-budget implementation findings — 2026-09-26; coverage owner U9; source `docs/plans/2026-09-26-acceptance-and-budget-integration-findings.md`:1–6.
+- [ ] `S026-C0002` — Current acceptance paths requiring one shared policy; coverage owner U9; source `docs/plans/2026-09-26-acceptance-and-budget-integration-findings.md`:7–46.
+- [ ] `S026-C0003` — Persist objective allowance with existing command intent; coverage owner U9; source `docs/plans/2026-09-26-acceptance-and-budget-integration-findings.md`:47–74.
+- [ ] `S026-C0004` — Additional inspected boundaries — 2026-09-27; coverage owner U9; source `docs/plans/2026-09-26-acceptance-and-budget-integration-findings.md`:75–105.
+- [ ] `S027-C0001` — ---; coverage owner U1; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:1–9.
+- [ ] `S027-C0002` — September 18–21 design program progress and usable live track; coverage owner U1; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:10–32.
+- [ ] `S027-C0003` — Weekend workstreams retained in full; coverage owner U1; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:33–63.
+- [ ] `S027-C0004` — Highest priority: useful RE and cross-matching alongside implementation; coverage owner U18; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:64–105.
+- [ ] `S027-C0005` — Continuation session 7a1c2b (2026-09-27, late morning); coverage owner U1; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:106–107.
+- [ ] `S027-C0006` — Branch consolidation follow-up (September 28, 2026 UTC); coverage owner U1; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:108–295.
+- [ ] `S027-C0007` — Immediate delivery: useful and continuously updating; coverage owner U1; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:296–297.
+- [ ] `S027-C0008` — Accepted admission; active implementation: cross-place continuation; coverage owner U14; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:298–458.
+- [ ] `S027-C0009` — Parallel implementation from actual RE findings; coverage owner U1; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:459–500.
+- [ ] `S027-C0010` — Admission repair history and accepted evidence; coverage owner U14; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:501–590.
+- [ ] `S027-C0011` — Queued repair: match-review freshness; coverage owner U1; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:591–628.
+- [ ] `S027-C0012` — Weekend Phase 12 qualification: U87–U90 remain open; coverage owner U1; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:629–677.
+- [ ] `S027-C0013` — Current accounting; coverage owner U21; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:678–739.
+- [ ] `S027-C0014` — Milestone status and todo; coverage owner U1; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:740–767.
+- [ ] `S027-C0015` — Active M1/M2 readiness sequence; coverage owner U27; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:768–799.
+- [ ] `S027-C0016` — Active next source increment; coverage owner U1; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:800–823.
+- [ ] `S027-C0017` — Implementation order after the live track; coverage owner U1; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:824–853.
+- [ ] `S027-C0018` — Design and diagram status; coverage owner U1; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:854–873.
+- [ ] `S027-C0019` — Reporting rule; coverage owner U1; source `docs/plans/2026-09-27-implementation-progress-and-live-track.md`:874–880.
+- [ ] `S028-C0001` — ---; coverage owner U10; source `docs/plans/2026-09-27-p13-external-execution-plan.md`:1–9.
+- [ ] `S028-C0002` — P1.3 execution actions; coverage owner U10; source `docs/plans/2026-09-27-p13-external-execution-plan.md`:10–18.
+- [ ] `S028-C0003` — Facts that shape the design; coverage owner U10; source `docs/plans/2026-09-27-p13-external-execution-plan.md`:19–45.
+- [ ] `S028-C0004` — New module: `corpus/external_execution.py`; coverage owner U10; source `docs/plans/2026-09-27-p13-external-execution-plan.md`:46–83.
+- [ ] `S028-C0005` — Actions; coverage owner U10; source `docs/plans/2026-09-27-p13-external-execution-plan.md`:84–85.
+- [ ] `S028-C0006` — `corpus.run-reccmp-compare`; coverage owner U10; source `docs/plans/2026-09-27-p13-external-execution-plan.md`:86–99.
+- [ ] `S028-C0007` — `corpus.run-reagent-benchmark`; coverage owner U10; source `docs/plans/2026-09-27-p13-external-execution-plan.md`:100–114.
+- [ ] `S028-C0008` — Receipts; coverage owner U10; source `docs/plans/2026-09-27-p13-external-execution-plan.md`:115–135.
+- [ ] `S028-C0009` — Refusal codes; coverage owner U10; source `docs/plans/2026-09-27-p13-external-execution-plan.md`:136–145.
+- [ ] `S028-C0010` — `jobs.py` delta (single writer only); coverage owner U10; source `docs/plans/2026-09-27-p13-external-execution-plan.md`:146–161.
+- [ ] `S028-C0011` — Timeout and kill; coverage owner U10; source `docs/plans/2026-09-27-p13-external-execution-plan.md`:162–168.
+- [ ] `S028-C0012` — Tests (specified); coverage owner U10; source `docs/plans/2026-09-27-p13-external-execution-plan.md`:169–198.
+- [ ] `S028-C0013` — Acceptance; coverage owner U10; source `docs/plans/2026-09-27-p13-external-execution-plan.md`:199–228.
+- [ ] `S028-C0014` — Addendum; coverage owner U10; source `docs/plans/2026-09-27-p13-external-execution-plan.md`:229–233.
+- [ ] `S029-C0001` — ---; coverage owner U1; source `docs/plans/2026-09-27-weekend-design-scope.md`:1–7.
+- [ ] `S029-C0002` — September 18–21 design scope; coverage owner U1; source `docs/plans/2026-09-27-weekend-design-scope.md`:8–20.
+- [ ] `S029-C0003` — Baseline documents to preserve; coverage owner U1; source `docs/plans/2026-09-27-weekend-design-scope.md`:21–40.
+- [ ] `S029-C0004` — Full implementation scope; coverage owner U1; source `docs/plans/2026-09-27-weekend-design-scope.md`:41–82.
+- [ ] `S029-C0005` — Precedence and delivery order; coverage owner U1; source `docs/plans/2026-09-27-weekend-design-scope.md`:83–106.
+- [ ] `S029-C0006` — Current continuation anchors; coverage owner U1; source `docs/plans/2026-09-27-weekend-design-scope.md`:107–123.
+- [ ] `S030-C0001` — Donated compute: a capability-labeled work exchange; coverage owner U11; source `docs/plans/2026-09-08-donated-compute-work-exchange.md`:1–7.
+- [ ] `S030-C0002` — 1. The finding that decides the design; coverage owner U11; source `docs/plans/2026-09-08-donated-compute-work-exchange.md`:8–33.
+- [ ] `S030-C0003` — 2. Why this is safe to open to strangers; coverage owner U11; source `docs/plans/2026-09-08-donated-compute-work-exchange.md`:34–58.
+- [ ] `S030-C0004` — 3. The existing seed; coverage owner U11; source `docs/plans/2026-09-08-donated-compute-work-exchange.md`:59–75.
+- [ ] `S030-C0005` — 4. Lanes; coverage owner U11; source `docs/plans/2026-09-08-donated-compute-work-exchange.md`:76–96.
+- [ ] `S030-C0006` — 5. Avoiding the stateful problems; coverage owner U11; source `docs/plans/2026-09-08-donated-compute-work-exchange.md`:97–134.
+- [ ] `S030-C0007` — 6. Free wins to take first; coverage owner U11; source `docs/plans/2026-09-08-donated-compute-work-exchange.md`:135–152.
+- [ ] `S030-C0008` — 6b. The fan-in problem bites before any compute is donated; coverage owner U11; source `docs/plans/2026-09-08-donated-compute-work-exchange.md`:153–188.
+- [ ] `S030-C0009` — 7. Protocol sketch; coverage owner U11; source `docs/plans/2026-09-08-donated-compute-work-exchange.md`:189–221.
+- [ ] `S030-C0010` — 8. What will not work; coverage owner U11; source `docs/plans/2026-09-08-donated-compute-work-exchange.md`:222–235.
+- [ ] `S030-C0011` — 9. Open questions; coverage owner U11; source `docs/plans/2026-09-08-donated-compute-work-exchange.md`:236–237.
+- [ ] `S030-C0012` — Measured note (2026-09-10): native verifier startup floor; coverage owner U11; source `docs/plans/2026-09-08-donated-compute-work-exchange.md`:238–263.
+- [ ] `S031-C0001` — Plans; coverage owner U1; source `docs/plans/README.md`:1–12.
+- [ ] `S031-C0002` — Living; coverage owner U1; source `docs/plans/README.md`:13–34.
+- [ ] `S031-C0003` — Reconciliation — 2026-09-20; coverage owner U1; source `docs/plans/README.md`:35–43.
+- [ ] `S031-C0004` — Current docs work; coverage owner U1; source `docs/plans/README.md`:44–51.
+- [ ] `S031-C0005` — Frozen; coverage owner U1; source `docs/plans/README.md`:52–70.
+- [ ] `S032-C0001` — {; coverage owner U1; source `docs/plans/2026-09-22-session-obligations.json`:1–1334.
+- [ ] `S033-C0001` — {; coverage owner U1; source `docs/plans/2026-09-27-weekend-unit-delivery.json`:1–16414.
+- [ ] `S034-C0001` — Dashboard delivery reconciliation — 2026-09-20; coverage owner U42; source `docs/dashboard-design/2026-09-20-delivery-reconciliation.md`:1–6.
+- [ ] `S034-C0002` — Authority and source roots; coverage owner U42; source `docs/dashboard-design/2026-09-20-delivery-reconciliation.md`:7–28.
+- [ ] `S034-C0003` — Why 8080 selects the static workbench; coverage owner U42; source `docs/dashboard-design/2026-09-20-delivery-reconciliation.md`:29–54.
+- [ ] `S034-C0004` — Existing roots have diverged; coverage owner U42; source `docs/dashboard-design/2026-09-20-delivery-reconciliation.md`:55–74.
+- [ ] `S034-C0005` — Automatic preparation hazards; coverage owner U42; source `docs/dashboard-design/2026-09-20-delivery-reconciliation.md`:75–89.
+- [ ] `S034-C0006` — Compatibility URL gaps; coverage owner U42; source `docs/dashboard-design/2026-09-20-delivery-reconciliation.md`:90–105.
+- [ ] `S034-C0007` — Consolidation seam and first implementation slice; coverage owner U42; source `docs/dashboard-design/2026-09-20-delivery-reconciliation.md`:106–132.
+- [ ] `S034-C0008` — Asset installation and activation boundary; coverage owner U42; source `docs/dashboard-design/2026-09-20-delivery-reconciliation.md`:133–148.
+- [ ] `S035-C0001` — Ghidra Reversing Guide capability inventory; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:1–17.
+- [ ] `S035-C0002` — Status meanings; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:18–23.
+- [ ] `S035-C0003` — Requirement matrix; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:24–44.
+- [ ] `S035-C0004` — Cross-cutting findings; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:45–46.
+- [ ] `S035-C0005` — Listing/decompiler synchronization; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:47–57.
+- [ ] `S035-C0006` — Navigation and xrefs; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:58–61.
+- [ ] `S035-C0007` — Local-variable refinement; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:62–70.
+- [ ] `S035-C0008` — Parameter-storage correction; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:71–81.
+- [ ] `S035-C0009` — Mutation safety; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:82–94.
+- [ ] `S035-C0010` — Patch, export, and scripting; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:95–107.
+- [ ] `S035-C0011` — Existing guide launcher; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:108–111.
+- [ ] `S035-C0012` — Guide claims that must not become implementation rules; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:112–135.
+- [ ] `S035-C0013` — Planning conclusion; coverage owner U16; source `docs/dashboard-design/2026-09-20-ghidra-guide-capability-inventory.md`:136–148.
+- [ ] `S036-C0001` — KotORXID dashboard capability inventory; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:1–6.
+- [ ] `S036-C0002` — Operating boundary; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:7–12.
+- [ ] `S036-C0003` — Source map; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:13–30.
+- [ ] `S036-C0004` — Implemented routes and user workflows; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:31–32.
+- [ ] `S036-C0005` — Application shell and navigation; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:33–59.
+- [ ] `S036-C0006` — Overview and pipeline state; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:60–77.
+- [ ] `S036-C0007` — Builds; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:78–85.
+- [ ] `S036-C0008` — Concrete functions; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:86–101.
+- [ ] `S036-C0009` — Logical identities and cross-build reuse; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:102–109.
+- [ ] `S036-C0010` — Relationships and call graphs; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:110–126.
+- [ ] `S036-C0011` — Recovery and rebuild proof; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:127–134.
+- [ ] `S036-C0012` — Review queue; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:135–138.
+- [ ] `S036-C0013` — Evidence and traceability; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:139–146.
+- [ ] `S036-C0014` — Ghidra knowledge and original-symbol evidence; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:147–152.
+- [ ] `S036-C0015` — Operations; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:153–156.
+- [ ] `S036-C0016` — Implemented browser behavior; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:157–180.
+- [ ] `S036-C0017` — Existing 8080 capabilities to reuse; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:181–188.
+- [ ] `S036-C0018` — Important implementation gaps; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:189–202.
+- [ ] `S036-C0019` — Porting recommendation; coverage owner U17; source `docs/dashboard-design/2026-09-20-kotorxid-capability-inventory.md`:203–215.
+- [ ] `S037-C0001` — Unified reversing and recovery workstation; coverage owner U42; source `docs/dashboard-design/2026-09-20-unified-workstation-spec.md`:1–6.
+- [ ] `S037-C0002` — Authority and scope; coverage owner U42; source `docs/dashboard-design/2026-09-20-unified-workstation-spec.md`:7–26.
+- [ ] `S037-C0003` — Shared interaction contract; coverage owner U42; source `docs/dashboard-design/2026-09-20-unified-workstation-spec.md`:27–73.
+- [ ] `S037-C0004` — Pipeline control; coverage owner U42; source `docs/dashboard-design/2026-09-20-unified-workstation-spec.md`:74–75.
+- [ ] `S037-C0005` — Show the work, not a status report; coverage owner U42; source `docs/dashboard-design/2026-09-20-unified-workstation-spec.md`:76–104.
+- [ ] `S037-C0006` — Pipeline control semantics; coverage owner U42; source `docs/dashboard-design/2026-09-20-unified-workstation-spec.md`:105–119.
+- [ ] `S037-C0007` — Guide coverage; coverage owner U16; source `docs/dashboard-design/2026-09-20-unified-workstation-spec.md`:120–130.
+- [ ] `S037-C0008` — Visual direction; coverage owner U42; source `docs/dashboard-design/2026-09-20-unified-workstation-spec.md`:131–157.
+- [ ] `S037-C0009` — Delivery and acceptance; coverage owner U42; source `docs/dashboard-design/2026-09-20-unified-workstation-spec.md`:158–186.
+- [ ] `S038-C0001` — AgentDecompile — Consolidated Design Plan; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:1–10.
+- [ ] `S038-C0002` — Revision — 2026-09-22; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:11–21.
+- [ ] `S038-C0003` — How to read this file; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:22–55.
+- [ ] `S038-C0004` — 1. The product in one paragraph; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:56–71.
+- [ ] `S038-C0005` — 2. The pipeline; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:72–73.
+- [ ] `S038-C0006` — 2.1 Canonical stage order (recovery); coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:74–104.
+- [ ] `S038-C0007` — 2.2 The compile-gated "cross-match" tier; coverage owner U18; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:105–119.
+- [ ] `S038-C0008` — 2.3 What runs concurrently vs must serialize; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:120–138.
+- [ ] `S038-C0009` — 2.4 Failover; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:139–145.
+- [ ] `S038-C0010` — 2.5 The reconcile preamble ("priority zero") — reframed; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:146–171.
+- [ ] `S038-C0011` — 2.6 Terminal deliverable — a live contradiction to know about; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:172–190.
+- [ ] `S038-C0012` — 3. Priority order; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:191–195.
+- [ ] `S038-C0013` — 3.1 Axis A — the eight recovery stages (governing); coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:196–201.
+- [ ] `S038-C0014` — 3.2 Axis B — the user's "priorities 1–9" shorthand; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:202–223.
+- [ ] `S038-C0015` — 3.3 Axis C — the P0–P5 frontend delivery roadmap; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:224–260.
+- [ ] `S038-C0016` — 4. Look, feel, and behave; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:261–262.
+- [ ] `S038-C0017` — 4.1 Visual direction; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:263–298.
+- [ ] `S038-C0018` — 4.2 Shell and layout; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:299–347.
+- [ ] `S038-C0019` — 4.3 Status feedback — "draw the work, not a status report"; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:348–426.
+- [ ] `S038-C0020` — 4.4 The single pipeline control; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:427–478.
+- [ ] `S038-C0021` — 4.5 Responsive behavior; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:479–488.
+- [ ] `S038-C0022` — 4.6 Delivery contract — two surfaces, one backend; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:489–524.
+- [ ] `S038-C0023` — 4.7 Cross-cutting behavior requirements; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:525–566.
+- [ ] `S038-C0024` — 5. Design-history timeline; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:567–591.
+- [ ] `S038-C0025` — Supersessions / reversals (all confirmed against primary sources); coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:592–610.
+- [ ] `S038-C0026` — 6. Sharpened design decisions (grill of the prototype model); coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:611–615.
+- [ ] `S038-C0027` — 6.1 The actual-work feedback model; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:616–634.
+- [ ] `S038-C0028` — 6.2 The single pipeline control + priority-zero; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:635–653.
+- [ ] `S038-C0029` — 6.3 Other open tensions to resolve during implementation; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:654–672.
+- [ ] `S038-C0030` — 7. Source ledger; coverage owner U1; source `docs/dashboard-design/2026-09-21-consolidated-design-plan.md`:673–706.
+- [ ] `S039-C0001` — AgentDecompile — improvement recommendations (concurrency + navigation); coverage owner U15; source `docs/dashboard-design/2026-09-21-improvement-recommendations.md`:1–9.
+- [ ] `S039-C0002` — The one lever; coverage owner U1; source `docs/dashboard-design/2026-09-21-improvement-recommendations.md`:10–30.
+- [ ] `S039-C0003` — Part A — Recovery pipeline concurrency; coverage owner U1; source `docs/dashboard-design/2026-09-21-improvement-recommendations.md`:31–32.
+- [ ] `S039-C0004` — Safe now (disjoint resources today; no owner-arbitration needed); coverage owner U1; source `docs/dashboard-design/2026-09-21-improvement-recommendations.md`:33–61.
+- [ ] `S039-C0005` — Gated (need the finer-ownership work first); coverage owner U1; source `docs/dashboard-design/2026-09-21-improvement-recommendations.md`:62–88.
+- [ ] `S039-C0006` — Do not parallelize (real shared resource named); coverage owner U1; source `docs/dashboard-design/2026-09-21-improvement-recommendations.md`:89–110.
+- [ ] `S039-C0007` — Part B — Navigation / page unification (fewer clicks); coverage owner U15; source `docs/dashboard-design/2026-09-21-improvement-recommendations.md`:111–166.
+- [ ] `S039-C0008` — Part C — The shared prerequisite; coverage owner U1; source `docs/dashboard-design/2026-09-21-improvement-recommendations.md`:167–184.
+- [ ] `S039-C0009` — Suggested sequence; coverage owner U1; source `docs/dashboard-design/2026-09-21-improvement-recommendations.md`:185–204.
+- [ ] `S040-C0001` — Chrome stylesheet report; coverage owner U15; source `docs/plans/wb-control-briefs/chrome-report.md`:1–6.
+- [ ] `S040-C0002` — What changed; coverage owner U42; source `docs/plans/wb-control-briefs/chrome-report.md`:7–10.
+- [ ] `S040-C0003` — What was styled; coverage owner U42; source `docs/plans/wb-control-briefs/chrome-report.md`:11–28.
+- [ ] `S040-C0004` — How verified; coverage owner U42; source `docs/plans/wb-control-briefs/chrome-report.md`:29–34.
+- [ ] `S040-C0005` — Deviations; coverage owner U42; source `docs/plans/wb-control-briefs/chrome-report.md`:35–38.
+- [ ] `S040-C0006` — Findings outside scope; coverage owner U42; source `docs/plans/wb-control-briefs/chrome-report.md`:39–43.
+- [ ] `S040-C0007` — Risks / follow-ups; coverage owner U42; source `docs/plans/wb-control-briefs/chrome-report.md`:44–48.
+- [ ] `S040-C0008` — Uncertainties; coverage owner U42; source `docs/plans/wb-control-briefs/chrome-report.md`:49–51.
+- [ ] `S041-C0001` — Task: Chrome (brand, toolbar, menubar, session tabs, status); coverage owner U15; source `docs/plans/wb-control-briefs/chrome.md`:1–17.
+- [ ] `S042-C0001` — Dialogs stylesheet report; coverage owner U15; source `docs/plans/wb-control-briefs/dialogs-report.md`:1–23.
+- [ ] `S042-C0002` — What changed; coverage owner U42; source `docs/plans/wb-control-briefs/dialogs-report.md`:24–42.
+- [ ] `S042-C0003` — How verified; coverage owner U42; source `docs/plans/wb-control-briefs/dialogs-report.md`:43–48.
+- [ ] `S042-C0004` — Deviations; coverage owner U42; source `docs/plans/wb-control-briefs/dialogs-report.md`:49–52.
+- [ ] `S042-C0005` — Findings / risks; coverage owner U42; source `docs/plans/wb-control-briefs/dialogs-report.md`:53–55.
+- [ ] `S043-C0001` — Task: Dialogs (open, save-as, confirm); coverage owner U15; source `docs/plans/wb-control-briefs/dialogs.md`:1–17.
+- [ ] `S044-C0001` — KotOR multiplayer recovery investigation; coverage owner U39; source `docs/research/swkotor-multiplayer/README.md`:1–13.
+- [ ] `S044-C0002` — Request and binding requirements; coverage owner U39; source `docs/research/swkotor-multiplayer/README.md`:14–26.
+- [ ] `S044-C0003` — Evidence collected in this investigation; coverage owner U39; source `docs/research/swkotor-multiplayer/README.md`:27–63.
+- [ ] `S044-C0004` — Findings that determine implementation; coverage owner U39; source `docs/research/swkotor-multiplayer/README.md`:64–89.
+- [ ] `S044-C0005` — Gameplay scope confirmed by the user; coverage owner U35; source `docs/research/swkotor-multiplayer/README.md`:90–99.
+- [ ] `S044-C0006` — Required implementation sequence; coverage owner U39; source `docs/research/swkotor-multiplayer/README.md`:100–140.
+- [ ] `S044-C0007` — Directory metadata contract; coverage owner U37; source `docs/research/swkotor-multiplayer/README.md`:141–153.
+- [ ] `S044-C0008` — Acceptance ledger; coverage owner U39; source `docs/research/swkotor-multiplayer/README.md`:154–178.
+- [ ] `S045-C0001` — swkotor engine evidence (read-only inspection, 2026-09-15); coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:1–2.
+- [ ] `S045-C0002` — Outcome; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:3–8.
+- [ ] `S045-C0003` — Binary identity: two different inputs; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:9–21.
+- [ ] `S045-C0004` — Recovered source truth; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:22–39.
+- [ ] `S045-C0005` — Actual internal transport evidence; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:40–73.
+- [ ] `S045-C0006` — Smallest justified next slice; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:74–83.
+- [ ] `S045-C0007` — Memory provenance used only to locate the artifacts; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:84–87.
+- [ ] `S045-C0008` — Follow-up: exact native ABI and remote-boundary blockers; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:88–91.
+- [ ] `S045-C0009` — SendMessageToPlayer has FOUR explicit stack arguments; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:92–119.
+- [ ] `S045-C0010` — ProcessReceivedFrames callback is recoverable, not an unknown magic function; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:120–137.
+- [ ] `S045-C0011` — Concrete assumptions that break when crossing a remote boundary; coverage owner U33; source `docs/research/swkotor-multiplayer/engine-evidence.md`:138–148.
+- [ ] `S046-C0001` — Scoped evidence re-review; coverage owner U39; source `docs/research/swkotor-multiplayer/evidence-review.md`:1–10.
+- [ ] `S047-C0001` — /* Fresh Ghidra pseudocode, not buildable or byte-verified source.; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/005d4cb0_SendMessageToPlayer.cpp.txt`:1–166.
+- [ ] `S048-C0001` — {; coverage owner U33; source `docs/research/swkotor-multiplayer/evidence/binary-binding.json`:1–10.
+- [ ] `S049-C0001` — Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/client-handle-message-disassembly.txt`:1–12.
+- [ ] `S050-C0001` — {; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/netlayer-inventory.json`:1–9.
+- [ ] `S051-C0001` — Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/player-info-disassembly.txt`:1–12.
+- [ ] `S052-C0001` — Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/receive-disassembly.txt`:1–62.
+- [ ] `S053-C0001` — 567e97:	c2 14 00             	ret    $0x14; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/send-callers.txt`:1–519.
+- [ ] `S054-C0001` — /home/brunner56/agentdecompile-nvme/agentdecompile_projects/extract/raw/K1__k1_win_gog_swkotor.exe:     file format pei-i386; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/send-disassembly.txt`:1–260.
+- [ ] `S055-C0001` — {; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/send-message-to-player.json`:1–9.
+- [ ] `S056-C0001` — Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/server-handle-message-disassembly.txt`:1–12.
+- [ ] `S057-C0001` — Input SHA256: 9c10e0450a6eeca417e036e3cde7474fed1f0a92aab018446d156944dea91435; coverage owner U34; source `docs/research/swkotor-multiplayer/evidence/server-internal-handle-message-disassembly.txt`:1–54.
+- [ ] `S058-C0001` — Public lobby/master-server research for a new KotOR multiplayer implementation; coverage owner U37; source `docs/research/swkotor-multiplayer/lobby-research.md`:1–4.
+- [ ] `S058-C0002` — Recommendation; coverage owner U37; source `docs/research/swkotor-multiplayer/lobby-research.md`:5–16.
+- [ ] `S058-C0003` — What the browser should advertise; coverage owner U37; source `docs/research/swkotor-multiplayer/lobby-research.md`:17–28.
+- [ ] `S058-C0004` — NWN/NWN2 relevance; coverage owner U37; source `docs/research/swkotor-multiplayer/lobby-research.md`:29–36.
+- [ ] `S058-C0005` — Realistic decision; coverage owner U37; source `docs/research/swkotor-multiplayer/lobby-research.md`:37–41.
+- [ ] `S059-C0001` — NWN/NWN2 dedicated-server evidence (bounded MCP inspection); coverage owner U34; source `docs/research/swkotor-multiplayer/nwn-evidence.md`:1–4.
+- [ ] `S059-C0002` — What is currently established; coverage owner U34; source `docs/research/swkotor-multiplayer/nwn-evidence.md`:5–13.
+- [ ] `S059-C0003` — Import/function inspection boundary; coverage owner U34; source `docs/research/swkotor-multiplayer/nwn-evidence.md`:14–19.
+- [ ] `S059-C0004` — Architectural contrast that the binaries could test once analysis is ready; coverage owner U34; source `docs/research/swkotor-multiplayer/nwn-evidence.md`:20–25.
+- [ ] `S059-C0005` — Smallest follow-up; coverage owner U34; source `docs/research/swkotor-multiplayer/nwn-evidence.md`:26–34.
+- [ ] `S060-C0001` — Recovery pipeline diagram (local, editable); coverage owner U1; source `docs/dashboard-design/pipeline-diagram/README.md`:1–33.
+- [ ] `S060-C0002` — Contract revision — 2026-09-22; coverage owner U1; source `docs/dashboard-design/pipeline-diagram/README.md`:34–51.
+- [ ] `S060-C0003` — Execution and evidence companion — 2026-09-22; coverage owner U1; source `docs/dashboard-design/pipeline-diagram/README.md`:52–78.
+- [ ] `S060-C0004` — Prevention, containment and recovery companion; coverage owner U1; source `docs/dashboard-design/pipeline-diagram/README.md`:79–109.
+- [ ] `S060-C0005` — Autonomous capability product companion; coverage owner U23; source `docs/dashboard-design/pipeline-diagram/README.md`:110–131.
+- [ ] `S060-C0006` — Software-state note — 2026-09-27 (continuation session 7a1c2b); coverage owner U1; source `docs/dashboard-design/pipeline-diagram/README.md`:132–166.
+- [ ] `S060-C0007` — Diagram regeneration pending — 2026-09-27; coverage owner U1; source `docs/dashboard-design/pipeline-diagram/README.md`:167–174.
+- [ ] `S061-C0001` — <mxfile host="local" agent="svg_to_drawio.py" version="24.7.17">; coverage owner U1; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:1–1022.
+- [ ] `S062-C0001` — Visual rendition; compare editable companion; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.png`:0–0.
+- [ ] `S063-C0001` — <!--SEC:Canvas background-->; coverage owner U1; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:1–977.
+- [ ] `S064-C0001` — <mxfile host="local" agent="svg_to_drawio.py" version="24.7.17">; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:1–154.
+- [ ] `S065-C0001` — Visual rendition; compare editable companion; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.png`:0–0.
+- [ ] `S066-C0001` — <svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1450" viewBox="0 0 1800 1450">; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:1–140.
+- [ ] `S067-C0001` — <mxfile host="local" agent="svg_to_drawio.py" version="24.7.17">; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:1–131.
+- [ ] `S068-C0001` — Visual rendition; compare editable companion; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.png`:0–0.
+- [ ] `S069-C0001` — <!--SEC:Canvas-->; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:1–113.
+- [ ] `S070-C0001` — !/usr/bin/env python3; coverage owner U1; source `docs/dashboard-design/pipeline-diagram/generate_execution_diagram.py`:1–117.
+- [ ] `S071-C0001` — !/usr/bin/env python3; coverage owner U1; source `docs/dashboard-design/pipeline-diagram/generate_pipeline_diagram.py`:1–545.
+- [ ] `S072-C0001` — !/usr/bin/env python3; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/generate_resilience_diagram.py`:1–112.
+- [ ] `S073-C0001` — <mxfile host="local" agent="svg_to_drawio.py" version="24.7.17">; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:1–125.
+- [ ] `S074-C0001` — Visual rendition; compare editable companion; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.png`:0–0.
+- [ ] `S075-C0001` — <!--SEC:Canvas-->; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:1–112.
+- [ ] `S076-C0001` — !/usr/bin/env python3; coverage owner U1; source `docs/dashboard-design/pipeline-diagram/svg_to_drawio.py`:1–348.
+- [ ] `S077-C0001` — AGENTS.md; coverage owner U1; source `AGENTS.md`:1–16.
+- [ ] `S077-C0002` — Recovery operations; coverage owner U1; source `AGENTS.md`:17–65.
+- [ ] `S077-C0003` — Implementation references; coverage owner U1; source `AGENTS.md`:66–87.
+- [ ] `S077-C0004` — Naming Conventions; coverage owner U1; source `AGENTS.md`:88–108.
+- [ ] `S078-C0001` — AgentDecompile; coverage owner U1; source `README.md`:1–21.
+- [ ] `S078-C0002` — What it does; coverage owner U1; source `README.md`:22–31.
+- [ ] `S078-C0003` — Installation; coverage owner U1; source `README.md`:32–35.
+- [ ] `S078-C0004` — 1. Stdio (desktop MCP clients); coverage owner U1; source `README.md`:36–45.
+- [ ] `S078-C0005` — 2. HTTP / uvx; coverage owner U1; source `README.md`:46–83.
+- [ ] `S078-C0006` — 3. Docker; coverage owner U1; source `README.md`:84–104.
+- [ ] `S078-C0007` — First-run environment; coverage owner U1; source `README.md`:105–116.
+- [ ] `S078-C0008` — Corpus recovery; coverage owner U1; source `README.md`:117–144.
+- [ ] `S078-C0009` — Next; coverage owner U1; source `README.md`:145–155.
+- [ ] `S078-C0010` — License; coverage owner U1; source `README.md`:156–159.
+- [ ] `S078-C0011` — Contributing; coverage owner U1; source `README.md`:160–162.
+- [ ] `S079-C0001` — AgentDecompile Usage Guide; coverage owner U16; source `USAGE.md`:1–22.
+- [ ] `S079-C0002` — Endpoints; coverage owner U1; source `USAGE.md`:23–34.
+- [ ] `S079-C0003` — Sessions; coverage owner U1; source `USAGE.md`:35–46.
+- [ ] `S079-C0004` — Workbench; coverage owner U1; source `USAGE.md`:47–56.
+- [ ] `S079-C0005` — Shared Ghidra Server; coverage owner U1; source `USAGE.md`:57–70.
+- [ ] `S079-C0006` — Workflows; coverage owner U1; source `USAGE.md`:71–74.
+- [ ] `S079-C0007` — Open, list, inspect; coverage owner U1; source `USAGE.md`:75–90.
+- [ ] `S079-C0008` — Import and export; coverage owner U1; source `USAGE.md`:91–99.
+- [ ] `S079-C0009` — Context pieces; coverage owner U1; source `USAGE.md`:100–103.
+- [ ] `S079-C0010` — Fast triage; coverage owner U1; source `USAGE.md`:104–112.
+- [ ] `S079-C0011` — Failure states; coverage owner U1; source `USAGE.md`:113–136.
+- [ ] `S079-C0012` — Environment variables; coverage owner U1; source `USAGE.md`:137–187.
+- [ ] `S079-C0013` — HTTP headers for shared-server requests; coverage owner U1; source `USAGE.md`:188–199.
+- [ ] `S079-C0014` — Naming; coverage owner U1; source `USAGE.md`:200–205.
+- [ ] `S079-C0015` — Related docs; coverage owner U1; source `USAGE.md`:206–217.
+- [ ] `S079-C0016` — Workbench implementation and runtime reuse; coverage owner U1; source `USAGE.md`:218–230.
+- [ ] `S079-C0017` — Durable continuation and verification controls; coverage owner U1; source `USAGE.md`:231–283.
+- [ ] `S079-C0018` — External diagnostic report reader; coverage owner U1; source `USAGE.md`:284–297.
+- [ ] `S079-C0019` — Resource reservations after uncertain outcomes; coverage owner U1; source `USAGE.md`:298–320.
+- [ ] `S079-C0020` — Cached evidence for ReAgent; coverage owner U1; source `USAGE.md`:321–333.
+- [ ] `S079-C0021` — Reusing local comparison evidence; coverage owner U1; source `USAGE.md`:334–352.
+- [ ] `S079-C0022` — Seed comparison reuse inputs; coverage owner U1; source `USAGE.md`:353–367.
+- [ ] `S079-C0023` — Preparation admission allocations; coverage owner U14; source `USAGE.md`:368–378.
+- [ ] `S080-C0001` — VISION.md — AgentDecompile Intent, Purpose, and Role; coverage owner U1; source `VISION.md`:1–8.
+- [ ] `S080-C0002` — 1. Motif; coverage owner U1; source `VISION.md`:9–29.
+- [ ] `S080-C0003` — 2. Charter; coverage owner U1; source `VISION.md`:30–50.
+- [ ] `S080-C0004` — 3. The Problem; coverage owner U1; source `VISION.md`:51–66.
+- [ ] `S080-C0005` — 4. What “Seamless and Robust” Means; coverage owner U1; source `VISION.md`:67–76.
+- [ ] `S080-C0006` — 5. Dismantling as First-Class Context; coverage owner U1; source `VISION.md`:77–99.
+- [ ] `S080-C0007` — 6. Provenance Against Hallucination; coverage owner U1; source `VISION.md`:100–115.
+- [ ] `S080-C0008` — 7. Agent-Directed Composition; coverage owner U1; source `VISION.md`:116–128.
+- [ ] `S080-C0009` — 8. Round-Trip Horizon; coverage owner U1; source `VISION.md`:129–138.
+- [ ] `S080-C0010` — 9. Context, Prompt, and Agent Engineering; coverage owner U1; source `VISION.md`:139–152.
+- [ ] `S080-C0011` — 10. Users and Stakeholders; coverage owner U1; source `VISION.md`:153–154.
+- [ ] `S080-C0012` — Primary; coverage owner U1; source `VISION.md`:155–158.
+- [ ] `S080-C0013` — Secondary; coverage owner U1; source `VISION.md`:159–162.
+- [ ] `S080-C0014` — Broader; coverage owner U1; source `VISION.md`:163–168.
+- [ ] `S080-C0015` — 11. Product Identity; coverage owner U1; source `VISION.md`:169–189.
+- [ ] `S080-C0016` — 12. Success Model; coverage owner U1; source `VISION.md`:190–201.
+- [ ] `S080-C0017` — Claim layers (durable); coverage owner U1; source `VISION.md`:202–214.
+- [ ] `S080-C0018` — 13. Design Principles (Durable); coverage owner U1; source `VISION.md`:215–231.
+- [ ] `S080-C0019` — 14. Strategic Work Tracks (Intent); coverage owner U1; source `VISION.md`:232–245.
+- [ ] `S080-C0020` — 15. Scope Boundaries; coverage owner U1; source `VISION.md`:246–259.
+- [ ] `S080-C0021` — 16. Metrics That Matter (Strategic); coverage owner U21; source `VISION.md`:260–274.
+- [ ] `S080-C0022` — 17. Long-Horizon Vision; coverage owner U1; source `VISION.md`:275–289.
+- [ ] `S080-C0023` — 18. Using This Document; coverage owner U1; source `VISION.md`:290–299.
+- [ ] `S081-C0001` — ---; coverage owner U1; source `STRATEGY.md`:1–8.
+- [ ] `S081-C0002` — AgentDecompile Strategy; coverage owner U1; source `STRATEGY.md`:9–12.
+- [ ] `S081-C0003` — Governing design scope: September 18–21, 2026; coverage owner U1; source `STRATEGY.md`:13–62.
+- [ ] `S081-C0004` — Target problem; coverage owner U1; source `STRATEGY.md`:63–68.
+- [ ] `S081-C0005` — Our approach; coverage owner U1; source `STRATEGY.md`:69–74.
+- [ ] `S081-C0006` — Failure containment and acceptance; coverage owner U1; source `STRATEGY.md`:75–106.
+- [ ] `S081-C0007` — Who it's for; coverage owner U1; source `STRATEGY.md`:107–112.
+- [ ] `S081-C0008` — Key metrics; coverage owner U21; source `STRATEGY.md`:113–121.
+- [ ] `S081-C0009` — Tracks; coverage owner U1; source `STRATEGY.md`:122–123.
+- [ ] `S081-C0010` — One operator surface (8080); coverage owner U1; source `STRATEGY.md`:124–129.
+- [ ] `S081-C0011` — Corpus recovery pipeline; coverage owner U1; source `STRATEGY.md`:130–141.
+- [ ] `S081-C0012` — Ghidra shared state; coverage owner U1; source `STRATEGY.md`:142–153.
+- [ ] `S081-C0013` — Portable identity / hook-pack export; coverage owner U24; source `STRATEGY.md`:154–161.
+- [ ] `S081-C0014` — Priority ladder (preserve prerequisites; allow feedback); coverage owner U1; source `STRATEGY.md`:162–163.
+- [ ] `S081-C0015` — Per-target loop and corpus roll-up; coverage owner U1; source `STRATEGY.md`:164–187.
+- [ ] `S081-C0016` — Stages; coverage owner U1; source `STRATEGY.md`:188–201.
+- [ ] `S081-C0017` — Whole-image byte identity (dedicated track); coverage owner U1; source `STRATEGY.md`:202–209.
+- [ ] `S081-C0018` — Marketing; coverage owner U1; source `STRATEGY.md`:210–212.
+- [ ] `S082-C0001` — AgentDecompile: consolidated user intent and frontend contract; coverage owner U42; source `docs/FRONTEND_INTENT.md`:1–14.
+- [ ] `S082-C0002` — 1. The product in one paragraph; coverage owner U42; source `docs/FRONTEND_INTENT.md`:15–30.
+- [ ] `S082-C0003` — 2. Delivery contract: two alternatives, one product; coverage owner U42; source `docs/FRONTEND_INTENT.md`:31–53.
+- [ ] `S082-C0004` — 3. Authority and how to interpret history; coverage owner U42; source `docs/FRONTEND_INTENT.md`:54–71.
+- [ ] `S082-C0005` — 4. Workspace and interaction model; coverage owner U42; source `docs/FRONTEND_INTENT.md`:72–73.
+- [ ] `S082-C0006` — 4.1 Start with the actual project, not a setup ritual; coverage owner U14; source `docs/FRONTEND_INTENT.md`:74–108.
+- [ ] `S082-C0007` — 4.2 Shared codebase first; concrete builds always available; coverage owner U42; source `docs/FRONTEND_INTENT.md`:109–140.
+- [ ] `S082-C0008` — Status note — match-review (2026-09-27, source-only); coverage owner U42; source `docs/FRONTEND_INTENT.md`:141–159.
+- [ ] `S082-C0009` — 4.3 Draw the work, not a decorative indication of work; coverage owner U42; source `docs/FRONTEND_INTENT.md`:160–189.
+- [ ] `S082-C0010` — 5. Complete functional scope; coverage owner U42; source `docs/FRONTEND_INTENT.md`:190–217.
+- [ ] `S082-C0011` — KotORXID is substantive scope, not just a visual theme; coverage owner U42; source `docs/FRONTEND_INTENT.md`:218–232.
+- [ ] `S082-C0012` — 6. Pipeline, failover and concurrency represented by the UI; coverage owner U42; source `docs/FRONTEND_INTENT.md`:233–266.
+- [ ] `S082-C0013` — Identity is not source propagation; coverage owner U42; source `docs/FRONTEND_INTENT.md`:267–285.
+- [ ] `S082-C0014` — Start/pause/resume without stage babysitting; coverage owner U42; source `docs/FRONTEND_INTENT.md`:286–314.
+- [ ] `S082-C0015` — What can run together; coverage owner U42; source `docs/FRONTEND_INTENT.md`:315–330.
+- [ ] `S082-C0016` — What “done” means; coverage owner U42; source `docs/FRONTEND_INTENT.md`:331–342.
+- [ ] `S082-C0017` — 7. Reference projects: what belongs in this product; coverage owner U14; source `docs/FRONTEND_INTENT.md`:343–372.
+- [ ] `S082-C0018` — 8. Implementation direction and visual feel; coverage owner U42; source `docs/FRONTEND_INTENT.md`:373–417.
+- [ ] `S082-C0019` — 9. Conflicts and supersessions retained explicitly; coverage owner U42; source `docs/FRONTEND_INTENT.md`:418–440.
+- [ ] `S082-C0020` — 10. Acceptance and unfinished-outcome ledger; coverage owner U42; source `docs/FRONTEND_INTENT.md`:441–485.
+- [ ] `S082-C0021` — 11. Source ledger and research coverage; coverage owner U42; source `docs/FRONTEND_INTENT.md`:486–487.
+- [ ] `S082-C0022` — Primary user sources; coverage owner U42; source `docs/FRONTEND_INTENT.md`:488–551.
+- [ ] `S082-C0023` — Coverage and limitations — not an “all history exhausted” claim; coverage owner U42; source `docs/FRONTEND_INTENT.md`:552–586.
+- [ ] `S082-C0024` — Failure handling and unattended progress — required design; coverage owner U42; source `docs/FRONTEND_INTENT.md`:587–624.
+- [ ] `S083-C0001` — Delivery status and prioritized closeout; coverage owner U1; source `docs/DELIVERY_STATUS.md`:1–13.
+- [ ] `S083-C0002` — Match-review frontend and backend — 2026-09-27; coverage owner U1; source `docs/DELIVERY_STATUS.md`:14–36.
+- [ ] `S083-C0003` — Cross-place and weekend export qualification — 2026-09-27; coverage owner U1; source `docs/DELIVERY_STATUS.md`:37–72.
+- [ ] `S083-C0004` — Native package-verifier ownership — 2026-09-27; coverage owner U1; source `docs/DELIVERY_STATUS.md`:73–88.
+- [ ] `S083-C0005` — Fresh source revalidation — 2026-09-27; coverage owner U1; source `docs/DELIVERY_STATUS.md`:89–100.
+- [ ] `S083-C0006` — Nested MCP dispatch accounting — 2026-09-27; coverage owner U21; source `docs/DELIVERY_STATUS.md`:101–114.
+- [ ] `S083-C0007` — Qualified local output ownership — 2026-09-27; coverage owner U1; source `docs/DELIVERY_STATUS.md`:115–126.
+- [ ] `S083-C0008` — Scoped activity evidence — 2026-09-27; coverage owner U1; source `docs/DELIVERY_STATUS.md`:127–137.
+- [ ] `S083-C0009` — Effective-scenario operation identity — 2026-09-27; coverage owner U1; source `docs/DELIVERY_STATUS.md`:138–154.
+- [ ] `S083-C0010` — Generated native-operation contract — 2026-09-27; coverage owner U1; source `docs/DELIVERY_STATUS.md`:155–165.
+- [ ] `S083-C0011` — Preparation admission accounting — 2026-09-27; coverage owner U14; source `docs/DELIVERY_STATUS.md`:166–179.
+- [ ] `S083-C0012` — Autonomous foundation implementation — 2026-09-22; coverage owner U1; source `docs/DELIVERY_STATUS.md`:180–266.
+- [ ] `S083-C0013` — Recovery design revision — 2026-09-22; coverage owner U1; source `docs/DELIVERY_STATUS.md`:267–287.
+- [ ] `S083-C0014` — Evidence boundary; coverage owner U1; source `docs/DELIVERY_STATUS.md`:288–342.
+- [ ] `S083-C0015` — Actionable delivery checklist; coverage owner U1; source `docs/DELIVERY_STATUS.md`:343–358.
+- [ ] `S083-C0016` — Source traceability limits; coverage owner U23; source `docs/DELIVERY_STATUS.md`:359–368.
+- [ ] `S084-C0001` — Runtime reuse and recovery; coverage owner U6; source `docs/RUNTIME_REUSE.md`:1–22.
+- [ ] `S084-C0002` — Existing implementation and evidence; coverage owner U6; source `docs/RUNTIME_REUSE.md`:23–45.
+- [ ] `S084-C0003` — First generated native operation — source assessment, 2026-09-27; coverage owner U6; source `docs/RUNTIME_REUSE.md`:46–85.
+- [ ] `S084-C0004` — Integration contract (required work, not a new implemented API); coverage owner U6; source `docs/RUNTIME_REUSE.md`:86–109.
+- [ ] `S084-C0005` — Capability refinement — 2026-09-22 (required, not delivered); coverage owner U6; source `docs/RUNTIME_REUSE.md`:110–133.
+- [ ] `S084-C0006` — M3–M7 findings — 2026-09-27 (read-only, source-only); coverage owner U6; source `docs/RUNTIME_REUSE.md`:134–164.
+- [ ] `S084-C0007` — Operator workflow; coverage owner U6; source `docs/RUNTIME_REUSE.md`:165–184.
+- [ ] `S085-C0001` — Documented solutions; coverage owner U1; source `docs/solutions/README.md`:1–13.
+- [ ] `S085-C0002` — Categories; coverage owner U1; source `docs/solutions/README.md`:14–35.
+- [ ] `S086-C0001` — ---; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1–11.
+- [ ] `S086-C0002` — Static CodeBrowser Project Tabs - Plan; coverage owner U14; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:12–13.
+- [ ] `S086-C0003` — Goal Capsule; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:14–27.
+- [ ] `S086-C0004` — Product Contract; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:28–29.
+- [ ] `S086-C0005` — Summary; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:30–33.
+- [ ] `S086-C0006` — Problem Frame; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:34–39.
+- [ ] `S086-C0007` — Product Contract Preservation; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:40–50.
+- [ ] `S086-C0008` — Actors; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:51–57.
+- [ ] `S086-C0009` — Requirements; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:58–210.
+- [ ] `S086-C0010` — Key Flows; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:211–281.
+- [ ] `S086-C0011` — Acceptance Examples; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:282–304.
+- [ ] `S086-C0012` — Success Criteria; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:305–312.
+- [ ] `S086-C0013` — Scope Boundaries; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:313–328.
+- [ ] `S086-C0014` — Key Decisions; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:329–338.
+- [ ] `S086-C0015` — Dependencies / Assumptions; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:339–349.
+- [ ] `S086-C0016` — Risks and decision preservation; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:350–355.
+- [ ] `S086-C0017` — Outstanding Questions; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:356–364.
+- [ ] `S086-C0018` — How This Work Fits Together; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:365–376.
+- [ ] `S086-C0019` — Sources / Research; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:377–388.
+- [ ] `S086-C0020` — Export artifact contract; coverage owner U28; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:389–392.
+- [ ] `S086-C0021` — Export 1 Export bundle (`corpus.export-bundle`, designed-only); coverage owner U28; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:393–400.
+- [ ] `S086-C0022` — Export 2 Hook pack (`agentdecompile.hookpack`, v1 implemented / v2 designed); coverage owner U24; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:401–414.
+- [ ] `S086-C0023` — Export 3 Generated Lua bindings (designed-only); coverage owner U26; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:415–426.
+- [ ] `S086-C0024` — Export 4 Codecave / call plans and code injection; coverage owner U25; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:427–440.
+- [ ] `S086-C0025` — Export 5 Hook pack format versions; coverage owner U24; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:441–450.
+- [ ] `S086-C0026` — Export 6 Per-build C/C++ headers and build manifest; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:451–457.
+- [ ] `S086-C0027` — Export 7 Readiness report; coverage owner U27; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:458–465.
+- [ ] `S086-C0028` — Export 8 Divergence report; coverage owner U27; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:466–473.
+- [ ] `S086-C0029` — Export 9 Recovered source variants and manifests (optional, out of this plan's scope); coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:474–479.
+- [ ] `S086-C0030` — Export 10 Receipts; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:480–484.
+- [ ] `S086-C0031` — Export 11 WASM / browser-facing targets; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:485–511.
+- [ ] `S086-C0032` — Evidence every export must carry, and the honesty rules; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:512–545.
+- [ ] `S086-C0033` — Export implementation status — draft research snapshot; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:546–566.
+- [ ] `S086-C0034` — Planning Contract; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:567–568.
+- [ ] `S086-C0035` — Planning-time constraints (numbered KTDs); coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:569–582.
+- [ ] `S086-C0036` — High-Level Technical Design; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:583–720.
+- [ ] `S086-C0037` — Execution preconditions (not planning blockers); coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:721–725.
+- [ ] `S086-C0038` — Owner-locked files (must not be edited; call, don't edit); coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:726–735.
+- [ ] `S086-C0039` — Serving-process and verification authority; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:736–739.
+- [ ] `S086-C0040` — Tests-last constraint and current mission; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:740–745.
+- [ ] `S086-C0041` — Implementation Units; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:746–747.
+- [ ] `S086-C0042` — Unit Index; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:748–795.
+- [ ] `S086-C0043` — U1. Landed: pipeline-trigger removal; coverage owner U14; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:796–817.
+- [ ] `S086-C0044` — U2. Remove remaining quick actions and add the R7 enforcement check; coverage owner U14; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:818–842.
+- [ ] `S086-C0045` — U3. Per-call locator scoping; coverage owner U29; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:843–868.
+- [ ] `S086-C0046` — U4. Multi-project session support; coverage owner U14; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:869–892.
+- [ ] `S086-C0047` — U5. Admission on open and register; coverage owner U14; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:893–917.
+- [ ] `S086-C0048` — U6. CodeBrowser provider build-out; coverage owner U16; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:918–944.
+- [ ] `S086-C0049` — U7. Project-as-tab layer; coverage owner U14; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:945–972.
+- [ ] `S086-C0050` — U8. Cross-build map dock; coverage owner U18; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:973–1002.
+- [ ] `S086-C0051` — U9. BSim hit persistence; coverage owner U18; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1003–1028.
+- [ ] `S086-C0052` — U10. X channel C++/RTTI metadata; coverage owner U18; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1029–1053.
+- [ ] `S086-C0053` — U11. Relabel the P-code skeleton stage; coverage owner U18; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1054–1081.
+- [ ] `S086-C0054` — U12. Wire the contract veto; coverage owner U18; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1082–1105.
+- [ ] `S086-C0055` — U13. Match row kind/confidence/algorithm columns; coverage owner U18; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1106–1131.
+- [ ] `S086-C0056` — U14. Per-pair and per-function availability surface; coverage owner U18; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1132–1157.
+- [ ] `S086-C0057` — U15. Config precedence resolver; coverage owner U22; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1158–1185.
+- [ ] `S086-C0058` — U16. Wire the resolver into the rewrite and LLM-cleanup paths; coverage owner U22; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1186–1215.
+- [ ] `S086-C0059` — U17. Dashboard AI setting; coverage owner U22; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1216–1240.
+- [ ] `S086-C0060` — U18. objdiff-web main view; coverage owner U19; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1241–1267.
+- [ ] `S086-C0061` — U19. decomp.me scratch view; coverage owner U19; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1268–1291.
+- [ ] `S086-C0062` — U20. Dogbolt compare view; coverage owner U19; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1292–1317.
+- [ ] `S086-C0063` — U21. RzWeb/r2web expert views; coverage owner U19; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1318–1342.
+- [ ] `S086-C0064` — U22. APKMan container tree; coverage owner U19; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1343–1366.
+- [ ] `S086-C0065` — U23. Pipeline stage DAG; coverage owner U20; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1367–1392.
+- [ ] `S086-C0066` — U24. Lane E fleet roster; coverage owner U20; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1393–1417.
+- [ ] `S086-C0067` — U25. Spectator view; coverage owner U20; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1418–1441.
+- [ ] `S086-C0068` — U26. report.json generation; coverage owner U21; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1442–1466.
+- [ ] `S086-C0069` — U27. Tier-split progress bar; coverage owner U21; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1467–1490.
+- [ ] `S086-C0070` — U28. Count-reconciliation gate; coverage owner U21; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1491–1515.
+- [ ] `S086-C0071` — U29. Explicit publish step; coverage owner U21; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1516–1541.
+- [ ] `S086-C0072` — U30. Write tests from verification sequences; coverage owner U42; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1542–1564.
+- [ ] `S086-C0073` — Phase G — Exports and runtime reuse; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1565–1567.
+- [ ] `S086-C0074` — U31. Bridge the ABI storage collector into the batch/export path; coverage owner U23; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1568–1587.
+- [ ] `S086-C0075` — U32. Typed struct field export (replace `void *`/byte-array fallback); coverage owner U23; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1588–1601.
+- [ ] `S086-C0076` — U33. Hook pack v2 format: `entities[]`, closed status set, basis-carrying root; coverage owner U24; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1602–1617.
+- [ ] `S086-C0077` — U34. Cave discovery into `caves[]`; coverage owner U25; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1618–1643.
+- [ ] `S086-C0078` — U35. Generated Lua bindings module; coverage owner U26; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1644–1666.
+- [ ] `S086-C0079` — U36. Per-build header manifest completion; coverage owner U26; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1667–1682.
+- [ ] `S086-C0080` — U37. Readiness report exporter; coverage owner U27; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1683–1697.
+- [ ] `S086-C0081` — U38. Divergence computation and report exporter; coverage owner U27; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1698–1716.
+- [ ] `S086-C0082` — U39. `export-bundle` verb; coverage owner U28; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1717–1733.
+- [ ] `S086-C0083` — U40. WASM export scoping receipt; coverage owner U28; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1734–1749.
+- [ ] `S086-C0084` — U41. 8080 workbench: export listing, readiness, and download per project/binary; coverage owner U28; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1750–1765.
+- [ ] `S086-C0085` — U42. Vite/React: export readiness per entity + bundle build as pipeline output; coverage owner U28; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1766–1786.
+- [ ] `S086-C0086` — U43. Tier-split counts in cross-build matrix cells; coverage owner U21; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1787–1804.
+- [ ] `S086-C0087` — Verification Contract; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1805–1818.
+- [ ] `S086-C0088` — Usability Test Plan; coverage owner U23; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1819–1840.
+- [ ] `S086-C0089` — Definition of Done; coverage owner U1; source `worktree/docs/plans/2026-09-28-0817-feat-static-codebrowser-project-tabs-plan.md`:1841–1853.
+- [ ] `S087-C0001` — Frontend and export implementation — September 28, 2026; coverage owner U42; source `worktree/docs/FRONTEND_IMPLEMENTATION_STATUS.md`:1–25.
+- [ ] `S087-C0002` — What the checks establish; coverage owner U42; source `worktree/docs/FRONTEND_IMPLEMENTATION_STATUS.md`:26–44.
+- [ ] `S087-C0003` — Activation boundary; coverage owner U42; source `worktree/docs/FRONTEND_IMPLEMENTATION_STATUS.md`:45–58.
+- [ ] `S087-C0004` — Remaining scope; coverage owner U42; source `worktree/docs/FRONTEND_IMPLEMENTATION_STATUS.md`:59–67.
+- [ ] `S088-C0001` — AgentDecompile: what it delivers and how the workspaces should explain it; coverage owner U42; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:1–10.
+- [ ] `S088-C0002` — The problem AgentDecompile solves; coverage owner U42; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:11–34.
+- [ ] `S088-C0003` — Deterministic recovery with optional AI; coverage owner U22; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:35–53.
+- [ ] `S088-C0004` — One entity across several builds; coverage owner U42; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:54–74.
+- [ ] `S088-C0005` — What the multiplayer report establishes; coverage owner U42; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:75–89.
+- [ ] `S088-C0006` — Two different server/client distinctions; coverage owner U42; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:90–110.
+- [ ] `S088-C0007` — Reading the pipeline as work that produces evidence; coverage owner U42; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:111–135.
+- [ ] `S088-C0008` — Five lanes remain active beside the stages; coverage owner U42; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:136–149.
+- [ ] `S088-C0009` — Useful deliverables before full recovery; coverage owner U42; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:150–178.
+- [ ] `S088-C0010` — Execution, evidence and recovery in plain language; coverage owner U42; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:179–217.
+- [ ] `S088-C0011` — Static 8080: a project-wide CodeBrowser; coverage owner U14; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:218–254.
+- [ ] `S088-C0012` — Vite: an evidence and comparison workstation; coverage owner U42; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:255–289.
+- [ ] `S088-C0013` — State and error behavior; coverage owner U42; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:290–304.
+- [ ] `S088-C0014` — Three progress measures and honest metrics; coverage owner U21; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:305–324.
+- [ ] `S088-C0015` — From foundations to autonomous capabilities; coverage owner U23; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:325–346.
+- [ ] `S088-C0016` — Three practical workflows the interfaces should support; coverage owner U42; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:347–350.
+- [ ] `S088-C0017` — Investigate a function across releases; coverage owner U42; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:351–366.
+- [ ] `S088-C0018` — Expose an original-code lobby operation; coverage owner U42; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:367–382.
+- [ ] `S088-C0019` — Contribute an idle machine; coverage owner U42; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:383–397.
+- [ ] `S088-C0020` — Traceability and remaining delivery scope; coverage owner U23; source `worktree/docs/PRODUCT_AND_WORKSPACE_GUIDE.md`:398–448.
+- [ ] `S089-C0001` — Export scope and explicit exclusions; coverage owner U28; source `worktree/docs/EXPORT_SCOPE.md`:1–9.
+- [ ] `S089-C0002` — WASM scoping receipt (U40); coverage owner U28; source `worktree/docs/EXPORT_SCOPE.md`:10–48.
+- [ ] `S089-C0003` — Other optional rows; coverage owner U28; source `worktree/docs/EXPORT_SCOPE.md`:49–57.
+- [ ] `S061-E0001` — Canvas background; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0002` — Header; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0003` — Row 0 - intake and the 8-stage ladder; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0004` — Row 1 - concurrent lanes; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0005` — Row 2 - exhaustive resolution ladders; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0006` — Row 2 - locks and failover rules; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0007` — Terminal band - what you get; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0008` — Footer - legend and determinism basis; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0009` — AgentDecompile — the recovery pipeline, end to end; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0010` — Reading order: named stages retain prerequisites; evidence feeds back and verification starts early. Every card answers: what we're trying to do · how · what goes in and comes out · what gates it.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0011` — HOW TO READ THIS IN 20 SECONDS; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0012` — 1. Follow prerequisites; identity/calibration iterate and parity runs continuously.; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0013` — 2. Lanes may overlap within ownership, resource and snapshot-dependency limits.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0014` — 3. Try applicable lookups; exports state capabilities, uncertainty and evidence.; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0015` — Design target: recover from the best evidence, reuse only what transfers, verify at the level of use — packs, generated bindings, headers and readiness reports with explicit capability limits.; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0016` — Runs on a laptop; scales by concurrency, then by donated idle compute and free cloud nodes; task-specific budgets and isolated storage probes; complete prepared inputs enable independent continuation; see execution-contracts companion.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0017` — MAIN PIPELINE — compatible reuse · validated reconstruction · independent claim gates; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0018` — 0 + eight named stages · feedback allowed · reuse valid unchanged receipts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0019` — 0; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0020` — Open · add · resume (priority-zero); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0021` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0022` — Start from the actual project, never a setup ritual:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0023` — open, add or resume admits only missing eligible work;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0024` — pause/resume controls admission — no Start ritual.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0025` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0026` — • reconcile bindings; reuse dependency-valid receipts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0027` — • gate writes; reads use stable versioned snapshots; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0028` — • the one control is pause/resume (+ scope), never start; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0029` — • checkpoint-trusting; repair only on detected breakage:; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0030` — •   NULL content_sha256 / mixed basis_hash → receipted; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0031` — •   backfill, never auto-run; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0032` — • revisit affected evidence only; no blanket reanalysis; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0033` — • reopen reuses valid work; changed evidence re-keys work; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0034` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0035` — in: .gpr / repo / binaries / prior receipts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0036` — out: one active project, known state, no duplicate work; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0037` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0038` — mutation-admission only (real owner state); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0039` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0040` — 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0041` — Identity; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0042` — ∥ extraction + indexing run in parallel; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0043` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0044` — Decide which functions/entities across builds are; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0045` — logical entity, implementation variant and instance;; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0046` — similarity does not prove interchangeable behavior.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0047` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0048` — • extract facts once; short-circuit identical images; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0049` — • cheap-first cascade: symbols/provenance → exact &amp;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0050` — •   reloc-normalized hashes → rare refs / C++ meta →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0051` — •   neighborhood → CFG/SPP → BSim → ABI → optional; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0052` — •   BinDiff/BinExport → optional emulation on residue; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0053` — • require uniqueness + margin; keep ambiguity;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0054` — •   withdraw bad seeds + unsupported descendants; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0055` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0056` — in: analyzed programs, debug info, formats; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0057` — out: entity / variant / instance + evidence lineage; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0058` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0059` — candidate ≠ acceptance; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0060` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0061` — 2; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0062` — Incremental calibration; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0063` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0064` — Establish minimum platform facts, then refine; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0065` — compiler, ABI and layout hypotheses with; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0066` — identity and function evidence; version each input.; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0067` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0068` — • compiler/linker + headers/libs + macros + FP mode; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0069` — • scope: build / library / TU / function overrides; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0070` — • group fragments into TUs/LTCG as required; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0071` — • probe legacy switches; record scoped dependencies; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0072` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0073` — in: identified builds + toolchain evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0074` — out: calibration record (part of the basis); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0075` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0076` — 3; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0077` — Validated linkable regions; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0078` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0079` — Reconstruct objects and placement from the image;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0080` — keep uncertain boundaries in larger regions;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0081` — prove reconstruction before scaling source work.; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0082` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0083` — • bytes + fixups + refs + data + unwind metadata; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0084` — • architecture-specific objects / external assembly; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0085` — • extract → emit → place → compare original bytes; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0086` — • then prove a compiled replacement actually contributes; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0087` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0088` — in: calibration + donor build; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0089` — out: validated region scaffold; floor ≠ recovered C; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0090` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0091` — round trip + independent linked-image oracle; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0092` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0093` — 4; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0094` — C/C++ candidates; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0095` — isolated mutable outputs / PDB / Wine state; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0096` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0097` — Produce readable candidates; preserve the floor; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0098` — until replacement acceptance passes.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0099` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0100` — • recovery unit ≠ compilation unit ≠ comparison unit; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0101` — • compile pass → candidate (real_c is compile-only); coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0102` — • fail → deterministic helpers (sanitizer/preparse) →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0103` — •   retry → ONE bounded LLM cleanup → retry → keep asm; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0104` — • never repeat valid unchanged work; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0105` — • repair explains preserved machine behavior; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0106` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0107` — in: scaffold + decompiler output; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0108` — out: compiled candidates + scoped compile receipts; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0109` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0110` — compile admits candidate, not replacement; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0111` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0112` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0113` — compile fails → helpers → bounded LLM → retry (dashed = failover, never blocks siblings); coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0114` — 5; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0115` — Propagation (cross-place); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0116` — the cross-match tier; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0117` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0118` — Reuse a donor candidate only for compatible; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0119` — recipient implementation variants;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0120` — each recipient earns its own acceptance.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0121` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0122` — • compile + variant/ABI/layout compatibility gate; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0123` — • then byte-exact verify → permuter → LLM last; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0124` — • a logical_id bind alone NEVER authorizes copying; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0125` — • ABI-sensitive types re-validated per recipient; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0126` — • field-level knowledge fusion runs alongside (lane A); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0127` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0128` — in: compile receipts + identity table; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0129` — out: recipient candidates; separate verification; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0130` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0131` — candidate distribution ≠ accepted source; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0132` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0133` — G; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0134` — candidate; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0135` — compile + compatibility; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0136` — 6; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0137` — Targeted AI (leftovers only); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0138` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0139` — Spend model effort ONLY on what deterministic; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0140` — methods left behind — leaves before callers.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0141` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0142` — • residue queue, tagged with WHY AI was needed; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0143` — • diagnose behavior/types → ABI → context → codegen; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0144` — • LLM output is a candidate — never a trusted edge; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0145` — • ReAgent checker; record exact proposals + bounds; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0146` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0147` — in: residue after 4–5; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0148` — out: candidate C for review + provenance; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0149` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0150` — candidate only; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0151` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0152` — 7; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0153` — Continuous parity; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0154` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0155` — Compare emitted code/data against validated; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0156` — targets and independently against linked bytes.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0157` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0158` — • objdiff local + linked-region checks (LTCG aware); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0159` — • reccmp: supported MSVC / PDB diagnostics; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0160` — • compile / ABI / tested behavior / local / linked; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0161` — • a function-level zero is NOT whole-image proof; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0162` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0163` — in: emitted regions + validated original references; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0164` — out: separate facts with mapping, bounds + evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0165` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0166` — local zero ≠ full-image or behavior proof; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0167` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0168` — 8; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0169` — Whole-image byte identity; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0170` — terminal; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0171` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0172` — The terminal goal: relink into a file whose; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0173` — whole-file hash EQUALS the shipped binary.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0174` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0175` — • early stage-3 round trips; fresh terminal compilation; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0176` — • reproduce section order, padding, headers, IAT, relocs; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0177` — • prove replacement use → whole-file byte/hash check; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0178` — • two variants measured separately: byte-accurate+floor; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0179` — •   vs max-C; never borrow a receipt between them; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0180` — • reconstruction ≠ original-style rebuild; record method; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0181` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0182` — in: scoped parity + contribution map + layout recipe; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0183` — out: rebuilt image + whole-file hash receipt; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0184` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0185` — whole-file hash equality; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0186` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0187` — 1 ↔ 2: refine scoped hypotheses; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0188` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0189` — 7–8 verify early scaffold and candidates; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0190` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0191` — RUNS CONCURRENTLY WITH STAGES 1–8 (where ownership permits); coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0192` — LANE A · Knowledge fusion — bidirectional, per field; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0193` — labels · comments · structs/types · debug-info names flow between every build sharing a logical id; strongest source per field wins; a build donates a FIELD, never everything; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0194` — consumes stage 1 identity · runs beside stages 4–5 · feeds every sibling build; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0195` — Name precedence (per field); coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0196` — field-level; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0197` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0198` — Keep the strongest name for every field,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0199` — never let a placeholder win.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0200` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0201` — • human annotation → debug info / STABS →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0202` — •   authentic symbols → analysis names → placeholders; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0203` — • provenance + rejected alternatives retained; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0204` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0205` — in: all builds' names; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0206` — out: merged names with origin; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0207` — Types &amp; layouts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0208` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0209` — Merge struct/type knowledge only where; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0210` — compatibility gates allow.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0211` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0212` — • types/layouts keep their own gates (never auto-copied); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0213` — • platform-gated donors: (arch, bits, endian, compiler); coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0214` — • per-build layouts; unknown spans opaque; no scaling; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0215` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0216` — in: per-build type rows; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0217` — out: logical structs + field correspondence; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0218` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0219` — compatibility gate; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0220` — Comments · bookmarks · evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0221` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0222` — Nothing authored is lost; conflicts stay visible.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0223` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0224` — • per-field precedence merge, never wholesale; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0225` — • conflicts and human edits preserved; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0226` — • receipt per merged field; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0227` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0228` — in: annotations; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0229` — out: merged annotations + conflicts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0230` — Runs alongside recovery; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0231` — concurrent; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0232` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0233` — Fusion never waits for source recovery; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0234` — and never blocks it.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0235` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0236` — • overlaps when transactions don't collide; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0237` — • serialized only at the shared corpus mutation point; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0238` — • resource-aware admission (measured memory/swap); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0239` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0240` — OUTPUTS  →  who consumes them; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0241` — → merged names / types / comments PER FIELD, each with origin and rejected alternatives; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0242` — → consumed by stage 5 placement (type-compatibility gate) and by the ABI + struct blocks of the pack; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0243` — → surfaces in the readiness report as which build donated which field; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0244` — → never overwrites a stronger field; conflicts stay visible for review; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0245` — LANE B · Cross-build entity unification &amp; export — every entity, not just functions; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0246` — portable signatures · entity catalog · data-root locator families with fallbacks · divergence · codecaves · ABI — feeds the runtime pack; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0247` — consumes stages 1–2 (+ raw images) · feeds lane C and the export bundle; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0248` — Portable signatures (identity ≠ locator); coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0249` — deterministic; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0250` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0251` — Discover supported entities across related builds;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0252` — record absent, ambiguous and unsupported outcomes.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0253` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0254` — • identity evidence cascade ≠ runtime locator search; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0255` — • runtime LOCATOR family: reloc-masked window →; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0256` — •   anchor-relative (import/export/string) → verify hash; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0257` — • corpus-computed uniqueness + margin shipped in pack; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0258` — • library/CRT excluded; identical bodies → anchors; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0259` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0260` — in: raw image + decode + reloc table; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0261` — out: logical_signature per entity + coverage; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0262` — Entity catalog; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0263` — 30 kinds (pack enum); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0264` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0265` — Everything a mod could want, unified:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0266` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0267` — • functions · patch points · immediates · call sites; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0268` — • globals · singletons · structs &amp; fields · vtables · RTTI; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0269` — • strings · tables · enums · imports/exports · dispatch; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0270` — • TLS · unwind · sections · resources · integrity checks; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0271` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0272` — in: analysis + formats; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0273` — out: entities[] with kind, shape, locators; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0274` — Data-root locator families; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0275` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0276` — Known build: identity → RVA → live check.; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0277` — Unknown build: applicable discovery + refusal.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0278` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0279` — • symbol → xref-from-identified-function → anchor-rel; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0280` — •   → masked adjacency → pointer chain → vtable/RTTI; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0281` — •   known-build RVA is preferred; portable:false; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0282` — • resolver: verify · memoize per build hash · report; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0283` — •   member · REFUSE, never zero; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0284` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0285` — in: entities + xrefs; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0286` — out: per-root recipes + per-build coverage; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0287` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0288` — verify before trust; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0289` — Divergence (3-way, never forced); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0290` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0291` — When the surrounding logic is too different,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0292` — SAY so and SHOW it — never fake a match.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0293` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0294` — • CFG delta + neighborhood symmetric difference; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0295` — • integer components, rational thresholds (no floats); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0296` — • 1↔1 · split-or-inlined · diverged; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0297` — • review lane shows why; nothing propagates silently; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0298` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0299` — in: cross-build pairs; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0300` — out: relation + class + evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0301` — Codecaves &amp; ABI (Lua-ready); coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0302` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0303` — Export what injection needs, portable:; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0304` — caves as plan templates, ABI as data.; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0305` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0306` — • cave = anchor-sig + offset + capacity REQUIREMENT +; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0307` — •   relocation rules + originals + restoration + claim; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0308` — • ABI: convention · this-kind · per-arg storage · sret; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0309` — • allocation policy + lifetime checks; refusal supported; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0310` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0311` — in: entities + validation rules; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0312` — out: caves[] + abi blocks in pack v2; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0313` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0314` — exported plan ≠ live detour permission; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0315` — Generic core · adapters; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0316` — 3 layers; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0317` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0318` — No product ever in the core.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0319` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0320` — • L1 core: any PE/ELF/Mach-O/XBE — masks, CFG, caves; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0321` — • L2 arch adapter: detour width, relocs, reach; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0322` — • L3 engine adapter + build profile: script API, this-kind; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0323` — • names live in external data packs only; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0324` — • pack.json + sha256 in the basis; missing pack →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0325` — •   missing_adapter, never a default; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0326` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0327` — OUTPUTS  →  who consumes them; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0328` — → logical_signature per entity + per-build coverage · entities[] catalog (30 kinds, pack enum); coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0329` — → data-root recipes with ordered fallbacks · divergence class per pair · caves[] + ABI blocks; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0330` — → all of it lands in hookpack v2 → consumed by lane C (runtime) and the export bundle; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0331` — → generic core + adapters: a new engine adds an L3 data pack, never core code; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0332` — LANE C · Runtime reuse &amp; learn-the-build — branches after identity/ABI evidence, before whole-image recovery; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0333` — calling original code never counts as recovered source; observations feed back as evidence with provenance; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0334` — branches after stages 1–2 evidence · consumes lane B's pack · feeds evidence back into stage 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0335` — Pack → resolve; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0336` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0337` — Verify build identity and live evidence before; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0338` — authorizing each requested runtime operation.; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0339` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0340` — • try members in order; verify each; memoize by image hash; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0341` — • known: recorded RVA first → expected live bytes; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0342` — • unknown: bounded discovery; report uncertainty; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0343` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0344` — in: hookpack v2 + live image; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0345` — out: located/readable/callable/detourable/writable; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0346` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0347` — verify or refuse; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0348` — Preflight → controlled call/install; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0349` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0350` — Never write into a process blind.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0351` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0352` — • capacity + originals + page protection checked live; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0353` — • tested install/remove + safe trampoline reclamation; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0354` — • ABI / object lifetime / thread / policy / owner checked; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0355` — • byte journal rollback ≠ undo of executed side effects; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0356` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0357` — in: resolved sites; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0358` — out: installed hooks / typed calls; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0359` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0360` — quiescence + claim; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0361` — Observe → evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0362` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0363` — Turn runtime behavior into corpus evidence.; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0364` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0365` — • traces: calls, args, returns, field changes; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0366` — • provenance-bearing; refines names/types/behavior; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0367` — • never promotes source parity; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0368` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0369` — in: live behavior; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0370` — out: observations with provenance; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0371` — Learn the build; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0372` — records uncertainty; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0373` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0374` — Each new build contributes provisional evidence;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0375` — contradictions may lower accepted coverage.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0376` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0377` — • export per-member resolution results as a build report; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0378` — • corpus ingests runtime_claim rows — never identity;; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0379` — •   bind_identities promotes or rejects (receipt + delete); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0380` — • residue re-attacked offline (BSim, emulation); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0381` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0382` — in: build report; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0383` — out: accepted/rejected evidence; updated coverage; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0384` — OUTPUTS  →  who consumes them; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0385` — → resolved sites per build + WHICH ladder member resolved each (feeds coverage + readiness); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0386` — → observations → runtime_claim + observed_status; promotion only through bind_identities; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0387` — → build reports → provisional claims → independent acceptance or named unresolved outcomes; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0388` — → never promotes source parity; never counts original bytes as recovered C; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0389` — LANE D · Verification &amp; determinism — same inputs → byte-identical outputs, under a declared basis; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0390` — replay recorded proposals and observations under a versioned basis; discovery itself need not be deterministic; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0391` — wraps every stage and lane · gates every export; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0392` — Determinism basis; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0393` — recorded; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0394` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0395` — Make 'same result' meaningful.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0396` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0397` — • decoder/analyzer revision + option set + cspec id; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0398` — • algorithm / masking / threshold versions; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0399` — • toolchain identity per build; filler set; seeds; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0400` — • data-pack hashes; per-binary basis_hash; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0401` — • refuse on unknown / empty / mixed basis; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0402` — • corpus hash only for corpus-dependent work; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0403` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0404` — in: environment; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0405` — out: basis object in every pack; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0406` — Two gates; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0407` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0408` — Prove reproducibility, don't assume it.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0409` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0410` — • export byte-diff: export twice → identical bytes; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0411` — • cascade harness: three layouts (canonical · shuffled; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0412` — •   rows + shuffled binary order · + VACUUM/ANALYZE); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0413` — •   + key-stability run → identity, match (incl. id),; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0414` — •   logical_function, recovery_family equal as sorted row-sets; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0415` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0416` — in: store; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0417` — out: pass / first differing key; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0418` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0419` — both must pass; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0420` — Ordering discipline; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0421` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0422` — No hidden order can reach a persisted value.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0423` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0424` — • every SELECT feeding a decision has a total ORDER BY; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0425` — • every 'best/first' pick has a total tie-break; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0426` — • sets/dicts sorted before hashing or serializing; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0427` — • floats rounded before persistence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0428` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0429` — Receipts &amp; re-baseline; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0430` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0431` — Change the basis deliberately, never silently.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0432` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0433` — • receipts hash relevant dependencies + snapshot; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0434` — • changed input → invalidate affected descendants; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0435` — • acceptance rejects stale versions; old packs readable; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0436` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0437` — OUTPUTS  →  who consumes them; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0438` — → the basis object stamped into every pack, header, report and receipt; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0439` — → two pass/fail gates in CI: export byte-diff and the cascade harness; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0440` — → content-addressed receipts → identical-basis re-runs are cache hits; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0441` — → basis change → deliberate re-baseline with a recorded supersession, never silent drift; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0442` — LANE E · Distributed compute (agentdecompile_grid) — laptop → concurrency → donated idle compute and free cloud nodes; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0443` — content-addressed objects · per-partition logs · every result a proposal · capability by canary, never by role · SQLite as a materialized view; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0444` — wraps every stage and lane · one-command join · fleet of free cloud nodes; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0445` — Objects &amp; logs; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0446` — substrate; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0447` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0448` — Working state supports independent replicas:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0449` — content-addressed, log-structured, network-capable.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0450` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0451` — • sha256 objects, write-once (If-None-Match / atomic rename); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0452` — • per-partition append-only logs of signed, chained records; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0453` — • heads = one CAS pointer per partition; rebuilt by chain scan; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0454` — • adapters: local · S3-compatible · static mirror · peer HTTP; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0455` — • compaction: signed checkpoints; peers prune below them; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0456` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0457` — in: inputs, sources, objects, receipts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0458` — out: immutable objects + verifiable partition chains; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0459` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0460` — write-once; chain verifies offline; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0461` — Tasks &amp; frontier; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0462` — never awaited; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0463` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0464` — Jobs bounded and addressable; resume where inputs exist;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0465` — result exists ≠ independently accepted claim.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0466` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0467` — • task_id = sha256(kind, version, inputs, params, basis projection); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0468` — • frontier from log; admission checks live resources separately; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0469` — • expired lease fences publication; uncertain resources quarantine; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0470` — • persistent input-scoped retry budget; deadline ≠ termination; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0471` — • a basis field change re-keys only the kinds that consume it; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0472` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0473` — in: partition chain + checkpoint index; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0474` — out: offered tasks · result objects · timeout records; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0475` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0476` — basis projection admitted; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0477` — Join (one command); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0478` — capability-only; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0479` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0480` — Any machine, one verb: laptop, donated idle box,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0481` — free cloud node, browser tab.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0482` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0483` — • attach-first: find the running local agent, never a second start; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0484` — • canaries prove capability: python · parity · toolchain · analyzer; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0485` — • capability decides lanes and fetches — a role never does; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0486` — • roles decide only mirrors + who signs invites / verifies / applies; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0487` — • outbound HTTPS only; no inbound port; --idle-only, --cores N; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0488` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0489` — in: invite URL + what the node can prove; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0490` — out: lanes offered by canary; inputs fetched by task; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0491` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0492` — canary hash = pinned value; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0493` — Verify (every result a proposal); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0494` — H8; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0495` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0496` — Trust the hash, never the key — fleet nodes included.; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0497` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0498` — • acceptance requires independent evidence roots, not just keys; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0499` — • recompute or hash-lookup; byte-exact = recompile + parity; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0500` — • no quorum, no credit, no reputation; a liar wastes ≤ 4 verifies; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0501` — • donated .obj / .bin never evidence (byte-emitter refuted); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0502` — • verification ordered before generation (no livelock); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0503` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0504` — in: proposals from any key; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0505` — out: result-verified / result-refuted records; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0506` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0507` — independent evidence lineage; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0508` — Views (SQLite as a materialized view); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0509` — H1 / H11; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0510` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0511` — The corpus store and the similarity index are replays of; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0512` — verified records: deletable, rebuildable, never locked by work.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0513` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0514` — • one applier per view; bounded transactions; ack after commit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0515` — • identity / logical / match / knowledge / receipts from deltas; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0516` — • view-stale is a named state with an age (H11), never a stall; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0517` — • no worker ever opens a view for writing (H1 by construction); coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0518` — • adgrid view materialize rebuilds from record 1; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0519` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0520` — in: result-verified records; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0521` — out: grid_* tables · similarity index · receipts; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0522` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0523` — materialize twice → identical dump; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0524` — Fleet (free cloud nodes); coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0525` — conditional host failover; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0526` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0527` — The operator never depends on volunteers: rented; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0528` — free-tier nodes join with the same command in cloud-init.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0529` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0530` — • adgrid fleet up / down / status / replace; manifest as objects; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0531` — • providers: manual · ssh · declared cloud adapters; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0532` — • lane placement by canary, never by tier or role; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0533` — • host failover needs independent replica + capable worker; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0534` — • host loss: continue only with complete surviving input closure; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0535` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0536` — in: provider credentials via the secret path; an invite; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0537` — out: nodes that joined; fleet manifest objects; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0538` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0539` — user-data = the join command only; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0540` — OUTPUTS  →  who consumes them; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0541` — → one package (CLI adgrid) reusable for any CPU/IO-heavy work; the pipeline's lanes are adapters over it; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0542` — → planned grid contracts; implementation status belongs to delivery evidence, not this design diagram; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0543` — → every stage runs as grid tasks: compile / parity / decompile / cascade / export lanes, each a proposal; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0544` — → timeouts record attempt outcomes, not termination; resource release requires evidence; independent acceptance only; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0545` — BOUNDED RESOLUTION — try applicable methods; stop with absent / inlined-only / ambiguous / unsupported / insufficient evidence / budget exhausted.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0546` — A · Function whose bytes changed; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0547` — 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0548` — [anchor_rel] anchor-relative (import/export/string); coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0549` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0550` — 2; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0551` — [caller_callsite] via a resolved CALLER (decode its call); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0552` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0553` — 3; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0554` — [callee_order] via resolved CALLEES (order match); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0555` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0556` — 4; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0557` — [data_xref] via data it references (inverse xref); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0558` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0559` — 5; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0560` — [vtable_slot] via its vtable slot; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0561` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0562` — 6; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0563` — [neighbour_position] positional neighbour (order-preserving); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0564` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0565` — 7; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0566` — [structural] structural match (embedded decoder); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0567` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0568` — 8; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0569` — [region · review-only] region match (inlined / split); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0570` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0571` — 9; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0572` — [symbol] symbol/debug info at runtime; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0573` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0574` — 10; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0575` — [offline] emulation, BSim on residue; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0576` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0577` — 11; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0578` — [annotation] annotation with provenance (a claim, never resolved); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0579` — two verified hits disagree → contested; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0580` — then: unresolved (per-member reasons); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0581` — B · Cave missing or too small; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0582` — 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0583` — N candidate caves per anchor; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0584` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0585` — 2; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0586` — live cave discovery (validated); coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0587` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0588` — 3; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0589` — section slack only with expendability proof; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0590` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0591` — 4; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0592` — header / stub space only with explicit proof; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0593` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0594` — 5; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0595` — executable allocation if process policy permits; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0596` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0597` — 6; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0598` — image extension (on-disk patches); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0599` — then: no_placement / unsupported_dynamic_code; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0600` — C · Data root unresolved; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0601` — 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0602` — [known build] identity → RVA → live check; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0603` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0604` — 2; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0605` — [unknown] symbol / debug info; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0606` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0607` — 3; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0608` — [xref_from_function] xref from identified function; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0609` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0610` — 4; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0611` — [data_xref] inverse access-instruction scan; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0612` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0613` — 5; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0614` — [anchor_rel] relative to import/export/string; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0615` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0616` — 6; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0617` — [masked_window] data-section adjacency; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0618` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0619` — 7; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0620` — [pointer_chain] from a resolved root; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0621` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0622` — 8; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0623` — via constructor / initializer; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0624` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0625` — 9; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0626` — [vtable_slot] vtable / RTTI-derived; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0627` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0628` — 10; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0629` — value-shape probe + independent confirmation; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0630` — then: unresolved — never a silent zero; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0631` — D · Struct field moved / stripped build; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0632` — 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0633` — name / debug-info donor; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0634` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0635` — 2; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0636` — ACCESSOR DECODE → exact per-build offset; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0637` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0638` — 3; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0639` — constructor initializer sequence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0640` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0641` — 4; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0642` — field-access fingerprint match; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0643` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0644` — 5; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0645` — sibling-field anchoring; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0646` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0647` — 6; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0648` — pointer-width hints only; verify actual layout; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0649` — then: ambiguous / insufficient_evidence / absent; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0650` — E · VTable / dispatch slots; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0651` — 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0652` — RTTI; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0653` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0654` — 2; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0655` — constructor vtable-store decode; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0656` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0657` — 3; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0658` — slot matched by METHOD identity; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0659` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0660` — 4; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0661` — dispatch entries by HANDLER identity; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0662` — then: per-slot unresolved; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0663` — F · Unknown build; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0664` — 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0665` — admit in signature-only mode; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0666` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0667` — 2; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0668` — run applicable ladders within declared budget; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0669` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0670` — 3; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0671` — record every resolution + residue; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0672` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0673` — 4; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0674` — ingest as runtime_claim → bind_identities confirms → KNOWN; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0675` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0676` — 5; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0677` — residue re-attacked offline; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0678` — coverage may regress when collisions are found; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0679` — OWNERSHIP IS RESOURCE-SCOPED (eligible independent work overlaps); coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0680` — writes to one Ghidra program's analysis DB; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0681` — shared corpus mutation / conflict resolution; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0682` — shared mutable compiler outputs / Wine context (private outputs may overlap); coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0683` — one scenario bundle: staged tree + saves + Wine + display + ports + harness; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0684` — short acceptance commit: current basis + generation + independent proof; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0685` — Atomic resource-set admission; measured process-tree budgets and pressure; external owners remain external.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0686` — FAILOVER RULE; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0687` — The affected branch stops VISIBLY at its real unmet dependency;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0688` — every eligible sibling lane continues.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0689` — Show the named owner/provider failure, last evidence, chosen fallback,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0690` — one retry owner and persistent budget; deterministic negatives require changed basis.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0691` — Deadline ends attempt, not objective; expired ownership does not free resources;; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0692` — quarantine uncertain resources; show wake conditions, progress unknown and aging.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0693` — EXPORT TARGET — reusable recovery projects + vanilla-game bindings; capabilities and unknowns explicit; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0694` — re-run under the same basis → byte-identical bundle; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0695` — hookpack v2; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0696` — every entity kind, locator families,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0697` — per-build coverage, ABI blocks, caves,; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0698` — integrity ranges, basis, pack hash; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0699` — Generated Lua bindings; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0700` — roots by name · typed struct accessors; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0701` — table/handle/bitfield/string helpers; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0702` — typed call stubs only for ABIs the; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0703` — descriptor layer expresses; else refuse; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0704` — NO literal address; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0705` — Per-build C/C++ headers; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0706` — evidenced per-build layouts;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0707` — opaque unknown spans · prototypes with; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0708` — conventions + storage · build manifest; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0709` — Readiness report; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0710` — per entity × build: resolved(member) /; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0711` — pinned(member) / degraded(member, reason) /; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0712` — ambiguous / unresolved / contested; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0713` — observed_status separate · what a mod; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0714` — can do here; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0715` — Divergence report; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0716` — 1↔1 · split-or-inlined · diverged; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0717` — field-map, slot and table deltas; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0718` — between any two builds; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0719` — Receipts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0720` — content-addressed, keyed by; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0721` — hash(inputs+basis) · every artifact; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0722` — identical-basis re-run = cache hit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0723` — Source + comparison projects; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0724` — byte-accurate C+floor and max-C; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0725` — with manifests; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0726` — reccmp reports + independent image receipts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0727` — LEGEND; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0728` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0729` — data / dependency flow; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0730` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0731` — failover / fallback; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0732` — G; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0733` — gate — must pass (compile receipt, verify, hash); coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0734` — serialized — one owner; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0735` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0736` — bracket — eligible independent work may overlap; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0737` — identity; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0738` — source recovery; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0739` — cross-build unification &amp; export; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0740` — runtime reuse / learn; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0741` — verification &amp; determinism; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0742` — intake / cross-cutting; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S061-E0743` — DESIGN ONLY · future checks NOT RUN. Companions: execution-contracts.svg — evidence/admission; resilience-contracts.svg — prevention, containment, recovery. Replay records observations + dependencies.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.drawio`:0–0.
+- [ ] `S063-E0001` — AgentDecompile — the recovery pipeline, end to end; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0002` — Reading order: named stages retain prerequisites; evidence feeds back and verification starts early. Every card answers: what we're trying to do · how · what goes in and comes out · what gates it.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0003` — HOW TO READ THIS IN 20 SECONDS; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0004` — 1. Follow prerequisites; identity/calibration iterate and parity runs continuously.; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0005` — 2. Lanes may overlap within ownership, resource and snapshot-dependency limits.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0006` — 3. Try applicable lookups; exports state capabilities, uncertainty and evidence.; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0007` — Design target: recover from the best evidence, reuse only what transfers, verify at the level of use — packs, generated bindings, headers and readiness reports with explicit capability limits.; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0008` — Runs on a laptop; scales by concurrency, then by donated idle compute and free cloud nodes; task-specific budgets and isolated storage probes; complete prepared inputs enable independent continuation; see execution-contracts companion.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0009` — MAIN PIPELINE — compatible reuse · validated reconstruction · independent claim gates; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0010` — 0 + eight named stages · feedback allowed · reuse valid unchanged receipts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0011` — 0; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0012` — Open · add · resume (priority-zero); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0013` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0014` — Start from the actual project, never a setup ritual:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0015` — open, add or resume admits only missing eligible work;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0016` — pause/resume controls admission — no Start ritual.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0017` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0018` — • reconcile bindings; reuse dependency-valid receipts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0019` — • gate writes; reads use stable versioned snapshots; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0020` — • the one control is pause/resume (+ scope), never start; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0021` — • checkpoint-trusting; repair only on detected breakage:; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0022` — •   NULL content_sha256 / mixed basis_hash → receipted; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0023` — •   backfill, never auto-run; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0024` — • revisit affected evidence only; no blanket reanalysis; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0025` — • reopen reuses valid work; changed evidence re-keys work; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0026` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0027` — in: .gpr / repo / binaries / prior receipts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0028` — out: one active project, known state, no duplicate work; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0029` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0030` — mutation-admission only (real owner state); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0031` — 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0032` — Identity; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0033` — ∥ extraction + indexing run in parallel; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0034` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0035` — Decide which functions/entities across builds are; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0036` — logical entity, implementation variant and instance;; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0037` — similarity does not prove interchangeable behavior.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0038` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0039` — • extract facts once; short-circuit identical images; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0040` — • cheap-first cascade: symbols/provenance → exact &; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0041` — •   reloc-normalized hashes → rare refs / C++ meta →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0042` — •   neighborhood → CFG/SPP → BSim → ABI → optional; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0043` — •   BinDiff/BinExport → optional emulation on residue; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0044` — • require uniqueness + margin; keep ambiguity;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0045` — •   withdraw bad seeds + unsupported descendants; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0046` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0047` — in: analyzed programs, debug info, formats; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0048` — out: entity / variant / instance + evidence lineage; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0049` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0050` — candidate ≠ acceptance; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0051` — 2; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0052` — Incremental calibration; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0053` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0054` — Establish minimum platform facts, then refine; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0055` — compiler, ABI and layout hypotheses with; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0056` — identity and function evidence; version each input.; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0057` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0058` — • compiler/linker + headers/libs + macros + FP mode; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0059` — • scope: build / library / TU / function overrides; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0060` — • group fragments into TUs/LTCG as required; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0061` — • probe legacy switches; record scoped dependencies; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0062` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0063` — in: identified builds + toolchain evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0064` — out: calibration record (part of the basis); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0065` — 3; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0066` — Validated linkable regions; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0067` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0068` — Reconstruct objects and placement from the image;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0069` — keep uncertain boundaries in larger regions;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0070` — prove reconstruction before scaling source work.; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0071` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0072` — • bytes + fixups + refs + data + unwind metadata; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0073` — • architecture-specific objects / external assembly; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0074` — • extract → emit → place → compare original bytes; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0075` — • then prove a compiled replacement actually contributes; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0076` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0077` — in: calibration + donor build; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0078` — out: validated region scaffold; floor ≠ recovered C; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0079` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0080` — round trip + independent linked-image oracle; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0081` — 4; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0082` — C/C++ candidates; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0083` — isolated mutable outputs / PDB / Wine state; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0084` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0085` — Produce readable candidates; preserve the floor; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0086` — until replacement acceptance passes.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0087` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0088` — • recovery unit ≠ compilation unit ≠ comparison unit; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0089` — • compile pass → candidate (real_c is compile-only); coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0090` — • fail → deterministic helpers (sanitizer/preparse) →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0091` — •   retry → ONE bounded LLM cleanup → retry → keep asm; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0092` — • never repeat valid unchanged work; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0093` — • repair explains preserved machine behavior; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0094` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0095` — in: scaffold + decompiler output; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0096` — out: compiled candidates + scoped compile receipts; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0097` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0098` — compile admits candidate, not replacement; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0099` — compile fails → helpers → bounded LLM → retry (dashed = failover, never blocks siblings); coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0100` — 5; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0101` — Propagation (cross-place); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0102` — the cross-match tier; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0103` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0104` — Reuse a donor candidate only for compatible; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0105` — recipient implementation variants;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0106` — each recipient earns its own acceptance.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0107` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0108` — • compile + variant/ABI/layout compatibility gate; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0109` — • then byte-exact verify → permuter → LLM last; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0110` — • a logical_id bind alone NEVER authorizes copying; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0111` — • ABI-sensitive types re-validated per recipient; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0112` — • field-level knowledge fusion runs alongside (lane A); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0113` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0114` — in: compile receipts + identity table; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0115` — out: recipient candidates; separate verification; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0116` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0117` — candidate distribution ≠ accepted source; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0118` — G; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0119` — candidate; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0120` — compile + compatibility; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0121` — 6; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0122` — Targeted AI (leftovers only); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0123` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0124` — Spend model effort ONLY on what deterministic; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0125` — methods left behind — leaves before callers.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0126` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0127` — • residue queue, tagged with WHY AI was needed; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0128` — • diagnose behavior/types → ABI → context → codegen; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0129` — • LLM output is a candidate — never a trusted edge; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0130` — • ReAgent checker; record exact proposals + bounds; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0131` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0132` — in: residue after 4–5; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0133` — out: candidate C for review + provenance; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0134` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0135` — candidate only; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0136` — 7; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0137` — Continuous parity; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0138` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0139` — Compare emitted code/data against validated; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0140` — targets and independently against linked bytes.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0141` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0142` — • objdiff local + linked-region checks (LTCG aware); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0143` — • reccmp: supported MSVC / PDB diagnostics; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0144` — • compile / ABI / tested behavior / local / linked; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0145` — • a function-level zero is NOT whole-image proof; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0146` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0147` — in: emitted regions + validated original references; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0148` — out: separate facts with mapping, bounds + evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0149` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0150` — local zero ≠ full-image or behavior proof; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0151` — 8; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0152` — Whole-image byte identity; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0153` — terminal; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0154` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0155` — The terminal goal: relink into a file whose; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0156` — whole-file hash EQUALS the shipped binary.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0157` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0158` — • early stage-3 round trips; fresh terminal compilation; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0159` — • reproduce section order, padding, headers, IAT, relocs; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0160` — • prove replacement use → whole-file byte/hash check; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0161` — • two variants measured separately: byte-accurate+floor; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0162` — •   vs max-C; never borrow a receipt between them; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0163` — • reconstruction ≠ original-style rebuild; record method; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0164` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0165` — in: scoped parity + contribution map + layout recipe; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0166` — out: rebuilt image + whole-file hash receipt; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0167` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0168` — whole-file hash equality; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0169` — 1 ↔ 2: refine scoped hypotheses; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0170` — 7–8 verify early scaffold and candidates; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0171` — RUNS CONCURRENTLY WITH STAGES 1–8 (where ownership permits); coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0172` — LANE A · Knowledge fusion — bidirectional, per field; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0173` — labels · comments · structs/types · debug-info names flow between every build sharing a logical id; strongest source per field wins; a build donates a FIELD, never everything; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0174` — consumes stage 1 identity · runs beside stages 4–5 · feeds every sibling build; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0175` — Name precedence (per field); coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0176` — field-level; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0177` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0178` — Keep the strongest name for every field,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0179` — never let a placeholder win.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0180` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0181` — • human annotation → debug info / STABS →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0182` — •   authentic symbols → analysis names → placeholders; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0183` — • provenance + rejected alternatives retained; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0184` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0185` — in: all builds' names; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0186` — out: merged names with origin; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0187` — Types & layouts; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0188` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0189` — Merge struct/type knowledge only where; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0190` — compatibility gates allow.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0191` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0192` — • types/layouts keep their own gates (never auto-copied); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0193` — • platform-gated donors: (arch, bits, endian, compiler); coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0194` — • per-build layouts; unknown spans opaque; no scaling; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0195` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0196` — in: per-build type rows; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0197` — out: logical structs + field correspondence; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0198` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0199` — compatibility gate; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0200` — Comments · bookmarks · evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0201` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0202` — Nothing authored is lost; conflicts stay visible.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0203` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0204` — • per-field precedence merge, never wholesale; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0205` — • conflicts and human edits preserved; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0206` — • receipt per merged field; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0207` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0208` — in: annotations; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0209` — out: merged annotations + conflicts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0210` — Runs alongside recovery; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0211` — concurrent; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0212` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0213` — Fusion never waits for source recovery; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0214` — and never blocks it.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0215` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0216` — • overlaps when transactions don't collide; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0217` — • serialized only at the shared corpus mutation point; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0218` — • resource-aware admission (measured memory/swap); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0219` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0220` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0221` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0222` — OUTPUTS  →  who consumes them; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0223` — → merged names / types / comments PER FIELD, each with origin and rejected alternatives; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0224` — → consumed by stage 5 placement (type-compatibility gate) and by the ABI + struct blocks of the pack; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0225` — → surfaces in the readiness report as which build donated which field; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0226` — → never overwrites a stronger field; conflicts stay visible for review; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0227` — LANE B · Cross-build entity unification & export — every entity, not just functions; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0228` — portable signatures · entity catalog · data-root locator families with fallbacks · divergence · codecaves · ABI — feeds the runtime pack; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0229` — consumes stages 1–2 (+ raw images) · feeds lane C and the export bundle; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0230` — Portable signatures (identity ≠ locator); coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0231` — deterministic; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0232` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0233` — Discover supported entities across related builds;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0234` — record absent, ambiguous and unsupported outcomes.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0235` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0236` — • identity evidence cascade ≠ runtime locator search; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0237` — • runtime LOCATOR family: reloc-masked window →; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0238` — •   anchor-relative (import/export/string) → verify hash; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0239` — • corpus-computed uniqueness + margin shipped in pack; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0240` — • library/CRT excluded; identical bodies → anchors; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0241` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0242` — in: raw image + decode + reloc table; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0243` — out: logical_signature per entity + coverage; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0244` — Entity catalog; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0245` — 30 kinds (pack enum); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0246` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0247` — Everything a mod could want, unified:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0248` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0249` — • functions · patch points · immediates · call sites; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0250` — • globals · singletons · structs & fields · vtables · RTTI; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0251` — • strings · tables · enums · imports/exports · dispatch; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0252` — • TLS · unwind · sections · resources · integrity checks; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0253` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0254` — in: analysis + formats; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0255` — out: entities[] with kind, shape, locators; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0256` — Data-root locator families; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0257` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0258` — Known build: identity → RVA → live check.; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0259` — Unknown build: applicable discovery + refusal.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0260` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0261` — • symbol → xref-from-identified-function → anchor-rel; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0262` — •   → masked adjacency → pointer chain → vtable/RTTI; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0263` — •   known-build RVA is preferred; portable:false; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0264` — • resolver: verify · memoize per build hash · report; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0265` — •   member · REFUSE, never zero; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0266` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0267` — in: entities + xrefs; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0268` — out: per-root recipes + per-build coverage; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0269` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0270` — verify before trust; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0271` — Divergence (3-way, never forced); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0272` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0273` — When the surrounding logic is too different,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0274` — SAY so and SHOW it — never fake a match.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0275` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0276` — • CFG delta + neighborhood symmetric difference; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0277` — • integer components, rational thresholds (no floats); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0278` — • 1↔1 · split-or-inlined · diverged; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0279` — • review lane shows why; nothing propagates silently; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0280` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0281` — in: cross-build pairs; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0282` — out: relation + class + evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0283` — Codecaves & ABI (Lua-ready); coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0284` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0285` — Export what injection needs, portable:; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0286` — caves as plan templates, ABI as data.; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0287` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0288` — • cave = anchor-sig + offset + capacity REQUIREMENT +; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0289` — •   relocation rules + originals + restoration + claim; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0290` — • ABI: convention · this-kind · per-arg storage · sret; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0291` — • allocation policy + lifetime checks; refusal supported; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0292` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0293` — in: entities + validation rules; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0294` — out: caves[] + abi blocks in pack v2; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0295` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0296` — exported plan ≠ live detour permission; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0297` — Generic core · adapters; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0298` — 3 layers; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0299` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0300` — No product ever in the core.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0301` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0302` — • L1 core: any PE/ELF/Mach-O/XBE — masks, CFG, caves; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0303` — • L2 arch adapter: detour width, relocs, reach; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0304` — • L3 engine adapter + build profile: script API, this-kind; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0305` — • names live in external data packs only; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0306` — • pack.json + sha256 in the basis; missing pack →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0307` — •   missing_adapter, never a default; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0308` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0309` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0310` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0311` — OUTPUTS  →  who consumes them; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0312` — → logical_signature per entity + per-build coverage · entities[] catalog (30 kinds, pack enum); coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0313` — → data-root recipes with ordered fallbacks · divergence class per pair · caves[] + ABI blocks; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0314` — → all of it lands in hookpack v2 → consumed by lane C (runtime) and the export bundle; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0315` — → generic core + adapters: a new engine adds an L3 data pack, never core code; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0316` — LANE C · Runtime reuse & learn-the-build — branches after identity/ABI evidence, before whole-image recovery; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0317` — calling original code never counts as recovered source; observations feed back as evidence with provenance; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0318` — branches after stages 1–2 evidence · consumes lane B's pack · feeds evidence back into stage 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0319` — Pack → resolve; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0320` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0321` — Verify build identity and live evidence before; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0322` — authorizing each requested runtime operation.; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0323` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0324` — • try members in order; verify each; memoize by image hash; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0325` — • known: recorded RVA first → expected live bytes; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0326` — • unknown: bounded discovery; report uncertainty; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0327` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0328` — in: hookpack v2 + live image; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0329` — out: located/readable/callable/detourable/writable; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0330` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0331` — verify or refuse; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0332` — Preflight → controlled call/install; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0333` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0334` — Never write into a process blind.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0335` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0336` — • capacity + originals + page protection checked live; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0337` — • tested install/remove + safe trampoline reclamation; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0338` — • ABI / object lifetime / thread / policy / owner checked; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0339` — • byte journal rollback ≠ undo of executed side effects; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0340` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0341` — in: resolved sites; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0342` — out: installed hooks / typed calls; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0343` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0344` — quiescence + claim; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0345` — Observe → evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0346` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0347` — Turn runtime behavior into corpus evidence.; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0348` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0349` — • traces: calls, args, returns, field changes; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0350` — • provenance-bearing; refines names/types/behavior; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0351` — • never promotes source parity; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0352` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0353` — in: live behavior; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0354` — out: observations with provenance; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0355` — Learn the build; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0356` — records uncertainty; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0357` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0358` — Each new build contributes provisional evidence;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0359` — contradictions may lower accepted coverage.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0360` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0361` — • export per-member resolution results as a build report; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0362` — • corpus ingests runtime_claim rows — never identity;; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0363` — •   bind_identities promotes or rejects (receipt + delete); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0364` — • residue re-attacked offline (BSim, emulation); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0365` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0366` — in: build report; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0367` — out: accepted/rejected evidence; updated coverage; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0368` — OUTPUTS  →  who consumes them; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0369` — → resolved sites per build + WHICH ladder member resolved each (feeds coverage + readiness); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0370` — → observations → runtime_claim + observed_status; promotion only through bind_identities; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0371` — → build reports → provisional claims → independent acceptance or named unresolved outcomes; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0372` — → never promotes source parity; never counts original bytes as recovered C; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0373` — LANE D · Verification & determinism — same inputs → byte-identical outputs, under a declared basis; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0374` — replay recorded proposals and observations under a versioned basis; discovery itself need not be deterministic; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0375` — wraps every stage and lane · gates every export; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0376` — Determinism basis; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0377` — recorded; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0378` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0379` — Make 'same result' meaningful.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0380` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0381` — • decoder/analyzer revision + option set + cspec id; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0382` — • algorithm / masking / threshold versions; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0383` — • toolchain identity per build; filler set; seeds; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0384` — • data-pack hashes; per-binary basis_hash; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0385` — • refuse on unknown / empty / mixed basis; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0386` — • corpus hash only for corpus-dependent work; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0387` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0388` — in: environment; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0389` — out: basis object in every pack; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0390` — Two gates; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0391` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0392` — Prove reproducibility, don't assume it.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0393` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0394` — • export byte-diff: export twice → identical bytes; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0395` — • cascade harness: three layouts (canonical · shuffled; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0396` — •   rows + shuffled binary order · + VACUUM/ANALYZE); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0397` — •   + key-stability run → identity, match (incl. id),; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0398` — •   logical_function, recovery_family equal as sorted row-sets; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0399` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0400` — in: store; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0401` — out: pass / first differing key; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0402` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0403` — both must pass; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0404` — Ordering discipline; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0405` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0406` — No hidden order can reach a persisted value.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0407` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0408` — • every SELECT feeding a decision has a total ORDER BY; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0409` — • every 'best/first' pick has a total tie-break; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0410` — • sets/dicts sorted before hashing or serializing; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0411` — • floats rounded before persistence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0412` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0413` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0414` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0415` — Receipts & re-baseline; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0416` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0417` — Change the basis deliberately, never silently.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0418` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0419` — • receipts hash relevant dependencies + snapshot; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0420` — • changed input → invalidate affected descendants; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0421` — • acceptance rejects stale versions; old packs readable; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0422` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0423` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0424` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0425` — OUTPUTS  →  who consumes them; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0426` — → the basis object stamped into every pack, header, report and receipt; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0427` — → two pass/fail gates in CI: export byte-diff and the cascade harness; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0428` — → content-addressed receipts → identical-basis re-runs are cache hits; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0429` — → basis change → deliberate re-baseline with a recorded supersession, never silent drift; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0430` — LANE E · Distributed compute (agentdecompile_grid) — laptop → concurrency → donated idle compute and free cloud nodes; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0431` — content-addressed objects · per-partition logs · every result a proposal · capability by canary, never by role · SQLite as a materialized view; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0432` — wraps every stage and lane · one-command join · fleet of free cloud nodes; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0433` — Objects & logs; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0434` — substrate; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0435` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0436` — Working state supports independent replicas:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0437` — content-addressed, log-structured, network-capable.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0438` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0439` — • sha256 objects, write-once (If-None-Match / atomic rename); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0440` — • per-partition append-only logs of signed, chained records; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0441` — • heads = one CAS pointer per partition; rebuilt by chain scan; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0442` — • adapters: local · S3-compatible · static mirror · peer HTTP; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0443` — • compaction: signed checkpoints; peers prune below them; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0444` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0445` — in: inputs, sources, objects, receipts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0446` — out: immutable objects + verifiable partition chains; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0447` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0448` — write-once; chain verifies offline; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0449` — Tasks & frontier; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0450` — never awaited; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0451` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0452` — Jobs bounded and addressable; resume where inputs exist;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0453` — result exists ≠ independently accepted claim.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0454` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0455` — • task_id = sha256(kind, version, inputs, params, basis projection); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0456` — • frontier from log; admission checks live resources separately; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0457` — • expired lease fences publication; uncertain resources quarantine; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0458` — • persistent input-scoped retry budget; deadline ≠ termination; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0459` — • a basis field change re-keys only the kinds that consume it; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0460` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0461` — in: partition chain + checkpoint index; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0462` — out: offered tasks · result objects · timeout records; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0463` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0464` — basis projection admitted; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0465` — Join (one command); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0466` — capability-only; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0467` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0468` — Any machine, one verb: laptop, donated idle box,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0469` — free cloud node, browser tab.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0470` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0471` — • attach-first: find the running local agent, never a second start; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0472` — • canaries prove capability: python · parity · toolchain · analyzer; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0473` — • capability decides lanes and fetches — a role never does; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0474` — • roles decide only mirrors + who signs invites / verifies / applies; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0475` — • outbound HTTPS only; no inbound port; --idle-only, --cores N; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0476` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0477` — in: invite URL + what the node can prove; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0478` — out: lanes offered by canary; inputs fetched by task; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0479` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0480` — canary hash = pinned value; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0481` — Verify (every result a proposal); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0482` — H8; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0483` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0484` — Trust the hash, never the key — fleet nodes included.; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0485` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0486` — • acceptance requires independent evidence roots, not just keys; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0487` — • recompute or hash-lookup; byte-exact = recompile + parity; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0488` — • no quorum, no credit, no reputation; a liar wastes ≤ 4 verifies; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0489` — • donated .obj / .bin never evidence (byte-emitter refuted); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0490` — • verification ordered before generation (no livelock); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0491` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0492` — in: proposals from any key; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0493` — out: result-verified / result-refuted records; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0494` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0495` — independent evidence lineage; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0496` — Views (SQLite as a materialized view); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0497` — H1 / H11; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0498` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0499` — The corpus store and the similarity index are replays of; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0500` — verified records: deletable, rebuildable, never locked by work.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0501` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0502` — • one applier per view; bounded transactions; ack after commit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0503` — • identity / logical / match / knowledge / receipts from deltas; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0504` — • view-stale is a named state with an age (H11), never a stall; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0505` — • no worker ever opens a view for writing (H1 by construction); coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0506` — • adgrid view materialize rebuilds from record 1; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0507` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0508` — in: result-verified records; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0509` — out: grid_* tables · similarity index · receipts; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0510` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0511` — materialize twice → identical dump; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0512` — Fleet (free cloud nodes); coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0513` — conditional host failover; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0514` — Trying to:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0515` — The operator never depends on volunteers: rented; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0516` — free-tier nodes join with the same command in cloud-init.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0517` — How:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0518` — • adgrid fleet up / down / status / replace; manifest as objects; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0519` — • providers: manual · ssh · declared cloud adapters; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0520` — • lane placement by canary, never by tier or role; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0521` — • host failover needs independent replica + capable worker; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0522` — • host loss: continue only with complete surviving input closure; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0523` — In → out:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0524` — in: provider credentials via the secret path; an invite; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0525` — out: nodes that joined; fleet manifest objects; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0526` — Gate:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0527` — user-data = the join command only; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0528` — OUTPUTS  →  who consumes them; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0529` — → one package (CLI adgrid) reusable for any CPU/IO-heavy work; the pipeline's lanes are adapters over it; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0530` — → planned grid contracts; implementation status belongs to delivery evidence, not this design diagram; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0531` — → every stage runs as grid tasks: compile / parity / decompile / cascade / export lanes, each a proposal; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0532` — → timeouts record attempt outcomes, not termination; resource release requires evidence; independent acceptance only; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0533` — BOUNDED RESOLUTION — try applicable methods; stop with absent / inlined-only / ambiguous / unsupported / insufficient evidence / budget exhausted.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0534` — A · Function whose bytes changed; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0535` — 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0536` — [anchor_rel] anchor-relative (import/export/string); coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0537` — 2; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0538` — [caller_callsite] via a resolved CALLER (decode its call); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0539` — 3; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0540` — [callee_order] via resolved CALLEES (order match); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0541` — 4; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0542` — [data_xref] via data it references (inverse xref); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0543` — 5; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0544` — [vtable_slot] via its vtable slot; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0545` — 6; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0546` — [neighbour_position] positional neighbour (order-preserving); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0547` — 7; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0548` — [structural] structural match (embedded decoder); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0549` — 8; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0550` — [region · review-only] region match (inlined / split); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0551` — 9; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0552` — [symbol] symbol/debug info at runtime; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0553` — 10; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0554` — [offline] emulation, BSim on residue; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0555` — 11; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0556` — [annotation] annotation with provenance (a claim, never resolved); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0557` — two verified hits disagree → contested; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0558` — then: unresolved (per-member reasons); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0559` — B · Cave missing or too small; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0560` — 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0561` — N candidate caves per anchor; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0562` — 2; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0563` — live cave discovery (validated); coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0564` — 3; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0565` — section slack only with expendability proof; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0566` — 4; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0567` — header / stub space only with explicit proof; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0568` — 5; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0569` — executable allocation if process policy permits; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0570` — 6; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0571` — image extension (on-disk patches); coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0572` — then: no_placement / unsupported_dynamic_code; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0573` — C · Data root unresolved; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0574` — 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0575` — [known build] identity → RVA → live check; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0576` — 2; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0577` — [unknown] symbol / debug info; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0578` — 3; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0579` — [xref_from_function] xref from identified function; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0580` — 4; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0581` — [data_xref] inverse access-instruction scan; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0582` — 5; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0583` — [anchor_rel] relative to import/export/string; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0584` — 6; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0585` — [masked_window] data-section adjacency; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0586` — 7; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0587` — [pointer_chain] from a resolved root; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0588` — 8; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0589` — via constructor / initializer; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0590` — 9; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0591` — [vtable_slot] vtable / RTTI-derived; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0592` — 10; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0593` — value-shape probe + independent confirmation; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0594` — then: unresolved — never a silent zero; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0595` — D · Struct field moved / stripped build; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0596` — 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0597` — name / debug-info donor; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0598` — 2; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0599` — ACCESSOR DECODE → exact per-build offset; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0600` — 3; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0601` — constructor initializer sequence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0602` — 4; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0603` — field-access fingerprint match; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0604` — 5; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0605` — sibling-field anchoring; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0606` — 6; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0607` — pointer-width hints only; verify actual layout; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0608` — then: ambiguous / insufficient_evidence / absent; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0609` — E · VTable / dispatch slots; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0610` — 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0611` — RTTI; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0612` — 2; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0613` — constructor vtable-store decode; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0614` — 3; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0615` — slot matched by METHOD identity; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0616` — 4; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0617` — dispatch entries by HANDLER identity; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0618` — then: per-slot unresolved; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0619` — F · Unknown build; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0620` — 1; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0621` — admit in signature-only mode; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0622` — 2; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0623` — run applicable ladders within declared budget; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0624` — 3; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0625` — record every resolution + residue; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0626` — 4; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0627` — ingest as runtime_claim → bind_identities confirms → KNOWN; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0628` — 5; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0629` — residue re-attacked offline; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0630` — coverage may regress when collisions are found; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0631` — OWNERSHIP IS RESOURCE-SCOPED (eligible independent work overlaps); coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0632` — writes to one Ghidra program's analysis DB; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0633` — shared corpus mutation / conflict resolution; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0634` — shared mutable compiler outputs / Wine context (private outputs may overlap); coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0635` — one scenario bundle: staged tree + saves + Wine + display + ports + harness; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0636` — short acceptance commit: current basis + generation + independent proof; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0637` — Atomic resource-set admission; measured process-tree budgets and pressure; external owners remain external.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0638` — FAILOVER RULE; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0639` — The affected branch stops VISIBLY at its real unmet dependency;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0640` — every eligible sibling lane continues.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0641` — Show the named owner/provider failure, last evidence, chosen fallback,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0642` — one retry owner and persistent budget; deterministic negatives require changed basis.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0643` — Deadline ends attempt, not objective; expired ownership does not free resources;; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0644` — quarantine uncertain resources; show wake conditions, progress unknown and aging.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0645` — EXPORT TARGET — reusable recovery projects + vanilla-game bindings; capabilities and unknowns explicit; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0646` — re-run under the same basis → byte-identical bundle; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0647` — hookpack v2; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0648` — every entity kind, locator families,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0649` — per-build coverage, ABI blocks, caves,; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0650` — integrity ranges, basis, pack hash; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0651` — Generated Lua bindings; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0652` — roots by name · typed struct accessors; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0653` — table/handle/bitfield/string helpers; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0654` — typed call stubs only for ABIs the; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0655` — descriptor layer expresses; else refuse; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0656` — NO literal address; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0657` — Per-build C/C++ headers; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0658` — evidenced per-build layouts;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0659` — opaque unknown spans · prototypes with; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0660` — conventions + storage · build manifest; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0661` — Readiness report; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0662` — per entity × build: resolved(member) /; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0663` — pinned(member) / degraded(member, reason) /; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0664` — ambiguous / unresolved / contested; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0665` — observed_status separate · what a mod; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0666` — can do here; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0667` — Divergence report; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0668` — 1↔1 · split-or-inlined · diverged; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0669` — field-map, slot and table deltas; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0670` — between any two builds; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0671` — Receipts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0672` — content-addressed, keyed by; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0673` — hash(inputs+basis) · every artifact; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0674` — identical-basis re-run = cache hit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0675` — Source + comparison projects; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0676` — byte-accurate C+floor and max-C; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0677` — with manifests; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0678` — reccmp reports + independent image receipts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0679` — LEGEND; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0680` — data / dependency flow; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0681` — failover / fallback; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0682` — G; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0683` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0684` — gate — must pass (compile receipt, verify, hash); coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0685` — serialized — one owner; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0686` — bracket — eligible independent work may overlap; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0687` — identity; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0688` — source recovery; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0689` — cross-build unification & export; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0690` — runtime reuse / learn; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0691` — verification & determinism; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0692` — intake / cross-cutting; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S063-E0693` — DESIGN ONLY · future checks NOT RUN. Companions: execution-contracts.svg — evidence/admission; resilience-contracts.svg — prevention, containment, recovery. Replay records observations + dependencies.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/agentdecompile-recovery-pipeline.svg`:0–0.
+- [ ] `S064-E0001` — Canvas; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0002` — Desired workflow; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0003` — Milestones and evidence boundaries; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0004` — Proof and human boundary; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0005` — Autonomous capability delivery; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0006` — Desired capability + exact eligible game/build → supported operation + understandable proof; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0007` — One task/acceptance authority • reuse preparation, corpus receipts, recovery supervision and KotorPhasor adapters; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0008` — 1 Request; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0009` — Behavior, target, predicates; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0010` — Allowed effects and cost; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0011` — →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0012` — 2 Resolve evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0013` — Reuse valid receipts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0014` — Name missing prerequisites; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0015` — →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0016` — 3 Deterministic admit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0017` — Pinned observations + policy; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0018` — Ownership and budget gates; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0019` — →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0020` — 4 Isolated action; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0021` — Typed catalog operation; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0022` — Qualified engine adapter; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0023` — →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0024` — 5 Accept independently; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0025` — Observe required behavior; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0026` — Retain scoped proof; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0027` — →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0028` — 6 Continue; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0029` — Reuse accepted observations; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0030` — Exact wake; no blind replay; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0031` — Unknown effects → reconcile; unavailable authority → pause new mutations; unrelated eligible work → keep progressing.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0032` — Useful native capabilities first; platform and browser investigations can proceed independently.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0033` — M0  Reliable continuation; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0034` — IMPLEMENTED FOUNDATION · PARTIALLY VERIFIED; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0035` — Preserve attempts across resume.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0036` — Explain exhaustion, unknown outcomes; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0037` — and the exact next action.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0038` — Evidence: bounded coordinator and; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0039` — isolated worker software checks.; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0040` — Broader M0 obligations remain open.; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0041` — Native live delivery is unverified.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0042` — M1  Effective scenario; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0043` — FUTURE DELIVERY; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0044` — Pin fixture and effective script.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0045` — Prepare, run, observe, capture, clean.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0046` — Resume a mixed pass/blocked batch.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0047` — Acceptance: actual game receipt;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0048` — no routine user repair of paths,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0049` — manifests or lifecycle state.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0050` — M2  Operation bundle; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0051` — FUTURE DELIVERY; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0052` — Generate ABI, units, ID domains,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0053` — lifetime and effect/restore contract.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0054` — Share help, CLI, Lua and harness.; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0055` — Acceptance: consumed binding +; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0056` — independent game-state oracle.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0057` — Unsupported builds refuse.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0058` — M3  F12 workspace; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0059` — FUTURE DELIVERY; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0060` — Select/query object; execute Lua.; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0061` — Edit supported property; inspect; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0062` — result/error; undo; Copy as Lua.; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0063` — Acceptance: real key/focus/input,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0064` — engine-thread execution and shared; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0065` — operation IDs in UI/script/harness.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0066` — M4  Creative projects; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0067` — FUTURE DELIVERY; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0068` — Compose meaningful scene + shot.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0069` — Reopen in a fresh game session.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0070` — Record the defining native effect.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0071` — Acceptance: behavior + capture +; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0072` — presentation; protected installs;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0073` — no cross-script state collisions.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0074` — M5  Playback / checkpoints; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0075` — FUTURE DELIVERY; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0076` — Owned pause, save and restore.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0077` — Replay supported dialog branches.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0078` — Stable selectors; fresh lifetimes.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0079` — Acceptance: inventory/quest/party; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0080` — and script restoration; exclusions.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0081` — No arbitrary-memory rewind claim.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0082` — M6  Native host matrix; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0083` — FUTURE QUALIFICATION; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0084` — Exact native Mac K1/K2 builds;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0085` — compatible Windows/Linux workers.; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0086` — Qualify each build and architecture.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0087` — Acceptance: ABI, graphics, input; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0088` — and capture results per build.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0089` — Windows proof does not qualify Mac.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0090` — M7  Whole-game browser; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0091` — FUTURE FEASIBILITY → DELIVERY; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0092` — Inspect prior KotorPhasor work.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0093` — Prove an executable runtime route.; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0094` — Then prove interactive game use.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0095` — Acceptance: rendering/input/audio,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0096` — save, main loop, sustained play; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0097` — and shared devtools protocol.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0098` — First complete product demonstration — FUTURE / NOT RUN; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0099` — One requested native capability: discovery → binding → UI or Lua → prepared scenario,; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0100` — independent state observation → verified supported restoration → useful recorded clip.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0101` — Behavior, capture integrity and presentation are separate acceptance predicates.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0102` — A job result, syntax pass, browser shell or Wasm utility does not prove this delivery.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0103` — Source parity, native game behavior and platform qualification keep separate receipts.; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0104` — Human input only for genuine exceptions; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0105` — Material objective / acceptance changes; unavailable; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0106` — legal, credential or device access; required external; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0107` — interaction; uninferable subjective creative direction.; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0108` — Deduplicate requests; continue independent work.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0109` — Local artifact creation ≠ external publication authority.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0110` — Design status: M1–M7 are ambitions, not completed features. M0 software evidence does not establish live-game autonomy.; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S064-E0111` — Contract: docs/plans/2026-09-22-autonomous-capability-product-roadmap.md • 2026-09-22; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.drawio`:0–0.
+- [ ] `S066-E0001` — Autonomous capability delivery; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0002` — Desired capability + exact eligible game/build → supported operation + understandable proof; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0003` — One task/acceptance authority • reuse preparation, corpus receipts, recovery supervision and KotorPhasor adapters; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0004` — 1 Request; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0005` — Behavior, target, predicates; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0006` — Allowed effects and cost; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0007` — →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0008` — 2 Resolve evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0009` — Reuse valid receipts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0010` — Name missing prerequisites; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0011` — →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0012` — 3 Deterministic admit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0013` — Pinned observations + policy; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0014` — Ownership and budget gates; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0015` — →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0016` — 4 Isolated action; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0017` — Typed catalog operation; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0018` — Qualified engine adapter; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0019` — →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0020` — 5 Accept independently; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0021` — Observe required behavior; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0022` — Retain scoped proof; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0023` — →; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0024` — 6 Continue; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0025` — Reuse accepted observations; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0026` — Exact wake; no blind replay; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0027` — Unknown effects → reconcile; unavailable authority → pause new mutations; unrelated eligible work → keep progressing.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0028` — Useful native capabilities first; platform and browser investigations can proceed independently.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0029` — M0  Reliable continuation; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0030` — IMPLEMENTED FOUNDATION · PARTIALLY VERIFIED; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0031` — Preserve attempts across resume.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0032` — Explain exhaustion, unknown outcomes; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0033` — and the exact next action.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0034` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0035` — Evidence: bounded coordinator and; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0036` — isolated worker software checks.; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0037` — Broader M0 obligations remain open.; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0038` — Native live delivery is unverified.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0039` — M1  Effective scenario; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0040` — FUTURE DELIVERY; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0041` — Pin fixture and effective script.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0042` — Prepare, run, observe, capture, clean.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0043` — Resume a mixed pass/blocked batch.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0044` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0045` — Acceptance: actual game receipt;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0046` — no routine user repair of paths,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0047` — manifests or lifecycle state.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0048` — M2  Operation bundle; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0049` — FUTURE DELIVERY; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0050` — Generate ABI, units, ID domains,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0051` — lifetime and effect/restore contract.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0052` — Share help, CLI, Lua and harness.; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0053` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0054` — Acceptance: consumed binding +; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0055` — independent game-state oracle.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0056` — Unsupported builds refuse.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0057` — M3  F12 workspace; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0058` — FUTURE DELIVERY; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0059` — Select/query object; execute Lua.; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0060` — Edit supported property; inspect; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0061` — result/error; undo; Copy as Lua.; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0062` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0063` — Acceptance: real key/focus/input,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0064` — engine-thread execution and shared; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0065` — operation IDs in UI/script/harness.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0066` — M4  Creative projects; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0067` — FUTURE DELIVERY; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0068` — Compose meaningful scene + shot.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0069` — Reopen in a fresh game session.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0070` — Record the defining native effect.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0071` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0072` — Acceptance: behavior + capture +; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0073` — presentation; protected installs;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0074` — no cross-script state collisions.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0075` — M5  Playback / checkpoints; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0076` — FUTURE DELIVERY; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0077` — Owned pause, save and restore.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0078` — Replay supported dialog branches.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0079` — Stable selectors; fresh lifetimes.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0080` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0081` — Acceptance: inventory/quest/party; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0082` — and script restoration; exclusions.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0083` — No arbitrary-memory rewind claim.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0084` — M6  Native host matrix; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0085` — FUTURE QUALIFICATION; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0086` — Exact native Mac K1/K2 builds;; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0087` — compatible Windows/Linux workers.; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0088` — Qualify each build and architecture.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0089` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0090` — Acceptance: ABI, graphics, input; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0091` — and capture results per build.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0092` — Windows proof does not qualify Mac.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0093` — M7  Whole-game browser; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0094` — FUTURE FEASIBILITY → DELIVERY; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0095` — Inspect prior KotorPhasor work.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0096` — Prove an executable runtime route.; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0097` — Then prove interactive game use.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0098` — ; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0099` — Acceptance: rendering/input/audio,; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0100` — save, main loop, sustained play; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0101` — and shared devtools protocol.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0102` — First complete product demonstration — FUTURE / NOT RUN; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0103` — One requested native capability: discovery → binding → UI or Lua → prepared scenario,; coverage owner U8; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0104` — independent state observation → verified supported restoration → useful recorded clip.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0105` — Behavior, capture integrity and presentation are separate acceptance predicates.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0106` — A job result, syntax pass, browser shell or Wasm utility does not prove this delivery.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0107` — Source parity, native game behavior and platform qualification keep separate receipts.; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0108` — Human input only for genuine exceptions; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0109` — Material objective / acceptance changes; unavailable; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0110` — legal, credential or device access; required external; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0111` — interaction; uninferable subjective creative direction.; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0112` — Deduplicate requests; continue independent work.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0113` — Local artifact creation ≠ external publication authority.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0114` — Design status: M1–M7 are ambitions, not completed features. M0 software evidence does not establish live-game autonomy.; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S066-E0115` — Contract: docs/plans/2026-09-22-autonomous-capability-product-roadmap.md • 2026-09-22; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/autonomous-capabilities.svg`:0–0.
+- [ ] `S067-E0001` — Canvas; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0002` — Task and acceptance contract; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0003` — Independent binding evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0004` — Acceptance and readiness fork; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0005` — Failure containment and continuation; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0006` — Design challenge and future evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0007` — Execution and evidence contracts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0008` — Design specification · companion to the recovery overview · future software acceptance checks NOT RUN; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0009` — Missing evidence blocks its claim. An unhealthy resource blocks its dependents. Ready independent work continues.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0010` — 1 · Declare one task contract; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0011` — Immutable input manifest + dependency versions; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0012` — Claim or capability requested; required evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0013` — Provider alternatives; prerequisite-producing tasks; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0014` — Mutable resource set; process-tree resource budget; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0015` — Progress units; outputs; deadline; retry owner/budget; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0016` — Capability priority + capped aging / reservations; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0017` — 2 · Admit one eligible attempt; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0018` — Complete input closure on healthy working storage; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0019` — Capacity reserve + pressure + storage + limit events; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0020` — Acquire entire resource set atomically or release; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0021` — Current ownership generation + private outputs; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0022` — Share nested build budget; external jobs not adopted; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0023` — No provider: record exact dependency/wake condition; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0024` — 3 · Compute outside commit; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0025` — Stable analysis snapshot; immutable proposals; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0026` — Durable completed-unit receipts, including negatives; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0027` — Liveness ≠ execution progress ≠ goal progress; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0028` — Uninstrumented external worker: progress unknown; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0029` — No corpus transaction during compiler / model / game; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0030` — Stage, validate, flush, rename BEFORE DB commit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0031` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0032` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0033` — Runtime use requires presence, identity and operation evidence; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0034` — BYTES · Are these bytes here?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0035` — Exact target digest + image/address mapping; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0036` — Observed region and independent byte comparison; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0037` — Receipt names region, input basis and verifier; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0038` — Does not establish the selected function name; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0039` — IDENTITY · Is this the intended entity?; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0040` — Target-side boundaries and discriminating evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0041` — Donor labels remain hypotheses until accepted; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0042` — Signature from selected RVA cannot prove its label; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0043` — Withdraw bad seed → invalidate dependent claims; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0044` — OPERATION · Is this use supported?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0045` — ABI + layout + runtime state + policy requirements; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0046` — Located / readable / callable / detourable / writable; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0047` — Object lifetime and dynamic-root resolution recipe; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0048` — Hook install AND removal; reclaim only when safe; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0049` — 4 · Independent acceptance, short commit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0050` — Verifier checks exact claimed level and raw evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0051` — Check input versions AND current generation; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0052` — Commit manifest + ledger; no artifact IO here; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0053` — Task complete only when required predicates pass; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0054` — Producers cannot self-promote or change criteria; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0055` — 5A · Original-code capability; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0056` — Original implementation may remain assembly floor; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0057` — Accept only operation-specific prerequisites; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0058` — Scenario: build + fixture + driver + postconditions; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0059` — Oracle and recording share one scenario attempt; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0060` — Unknown command outcome → inspect before replay; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0061` — 5B · Recovered-source capability; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0062` — Recovery / compilation / comparison units may differ; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0063` — Validated fixups + metadata + unchanged round trip; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0064` — Compile ≠ local match ≠ linked match ≠ full equality; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0065` — Prove replacement contributes; fallback is separate; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0066` — C+assembly-floor and max-C have separate ledgers; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0067` — All applicable proof receipts → acceptance (4) → original-code (5A) and recovered-source (5B) independently.; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0068` — Separate outputs, never an implied readiness ladder; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0069` — FENCE · Reject obsolete publication; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0070` — Old generation or changed inputs → historical only; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0071` — Keep artifact; refuse current acceptance/promotion; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0072` — Re-key only affected dependency descendants; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0073` — Collision discovery may reduce accepted coverage; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0074` — Fencing does NOT prove a worker has stopped; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0075` — Representation totals disjoint; capabilities overlap; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0076` — QUARANTINE · Keep resources occupied; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0077` — Expired lease / timeout ≠ safe resource release; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0078` — Late or kernel-blocked worker may still access state; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0079` — Release needs corroborated end of access + owner; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0080` — Atomic local locks; PID identity alone is insufficient; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0081` — Private replacement only on disjoint safe resources; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0082` — Bound isolated storage probes; never block scheduler; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0083` — CONTINUE · Only ready independent work; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0084` — Transient failure: one owner, bounded durable retry; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0085` — Deterministic negative: changed hypothesis required; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0086` — Provider circuit break; split task or compatible route; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0087` — No ready work: persist dependency sets + wake event; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0088` — Complete remote replica + worker needed for host loss; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0089` — New user message does not reset retry budget; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0090` — Concrete design challenge · the late worker; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0091` — Attempt A loses its lease while still writing. B runs on disjoint resources. A later submits a byte-perfect artifact.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0092` — Expected: reject A’s stale publication; retain A’s resource quarantine; permit B only with complete independent inputs.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0093` — Future proof: inject this race and inspect accepted-generation receipts, ownership events and B’s dependency manifest.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0094` — NOT RUN. This diagram defines the acceptance mechanism; it does not claim a scheduler, binding or recovery result exists.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S067-E0095` — Failure lifecycle and control-plane recovery: resilience-contracts.svg · detailed future checks in the linked plan; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.drawio`:0–0.
+- [ ] `S069-E0001` — Execution and evidence contracts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0002` — Design specification · companion to the recovery overview · future software acceptance checks NOT RUN; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0003` — Missing evidence blocks its claim. An unhealthy resource blocks its dependents. Ready independent work continues.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0004` — 1 · Declare one task contract; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0005` — Immutable input manifest + dependency versions; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0006` — Claim or capability requested; required evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0007` — Provider alternatives; prerequisite-producing tasks; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0008` — Mutable resource set; process-tree resource budget; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0009` — Progress units; outputs; deadline; retry owner/budget; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0010` — Capability priority + capped aging / reservations; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0011` — 2 · Admit one eligible attempt; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0012` — Complete input closure on healthy working storage; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0013` — Capacity reserve + pressure + storage + limit events; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0014` — Acquire entire resource set atomically or release; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0015` — Current ownership generation + private outputs; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0016` — Share nested build budget; external jobs not adopted; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0017` — No provider: record exact dependency/wake condition; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0018` — 3 · Compute outside commit; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0019` — Stable analysis snapshot; immutable proposals; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0020` — Durable completed-unit receipts, including negatives; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0021` — Liveness ≠ execution progress ≠ goal progress; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0022` — Uninstrumented external worker: progress unknown; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0023` — No corpus transaction during compiler / model / game; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0024` — Stage, validate, flush, rename BEFORE DB commit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0025` — Runtime use requires presence, identity and operation evidence; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0026` — BYTES · Are these bytes here?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0027` — Exact target digest + image/address mapping; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0028` — Observed region and independent byte comparison; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0029` — Receipt names region, input basis and verifier; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0030` — Does not establish the selected function name; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0031` — IDENTITY · Is this the intended entity?; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0032` — Target-side boundaries and discriminating evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0033` — Donor labels remain hypotheses until accepted; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0034` — Signature from selected RVA cannot prove its label; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0035` — Withdraw bad seed → invalidate dependent claims; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0036` — OPERATION · Is this use supported?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0037` — ABI + layout + runtime state + policy requirements; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0038` — Located / readable / callable / detourable / writable; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0039` — Object lifetime and dynamic-root resolution recipe; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0040` — Hook install AND removal; reclaim only when safe; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0041` — 4 · Independent acceptance, short commit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0042` — Verifier checks exact claimed level and raw evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0043` — Check input versions AND current generation; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0044` — Commit manifest + ledger; no artifact IO here; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0045` — Task complete only when required predicates pass; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0046` — Producers cannot self-promote or change criteria; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0047` — 5A · Original-code capability; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0048` — Original implementation may remain assembly floor; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0049` — Accept only operation-specific prerequisites; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0050` — Scenario: build + fixture + driver + postconditions; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0051` — Oracle and recording share one scenario attempt; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0052` — Unknown command outcome → inspect before replay; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0053` — 5B · Recovered-source capability; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0054` — Recovery / compilation / comparison units may differ; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0055` — Validated fixups + metadata + unchanged round trip; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0056` — Compile ≠ local match ≠ linked match ≠ full equality; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0057` — Prove replacement contributes; fallback is separate; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0058` — C+assembly-floor and max-C have separate ledgers; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0059` — All applicable proof receipts → acceptance (4) → original-code (5A) and recovered-source (5B) independently.; coverage owner U4; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0060` — Separate outputs, never an implied readiness ladder; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0061` — FENCE · Reject obsolete publication; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0062` — Old generation or changed inputs → historical only; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0063` — Keep artifact; refuse current acceptance/promotion; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0064` — Re-key only affected dependency descendants; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0065` — Collision discovery may reduce accepted coverage; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0066` — Fencing does NOT prove a worker has stopped; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0067` — Representation totals disjoint; capabilities overlap; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0068` — QUARANTINE · Keep resources occupied; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0069` — Expired lease / timeout ≠ safe resource release; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0070` — Late or kernel-blocked worker may still access state; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0071` — Release needs corroborated end of access + owner; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0072` — Atomic local locks; PID identity alone is insufficient; coverage owner U3; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0073` — Private replacement only on disjoint safe resources; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0074` — Bound isolated storage probes; never block scheduler; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0075` — CONTINUE · Only ready independent work; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0076` — Transient failure: one owner, bounded durable retry; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0077` — Deterministic negative: changed hypothesis required; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0078` — Provider circuit break; split task or compatible route; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0079` — No ready work: persist dependency sets + wake event; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0080` — Complete remote replica + worker needed for host loss; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0081` — New user message does not reset retry budget; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0082` — Concrete design challenge · the late worker; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0083` — Attempt A loses its lease while still writing. B runs on disjoint resources. A later submits a byte-perfect artifact.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0084` — Expected: reject A’s stale publication; retain A’s resource quarantine; permit B only with complete independent inputs.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0085` — Future proof: inject this race and inspect accepted-generation receipts, ownership events and B’s dependency manifest.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0086` — NOT RUN. This diagram defines the acceptance mechanism; it does not claim a scheduler, binding or recovery result exists.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S069-E0087` — Failure lifecycle and control-plane recovery: resilience-contracts.svg · detailed future checks in the linked plan; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/execution-contracts.svg`:0–0.
+- [ ] `S073-E0001` — Canvas; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0002` — Failure lifecycle; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0003` — Acceptance and preventive feedback; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0004` — Failure containment boundaries; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0005` — Worked interruption and evidence boundary; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0006` — Prevention, containment and recovery; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0007` — DESIGN ONLY · future failure-injection checks NOT RUN · implement locally first using existing task/corpus contracts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0008` — One durable decision owner. Recover the affected dependency; retain the objective, evidence and independent work.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0009` — 1 · Prevent, detect, classify; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0010` — Fixture recheck after ownership, before mutation; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0011` — Observe process tree, unit receipts and goal facts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0012` — Classify: mismatch / transient / resource / policy; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0013` — Distinguish missing evidence from unhealthy resource; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0014` — Unknown outcome stays unknown until reconciled; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0015` — No health decision from one noisy sample alone; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0016` — Capture exact input, policy and observation versions; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0017` — 2 · Record the decision before effects; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0018` — Pure reducer: frozen facts + policy → next action; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0019` — Atomically reserve attempt budget + effect intent; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0020` — One durable retry budget; no nested retry owners; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0021` — Persist reason, scope, wake predicate + event cursor; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0022` — Deterministic negative requires changed hypothesis; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0023` — New user message does not reset attempt spending; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0024` — Ledger unavailable → pause new managed mutations; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0025` — 3 · Repair, reroute or wait; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0026` — Repair only classified prerequisites with evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0027` — Reroute only to declared compatible capabilities; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0028` — Checkpoint/split within the unchanged claim scope; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0029` — Reconcile cursor + exact version/owner/provider wake; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0030` — Unknown non-idempotent effect: inspect, never replay; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0031` — Quarantine resources until end of access is proven; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0032` — Independent work continues only if fully supplied; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0033` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0034` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0035` — Every recovery action returns through independent acceptance; an available process is not a repaired capability.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0036` — 4 · Accept against the current basis; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0037` — Inspect new artifact and claim-specific proof roots; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0038` — Recheck dependencies, generation and policy version; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0039` — Prepare durable artifact outside acceptance commit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0040` — Short commit: manifest reference + corpus receipt; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0041` — Required task predicates determine completion; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0042` — Failure retains useful units without promoting claim; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0043` — Resource release is separate from acceptance; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0044` — 5 · Resume only the justified capability; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0045` — Revalidate affected descendants, preserve others; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0046` — Clear quarantine only on resource-release evidence; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0047` — Expire old runtime preflight and reacquire live facts; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0048` — Record liveness / unit progress / accepted progress; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0049` — No ready work → durable wait, no repeated audit loop; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0050` — Expose exact reason and next eligible wake condition; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0051` — Unknown empirical results remain explicitly unknown; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0052` — 6 · Prevent recurrence without blind tuning; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0053` — Aggregate failure signatures by input/policy basis; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0054` — Propose narrow policy change with deciding metric; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0055` — Canary uses frozen baseline and bounded population; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0056` — Independent reviewer accepts evidence, not opinion; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0057` — Regression → restore prior admission policy version; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0058` — Preserve failure history; never reset spent budgets; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0059` — Roll back policy, not arbitrary already-run effects; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0060` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0061` — Edge ? -> ?; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0062` — CONTROL PLANE · Fail read-only; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0063` — Lost durable decision or acceptance authority:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0064` — pause new managed mutation/admission in that scope; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0065` — Keep cached read-only evidence available with age; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0066` — Old outputs stay private/quarantined until reconciled; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0067` — Do not kill external owners or assume children stop; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0068` — Reconcile owner/generation and durable log on return; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0069` — Unknown command outcome → inspect before retry; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0070` — Wake: healthy durable authority + reconciled state; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0071` — DATA / PROVIDER · Isolate dependency; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0072` — Bound storage probes outside coordinator loop; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0073` — One recovery probe per provider + shared retry budget; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0074` — Complete input closure required for alternate worker; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0075` — Partial copies never become launchable manifests; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0076` — Tmpfs is budgeted cache, not durable rescue default; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0077` — Host loss needs independent replica AND worker; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0078` — Retry requires budget + safe resources + current basis; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0079` — Wake: new verified inputs / capability / released owner; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0080` — POLICY / CANARY · Bound the change; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0081` — Policy is immutable versioned data; producer cannot edit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0082` — Canary declares baseline, population and abort rule; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0083` — Compare acceptance errors, useful throughput and cost; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0084` — No broader rollout from a successful process exit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0085` — Revert routing/admission version if metric regresses; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0086` — Reassess active attempts under their recorded policy; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0087` — Accept only with pinned/current policy compatibility; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0088` — Wake: accepted policy version or corrected evidence; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0089` — Worked interruption · the command was sent, then the decision store disappeared; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0090` — Observe: command ID C may have changed the game; the connection closed before its result was durably recorded.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0091` — Contain: pause new managed mutations in this scope; preserve read-only status and existing evidence; do not replay C.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0092` — Recover: reconcile C against observed engine state and ownership. Resume only after durable authority and state agree.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0093` — Future proof: inject disconnect; show no blind duplicate dispatch, retained unknown outcome, reconciliation and scoped resumption.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0094` — If the effect cannot be determined, keep the affected operation waiting and expose the exact required observation.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S073-E0095` — NOT RUN · design acceptance is artifact consistency; runtime recovery needs the future measurements specified in the plan.; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.drawio`:0–0.
+- [ ] `S075-E0001` — Prevention, containment and recovery; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0002` — DESIGN ONLY · future failure-injection checks NOT RUN · implement locally first using existing task/corpus contracts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0003` — One durable decision owner. Recover the affected dependency; retain the objective, evidence and independent work.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0004` — 1 · Prevent, detect, classify; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0005` — Fixture recheck after ownership, before mutation; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0006` — Observe process tree, unit receipts and goal facts; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0007` — Classify: mismatch / transient / resource / policy; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0008` — Distinguish missing evidence from unhealthy resource; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0009` — Unknown outcome stays unknown until reconciled; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0010` — No health decision from one noisy sample alone; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0011` — Capture exact input, policy and observation versions; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0012` — 2 · Record the decision before effects; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0013` — Pure reducer: frozen facts + policy → next action; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0014` — Atomically reserve attempt budget + effect intent; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0015` — One durable retry budget; no nested retry owners; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0016` — Persist reason, scope, wake predicate + event cursor; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0017` — Deterministic negative requires changed hypothesis; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0018` — New user message does not reset attempt spending; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0019` — Ledger unavailable → pause new managed mutations; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0020` — 3 · Repair, reroute or wait; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0021` — Repair only classified prerequisites with evidence; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0022` — Reroute only to declared compatible capabilities; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0023` — Checkpoint/split within the unchanged claim scope; coverage owner U12; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0024` — Reconcile cursor + exact version/owner/provider wake; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0025` — Unknown non-idempotent effect: inspect, never replay; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0026` — Quarantine resources until end of access is proven; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0027` — Independent work continues only if fully supplied; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0028` — Every recovery action returns through independent acceptance; an available process is not a repaired capability.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0029` — 4 · Accept against the current basis; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0030` — Inspect new artifact and claim-specific proof roots; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0031` — Recheck dependencies, generation and policy version; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0032` — Prepare durable artifact outside acceptance commit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0033` — Short commit: manifest reference + corpus receipt; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0034` — Required task predicates determine completion; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0035` — Failure retains useful units without promoting claim; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0036` — Resource release is separate from acceptance; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0037` — 5 · Resume only the justified capability; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0038` — Revalidate affected descendants, preserve others; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0039` — Clear quarantine only on resource-release evidence; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0040` — Expire old runtime preflight and reacquire live facts; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0041` — Record liveness / unit progress / accepted progress; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0042` — No ready work → durable wait, no repeated audit loop; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0043` — Expose exact reason and next eligible wake condition; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0044` — Unknown empirical results remain explicitly unknown; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0045` — 6 · Prevent recurrence without blind tuning; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0046` — Aggregate failure signatures by input/policy basis; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0047` — Propose narrow policy change with deciding metric; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0048` — Canary uses frozen baseline and bounded population; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0049` — Independent reviewer accepts evidence, not opinion; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0050` — Regression → restore prior admission policy version; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0051` — Preserve failure history; never reset spent budgets; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0052` — Roll back policy, not arbitrary already-run effects; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0053` — CONTROL PLANE · Fail read-only; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0054` — Lost durable decision or acceptance authority:; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0055` — pause new managed mutation/admission in that scope; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0056` — Keep cached read-only evidence available with age; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0057` — Old outputs stay private/quarantined until reconciled; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0058` — Do not kill external owners or assume children stop; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0059` — Reconcile owner/generation and durable log on return; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0060` — Unknown command outcome → inspect before retry; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0061` — Wake: healthy durable authority + reconciled state; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0062` — DATA / PROVIDER · Isolate dependency; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0063` — Bound storage probes outside coordinator loop; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0064` — One recovery probe per provider + shared retry budget; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0065` — Complete input closure required for alternate worker; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0066` — Partial copies never become launchable manifests; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0067` — Tmpfs is budgeted cache, not durable rescue default; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0068` — Host loss needs independent replica AND worker; coverage owner U11; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0069` — Retry requires budget + safe resources + current basis; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0070` — Wake: new verified inputs / capability / released owner; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0071` — POLICY / CANARY · Bound the change; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0072` — Policy is immutable versioned data; producer cannot edit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0073` — Canary declares baseline, population and abort rule; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0074` — Compare acceptance errors, useful throughput and cost; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0075` — No broader rollout from a successful process exit; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0076` — Revert routing/admission version if metric regresses; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0077` — Reassess active attempts under their recorded policy; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0078` — Accept only with pinned/current policy compatibility; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0079` — Wake: accepted policy version or corrected evidence; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0080` — Worked interruption · the command was sent, then the decision store disappeared; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0081` — Observe: command ID C may have changed the game; the connection closed before its result was durably recorded.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0082` — Contain: pause new managed mutations in this scope; preserve read-only status and existing evidence; do not replay C.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0083` — Recover: reconcile C against observed engine state and ownership. Resume only after durable authority and state agree.; coverage owner U9; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0084` — Future proof: inject disconnect; show no blind duplicate dispatch, retained unknown outcome, reconciliation and scoped resumption.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0085` — If the effect cannot be determined, keep the affected operation waiting and expose the exact required observation.; coverage owner U42; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+- [ ] `S075-E0086` — NOT RUN · design acceptance is artifact consistency; runtime recovery needs the future measurements specified in the plan.; coverage owner U6; source `docs/dashboard-design/pipeline-diagram/resilience-contracts.svg`:0–0.
+
+## Final acceptance
+
+- [ ] Reconcile every named child and detailed clause; no silent omission, invented successor or collapsed namespace.
+- [ ] Complete both frontend workflow matrices and the full guide/donor inventories.
+- [ ] Accept complete exports through actual qualified consumers.
+- [ ] Accept separately requested source variants and fresh whole-image reconstruction.
+- [ ] Accept M0–M7 with exact capability and host evidence, retaining scoped genuine blockers.
+- [ ] Accept both multiplayer modes, dedicated server, directory and real in-game browser.
+- [ ] Remove abandoned implementation attempts and reconcile installed consumer/source identity.
+- [ ] Record publication as a separate authorized action; local completion is not external publication.
+
+## Explicit requirements and inherited workflow tasks
+
+- [ ] `frontend-intent:F01` — U14: F01 Resume: opening a known `.gpr`, shared repository folder or supported; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F02` — U14: F02 Project manager: create/open/save/save-as/import/export; drag and drop; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F03` — U14: F03 One active project context: the library may contain many projects, but; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F04` — U14: F04 Merge: show a file-manager-like merge review. Match actual artifact; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F05` — U14: F05 Deduplicate and group: SHA-256 identifies identical input artifacts;; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F06` — U14: F06 Nonblocking admission: validate and durably accept an import, then close; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F07` — U15: F07 Shared entity navigation: select a logical function/type/module and see; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F08` — U15: F08 Concrete coordinates: a logical identity is not an address. Bytes,; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F09` — U15: F09 Connected views: code, assembly, hex, CFG, call graph, xrefs, types,; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F10` — U15: F10 Less chrome: resizable persistent panes, dense readable rows, useful; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F11` — U15: F11 Selection versus batch scope: retain an inspectable primary item and a; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F12` — U15: F12 Persistent activity dock: Jobs, logs, diagnostics and notifications live; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F13` — U19: F13 Acquisition and dismantling; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F14` — U14: F14 Context fusion; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F15` — U16: F15 Code browser; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F16` — U16: F16 Ghidra guide coverage; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F17` — U19: F17 Comparison; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F18` — U19: F18 Recovery workspace; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F19` — U17: F19 Atlas/project intelligence; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F20` — U40: F20 Semantic findings; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F21` — U22: F21 Agent context; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F22` — U16: F22 Expert operations; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F23` — U14: F23 Durable workspace; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F24` — U28: F24 Exports; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F25` — U6: F25 Runtime reuse; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F26` — U31: F26 Distributed contribution; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F27` — U41: F27 Collaboration and CI; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-intent:F28` — U40: F28 Language/engine extensibility; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-1` — U16: Introduction; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-2` — U16: Ghidra Repos and Projects; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-3` — U16: Code Browser Overview; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-4` — U16: Symbol Tree; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-5` — U16: Data Type Manager; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-6` — U16: The Listing; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-7` — U16: Decompile View; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-8` — U16: Other Code Browser Tools; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-9` — U16: Functions; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-10` — U16: Calling Conventions; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-11` — U16: Returns and Custom Storage; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-12` — U16: Structures; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-13` — U16: VTables; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-14` — U16: Template Classes; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-15` — U16: Common Decompile Issues; satisfy the full source predicate under C01–C24.
+- [ ] `ghidra-guide:chapter-16` — U16: Closing; satisfy the full source predicate under C01–C24.
+- [ ] `forgiving-input-2026-09-20:Task1` — U30: Normalize Click tokens at the actual CLI boundary; satisfy the full source predicate under C01–C24.
+- [ ] `forgiving-input-2026-09-20:Task2` — U30: Consolidate registry and executor argument lookup; satisfy the full source predicate under C01–C24.
+- [ ] `forgiving-input-2026-09-20:Task3` — U30: Remove redundant provider spelling lists and document the boundary; satisfy the full source predicate under C01–C24.
+- [ ] `forgiving-input-2026-09-20:Task4` — U30: Derive convenience commands and keep backend defaults implicit; satisfy the full source predicate under C01–C24.
+- [ ] `forgiving-input-2026-09-20:Task5` — U30: Consolidate container parsing at its package boundary; satisfy the full source predicate under C01–C24.
+- [ ] `forgiving-input-2026-09-20:Task6` — U30: Share the dependency-closed x86-64 decoder implementation; satisfy the full source predicate under C01–C24.
+- [ ] `forgiving-input-2026-09-20:Task7` — U30: One owner for MCP provider enrollment; satisfy the full source predicate under C01–C24.
+- [ ] `forgiving-input-2026-09-20:Task8` — U30: Capability policy belongs with its definition; satisfy the full source predicate under C01–C24.
+- [ ] `forgiving-input-2026-09-20:Task9` — U30: Operation-owned identity admission; satisfy the full source predicate under C01–C24.
+- [ ] `forgiving-input-2026-09-20:Task10` — U30: Derive pipeline presentation from its existing contract; satisfy the full source predicate under C01–C24.
+- [ ] `forgiving-input-2026-09-20:Task11` — U30: Keep stage dependency predicates in one place; satisfy the full source predicate under C01–C24.
+- [ ] `forgiving-input-2026-09-20:Task12` — U30: Share compatible corpus workspace defaults; satisfy the full source predicate under C01–C24.
+- [ ] `forgiving-input-2026-09-20:Task13` — U30: Finish shared Click shortcut wiring; satisfy the full source predicate under C01–C24.
+- [ ] `workstation-2026-09-20:Task1` — U16: Make parameter storage genuinely editable; satisfy the full source predicate under C01–C24.
+- [ ] `workstation-2026-09-20:Task2` — U13: Reconcile delivery without collapsing either alternative; satisfy the full source predicate under C01–C24.
+- [ ] `workstation-2026-09-20:Task3` — U15: Unify selection and navigation; satisfy the full source predicate under C01–C24.
+- [ ] `workstation-2026-09-20:Task4` — U16: Compose the primary Code Browser shell; satisfy the full source predicate under C01–C24.
+- [ ] `workstation-2026-09-20:Task5` — U16: Close guide interaction gaps; satisfy the full source predicate under C01–C24.
+- [ ] `workstation-2026-09-20:Task6` — U17: Integrate all KotORXID analysis/evidence workflows; satisfy the full source predicate under C01–C24.
+- [ ] `workstation-2026-09-20:Task7` — U20: Connect one durable pipeline controller; satisfy the full source predicate under C01–C24.
+- [ ] `workstation-2026-09-20:Task8` — U42: Package, activate and validate each delivery boundary; satisfy the full source predicate under C01–C24.
+- [ ] `program-context-2026-09-10:Task1` — U29: Establish the explicit dispatch contract (U1); satisfy the full source predicate under C01–C24.
+- [ ] `program-context-2026-09-10:Task2` — U29: Thread program context through shared dispatch helpers (U2); satisfy the full source predicate under C01–C24.
+- [ ] `program-context-2026-09-10:Task3` — U29: Migrate direct program and wrapper consumers (U3); satisfy the full source predicate under C01–C24.
+- [ ] `program-context-2026-09-10:Task4` — U29: Resolve stateful and lifecycle-sensitive providers (U4); satisfy the full source predicate under C01–C24.
+- [ ] `program-context-2026-09-10:Task5` — U29: Verify whole-server parity and document the resolved finding (U5); satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R1` — U42: No menu item, tab, toolbar button or panel button starts, reruns or duplicates work the recovery pipeline schedules on its own. This covers these stages: analysis; protection preparation; fact extraction; similarity indexing; matching; calibration; source recovery; cross-build placement; leftover recovery; byte verification.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R2` — U42: Three events admit the pipeline's eligible missing work without a separate action: opening a project, adding a binary to a project, and registering a binary. Reopening material that already has receipts does not redo that work.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R3` — U42: After admission, the interface shows a one-line receipt naming the admitted run, its generation and its queue position.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R4` — U42: Pause, resume and stop are the only workflow controls. They appear wherever run state is shown, pre-scoped to the run in view.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R5` — U42: Operator edits stay available as explicit user actions: rename; comments; bookmarks; retyping and data-type edits; accept or reject of match candidates, singly and in batches; opening, creating and saving projects; adding binaries.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R6` — U42: An expert command palette stays available for low-level catalog actions. It is not the path for routine pipeline work.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R7` — U42: The backend enforces R1 through its classification of which actions and modes change state. A new pipeline trigger added to a static surface fails that check.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R8` — U42: R1 through R7 apply to every static surface served on 8080, including the explorer page.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R9` — U42: The workspace follows Ghidra's stock CodeBrowser arrangement: the Symbol Tree and Program Trees in the left rail, with the Data Type Manager below them; the Listing and Decompiler in the center, with secondary providers tabbed alongside the Decompiler; Console and Bookmarks at the bottom; Data Type Preview as a thin strip.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R10` — U42: Every CodeBrowser provider that the Ghidra reversing guide uses is present: Listing (address, bytes, mnemonic, operands, cross-reference and comment fields, with a function header); Decompiler; Symbol Tree; Program Trees; Data Type Manager; Memory Map; Bytes; Defined Strings; Symbol Table and References; Functions table; Function Graph; Function Call Trees and Call Graph; Bookmarks; Console; Function Comparison; Equates; Relocations.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R11` — U42: Providers that only show data are read-only views. Providers that edit data do so only through R5's explicit user actions.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R12` — U42: One program location drives every connected provider. Selecting an address, symbol or cross-reference in any provider moves the others. No tab switch or new search is needed.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R13` — U42: Navigation matches Ghidra: back and forward history; go-to by address or name; previous and next function; highlight of the selected token wherever it recurs; an overview strip marking locations across the program.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R14` — U42: The layout uses the page for content. Providers dock and tab like Ghidra's. No space goes to controls that R1 excludes.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R15` — U42: A browser tab holds one project. Every binary in the project is a peer in that tab, not a hidden sibling of one active program.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R16` — U42: Each peer shows whether it is readable locally, loading, queued for a serialized read, or blocked. A blocked peer shows the backend's own next step, for example that server credentials are required.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R17` — U42: Selecting a function in one peer aligns the other peers to the same identity where one is bound. A peer without a binding shows "no identity binding". It is never an empty or hidden lane.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R18` — U42: A project with tens of binaries stays usable, up to the corpus's ninety. A light track is one corpus-only row showing build name, readiness (R16), current stage and selected-function identity-binding availability; selection shows only the bound function name/address. It performs no live Ghidra reads and loads no Listing or Decompiler. Click or Enter focuses it and loads its providers. Each pane has at most one focused peer; unfocusing restores its light track.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R19` — U42: A cross-build map is a docked view in the project tab. It shows the call graph across builds and the matcher's results together, on the same selection.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R20` — U42: The map includes a matrix with one cell per pair of builds. Each cell shows match status and counts. A pair the pipeline never scheduled reads "not scheduled", which differs from a pair that failed.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R21` — U42: Match results appear with the function in context. They show as marks at the function header in the Listing and Decompiler, and as edges on the call graph.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R22` — U42: Match review shows status, match kind, score, confidence and algorithm. The operator can accept or reject one candidate, or a batch chosen by build pair and score band.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R23` — U42: A byte-level match from object comparison and a match by name, signature or call graph always carry different labels.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R24` — U42: Pipeline progress for the project is visible inside the workspace. The bottom activity dock shows the current stage per binary and the run's state.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R25` — U42: A blocked state names its cause and the next step. It never shows a generic error.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R26` — U42: The interface shows only state observed from the backend. It shows no simulated progress and no invented percentages.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R27` — U42: Every cross-match method and channel — Z (identical image), I (authentic symbols), H (hashes), X (rare refs and C++/RTTI metadata), G (call-graph/CFG/SPP), S (BSim), T (ABI/contract veto), M (BinExport/BinDiff), D (emulation), donor scheduling and review decisions — is available with an ordered fallback. None blocks matching; BSim (S) unavailability especially never blocks the pipeline.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R28` — U42: For any candidate pair or function, both frontends show, per method, whether it ran, was skipped (with a named reason), is unavailable, or is not built yet.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R29` — U42: Match rows carry queryable kind, confidence and algorithm rather than only an evidence-JSON blob, so review can filter and sort without parsing evidence.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R30` — U42: The cross-build matrix cell distinguishes a pair the donor scheduler never selected ("not scheduled") from a pair that ran and failed, and shows the scheduling reason (explicit pair, spanning-forest edge, hub-to-anchor link).; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R31` — U42: Channel S (BSim) persists its hits to a queryable store, so BSim results reach the matcher's fusion step and the availability display instead of permanently reading unavailable.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R32` — U42: Channel X carries C++/RTTI/vtable/dispatch metadata, not only rare strings and constants.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R33` — U42: The P-code/decompiler-skeleton exact-fingerprint stage carries its own channel label, distinct from channel M (BinExport/BinDiff), so confidence scoring and the availability display do not conflate the two methods.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R34` — U42: The ABI/contract veto (channel T) has a production caller in the identity/propagation path so an incompatible high-score tie can resolve when enabled. It ships default-off as "available, off"; corpus-wide enabling requires KTD4's shadow-run validation.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R35` — U42: Targeted AI (stage 6 leftover recovery, and any LLM rewrite path) is switched by exactly three surfaces: an environment variable, a CLI flag on the 8080 server start command, and a dashboard setting.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R36` — U42: One documented precedence rule resolves the three surfaces to a single effective value. The dashboard shows which surface supplied the current value.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R37` — U42: A change to the env var or the dashboard setting applies to the next job without a server restart. The CLI flag is fixed at process start, and the dashboard names that limit.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R38` — U42: The deterministic recovery path (compile, repair, propagate, verify) never depends on targeted AI being enabled.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R39` — U42: The Vite workstation's main view is objdiff-web-first: an instruction-aligned two-column diff with register highlighting, navigable mismatches and a symbol tree.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R40` — U42: A decomp.me-style scratch view lets the operator iterate a candidate against the catalog's compile and objdiff actions, extending the existing scratch workflow.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R41` — U42: A Dogbolt-style compare view shows multiple decompiler outputs side by side, using only optional licensed local runners; it never uploads to the public Dogbolt service.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R42` — U42: RzWeb/r2web-style expert views sit behind the workstation's one normalized selection, never a second selection store.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R43` — U42: An APKMan-style container tree generalizes to any supported container or format, reusing the existing format-provider pattern.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R44` — U42: A pipeline stage graph shows stage dependencies as a DAG with edges, and retries a stage only after that stage fails — never as a manual re-run control.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R45` — U42: A lane E fleet roster shows donor and recipient decisions across a batch, reusing the existing match-review batch-decision contract.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R46` — U42: Spectating is local, opt-in and off by default. The operator enables it on the same local host as the dashboard and creates a revocable token shown once. After first use the token travels in a header or cookie, never remains in the URL. Backend authorization restricts it to read-only access. The activity dock shows connected spectator count and supports revoking all tokens; this plan sets up no remote exposure.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R47` — U42: The corpus produces an objdiff-shaped `report.json` per binary and version, generated from the corpus database, not only consumed from an external objdiff run.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R48` — U42: Both frontends show progress as a tier-split bar: verified (byte-exact, relocation-aware objdiff 0) kept separate from advisory (compiling Ghidra C), never merged into one number.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R49` — U42: A count-reconciliation gate runs before any decomp.dev publishing step. It fails closed when the accounting buckets (accepted source, candidate source, preserved region, unclassified, excluded-with-reason) do not exhaustively and exactly cover the inventory.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R50` — U42: Publishing to decomp.dev is its own explicit, separately approved step. It never runs as a side effect of generating `report.json`.; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R51` — U42: The corpus provides one deterministic `export-bundle` verb that produces every; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R52` — U42: Re-running `export-bundle` under an identical basis over an unchanged store; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R53` — U42: `bundle.json` names the basis, the corpus-manifest hash, and every artifact's; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R54` — U42: The recovered-source-variants row in the bundle is optional; its absence is; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R55` — U42: The corpus generates a `require`-able Lua module purely from a hook pack (v2),; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R56` — U42: Every generated accessor, entry/handle helper, and call stub raises a; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R57` — U42: The generator refuses to emit a typed call stub for any entity whose ABI block; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R58` — U42: No literal address appears anywhere in generated Lua source; every access goes; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R59` — U42: The generated module's determinism (sorted emission order, no timestamps) is; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R60` — U42: Cave discovery validates every candidate against decode-derived instruction; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R61` — U42: A cave entry in the pack is a plan template (anchor, offset, capacity; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R62` — U42: The corpus ships multiple candidate caves per anchor where more than one valid; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R63` — U42: The pack records, per architecture, whether a codecave/detour adapter exists; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R64` — U42: Before any WASM-usable export of the hook pack, generated bindings, or the; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R65` — U42: If a WASM-consumable export is later authorized, it carries the same evidence; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R66` — U42: The static 8080 workbench lists every export artifact per project and per; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R67` — U42: The Vite/React frontend shows export readiness per entity (not only per; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R68` — U42: The Vite/React frontend shows the export bundle build itself as a pipeline; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R69` — U42: No export action is exposed as a pipeline "run" trigger button on either; satisfy the full source predicate under C01–C24.
+- [ ] `frontend-plan-2026-09-28:R70` — U42: Both frontends draw the readiness report's plain-language "what you can do on; satisfy the full source predicate under C01–C24.
+- [ ] `autonomous-roadmap-2026-09-22:M0` — U9: Reliable continuation; satisfy the full source predicate under C01–C24.
+- [ ] `autonomous-roadmap-2026-09-22:M1` — U12: Effective scenario runner; satisfy the full source predicate under C01–C24.
+- [ ] `autonomous-roadmap-2026-09-22:M2` — U12: Operation generation; satisfy the full source predicate under C01–C24.
+- [ ] `autonomous-roadmap-2026-09-22:M3` — U12: F12 workspace; satisfy the full source predicate under C01–C24.
+- [ ] `autonomous-roadmap-2026-09-22:M4` — U12: Reusable creative projects; satisfy the full source predicate under C01–C24.
+- [ ] `autonomous-roadmap-2026-09-22:M5` — U12: Playback/checkpoints; satisfy the full source predicate under C01–C24.
+- [ ] `autonomous-roadmap-2026-09-22:M6` — U12: Native platform matrix; satisfy the full source predicate under C01–C24.
+- [ ] `autonomous-roadmap-2026-09-22:M7` — U12: Whole-game browser; satisfy the full source predicate under C01–C24.

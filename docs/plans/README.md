@@ -1,5 +1,14 @@
 # Plans
 
+## Current consolidated delivery
+
+- [Master plan](2026-09-28-comprehensive-agentdecompile-plan.md): complete contract, implementation units, original obligations and source appendix.
+- [Living plan](agentdecompile-living-plan.md): current evidence, decisions and continuation state.
+- [Todo list](agentdecompile-todo.md): the single consolidated execution queue.
+
+The dated plans and ledgers below are retained historical inputs. Their substantive requirements remain represented in the master; they are not additional active execution queues.
+
+
 Operator docs start at [README.md](../../README.md). Strategy: [STRATEGY.md](../../STRATEGY.md). This folder is implementer history, not a second user manual.
 
 ```mermaid

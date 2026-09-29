@@ -2,7 +2,7 @@
 name: AgentDecompile
 last_updated: 2026-09-27
 charter: VISION.md
-active_living_plan: docs/plans/2026-09-27-implementation-progress-and-live-track.md
+active_living_plan: docs/plans/agentdecompile-living-plan.md
 governing_design_scope: docs/plans/2026-09-27-weekend-design-scope.md
 ---
 
@@ -10,9 +10,11 @@ governing_design_scope: docs/plans/2026-09-27-weekend-design-scope.md
 
 Charter lives in [VISION.md](VISION.md). Operators start at [README.md](README.md). This file is the investment bet under that charter, not a second north star.
 
+The consolidated delivery contract is [the comprehensive master plan](docs/plans/2026-09-28-comprehensive-agentdecompile-plan.md), with one [living plan](docs/plans/agentdecompile-living-plan.md) and one [todo list](docs/plans/agentdecompile-todo.md). Earlier plans below remain source history; the consolidation preserves their requirements and explicit supersessions.
+
 ## Governing design scope: September 18–21, 2026
 
-This strategy and the [living implementation plan](docs/plans/2026-09-27-implementation-progress-and-live-track.md)
+This strategy and the [living implementation plan](docs/plans/agentdecompile-living-plan.md)
 represent the user's September 18–21 designs, diagrams, plans and brainstorms.
 The [scope index](docs/plans/2026-09-27-weekend-design-scope.md) preserves the full
 [September 21 portable-substrate plan](docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md),

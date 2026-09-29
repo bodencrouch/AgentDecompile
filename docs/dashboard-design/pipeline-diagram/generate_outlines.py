@@ -217,6 +217,18 @@ def card_body(d: Doc, cd: dict, gate_id: str | None = None, stage: bool = False)
     d.end_list()
 
 
+def review_note(x: dict) -> str:
+    """The recorded review of an interpretation: the authority that corroborates it, or that none does."""
+    r = x.get("review")
+    if not r:
+        return ""
+    if r["verdict"] == "corroborated":
+        s = f"; review {r['date']}: corroborated by {r['source']}"
+    else:
+        s = f"; review {r['date']}: {r['verdict']}"
+    return s + (f" ({words(r['note'])})" if r.get("note") else "")
+
+
 def relationships(d: Doc) -> None:
     d.h(2, "relationships", "Relationships")
     d.p("Typed edges from pipeline-model.json that involve this diagram. \"(drawn arrow)\" marks an arrow in "
@@ -230,7 +242,7 @@ def relationships(d: Doc) -> None:
         if e.get("drawn"):
             note = " (drawn arrow)" + (f" — {e['inference']}: {words(e['basis'])}" if e.get("basis") else "")
         elif e.get("inferred"):
-            note = f" (inferred) — {e['inference']}: {words(e['basis'])}"
+            note = f" (inferred) — {e['inference']}: {words(e['basis'])}" + review_note(e)
         else:
             raise SystemExit(f"edge {e['from']} {e['type']} {e['to']} is neither drawn nor marked inferred")
         d.li(f"{link(e['from'], d.diagram)} {EDGE_VERB[e['type']]} {link(e['to'], d.diagram)}{note}")
@@ -255,7 +267,8 @@ def crosswalks(d: Doc) -> None:
                 continue
             mapped.append(c["state"])
             d.li(f"State `{c['state']}` is read as {link(c['to'], d.diagram)} (interpretation). "
-                 f"Basis: {words(c['basis'])} Matches {words(c['matches'])}.")
+                 f"Basis: {words(c['basis'])} Matches {words(c['matches'])}."
+                 + (f" Review{review_note(c)[len('; review'):]}." if c.get("review") else ""))
         d.end_list()
         unmapped = [s for s in ls["states"] if s not in mapped]
         if unmapped:

@@ -322,36 +322,42 @@ commands quoted in the older sections above.
 
 ### Inferred edges (review)
 
-51 edges in `pipeline-model.json` were read from diagram text rather than drawn as
+50 edges in `pipeline-model.json` were read from diagram text rather than drawn as
 arrows. Each has a quoted `basis`, and `inference: "stated"` (the text says it directly) or
 `"interpretation"` (a reading of the text). Six of the stated ones are now drawn (see
-[verifier follow-up](#verifier-follow-up--2026-09-29)); the other 45 keep `inferred: true`, and
+[verifier follow-up](#verifier-follow-up--2026-09-29)); the other 44 keep `inferred: true`, and
 the outlines mark them "(inferred)".
 
-Interpretations to review first (22):
+**Interpretation review (2026-09-29).** The 22 interpretations and the 11 crosswalks were
+checked against the authorities (STRATEGY, VISION, RUNTIME_REUSE, the consolidated plan, the
+task acceptance design, the portable plan, FRONTEND_INTENT, the corpus pipeline page and
+DELIVERY_STATUS). Nothing is contradicted. Each edge and crosswalk now carries a `review`
+object (`verdict`, `source` as `path:line`, `date`, optional `note`), and the outlines print
+it after the basis ("review 2026-09-29: corroborated by STRATEGY.md:158").
 
-- `lane-A consumed_by export-hookpack` — lane A outputs: '… and by the ABI + struct blocks of the pack'; 'the pack' read as hookpack v2
-- `lane-A serialized_by lock-2` — lane A card 'Runs alongside recovery': 'serialized only at the shared corpus mutation point', matched to lock 2
-- `lane-B produces export-hookpack` — lane B outputs: 'all of it lands in hookpack v2'; read as lane B producing the hookpack export
-- `lane-B produces export-divergence` — lane B card 'Divergence (3-way, never forced)' and outputs 'divergence class per pair', matched to the Divergence report export
-- `lane-C depends_on stage-1` — lane C connects: 'branches after stages 1–2 evidence'; 'branches after' read as depends_on
-- `lane-C depends_on stage-2` — lane C connects: 'branches after stages 1–2 evidence'; 'branches after' read as depends_on
-- `lane-C consumes ladder-A` — lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
-- `lane-C consumes ladder-B` — lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
-- `lane-C consumes ladder-C` — lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
-- `lane-C consumes ladder-D` — lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
-- `lane-C consumes ladder-E` — lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
-- `lane-C consumes ladder-F` — lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
-- `lane-C serialized_by lock-4` — lane C card 'Preflight → controlled call/install' acts on a live process; matched to lock 4 (one scenario bundle)
-- `lane-D produces export-receipts` — lane D outputs: 'content-addressed receipts → identical-basis re-runs are cache hits', matched to the Receipts export
-- `lane-D serialized_by lock-5` — lane D card 'Receipts & re-baseline': 'acceptance rejects stale versions', matched to lock 5 (short acceptance commit)
-- `stage-0 serialized_by lock-1` — stage 0 How: 'gate writes; reads use stable versioned snapshots', matched to lock 1 (writes to one program's analysis DB)
-- `stage-4 serialized_by lock-3` — stage 4 tag: 'isolated mutable outputs / PDB / Wine state', matched to lock 3
-- `stage-7 produces export-projects` — stage 7 How: 'reccmp: supported MSVC / PDB diagnostics', matched to the export card's 'reccmp reports'
-- `stage-8 produces export-projects` — stage 8 How: byte-accurate+floor vs max-C measured separately, matched to the export card 'byte-accurate C+floor and max-C … independent image receipts'
-- `fence gates accept-4` — FENCE row: 'Keep artifact; refuse current acceptance/promotion'
-- `accept-4 serialized_by lock-5` — box 4 'Independent acceptance, short commit' matched to overview lock 5 'short acceptance commit' (cross-diagram)
-- `resil-step-6 feedback resil-step-1` — step 6 'Prevent recurrence without blind tuning' returns to step 1 'Prevent, detect, classify' (preventive policy feedback). Not drawn: it stays an interpretation until this review concludes.
+- **Corroborated (18 edges):** lane B produces the hookpack and divergence exports (portable
+  plan :1697, :1701); lane C depends on stages 1 and 2 (STRATEGY.md:158: "a parallel branch
+  after sufficient identity/ABI evidence"); lane C consumes ladders A to F (portable plan
+  :1749-1751, :1792, :432-434, :1829, :1849); lane C is serialized by lock 4 (task design
+  :601); lane D produces receipts (:1703); stage 0 by lock 1 (consolidated plan :203); stage 4
+  by lock 3 (task design :462-464); stages 7 and 8 produce the source projects (:1702); FENCE
+  gates acceptance (task design :67-69); acceptance is serialized by lock 5 (:69-70).
+- **Wording notes kept with the verdict:** for a known build lane C reads ladder results
+  precomputed offline, and the members run live only for an unknown build (ladder F); the
+  plan credits stages 3 to 8 with the source projects, and reccmp is an optional diagnostic,
+  not a named export.
+- **No authority states it (4 edges), kept as readings of the diagram:** `lane-A consumed_by
+  export-hookpack`, `lane-A serialized_by lock-2`, `resil-step-6 feedback resil-step-1`; and
+  one deleted: `lane-D serialized_by lock-5`, because the docs keep verification separate
+  from acceptance and `accept-4 serialized_by lock-5` already carries the relation.
+- **Crosswalks:** `ready → exec-step-2` (task design :369-371) and `accepted → accept-4`
+  (:333-335) are corroborated. The other nine (three TaskLifecycle, six FailureRecord) are
+  "no authority states the mapping": each basis quote supports the step's behaviour, and the
+  FailureRecord state names come from the design system, not from an authority. They stay
+  labelled "(interpretation)" wherever they render.
+
+The review is complete: no interpretation is waiting on it. A future authority text that
+states or contradicts one of the silent readings updates its `review` object.
 
 Stated directly in diagram text and still undrawn (23): `gate-0 gates stage-0`, `gate-1 gates stage-1`, `gate-3 gates stage-3`, `gate-4 gates stage-4`, `gate-5 gates stage-5`, `gate-6 gates stage-6`, `gate-7 gates stage-7`, `gate-8 gates stage-8`, `lane-A consumes stage-1`, `lane-A consumed_by stage-5`, `lane-A feeds export-readiness`, `lane-B consumes stage-1`, `lane-B consumes stage-2`, `lane-B feeds lane-C`, `lane-B feeds export-target`, `lane-C consumes lane-B`, `lane-C feeds stage-1`, `lane-C feeds export-readiness`, `lane-D wraps main-pipeline`, `lane-D wraps lanes`, `lane-D gates export-target`, `lane-E wraps main-pipeline`, `lane-E wraps lanes`.
 

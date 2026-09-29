@@ -2524,7 +2524,11 @@
       "to": "export-hookpack",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "lane A outputs: '… and by the ABI + struct blocks of the pack'; 'the pack' read as hookpack v2"
+      "basis": "lane A outputs: '… and by the ABI + struct blocks of the pack'; 'the pack' read as hookpack v2",
+      "review": {
+        "verdict": "no authority states it",
+        "date": "2026-09-29"
+      }
     },
     {
       "from": "lane-A",
@@ -2540,7 +2544,11 @@
       "to": "lock-2",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "lane A card 'Runs alongside recovery': 'serialized only at the shared corpus mutation point', matched to lock 2"
+      "basis": "lane A card 'Runs alongside recovery': 'serialized only at the shared corpus mutation point', matched to lock 2",
+      "review": {
+        "verdict": "no authority states it",
+        "date": "2026-09-29"
+      }
     },
     {
       "from": "lane-B",
@@ -2580,7 +2588,12 @@
       "to": "export-hookpack",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "lane B outputs: 'all of it lands in hookpack v2'; read as lane B producing the hookpack export"
+      "basis": "lane B outputs: 'all of it lands in hookpack v2'; read as lane B producing the hookpack export",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md:1697",
+        "date": "2026-09-29"
+      }
     },
     {
       "from": "lane-B",
@@ -2588,7 +2601,12 @@
       "to": "export-divergence",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "lane B card 'Divergence (3-way, never forced)' and outputs 'divergence class per pair', matched to the Divergence report export"
+      "basis": "lane B card 'Divergence (3-way, never forced)' and outputs 'divergence class per pair', matched to the Divergence report export",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md:1701",
+        "date": "2026-09-29"
+      }
     },
     {
       "from": "lane-C",
@@ -2596,7 +2614,12 @@
       "to": "stage-1",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "lane C connects: 'branches after stages 1–2 evidence'; 'branches after' read as depends_on"
+      "basis": "lane C connects: 'branches after stages 1–2 evidence'; 'branches after' read as depends_on",
+      "review": {
+        "verdict": "corroborated",
+        "source": "STRATEGY.md:158",
+        "date": "2026-09-29"
+      }
     },
     {
       "from": "lane-C",
@@ -2604,7 +2627,12 @@
       "to": "stage-2",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "lane C connects: 'branches after stages 1–2 evidence'; 'branches after' read as depends_on"
+      "basis": "lane C connects: 'branches after stages 1–2 evidence'; 'branches after' read as depends_on",
+      "review": {
+        "verdict": "corroborated",
+        "source": "STRATEGY.md:158",
+        "date": "2026-09-29"
+      }
     },
     {
       "from": "lane-C",
@@ -2636,7 +2664,13 @@
       "to": "ladder-A",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder"
+      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md:1749-1751",
+        "date": "2026-09-29",
+        "note": "for a known build lane C reads ladder results precomputed offline; the members run live only for an unknown build (ladder F)"
+      }
     },
     {
       "from": "lane-C",
@@ -2644,7 +2678,13 @@
       "to": "ladder-B",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder"
+      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md:1792-1793",
+        "date": "2026-09-29",
+        "note": "for a known build lane C reads ladder results precomputed offline; the members run live only for an unknown build (ladder F)"
+      }
     },
     {
       "from": "lane-C",
@@ -2652,7 +2692,13 @@
       "to": "ladder-C",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder"
+      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md:432-434",
+        "date": "2026-09-29",
+        "note": "for a known build lane C reads ladder results precomputed offline; the members run live only for an unknown build (ladder F)"
+      }
     },
     {
       "from": "lane-C",
@@ -2660,7 +2706,13 @@
       "to": "ladder-D",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder"
+      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md:1829",
+        "date": "2026-09-29",
+        "note": "for a known build lane C reads ladder results precomputed offline; the members run live only for an unknown build (ladder F)"
+      }
     },
     {
       "from": "lane-C",
@@ -2668,7 +2720,13 @@
       "to": "ladder-E",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder"
+      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md:1749-1751",
+        "date": "2026-09-29",
+        "note": "for a known build lane C reads ladder results precomputed offline; the members run live only for an unknown build (ladder F)"
+      }
     },
     {
       "from": "lane-C",
@@ -2676,7 +2734,12 @@
       "to": "ladder-F",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder"
+      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md:1849",
+        "date": "2026-09-29"
+      }
     },
     {
       "from": "lane-C",
@@ -2684,7 +2747,12 @@
       "to": "lock-4",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "lane C card 'Preflight → controlled call/install' acts on a live process; matched to lock 4 (one scenario bundle)"
+      "basis": "lane C card 'Preflight → controlled call/install' acts on a live process; matched to lock 4 (one scenario bundle)",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md:601",
+        "date": "2026-09-29"
+      }
     },
     {
       "from": "lane-D",
@@ -2716,15 +2784,12 @@
       "to": "export-receipts",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "lane D outputs: 'content-addressed receipts → identical-basis re-runs are cache hits', matched to the Receipts export"
-    },
-    {
-      "from": "lane-D",
-      "type": "serialized_by",
-      "to": "lock-5",
-      "inferred": true,
-      "inference": "interpretation",
-      "basis": "lane D card 'Receipts & re-baseline': 'acceptance rejects stale versions', matched to lock 5 (short acceptance commit)"
+      "basis": "lane D outputs: 'content-addressed receipts → identical-basis re-runs are cache hits', matched to the Receipts export",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md:1703",
+        "date": "2026-09-29"
+      }
     },
     {
       "from": "lane-E",
@@ -2748,7 +2813,12 @@
       "to": "lock-1",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "stage 0 How: 'gate writes; reads use stable versioned snapshots', matched to lock 1 (writes to one program's analysis DB)"
+      "basis": "stage 0 How: 'gate writes; reads use stable versioned snapshots', matched to lock 1 (writes to one program's analysis DB)",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/dashboard-design/2026-09-21-consolidated-design-plan.md:203",
+        "date": "2026-09-29"
+      }
     },
     {
       "from": "stage-4",
@@ -2756,7 +2826,12 @@
       "to": "lock-3",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "stage 4 tag: 'isolated mutable outputs / PDB / Wine state', matched to lock 3"
+      "basis": "stage 4 tag: 'isolated mutable outputs / PDB / Wine state', matched to lock 3",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md:462-464",
+        "date": "2026-09-29"
+      }
     },
     {
       "from": "stage-7",
@@ -2764,7 +2839,13 @@
       "to": "export-projects",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "stage 7 How: 'reccmp: supported MSVC / PDB diagnostics', matched to the export card's 'reccmp reports'"
+      "basis": "stage 7 How: 'reccmp: supported MSVC / PDB diagnostics', matched to the export card's 'reccmp reports'",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md:1702",
+        "date": "2026-09-29",
+        "note": "the plan credits stages 3–8 with the source projects; reccmp is an optional diagnostic, not a named export"
+      }
     },
     {
       "from": "stage-8",
@@ -2772,7 +2853,12 @@
       "to": "export-projects",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "stage 8 How: byte-accurate+floor vs max-C measured separately, matched to the export card 'byte-accurate C+floor and max-C … independent image receipts'"
+      "basis": "stage 8 How: byte-accurate+floor vs max-C measured separately, matched to the export card 'byte-accurate C+floor and max-C … independent image receipts'",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-21-portable-signatures-codecaves-generic-plan.md:1702",
+        "date": "2026-09-29"
+      }
     },
     {
       "from": "exec-step-2",
@@ -2832,7 +2918,12 @@
       "to": "accept-4",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "FENCE row: 'Keep artifact; refuse current acceptance/promotion'"
+      "basis": "FENCE row: 'Keep artifact; refuse current acceptance/promotion'",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md:67-69",
+        "date": "2026-09-29"
+      }
     },
     {
       "from": "accept-4",
@@ -2840,7 +2931,12 @@
       "to": "lock-5",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "box 4 'Independent acceptance, short commit' matched to overview lock 5 'short acceptance commit' (cross-diagram)"
+      "basis": "box 4 'Independent acceptance, short commit' matched to overview lock 5 'short acceptance commit' (cross-diagram)",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md:69-70",
+        "date": "2026-09-29"
+      }
     },
     {
       "from": "resil-step-2",
@@ -2880,7 +2976,11 @@
       "to": "resil-step-1",
       "inferred": true,
       "inference": "interpretation",
-      "basis": "step 6 'Prevent recurrence without blind tuning' returns to step 1 'Prevent, detect, classify' (preventive policy feedback)"
+      "basis": "step 6 'Prevent recurrence without blind tuning' returns to step 1 'Prevent, detect, classify' (preventive policy feedback)",
+      "review": {
+        "verdict": "no authority states it",
+        "date": "2026-09-29"
+      }
     },
     {
       "from": "cap-step-2",
@@ -3118,7 +3218,12 @@
       "inference": "interpretation",
       "basis": "§4: 'For each ready task, choose a compatible healthy provider and reserve its complete resource set atomically; if reservation fails, release temporary reservations and leave the task ready.'",
       "matches": "step 2 row 'Acquire entire resource set atomically or release'",
-      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md"
+      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md:369-371",
+        "date": "2026-09-29"
+      }
     },
     {
       "lifecycle": "TaskLifecycle",
@@ -3127,7 +3232,11 @@
       "inference": "interpretation",
       "basis": "§1: 'A task is eligible when its exact prerequisites are satisfied, its mutable resource set can be owned, and a compatible environment has capacity.' §4: 'Admission uses a shared budget including nested subprocesses, not independent per-agent limits.'",
       "matches": "step 2 'Admit one eligible attempt' and its row 'Share nested build budget; external jobs not adopted'",
-      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md"
+      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md",
+      "review": {
+        "verdict": "no authority states the mapping",
+        "date": "2026-09-29"
+      }
     },
     {
       "lifecycle": "TaskLifecycle",
@@ -3136,7 +3245,11 @@
       "inference": "interpretation",
       "basis": "§3: 'Liveness means a process/connection exists. Execution progress means a distinct unit has a durable terminal result, including a legitimate non-match.' §5: 'Do not hold a corpus write transaction while waiting for a compiler, model or game.'",
       "matches": "step 3 rows 'Liveness ≠ execution progress ≠ goal progress', 'Durable completed-unit receipts, including negatives' and 'No corpus transaction during compiler / model / game'",
-      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md"
+      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md",
+      "review": {
+        "verdict": "no authority states the mapping",
+        "date": "2026-09-29"
+      }
     },
     {
       "lifecycle": "TaskLifecycle",
@@ -3145,7 +3258,11 @@
       "inference": "interpretation",
       "basis": "§2: 'The acceptance coordinator checks schema, target/input digests, relevant dependency versions, independent evidence lineage, current publication generation and operation-specific predicates. It computes outside the write transaction; the short transaction rechecks versions/generation and commits once.'",
       "matches": "step 4 rows 'Check input versions AND current generation' and 'Commit manifest + ledger; no artifact IO here'",
-      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md"
+      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md",
+      "review": {
+        "verdict": "no authority states the mapping",
+        "date": "2026-09-29"
+      }
     },
     {
       "lifecycle": "TaskLifecycle",
@@ -3154,7 +3271,12 @@
       "inference": "interpretation",
       "basis": "§3: 'A task reaches `accepted` only when every mandatory output and claim contract has a terminal result and every success predicate required by its pinned acceptance policy passes.'",
       "matches": "step 4 row 'Task complete only when required predicates pass'",
-      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md"
+      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md",
+      "review": {
+        "verdict": "corroborated",
+        "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md:333-335",
+        "date": "2026-09-29"
+      }
     },
     {
       "lifecycle": "FailureRecord",
@@ -3163,7 +3285,11 @@
       "inference": "interpretation",
       "basis": "§3: 'Liveness means a process/connection exists. Execution progress means a distinct unit has a durable terminal result, including a legitimate non-match.' §10: 'Process count and heartbeat rate are diagnostic telemetry only.'",
       "matches": "step 1 rows 'Observe process tree, unit receipts and goal facts' and 'No health decision from one noisy sample alone'",
-      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md"
+      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md",
+      "review": {
+        "verdict": "no authority states the mapping",
+        "date": "2026-09-29"
+      }
     },
     {
       "lifecycle": "FailureRecord",
@@ -3172,7 +3298,11 @@
       "inference": "interpretation",
       "basis": "§3 attempt field `failure_class`: 'Retry history survives coordinator and conversation restarts'. §6 failure classes: 'Deterministic compile/match rejection', 'Compiler/provider transient crash', 'Resource profile exceeded', 'Provider outage'.",
       "matches": "step 1 row 'Classify: mismatch / transient / resource / policy'",
-      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md"
+      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md",
+      "review": {
+        "verdict": "no authority states the mapping",
+        "date": "2026-09-29"
+      }
     },
     {
       "lifecycle": "FailureRecord",
@@ -3181,7 +3311,11 @@
       "inference": "interpretation",
       "basis": "§5: 'Suspected old access changes owned to quarantined.' and '… their quarantine blocks dependents but does not block independent bundles.'",
       "matches": "step 3 row 'Quarantine resources until end of access is proven'",
-      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md"
+      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md",
+      "review": {
+        "verdict": "no authority states the mapping",
+        "date": "2026-09-29"
+      }
     },
     {
       "lifecycle": "FailureRecord",
@@ -3190,7 +3324,11 @@
       "inference": "interpretation",
       "basis": "§6 continuation rules: 'Wait on release; continue unrelated tasks; never kill external owner' and 'Open circuit after policy threshold; compatible provider or bounded health probe after cooldown'.",
       "matches": "step 3 'Repair, reroute or wait' and its row 'Reroute only to declared compatible capabilities'",
-      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md"
+      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md",
+      "review": {
+        "verdict": "no authority states the mapping",
+        "date": "2026-09-29"
+      }
     },
     {
       "lifecycle": "FailureRecord",
@@ -3199,7 +3337,11 @@
       "inference": "interpretation",
       "basis": "§3: 'On coordinator restart, restore accepted receipts and retry state, reconcile actual owners, retain uncertain resources in quarantine, discover private completed results by manifest, and revalidate before acceptance.' §8: 'If effect cannot be established, record unknown outcome and restore/reconcile before continuing'.",
       "matches": "step 3 rows 'Reconcile cursor + exact version/owner/provider wake' and 'Unknown non-idempotent effect: inspect, never replay'",
-      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md"
+      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md",
+      "review": {
+        "verdict": "no authority states the mapping",
+        "date": "2026-09-29"
+      }
     },
     {
       "lifecycle": "FailureRecord",
@@ -3208,7 +3350,11 @@
       "inference": "interpretation",
       "basis": "§1: 'A task is eligible when its exact prerequisites are satisfied, its mutable resource set can be owned, and a compatible environment has capacity.' §5: 'Clearance requires observed termination with no remaining descendant/handle access, verified release through the owning system, or a newly provisioned genuinely disjoint bundle.'",
       "matches": "step 5 'Resume only the justified capability' and its row 'Clear quarantine only on resource-release evidence'",
-      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md"
+      "source": "docs/plans/2026-09-22-task-acceptance-and-continuation-design.md",
+      "review": {
+        "verdict": "no authority states the mapping",
+        "date": "2026-09-29"
+      }
     }
   ]
 }

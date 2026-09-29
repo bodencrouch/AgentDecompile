@@ -97,5 +97,13 @@ Previews use one shared set of example data so that components agree with each o
   | `next` (CacheEntry *) | +0x10 | +0x10 | +0x18 | +0x18, 8-byte pointer |
   | size · align | 0x18 · 4 | 0x18 · 4 | 0x1c · 4 | 0x20 · 8 |
 
-  The build-c shift is drawn as a dashed "hypothesis (heuristic)", ≈ compile variance. The build-d shift is a witness, from pointer width.
+  The build-c shift is a dashed "hypothesis (heuristic)", ≈ compile variance. The build-d shift itself is a witness (pointer width), but its class, ≈ compile variance, stays a hypothesis: a class is solid only when source, toolchain and flag identity are recorded for both builds.
+- **Toolchains (as ToolchainEvidence shows them):**
+  - build-a: x86-32, VC 7.1 (build 3077), no LTCG, no PDB.
+  - build-b: as build-a, plus LTCG and /Oy (hypothesis).
+  - build-c: x86-32, VC 8.0 (build 50727), LTCG, no PDB, image base 0x00010000. Its pinned rebuild toolchain (cl 19.51) cannot byte-match it.
+  - build-d: x86-64, VC 14.38 (build 33128), PDB with source and flags recorded, /INCREMENTAL, /FUNCTIONPADMIN, FH4, no RTTI.
+
+  Only build-d has recorded source identity, so no variance class in corpus-alpha is solid yet.
+- **More addresses:** Actor::LoadFromTemplate: build-a 0041a280 · build-b 0041a4a0 · build-c 00079a30 · build-d 0041a7d0. FUN_0041c940 on build-b is the folded counterpart of FUN_0041c880.
 - **Jobs and receipts.** job a3f9 is the example rename or propagation job. Other ids (5c1e, 6e21, 77c0, b7e2, b7e3, c4e1, d07a, e5a0) are illustrative and consistent within each preview.

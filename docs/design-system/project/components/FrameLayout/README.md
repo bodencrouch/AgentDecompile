@@ -13,18 +13,19 @@ FrameLayout shows one function's stack frame per build as a vertical strip with 
 ## Anatomy
 
 - **Header:** entity, the frame base in words ("offsets from EBP after the prologue").
-- **Provenance line:** each build's recorded source, and "An ESP frame is shown normalised to entry ESP and says so."
+- **Provenance line:** each build's architecture and whether its source identity is recorded, and "An ESP frame is shown normalised to entry ESP and says so."
 - **Frame table (the strip):** higher addresses first, and a 2px `line-control` rule under the saved frame pointer. Each row has a slot-kind tag: `arg`, `return`, `saved`, `EH node`, `cookie`, `buffer`, `local`, `spill`, `align`. Then comes one offset cell per build. A cell holds the offset, a short note ("next to the cookie", "register esi", "shared with entry"), or the absence word. GS-related rows carry a 3px `ink-muted` bar at the inline start plus the `cookie` or `buffer` tag.
 - **Flags** under the table, each a difference-class line with its evidence and research link:
   - **/GS buffer ordering**: buffers moved under the cookie, above scalars;
   - **Slot reuse**: two locals share a slot, with non-overlapping lifetimes;
   - **FPO**: an ESP frame, or "not applied: the C++ EH frame keeps EBP";
-  - register-resident locals ("build-d keeps slotIndex in esi").
+  - register-resident arguments or locals ("build-c takes name and size in registers (LTCG custom convention) · hypothesis (heuristic)", as SignatureEditor shows);
+  - an x64 frame ("build-d: arguments in rcx, rdx and r8, an RSP-relative frame with home space · witness: COFF machine AMD64"), whose offsets are never compared raw with EBP offsets.
 - **Second form:** a compact table for a frameless (FPO) function that shows the raw ESP offset beside the normalised one ("entry ESP+0x4 (raw [esp+0x8] after push esi)"). Frame-pointer-relative and stack-pointer-relative offsets are never compared raw.
 
 ## States
 
-- Cells: offset (solid, from prologue bytes and references) · hypothesis (dashed outline, basis named: "shared with entry") · "register ‹reg›" · "absent in build-a" · "none" · "unknown · not decompiled".
+- Cells: offset (solid, from prologue bytes and references) · hypothesis (dashed outline, the word "hypothesis" and its basis: "shared with entry · hypothesis") · "register ‹reg›" · "in register (LTCG custom convention) · hypothesis (heuristic)" · "RSP-relative · not compared" · "absent in build-a" · "none" · "unknown · not decompiled" · "unresolved on build-d" (the entity has no bytes there).
 - Frame base per build: EBP frame · ESP frame (FPO) · x64 RSP frame with home space · unknown.
 - Difference classes on flags:
   - same source, compiled differently (/GS, /Oy, register allocation);

@@ -2,7 +2,7 @@
 
 One output or result artifact in full. It says what the artifact proves and what it does not, and gives its identity (schema, hash, basis), the job and receipt that produced it, its members if it is a bundle, its coverage on each build, its determinism rule and its 8080 observation, with historical provenance labelled as historical.
 
-**Use it** when an artifact name is opened from OutputsCatalog, a member list, a receipt, a job's Changed line or the PipelineMap export band (`ws=evidence&panel=outputs&artifact=‹id›`, a registered parameter). It sits in the Evidence workspace beside the catalog, or in the evidence rail. Alt+↓ on an artifact link shows its header and first two sections as a Peek. Keep keeps it (`keep=artifact:‹id›`, a proposed kind).
+**Use it** when an artifact name is opened from OutputsCatalog, a member list, a receipt, a job's Changed line or the PipelineMap export band (`ws=evidence&panel=outputs&artifact=‹id›`, a registered parameter). It sits in the Evidence workspace beside the catalog, or in the evidence rail. Alt+↓ on an artifact link shows its header and first two sections as a Peek. Keep keeps it (`keep=artifact:‹id›`, a registered kind).
 
 **Consumer provides** the inventory row (name, kind, group, format or schema version, tier, the proves and does-not-prove sentences, and the determinism rule text with its source); the stored bytes hash and basis digest per build; the producing verb, job and receipt, with the provider requested and the provider served; per-build coverage with each measure kept separate (matched, linked, fuzzy) and the report state; for a bundle, its members with each member's status, hash and verify-gate outcome; the previous report per build, for changes; and the 8080 observation record, plus any historical observation with its port class.
 
@@ -18,14 +18,14 @@ One output or result artifact in full. It says what the artifact proves and what
      - **Provider**: when the provider that served a run differed from the one requested, "⇄ build-c: requested profile vc8.0, served cl 19.51 · provider differed", linked to ToolchainEvidence for that build.
   4. **Members** (bundles only): one row each for the member's link, its status glyph and word, and its hash or verify-gate outcome. An optional member is on the chassis fill and says what its absence ships ("absent → not_in_scope receipt"). The section ends "Refused as a whole if any member fails its own verify gate."
   5. **Coverage by build**, one row per build. Measures stay in separate columns and are never summed:
-     - Matched (objdiff 0): exact fractions, "1,142 of 1,188", with the percentage truncated and never rounded up. The word "done" appears only at exactly 1,188 of 1,188.
+     - Matched (objdiff 0): exact fractions, "1,142 of 1,188", with the percentage truncated to one decimal and never rounded up ("96.1%"). The word "done" appears only at exactly 1,188 of 1,188.
      - Linked, or "not measured".
-     - Fuzzy, labelled with its tool.
+     - Fuzzy, labelled with its tool and "truncated, never rounded up · not a claim".
      - The report link, or "∅ no report · run a61f recorded; its report file is missing".
 
      Under the table:
      - When builds differ: "◐ varies across builds", with the best build and the worst build named. Never an average.
-     - A merge across source revisions is refused by name: "Merge refused for build-d: different source revision (recorded digest)."
+     - A merge across source revisions is refused by name: "Merge refused for build-c: different source revision (recorded digest)."
   6. **Changes since the previous report**, per build, broken first. Each build is a `<details>` headed "1 broken · 2 new · 3 improved · 0 regressed · since basis 41c0". The broken table lists entity, before and after, and ends "…and N more".
      - A missing previous report says "previous report not found · changes not available". A stale report says "not computed · the report is stale".
      - Never "no changes" for a missing report.

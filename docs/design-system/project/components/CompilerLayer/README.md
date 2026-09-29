@@ -17,8 +17,8 @@ CompilerLayer is a toggleable annotation layer over Listing, DecompileView and S
 
 - **Layer bar** above the well: the `Compiler layer` toggle (`aria-pressed`), FilterChips for **Kind** (a multi-select of the kinds below) and **Presence** ("varies across builds" is the Compiler Explorer–style "changed anything" filter), and the count "9 of 14 annotations shown · 5 hidden by Kind". Hidden annotations are counted, never silently dropped.
 - **Gutter column** in the well, before the address: a bracket (`┌ │ └` for ranges, `▪` for one row) and the kind **tag** in bold mono (`INL`, `ICF`, `GS`, `EH`, `SEH`, `DIV`, `TAIL`, `SW`, `FPO`, `ILT`, `HP`, `STR`, `LOOP`, `INTR`, `CC`). The tag is the word; the bracket is `aria-hidden`.
-- **Annotation band** on the first row of a range: tag, a plain phrase ("inlined ResourceRef::Resolve", "folded with 3 functions", "FH3 state 0: tmp is live", "÷ 10 (signed)", "switch · cases 0, 1, 2, 5 · default"), the evidence chip, a **presence** strip ("b c inlined · a d call"), and a link to the research section. A band is framed solid when its evidence is solid and dashed when it is a hypothesis.
-- **Cross-build note** under a range whose presence varies: the difference class and cause, for example "Same source, compiled differently · inlined in build-b, build-c; call in build-a, build-d → /Ob2 or LTCG · hypothesis, basis: …".
+- **Annotation band** on the first row of a range: tag, a plain phrase ("inlined ResourceRef::Resolve", "folded with 3 functions", "FH3 state 0: tmp is live", "÷ 10 (signed)", "switch · cases 0, 1, 2, 5 · default"), the evidence chip, a **presence** strip ("b c inlined · a call · d unknown: ResourceRef::Resolve is unresolved on build-d"), and a link to the research section. A band is framed solid when its evidence is solid and dashed when it is a hypothesis.
+- **Cross-build note** under a range whose presence varies: the difference class and cause, for example "Same source, compiled differently · inlined in build-b, build-c; call in build-a → LTCG on build-b and build-c, none on build-a · hypothesis (heuristic), basis: …".
 - **Remarks under the source line** in DecompileView (after Compiler Explorer's opt remarks): a row under the decompiled line with the tag and a readable rewrite ("÷ 10 · write n / 10 with a signed n"; "/GS cookie scaffolding, not user logic"). Scaffolding (GS, EH, SEH, RTC, HP) stays visible but is labelled as scaffolding, and its diff status is never hidden.
 - **SplitCompare:** each side carries its own gutter tags, and the note between rows classes the pair.
 - **Legend** (a `<dl>` described by the well): every kind with its tag, meaning, count in this function and research section, plus the three evidence levels.
@@ -32,7 +32,7 @@ CompilerLayer is a toggleable annotation layer over Listing, DecompileView and S
 | INL | inlined callee range, "inlined ‹callee›", out-of-line twin linked | T3 |
 | ICF | "folded with N functions", every entity listed | T6 |
 | GS | /GS cookie prologue and epilogue | T8 |
-| EH | EH registration; "FH3 state N: ‹object› is live" per state write | T9 |
+| EH | EH registration; "FH3 state N: ‹object› is live" per state write (the handler generation is named from the build's evidence: "state N" under `__CxxFrameHandler`, "FH3 state N" under `__CxxFrameHandler3`, "FH4 tables" on x64) | T9 |
 | SEH | SEH scope, try level, filter and handler blocks | T10 |
 | DIV | magic-number divide, "÷ 10", signedness | I2 |
 | TAIL | tail call | I4 |
@@ -78,7 +78,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 
 ## Accessibility
 
-- Bands and remark rows are rows in the well's grid. Each is named in words: "Annotation start: inlined ResourceRef::Resolve, hypothesis, present in build-b, build-c; call in build-a, build-d".
+- Bands and remark rows are rows in the well's grid. Each is named in words: "Annotation start: inlined ResourceRef::Resolve, hypothesis, present in build-b, build-c; call in build-a; unknown on build-d".
 - An annotated instruction row appends the tag word to its name ("…, inlined ResourceRef::Resolve"). The bracket glyphs are `aria-hidden`.
 - The legend is a `<dl>` tied to the well with `aria-describedby`. Counts are text.
 - Screen-reader verbosity "off" drops bands to the tag word only; Accessible View lists every annotation as text.

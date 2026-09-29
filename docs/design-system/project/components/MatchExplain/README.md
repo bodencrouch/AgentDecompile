@@ -19,7 +19,7 @@ MatchExplain explains why a recompiled candidate does not match its target bytes
 - **Claim line:** "local ≠ whole-image proof · effective ≠ byte match · aligned ≠ equivalent", then the receipt stamp (fresh or reused, receipt, recipe, time).
 - **Status row:** separate items, never summed.
   - FactBadges for Local match, Linked match and Whole-file equality.
-  - An **Effective match** state of its own. "no · 3 rows are not register-only" has a solid frame; "yes (register allocation only)" has a dashed frame. It is listed between exact and partial and never counted as byte-identical.
+  - An **Effective match** state of its own, in a solid frame with its full words ("no · 3 rows are not register-only"; "yes (register allocation only)"). The word carries the state; dashes stay reserved for hypotheses. It is listed between exact and partial and never counted as byte-identical.
   - An optional objdiff fuzzy percentage, labelled "truncated, never rounded up · not a claim". It never shows 100% unless the rows are byte-identical.
 - **Class table:** one row per class, with the row count, the evidence and a **Next** step in words. Zero-count classes stay listed in `ink-muted`, and uncounted classes show "—" with a hypothesis or the word unknown.
 
@@ -66,7 +66,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 
 - Status items are separate named elements, never one "verified" badge. The effective-match state reads its full words ("Effective match: no, 3 rows are not register-only").
 - Row names follow the ObjectDiff template plus the class word: "0041b2c3, target mov esi, candidate mov edi, differs, register allocation, pair A".
-- Register pairs are framed and lettered; the first pair is solid and the second dashed, so colour is never needed.
+- Register pairs are framed and lettered (A, B), and each row names its pair in words, so colour is never needed. Every pair frame is solid; a dashed frame would read as a hypothesis.
 - Accessible View lists the classes, then every row with its class word.
 
 **Research:** [MSVC transformations I6, §8.3, §9.4](../../../../research/2026-09-29-msvc-optimization-for-decomp.md#83-why-matching-is-not-the-same-as-functionally-equivalent); [reference UI patterns C1–C4, C9, C11](../../../../research/2026-09-29-reference-re-ui-patterns.md).

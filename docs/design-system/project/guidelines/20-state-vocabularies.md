@@ -183,7 +183,7 @@ A gutter tag in bold mono is the word; brackets (`┌ │ └`, `▪`) are `aria
 | INL | inlined ‹callee› | `inline` | T3 |
 | ICF | folded with N functions (every entity listed; never one chosen name) | `icf` | T6 |
 | GS | /GS cookie scaffolding | `gs` | T8 |
-| EH | C++ EH registration; "FH3 state N: ‹object› is live" | `eh` | T9 |
+| EH | C++ EH registration; "state N: ‹object› is live", naming the handler generation from the build's evidence (__CxxFrameHandler on 7.x, FH3 on 8.0–14.x x86, FH4 on x64) | `eh` | T9 |
 | SEH | SEH scope, try level, filter and handler | `seh` | T10 |
 | DIV | magic-number divide ("÷ 10", signedness) | `div` | I2 |
 | TAIL | tail call | `tail` | I4 |

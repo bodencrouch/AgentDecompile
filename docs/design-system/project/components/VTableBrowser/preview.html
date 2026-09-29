@@ -1,4 +1,4 @@
-<!-- @dsCard group="Code" height=730 -->
+<!-- @dsCard group="Code" height=850 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">Class hierarchy with vftables per build · slots keyed by logical method · RTTI provenance, thunks and deleting destructors labelled</span>
 <section class="adc-pane" aria-labelledby="vt-h">
@@ -8,7 +8,7 @@
    <ul class="adx-hier" role="tree" aria-label="Class hierarchy">
     <li role="treeitem" aria-expanded="true" aria-level="1" aria-selected="false"><span style="--lvl:0" translate="no">Base <span class="w">RTTI a b c</span></span>
      <ul role="group">
-      <li role="treeitem" aria-level="2" aria-selected="true" tabindex="0"><span style="--lvl:1" translate="no">ResourceRef <span class="w">RTTI a b c · d unknown</span></span></li>
+      <li role="treeitem" aria-level="2" aria-selected="true" tabindex="0"><span style="--lvl:1" translate="no">ResourceRef <span class="w">RTTI a b c · d none (/GR-)</span></span></li>
      </ul></li>
     <li role="treeitem" aria-expanded="true" aria-level="1" aria-selected="false"><span style="--lvl:0" translate="no">IObserver <span class="w">RTTI a b c</span></span>
      <ul role="group">
@@ -18,22 +18,23 @@
    <div class="ad-scroll" data-scroll><table class="ad-table adx-vt" aria-label="ResourceRef vftable for Base, slot by logical method, target per build">
     <thead><tr><th scope="col">Slot · method</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th></tr></thead>
     <tbody>
-     <tr><th scope="row"><span class="kind">scalar deleting destructor ??_G</span><span translate="no">~ResourceRef</span></th><td>0 · <span class="addr">0041b1c0</span></td><td>0 · <span class="addr">0041c820</span></td><td>0 · <span class="addr">0041c8a0</span></td><td class="absent">unknown</td></tr>
-     <tr aria-selected="true"><th scope="row"><span class="kind">override</span><span translate="no">Resolve</span></th><td>1 · <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Counterpart on build-a, 0041b210, ResourceRef::Resolve, accepted">0041b210</a> accepted</td><td>1 · <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041b2c0" translate="no" aria-label="Counterpart on build-b, FUN_0041b2c0, candidate">FUN_0041b2c0</a> candidate</td><td class="hyp"><b>2</b> · <span class="addr">00082f40</span><br>slot shifted: hypothesis, base class gained a virtual</td><td class="hyp">1 · <span class="addr">0041c880</span><br>override differs: hypothesis, points at Base::Resolve (folded with 3 functions)</td></tr>
-     <tr><th scope="row"><span class="kind">new in Base</span><span translate="no">Validate</span></th><td class="absent">absent</td><td class="absent">absent</td><td>1 · <span class="addr">0041c8e0</span><br>slot added in build-c</td><td class="absent">absent</td></tr>
-     <tr><th scope="row"><span class="kind">inherited</span><span translate="no">Base::Release</span></th><td>2 · <span class="addr">0041b300</span></td><td>2 · <span class="addr">0041c9a0</span></td><td>3 · <span class="addr">0041ca10</span></td><td>2 · <span class="addr">0041c9a0</span></td></tr>
+     <tr><th scope="row"><span class="kind">scalar deleting destructor ??_G</span><span translate="no">~ResourceRef</span></th><td>0 · <span class="addr">0041b1c0</span></td><td>0 · <span class="addr">0041c820</span></td><td>0 · <span class="addr">00082e80</span></td><td class="absent">unknown</td></tr>
+     <tr><th scope="row"><span class="kind">new in Base</span><span translate="no">Validate</span></th><td class="absent">absent</td><td class="absent">absent</td><td><b>1</b> · <span class="addr">00082ec0</span><br>slot added in build-c</td><td class="absent">unknown</td></tr>
+     <tr aria-selected="true"><th scope="row"><span class="kind">override</span><span translate="no">Resolve</span></th><td>1 · <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Counterpart on build-a, 0041b210, ResourceRef::Resolve, accepted">0041b210</a> accepted</td><td>1 · <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041b2c0" translate="no" aria-label="Counterpart on build-b, 0041b2c0, ResourceRef::Resolve, accepted">0041b2c0</a> accepted</td><td class="hyp"><b>2</b> · <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=00082f40" translate="no" aria-label="Counterpart on build-c, 00082f40, ResourceRef::Resolve, slot shifted, hypothesis">00082f40</a><br>slot shifted: hypothesis, base class gained a virtual</td><td class="absent">unresolved on build-d</td></tr>
+     <tr><th scope="row"><span class="kind">inherited</span><span translate="no">Base::Release</span></th><td>2 · <span class="addr">0041b300</span></td><td>2 · <span class="addr">0041c9a0</span></td><td class="hyp"><b>3</b> · <span class="addr">00083020</span><br>slot shifted: hypothesis</td><td class="absent">unknown</td></tr>
+     <tr><th scope="row"><span class="kind">override · folded target</span><span>slot 3 · no name recorded</span></th><td class="hyp">3 · <a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" translate="no" aria-label="Address 0041c880, build-a, FUN_0041c880, folded with 3 functions, hypothesis">FUN_0041c880</a><br>folded with 3 functions: hypothesis</td><td class="hyp">3 · <a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-b&amp;addr=0041c940" translate="no" aria-label="Address 0041c940, build-b, FUN_0041c940, folded with 3 functions, hypothesis">FUN_0041c940</a><br>folded with 3 functions: hypothesis</td><td class="hyp"><b>4</b> · <span class="addr">00083060</span><br>slot shifted: hypothesis</td><td class="absent">unknown</td></tr>
     </tbody></table></div>
   </div>
   <span class="adx-cmp"><b aria-hidden="true">±</b>differs: consistent pattern · build-c slots from 1 onward are +1 (one virtual added in Base)</span>
-  <span class="adx-var hyp"><b><span aria-hidden="true">≠ </span>Source changed</b> · build-c: Base gained <code>Validate</code> · hypothesis (heuristic), basis: consistent +1 shift, recorded digest r14-modified differs from build-b</span>
-  <span class="adx-var hyp"><b><span aria-hidden="true">≈ </span>Same source, compiled differently</b> · build-d slot 1 is ICF-folded, not a different override · hypothesis (heuristic), basis: equal source digest, the folded body equals Base::Resolve byte for byte</span>
+  <span class="adx-var hyp"><b><span aria-hidden="true">≠ </span>Source changed</b> · build-c: Base gained <code>Validate</code> · hypothesis (heuristic), basis: consistent +1 shift; source identity is recorded for neither build-b nor build-c</span>
+  <span class="adx-var unk"><b><span aria-hidden="true">? </span>Unknown</b> · build-d: no RTTI (/GR- recorded) and ResourceRef::Resolve is unresolved there, so no vftable is located and every build-d cell reads unknown</span>
   <div class="adx-rtti" role="group" aria-label="RTTI provenance">
    <span class="adx-sub">RTTI provenance</span>
    <span>COL <code translate="no">??_R4ResourceRef@@6BBase@@@</code> → TypeDescriptor <code translate="no">.?AVResourceRef@@</code> → hierarchy 3 bases · <span class="ad-evd solid"><b>witness</b>RTTI bytes, build-a, build-b, build-c</span></span>
-   <span>build-d: no RTTI (/GR- recorded) · names on the build-d column come only from identity edges <span class="ad-evd hyp"><b>hypothesis (heuristic)</b>edge basis per cell</span></span>
-   <span>Adjustor thunk: IObserver vftable slot 1 → <code translate="no">[thunk] this − 4 → ResourceRef::Notify</code> · build-c: this − 8 <span class="ad-evd hyp"><b>hypothesis (heuristic)</b>Base grew</span></span>
-   <span>Vector deleting destructor <code translate="no">??_E</code>: absent in all builds · scalar <code translate="no">??_G</code> only <span class="ad-evd solid"><b>witness</b>no array path in the slot 0 body</span></span>
-   <span>Folded target <code translate="no">0041c880</code> (build-d) belongs to 4 logical functions: Base::Resolve, ResourceRef::GetId, Actor::GetId, CacheEntry::GetHash</span>
+   <span>build-d: no RTTI (/GR- recorded) · nothing on the build-d column is named from RTTI</span>
+   <span>Adjustor thunk: IObserver vftable slot 1 → <code translate="no">[thunk] this − 4 → ResourceRef</code> · build-c: this − 8 <span class="ad-evd solid"><b>witness</b>thunk bytes</span> <span class="ad-evd hyp"><b>hypothesis (heuristic)</b>why: Base grew</span></span>
+   <span>Vector deleting destructor <code translate="no">??_E</code>: absent in build-a, build-b, build-c · scalar <code translate="no">??_G</code> only <span class="ad-evd solid"><b>witness</b>no array path in the slot 0 body</span></span>
+   <span>Folded targets: <code translate="no">FUN_0041c880</code> (build-a) and <code translate="no">FUN_0041c940</code> (build-b) each serve 3 slots in unrelated classes: ResourceRef slot 3, Actor slot 5, Archive slot 2. No name is chosen. <span class="ad-evd hyp"><b>hypothesis (heuristic)</b>alias detector; no PDB publics on either build</span></span>
   </div>
  </div>
  <div class="adc-status"><span><span class="k">↑ ↓</span> slot · <span class="k">← →</span> build</span><span><span class="k">Enter</span> on a target goes to that build's function</span><span><span class="k">Alt+↓</span> peek the slot on every build</span></div>

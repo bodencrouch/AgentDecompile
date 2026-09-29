@@ -2,13 +2,12 @@
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">Compiler layer on · Listing of Actor::LoadFromTemplate, build-b · every mark is a gutter tag plus a word, with its evidence level</span>
 <section class="adc-pane" aria-labelledby="cl-h">
- <header><span class="kicker" id="cl-h">Listing · compiler layer</span><h4 translate="no">Actor::LoadFromTemplate</h4><span class="small muted">build-b · <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=90&amp;build=build-b&amp;addr=0041a4a0" translate="no" aria-label="Address 0041a4a0, build-b">0041a4a0</a></span><span class="end small muted">Follows · as I move</span></header>
+ <header><span class="kicker" id="cl-h">Listing · compiler layer</span><h4 translate="no">Actor::LoadFromTemplate</h4><span class="small muted">build-b · <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=4127&amp;build=build-b&amp;addr=0041a4a0" translate="no" aria-label="Address 0041a4a0, build-b">0041a4a0</a></span><span class="end small muted">Follows · as I move</span></header>
  <div class="adx-layerbar">
   <button type="button" class="ad-btn compact" aria-pressed="true" aria-keyshortcuts="c">Compiler layer</button>
   <div class="ad-fchips" role="toolbar" aria-label="Filters on the compiler layer" aria-describedby="cl-n">
-   <span class="ad-fchip"><button type="button" class="w" aria-haspopup="menu" aria-expanded="false">Kind <span class="v">inlining, EH state, /GS, ICF, switch, ÷, intrinsic, convention, tail call</span></button><button type="button" class="x" aria-label="Remove filter: Kind"><span aria-hidden="true">✕</span></button></span>
    <span class="ad-fchip"><button type="button" class="w" aria-haspopup="menu" aria-expanded="false">Presence <span class="v">varies across builds</span></button><button type="button" class="x" aria-label="Remove filter: Presence varies across builds"><span aria-hidden="true">✕</span></button></span>
-   <span class="n" id="cl-n">9 of 14 annotations shown · 5 hidden by Kind</span>
+   <span class="n" id="cl-n">8 of 13 vary · 5 hidden · preview shows all</span>
   </div>
  </div>
  <div class="adx-lst" role="grid" aria-readonly="true" aria-label="Listing with compiler annotations, build-b, Actor::LoadFromTemplate" aria-rowcount="-1" data-scroll translate="no">
@@ -24,7 +23,7 @@
   <div class="adx-r lit" role="row" aria-current="true" aria-label="cursor, 0041a4c2, test eax, eax, inlined ResourceRef::Resolve" tabindex="0"><span class="g" aria-hidden="true">│</span><span class="t">INL</span><span class="a">0041a4c2</span><span class="mn">test</span><span>eax, eax</span></div>
   <div class="adx-r lit" role="row"><span class="g" aria-hidden="true">└</span><span class="t">INL</span><span class="a">0041a4c4</span><span class="mn">jnz</span><span>short 0041a4d0</span></div>
   <div class="adx-remark" role="row" aria-label="Cross-build note"><span class="adx-var hyp"><b><span aria-hidden="true">≈ </span>Same source, compiled differently</b> · inlined in build-b, build-c; call in build-a → LTCG on build-b and build-c, none on build-a (witnesses in ToolchainEvidence) · hypothesis (heuristic), basis: cross-module inlining needs LTCG; no recorded source identity for build-a, build-b or build-c</span> <a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=toolchain&amp;build=build-b" aria-label="Toolchain evidence, build-b">flags in ToolchainEvidence</a></div>
-  <div class="adx-band" role="row" aria-label="EH state write, solid"><span class="tag" aria-hidden="true">EH</span><span class="what">FH3 state 0: <span translate="no">tmp</span> is live</span><span class="ad-evd solid"><b>witness</b>unwind map entry 0</span></div>
+  <div class="adx-band" role="row" aria-label="EH state write, solid"><span class="tag" aria-hidden="true">EH</span><span class="what">state 0: <span translate="no">tmp</span> is live</span><span class="ad-evd solid"><b>witness</b>unwind map entry 0</span></div>
   <div class="adx-r" role="row"><span class="g" aria-hidden="true">▪</span><span class="t">EH</span><span class="a">0041a4d0</span><span class="mn">mov</span><span>dword ptr [ebp-4], 0</span></div>
   <div class="adx-band" role="row" aria-label="Magic-number divide by 10, solid"><span class="tag" aria-hidden="true">DIV</span><span class="what">÷ 10 (signed)</span><span class="ad-evd solid"><b>witness</b>0x66666667, sar 2, sign fix</span><a class="ad-link" href="/docs/research/2026-09-29-msvc-optimization-for-decomp.md#i2-division-by-constants-via-magic-multiply">research I2</a></div>
   <div class="adx-r" role="row"><span class="g" aria-hidden="true">┌</span><span class="t">DIV</span><span class="a">0041a4d7</span><span class="mn">mov</span><span>eax, 66666667h</span></div>
@@ -32,10 +31,10 @@
   <div class="adx-band" role="row" aria-label="Intrinsic expansion memcpy, solid"><span class="tag" aria-hidden="true">INTR</span><span class="what">rep movsd = memcpy, 64 bytes</span><span class="ad-evd solid"><b>witness</b>ecx = 10h, no memcpy call</span><span class="adx-presence"><span><b>b c d</b> inline</span><span><b>a</b> call memcpy</span></span><span class="adx-var unk"><b><span aria-hidden="true">? </span>Unknown</b> · /Oi is not recorded for build-a or build-b</span></div>
   <div class="adx-r" role="row"><span class="g" aria-hidden="true">▪</span><span class="t">INTR</span><span class="a">0041a4ea</span><span class="mn">rep</span><span>movsd</span></div>
   <div class="adx-band" role="row" aria-label="Switch table, solid"><span class="tag" aria-hidden="true">SW</span><span class="what">switch · cases 0, 1, 2, 5 · default (3, 4 via byte index)</span><span class="ad-evd solid"><b>witness</b>jump table and index table after the body</span></div>
-  <div class="adx-r" role="row"><span class="g" aria-hidden="true">▪</span><span class="t">SW</span><span class="a">0041a4f3</span><span class="mn">jmp</span><span>dword ptr [eax*4+0041a55e]</span></div>
-  <div class="adx-band hyp" role="row" aria-label="Calling convention thiscall, and ICF-folded callee, hypothesis"><span class="tag" aria-hidden="true">CC</span><span class="what">__thiscall · this in ecx</span><span class="ad-evd hyp"><b>hypothesis (heuristic)</b>ecx set just before the call; the callee reads ECX first</span><span class="tag" aria-hidden="true">ICF</span><span class="what">callee folded with 3 functions</span><span class="ad-evd hyp"><b>hypothesis (heuristic)</b>reached by 3 vftable slots in unrelated classes · alias detector; no PDB on build-b</span></div>
+  <div class="adx-r" role="row"><span class="g" aria-hidden="true">▪</span><span class="t">SW</span><span class="a">0041a4f3</span><span class="mn">jmp</span><span>dword ptr [eax*4+0041a560]</span></div>
+  <div class="adx-band hyp" role="row" aria-label="Calling convention thiscall, and ICF-folded callee, hypothesis"><span class="tag" aria-hidden="true">CC</span><span class="what">__thiscall · this in ecx</span><span class="ad-evd hyp"><b>hypothesis (heuristic)</b>ecx set just before the call; the callee reads ECX first</span><span class="tag" aria-hidden="true">ICF</span><span class="what">callee folded with 3 functions: the targets of ResourceRef slot 3, Actor slot 5 and Archive slot 2</span><span class="ad-evd hyp"><b>hypothesis (heuristic)</b>reached by 3 vftable slots in unrelated classes · alias detector; no PDB on build-b</span></div>
   <div class="adx-r" role="row"><span class="g" aria-hidden="true">▪</span><span class="t">CC</span><span class="a">0041a4fa</span><span class="mn">mov</span><span>ecx, esi</span></div>
-  <div class="adx-r" role="row"><span class="g" aria-hidden="true">▪</span><span class="t">ICF</span><span class="a">0041a4fc</span><span class="mn">call</span><span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-b&amp;addr=0041c940" tabindex="-1" aria-label="Address 0041c940, build-b, FUN_0041c940, folded with 3 functions">FUN_0041c940</a> <span class="muted">· folded: the targets of ResourceRef slot 3, Actor slot 5, Archive slot 2; no name chosen</span></span></div>
+  <div class="adx-r" role="row"><span class="g" aria-hidden="true">▪</span><span class="t">ICF</span><span class="a">0041a4fc</span><span class="mn">call</span><span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-b&amp;addr=0041c940" tabindex="-1" aria-label="Address 0041c940, build-b, FUN_0041c940, folded with 3 functions">FUN_0041c940</a> <span class="muted">· folded · no name chosen</span></span></div>
   <div class="adx-band" role="row" aria-label="Tail call, solid"><span class="tag" aria-hidden="true">TAIL</span><span class="what">tail call</span><span class="ad-evd solid"><b>witness</b>jmp to a function entry after the epilogue</span><span class="adx-presence"><span><b>b c</b> jmp</span><span><b>a</b> call + ret</span><span><b>d</b> unknown: no detector output for build-d</span></span><span class="adx-var unk"><b><span aria-hidden="true">? </span>Unknown</b> · no recorded flags for build-a</span></div>
   <div class="adx-r" role="row"><span class="g" aria-hidden="true">▪</span><span class="t">TAIL</span><span class="a">0041a548</span><span class="mn">jmp</span><span>Archive::OpenMember</span></div>
  </div>
@@ -55,11 +54,12 @@
  </section>
  <section aria-labelledby="cl-sc-h"><header id="cl-sc-h">SplitCompare · build-a ↔ build-b</header>
   <div class="adx-lst" role="grid" aria-readonly="true" aria-label="Split compare with compiler layer" translate="no">
-   <div class="adx-dcl" role="row"><span class="ln">a</span><span class="t">CALL</span><span>call ResourceRef::Resolve</span></div>
+   <div class="adx-dcl" role="row"><span class="ln">a</span><span class="t"></span><span>call ResourceRef::Resolve</span></div>
    <div class="adx-dcl" role="row"><span class="ln">b</span><span class="t">INL</span><span>mov eax,[esi+14h] … jnz</span></div>
-   <div class="adx-remark" role="row" aria-label="Cross-build note"><span class="adx-var unk"><b><span aria-hidden="true">? </span>Unknown</b> · a is r12, b is r14: source and flags both differ; the cause cannot be separated</span></div>
-   <div class="adx-dcl" role="row"><span class="ln">a</span><span class="t">FPO</span><span>mov esi,[esp+8]  ; ESP frame</span></div>
-   <div class="adx-dcl" role="row"><span class="ln">b</span><span class="t">EBP</span><span>mov esi,[ebp+8]  ; EBP frame (EH keeps it)</span></div>
+   <div class="adx-remark" role="row" aria-label="Cross-build note"><span class="adx-var hyp"><b><span aria-hidden="true">≈ </span>Same source, compiled differently</b> · LTCG on build-b, none on build-a (witnesses) · hypothesis (heuristic), basis: same toolchain; no recorded source identity on either build</span></div>
+   <div class="adx-dcl" role="row"><span class="ln">a</span><span class="t"></span><span>; no cookie in this function</span></div>
+   <div class="adx-dcl" role="row"><span class="ln">b</span><span class="t">GS</span><span>mov eax, ___security_cookie</span></div>
+   <div class="adx-remark" role="row" aria-label="Cross-build note"><span class="adx-var unk"><b><span aria-hidden="true">? </span>Unknown</b> · a cookie appears only with a GS buffer; without recorded source identity the cause is not separated</span></div>
   </div>
  </section>
 </div>
@@ -68,7 +68,7 @@
  <div><dt><span class="adx-tag">INL</span></dt><dd>inlined callee range · 1 <span class="muted">T3</span></dd></div>
  <div><dt><span class="adx-tag">ICF</span></dt><dd>folded with N functions (listed) · 1 <span class="muted">T6</span></dd></div>
  <div><dt><span class="adx-tag">GS</span></dt><dd>/GS cookie prologue and epilogue · 2 <span class="muted">T8</span></dd></div>
- <div><dt><span class="adx-tag">EH</span></dt><dd>EH registration, FH3 state N writes · 3 <span class="muted">T9</span></dd></div>
+ <div><dt><span class="adx-tag">EH</span></dt><dd>EH registration, state N writes (FH3 state N on VC 8.0) · 3 <span class="muted">T9</span></dd></div>
  <div><dt><span class="adx-tag">SEH</span></dt><dd>SEH scope, try level · 0 <span class="muted">T10</span></dd></div>
  <div><dt><span class="adx-tag">DIV</span></dt><dd>magic-number divide, "÷ 10" · 1 <span class="muted">I2</span></dd></div>
  <div><dt><span class="adx-tag">TAIL</span></dt><dd>tail call · 1 <span class="muted">I4</span></dd></div>

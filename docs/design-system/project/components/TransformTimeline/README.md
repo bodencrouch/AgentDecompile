@@ -15,17 +15,17 @@ TransformTimeline explains one function across one build pair as an ordered list
 
 - **Header:** entity, build pair, follow mode.
 - **Claim line**, always first and in bold: "Reconstructed explanation, not observed compiler passes." It is followed by "Order is the conventional stage order (front end → optimizer → code generation → link), not an observed sequence", and, where it applies, "The legacy toolchains here emit no optimization remarks." The pane never pretends passes were observed.
-- **Filter:** a FilterChip "Show · changed anything between b and d". It is on by default, hides transformations that are the same in both builds, and counts them ("5 of 8 · 3 the same in both builds are hidden"). The footer names what is hidden and links "Show all".
+- **Filter:** a FilterChip "Show · changed anything between a and b". It is on by default, hides transformations that are the same in both builds, and counts them ("5 of 9 · 4 the same in both builds are hidden"). The footer names what is hidden and links "Show all".
 - **Ordered list.** "From" is the inferred source with its hypothesis chip ("candidate source, not the original"). Then one item per transformation:
   - the stage kicker;
   - the transformation title;
   - the evidence chip;
-  - the cross-build word with each build's form ("b: inlined at 3 instructions · d: call");
+  - the cross-build word with each build's form ("a: call · b: inlined at 3 instructions");
   - the difference class line;
   - **range buttons** per build (`aria-pressed`) that highlight the affected Listing ranges;
   - the research link.
   "To" is the observed bytes of both builds.
-- **Empty and unknown:** "No transformations reconstructed for build-c" as an unknown StateNotice when no detector output exists. Nothing is drawn from guesses.
+- **Empty and unknown:** "No transformations reconstructed for ‹entity› on build-d" as an unavailable StateNotice (⊡) when there are no bytes or no detector output: the entity is unresolved on that build, or no detector ran. Nothing is drawn from guesses.
 
 ## States
 
@@ -36,7 +36,7 @@ TransformTimeline explains one function across one build pair as an ordered list
   - same source and flags, build state differs (entropy);
   - source changed;
   - unknown.
-  For a pair whose source and flags both differ (build-a ↔ build-b here), most items read Unknown, and the component says so on the provenance line.
+  A class is solid only when source, toolchain and flag identity are recorded for both builds. For build-a ↔ build-b here, the toolchain is the same (witness) but source identity is recorded on neither, so items read a hypothesis (heuristic) or Unknown, and the provenance line says so.
 - The item under the cursor, or the one whose ranges are highlighted, is current (`aria-current="step"`, selection fill and bar).
 - Pane: follows on Enter (it is an expensive, derived pane) · "Shows ‹entity›; selection is now ‹entity› · Enter to load" · stale basis.
 
@@ -48,7 +48,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 - **Follows:** `entity` and `cmp`, on Enter. Holdable (registered hold kind `xform`).
 - **Targets rendered:** address (observed bytes, per build) · symbol (inlinee, folded entities) · compiler diagnostic or source line (`f=src.line:…`, the candidate "From") · research section (native `/docs` link).
 - **Peek source:** the stored annotation record and its evidence; the candidate source excerpt when cached.
-- **Absent copy:** "No transformations reconstructed for build-c" · "absent in build-d" · "unknown" · "No candidate source; the timeline starts at the observed bytes of both builds" · "The legacy toolchains here emit no optimization remarks."
+- **Absent copy:** "No transformations reconstructed for ResourceRef::Resolve on build-d" · "absent in build-d" · "unknown" · "No candidate source; the timeline starts at the observed bytes of both builds" · "The legacy toolchains here emit no optimization remarks."
 - **Target-size exception:** none; range buttons are 24px, and 44px below 700px or with a coarse pointer.
 
 ## Keyboard
@@ -60,9 +60,9 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 
 ## Accessibility
 
-- An `<ol>` named "Transformations, build-b and build-d, in conventional stage order". The claim line is the first text in the pane and is included in the list's description.
+- An `<ol>` named "Transformations, build-a and build-b, in conventional stage order". The claim line is the first text in the pane and is included in the list's description.
 - Every item names its stage, title, evidence level, cross-build word and class in text. Glyphs are `aria-hidden`.
-- Range buttons name build and range ("Highlight range in build-b, 0041a4c1 to 0041a4c6"), and pressing one announces the landing once.
+- Range buttons name build and range ("Highlight range in build-b, 0041a4bf to 0041a4c4"), and pressing one announces the landing once. The name never includes "pressed"; `aria-pressed` carries the state.
 - Reduced motion has no effect, since nothing animates.
 
 **Research:** [MSVC transformations §2–§6, §9.9](../../../../research/2026-09-29-msvc-optimization-for-decomp.md#9-ui-implications); [reference UI patterns B2, B3](../../../../research/2026-09-29-reference-re-ui-patterns.md).

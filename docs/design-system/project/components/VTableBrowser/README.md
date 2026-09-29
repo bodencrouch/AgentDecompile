@@ -12,7 +12,7 @@ VTableBrowser shows a class hierarchy with its vftables per build. Each slot is 
 
 ## Anatomy
 
-- **Hierarchy tree** (left; stacked below 700px): classes with their bases, each with its RTTI presence per build ("RTTI a b c · d unknown"). A class with several vftables lists each sub-object ("second vftable, this − 4").
+- **Hierarchy tree** (left; stacked below 700px): classes with their bases, each with its RTTI presence per build ("RTTI a b c · d none (/GR-)"). A class with several vftables lists each sub-object ("second vftable, this − 4").
 - **Slot table** (right): one row per logical method, in the inspected build's slot order.
   - The row header carries a kind label: `scalar deleting destructor ??_G`, `vector deleting destructor ??_E`, `override`, `inherited`, `new in Base`, `adjustor thunk`.
   - One cell per build holds the slot index and the target address, a counterpart link with its edge word, or a word: "slot added in build-c", "absent", "unknown".
@@ -23,14 +23,14 @@ VTableBrowser shows a class hierarchy with its vftables per build. Each slot is 
   - builds without RTTI, whose names come only from identity edges (dashed);
   - adjustor thunks with the delta per build;
   - deleting destructors (scalar present, vector absent, and why);
-  - **folded targets**: "0041c880 (build-d) belongs to 4 logical functions", each listed. One address never picks one name.
+  - **folded targets**: "FUN_0041c880 (build-a) serves 3 slots in unrelated classes: ResourceRef slot 3, Actor slot 5, Archive slot 2", each listed. One address never picks one name.
 
 ## States
 
-- Cells: target (solid: RTTI and vftable bytes) · candidate target (edge word "candidate") · hypothesis (dashed; basis named) · "slot added in build-x" · "absent" · "unknown" (no RTTI and no edge) · "Not loaded. Open build-d to read it."
+- Cells: target (solid: RTTI and vftable bytes) · candidate target (edge word "candidate") · hypothesis (dashed; basis named) · "slot added in build-x" · "absent" · "unknown" (no RTTI and no edge) · "unresolved on build-d" (the entity has no located body there) · "Not loaded. Open build-d to read it."
 - Cross-build: `≡` same in all builds · `±` differs: consistent pattern (uniform slot shift) · `±` differs · `−` absent in build-x.
 - Difference classes:
-  - slot order changed is **source changed** (declaration order; hypothesis unless source digests are recorded);
+  - slot order changed is **source changed** (declaration order; hypothesis unless source digests are recorded for both builds);
   - equal order with different targets is relocation, which is not a difference;
   - a folded slot on the same source is **same source, compiled differently** (/OPT:ICF);
   - otherwise **unknown**.

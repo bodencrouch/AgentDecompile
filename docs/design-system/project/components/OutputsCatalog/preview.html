@@ -1,4 +1,4 @@
-<!-- @dsCard group="Project" height=2610 -->
+<!-- @dsCard group="Project" height=2670 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <section class="ad-outs" aria-labelledby="oc-t">
  <header>
@@ -7,15 +7,15 @@
   <div class="ad-notice unknown" role="note"><b aria-hidden="true">⊡</b><div><h4>Nothing here is observed on 8080</h4><p>No artifact below has been served or read back through this service. Each status comes from a recorded receipt or the outputs inventory (documentation-derived, 2026-09-29). Delivered means a receipt records bounded evidence for that scope; it does not mean the artifact is live, current or accepted.</p></div><span></span></div>
   <div class="ad-tools" role="group" aria-label="Output filters"><button type="button" class="ad-btn compact" aria-haspopup="menu" aria-expanded="false" aria-describedby="oc-addf">Add filter</button><span class="small muted" id="oc-addf">Status · build · group · tier · has a stored file · observed on 8080. Each filter becomes a chip below and one f= entry in the URL.</span></div>
   <div class="ad-fchips" role="toolbar" aria-label="Filters on Outputs, corpus-alpha" aria-describedby="oc-fn">
-   <span class="ad-fchip"><button class="w" aria-haspopup="menu" aria-expanded="false" aria-describedby="oc-fsrc">Tier: <span class="v">advisory or weaker</span></button><button class="x" aria-label="Remove filter: Tier advisory or weaker" aria-keyshortcuts="Delete"><span aria-hidden="true">✕</span></button></span>
-   <span class="n" id="oc-fn">Preview shows the unfiltered grid · with this chip: 24 of 67 artifacts</span>
-   <span class="sr-only" id="oc-fsrc">Applied from the ClaimTier legend link “Show outputs at this tier”.</span>
+   <span class="ad-fchip"><button class="w" aria-haspopup="menu" aria-expanded="false" aria-describedby="oc-fsrc">Status: <span class="v">partial</span></button><button class="x" aria-label="Remove filter: Status partial" aria-keyshortcuts="Delete"><span aria-hidden="true">✕</span></button></span>
+   <span class="n" id="oc-fn">Preview shows the unfiltered grid · with this chip: 13 of 67 artifacts</span>
+   <span class="sr-only" id="oc-fsrc">Applied from Add filter › Status (f=artifact.status:partial).</span>
   </div>
  </header>
 
- <span class="kicker">Groups A and B expanded (6 of 10 and 4 of 11 rows shown in this preview) · C–H collapsed</span>
+ <span class="kicker">Groups A and B expanded (6 of 10 and 4 of 11 rows shown in this preview) · C–H collapsed · all 67 inventory rows, A1–H2, are catalog rows; the README maps each one</span>
  <div class="ad-scroll" role="region" aria-label="Outputs grid, scrolls sideways">
- <table class="ad-table ad-outs-grid" role="grid" aria-label="Outputs of corpus-alpha by artifact and build" aria-rowcount="75" aria-colcount="8" aria-describedby="oc-key">
+ <table class="ad-table ad-outs-grid" role="grid" aria-label="Outputs of corpus-alpha by artifact and build" aria-rowcount="76" aria-colcount="8" aria-describedby="oc-key">
   <thead><tr>
    <th scope="col">Artifact · what it is for</th><th scope="col">Produced by</th>
    <th scope="col" class="b"><a class="ad-link" href="?project=corpus-alpha&amp;build=build-a" tabindex="-1" aria-label="Build build-a, Navigator program row">build-a</a></th>
@@ -25,17 +25,17 @@
    <th scope="col">Claim · what it is not</th><th scope="col">Basis · 8080</th></tr></thead>
 
   <tbody>
-   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="true" tabindex="-1"><span class="chev" aria-hidden="true"></span>A · Export bundle<span class="cnt">10 · 1 delivered · 3 partial · 6 future</span></button></th></tr>
+   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="true" tabindex="-1"><span class="chev" aria-hidden="true"></span>A · Export bundle · A1–A10<span class="cnt">10 · 1 delivered · 3 partial · 6 future</span></button></th></tr>
    <tr aria-selected="true" class="is-focus" tabindex="0">
-    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=export-bundle" tabindex="-1" aria-label="Open artifact Export bundle, future">Export bundle</a><span class="id" translate="no">bundle.json</span><span class="for">One deterministic tree that packages the portable pack, bindings, headers, reports, receipts and, optionally, recovered source.</span>
+    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=export-bundle" tabindex="-1" aria-label="Open artifact Export bundle, future">Export bundle</a><span class="id" translate="no">A1 · bundle.json</span><span class="for">One deterministic tree that packages the portable pack, bindings, headers, reports, receipts and, optionally, recovered source.</span>
      <span class="acts"><button class="ad-btn compact" tabindex="-1" aria-keyshortcuts="Alt+ArrowDown" aria-label="Peek Export bundle">Peek</button><button class="ad-btn compact" tabindex="-1" aria-disabled="true" aria-describedby="oc-nopath">Copy path</button></span><span class="sr-only" id="oc-nopath">No stored path: the bundle has never been produced.</span></th>
     <td class="prod"><span class="verb" translate="no">export-bundle verb (not yet in the catalog)</span><span class="ad-stg unmapped" aria-describedby="oc-um">stage: unmapped</span><br><a class="ad-link node" href="?project=corpus-alpha&amp;node=export-target" tabindex="-1" aria-label="export-target, pipeline node, cross-build unification and export">node export-target</a></td>
     <td class="corpus" colspan="4" role="gridcell" tabindex="-1" aria-label="All builds, corpus scope: future; one bundle for every build"><span class="ad-ast future wrap"><b aria-hidden="true">▷</b>corpus scope · future · one bundle for every build</span></td>
-    <td class="claim"><span class="muted">tier: packages its members' claims; adds none</span><span class="isnot">Refused if any member fails its own verify gate.</span></td>
+    <td class="claim"><span class="muted">tier when produced: none of its own; it packages its members' claims</span><span class="isnot">Refused if any member fails its own verify gate.</span></td>
     <td class="bas"><span class="ad-absent">no receipt</span><span class="o8 ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed</span></td>
    </tr>
    <tr tabindex="-1">
-    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=hookpack-v1" tabindex="-1" aria-label="Open artifact Portable pack v1, delivered bounded">Portable pack v1</a><span class="id" translate="no">hookpack/v1</span><span class="for">Where each logical site sits on each build, as signatures and cached addresses, for a runtime host to resolve.</span>
+    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=hookpack-v1" tabindex="-1" aria-label="Open artifact Portable pack v1, delivered bounded">Portable pack v1</a><span class="id" translate="no">A2 · hookpack/v1</span><span class="for">Where each logical site sits on each build, as signatures and cached addresses, for a runtime host to resolve.</span>
      <span class="acts"><button class="ad-btn compact" tabindex="-1" aria-keyshortcuts="Alt+ArrowDown" aria-label="Peek Portable pack v1">Peek</button><button class="ad-btn compact" tabindex="-1" aria-label="Copy path of Portable pack v1, out/hookpack-v1.json">Copy path</button><a class="ad-link" href="/api/v1/artifacts/hookpack-v1/download" download tabindex="-1" aria-label="Download hookpack-v1.json, 48 KB, stored file, not observed on 8080">Download</a></span></th>
     <td class="prod"><span class="verb" translate="no">export-hookpack (from the record)</span><span class="ad-stg unmapped" aria-describedby="oc-um">stage: unmapped</span><br><a class="ad-link node" href="?project=corpus-alpha&amp;node=export-hookpack" tabindex="-1" aria-label="export-hookpack, pipeline node, cross-build unification and export">node export-hookpack</a></td>
     <td class="b" role="gridcell" tabindex="-1" aria-label="build-a: delivered, bounded, receipt 5c1e; not observed on 8080"><span class="ad-ast delivered"><b aria-hidden="true">▣</b></span></td>
@@ -46,7 +46,7 @@
     <td class="bas"><span class="ad-stamp"><b>reused</b><a class="ad-link" href="?project=corpus-alpha&amp;receipt=5c1e" tabindex="-1" aria-label="Receipt 5c1e, export-hookpack, reused">receipt 5c1e</a> basis 9f3c · 3 d</span><span class="o8 ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed</span></td>
    </tr>
    <tr tabindex="-1">
-    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=hookpack-v2" tabindex="-1" aria-label="Open artifact Portable pack v2, future">Portable pack v2</a><span class="id" translate="no">hookpack/v2</span><span class="for">Every entity kind with locator families, per-build coverage, ABI blocks, caves and a pack hash.</span>
+    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=hookpack-v2" tabindex="-1" aria-label="Open artifact Portable pack v2, future">Portable pack v2</a><span class="id" translate="no">A3 · hookpack/v2</span><span class="for">Every entity kind with locator families, per-build coverage, ABI blocks, caves and a pack hash.</span>
      <span class="acts"><button class="ad-btn compact" tabindex="-1" aria-keyshortcuts="Alt+ArrowDown" aria-label="Peek Portable pack v2">Peek</button></span></th>
     <td class="prod"><span class="verb" translate="no">export-hookpack, format v2</span><span class="ad-stg unmapped" aria-describedby="oc-um">stage: unmapped</span><br><a class="ad-link node" href="?project=corpus-alpha&amp;node=export-hookpack" tabindex="-1">node export-hookpack</a></td>
     <td class="corpus" colspan="4" role="gridcell" tabindex="-1" aria-label="All builds, corpus scope: future"><span class="ad-ast future wrap"><b aria-hidden="true">▷</b>corpus scope · future · changing the format label would not implement v2</span></td>
@@ -54,7 +54,7 @@
     <td class="bas"><span class="ad-absent">no receipt</span><span class="o8 ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed</span></td>
    </tr>
    <tr tabindex="-1">
-    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=readiness-report" tabindex="-1" aria-label="Open artifact Readiness report, future">Readiness report</a><span class="id" translate="no">readiness/v1</span><span class="for">What a user reads first: per entity and build, whether it can be found, and what can be done there.</span>
+    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=readiness-report" tabindex="-1" aria-label="Open artifact Readiness report, future">Readiness report</a><span class="id" translate="no">A6 · readiness/v1</span><span class="for">What a user reads first: per entity and build, whether it can be found, and what can be done there.</span>
      <span class="acts"><button class="ad-btn compact" tabindex="-1" aria-keyshortcuts="Alt+ArrowDown" aria-label="Peek Readiness report">Peek</button></span></th>
     <td class="prod"><span class="verb" translate="no">readiness-report verb</span><span class="ad-stg unmapped" aria-describedby="oc-um">stage: unmapped</span><br><a class="ad-link node" href="?project=corpus-alpha&amp;node=export-readiness" tabindex="-1">node export-readiness</a></td>
     <td class="b" role="gridcell" tabindex="-1" aria-label="build-a: future, no producer yet"><span class="ad-ast future"><b aria-hidden="true">▷</b></span></td>
@@ -65,7 +65,7 @@
     <td class="bas"><span class="ad-absent">no receipt</span><span class="o8 ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed</span></td>
    </tr>
    <tr tabindex="-1">
-    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=source-projects" tabindex="-1" aria-label="Open artifact Source and comparison projects, partial">Source + comparison projects</a><span class="id" translate="no">recovered-project/v1</span><span class="for">Recovered C per build in two variants, byte-accurate C+floor and max-C, each with its manifest and toolchain.</span>
+    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=source-projects" tabindex="-1" aria-label="Open artifact Source and comparison projects, partial">Source + comparison projects</a><span class="id" translate="no">A9 · recovered-project/v1</span><span class="for">Recovered C per build in two variants, byte-accurate C+floor and max-C, each with its manifest and toolchain.</span>
      <span class="acts"><button class="ad-btn compact" tabindex="-1" aria-keyshortcuts="Alt+ArrowDown" aria-label="Peek Source and comparison projects">Peek</button></span></th>
     <td class="prod"><span class="verb" translate="no">stages 3–8 (program scope)</span><span class="ad-stg unmapped" aria-describedby="oc-um">stage: unmapped</span><br><a class="ad-link node" href="?project=corpus-alpha&amp;node=export-projects" tabindex="-1">node export-projects</a></td>
     <td class="b" role="gridcell" tabindex="-1" aria-label="build-a: partial, manifest schema only, synthetic tests, no consumer"><span class="ad-ast partial"><b aria-hidden="true">◐</b></span></td>
@@ -76,7 +76,7 @@
     <td class="bas"><span class="ad-stamp"><b class="estimate">synthetic</b>manifest tests only</span><span class="o8 ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed</span></td>
    </tr>
    <tr tabindex="-1">
-    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=source-zip" tabindex="-1" aria-label="Open artifact Source-variant ZIP, partial, historical">Source-variant ZIP</a><span class="id" translate="no">zip + manifest</span><span class="for">A download of one named source variant with its manifest, missing-source list and verification status.</span>
+    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=source-zip" tabindex="-1" aria-label="Open artifact Source-variant ZIP, partial, historical">Source-variant ZIP</a><span class="id" translate="no">A10 · zip + manifest</span><span class="for">A download of one named source variant with its manifest, missing-source list and verification status.</span>
      <span class="acts"><button class="ad-btn compact" tabindex="-1" aria-keyshortcuts="Alt+ArrowDown" aria-label="Peek Source-variant ZIP">Peek</button><button class="ad-btn compact" tabindex="-1" aria-disabled="true" aria-describedby="oc-nozip">Download</button></span><span class="sr-only" id="oc-nozip">No current archive. The only receipt is historical, from a port outside 8080.</span></th>
     <td class="prod"><span class="verb" translate="no">workbench source ZIP action</span><span class="ad-stg unmapped" aria-describedby="oc-um">stage: unmapped</span></td>
     <td class="b" role="gridcell" tabindex="-1" aria-label="build-a: partial, historical only, byte-accurate archive; not a current max-C archive"><span class="ad-ast partial"><b aria-hidden="true">◐</b></span></td>
@@ -89,9 +89,9 @@
   </tbody>
 
   <tbody>
-   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="true" tabindex="-1"><span class="chev" aria-hidden="true"></span>B · Parity, contribution and whole-image results<span class="cnt">11 · 7 delivered · 1 future · 3 reference</span></button></th></tr>
+   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="true" tabindex="-1"><span class="chev" aria-hidden="true"></span>B · Parity, contribution and whole-image results · B1–B11<span class="cnt">11 · 7 delivered · 1 future · 3 reference</span></button></th></tr>
    <tr tabindex="-1">
-    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=whole-image-acceptance" tabindex="-1" aria-label="Open artifact Whole-image acceptance, future, unproven">Whole-image acceptance</a><span class="id" translate="no">2 methods × 2 variants</span><span class="for">The only terminal result: a fresh rebuild whose file hash equals the shipped build.</span>
+    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=whole-image-acceptance" tabindex="-1" aria-label="Open artifact Whole-image acceptance, future, unproven">Whole-image acceptance</a><span class="id" translate="no">B1 · 2 methods × 2 variants</span><span class="for">The only terminal result: a fresh rebuild whose file hash equals the shipped build.</span>
      <span class="acts"><button class="ad-btn compact" tabindex="-1" aria-keyshortcuts="Alt+ArrowDown" aria-label="Peek Whole-image acceptance">Peek</button></span></th>
     <td class="prod"><span class="verb">goal, not a verb</span><span class="ad-stg unmapped" aria-describedby="oc-um">stage: unmapped</span><br><a class="ad-link node" href="?project=corpus-alpha&amp;node=gate-8" tabindex="-1">node gate-8</a></td>
     <td class="b" role="gridcell" tabindex="-1" aria-label="build-a: future; byte exact, behaviour and toolchain origin all not run"><span class="ad-ast future"><b aria-hidden="true">▷</b></span></td>
@@ -102,18 +102,18 @@
     <td class="bas"><span class="ad-absent">no receipt</span><span class="o8 ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed</span></td>
    </tr>
    <tr tabindex="-1">
-    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=objdiff-parity" tabindex="-1" aria-label="Open artifact Local parity report, delivered">Local parity report</a><span class="id" translate="no">objdiff receipts</span><span class="for">Per function: does the candidate object match the target bytes locally, relocation-aware.</span>
+    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=objdiff-parity" tabindex="-1" aria-label="Open artifact Local parity report, delivered">Local parity report</a><span class="id" translate="no">B2 · objdiff receipts</span><span class="for">Per function: does the candidate object match the target bytes locally, relocation-aware.</span>
      <span class="acts"><button class="ad-btn compact" tabindex="-1" aria-keyshortcuts="Alt+ArrowDown" aria-label="Peek Local parity report">Peek</button><button class="ad-btn compact" tabindex="-1" aria-label="Copy path of Local parity report, reports/objdiff">Copy path</button></span></th>
     <td class="prod"><span class="verb" translate="no">corpus.objdiff-check</span><span class="ad-stg"><a class="fam-verify" href="?project=corpus-alpha&amp;node=stage-7" tabindex="-1" aria-label="7 Continuous parity, pipeline stage, verification"><span class="n">7</span><span class="nm">Continuous parity</span></a></span></td>
     <td class="b" role="gridcell" tabindex="-1" aria-label="build-a: delivered, 1,142 of 1,188 functions at objdiff 0, receipt 7c21"><span class="ad-ast delivered"><b aria-hidden="true">▣</b></span></td>
-    <td class="b" role="gridcell" tabindex="-1" aria-label="build-b: delivered, receipt 7c30"><span class="ad-ast delivered"><b aria-hidden="true">▣</b></span></td>
+    <td class="b" role="gridcell" tabindex="-1" aria-label="build-b: delivered, 1,090 of 1,188 functions at objdiff 0, receipt 7c30"><span class="ad-ast delivered"><b aria-hidden="true">▣</b></span></td>
     <td class="b" role="gridcell" tabindex="-1" aria-label="build-c: stale, basis changed since receipt 6d02; provider differed"><span class="ad-ast stale"><b aria-hidden="true">◷</b></span></td>
     <td class="b" role="gridcell" tabindex="-1" aria-label="build-d: no report; a run is recorded but its report is missing"><span class="ad-ast noreport"><b aria-hidden="true">∅</b></span></td>
-    <td class="claim"><span class="ad-tier verified">verified</span> <span class="small muted">per function</span><span class="isnot">Local zero ≠ full-image or behavior proof.</span><span class="ad-varies" style="margin-top:4px"><b aria-hidden="true">◐</b>varies across builds · not averaged</span></td>
+    <td class="claim"><span class="ad-tier verified">verified</span> <span class="small muted">per function</span><span class="isnot">Local zero ≠ full-image or behavior proof. Accuracy ≠ acceptance.</span><span class="ad-varies" style="margin-top:4px"><b aria-hidden="true">◐</b>varies across builds · not averaged · best build-a 1,142 of 1,188 · worst build-c 610 of 1,201, stale</span></td>
     <td class="bas"><span class="ad-stamp"><b>reused</b><a class="ad-link" href="?project=corpus-alpha&amp;receipt=7c21" tabindex="-1">receipt 7c21</a></span><span class="ad-provdiff"><b aria-hidden="true">⇄</b>build-c: provider differed</span><span class="o8 ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed</span></td>
    </tr>
    <tr tabindex="-1">
-    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=package-verify" tabindex="-1" aria-label="Open artifact Package verification output, delivered bounded">Package verification output</a><span class="id" translate="no">verify tree</span><span class="for">Compiles the recovered package, C and C++ separately, and records each result.</span>
+    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=package-verify" tabindex="-1" aria-label="Open artifact Package verification output, delivered bounded">Package verification output</a><span class="id" translate="no">B6 · verify tree</span><span class="for">Compiles the recovered package, C and C++ separately, and records each result.</span>
      <span class="acts"><button class="ad-btn compact" tabindex="-1" aria-keyshortcuts="Alt+ArrowDown" aria-label="Peek Package verification output">Peek</button><button class="ad-btn compact" tabindex="-1" aria-label="Copy path of Package verification output">Copy path</button></span></th>
     <td class="prod"><span class="verb" translate="no">verify-package (from the record)</span><span class="ad-stg unmapped" aria-describedby="oc-um">stage: unmapped</span></td>
     <td class="b" role="gridcell" tabindex="-1" aria-label="build-a: delivered, bounded"><span class="ad-ast delivered"><b aria-hidden="true">▣</b></span></td>
@@ -124,32 +124,32 @@
     <td class="bas"><span class="ad-stamp"><b>reused</b>receipt 1d80 · 2 d</span><span class="o8 ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed</span></td>
    </tr>
    <tr tabindex="-1">
-    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=source-dump" tabindex="-1" aria-label="Open artifact Source dump tree, reference">Source dump tree</a><span class="id" translate="no">--dump-source</span><span class="for">A single-binary source tree from the implementation CLI; documented for reference.</span>
+    <th scope="row"><a class="ad-link nm" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=source-dump" tabindex="-1" aria-label="Open artifact Source dump tree, reference">Source dump tree</a><span class="id" translate="no">B10 · --dump-source</span><span class="for">A single-binary source tree from the implementation CLI; documented for reference.</span>
      <span class="acts"><button class="ad-btn compact" tabindex="-1" aria-keyshortcuts="Alt+ArrowDown" aria-label="Peek Source dump tree">Peek</button></span></th>
     <td class="prod"><span class="verb">implementation CLI</span><span class="ad-stg unmapped" aria-describedby="oc-um">stage: unmapped</span></td>
     <td class="corpus" colspan="4" role="gridcell" tabindex="-1" aria-label="All builds: reference, not an operating instruction"><span class="ad-ast reference wrap"><b aria-hidden="true">□</b>reference · not an operating instruction · leftover receipts are not this run's source</span></td>
-    <td class="claim"><span class="ad-tier advisory">advisory</span><span class="isnot">Names and types stay advisory until objdiff reports 0 differences.</span></td>
+    <td class="claim"><span class="muted">tier when produced: advisory</span><span class="isnot">Names and types stay advisory until objdiff reports 0 differences.</span></td>
     <td class="bas"><span class="ad-absent">no receipt</span><span class="o8 ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed</span></td>
    </tr>
   </tbody>
 
   <tbody>
-   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="false" tabindex="-1"><span class="chev" aria-hidden="true"></span>C · Corpus store tables and match objects<span class="cnt">9 · 2 delivered · 4 partial · 3 future</span></button></th></tr>
+   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="false" tabindex="-1"><span class="chev" aria-hidden="true"></span>C · Corpus store tables and match objects · C1–C9<span class="cnt">9 · 2 delivered · 4 partial · 3 future</span></button></th></tr>
   </tbody>
   <tbody>
-   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="false" tabindex="-1"><span class="chev" aria-hidden="true"></span>D · Jobs, receipts, determinism and attestation<span class="cnt">13 · 7 delivered · 2 partial · 4 future</span></button></th></tr>
+   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="false" tabindex="-1"><span class="chev" aria-hidden="true"></span>D · Jobs, receipts, determinism and attestation · D1–D13<span class="cnt">13 · 7 delivered · 2 partial · 4 future</span></button></th></tr>
   </tbody>
   <tbody>
-   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="false" tabindex="-1"><span class="chev" aria-hidden="true"></span>E · Ghidra-side, analysis and agent outputs<span class="cnt">14 · 12 delivered · 1 partial · 1 reference</span></button></th></tr>
+   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="false" tabindex="-1"><span class="chev" aria-hidden="true"></span>E · Ghidra-side, analysis and agent outputs · E1–E14<span class="cnt">14 · 12 delivered · 1 partial · 1 reference</span></button></th></tr>
   </tbody>
   <tbody>
-   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="false" tabindex="-1"><span class="chev" aria-hidden="true"></span>F · Runtime reuse outputs<span class="cnt">5 · 2 partial · 3 future</span></button></th></tr>
+   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="false" tabindex="-1"><span class="chev" aria-hidden="true"></span>F · Runtime reuse outputs · F1–F5<span class="cnt">5 · 2 partial · 3 future</span></button></th></tr>
   </tbody>
   <tbody>
-   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="false" tabindex="-1"><span class="chev" aria-hidden="true"></span>G · Distributed compute<span class="cnt">3 · 3 future</span></button></th></tr>
+   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="false" tabindex="-1"><span class="chev" aria-hidden="true"></span>G · Distributed compute · G1–G3<span class="cnt">3 · 3 future</span></button></th></tr>
   </tbody>
   <tbody>
-   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="false" tabindex="-1"><span class="chev" aria-hidden="true"></span>H · Reports and context packs<span class="cnt">2 · 1 partial · 1 future</span></button></th></tr>
+   <tr class="grp"><th colspan="8" scope="rowgroup"><button type="button" class="ad-outs-grp" aria-expanded="false" tabindex="-1"><span class="chev" aria-hidden="true"></span>H · Reports and context packs · H1–H2<span class="cnt">2 · 1 partial · 1 future</span></button></th></tr>
   </tbody>
  </table>
  </div>

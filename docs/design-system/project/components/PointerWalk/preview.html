@@ -1,4 +1,4 @@
-<!-- @dsCard group="Code" height=2240 -->
+<!-- @dsCard group="Code" height=2280 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">Cursor on 0041b2d4 in build-b · p walks the expression at the cursor · each hop is a logical step with every build's offset in its own cell</span>
 <section class="adc-pane" aria-labelledby="pw-h">
@@ -10,7 +10,7 @@
    <span class="n" aria-hidden="true">0</span>
    <div class="m">
     <div class="hd"><span class="adx-op">root</span><code class="adx-arith" translate="no">ecx</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;type=ResourceRef" tabindex="-1" aria-label="Type ResourceRef, build-b">ResourceRef</a>* this</span><span class="ad-evd hyp"><b>hypothesis (heuristic)</b>ECX read before written; __thiscall</span><span class="adx-cmp"><b aria-hidden="true">≡</b>same in build-a, build-b, build-c · build-d unresolved</span></div>
-    <div class="adx-builds" role="group" aria-label="this, per build"><div class="adx-bc hyp"><span class="b">build-a</span><span class="v" translate="no">ecx</span><span class="w">hypothesis: ECX read before written</span></div><div class="adx-bc hyp" aria-current="location"><span class="b">build-b <span class="cur">inspected</span></span><span class="v" translate="no">ecx</span><span class="w">hypothesis: ECX read before written</span></div><div class="adx-bc hyp"><span class="b">build-c</span><span class="v" translate="no">ecx</span><span class="w">hypothesis: ECX read before written; name and size arrive in registers (see SignatureEditor)</span></div><div class="adx-bc unk"><span class="b">build-d</span><span class="v">unresolved</span><span class="w">unresolved · ResourceRef::Resolve is unresolved on build-d; nothing is read from code</span></div></div>
+    <div class="adx-builds" role="group" aria-label="this, per build"><div class="adx-bc hyp"><span class="b">build-a</span><span class="v" translate="no">ecx</span><span class="w">hypothesis: ECX read before written</span></div><div class="adx-bc hyp" aria-current="location"><span class="b">build-b <span class="cur">inspected</span></span><span class="v" translate="no">ecx</span><span class="w">hypothesis: ECX read before written</span></div><div class="adx-bc hyp"><span class="b">build-c</span><span class="v" translate="no">ecx</span><span class="w">hypothesis: ECX read before written; name and size arrive in registers (see SignatureEditor)</span></div><div class="adx-bc unk"><span class="b">build-d</span><span class="v">unresolved</span><span class="w">ResourceRef::Resolve is unresolved on build-d; nothing is read from code</span></div></div>
    </div>
   </li>
   <li class="adx-step" id="pw-s1" tabindex="-1" aria-label="Step 1, offset and dereference: ecx plus 0x14 is cache, ResourceCache pointer; same in build-a, build-b and build-c; unknown on build-d">
@@ -75,7 +75,7 @@
    <tbody>
     <tr aria-selected="true"><th scope="row" translate="no">name_len · ushort</th><td class="mono">+0x0</td><td class="mono">+0x0</td><td class="mono">+0x0</td><td class="mono">+0x0</td><td><span class="adx-cmp"><b aria-hidden="true">≡</b>same in all builds</span></td></tr>
     <tr><th scope="row" translate="no">flags · CacheEntryFlags</th><td class="mono">+0x4</td><td class="mono">+0x4</td><td class="mono">+0x4</td><td class="mono">+0x4</td><td><span class="adx-cmp"><b aria-hidden="true">≡</b>same in all builds</span></td></tr>
-    <tr><th scope="row" translate="no">next · CacheEntry *</th><td class="mono">+0x10</td><td class="mono">+0x10</td><td class="mono">+0x18 <span class="ad-evd hyp"><b>hypothesis (heuristic)</b>filler differs</span></td><td class="mono">+0x18, 8-byte pointer <span class="ad-evd solid"><b>witness</b>pointer width</span></td><td><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span></td></tr>
+    <tr><th scope="row" translate="no">next · CacheEntry *</th><td class="mono">+0x10</td><td class="mono">+0x10</td><td class="mono">+0x18<br><span class="ad-evd hyp"><b>hypothesis (heuristic)</b>filler differs</span></td><td class="mono">+0x18 · 8 bytes<br><span class="ad-evd solid"><b>witness</b>pointer width</span></td><td><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span></td></tr>
     <tr><th scope="row">size · align</th><td class="mono">0x18 · 4</td><td class="mono">0x18 · 4</td><td class="mono">0x1c · 4</td><td class="mono">0x20 · 8</td><td><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span></td></tr>
    </tbody></table></div>
  </div>

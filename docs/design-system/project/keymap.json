@@ -1,0 +1,548 @@
+{
+ "version": 1,
+ "note": "One keymap for both surfaces. Help, the shortcut sheet, menus, tooltips and aria-keyshortcuts all read this file. Per-viewer overrides are stored as a diff against it. Keys only navigate or arm; no key posts or admits work.",
+ "scopes": {
+  "global": "Always active; always uses a modifier (WCAG 2.1.4).",
+  "region": "Active while focus is anywhere in one region (navigator, center, evidence, work view, dock).",
+  "composite": "Active while focus is inside a list, grid, tree or listbox.",
+  "code": "Active while focus is inside a code well (Listing, Decompile, Hex, diffs).",
+  "edit": "Active in edit mode inside an editable well or inline editor; other single keys are off."
+ },
+ "browserReserved": [
+  "Ctrl/Cmd+W",
+  "Ctrl/Cmd+T",
+  "Ctrl/Cmd+N",
+  "Ctrl/Cmd+L",
+  "Ctrl/Cmd+D",
+  "Ctrl/Cmd+F (outside a well)",
+  "Ctrl/Cmd+E",
+  "Ctrl/Cmd+I",
+  "Ctrl+1…9",
+  "F5",
+  "F11",
+  "F12"
+ ],
+ "escapeOrder": [
+  "close the open peek or menu",
+  "leave edit mode, restoring the text",
+  "close the dialog, returning focus to its invoker",
+  "clear a transient filter typed in this view",
+  "nothing else — Esc never clears the checked set or held panes"
+ ],
+ "profiles": {
+  "default": "Modifier globals plus focus-scoped single keys below.",
+  "ida": "Adds focus-scoped n (rename), y (set type), ; (comment), g (go to address) in code wells.",
+  "off": "Turns every single-character key off; modifier globals and menus remain."
+ },
+ "commands": [
+  {
+   "id": "link.go",
+   "label": "Go",
+   "keys": [
+    "Enter",
+    "click"
+   ],
+   "scope": "composite",
+   "where": "any typed link",
+   "note": "Moves the primary location and pushes one history stop."
+  },
+  {
+   "id": "link.openBeside",
+   "label": "Open beside",
+   "keys": [
+    "Shift+Enter",
+    "Shift+click"
+   ],
+   "scope": "composite",
+   "where": "any typed link",
+   "note": "Opens a secondary pane; the primary selection does not change."
+  },
+  {
+   "id": "link.peek",
+   "label": "Peek",
+   "keys": [
+    "Alt+ArrowDown"
+   ],
+   "scope": "composite",
+   "where": "any typed link",
+   "note": "Also after a 400ms pointer rest or 800ms focus rest. Alt+Enter and Ctrl/Cmd+I are rejected."
+  },
+  {
+   "id": "link.keep",
+   "label": "Keep",
+   "keys": [
+    "K"
+   ],
+   "scope": "region",
+   "where": "inside a Peek or evidence card",
+   "note": "Carried as hold=card:…"
+  },
+  {
+   "id": "link.revealIn",
+   "label": "Reveal in…",
+   "keys": [
+    "Shift+F10",
+    "ContextMenu"
+   ],
+   "scope": "composite",
+   "where": "any typed link or token"
+  },
+  {
+   "id": "link.newTab",
+   "label": "Open in new browser tab",
+   "keys": [
+    "Ctrl/Cmd+Enter",
+    "Ctrl/Cmd+click",
+    "middle-click"
+   ],
+   "scope": "composite",
+   "where": "any typed link",
+   "note": "Native browser behavior."
+  },
+  {
+   "id": "palette.open",
+   "label": "Command palette",
+   "keys": [
+    "Ctrl/Cmd+K"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "goto.anything",
+   "label": "Go to anything",
+   "keys": [
+    "Ctrl/Cmd+P"
+   ],
+   "scope": "global",
+   "note": "Prefixes @ symbol, : address, # logical id, ! job, % receipt, ~ node, > command, $ string, ' marks, ? help."
+  },
+  {
+   "id": "goto.address",
+   "label": "Go to address",
+   "keys": [
+    "Ctrl/Cmd+G"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "history.back",
+   "label": "Back",
+   "keys": [
+    "Alt+ArrowLeft",
+    "mouse button 4"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "history.forward",
+   "label": "Forward",
+   "keys": [
+    "Alt+ArrowRight",
+    "mouse button 5"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "history.menu",
+   "label": "Back history menu",
+   "keys": [
+    "Alt+ArrowDown on Back"
+   ],
+   "scope": "region",
+   "where": "NavigationBar"
+  },
+  {
+   "id": "region.next",
+   "label": "Next region",
+   "keys": [
+    "F6"
+   ],
+   "scope": "global",
+   "note": "Restores the region's last focus. Where the browser takes F6, use g then the region letter."
+  },
+  {
+   "id": "region.prev",
+   "label": "Previous region",
+   "keys": [
+    "Shift+F6"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "toggle.navigator",
+   "label": "Show or hide navigator",
+   "keys": [
+    "Ctrl/Cmd+B"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "toggle.evidence",
+   "label": "Show or hide evidence rail",
+   "keys": [
+    "Ctrl/Cmd+Alt+B"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "toggle.dock",
+   "label": "Show or hide dock",
+   "keys": [
+    "Ctrl/Cmd+J"
+   ],
+   "scope": "global",
+   "note": "Opening focuses the row of the last announced transition; again returns."
+  },
+  {
+   "id": "split.open",
+   "label": "Open split",
+   "keys": [
+    "Ctrl/Cmd+\\"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "split.swap",
+   "label": "Swap panes",
+   "keys": [
+    "Ctrl/Cmd+Shift+\\"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "build.next",
+   "label": "Next build with a counterpart",
+   "keys": [
+    "Alt+PageDown"
+   ],
+   "scope": "region",
+   "where": "center"
+  },
+  {
+   "id": "build.prev",
+   "label": "Previous build with a counterpart",
+   "keys": [
+    "Alt+PageUp"
+   ],
+   "scope": "region",
+   "where": "center"
+  },
+  {
+   "id": "worklist.next",
+   "label": "Next worklist item",
+   "keys": [
+    "F8"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "worklist.prev",
+   "label": "Previous worklist item",
+   "keys": [
+    "Shift+F8"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "diff.next",
+   "label": "Next difference",
+   "keys": [
+    "F7"
+   ],
+   "scope": "region",
+   "where": "diffs and SplitCompare"
+  },
+  {
+   "id": "diff.prev",
+   "label": "Previous difference",
+   "keys": [
+    "Shift+F7"
+   ],
+   "scope": "region",
+   "where": "diffs and SplitCompare"
+  },
+  {
+   "id": "save",
+   "label": "Save",
+   "keys": [
+    "Ctrl/Cmd+S"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "open",
+   "label": "Open project",
+   "keys": [
+    "Ctrl/Cmd+O"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "layout.preset",
+   "label": "Layout preset 1–5",
+   "keys": [
+    "Ctrl/Cmd+Alt+1…5"
+   ],
+   "scope": "global",
+   "note": "Read, Compare, Review, Triage, Verify rebuild."
+  },
+  {
+   "id": "help.keys",
+   "label": "Keyboard shortcuts",
+   "keys": [
+    "Ctrl/Cmd+/"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "help.a11y",
+   "label": "Accessibility help for this view",
+   "keys": [
+    "Alt+F1"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "view.accessible",
+   "label": "Accessible View",
+   "keys": [
+    "Alt+F2"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "tabfocus.toggle",
+   "label": "Tab moves focus (in editable wells)",
+   "keys": [
+    "Ctrl+M"
+   ],
+   "scope": "global"
+  },
+  {
+   "id": "list.move",
+   "label": "Move selection",
+   "keys": [
+    "ArrowUp",
+    "ArrowDown",
+    "j",
+    "k"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, listing",
+   "note": "Following panes update after the settle delay."
+  },
+  {
+   "id": "list.check",
+   "label": "Check row",
+   "keys": [
+    "x",
+    "Space"
+   ],
+   "scope": "composite",
+   "where": "lists and grids"
+  },
+  {
+   "id": "list.range",
+   "label": "Extend checked range",
+   "keys": [
+    "Shift+ArrowUp/Down",
+    "Shift+click"
+   ],
+   "scope": "composite",
+   "where": "lists and grids"
+  },
+  {
+   "id": "list.repeat",
+   "label": "Repeat armed action on focused row",
+   "keys": [
+    "."
+   ],
+   "scope": "composite",
+   "where": "lists and grids",
+   "note": "Arms the ActionStrip; mutations still confirm."
+  },
+  {
+   "id": "list.mark",
+   "label": "Set mark",
+   "keys": [
+    "m then letter"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, code wells"
+  },
+  {
+   "id": "list.jumpMark",
+   "label": "Jump to mark",
+   "keys": [
+    "' then letter"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, code wells"
+  },
+  {
+   "id": "list.worklist",
+   "label": "Collect into worklist",
+   "keys": [
+    "w"
+   ],
+   "scope": "composite",
+   "where": "any result set"
+  },
+  {
+   "id": "grid.cell",
+   "label": "Move by cell",
+   "keys": [
+    "ArrowLeft",
+    "ArrowRight",
+    "Home",
+    "End",
+    "Ctrl+Home",
+    "Ctrl+End",
+    "PageUp",
+    "PageDown"
+   ],
+   "scope": "composite",
+   "where": "matrices"
+  },
+  {
+   "id": "review.open",
+   "label": "Open both endpoints beside",
+   "keys": [
+    "o"
+   ],
+   "scope": "composite",
+   "where": "MatchReview"
+  },
+  {
+   "id": "review.decide",
+   "label": "Arm Decide for the checked set",
+   "keys": [
+    "d"
+   ],
+   "scope": "composite",
+   "where": "MatchReview"
+  },
+  {
+   "id": "tabs.rename",
+   "label": "Rename",
+   "keys": [
+    "F2"
+   ],
+   "scope": "composite",
+   "where": "session tabs, functions, labels, locals"
+  },
+  {
+   "id": "tabs.close",
+   "label": "Close session tab",
+   "keys": [
+    "Delete"
+   ],
+   "scope": "composite",
+   "where": "Sessions tablist"
+  },
+  {
+   "id": "tabs.move",
+   "label": "Move tab",
+   "keys": [
+    "Ctrl+Shift+PageUp",
+    "Ctrl+Shift+PageDown"
+   ],
+   "scope": "composite",
+   "where": "Sessions tablist"
+  },
+  {
+   "id": "code.reflect",
+   "label": "Focus reflected row in the other view",
+   "keys": [
+    "r"
+   ],
+   "scope": "code"
+  },
+  {
+   "id": "code.highlight",
+   "label": "Highlight all occurrences",
+   "keys": [
+    "h"
+   ],
+   "scope": "code"
+  },
+  {
+   "id": "code.xrefs",
+   "label": "Focus references panel",
+   "keys": [
+    "x"
+   ],
+   "scope": "code"
+  },
+  {
+   "id": "code.xrefNext",
+   "label": "Next reference in the panel",
+   "keys": [
+    "]"
+   ],
+   "scope": "code"
+  },
+  {
+   "id": "code.xrefPrev",
+   "label": "Previous reference in the panel",
+   "keys": [
+    "["
+   ],
+   "scope": "code"
+  },
+  {
+   "id": "code.find",
+   "label": "Find in this well",
+   "keys": [
+    "Ctrl/Cmd+F"
+   ],
+   "scope": "code",
+   "note": "Announces '3 of 12 matches'; browser find elsewhere."
+  },
+  {
+   "id": "code.edit",
+   "label": "Enter edit mode",
+   "keys": [
+    "Enter"
+   ],
+   "scope": "code",
+   "where": "editable wells only"
+  },
+  {
+   "id": "ida.rename",
+   "label": "Rename (IDA profile)",
+   "keys": [
+    "n"
+   ],
+   "scope": "code",
+   "note": "profile ida"
+  },
+  {
+   "id": "ida.type",
+   "label": "Set type (IDA profile)",
+   "keys": [
+    "y"
+   ],
+   "scope": "code",
+   "note": "profile ida"
+  },
+  {
+   "id": "ida.comment",
+   "label": "Comment (IDA profile)",
+   "keys": [
+    ";"
+   ],
+   "scope": "code",
+   "note": "profile ida"
+  },
+  {
+   "id": "leader",
+   "label": "Leader for region and view jumps",
+   "keys": [
+    "g"
+   ],
+   "scope": "composite",
+   "note": "Shows which-key hints: g d decompile, g l listing, g x references, g c counterparts, g j dock, g ' marks."
+  }
+ ]
+}

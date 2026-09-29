@@ -16,7 +16,7 @@ Active project / related-build scope · search / goto · Pause admission
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Top to bottom: header (name, active project and related-build scope, search, Commands, the one WorkflowControl) → session tabs → workspace tabs (Code Browser · Compare · Recovery · Evidence) → analysis tabs (Disassembly, Decompiler, Hex, Strings, Graph, Xrefs, Imports, Exports, Sections, Info, Matching, then "More…") → navigation bar (Back, Forward, go-to address or symbol, reload, copy link) → workspace → work view → dock → status line.
+Top to bottom: header (name, active project and related-build scope, go to anything, Commands, the one WorkflowControl, Help) → session tabs → workspace tabs (Code Browser · Compare · Recovery · Evidence) → NavigationBar (Back and Forward with history, go to anything, breadcrumbs with sibling menus, Link panes, layout, copy link) → the CounterpartStrip and PipelineBreadcrumb for the selection → workspace, whose Code Browser shows a Views toolbar (Listing, Decompile, Hex, Graph as co-visible toggles; Strings, Imports, Exports and Sections are navigator scopes; References, Calls and Outline live in the evidence rail) → work view → dock → status line.
 
 - **One Functions surface.** Never add a second function sidebar.
 - **Listing and Decompile own the center.** Inspectors and the dock are resizable and collapsible. There is no giant blank upper workspace.
@@ -50,8 +50,8 @@ Activity, Recovery, Logs, Jobs and Problems live together at the bottom. There a
 
 ## Keyboard
 
-Ctrl/Cmd+K palette · Ctrl/Cmd+P go to anything (addresses, symbols, logical ids, jobs, receipts, pipeline nodes) · Ctrl/Cmd+G go to address · Alt+← / Alt+→ back and forward · F6 cycles regions · Alt+↓ peeks the focused link · Ctrl/Cmd+S save. Inside a focused list, grid or listing only: ↑↓ Enter, j/k move the selection, x or Space checks a row, Shift extends a range, Enter opens the action strip with the last action. Esc closes and returns focus. Single-letter keys never act outside a focused list and can be turned off or remapped (see Accessibility). Every action has a palette path, a menu path and a keyboard path.
+The Keymap section and `keymap.json` define every binding, scope and profile; the Linked views section defines the link grammar (Enter go, Shift+Enter open beside, Alt+↓ peek, K keep, Shift+F10 reveal in). Global commands always carry a modifier (Ctrl/Cmd+K palette, Ctrl/Cmd+P go to anything, Alt+←/→ history, F6 regions, Ctrl/Cmd+J dock); single letters work only inside a focused list, grid or code well and can be remapped or turned off. Every action has a palette path, a menu path and a keyboard path.
 
 ## Accessibility
 
-A skip link goes to the Functions list. Menus use menubar roles; the palette is a labelled dialog; confirms are `alertdialog`. A hidden polite live region announces job transitions only (started, failed, cancelled, finished), never each poll. Every state has a glyph and a word.
+See the Accessibility section: landmarks and headings, skip links to Functions, Listing, Evidence and Activity, F6 region cycling with focus memory, APG patterns per component, one live-region policy (transitions only), and visible focus and selection in every mode.

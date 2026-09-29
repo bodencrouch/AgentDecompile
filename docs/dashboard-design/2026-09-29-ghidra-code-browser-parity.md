@@ -40,20 +40,22 @@ pages in 98 help topic directories. Per-topic counts are in
 
 | Design | Rows | Share |
 |---|---|---|
-| designed | 196 | 88% |
-| partial | 23 | 10% |
-| missing | 5 | 2% |
+| designed | 222 | 99% |
+| partial | 0 | 0% |
+| missing | 2 | 1% (both by decision: X08 not planned, C05 until scripts are catalog entries) |
 
 | Backend status | Rows | Share |
 |---|---|---|
-| backed | 123 (29 of them client only) | 55% |
-| catalog action needed | 101 | 45% |
+| backed | 121 (29 of them client only, as of round 2) | 54% |
+| catalog action needed | 103 | 46% |
 
 | Design × backend | backed | needed | Rows |
 |---|---|---|---|
-| designed | 112 | 84 | 196 |
-| partial | 11 | 12 | 23 |
-| missing | 0 | 5 | 5 |
+| designed | 121 | 101 | 222 |
+| partial | 0 | 0 | 0 |
+| missing | 0 | 2 | 2 |
+
+**Before (round 2):** 196 designed, 23 partial, 5 missing. Round 3 closed 26 rows through Listing, GraphPane, DecompileView, SymbolTree, ResultsTable, PropagationTransfer, ReviewDetail and SignatureEditor extensions and five new components (ProgramValidation, ProgramSettings, DebugInfoImport, FunctionIdManager, ProjectWindow), plus ScriptConsole manager actions. The per-group table below is recomputed from the matrix; the per-topic table still shows round-2 design counts.
 
 **Before (2026-09-29 first pass):** one status per row: 47 covered (21%),
 94 partial (42%), 83 missing (37%). A first-pass "covered" row needed both a
@@ -62,30 +64,29 @@ design and a backend; its nearest equivalent now is designed and backed,
 
 | Group | Rows | designed | partial | missing | backed | needed | Before: covered / partial / missing |
 |---|---|---|---|---|---|---|---|
-| 1. Listing, navigation and the byte viewer | 43 | 39 | 4 | 0 | 29 | 14 | 9 / 22 / 12 |
-| 2. Decompiler | 32 | 31 | 0 | 1 | 20 | 12 | 10 / 9 / 13 |
-| 3. Function Graph, call graph and call trees | 13 | 10 | 3 | 0 | 9 | 4 | 3 / 5 / 5 |
-| 4. Symbol Tree, Symbol Table and references | 13 | 12 | 0 | 1 | 7 | 6 | 3 / 8 / 2 |
+| 1. Listing, navigation and the byte viewer | 43 | 43 | 0 | 0 | 29 | 14 | 9 / 22 / 12 |
+| 2. Decompiler | 32 | 32 | 0 | 0 | 20 | 12 | 10 / 9 / 13 |
+| 3. Function Graph, call graph and call trees | 13 | 13 | 0 | 0 | 9 | 4 | 3 / 5 / 5 |
+| 4. Symbol Tree, Symbol Table and references | 13 | 13 | 0 | 0 | 7 | 6 | 3 / 8 / 2 |
 | 5. Data Type Manager and type editors | 19 | 19 | 0 | 0 | 9 | 10 | 0 / 9 / 10 |
-| 6. Program Trees, Memory Map, relocations, equates, registers | 12 | 10 | 1 | 1 | 3 | 9 | 1 / 2 / 9 |
-| 7. Strings, data, bookmarks, comments, labels | 11 | 9 | 2 | 0 | 8 | 3 | 2 / 7 / 2 |
-| 8. Functions | 16 | 13 | 3 | 0 | 13 | 3 | 4 / 9 / 3 |
+| 6. Program Trees, Memory Map, relocations, equates, registers | 12 | 12 | 0 | 0 | 2 | 10 | 1 / 2 / 9 |
+| 7. Strings, data, bookmarks, comments, labels | 11 | 11 | 0 | 0 | 8 | 3 | 2 / 7 / 2 |
+| 8. Functions | 16 | 16 | 0 | 0 | 13 | 3 | 4 / 9 / 3 |
 | 9. Disassembly, clearing, data creation, references | 11 | 11 | 0 | 0 | 1 | 10 | 0 / 2 / 9 |
 | 10. Searches | 12 | 12 | 0 | 0 | 4 | 8 | 0 / 7 / 5 |
-| 11. Analysis | 9 | 7 | 2 | 0 | 4 | 5 | 4 / 2 / 3 |
-| 12. Patching, Program Diff, Version Tracking | 8 | 5 | 2 | 1 | 3 | 5 | 2 / 3 / 3 |
-| 13. Scripting | 5 | 2 | 2 | 1 | 2 | 3 | 1 / 2 / 2 |
-| 14. Undo, transactions, multi-user, import and export | 10 | 7 | 3 | 0 | 4 | 6 | 3 / 6 / 1 |
-| 15. Identification tools, utilities, keyboard and options | 10 | 9 | 1 | 0 | 7 | 3 | 5 / 1 / 4 |
-| **Total** | **224** | **196** | **23** | **5** | **123** | **101** | **47 / 94 / 83** |
+| 11. Analysis | 9 | 9 | 0 | 0 | 4 | 5 | 4 / 2 / 3 |
+| 12. Patching, Program Diff, Version Tracking | 8 | 7 | 0 | 1 | 3 | 5 | 2 / 3 / 3 |
+| 13. Scripting | 5 | 4 | 0 | 1 | 2 | 3 | 1 / 2 / 2 |
+| 14. Undo, transactions, multi-user, import and export | 10 | 10 | 0 | 0 | 3 | 7 | 3 / 6 / 1 |
+| 15. Identification tools, utilities, keyboard and options | 10 | 10 | 0 | 0 | 7 | 3 | 5 / 1 / 4 |
+| **Total** | **224** | **222** | **0** | **2** | **121** | **103** | **47 / 94 / 83** |
 
 What the counts say:
 
 - **The design caught up.** Every component the first pass marked NEW now
-  exists, and 196 rows are designed. The 28 rows that are not are listed with
-  their reasons in [Rows not yet designed](#rows-not-yet-designed). Two of the
-  five missing rows are missing by decision: X08 is not planned, and C05 waits
-  until scripts are catalog entries.
+  exists, and after round 3, 222 rows are designed. The two that are not are
+  missing by decision: X08 is not planned, and C05 waits until scripts are
+  catalog entries ([Rows not yet designed](#rows-not-yet-designed)).
 - **The backend is now the gap.** 101 rows need a catalog action, and 84 of
   them are fully designed, so their designs wait only on a backend contract. The
   [catalog contracts](2026-09-29-catalog-contracts-for-parity.md) propose each
@@ -396,13 +397,13 @@ of `ResourceRef::Resolve` points to a `CacheEntry`.
 | L17 | Overview bar, address-type mode [ov] | RO | OverviewBar | `inspect-memory` (`get-memory-blocks`); catalog action needed for the code-unit type map | side-by-side bars per build in Compare; ImageDeltaMap is the rebuild analog | RO | designed | needed: R06 |
 | L18 | Entropy overview bar: calculation, palette legend, window [ov] | RO | OverviewBar (entropy mode, text key with values) | catalog action needed | side-by-side; equal regions across builds are cheap divergence evidence | RO, NP | designed | needed: R06 |
 | L19 | Cursor text highlight: all matches of the token under the cursor [cb] [cbopt] | RO | Highlight all (`h`, sets A–D) in Listing and DecompileView | none (client, over loaded rows) | per-build; never a cross-build text match | RO | designed | backed (client) |
-| L20 | Listing background colors: set a color on a range, navigate colors [lbg] | MUT | MarksList (per-viewer marks with notes) replaces it; color is never meaning here | catalog action needed only to read existing program colors | viewer | PV | partial | needed: R12 |
+| L20 | Listing background colors: set a color on a range, navigate colors [lbg] | MUT | MarksList (per-viewer marks with notes) replaces it; color is never meaning here; round 3: Listing (program colors, round 3) | catalog action needed only to read existing program colors | viewer | PV | designed | needed: R12, W35 |
 | L21 | Selection: address-set selection, select all, next/previous selected range [sel] | RO | Listing (parity extension: address-set selection extent, collapsed by Esc); checked set for row batches | none on the client; verbs accept `addressRange` | per-build; changing program clears it (F11) | RO | designed | backed (client) |
 | L22 | Select by flow: forward/reverse scoped flow, subroutine, function, dead code [flowsel] | RO | Listing (parity extension); GraphPane Blocks | catalog action needed | per-build | RO | designed | needed: R07 |
 | L23 | Select Bytes: select N bytes from the cursor [selbytes] | RO | HexStrip byte selection (maps back to rows) | none | per-build | RO | designed | backed (client) |
 | L24 | Selection tables: build a table of ranges from a selection [seltab] | RO | ResultsTable (ranges mode); MarksList worklist | none | per-build | RO, PV | designed | backed (client) |
-| L25 | Highlight from selection: set, add, subtract, clear, navigate [hl] | RO | MarksList worklist; Highlight all covers token highlight only | none | per-build | RO, PV | partial | backed (client) |
-| L26 | Clipboard: copy, copy special (addresses, byte strings, labels, comments), paste [clip] | RO+MUT | AccessibleView Copy all; link menu Copy link; paste is a catalog verb | none for copy; catalog action needed for paste | per-build; paste targets one build | RO; paste CAT, 1W | partial | needed: W26 |
+| L25 | Highlight from selection: set, add, subtract, clear, navigate [hl] | RO | MarksList worklist; Highlight all covers token highlight only; round 3: Listing (highlight from selection) | none | per-build | RO, PV | designed | backed (client) |
+| L26 | Clipboard: copy, copy special (addresses, byte strings, labels, comments), paste [clip] | RO+MUT | AccessibleView Copy all; link menu Copy link; paste is a catalog verb; round 3: Listing (Paste) | none for copy; catalog action needed for paste | per-build; paste targets one build | RO; paste CAT, 1W | designed | needed: W26 |
 | L27 | Show Instruction Info: operand objects, inputs and outputs, raw instruction; processor manual [instinfo] | RO | Peek (parity extension: an instruction-info card on a mnemonic) | catalog action needed (instruction prototype read) | per-build; show the build's language id | RO | designed | needed: R03 |
 | L28 | Disassembled View: speculative disassembly at a data cursor without committing [disview] | RO | Peek (parity extension: speculative disassembly, drawn dashed and labelled hypothesis) | catalog action needed (non-committing decode) | per-build | RO, NP | designed | needed: R04 |
 | L29 | Show References To / From: popup actions for address, code unit and data type [cb] [locref] | RO | XrefPanel (References · Calls · Slots), Line or token scope, in/out direction | `get-references` (`direction` to/from) | scope one/all with per-build counts | RO | designed | backed |
@@ -410,7 +411,7 @@ of `ResourceRef::Resolve` points to a `CacheEntry`.
 | L31 | Open/close functions: collapse a whole function in the Listing [cb] | RO | Listing (parity extension: collapsible function body) | none (view state) | viewer | RO, PV | designed | backed (client) |
 | N01 | Go To address, label or expression; wildcards; repeat previous go-to [nav] | RO | NavigationBar go-to field; Ctrl/Cmd+G (`:` prefix); CommandPalette | `search-everything`, `manage-symbols` | results carry per-build locator words; an ambiguous name lists every candidate and never picks one | RO | designed | backed |
 | N02 | Go To File Offset and address expressions (math, logic, bit operators, symbol names) [nav] [addrx] | RO | NavigationBar (parity extension: expression and file-offset prefixes) | catalog action needed (expression evaluation, offset mapping) | per-build; a symbol in an expression resolves on the inspected build | RO | designed | needed: R09 |
-| N03 | Next/previous code unit: instruction, data, undefined, label, function, non-function, matching bytes, bookmark; invert [nav] | RO | Listing (parity extension: keymap commands for each kind) | `inspect-memory`, `list-functions`, `manage-bookmarks` | per-build | RO | partial | backed |
+| N03 | Next/previous code unit: instruction, data, undefined, label, function, non-function, matching bytes, bookmark; invert [nav] | RO | Listing (parity extension: keymap commands for each kind); round 3: Listing (step by matching bytes, Invert) | `inspect-memory`, `list-functions`, `manage-bookmarks` | per-build | RO | designed | backed |
 | N04 | Next/previous function [nav] | RO | Listing keymap; Functions list order | `list-functions` | per-build order | RO | designed | backed |
 | N05 | Navigation history: back/forward, next/previous function in history, clear [nav] | RO | NavigationBar Back, Forward and Recent menu; Alt+←/→ | none (location schema, history state) | history stops carry `build`; a Back that crosses a build switch says so | RO | designed | backed (client) |
 | N06 | Program navigation: next/previous program, go to program, last active program [prg-nav] | RO | CounterpartStrip, the build menu, Alt+PageDown/PageUp; SessionTab | `list-project-files` | an explicit build switch keeps the entity (anchor-mapped) or explains its absence | RO | designed | backed |
@@ -430,7 +431,7 @@ of `ResourceRef::Resolve` points to a `CacheEntry`.
 | D03 | Export to C for the current function [dw] | RO | AccessibleView Copy all; link menu Export → ExportDialog | `export` (format `c`), `decompile-function` | per-build file | CAT (artifact), NP | designed | backed |
 | D04 | Decompiler snapshot window [dw] | RO | HeldPane | none | holds entity × build | RO | designed | backed (client) |
 | D05 | Eliminate Unreachable Code and Respect Read-only Flags toggles [dw] | RO | DecompileView (parity extension: toggles) via OptionsPanel | `decompile-function`: `showUnreachable` exists in source per the guide inventory (:34); Respect Read-only Flags and the other decompiler analysis options are not documented request fields | per-build; the flag is part of the decompile basis | RO | designed | needed: G16 |
-| D06 | Debug Function Decompilation: XML capture for one function [dw] | RO | DecompileView link menu on the function → an artifact in the dock | catalog action needed | per-build | RO, CAT (artifact) | missing | needed: J01 |
+| D06 | Debug Function Decompilation: XML capture for one function [dw] | RO | DecompileView link menu on the function → an artifact in the dock; round 3: DecompileView (debug XML capture as an artifact) | catalog action needed | per-build | RO, CAT (artifact) | designed | needed: J01 |
 | D07 | Graph Data Flow and Graph Control Flow from the decompiler [dw] | RO | GraphPane (parity extension: a data-flow mode) | `analyze-data-flow`; catalog action needed for the p-code graph | per-build | RO | designed | needed: R08 |
 | D08 | Mouse actions: click, double-click, ctrl-double-click, middle-click highlight [dw] | RO | DecompileView typed tokens: Enter goes, Shift+Enter opens beside, Alt+↓ peeks, Shift+F10 opens the menu | none | per-build | RO | designed | backed (client) |
 | D09 | Rename Variable, Rename Label and Rename Global [dw] | MUT | InlineRename (F2 or Enter on the token) | `rename-variable`, `rename-data-label`, `manage-function` | per-build, then propose→counterparts | CAT, CF-in, 1W, MC, NC | designed | backed |
@@ -467,15 +468,15 @@ Deferred and out of core scope: decompiler taint (source/sink slice tree)
 |---|---|---|---|---|---|---|---|---|
 | G01 | Function Graph: basic blocks as vertices, typed edges, block navigation and info [fg] | RO | GraphPane Blocks | catalog action needed (basic-block and edge read) | per-build; CandidateAlignment aligns blocks across builds on anchors | RO, NA | designed | needed: R07 |
 | G02 | Vertex grouping, path highlight (paths from/to, scoped flow), selection from paths and blocks [fg] | RO | GraphPane (parity extension) | catalog action needed | per-build | RO | designed | needed: R07 |
-| G03 | Layouts (nested code, flow chart), zoom, satellite view, saved view state [fgl] [vg] | RO | GraphPane (zoom, pan, bounded drawing, list form) | none | viewer | RO, PV | partial | backed (client) |
-| G04 | Editing from graph vertices (vertex listings are editable) [fg] | MUT | GraphPane nodes are links; edits happen in the Listing | as each edit | per-build | CAT | partial | backed |
+| G03 | Layouts (nested code, flow chart), zoom, satellite view, saved view state [fgl] [vg] | RO | GraphPane (zoom, pan, bounded drawing, list form); round 3: GraphPane (layouts, satellite, saved view state) | none | viewer | RO, PV | designed | backed (client) |
+| G04 | Editing from graph vertices (vertex listings are editable) [fg] | MUT | GraphPane nodes are links; edits happen in the Listing; round 3: GraphPane (decision: no in-vertex editing) | as each edit | per-build | CAT | designed | backed |
 | G05 | Function Call Graph: level edges, satellite, navigate on incoming location [fcg] | RO | GraphPane Calls (depth 1–3, bounded, "truncated" in words) | `get-call-graph` (mode `graph`) | per-build; the root maps to counterparts through anchors | RO | designed | backed |
 | G06 | Function Call Trees: incoming and outgoing trees, recursive expand, navigate on location change [ct] | RO | CallHierarchy (the Calls mode of References) | `get-call-graph` (modes `tree`, `callers`, `callees`; `get-call-tree`) | per-build column with locator words | RO | designed | backed |
 | G07 | Call tree filtering, depth, duplicate and thunk handling [ct] | RO | CallHierarchy (depth up to 3; recursion marked) | `get-call-graph` | per-build | RO | designed | backed |
 | G08 | Program Graph: block flow, code flow, calls, data references; reuse or append a graph [pg] | RO | GraphPane (parity extension: bounded program scope) | `get-call-graph`; catalog action needed for block and code flow | per-build | RO | designed | needed: R07 |
 | G09 | Data Graph: references from a data item [dg] | RO | GraphPane (parity extension: data-reference mode) | `get-references` | per-build | RO | designed | backed |
 | G10 | Graph export: GraphML, DOT, GML, JSON, CSV and other formats [gexp] | RO (file) | GraphPane → ExportDialog | catalog action needed | per-build; the export records its basis | CAT (artifact) | designed | needed: J06 |
-| G11 | Graph display popups: select vertices and edges, filter, show location [gdisp] [gintro] [gsvc] | RO | GraphPane list form (APG tree) | none | per-build | RO | partial | backed (client) |
+| G11 | Graph display popups: select vertices and edges, filter, show location [gdisp] [gintro] [gsvc] | RO | GraphPane list form (APG tree); round 3: GraphPane (filter and selection popups) | none | per-build | RO | designed | backed (client) |
 | G12 | Function Comparison window: listing, decompiler and graph diff of N functions; navigate differences [fcmp] | RO | SplitCompare (F7/Shift+F7), CandidateAlignment | `decompile-function` per side; `match-function` | side-by-side, anchor-mapped, N-way in Compare | RO, NP (aligned ≠ equivalent) | designed | backed |
 | G13 | Common callers of several functions (Ghidra: Call Trees on a selection) [ct] | RO | CallHierarchy (parity extension: multi-root) | `get-call-graph` (mode `common_callers`) | per-build | RO | designed | backed |
 
@@ -493,7 +494,7 @@ Deferred and out of core scope: decompiler taint (source/sink slice tree)
 | S08 | Location References: references to an address, code unit, data type or field; results window [locref] | RO | XrefPanel; a type link lists its uses | `get-references`, `manage-data-types` | scope one/all with per-build counts | RO | designed | backed |
 | S09 | Labels: add/edit, namespace chooser, remove, set primary [lbl] | MUT | InlineRename (F2 on a label); Listing link menu | `create-label`, `manage-symbols`, `rename-data-label` | per-build, then propose→counterparts at anchor-mapped addresses | CAT, CF-in, 1W, MC, NC | designed | backed |
 | S10 | Label history [lbl] | RO | EntityTimeline (name edits); NameProvenance | catalog action needed (the program's label history) | per-build | RO | designed | needed: R13 |
-| S11 | Set external entry point [lbl] | MUT | Listing link menu → ActionStrip | catalog action needed | program-local | CAT, 1W | missing | needed: W20 |
+| S11 | Set external entry point [lbl] | MUT | Listing link menu → ActionStrip; round 3: SymbolTree and Listing (external entry point) | catalog action needed | program-local | CAT, 1W | designed | needed: W20 |
 | S12 | Namespaces and classes for functions and labels [st] [var] | MUT | SymbolTree; SignatureEditor namespace field | `manage-function` (namespace, per the inventory), `manage-symbols` | per-build; the class is a logical entity across builds | CAT, 1W, NC | designed | backed |
 | S13 | Demangled names and demangling [aa] | MUT | NameProvenance (authentic-symbol tier) | `manage-symbols` (`demangleAll`) | per-build | CAT, NA | designed | backed |
 
@@ -532,10 +533,10 @@ Deferred and out of core scope: decompiler taint (source/sink slice tree)
 | P05 | Relocation table [reloc] | RO | ResultsTable (relocations) | catalog action needed | program-local; feeds ObjectDiff's relocation-aware equality | RO | designed | needed: R12 |
 | P06 | Equates: view table, rename, remove, edit/show/apply enum; convert display (signed/unsigned decimal, hex, octal, char, binary, float, double) [eq] | RO+MUT | ResultsTable (equates); Listing link menu on operands | catalog action needed | per-build; names offered to counterparts only at anchor-aligned operands | CAT, 1W, NC | designed | needed: R12, W06 |
 | P07 | Register Manager: register and context values over ranges; set, clear, delete ranges [reg] | RO+MUT | RegisterValuesEditor | catalog action needed | program-local; context registers differ by build language | CAT, CF-dlg, 1W, NA (re-disassembly follows only when admitted) | designed | needed: R12, W23 |
-| P08 | Processor language: view and change language or compiler spec; installed processors [lang] [procs] | MUT | build crumb Peek shows the language id; a change goes through ActionStrip + ConfirmDialog | `change-processor`, `list-processors` | program-local; re-disassembly requires admission | CAT, CF-dlg, 1W, NA | partial | backed |
+| P08 | Processor language: view and change language or compiler spec; installed processors [lang] [procs] | MUT | build crumb Peek shows the language id; a change goes through ActionStrip + ConfirmDialog; round 3: ProgramSettings | `change-processor`, `list-processors` | program-local; re-disassembly requires admission | CAT, CF-dlg, 1W, NA | designed | needed: J17 (was backed) |
 | P09 | Program options and About Program: metadata, compiler, hashes, properties [popt] [about] | RO | build crumb Peek; the evidence rail build header | `get-current-program`, `open` | per-build; hashes identify builds | RO | designed | backed |
 | P10 | Block models: basic, isolated entry, multiple entry, partitioned, overlapped [blk] | RO | GraphPane (parity extension: model selector) | catalog action needed | per-build | RO | designed | needed: R07 |
-| P11 | Validate Program: post-analysis problem detection [val] | RO | ProblemsList (findings as predicates, typed links) | catalog action needed | per-build | RO | missing | needed: R14 |
+| P11 | Validate Program: post-analysis problem detection [val] | RO | ProblemsList (findings as predicates, typed links); round 3: ProgramValidation | catalog action needed | per-build | RO | designed | needed: R14, R35, J16 |
 | P12 | Property Viewer: program properties at addresses [prop] | RO | Peek (parity extension) | catalog action needed | per-build | RO | designed | needed: R12 |
 
 ### 7. Strings, data, bookmarks, comments, labels
@@ -544,13 +545,13 @@ Deferred and out of core scope: decompiler taint (source/sink slice tree)
 |---|---|---|---|---|---|---|---|---|
 | A01 | Defined Strings table: columns, make selection, refresh, settings [dstr] | RO | ResultsTable (strings) in the Strings navigator scope; Outline Strings for the current function | `manage-strings` (mode `list`, `includeReferencingFunctions`); catalog action needed for string settings (charset, rendering) | logical string rows across builds matched by content, with per-build addresses | RO | designed | needed: W12 |
 | A02 | Defined Data window: all defined data, type filter, make selection [dwin] | RO | ResultsTable (defined data) | `inspect-memory` overload `list_data_items(offset, limit)` (TOOLS_LIST:942) enumerates data items; `get-data` per address. A data-type filter is not documented | per-build | RO | designed | backed |
-| A03 | Translate strings and charsets; translation services [tr] [charsets] [libre] | MUT | ResultsTable (strings) row action | catalog action needed | per-build | CAT | partial | needed: J08 |
+| A03 | Translate strings and charsets; translation services [tr] [charsets] [libre] | MUT | ResultsTable (strings) row action; round 3: ResultsTable (translation and charsets) | catalog action needed | per-build | CAT | designed | needed: J08 |
 | A04 | Bookmarks: add in the Listing; categories and types; Bookmarks window [bm] | RO+MUT | MarksList: the program Bookmarks scope (read-only) and per-viewer marks; saving a program bookmark posts on Run | `manage-bookmarks` | program-local per build; logical marks resolve per build; program bookmarks go to counterparts only by proposal (`migrate-metadata` `propagateBookmarks`) | CAT, 1W, PV (marks) | designed | backed |
 | A05 | Bookmarks window actions: edit category and description, remove, filter, select [bm] | RO+MUT | MarksList (parity extension: edit and remove program bookmarks through ActionStrip) | `manage-bookmarks` (`removeAll`, `categories`, `types`) | per-build | CAT, CF-dlg (bulk remove), 1W | designed | backed |
 | A06 | Comments: set or edit EOL, pre, post, plate, repeatable; delete [cm] | MUT | InlineRename (comment mode with the catalog's comment kinds) | `manage-comments` (`commentType`) | per-build, then propose→counterparts (PropagationTransfer comment field) | CAT, CF-in, 1W, MC | designed | backed |
 | A07 | Comment history [cm] | RO | EntityTimeline (parity extension: comment edits) | catalog action needed (the program's comment history) | per-build | RO | designed | needed: R13 |
 | A08 | Comment window: table of every comment [cw] | RO | ResultsTable (comments) | `manage-comments` (`searchText`, `pattern`), `search-everything` (scope `comments`) | scope one/all | RO | designed | backed |
-| A09 | Comment annotations: symbol, address and URL links inside comments [ann] | RO | typed links rendered in comment text (linked views) | none | links resolve on the same build | RO | partial | backed (client) |
+| A09 | Comment annotations: symbol, address and URL links inside comments [ann] | RO | typed links rendered in comment text (linked views); round 3: Listing (comment annotations) | none | links resolve on the same build | RO | designed | backed (client) |
 | A10 | Field names: Edit Field Name dialog for data components [fieldnames] | MUT | InlineRename on the Listing field-name cell | `manage-structures` (`newFieldName`) | layout-gated; type-wide, so ConfirmDialog | CAT, CF-dlg, 1W, NC | designed | backed |
 | A11 | Labels from the Listing: rename a label in place [lbl] | MUT | InlineRename (F2) | `create-label`, `rename-data-label` | per-build, then propose→counterparts | CAT, CF-in, 1W, NC | designed | backed |
 
@@ -558,8 +559,8 @@ Deferred and out of core scope: decompiler taint (source/sink slice tree)
 
 | ID | Ghidra feature | R/M | AgentDecompile mapping | Backend | Multi-variant | Doctrine | Design | Backend status |
 |---|---|---|---|---|---|---|---|---|
-| F01 | Create function, re-create function, create multiple functions [fn] | MUT | Listing link menu → ActionStrip | `manage-function` (create, per the inventory); `list-functions` (`get-undefined-function-candidates`) | per-build; propose on counterparts only at accepted anchors | CAT, 1W, MC | partial | backed |
-| F02 | Delete function [fn] | MUT | ActionStrip + ConfirmDialog (destructive) | `manage-function` (delete, per the inventory) | per-build | CAT, CF-dlg, 1W | partial | backed |
+| F01 | Create function, re-create function, create multiple functions [fn] | MUT | Listing link menu → ActionStrip; round 3: Listing (Function group: create) | `manage-function` (create, per the inventory); `list-functions` (`get-undefined-function-candidates`) | per-build; propose on counterparts only at accepted anchors | CAT, 1W, MC | designed | backed |
+| F02 | Delete function [fn] | MUT | ActionStrip + ConfirmDialog (destructive); round 3: Listing (Function group: delete) | `manage-function` (delete, per the inventory) | per-build | CAT, CF-dlg, 1W | designed | backed |
 | F03 | Rename function [fn] | MUT | InlineRename (F2 on the EntityRow or the composite header name) | `rename-function`, `manage-function` | per-build, then propose→counterparts | CAT, CF-in, 1W, MC, NC | designed | backed |
 | F04 | Thunk functions: set thunk target, follow thunk [fn] | RO+MUT | SignatureEditor thunk field; XrefPanel | `manage-function` (thunk target, per the inventory); `get-references` (`resolve-thunk`) | per-build | CAT, 1W | designed | backed |
 | F05 | External functions [fn] | RO | SymbolTree (Imports) | `list-imports`, `get-references` (`find-import-references`) | per-build; the same import on each build forms a logical row | RO | designed | backed |
@@ -567,7 +568,7 @@ Deferred and out of core scope: decompiler taint (source/sink slice tree)
 | F07 | Custom storage: parameter and return storage; the Edit Parameter Storage dialog [var] | MUT | StorageEditor | `manage-function` mode `set_storage` | layout-gated per build: registers come from that build's spec; no storage propagation without an ABI gate | CAT, CF-in, 1W, MC | designed | backed |
 | F08 | Varargs, No Return and Inline attributes [var] | MUT | SignatureEditor flags | `manage-function` (flags, per the inventory) | per-build; No Return changes callers' flow, so confirm | CAT, CF-dlg (No Return), 1W | designed | backed |
 | F09 | Call-fixup [var] | MUT | SignatureEditor call-fixup picker from the build's spec | `manage-function` (call fixup, per the inventory) | per-build spec | CAT, 1W | designed | backed |
-| F10 | Function purge and stack depth change: set and remove [fn] | MUT | SignatureEditor (purge); Listing link menu (stack depth) | catalog action needed | per-build | CAT, 1W | partial | needed: W08 |
+| F10 | Function purge and stack depth change: set and remove [fn] | MUT | SignatureEditor (purge); Listing link menu (stack depth); round 3: Listing (stack depth) and SignatureEditor (purge) | catalog action needed | per-build | CAT, 1W | designed | needed: W08 |
 | F11 | Variables: rename, retype, delete; define data type [var] | MUT | InlineRename; CodeBrowser Outline Locals | `manage-function` (`rename-variable`, `set-local-variable-type`, per the inventory) | per-build | CAT, CF-in, 1W, NC | designed | needed: W07 |
 | F12 | Function repeatable comment [fn] | MUT | InlineRename (repeatable kind) | `manage-comments` | per-build, then propose→counterparts | CAT, CF-in, 1W | designed | backed |
 | F13 | Stack frame editor: local size, parameter offset and size, stack variables (create, delete, clear, retype, array), hex display [stack] | MUT | StackFrameEditor | catalog action needed (`manage-function` variable operations cover part) | side-by-side frames per build; layouts differ by compiler | CAT, CF-dlg, 1W, MC, NC | designed | needed: R20, W07 |
@@ -618,9 +619,9 @@ Deferred and out of core scope: decompiler taint (source/sink slice tree)
 | Z04 | One-shot analysis: one analyzer on a selection [aa] | MUT | ActionStrip bound to the selection | catalog action needed | per-build | CAT, 1W, NA (explicit only) | designed | needed: J02 |
 | Z05 | Analysis log and background task progress [aa] [showlog] [prg-ann] | RO | ActivityRecord in the dock (Logs, Jobs) | `read-workspace-activity` | per-build jobs | RO | designed | backed |
 | Z06 | Headless analyzer [headless-help] [headless] | MUT | no UI; admitted through the workflow | `manage-workflow` | corpus | NA, 1W | designed | backed |
-| Z07 | Load PDB (symbol servers, parser options) or external DWARF debug files; SARIF import [pdb] [loadpdb] [dwarf] [sarif] | MUT | ImportAdmission; ContextPlacement for context pieces | catalog action needed (`export` writes SARIF; the import path is not documented) | per-build (debug info is build-specific); the NameProvenance debug-info tier | CAT, 1W | partial | needed: J04 |
+| Z07 | Load PDB (symbol servers, parser options) or external DWARF debug files; SARIF import [pdb] [loadpdb] [dwarf] [sarif] | MUT | ImportAdmission; ContextPlacement for context pieces; round 3: DebugInfoImport | catalog action needed (`export` writes SARIF; the import path is not documented) | per-build (debug info is build-specific); the NameProvenance debug-info tier | CAT, 1W | designed | needed: J04, J18 |
 | Z08 | Demangler, aggressive instruction finder and other prototype analyzers [aa] | MUT | AnalyzerPanel | catalog action needed | per-build | CAT, NA | designed | needed: R17, W28, J02 |
-| Z09 | Source files table and source map entries [srcf] | RO | NameProvenance debug-info witness; SourceRepairDiff | catalog action needed | per-build | RO | partial | needed: J04 |
+| Z09 | Source files table and source map entries [srcf] | RO | NameProvenance debug-info witness; SourceRepairDiff; round 3: DebugInfoImport (source files table) | catalog action needed | per-build | RO | designed | needed: J04, R36 |
 
 ### 12. Patching, Program Diff, Version Tracking
 
@@ -628,21 +629,21 @@ Deferred and out of core scope: decompiler taint (source/sink slice tree)
 |---|---|---|---|---|---|---|---|---|
 | X01 | Assembler: Patch Instruction, Assemble…, Patch Data [asm] | MUT | PatchEditor (original-byte preview, exact target, confirm, post-write read) | catalog action needed | per-build only; never propagated; patching the original is not recovery | CAT, CF-dlg, 1W, MC | designed | needed: R05, W26 |
 | X02 | Program Diff: open the diff view; determine differences (bytes, code units, references, comments, symbols, functions, bookmarks, properties, context) over ranges; navigate; select [diff] | RO | SplitCompare (entity level); ObjectDiff | `match-function`; catalog action needed for program-level range diff | build-a vs build-c aligned by anchors, not raw addresses | RO, NP | designed | needed: R15, J05, R25 |
-| X03 | Apply or ignore differences; apply settings (replace, merge, ignore per category) [diff] [vt-apply] | MUT | PropagationTransfer (per field) + ConfirmDialog | `migrate-metadata` (`propagateNames`, `propagateTags`, `propagateComments`, `propagatePrototype`, `propagateBookmarks`) | per recipient gate; blocked recipients keep their value | CAT, CF-dlg, 1W, MC | partial | backed |
+| X03 | Apply or ignore differences; apply settings (replace, merge, ignore per category) [diff] [vt-apply] | MUT | PropagationTransfer (per field) + ConfirmDialog; round 3: PropagationTransfer (per-category apply settings) | `migrate-metadata` (`propagateNames`, `propagateTags`, `propagateComments`, `propagatePrototype`, `propagateBookmarks`) | per recipient gate; blocked recipients keep their value | CAT, CF-dlg, 1W, MC | designed | backed |
 | X04 | Viewing difference details at a location [diff] | RO | SplitCompare difference Peek | none beyond X02 | side-by-side | RO | designed | needed: R15 |
 | X05 | Version Tracking sessions: correlators (exact bytes, instructions, mnemonics, symbol name, data, references, implied, manual, BSim), matches table, markup items, accept, apply markup, dual listing [vt] [vtcorr] [vtmatch] [vtmark] [gvt] [vt-wiz] [vt-flow] [vt-pre] [vt-fn] [vt-impl] [vt-rel] | RO+MUT | MatchReview, ReviewDetail, CandidateAlignment, CounterpartMatrix, PropagationTransfer | `match-function`, `migrate-metadata`, `bsim-report`; stage-1 catalog verbs `corpus.match-pair` and `corpus.extract-stabs` (the consolidated plan) | the product's native N-way form; accepted edges drive propagation | CAT, CF-dlg (decisions), 1W, NP (similarity proposes; evidence accepts) | designed | backed |
 | X06 | Auto Version Tracking [vt] [vt-auto] | MUT | pipeline stage 1 (automatic, no button) | `manage-workflow` | corpus | NA, 1W | designed | backed |
-| X07 | Version Tracking manual match: create, accept, apply [vt-tool] | MUT | ReviewDetail decision controls | catalog action needed for a manual edge | the identity edge between two builds | CAT, CF-dlg, 1W | partial | needed: W31 |
+| X07 | Version Tracking manual match: create, accept, apply [vt-tool] | MUT | ReviewDetail decision controls; round 3: ReviewDetail (manual match) | catalog action needed for a manual edge | the identity edge between two builds | CAT, CF-dlg, 1W | designed | needed: W31 |
 | X08 | Function Bit Patterns Explorer: mine function-start byte patterns [fbp] | RO | not planned | catalog action needed | across builds | RO | missing | needed (not planned) |
 
 ### 13. Scripting
 
 | ID | Ghidra feature | R/M | AgentDecompile mapping | Backend | Multi-variant | Doctrine | Design | Backend status |
 |---|---|---|---|---|---|---|---|---|
-| C01 | Script Manager: category tree, table, filter, run, run last, quick launcher, create, rename, delete, key binding, directories [sm] [scriptdev] | MUT | ScriptConsole (advanced; gated by the catalog) | `execute-script` | runs against one explicitly targeted build | CAT, CF-dlg (unrestricted mutation), 1W | partial | needed: R34, W34 |
+| C01 | Script Manager: category tree, table, filter, run, run last, quick launcher, create, rename, delete, key binding, directories [sm] [scriptdev] | MUT | ScriptConsole (advanced; gated by the catalog); round 3: ScriptConsole (manager actions, catalog-gated) | `execute-script` | runs against one explicitly targeted build | CAT, CF-dlg (unrestricted mutation), 1W | designed | needed: R34, W34 |
 | C02 | Console: output, scroll lock, clear, find, navigation from addresses [con] | RO | ActivityRecord log tail with typed links | `read-workspace-activity` | per job | RO | designed | backed |
 | C03 | PyGhidra interpreter: interactive session, interrupt, reset [pyi] | MUT | ScriptConsole (REPL mode) | `execute-script` | one build | CAT, 1W | designed | backed |
-| C04 | Bundle Manager: script source bundles, enable, clean, refresh [bun] | MUT | not planned | catalog action needed | none | none | partial | needed: R34, W34 |
+| C04 | Bundle Manager: script source bundles, enable, clean, refresh [bun] | MUT | not planned; round 3: ScriptConsole (bundle actions, catalog-gated) | catalog action needed | none | none | designed | needed: R34, W34 |
 | C05 | Script key bindings and Quick Action (Ctrl-3) launcher [sm] [kbn] | RO | CommandPalette actions from `GET /api/v1/actions` | catalog | none | RO | missing | needed: G13 |
 
 ### 14. Undo, transactions, multi-user, import and export
@@ -651,20 +652,20 @@ Deferred and out of core scope: decompiler taint (source/sink slice tree)
 |---|---|---|---|---|---|---|---|---|
 | V01 | Undo/Redo of program transactions [undo] | MUT | EditHistory (per-build transaction list; Undo and Redo as catalog verbs); EntityTimeline shows edits | catalog action needed | per-build; undoing a propagated edit is per recipient | CAT, CF-in (a single top undo or redo of a single-target edit, per `edit.undo`), CF-dlg (batch, cross-build, multi-step or a job's transaction), 1W | designed | needed: R18, W27 |
 | V02 | Transactions and modification conflicts [undo] | MUT | ActionStrip → OutcomeCell; the StateNotice conflict state | `resolve-modification-conflict` | per-build | MC, 1W | designed | backed |
-| V03 | Save, Save As, Save All [save] | MUT | durable, crash-safe saves (the consolidated plan §4.7) | catalog action needed for explicit save of a program | per-build | CAT, 1W | partial | needed: W32 |
+| V03 | Save, Save As, Save All [save] | MUT | durable, crash-safe saves (the consolidated plan §4.7); round 3: ProjectWindow (Save, Save As, Save All) | catalog action needed for explicit save of a program | per-build | CAT, 1W | designed | needed: W32, W36 |
 | V04 | Multi-user repository: connect, add to version control, check out, check in, undo checkout, update, version history, view/find checkouts, undo hijack; server connection [vc] [fe] [gserver] | MUT | VersionControlPanel (per-build checkout state); OwnershipPanel for exclusive checkouts | `checkout-program`, `checkin-program`, `checkout-status`, `sync-project`, `svr-admin` | per-build domain file; an exclusive checkout is the one-writer lock | CAT, CF-dlg (check-in), 1W | designed | needed: R19, W33 |
 | V05 | Merge on check-in: auto merge; resolve conflicts in memory, trees, types, context, listing, externals, properties [merge] | MUT | MergeReview (adapted to check-in conflicts) | `checkin-program`; catalog action needed for conflict choices | per-build | CAT, CF-dlg, 1W, MC | designed | needed: R19, W33, J15 |
 | V06 | Exporters: ASCII, C/C++, GZF, GDT, HTML, hex-record formats, Original File, Raw Bytes, XML, SARIF [exp] | RO (file) | ExportDialog (format, options, build; the artifact lands in the dock) | `export` (formats `gzf`, `c`, `cpp`, `sarif`, `xml`, `html`, `ascii`); `manage-workflow` (`export-source`) | one job per build; a batch across builds confirms | CAT (artifact), NP (exported C ≠ recovered source) | designed | needed: J06 |
 | V07 | Importers: import file, batch import, load libraries, add to program, per-format options, language and compiler choice, library search path [imp] | MUT | ImportAdmission | `import-binary`, `open`, `list-processors` | variant grouping comes from match evidence | CAT, NA | designed | backed |
 | V08 | File System Browser: browse containers, import from them, export, view as text or image [fsb] | RO | ContainerTree | `export-context` | per container | RO | designed | backed |
-| V09 | Project window and program files: create, open, reopen, close, delete projects; data tree and table; open, close, rename, move, delete programs; read-only views of other projects and repositories [fe] [fe-proj] [prg-open] [fe-open] [fe-reopen] [fe-close] [fe-del] [fe-save] [fe-info] [fe-menus] [prg-close] | RO+MUT | SessionTab; the project navigator scope; ContainerTree | `list-project-files`, `manage-files`, `delete-project-binary` | builds are project members | CAT, CF-dlg (delete), 1W | partial | backed |
-| V10 | Archive and restore a project [fe-archive] [fe-restore] | MUT | project manager (F02) | `export` (`gzf`); catalog action needed for a whole-project archive | corpus | CAT | partial | needed: J07 |
+| V09 | Project window and program files: create, open, reopen, close, delete projects; data tree and table; open, close, rename, move, delete programs; read-only views of other projects and repositories [fe] [fe-proj] [prg-open] [fe-open] [fe-reopen] [fe-close] [fe-del] [fe-save] [fe-info] [fe-menus] [prg-close] | RO+MUT | SessionTab; the project navigator scope; ContainerTree; round 3: ProjectWindow | `list-project-files`, `manage-files`, `delete-project-binary` | builds are project members | CAT, CF-dlg (delete), 1W | designed | needed: W37 (was backed) |
+| V10 | Archive and restore a project [fe-archive] [fe-restore] | MUT | project manager (F02); round 3: ProjectWindow (archive and restore) | `export` (`gzf`); catalog action needed for a whole-project archive | corpus | CAT | designed | needed: J07 |
 
 ### 15. Identification tools, utilities, keyboard and options
 
 | ID | Ghidra feature | R/M | AgentDecompile mapping | Backend | Multi-variant | Doctrine | Design | Backend status |
 |---|---|---|---|---|---|---|---|---|
-| I01 | Function ID: the FID analyzer and FidDb management (choose, attach, detach, create, populate, debug search) [fid] [fidp] [fid-debug] | RO+MUT | NameProvenance (a FID name is an analysis-tier candidate); no FidDb management | catalog action needed | per-build; a FID name on build-a reaches build-c only through an identity edge | CAT, NA, NP | partial | needed: J09 |
+| I01 | Function ID: the FID analyzer and FidDb management (choose, attach, detach, create, populate, debug search) [fid] [fidp] [fid-debug] | RO+MUT | NameProvenance (a FID name is an analysis-tier candidate); no FidDb management; round 3: FunctionIdManager | catalog action needed | per-build; a FID name on build-a reaches build-c only through an identity edge | CAT, NA, NP | designed | needed: J09 |
 | I02 | BSim: overview query, similar-function search, filters, results, compare functions, databases; the BSim Version Tracking correlator [bsim] [bsimov] [bsimcorr] [bsim-ingest] [bsim-db] [bsim-cli] [bsim-fw] | RO | CandidateAlignment (BSim evidence channel); MatchReview | `bsim-createdatabase`, `bsim-ingest`, `bsim-report` | corpus-wide; similarity proposes, never accepts | RO, NP; ingest CAT, 1W | designed | backed |
 | I03 | Checksum generator: checksum-8/16/32, Adler-32, CRC-16/32, MD5, SHA family, over a selection or everything [cks] | RO | HexStrip selection → link menu "Checksums" in a Peek (parity extension) | catalog action needed | anchor-mapped: the same range hashed on each build is cheap divergence evidence | RO | designed | needed: R16, R25 |
 | I04 | Evaluator: Ghidra has no help topic by that name; the nearest are Go To Expression [addrx] and equate Convert [eq] | RO | NavigationBar expression prefix; Peek scalar conversions | catalog action needed | per-build | RO | designed | needed: R09 |
@@ -747,39 +748,12 @@ Each is a "Parity extensions (2026-09-29)" section in that component's README.
 
 ## Rows not yet designed
 
-28 rows are partial or missing in design. The reason is what no design-system
-spec yet covers.
+2 rows are not designed, both by decision. Round 3 designed the other 26 rows this section listed in round 2 (see each row's "round 3" mapping).
 
 | ID | Feature | Design | Backend status | Reason |
 |---|---|---|---|---|
-| L20 | Listing background colors | partial | needed: R12 | Replaced on purpose by per-viewer marks (MarksList); no component shows colors a program already stores. |
-| L25 | Highlight from selection | partial | backed (client) | Highlight sets and worklists exist, but no component specifies set, add, subtract and clear of a highlight from an address-set selection. |
-| L26 | Clipboard | partial | needed: W26 | Copy and Copy special are specified (AccessibleView, ResultsTable Copy); Paste has no component or editor flow. |
-| N03 | Next/previous code unit | partial | backed | Listing extension names next/previous instruction, data, undefined, label, function, non-function and bookmark; "matching byte values" and Invert are not specified. |
-| D06 | Debug Function Decompilation | missing | needed: J01 | No component or extension specifies the debug-decompile capture; the DecompileView extension omits it. |
-| G03 | Layouts (nested code, flow chart), zoom, satellite view, saved view state | partial | backed (client) | GraphPane specifies one layout with zoom, pan and a list form; nested-code and flow-chart layouts, the satellite view and saved view state are not specified. |
-| G04 | Editing from graph vertices (vertex listings are editable) | partial | backed | Deliberate: graph nodes are links and edits happen in the Listing; no in-vertex editing is specified. |
-| G11 | Graph display popups | partial | backed (client) | The GraphPane list form covers selection and navigation; vertex and edge filter popups are not specified. |
-| S11 | Set external entry point | missing | needed: W20 | No component specifies Set external entry point; SymbolTree and the Listing extension do not list it. |
-| P08 | Processor language | partial | backed | No component specifies the language or compiler-spec change flow; the row relies on the generic build crumb Peek, ActionStrip and ConfirmDialog. |
-| P11 | Validate Program | missing | needed: R14 | No component specifies validation findings; ProblemsList is generic and has no Validate Program section. |
-| A03 | Translate strings and charsets; translation services | partial | needed: J08 | ResultsTable names Translate… as a row action only; translation service choice, settings and charset handling are not specified. |
-| A09 | Comment annotations | partial | backed (client) | Typed links in comment text are a general rule; no component specifies annotation syntax, rendering or editing. |
-| F01 | Create function, re-create function, create multiple functions | partial | backed | Only the generic Listing link menu and ActionStrip; no component specifies create, re-create or create-multiple functions. |
-| F02 | Delete function | partial | backed | Only the generic ActionStrip and ConfirmDialog; no component specifies delete-function consequences. |
-| F10 | Function purge and stack depth change | partial | needed: W08 | SignatureEditor specifies purge; the stack-depth change at an instruction (Listing link menu) is not specified. |
-| Z07 | Load PDB (symbol servers, parser options) or external DWARF debug files; SARIF import | partial | needed: J04 | ImportAdmission and ContextPlacement cover import admission; no component specifies PDB symbol servers, parser options, DWARF files or SARIF import. |
-| Z09 | Source files table and source map entries | partial | needed: J04 | ListingFieldLayout specifies a source-map column; no component specifies the source files table. |
-| X03 | Apply or ignore differences; apply settings (replace, merge, ignore per category) | partial | backed | PropagationTransfer applies per field; Ghidra's per-category apply settings (replace, merge, ignore) are not specified. |
-| X07 | Version Tracking manual match | partial | needed: W31 | ReviewDetail has decision controls; creating a manual match between two chosen functions is not specified. |
-| X08 | Function Bit Patterns Explorer | missing | needed (not planned) | Not planned (Function Bit Patterns Explorer). |
-| C01 | Script Manager | partial | needed: R34, W34 | ScriptConsole specifies run, run last, filter and the category tree; create, rename, delete, edit, key binding and directories are deliberately unavailable until catalog actions exist. |
-| C04 | Bundle Manager | partial | needed: R34, W34 | ScriptConsole shows bundles read-only; enable, disable, clean and refresh are not offered. |
-| C05 | Script key bindings and Quick Action (Ctrl-3) launcher | missing | needed: G13 | Deliberately unbound: ScriptConsole says scripts are not catalog entries, so the row stays missing until they are. |
-| V03 | Save, Save As, Save All | partial | needed: W32 | EditHistory distinguishes saved from checked in; no component specifies an explicit Save, Save As or Save All verb. |
-| V09 | Project window and program files | partial | backed | SessionTab and ContainerTree cover open and browse; project create, delete and read-only views of other projects are not specified in one component. |
-| V10 | Archive and restore a project | partial | needed: J07 | ExportDialog covers the GZF of one build; whole-project archive and restore are not specified. |
-| I01 | Function ID | partial | needed: J09 | AnalyzerPanel can enable the Function ID analyzer and NameProvenance shows FID names; FidDb management (choose, attach, create, populate) is not specified. |
+| X08 | Function Bit Patterns Explorer | missing | needed (not planned) | Not planned: it authors function-start pattern files for the analysers, a tool-level change that would force re-analysis of every build instead of reusing receipts, and its evidence is heuristic (recorded in ProgramValidation). |
+| C05 | Script key bindings and Quick Action launcher | missing | needed: G13 | By decision until scripts are catalog entries. The future design is specified: a Scripts section in the CommandPalette, with no new key, where Enter opens the run confirm and never runs. |
 
 ## Backend and catalog gaps
 

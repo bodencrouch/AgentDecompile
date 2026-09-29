@@ -19,8 +19,8 @@ the compiler-aware and outputs components (PointerWalk, CompilerLayer,
 TransformTimeline, MatchExplain, FrameLayout, VTableBrowser, OutputsCatalog,
 ArtifactCard, ToolchainEvidence, VariantRelation).
 
-**Counts.** 99 contract entries: 34 reads (R01–R34), 34 writes (W01–W34),
-15 jobs (J01–J15) and 16 contract or schema gaps (G01–G16). The parity rows each
+**Counts.** 107 contract entries: 36 reads (R01–R36), 37 writes (W01–W37),
+18 jobs (J01–J18) and 16 contract or schema gaps (G01–G16). R35–R36, W35–W37 and J16–J18 were added in round 3 (see "Round 3 additions"). The parity rows each
 entry unblocks are named in the entry; the parity matrix's "Backend status"
 column names the entry ids per row.
 
@@ -968,12 +968,17 @@ basis and inputs, and reuse first.
 - **In:** `build`; strings; translation service and settings.
 - **Flags:** `mutating=true`, `identity_scope=program`. An external service is
   a network dependency and needs explicit approval before use.
+- **Round 3:** needs a service list from the catalog (Manual always offered),
+  per-service settings (URL, credential never echoed, source/target language,
+  batch size, timeouts) and an explicit network approval per send. Output is a
+  per-build translation record (a hypothesis naming its service) that never
+  replaces bytes and goes stale when bytes or charset change.
 - **Consumers:** ResultsTable (Translate…). **Unblocks:** A03. **New;** low
   priority.
 
 ### J09 · `corpus.manage-fiddb` · proposed · job
-- **In:** `mode` (`attach`, `detach`, `create`, `populate` from builds);
-  database.
+- **In:** `mode` (`attach`, `detach`, `create`, `populate` from builds,
+  `activate` to choose the active databases); database.
 - **Flags:** `identity_scope=database` for the FidDb; `mutating=true`.
 - **Out:** FID names are analysis-tier candidates only (NP).
 - **Unblocks:** I01. **New;** low priority.
@@ -1038,6 +1043,63 @@ basis and inputs, and reuse first.
 - **Consumers:** VersionControlPanel, MergeReview. **Unblocks:** V05.
 - **Today:** `sync-project` pulls project files (TOOLS_LIST:522). **New:**
   checkout update with merge.
+
+### Round 3 additions (2026-09-29)
+
+These entries were added when parity round 3 designed the last 26 rows. Earlier ids are unchanged.
+
+#### Notes on existing entries
+- **W08** (stack depth / purge): the stack-depth change at an instruction is now designed in Listing's Function group (Local or Global on a call; Global goes to SignatureEditor's purge).
+- **W20** `set_external_entry`: needs a `remove` mode as well as `set`. Removing an importer-recorded entry point uses ConfirmDialog (SymbolTree).
+- **W26** (bytes): Listing Paste is a consumer; bytes paste only over undefined bytes, confirm every write, and read back.
+- **W31** `manual_match`: needs `producing_channel=manual` and a required `reason`; the result is always a candidate edge, never auto-accepted (ReviewDetail).
+- **J01** `program.debug-decompile`: consumer is DecompileView ("Capture decompiler debug XML…"); output is an artifact (OutputsCatalog, ArtifactCard), reuse-first by basis.
+
+#### W35 · `program.set-colors` · proposed · write
+- **In:** `build`; address set; `mode` (`set`, `clear`, `clear_all`); colour value for `set`.
+- **Flags:** `mutating=true`, `identity_scope=program`. `clear_all` uses ConfirmDialog.
+- **Rules:** program-local; never proposed to counterparts; R12 reads the stored colours.
+- **Consumers:** Listing (program colours). **Unblocks:** L20. **New.**
+
+#### R35 · `program.read-validation` · proposed · read
+- **In:** `build`; validator ids (optional).
+- **Out:** per-validator result word (no findings, warnings, errors, not run, stale, not applicable) and findings with address, severity, message, and receipt basis.
+- **Consumers:** ProgramValidation. **Unblocks:** P11 (with J16). **New.**
+
+#### J16 · `program.validate` · proposed · job
+- **In:** `build`; validator set.
+- **Flags:** `mutating=false` for the program, `long_running=true`, `identity_scope=evidence-store`. Offered only for a build with an analysis receipt; confirmed in a dialog.
+- **Out:** validation receipt; findings are advisory, never unmet predicates.
+- **Consumers:** ProgramValidation. **Unblocks:** P11. **New.**
+
+#### J17 · `program.set-language` · proposed · job
+- **In:** `build`; target language id and compiler spec (from the compatible list); dry run first.
+- **Flags:** `mutating=true`, `long_running=true`, `identity_scope=program`; needs the exclusive checkout and one writer. Destructive: ConfirmDialog with the dry-run consequence counts.
+- **Rules:** one build only; never proposed; re-analysis is NOT run (it needs its own admission); receipts that depended on the old language go stale; no undo.
+- **Consumers:** ProgramSettings. **Unblocks:** P08. **New.**
+
+#### J18 · `program.load-debug-info` · proposed · job (refines J04)
+- **In:** `build`; `source` (`pdb`, `dwarf`, `sarif`); for PDB: search locations, symbol-server list, parser options, `dry_run`.
+- **Flags:** `mutating=true` unless `dry_run`, `identity_scope=program`. A remote symbol server needs explicit approval, even for a status check.
+- **Rules:** a PDB whose GUID and age do not match is a hypothesis and ranks with analysis names; SARIF only when its hash matches the build; imported names and types enter at their own tier with per-field provenance and never overwrite a stronger tier (the stronger value stays; the imported one is a rejected alternative); types pass each build's layout check (R24).
+- **Consumers:** DebugInfoImport. **Unblocks:** Z07. **New.**
+
+#### R36 · `program.read-source-files` · proposed · read
+- **In:** `build`.
+- **Out:** the source files table and source map entries (file, line, address range) with their origin record; path transforms are per viewer and never stored in the program.
+- **Consumers:** DebugInfoImport, ListingFieldLayout (source-map column). **Unblocks:** Z09. **New.**
+
+#### W36 · `program.save` · proposed · write
+- **In:** `build` or builds; `mode` (`save`, `save_as` with a new name, `save_all`).
+- **Flags:** `mutating=true`, `identity_scope=program`. `save_all` uses ConfirmDialog and lists builds it leaves out (for example one owned by an external writer).
+- **Rules:** saving is not checking in (W33); never switches project.
+- **Consumers:** ProjectWindow. **Unblocks:** V03. **New.**
+
+#### W37 · `corpus.manage-project` · proposed · write
+- **In:** `mode` (`create`, `delete`, `open_readonly`); project.
+- **Flags:** `mutating=true`, `identity_scope=project` for create and delete; `open_readonly` admits nothing.
+- **Rules:** opening another project always goes through the cross-project StateNotice; delete uses ConfirmDialog.
+- **Consumers:** ProjectWindow. **Unblocks:** V09. **New.**
 
 ## Contract and schema gaps
 

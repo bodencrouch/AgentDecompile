@@ -1,61 +1,61 @@
 <!-- @dsCard group="Code" height=860 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <section class="ad-calls" aria-labelledby="ch1-h">
- <header><span class="kicker">Calls</span><h4 id="ch1-h">Incoming to <code translate="no">ResourceRef::Resolve</code></h4><span class="small muted">build-a · depth 2 · 12 direct callers</span>
+ <header><span class="kicker">Calls</span><h4 id="ch1-h">Incoming to <code translate="no">ResourceRef::Resolve</code></h4><span class="small muted">build-a · follows at depth 1 · 2 levels read · 12 direct callers</span>
   <span class="end"><span class="ad-sync small"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Follows selection</span><button class="ad-btn compact" aria-pressed="false" aria-keyshortcuts="Shift+K">Keep</button></span></header>
  <div class="ad-tools" role="toolbar" aria-label="Call hierarchy options">
   <span><span class="lbl" id="ch1-ld">Direction</span><span class="ad-seg" role="group" aria-labelledby="ch1-ld"><button aria-pressed="true" aria-keyshortcuts="i"><span aria-hidden="true">←</span> Incoming <span class="n">12</span></button><button aria-pressed="false" aria-keyshortcuts="o"><span aria-hidden="true">→</span> Outgoing <span class="n">4</span></button></span></span>
-  <span><span class="lbl" id="ch1-ldp">Depth</span><span class="ad-seg" role="group" aria-labelledby="ch1-ldp"><button aria-pressed="false">1</button><button aria-pressed="true">2</button><button aria-pressed="false">3</button></span></span>
+  <span><span class="lbl" id="ch1-ldp">Expand to depth</span><span class="ad-seg" role="group" aria-labelledby="ch1-ldp"><button aria-pressed="false">1</button><button aria-pressed="true">2</button><button aria-pressed="false">3</button></span></span>
   <button class="ad-btn compact" aria-pressed="true">Per-build column</button>
  </div>
- <div class="ad-scroll" data-scroll><table class="ad-table" role="treegrid" aria-readonly="true" aria-label="Incoming calls to ResourceRef::Resolve, build-a, depth 2, with call paths on build-b, build-c and build-d" aria-describedby="ch1-cap">
+ <div class="ad-scroll" data-scroll><table class="ad-table" role="treegrid" aria-readonly="true" aria-label="Incoming calls to ResourceRef::Resolve, build-a, 2 levels read, with call paths on build-b, build-c and build-d" aria-describedby="ch1-cap">
   <thead><tr><th scope="col">Caller</th><th scope="col">Call site</th><th scope="col">Calls</th><th scope="col" class="pbh">build-b path</th><th scope="col">build-c path</th><th scope="col">build-d path</th></tr></thead>
   <tbody>
    <tr aria-level="1" aria-setsize="5" aria-posinset="1" aria-expanded="true" style="--lvl:0">
     <td class="fn"><span class="tw" aria-hidden="true">▾</span><a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;build=build-a&amp;addr=0041a3f0" tabindex="-1" translate="no">Actor::LoadFromTemplate</a></td>
     <td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=90&amp;build=build-a&amp;addr=0041a47c" tabindex="-1" translate="no">0041a47c</a></td><td class="mono">1</td>
-    <td class="pb pbh present">present</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb unres"><b aria-hidden="true">◌</b> unresolved</td></tr>
+    <td class="pb pbh resolved">resolved</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb unres"><b aria-hidden="true">◌</b> unresolved</td></tr>
    <tr class="is-focus" tabindex="0" aria-level="2" aria-setsize="3" aria-posinset="1" style="--lvl:1">
     <td class="fn"><span class="tw" aria-hidden="true">▸</span><a class="ad-link" href="?project=corpus-alpha&amp;entity=97&amp;build=build-a&amp;addr=0041f0a0" tabindex="-1" translate="no">Actor::Spawn</a><span class="note">depth limit reached · 4 callers</span></td>
     <td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=97&amp;build=build-a&amp;addr=0041f11c" tabindex="-1" translate="no">0041f11c</a></td><td class="mono">1</td>
-    <td class="pb pbh present">present</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb absent">absent</td></tr>
+    <td class="pb pbh resolved">resolved</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb absent">absent</td></tr>
    <tr aria-level="2" aria-setsize="3" aria-posinset="2" style="--lvl:1">
     <td class="fn"><span class="tw" aria-hidden="true">▸</span><a class="ad-link" href="?project=corpus-alpha&amp;entity=98&amp;build=build-a&amp;addr=0041e800" tabindex="-1" translate="no">Scene::LoadActors</a><span class="note">depth limit reached · 2 callers</span></td>
     <td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=98&amp;build=build-a&amp;addr=0041e86a" tabindex="-1" translate="no">0041e86a</a></td><td class="mono">2</td>
-    <td class="pb pbh present">present</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb unres"><b aria-hidden="true">◌</b> unresolved</td></tr>
+    <td class="pb pbh resolved">resolved</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb unres"><b aria-hidden="true">◌</b> unresolved</td></tr>
    <tr aria-level="2" aria-setsize="3" aria-posinset="3" aria-busy="true" style="--lvl:1">
-    <td class="fn" colspan="6"><span class="tw" aria-hidden="true">…</span><span class="muted">Reading the stored index for 1 more caller</span></td></tr>
+    <td class="fn" colspan="6"><span class="tw" aria-hidden="true">…</span><span class="muted">Reading the stored index for 1 more caller</span> <button type="button" class="ad-btn compact">Cancel</button></td></tr>
    <tr aria-level="1" aria-setsize="5" aria-posinset="2" aria-expanded="false" style="--lvl:0">
     <td class="fn"><span class="tw" aria-hidden="true">▸</span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" tabindex="-1" translate="no">FUN_0041c880</a></td>
     <td><a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c8d2" tabindex="-1" translate="no">0041c8d2</a></td><td class="mono">1</td>
-    <td class="pb pbh absent">absent</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb unres"><b aria-hidden="true">◌</b> unresolved</td></tr>
+    <td class="pb pbh absent">absent</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb unres"><b aria-hidden="true">⇉</b> contested · no winner</td></tr>
    <tr aria-level="1" aria-setsize="5" aria-posinset="3" aria-expanded="true" style="--lvl:0">
     <td class="fn"><span class="tw" aria-hidden="true">▾</span><a class="ad-link" href="?project=corpus-alpha&amp;entity=91&amp;build=build-a&amp;addr=0041d0a0" tabindex="-1" translate="no">Archive::OpenMember</a></td>
     <td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=91&amp;build=build-a&amp;addr=0041d0f4" tabindex="-1" translate="no">0041d0f4</a></td><td class="mono">2</td>
-    <td class="pb pbh present">present</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb present">present</td></tr>
+    <td class="pb pbh resolved">resolved</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb resolved">resolved</td></tr>
    <tr aria-level="2" aria-setsize="1" aria-posinset="1" style="--lvl:1">
     <td class="fn" colspan="6"><span class="tw" aria-hidden="true">∅</span><span>Callers of <span translate="no">Archive::OpenMember</span>: <b class="strong">not indexed here</b></span> <span class="note inline">The stored index covers build-a gen 40; this function changed in gen 42. Nothing is analysed from this view.</span></td></tr>
    <tr aria-level="1" aria-setsize="5" aria-posinset="4" style="--lvl:0">
     <td class="fn"><span class="tw" aria-hidden="true"></span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041e3a0" tabindex="-1" translate="no">thunk_ResourceRef_Resolve</a><span class="note">jump · no callers in the index</span></td>
     <td><a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041e3a8" tabindex="-1" translate="no">0041e3a8</a></td><td class="mono">1</td>
-    <td class="pb pbh present">present</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb absent">absent</td></tr>
+    <td class="pb pbh resolved">resolved</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb absent">absent</td></tr>
    <tr aria-level="1" aria-setsize="5" aria-posinset="5" style="--lvl:0">
     <td class="fn"><span class="tw" aria-hidden="true">↺</span><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" tabindex="-1" translate="no">ResourceRef::Resolve</a><span class="note">recursive · already in the path, not expanded</span></td>
     <td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b23c" tabindex="-1" translate="no">0041b23c</a></td><td class="mono">1</td>
-    <td class="pb pbh present">present</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb unres"><b aria-hidden="true">◌</b> unresolved</td></tr>
-   <tr aria-level="1" style="--lvl:0"><td class="fn" colspan="6"><span class="tw" aria-hidden="true"></span><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;ws=code&amp;f=calls.dir:in&amp;f=calls.depth:1" tabindex="-1">7 more callers at depth 1</a></td></tr>
+    <td class="pb pbh resolved">resolved</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb unres"><b aria-hidden="true">◌</b> unresolved</td></tr>
+   <tr aria-level="1" style="--lvl:0"><td class="fn" colspan="6"><span class="tw" aria-hidden="true"></span><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;ws=code&amp;f=xref.mode:calls&amp;f=calls.dir:in&amp;f=calls.depth:1" tabindex="-1">7 more callers at depth 1</a></td></tr>
   </tbody></table></div>
- <p class="ad-calls-cap" id="ch1-cap">Reachability, not proof. Paths on other builds use accepted identity edges and resolved locators only; builds that are not open are never fetched.</p>
- <footer><span>From the stored xref index · build-a gen 42 · 13:58:07</span><span>→ open · ← close · Enter go · Alt+↓ peek</span></footer>
- <p class="sr-only" role="status">Incoming calls to ResourceRef::Resolve on build-a, depth 2: 12 direct callers.</p>
+ <p class="ad-calls-cap" id="ch1-cap">path in stored index ≠ runtime reachability. Per-build words are locator words: paths on other builds use accepted identity edges and recorded locators only; builds that are not open are never fetched.</p>
+ <footer><span>From the stored xref index · build-a gen 42 · 13:58:07</span><span>→ read one level · ← close · Enter go · Alt+↓ peek · i/o direction · * siblings</span></footer>
+ <p class="sr-only" role="status">Incoming calls to ResourceRef::Resolve on build-a: 12 direct callers.</p>
 </section>
 
 <section class="ad-calls" aria-labelledby="ch2-h">
  <header><span class="kicker">Calls</span><h4 id="ch2-h">Outgoing from <code translate="no">ResourceRef::Resolve</code></h4><span class="small muted">build-a · depth 1 · 4 call sites</span>
-  <span class="end"><span class="ad-sync small"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1M3 3l2 2M11 11l2 2"/></svg>Kept · not following selection</span><button class="ad-btn compact" aria-pressed="true" aria-keyshortcuts="Shift+K">Kept</button><button class="ad-btn compact">Follow selection</button></span></header>
+  <span class="end"><span class="ad-sync small"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1M3 3l2 2M11 11l2 2"/></svg>Kept · not following selection</span><button class="ad-btn compact" aria-pressed="true" aria-keyshortcuts="Shift+K">Keep</button><button class="ad-btn compact">Follow selection</button></span></header>
  <div class="ad-tools" role="toolbar" aria-label="Call hierarchy options">
   <span><span class="lbl" id="ch2-ld">Direction</span><span class="ad-seg" role="group" aria-labelledby="ch2-ld"><button aria-pressed="false" aria-keyshortcuts="i"><span aria-hidden="true">←</span> Incoming <span class="n">12</span></button><button aria-pressed="true" aria-keyshortcuts="o"><span aria-hidden="true">→</span> Outgoing <span class="n">4</span></button></span></span>
-  <span><span class="lbl" id="ch2-ldp">Depth</span><span class="ad-seg" role="group" aria-labelledby="ch2-ldp"><button aria-pressed="true">1</button><button aria-pressed="false">2</button><button aria-pressed="false">3</button></span></span>
+  <span><span class="lbl" id="ch2-ldp">Expand to depth</span><span class="ad-seg" role="group" aria-labelledby="ch2-ldp"><button aria-pressed="true">1</button><button aria-pressed="false">2</button><button aria-pressed="false">3</button></span></span>
   <button class="ad-btn compact" aria-pressed="false">Per-build column</button>
  </div>
  <div class="ad-scroll" data-scroll><table class="ad-table" role="treegrid" aria-readonly="true" aria-label="Outgoing calls from ResourceRef::Resolve, build-a, depth 1">
@@ -66,6 +66,6 @@
    <tr aria-level="1" aria-setsize="4" aria-posinset="3" style="--lvl:0"><td class="fn"><span class="tw" aria-hidden="true">▸</span><a class="ad-link" href="?project=corpus-alpha&amp;entity=93&amp;build=build-a&amp;addr=0041b300" tabindex="-1" translate="no">ResourceRef::Load</a><span class="note">depth limit reached · 3 callees</span></td><td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b22b" tabindex="-1" translate="no">0041b22b</a></td><td>call</td></tr>
    <tr aria-level="1" aria-setsize="4" aria-posinset="4" style="--lvl:0"><td class="fn"><span class="tw" aria-hidden="true"></span><span class="mono" translate="no">call dword ptr [eax + 0xc]</span><span class="note">indirect · target unresolved; no target is guessed</span></td><td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b235" tabindex="-1" translate="no">0041b235</a></td><td>indirect</td></tr>
   </tbody></table></div>
- <footer><span>Kept at 13:52 · stored index gen 42 · unchanged</span><span>i incoming · o outgoing</span></footer>
+ <footer><span>Kept at 13:52 · stored index gen 42 · unchanged since kept</span><span>i incoming · o outgoing</span></footer>
 </section>
 </div>

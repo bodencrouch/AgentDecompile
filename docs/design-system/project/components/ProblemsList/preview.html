@@ -1,4 +1,4 @@
-<!-- @dsCard group="Activity" height=1071 -->
+<!-- @dsCard group="Activity" height=1320 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <section class="ad-dock ad-prob" aria-label="Activity dock">
  <div class="ad-subtabs" role="tablist" aria-label="Dock">
@@ -6,9 +6,9 @@
  </div>
  <div id="pb-panel" role="tabpanel" aria-labelledby="pb-tab">
   <div class="ad-tools ad-prob-tools" role="group" aria-label="Problem filters">
-   <label class="ad-filt"><input type="checkbox">Selection only <span class="n">2</span></label>
+   <label class="ad-filt"><input type="checkbox" aria-describedby="pb-sel-d">Selection only <span class="n">2</span></label><span class="sr-only" id="pb-sel-d">Reflects the dock's Selection only toggle; one filter for Jobs, Problems and Logs.</span>
    <span role="group" aria-labelledby="pb-kind"><span class="lbl" id="pb-kind">Kind</span><label class="ad-filt"><input type="checkbox" checked>external action <span class="n">1</span></label><label class="ad-filt"><input type="checkbox" checked>failure <span class="n">2</span></label><label class="ad-filt"><input type="checkbox" checked>predicate <span class="n">2</span></label></span>
-   <span class="ad-prob-end"><button class="ad-btn compact" aria-haspopup="dialog">Collect into worklist…</button><button class="ad-btn compact" aria-pressed="false">Freeze updates</button></span>
+   <span class="ad-prob-end"><button class="ad-btn compact" aria-haspopup="dialog" aria-keyshortcuts="w">Collect into worklist…</button><button class="ad-btn compact" aria-describedby="pb-step-d">Step problems</button><span class="sr-only" id="pb-step-d">Collects these rows as a snapshot worklist and makes it active; F8 then steps it.</span><button class="ad-btn compact" aria-pressed="false">Freeze updates</button></span>
   </div>
   <div class="ad-prob-grid" role="treegrid" aria-label="Problems by objective, oldest first" aria-rowcount="10" data-scroll>
    <div role="rowgroup">
@@ -30,18 +30,18 @@
     <div role="row" class="ad-prob-row" aria-level="2" aria-expanded="true" aria-selected="true" aria-posinset="1" aria-setsize="3" aria-rowindex="5" tabindex="0">
      <span role="gridcell" class="ad-prob-c1 is-focus"><span class="ad-prob-tw" aria-hidden="true">▾</span><span><span class="ad-prob-k fail"><b aria-hidden="true">✕</b>Failure</span> Provider paused for this input revision <span class="ad-chip">mismatch</span></span></span>
      <span role="gridcell"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c" tabindex="-1" translate="no" aria-label="Counterpart ResourceRef::Resolve on build-c">ResourceRef::Resolve</a> <span class="muted b">@ build-c</span></span>
-     <span role="gridcell"><a class="ad-link mono" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;ws=recovery&amp;f=diag:C2440" tabindex="-1" aria-label="Compiler diagnostic C2440 at resource.c line 41">resource.c(41)</a> <span class="muted">C2440</span><br><a class="ad-link mono" href="?project=corpus-alpha&amp;job=0b17&amp;dock=jobs" tabindex="-1" aria-label="Job 0b17, source repair, waiting">0b17</a> <span class="muted">repair · waiting</span></span>
+     <span role="gridcell"><a class="ad-link mono" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;ws=recovery&amp;f=src.line:resource.c:41" tabindex="-1" aria-label="Compiler diagnostic C2440 at resource.c line 41, build-c">resource.c(41)</a> <span class="muted">C2440</span><br><a class="ad-link mono" href="?project=corpus-alpha&amp;job=0b17&amp;dock=jobs" tabindex="-1" aria-label="Job 0b17, source repair, waiting">0b17</a> <span class="muted">repair · waiting</span> <span class="ad-stg unmapped" aria-describedby="pb-um">stage: unmapped</span></span>
      <span role="gridcell" class="ad-prob-age"><span class="mono">22m</span></span></div>
     <div role="row" class="ad-prob-row detail" aria-level="3" aria-rowindex="6" id="pb-fr">
      <div role="gridcell" aria-colspan="4">
       <div class="ad-record" role="group" aria-label="Failure record: provider paused for this input revision"><header class="fault"><h4><span aria-hidden="true">✕</span> Provider paused for this input revision</h4><span class="ad-chip">mismatch</span></header>
-       <div class="body"><div class="ad-rail" role="img" aria-label="Failure lifecycle: observed, classified, contained done; recovery pending now; reconciling and eligible next"><span class="done">observed</span><span class="done">classified</span><span class="done">contained</span><span class="now">recovery_pending</span><span>reconciling</span><span>eligible</span></div>
-        <dl class="ad-dl"><dt>Scope</dt><dd>compile of ResourceRef.cpp for build-c</dd><dt>Evidence</dt><dd><a class="ad-link mono" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;ws=recovery&amp;f=diag:C2440" tabindex="-1">C2440 at resource.c(41)</a> · observed 13:57:10 · <span class="ad-stamp"><b class="fresh">fresh</b></span></dd><dt>Spent</dt><dd>2 of 3 attempts · 1 bounded LLM cleanup</dd><dt>Recovery</dt><dd>deterministic cast helper, then recompile (job <a class="ad-link mono" href="?project=corpus-alpha&amp;job=0b17&amp;dock=jobs" tabindex="-1">0b17</a>)</dd><dt>Wake</dt><dd>new candidate revision or changed helper policy</dd><dt>Continues</dt><dd>38 independent tasks on build-c, all of build-b</dd></dl></div></div>
+       <div class="body"><ol class="ad-rail" aria-label="Failure lifecycle"><li class="done">observed</li><li class="done">classified</li><li class="done">contained</li><li aria-current="step">recovery_pending</li><li>reconciling</li><li>eligible</li></ol>
+        <dl class="ad-dl"><dt>Classification</dt><dd>mismatch</dd><dt>Scope</dt><dd>compile of ResourceRef.cpp for build-c</dd><dt>Evidence</dt><dd><a class="ad-link mono" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;ws=recovery&amp;f=src.line:resource.c:41" tabindex="-1">C2440 at resource.c(41)</a> · observed 13:57:10</dd><dt>Owner and resource</dt><dd>job <a class="ad-link mono" href="?project=corpus-alpha&amp;job=0b17&amp;dock=jobs" tabindex="-1">0b17</a> · managed · private compiler output</dd><dt>Freshness</dt><dd><span class="ad-stamp"><b class="fresh">fresh</b>13:57:10</span></dd><dt>Attempts and budget</dt><dd>2 of 3 attempts · 1 bounded cleanup used</dd><dt>Recovery action</dt><dd>deterministic cast helper, then recompile; retry owner job 0b17</dd><dt>Wake</dt><dd>new candidate revision or changed helper policy</dd><dt>Continues</dt><dd>38 independent tasks on build-c, all of build-b</dd></dl></div></div>
      </div></div>
     <div role="row" class="ad-prob-row" aria-level="2" aria-posinset="2" aria-setsize="3" aria-rowindex="7" tabindex="-1">
      <span role="gridcell" class="ad-prob-c1"><span class="ad-prob-tw" aria-hidden="true"></span><span><span class="ad-prob-k pred"><b class="g-stale" aria-hidden="true">◷</b>Predicate</span> Linked match stale for 12 recipients</span></span>
      <span role="gridcell"><a class="ad-link" href="?project=corpus-alpha&amp;build=build-b&amp;f=fact.linked_match:stale" tabindex="-1" aria-label="12 recipients on build-b with Linked match stale">12 recipients</a> <span class="muted b">@ build-b</span></span>
-     <span role="gridcell"><a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-b&amp;f=basis:9f3c" tabindex="-1" aria-label="Basis 9f3c…a1e0, changed at 13:20">basis 9f3c…a1e0</a><br><a class="ad-link mono" href="?project=corpus-alpha&amp;job=a3f9&amp;dock=jobs" tabindex="-1" aria-label="Job a3f9, corpus.cross-place, running">a3f9</a> <span class="muted">cross-place · running</span></span>
+     <span role="gridcell"><a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-b&amp;f=basis:9f3c" tabindex="-1" aria-label="Basis 9f3c…a1e0, changed at 13:20">basis 9f3c…a1e0</a><br><a class="ad-link mono" href="?project=corpus-alpha&amp;job=a3f9&amp;dock=jobs" tabindex="-1" aria-label="Job a3f9, corpus.cross-place, running">a3f9</a> <span class="muted">cross-place · running</span> <span class="ad-stg"><a class="fam-recovery" href="?project=corpus-alpha&amp;node=stage-5" tabindex="-1" aria-label="5 Propagation (cross-place), pipeline stage, source recovery"><span class="n">5</span><span class="nm">Propagation</span></a></span></span>
      <span role="gridcell" class="ad-prob-age"><span class="mono">38m</span></span></div>
     <div role="row" class="ad-prob-row ref" aria-level="2" aria-posinset="3" aria-setsize="3" aria-rowindex="8" tabindex="-1">
      <span role="gridcell" aria-colspan="4" class="ad-prob-c1"><span class="ad-prob-tw" aria-hidden="true"></span><span class="small"><span class="ad-prob-k ext"><b aria-hidden="true">⚑</b>Also blocked by</span> the external action above: <a class="ad-link" href="?project=corpus-alpha&amp;node=lock-3&amp;dock=problems" tabindex="-1">release the Wine prefix</a> <span class="muted">(not repeated)</span></span></span></div>
@@ -57,11 +57,11 @@
     <div role="row" class="ad-prob-row" aria-level="2" aria-posinset="2" aria-setsize="2" aria-rowindex="11" tabindex="-1">
      <span role="gridcell" class="ad-prob-c1"><span class="ad-prob-tw" aria-hidden="true">▸</span><span><span class="ad-prob-k fail"><b aria-hidden="true">✕</b>Failure</span> Past deadline; failover named: bulk import moves to worker-2 <span class="ad-chip">resource</span></span></span>
      <span role="gridcell"><a class="ad-link" href="?project=corpus-alpha&amp;build=build-d" tabindex="-1" aria-label="Build build-d">build-d</a> <span class="muted">· import</span></span>
-     <span role="gridcell"><a class="ad-link mono" href="?project=corpus-alpha&amp;job=77c0&amp;dock=jobs" tabindex="-1" aria-label="Job 77c0, corpus.ghidra-bulk, past deadline">77c0</a> <span class="muted">external · pid 48211</span><br><span class="muted">deadline ≠ termination</span></span>
+     <span role="gridcell"><a class="ad-link mono" href="?project=corpus-alpha&amp;job=77c0&amp;dock=jobs" tabindex="-1" aria-label="Job 77c0, corpus.ghidra-bulk, past deadline">77c0</a> <span class="muted">external · process 48211 as reported</span> <span class="ad-stg"><a class="fam-recovery" href="?project=corpus-alpha&amp;node=stage-4" tabindex="-1" aria-label="4 C/C++ candidates, pipeline stage, source recovery"><span class="n">4</span><span class="nm">C/C++ candidates</span></a></span><br><span class="muted">deadline ≠ termination</span></span>
      <span role="gridcell" class="ad-prob-age"><span class="ad-prob-over"><b aria-hidden="true">✕</b><span class="mono">+18m</span> past deadline</span></span></div>
    </div>
   </div>
-  <footer class="ad-prob-foot"><span>Snapshot 13:58:07 · projection r12 · the same rows drive 8080, /react/, the CLI and agents</span><span>↑↓ rows · → expand · ← collapse · Enter go · Shift+Enter open beside · Alt+↓ peek · Shift+F10 reveal in</span></footer>
+  <footer class="ad-prob-foot"><span>Snapshot 13:58:07 · projection r12 · the same rows drive 8080, /react/, the CLI and agents</span><span>↑↓ rows · → expand · ← collapse · Enter go · Shift+Enter open beside · Alt+↓ peek · Shift+F10 link menu · / filter</span></footer><span class="sr-only" id="pb-um">The verb of job 0b17 is not in catalog_verbs. No stage is guessed.</span>
   <p class="sr-only" role="status">5 problems in 3 groups. Oldest: ABI checks not run on build-d, 3 hours 40 minutes.</p>
  </div>
 </section>
@@ -69,8 +69,8 @@
 <div class="ad-prob-states">
  <section class="ad-dock ad-prob" aria-label="Problems, selection only">
   <div class="ad-tools ad-prob-tools" role="group" aria-label="Problem filters">
-   <label class="ad-filt"><input type="checkbox" checked>Selection only <span class="n">2</span></label>
-   <span class="ad-prob-scope"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Follows selection · <span translate="no">ResourceRef::Resolve</span> · all builds</span>
+   <label class="ad-filt"><input type="checkbox" checked aria-describedby="pb-sel-d">Selection only <span class="n">2</span></label>
+   <span class="ad-fchip"><button class="w" aria-haspopup="menu" aria-expanded="false">Selection only: <span class="v" translate="no">ResourceRef::Resolve</span> · all builds</button><button class="x" aria-label="Remove filter: Selection only" aria-keyshortcuts="Delete"><span aria-hidden="true">✕</span></button></span><span class="ad-fchip"><button class="w" aria-haspopup="menu" aria-expanded="false">Under <span class="v" translate="no">gate-4</span></button><button class="x" aria-label="Remove filter: Under gate-4" aria-keyshortcuts="Delete"><span aria-hidden="true">✕</span></button></span>
   </div>
   <div class="ad-prob-grid" role="treegrid" aria-label="Problems for ResourceRef::Resolve, 2 of 5" aria-rowcount="4">
    <div role="rowgroup">
@@ -91,8 +91,13 @@
  </section>
  <div class="stack" style="gap:12px">
   <div class="ad-notice info"><b aria-hidden="true">∅</b><div><h4>No problems for FUN_0041c880 on build-a</h4><p>Selection only is on. 5 problems elsewhere in corpus-alpha.</p></div><a class="ad-link small ad-prob-all" href="?project=corpus-alpha&amp;dock=problems">Show all</a></div>
-  <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Frozen at 13:58</h4><p>Updates are held while you read. 1 new problem and 1 resolved since; nothing moved under the cursor.</p></div><button class="ad-btn compact" aria-pressed="true">Resume updates</button></div>
+  <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Frozen at 13:58 · 2 events since</h4><p>Updates are queued while you read: 1 new problem and 1 resolved. Nothing moved under the cursor. Actions from these rows act on the current record.</p></div><button class="ad-btn compact" aria-pressed="true">Freeze updates</button></div>
   <div class="ad-notice info"><b aria-hidden="true">↻</b><div><h4>Reconnecting</h4><p>Showing problems from 13:58, read-only. Ages keep counting from that snapshot and say so.</p></div><span></span></div>
  </div>
+</div>
+<div class="stack" style="gap:6px">
+ <span class="kicker">Coarse pointer · one 44px row-menu button per row · F8 with no active worklist</span>
+ <div class="adl-pm-demo"><span class="small"><span class="ad-prob-k fail"><b aria-hidden="true">✕</b>Failure</span> Provider paused for this input revision</span><button class="adl-rowmenu" aria-haspopup="menu" aria-expanded="false" aria-label="Menu for Provider paused for this input revision">⋯</button></div>
+ <p class="small" style="margin:0" role="status">No active worklist. Collect into worklist (w) or Step problems on the Problems tab.</p>
 </div>
 </div>

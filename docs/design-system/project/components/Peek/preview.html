@@ -1,29 +1,29 @@
-<!-- @dsCard group="Navigation" height=840 -->
+<!-- @dsCard group="Navigation" height=1040 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <div class="ad-peek-anchor">
  <span class="kicker">Inline peek · code views · Alt+↓ on an operand</span>
  <div class="ad-listing well" aria-label="Listing, Actor::LoadFromTemplate, build-a">
   <div class="ad-ln"><span class="flow"> </span><span class="addr">0041a47a</span><span class="bytes">8b ce</span><span class="mn">mov</span><span>ecx, esi</span><span></span></div>
-  <div class="ad-ln" aria-current="true"><span class="flow">▸</span><span class="addr">0041a47c</span><span class="bytes">e8 ff 13 00 00</span><span class="mn">call</span><span><a class="ad-link sym is-focus" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" aria-expanded="true" aria-controls="pk-in" aria-keyshortcuts="Alt+ArrowDown" translate="no">FUN_0041c880</a></span><span class="xref">→ 0041c880</span></div>
+  <div class="ad-ln" aria-current="true"><span class="flow">▸</span><span class="addr">0041a47c</span><span class="bytes">e8 ff 13 00 00</span><span class="mn">call</span><span><a class="ad-link sym is-focus" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" aria-expanded="true" aria-controls="pk-in" translate="no">FUN_0041c880</a></span><span class="xref">→ 0041c880</span></div>
   <section class="ad-peek inline" id="pk-in" role="dialog" aria-modal="false" aria-labelledby="pk-in-t">
    <header><span class="kicker">Function · build-a · inline peek</span><h4 id="pk-in-t" translate="no">FUN_0041c880</h4>
-    <div class="acts"><button class="ad-btn compact">Open <span class="ad-kbd">Enter</span></button><button class="ad-btn compact"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="9"/><path d="M8.5 3.5v9"/></svg>Open to the side <span class="ad-kbd">Shift Enter</span></button><button class="ad-btn compact" aria-pressed="false"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2.5h5M6.5 2.5v4l-2 2.5h7l-2-2.5v-4M8 9v4.5"/></svg>Keep</button></div>
-    <button class="ad-peek-x" aria-label="Close peek" aria-keyshortcuts="Escape">✕</button>
-    <div class="sub"><span class="ad-stamp"><b>reused</b>existing analysis · build-a gen 42</span><span class="ad-facts" role="img" aria-label="Compilation failed, ABI checks not run, Tested behavior not run, Local match not run, Linked match not run, Replacement contribution not run, Whole-file equality not run"><b class="failed" aria-hidden="true">✕</b><b class="not_run" aria-hidden="true">○</b><b class="not_run" aria-hidden="true">○</b><b class="not_run" aria-hidden="true">○</b><b class="not_run" aria-hidden="true">○</b><b class="not_run" aria-hidden="true">○</b><b class="not_run" aria-hidden="true">○</b></span><span class="small">Compilation failed · others not run</span><span class="small muted">no identity</span></div></header>
+    <div class="acts"><button class="ad-btn compact">Open <span class="ad-kbd">Enter</span></button><button class="ad-btn compact"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="9"/><path d="M8.5 3.5v9"/></svg>Open beside <span class="ad-kbd">Shift Enter</span></button><button class="ad-btn compact" aria-pressed="false" aria-keyshortcuts="Shift+K"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2.5h5M6.5 2.5v4l-2 2.5h7l-2-2.5v-4M8 9v4.5"/></svg>Keep</button></div>
+    <button class="ad-peek-x" aria-label="Close peek">✕</button>
+    <div class="sub"><span class="ad-stamp"><b>reused</b>existing analysis · build-a gen 42 · read 13:58</span><button class="adl-factbtn" aria-label="Facts: Compilation failed, ABI checks not run, Tested behavior not run, Local match not run, Linked match not run, Replacement contribution not run, Whole-file equality not run. Peek the facts"><span class="ad-facts" aria-hidden="true"><b class="failed">✕</b><b class="not_run">○</b><b class="not_run">○</b><b class="not_run">○</b><b class="not_run">○</b><b class="not_run">○</b><b class="not_run">○</b></span></button><span class="small">Compilation failed · others not run</span><span class="small muted">no identity</span></div></header>
    <div class="pb"><div class="code" role="group" aria-label="Listing, first 4 of 31 instructions"><div><span class="addr">0041c880</span><span class="mn">push</span><span>ebp</span></div><div><span class="addr">0041c881</span><span class="mn">mov</span><span>ebp, esp</span></div><div><span class="addr">0041c883</span><span class="mn">sub</span><span>esp, 0x10</span></div><div><span class="addr">0041c8d2</span><span class="mn">call</span><span class="sym">ResourceRef::Resolve</span></div></div>
-    <span class="small muted">Cached listing, 4 of 31 instructions. The primary selection stays on Actor::LoadFromTemplate.</span></div>
+    <span class="small muted">Cached listing, 4 of 31 instructions; the inline form shows up to 12. The primary selection stays on Actor::LoadFromTemplate.</span></div>
   </section>
   <div class="ad-ln"><span class="flow"> </span><span class="addr">0041a481</span><span class="bytes">85 c0</span><span class="mn">test</span><span>eax, eax</span><span></span></div>
  </div>
 </div>
 <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:16px;align-items:start">
  <div class="ad-peek-anchor">
-  <span class="kicker">Hover or focus card · cached</span>
-  <table class="ad-table" role="grid" aria-label="Functions"><tbody>
-   <tr><td class="addr" style="width:88px">0041b210</td><td><a class="ad-link is-focus" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" aria-expanded="true" aria-controls="pk-c" aria-keyshortcuts="Alt+ArrowDown" translate="no">ResourceRef::Resolve</a> <span class="muted small">· debug info</span></td></tr></tbody></table>
+  <span class="kicker">Card · pointer rest, focus rest or Alt+↓ · cached</span>
+  <table class="ad-table" role="grid" aria-label="Functions, build-a" aria-keyshortcuts="Alt+ArrowDown"><tbody>
+   <tr><td class="addr" style="width:88px">0041b210</td><td><a class="ad-link is-focus" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" aria-expanded="true" aria-controls="pk-c" translate="no">ResourceRef::Resolve</a> <span class="muted small">· debug info</span></td></tr></tbody></table>
   <section class="ad-peek" id="pk-c" role="dialog" aria-modal="false" aria-labelledby="pk-c-t">
-   <header><span class="kicker">Function · build-a</span><h4 id="pk-c-t" translate="no">ResourceRef::Resolve</h4><button class="ad-peek-x" aria-label="Close peek" aria-keyshortcuts="Escape">✕</button>
-    <div class="sub"><a class="ad-link addr small" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210">0041b210</a><span class="small muted">logical #88 · 4 builds</span></div>
+   <header><span class="kicker">Function · build-a</span><h4 id="pk-c-t" translate="no">ResourceRef::Resolve</h4><button class="ad-peek-x" aria-label="Close peek">✕</button>
+    <div class="sub"><a class="ad-link addr small" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" aria-label="Address 0041b210, build-a">0041b210</a><span class="small muted">logical #88 · 4 builds</span></div>
     <div class="sub"><span class="ad-stamp"><b>reused</b>peek cache · basis 9f3c…a1e0 · read 13:58:07</span></div></header>
    <div class="pb">
     <span class="kicker">Facts · build-a</span>
@@ -36,31 +36,40 @@
      <span class="ad-fact unknown"><b aria-hidden="true">?</b><span><span class="label">Replacement contribution</span> unknown</span></span>
      <span class="ad-fact not_run"><b aria-hidden="true">○</b><span><span class="label">Whole-file equality</span> not run</span></span></div>
     <span class="kicker">Counterparts</span>
-    <div class="locs small"><span class="ad-loc resolved"><b aria-hidden="true">●</b>build-b <span class="addr">0041b2c0</span></span><span class="ad-loc pinned"><b aria-hidden="true">◎</b>build-c <span class="addr">module_rva</span></span><span class="ad-loc unresolved"><b aria-hidden="true">◌</b>build-d unresolved</span></div>
-    <div class="code" role="group" aria-label="Listing, first 5 of 23 instructions"><div><span class="addr">0041b210</span><span class="mn">push</span><span>ebp</span></div><div><span class="addr">0041b211</span><span class="mn">mov</span><span>ebp, esp</span></div><div><span class="addr">0041b213</span><span class="mn">mov</span><span>eax, dword ptr [ebp + 0x8]</span></div><div><span class="addr">0041b216</span><span class="mn">call</span><span class="sym">String::CStr</span></div><div><span class="addr">0041b21b</span><span class="mn">pop</span><span>ebp</span></div></div>
-    <span class="small muted">Cached listing, 5 of 23 instructions.</span></div>
-   <footer><button class="ad-btn">Open <span class="ad-kbd">Enter</span></button><button class="ad-btn"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="9"/><path d="M8.5 3.5v9"/></svg>Open to the side <span class="ad-kbd">Shift Enter</span></button><button class="ad-btn" aria-pressed="false"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2.5h5M6.5 2.5v4l-2 2.5h7l-2-2.5v-4M8 9v4.5"/></svg>Keep</button></footer>
+    <div class="locs small"><span class="ad-loc resolved"><b aria-hidden="true">●</b><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041b2c0" aria-label="Counterpart build-b, 0041b2c0, accepted">build-b <span class="addr">0041b2c0</span></a> accepted</span><span class="ad-loc pinned"><b aria-hidden="true">◎</b><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=00082f40" aria-label="Counterpart build-c, 00082f40, candidate">build-c <span class="addr">00082f40</span></a> candidate</span><span class="ad-loc unresolved"><b aria-hidden="true">◌</b>build-d <span class="ad-absent">unresolved</span></span></div>
+    <div class="code" role="group" aria-label="Listing, first 5 of 23 instructions"><div><span class="addr">0041b210</span><span class="mn">push</span><span>ebp</span></div><div><span class="addr">0041b211</span><span class="mn">mov</span><span>ebp, esp</span></div><div><span class="addr">0041b213</span><span class="mn">mov</span><span>eax, dword ptr [ebp + 0x8]</span></div><div><span class="addr">0041b216</span><span class="mn">call</span><span class="sym">Archive::OpenMember</span></div><div><span class="addr">0041b21b</span><span class="mn">pop</span><span>ebp</span></div></div>
+    <span class="small muted">Cached listing, 5 of 23 instructions; the card shows up to 6.</span></div>
+   <footer><button class="ad-btn">Open <span class="ad-kbd">Enter</span></button><button class="ad-btn"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="9"/><path d="M8.5 3.5v9"/></svg>Open beside <span class="ad-kbd">Shift Enter</span></button><button class="ad-btn" aria-pressed="false" aria-keyshortcuts="Shift+K"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2.5h5M6.5 2.5v4l-2 2.5h7l-2-2.5v-4M8 9v4.5"/></svg>Keep</button><button class="ad-btn">Copy link</button></footer>
   </section>
  </div>
  <div class="stack">
   <div class="ad-peek-anchor">
-   <span class="kicker">Not loaded · never auto-fetched</span>
+   <span class="kicker">Counterpart · not loaded · never auto-fetched</span>
    <section class="ad-peek" role="dialog" aria-modal="false" aria-labelledby="pk-n-t">
-    <header><span class="kicker">Counterpart · build-c</span><h4 id="pk-n-t" translate="no">ResourceRef::Resolve</h4><button class="ad-peek-x" aria-label="Close peek" aria-keyshortcuts="Escape">✕</button>
+    <header><span class="kicker">Counterpart · build-c</span><h4 id="pk-n-t" translate="no">ResourceRef::Resolve</h4><button class="ad-peek-x" aria-label="Close peek">✕</button>
      <div class="sub"><span class="ad-loc pinned small"><b aria-hidden="true">◎</b>pinned <span class="addr">module_rva 0x1b210</span><span class="muted">non-portable</span></span></div>
-     <div class="sub small"><span class="ad-edge candidate mini"></span>candidate edge · awaiting ABI check</div></header>
-    <div class="none"><b aria-hidden="true">○</b><div><p><strong class="strong">Not loaded.</strong> Open to read it.</p><p>The build-c program is not open in this session. A peek reads stored evidence only; it never opens a program, imports or starts analysis.</p></div></div>
-    <footer><button class="ad-btn">Open <span class="ad-kbd">Enter</span></button><button class="ad-btn"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="9"/><path d="M8.5 3.5v9"/></svg>Open to the side</button><button class="ad-btn" aria-pressed="false"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2.5h5M6.5 2.5v4l-2 2.5h7l-2-2.5v-4M8 9v4.5"/></svg>Keep</button></footer>
+     <div class="sub small"><span class="ad-edge candidate mini"></span>candidate edge · 1↔N · aligned ≠ equivalent · Opening one does not accept it</div></header>
+    <div class="none"><b aria-hidden="true">○</b><div><p><strong class="strong">Not loaded.</strong> Open build-c to read it.</p><p>The build-c program is not open in this session. A Peek reads stored evidence only; it never opens a program, imports or starts analysis.</p></div></div>
+    <footer><button class="ad-btn">Open <span class="ad-kbd">Enter</span></button><button class="ad-btn"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="9"/><path d="M8.5 3.5v9"/></svg>Open beside (new window)</button><button class="ad-btn" aria-pressed="false" aria-keyshortcuts="Shift+K"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2.5h5M6.5 2.5v4l-2 2.5h7l-2-2.5v-4M8 9v4.5"/></svg>Keep</button></footer>
+   </section>
+   <span class="small muted">On 8080 without split panes, Open beside opens the same link in a new window and says so.</span>
+  </div>
+  <div class="ad-peek-anchor">
+   <span class="kicker">Stale fact · shown from cache, labelled · kept</span>
+   <section class="ad-peek" role="dialog" aria-modal="false" aria-labelledby="pk-s-t">
+    <header><span class="kicker">Receipt · compile · build-a</span><h4 id="pk-s-t" translate="no">7c21…e04b</h4><span class="adl-kepttag">Kept</span><button class="ad-peek-x" aria-label="Close peek">✕</button>
+     <div class="sub"><span class="ad-stamp"><b>reused</b>peek cache · read 13:41:02 · 18 min old</span></div></header>
+    <div class="note stale"><b aria-hidden="true">◷</b><p><strong>Stale.</strong> The candidate source changed from r14 to r15 after this receipt. Revalidation: none recorded. Open reads the current record.</p></div>
+    <div class="pb"><dl class="ad-dl"><dt>Covers</dt><dd>ResourceRef::Resolve · build-a <span class="addr">0041b210</span></dd><dt>Fact</dt><dd><span class="ad-fact passed"><b aria-hidden="true">✓</b><span><span class="label">Compilation</span> passed at r14</span></span></dd><dt>Changed since</dt><dd>source r14 → r15 · basis 9f3c → 3be0</dd><dt>Toolchain</dt><dd class="mono">compiler profile cc-1 /O2</dd><dt>Produced by</dt><dd>job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=5f10" aria-label="Job 5f10, corpus.ghidra-bulk, finished">5f10</a> <span class="ad-stg"><a class="fam-recovery" href="?project=corpus-alpha&amp;node=stage-4" aria-label="4 C/C++ candidates, pipeline stage, source recovery"><span class="n">4</span><span class="nm">C/C++ candidates</span></a></span></dd></dl></div>
+    <footer><button class="ad-btn">Open <span class="ad-kbd">Enter</span></button><button class="ad-btn"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="9"/><path d="M8.5 3.5v9"/></svg>Open beside</button><button class="ad-btn" aria-pressed="true" aria-keyshortcuts="Shift+K"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2.5h5M6.5 2.5v4l-2 2.5h7l-2-2.5v-4M8 9v4.5"/></svg>Keep</button><button class="ad-btn">Copy link</button></footer>
    </section>
   </div>
   <div class="ad-peek-anchor">
-   <span class="kicker">Stale · shown from cache, labelled</span>
-   <section class="ad-peek" role="dialog" aria-modal="false" aria-labelledby="pk-s-t">
-    <header><span class="kicker">Receipt · compile</span><h4 id="pk-s-t" translate="no">7c21…e04b</h4><button class="ad-peek-x" aria-label="Close peek" aria-keyshortcuts="Escape">✕</button>
-     <div class="sub"><span class="ad-stamp"><b>reused</b>peek cache · read 13:41:02 · 18 min old</span></div></header>
-    <div class="note stale"><b aria-hidden="true">◷</b><p><strong>Stale.</strong> The candidate source changed from r14 to r15 after this receipt. Open reads the current record.</p></div>
-    <div class="pb"><dl class="ad-dl"><dt>Covers</dt><dd>ResourceRef::Resolve · build-a <span class="addr">0041b210</span></dd><dt>Fact</dt><dd><span class="ad-fact passed"><b aria-hidden="true">✓</b><span><span class="label">Compilation</span> passed at r14</span></span></dd><dt>Toolchain</dt><dd class="mono">msvc-7.1 /O2 /Gy</dd><dt>Job</dt><dd><a class="ad-link mono" href="?project=corpus-alpha&amp;job=a3f9">a3f9</a> corpus.cross-place</dd></dl></div>
-    <footer><button class="ad-btn">Open <span class="ad-kbd">Enter</span></button><button class="ad-btn"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="9"/><path d="M8.5 3.5v9"/></svg>Open to the side</button><button class="ad-btn" aria-pressed="true"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 2.5h5M6.5 2.5v4l-2 2.5h7l-2-2.5v-4M8 9v4.5"/></svg>Kept</button></footer>
+   <span class="kicker">Nested peek · replaces the content, never a second card</span>
+   <section class="ad-peek" role="dialog" aria-modal="false" aria-labelledby="pk-j-t">
+    <header><button class="ad-btn compact quiet" aria-label="Back to the receipt 7c21 peek">‹ back</button><span class="kicker">Job · as of 14:02 · no poll</span><h4 id="pk-j-t" translate="no">5f10 corpus.ghidra-bulk</h4><button class="ad-peek-x" aria-label="Close peek">✕</button></header>
+    <div class="pb"><dl class="ad-dl"><dt>Liveness</dt><dd>ended 13:30</dd><dt>Execution</dt><dd>31 of 31 units</dd><dt>Goal</dt><dd>0 accepted · a finished job is not a match</dd><dt>Targets</dt><dd>31 functions on build-a</dd><dt>Changed</dt><dd>Changed entities: not recorded</dd></dl></div>
+    <footer><button class="ad-btn">Open <span class="ad-kbd">Enter</span></button><button class="ad-btn" aria-pressed="false" aria-keyshortcuts="Shift+K">Keep</button></footer>
    </section>
   </div>
  </div>

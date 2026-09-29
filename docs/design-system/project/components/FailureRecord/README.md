@@ -1,30 +1,44 @@
 # FailureRecord
 
-A failure drawn at its real unmet dependency: stable reason, scope, evidence, owner and resource, freshness, spend, wake condition, what continues, and authority only when unavoidable. Every field is a typed link or a disclosure that expands in place.
+A failure drawn at its real unmet dependency, in guideline 50's fixed field order. Every field is words, a typed link or a disclosure that expands in place.
 
-**Consumer provides** those fields, the failure lifecycle position, the classification (mismatch, transient, resource, policy), the log or diagnostic lines around the evidence, the owner and resource as the backend reports them, and the independent work that continues.
+**Consumer provides** the stable reason; the failure lifecycle state (backend states only); the classification; the affected scope as a node id with entity and build; the evidence reference (log offset or diagnostic, whether the log is still retained) and its stamp; owner and resource exactly as the backend reports them; evidence freshness; attempts and budget spent; the recovery action (chosen fallback, the one retry owner and its persistent budget); the wake condition; the independent work that continues (job ids, and function targets only when the backend names them); any escalation; and the served `pipeline-model.json` revision for Explain.
 
-- Header on `lane-fault-fill` names the reason in a stable phrase ("Provider paused for this input revision") as the record's heading. The lifecycle rail sits in the body as an `<ol>` with `aria-current="step"`: observed → classified → contained → recovery_pending → reconciling → eligible. The current state links to its resilience step (`resil-step-1`…`resil-step-5`).
-- **Fixed field order**, the same on both surfaces and in ObjectiveSummary diagnoses: **reason** (the heading) · **scope** (a link to the PipelineBreadcrumb crumb or PipelineMap node, with the entity and build) · **evidence** (a disclosure with an inline excerpt of the existing log tail or the SourceRepairDiff lines around the diagnostic, and "Open log at line") · **owner and resource** (a disclosure showing OwnershipPanel and ResourceState inline, process identity as reported) · **freshness** (ProvenanceStamp) · **spend** (attempts and budget, with the recovery action it pays for) · **wake condition** (a link to the awaited job or lock) · **continues** (a count link that applies a FilterChip to Functions and the dock) · **Explain** (a disclosure rendering the node's Trying to / How / In → out / Gate text).
-- **Expand all** and **Collapse all** sit in the header; expanded state persists per viewer.
+**Fields, in this order** (50, Failure record), the same on both surfaces and in ObjectiveSummary's predicate diagnoses:
+
+1. **Reason**, as the record's heading: a stable phrase ("Provider paused for this input revision") on `lane-fault-fill`. Its heading level is relative to the host.
+2. **Lifecycle rail**: observed → classified → contained → recovery_pending → reconciling → eligible, an `<ol>` with `aria-current="step"` and the 2px `ink-strong` now-frame. Backend states only; rail steps are words, never links. Branches: waiting_external, budget_exhausted, unsupported. `detector_unknown` is never shown as healthy or failed.
+3. **Classification**: mismatch, transient, resource or policy, as a word.
+4. **Scope**: a PipelineBreadcrumb crumb or node link, with the entity and build.
+5. **Evidence**: a disclosure. Its excerpt of the stored log tail, or the SourceRepairDiff lines around the diagnostic, is read only when expanded, never on focus, hover or prefetch; the read is keyed by location token and late responses are dropped. The excerpt carries its ProvenanceStamp. "Open log at line 211" appears only when the record carries an offset. A rotated log reads "log no longer retained".
+6. **Owner and resource**: a disclosure showing OwnershipPanel and ResourceState inline, as reported, else "unknown". An external owner is never offered kill or restart.
+7. **Freshness**: the evidence's ProvenanceStamp link group.
+8. **Attempts and budget spent**: "2 of 3 attempts".
+9. **Recovery action**: the chosen fallback, the one retry owner and its persistent budget. It is its own field and never folded into the spend line.
+10. **Wake condition**: the awaited job or lock, as a link.
+11. **What continues**: a link to the dock's Jobs tab filtered to the continuing work; to Functions only when the backend names function targets.
+12. **Escalation and authority**, only when an external intervention is unavoidable: the failed predicate, raw evidence references, the independent work still eligible, the attempted recoveries and consumed budget, and the exact external change or decision required. Emitted on transitions, not polls. Dismissing is not resolution.
+13. **Explain**: a disclosure rendering the scope node from the backend-served `pipeline-model.json` (never the outline markdown), headed "From the pipeline design · model rev ‹8 hex›" with "Design description ≠ this item's evidence", in the context-hint claim tier (dotted frame, ClaimTier). Its crosswalk line names the model's interpretation of the current state and ends "(interpretation)": observed and classified → `resil-step-1`; contained, recovery_pending and reconciling → `resil-step-3`; eligible → `resil-step-5`. The branches have no crosswalk, and no state maps to steps 2 or 4.
+
+- It renders as a `<dl>`; long values sit behind APG disclosure buttons. **Expand all** and **Collapse all** sit in the header. Expanded and collapsed state lives in durable workspace state, never localStorage. The static 8080 surface renders `<details>` in the same order.
 - Always show what continues. The affected branch stops visibly; every eligible sibling continues.
-- An escalation adds the failed predicate, raw evidence references, attempted recoveries and the exact external change required. It is emitted on transitions, not polls. Dismissing is not resolution.
+- **Empty and unbound hosts** follow 35's dead-end rule: name the program and cause, show reuse evidence and any existing or pending admission first, then arm at most one catalog action for the primary selection, reuse first, never run it, never while discovery is not loaded. The design system names no action ids.
 
 **Linking**
 
-- **Publishes:** nothing. "Continues" applies `f=eligible:…` to the Functions grid and the dock, which own those filters.
-- **Follows:** its host: the dock's Problems grid (F8 steps records from anywhere), the evidence rail for the primary entity and build, or an ObjectiveSummary diagnosis. Not holdable; a record can be kept as a card (`keep=failure:f19@build-c`).
-- **Targets rendered:** scope → the PipelineBreadcrumb crumb or node (`?node=stage-4`) for that entity and build · evidence → the log at that line (`dock=logs&job=0b17`) or the SourceRepairDiff line · owner job → the dock Jobs record; resource → its lock node · freshness → the ProvenanceStamp link group · wake condition → the awaited job or lock · continues → the Functions grid filtered to the eligible work · lifecycle state → its resilience node. Link names read "Scope stage 4, C/C++ candidates, ResourceRef.cpp, build-c".
-- **Peek source:** the stored failure record, the job's log tail already in the dock, and the generated outline text for Explain; nothing is re-run.
-- **Absent copy:** "owner: unknown" · "process identity: not reported" · "revalidation: not scheduled" · "no log excerpt recorded".
-- **Target-size exception:** none; disclosure buttons are 24px and links sit on 24px field rows.
+- **Publishes:** nothing. "What continues" applies `f=eligible:…` to the dock's Jobs tab, which owns that filter; a filter applied from a link pushes one stop.
+- **Follows:** its host: the dock's Problems treegrid (F8 steps it only after "Step problems" collects it as the active worklist), the evidence rail for the primary entity and build, or an ObjectiveSummary diagnosis. Not holdable; a record can be kept as a card (`keep=failure:f19@build-c`).
+- **Targets rendered:** scope → the PipelineBreadcrumb crumb or node (`?node=stage-4`) for that entity and build · evidence → the log at the recorded line (`dock=logs&job=0b17&f=log.line:211`) or the SourceRepairDiff line (`f=src.line:resource.c:41`) · owner job → the dock Jobs record; resource → its lock node · freshness → the ProvenanceStamp link group · retry owner → its job record · wake condition → the awaited job or lock · what continues → the dock's Jobs tab filtered to that work · inside Explain only, the crosswalked resilience node, labelled "(interpretation)". Link names read "Scope stage 4, C/C++ candidates, ResourceRef.cpp, build-c"; "resil-step-3 Repair, reroute or wait, interpretation".
+- **Peek source:** the stored failure record; the evidence excerpt from the stored log tail or SourceRepairDiff, read on expand only; Explain from the served `pipeline-model.json` at its revision. Nothing is re-run.
+- **Absent copy:** "owner: unknown" · "process identity: not reported" · "log no longer retained" · "no log offset recorded" · "revalidation: not scheduled" · "No crosswalk for this state".
+- **Target-size exception:** none; disclosure buttons are 24px and links sit on 24px field rows; 44px below 700px.
 
 **Keyboard**
 
-- Disclosures are APG Disclosure buttons: Enter or Space toggles; focus stays on the button. Links follow the linked-views grammar. F8 / Shift+F8 step problems from anywhere.
+- Disclosures are APG Disclosure buttons: Enter or Space toggles; focus stays on the button. Links follow the linked-views grammar. F8 / Shift+F8 step the active worklist only.
 
 **Accessibility**
 
-- The reason is the record's heading; fields are a `<dl>` in the fixed order. Excerpts are `role="log"` with `aria-live="off"`. Unavailable actions are `aria-disabled` with the reason in `aria-describedby`. A failure is assertive only when it blocks the action in hand; otherwise its transition is announced once, politely.
+- The reason is the record's heading; fields are a `<dl>` in the fixed order. Excerpts are `role="log"` with `aria-live="off"`. Unavailable actions are `aria-disabled` with the reason in `aria-describedby`. A failure is assertive only when it blocks the action in hand; otherwise its transition is announced once, politely. Disclosures never move focus (WCAG 3.2.1).
 
-**Removes switching:** opening the logs, the Jobs dock, the pipeline map and the resource list to learn why something is blocked and what still runs (J04, J28).
+**Removes switching:** opening the logs, the Jobs dock, the pipeline map and the resource list to learn why something is blocked and what still runs (J04; counts in the plan ledger).

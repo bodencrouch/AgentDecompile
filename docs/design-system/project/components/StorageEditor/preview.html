@@ -1,11 +1,33 @@
-<!-- @dsCard group="Code" height=390 -->
+<!-- @dsCard group="Code" height=820 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<div class="well adl-sig"><span class="mono small"><span class="muted">7 </span>int __thiscall <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no">ResourceRef::Resolve</a>(ResourceRef *this, char *name, <mark class="adl-edit">uint size</mark>)</span></div>
-<div class="ad-record"><header><h4>Parameter 2 · <span class="mono">uint size</span> · build-a</h4><span class="small muted">convention from program: __thiscall</span></header>
-<div class="body"><div class="ad-scroll"><table class="ad-table"><caption class="sr-only">Storage pieces for parameter 2, uint size, build-a</caption><thead><tr><th scope="col">#</th><th scope="col">Kind</th><th scope="col">Location</th><th scope="col">Size</th><th scope="col">Check</th></tr></thead><tbody>
-<tr><td class="mono">1</td><td>register</td><td class="mono">EDX</td><td class="mono">4</td><td class="small muted">valid</td></tr>
-<tr aria-selected="true" aria-invalid="true" aria-describedby="se-err"><td class="mono">2</td><td>stack</td><td class="mono">+0x0c</td><td class="mono">3</td><td class="small g-fail" id="se-err"><span aria-hidden="true">✕ </span>Size 3 is not a valid piece size. Use 1, 2, 4 or 8.</td></tr></tbody></table></div>
-<div class="row"><button class="ad-btn">Add piece</button><button class="ad-btn">Review change</button><span class="small muted" role="status">1 piece needs a fix. Review change moves focus to it.</span></div></div></div>
-<div class="ad-notice info"><b aria-hidden="true">∅</b><div><h4>No storage change to submit</h4><p>The draft for parameter 1 equals its current storage on build-a. Nothing was sent.</p></div><span></span></div>
-<div class="ad-notice info"><b aria-hidden="true">↺</b><div><h4>Storage re-read</h4><p>Re-read after job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=b7e2" aria-label="Job b7e2, set custom storage, finished">b7e2</a>: storage matches the draft on build-a.</p></div><span></span></div>
+<span class="kicker">Edit storage… on parameter 2 · opens under the signature line and pushes the code down · Save stays enabled</span>
+<section class="adc-pane" aria-label="Decompile, storage editor open under the signature">
+ <div class="well adl-sig"><span class="mono small"><span class="muted">1 </span>int __thiscall <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a>(ResourceRef *this, char *name, <mark class="adl-edit">uint size</mark>)</span></div>
+ <form class="adc-ren inline" role="dialog" aria-modal="false" aria-labelledby="se1-t">
+  <header><h4 id="se1-t">Edit storage · parameter 2 <code translate="no">uint size</code></h4><span class="end">catalog: Set parameter storage</span></header>
+  <div class="tgt"><span class="kicker">Target · bound when opened</span><span>function <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a></span><span>build <strong class="strong">build-a</strong></span><span>parameter 2 of 3</span><span>current <code translate="no">Stack[0x0c]:4</code></span><span class="muted">registers and stack model from build-a's compiler spec · __thiscall</span></div>
+  <div class="ad-scroll"><table class="ad-table"><caption class="sr-only">Storage pieces for parameter 2, uint size, build-a, draft</caption><thead><tr><th scope="col">#</th><th scope="col">Kind</th><th scope="col">Location</th><th scope="col">Size</th><th scope="col">Check</th></tr></thead><tbody>
+   <tr><td class="mono">1</td><td>register</td><td class="mono">EDX</td><td class="mono">4</td><td class="small muted">valid</td></tr>
+   <tr aria-selected="true"><td class="mono">2</td><td>stack</td><td class="mono">+0x0c</td><td class="mono" aria-invalid="true" aria-describedby="se-err">3</td><td class="small g-fail" id="se-err"><span aria-hidden="true">✕ </span>Size 3 is not a valid piece size for build-a. Use 1, 2, 4 or 8.</td></tr>
+  </tbody></table></div>
+  <div class="rev"><span class="kicker">Enter or Save posts once · confirmed here</span>Set parameter storage for <code translate="no">size</code> on build-a: <code translate="no">Stack[0x0c]:4</code> → <code translate="no">EDX:4, Stack[0x0c]:3</code>. Callers' cached decompile on build-a will be marked stale; nothing is re-decompiled. Other builds are unchanged.</div>
+  <footer><button class="ad-btn primary" type="submit" aria-keyshortcuts="Enter">Save <span class="ad-kbd">Enter</span></button><button class="ad-btn" type="button">Add piece</button><button class="ad-btn" type="button" aria-keyshortcuts="Escape">Cancel <span class="ad-kbd">Esc</span></button><span class="note" role="status">Save checked the draft: piece 2 needs a fix. Nothing was posted.</span></footer>
+ </form>
+ <div class="well adl-sig"><span class="mono small"><span class="muted">2 </span>{</span></div>
+</section>
+<div class="adc-states">
+<div>
+ <span class="kicker">Draft equals current · Enter or Save posts nothing and says so</span>
+ <form class="adc-ren inline" role="dialog" aria-modal="false" aria-labelledby="se2-t">
+  <header><h4 id="se2-t">Edit storage · parameter 1 <code translate="no">char *name</code></h4><span class="end">catalog: Set parameter storage</span></header>
+  <div class="tgt"><span>current <code translate="no">Stack[0x08]:4</code></span><span>draft <code translate="no">Stack[0x08]:4</code></span></div>
+  <footer><button class="ad-btn primary" type="submit" aria-keyshortcuts="Enter" aria-describedby="se2-n">Save <span class="ad-kbd">Enter</span></button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button><span class="note" id="se2-n" role="status">No storage change to submit. The draft equals the current storage on build-a; nothing was posted.</span></footer>
+ </form>
+</div>
+<div>
+ <span class="kicker">After the terminal result · acceptance check on the posted pieces</span>
+ <div class="ad-notice info"><b aria-hidden="true">↺</b><div><h4>Posted pieces equal the draft</h4><p>Job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=b7e2" aria-label="Job b7e2, set parameter storage, finished">b7e2</a> recorded <code translate="no">EDX:4, Stack[0x0c]:4</code> for parameter 2 on build-a, the same pieces as the edited draft. Read at 14:06 from the job receipt.</p></div><span></span></div>
+ <div class="ad-notice caution"><b aria-hidden="true">≠</b><div><h4>Posted pieces differ from the draft</h4><p>Piece 2 is <code translate="no">+0x10</code>; the draft was <code translate="no">+0x0c</code>. Nothing is corrected automatically.</p></div><span></span></div>
+</div>
+</div>
 </div>

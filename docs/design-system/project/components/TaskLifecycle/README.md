@@ -1,26 +1,31 @@
 # TaskLifecycle
 
-A task's position in its lifecycle rail, with terminal and side states; its compact form is the **OutcomeCell** a row carries after its verb ran.
+A task's position in its lifecycle rail, with terminal and side states. Its compact variant is the **OutcomeCell** a row carries after a verb ran on it.
 
-**Consumer provides** the current state, prior states and, for terminals and side states, the reason; for the compact form, the job id, the measured unit position and, once finished, the facts whose receipts that job wrote.
+**Consumer provides** the current backend state, the prior states and, for terminals and side states, the reason; for the Explain disclosure, the served `pipeline-model.json` revision and its `crosswalks` entry for the current state, if any; for the compact variant, what OutcomeCell lists (job id, Job outcome word, measured units, submitter, and the facts whose receipts that job wrote).
 
-- Rail: proposed → waiting → ready → admitted → running → awaiting_acceptance → accepted, as an `<ol>` with `aria-current="step"`. Done steps on `pane`; the current step is a 2px `ink-strong` frame plus bold words, never the accent.
+- **Rail: backend states only.** proposed → waiting → ready → admitted → running → awaiting_acceptance → accepted, as an `<ol>` with `aria-current="step"`. Done steps on `pane`. The current step is the 2px `ink-strong` now-frame plus bold words, never the accent (90: the accent is not a status). Rail steps are words, not links.
 - Terminals: ✕ negative, ⊘ unsupported, ⊗ cancelled. Side states (dashed): ↻ retry_wait, ∅ budget_exhausted.
-- **Crosswalk**: admitted, running and awaiting_acceptance link to the execution contract steps they instantiate (`exec-step-2` admit one eligible attempt, `exec-step-3` compute outside commit, `accept-4` independent acceptance), so Explain can render that step in place.
-- **Compact form (OutcomeCell)** on EntityRow, MatchReview, token rows and checked sets: "a3f9 · running · unit 3 of 6", then the terminal word; under "finished" the facts whose receipts that job wrote, as words ("Compilation: passed, new receipt"). A 202 reads "pending · job c4e1" until the terminal result. If the job record names no bound target, the cell reads "outcome in dock · job a3f9". It shows only the latest job this viewer submitted for that exact target, or a job whose own record names it; never a timing guess, never optimistic.
+- **Explain (design text, not evidence).** An APG disclosure beside the rail. It reads the crosswalked node from the backend-served `pipeline-model.json`, never the outline markdown. It is headed "From the pipeline design · model rev ‹8 hex›" with the sentence "Design description ≠ this item's evidence", in the context-hint claim tier (dotted frame, ClaimTier). Its crosswalk line ends "(interpretation)", for example "running → exec-step-3 Compute outside commit (interpretation)". The model's crosswalks are interpretations, never recorded facts:
+  - ready and admitted → `exec-step-2` Admit one eligible attempt;
+  - running → `exec-step-3` Compute outside commit;
+  - awaiting_acceptance and accepted → `accept-4` Independent acceptance, short commit;
+  - proposed, waiting, negative, unsupported, cancelled, retry_wait and budget_exhausted are unmapped. Explain says "No crosswalk for this state" and links nothing.
+- **Compact variant (OutcomeCell)** on EntityRow, MatchReview, token rows and checked sets: "a3f9 · running · unit 3 of 6 · by you", then a terminal word. It uses the Job outcome words (State vocabularies): pending, admitted, waiting, running, checking, then finished, failed or cancelled. It binds only a job whose own record names the row's target; never client memory, never a timing guess, never optimistic. OutcomeCell owns the details.
 - Resource occupancy is not a negative result. Terminal task counts never define objective completion. Lifecycle is never merged into the seven facts: a finished job is not a match.
 
 **Linking**
 
 - **Publishes:** nothing.
-- **Follows:** its host row or record. The OutcomeCell updates only when its job's transition arrives; the dock's Freeze updates also freezes the cell. Not holdable.
-- **Targets rendered:** the job id → the dock Jobs record, focused · a crosswalked state → its contract node (`?node=exec-step-2`, `exec-step-3`, `accept-4`) · a fact named under "finished" → its new receipt card. Link names read "Job a3f9, match siblings, running, unit 3 of 6".
-- **Peek source:** Alt+↓ on the job id reads the stored job record (its three readouts); nothing is polled.
-- **Absent copy:** "Progress unknown" in place of units · "pending · job c4e1" after a 202 · "outcome in dock · job a3f9" · no cell at all before a verb ran on the row.
-- **Target-size exception:** spacing: the job id is the one link in the cell.
+- **Follows:** its host row or record; it changes only when a transition arrives, unless its own region is frozen. Not holdable.
+- **Targets rendered:** the job id → the dock Jobs record, focused · inside Explain only, the crosswalked node → the PipelineMap node (`?node=exec-step-2`, `exec-step-3` or `accept-4`), labelled "(interpretation)". Rail steps are not links. Link names read "Job a3f9, match siblings, running, unit 3 of 6"; "exec-step-3 Compute outside commit, interpretation".
+- **Peek source:** Alt+↓ on the job id reads the stored job record (its three readouts); Explain reads the served `pipeline-model.json` at the stated revision. Nothing is polled.
+- **Absent copy:** "Progress unknown · last event 13:52" in place of units · "No crosswalk for this state" · "Model not loaded. Explain needs pipeline-model.json from the backend."
+- **Target-size exception:** none; the Explain button is 24px. The compact variant's inline job link is OutcomeCell's exception.
 
 **Accessibility**
 
-- The rail is an ordered list; state words are visible. The OutcomeCell is text ("Rename: running, job a3f9" → "Rename: accepted"), referenced from its row by `aria-describedby`; glyphs are `aria-hidden`. One polite message per job transition; a batch is coalesced when its last job ends ("Run on 4 rows: 3 finished, 1 failed"). In-cell progress is not live.
+- The rail is an ordered list; state words are visible; the now-frame is a second cue. Explain is an APG disclosure that never moves focus (WCAG 3.2.1); its tier is a word ("context hint"), not only the dotted frame.
+- The compact variant is text ("Rename: running, job a3f9" → "Rename: finished"), referenced from its row by `aria-describedby`; glyphs are `aria-hidden`. Nothing is announced on pending; one polite message per job transition; a batch is coalesced when its last job ends ("Run on 4 rows ended: 3 finished, 1 failed."). In-cell progress is not live.
 
-**Removes switching:** opening the Jobs dock after every run to learn whether it finished and what it wrote (J21, J22).
+**Removes switching:** opening the Jobs dock after every run to learn whether it finished and what it wrote (J21, J22; counts in the plan ledger).

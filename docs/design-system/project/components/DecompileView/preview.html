@@ -23,7 +23,7 @@
  <span class="kicker">Enter or F2 on a local · InlineRename opens under the line and pushes code down</span>
  <section class="adc-pane" aria-label="Decompile, rename in place">
  <div class="adc-dc" role="grid" translate="no" aria-label="Decompiled C, lines 6 and 7" aria-rowcount="14" aria-colcount="2" aria-readonly="true" aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Home End Control+Home Control+End PageUp PageDown" data-scroll><div class="adc-l" role="row" aria-rowindex="6" aria-selected="true" aria-label="Line 6: local_8 = String::CStr(name); from 3 instructions, 0041b217 to 0041b21f"><span class="adc-ln" role="rowheader" aria-hidden="true">6</span><span class="adc-map" aria-hidden="true"><span class="addr">0041b217</span><span class="n" aria-hidden="true"> ·3</span></span><span class="adc-code" role="gridcell">  <button type="button" class="adc-t lv" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="true" aria-controls="dvr-ed" aria-keyshortcuts="Enter F2 Alt+ArrowDown Shift+F10" aria-label="Local local_8, char pointer, stack minus 0x4, placeholder name. Enter to rename or retype">local_8</button> = <a class="ad-link adc-t fn" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c460" tabindex="-1" translate="no" aria-label="Function String::CStr, 0041c460, build-a">String::CStr</a>(<button type="button" class="adc-t lv" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Parameter name, String pointer, stack plus 0x8, analysis name. Enter to rename or retype">name</button>);<div class="adc-ren inline" id="dvr-ed" role="dialog" aria-modal="false" aria-labelledby="dvr-t">
-   <header><h4 id="dvr-t">Rename or retype <code translate="no">local_8</code></h4><span class="end">rename-variable</span></header>
+   <header><h4 id="dvr-t">Rename or retype <code translate="no">local_8</code></h4><span class="end">catalog: Rename local</span></header>
    <div class="flds">
     <span class="lbl">Now</span><span class="val"><code translate="no">local_8</code><span class="adc-nt weak"><b>5</b> placeholder · decompiler</span></span>
     <label class="lbl" for="dvr-n">Name</label><span class="val"><input class="adc-in is-focus" id="dvr-n" value="nameText" aria-describedby="dvr-h" spellcheck="false" autocomplete="off" translate="no"></span>
@@ -36,36 +36,72 @@
 </div>
 <div class="adc-states">
 <div>
- <span class="kicker">Shift+F10 on a local · not a place</span>
+ <span class="kicker">Shift+F10 on a local · the one link menu with its Edit group · Open does not apply</span>
  <div class="adc-dc" role="grid" translate="no" aria-label="Decompiled C, line 6" aria-rowcount="14" aria-colcount="2" aria-readonly="true" aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Home End Control+Home Control+End PageUp PageDown" data-scroll><div class="adc-l" role="row" aria-rowindex="6" aria-selected="true" aria-label="Line 6: local_8 = String::CStr(name); from 3 instructions, 0041b217 to 0041b21f"><span class="adc-ln" role="rowheader" aria-hidden="true">6</span><span class="adc-map" aria-hidden="true"><span class="addr">0041b217</span><span class="n" aria-hidden="true"> ·3</span></span><span class="adc-code" role="gridcell">  <button type="button" class="adc-t lv is-focus" tabindex="0" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-keyshortcuts="Enter F2 Alt+ArrowDown Shift+F10" aria-label="Local local_8, char pointer, stack minus 0x4, placeholder name. Enter to rename or retype">local_8</button> = <a class="ad-link adc-t fn" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c460" tabindex="-1" translate="no" aria-label="Function String::CStr, 0041c460, build-a">String::CStr</a>(<button type="button" class="adc-t lv" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Parameter name, String pointer, stack plus 0x8, analysis name. Enter to rename or retype">name</button>);</span></div></div>
- <div class="ad-pop adc-menu">
+ <div class="ad-pop adc-menu adc-lm">
   <span class="kicker" id="dvm-h">local_8 · local · char * · stack [ebp − 0x4]</span>
   <ul class="ad-menu" role="menu" aria-labelledby="dvm-h">
-   <li role="none"><div role="menuitem" tabindex="-1" class="is-active" aria-keyshortcuts="F2"><span class="t">Rename…</span><span class="m">F2</span></div></li>
-   <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Retype…</span><span class="m">char *</span></div></li>
-   <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="Alt+ArrowDown"><span class="t">Peek</span><span class="m">Alt+↓</span></div></li>
-   <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Find references</span><span class="m">3 uses</span><span class="note">Uses on lines 6, 7 and 9, listed in the XrefPanel</span></div></li>
-   <li role="none"><div role="menuitem" tabindex="-1" aria-disabled="true" aria-describedby="dvm-n1"><span class="t">Open to the side</span><span class="m">Shift+Enter</span><span class="note" id="dvm-n1">A local is not a place to open.</span></div></li>
-   <li role="none"><div role="menuitem" tabindex="-1" aria-disabled="true" aria-describedby="dvm-n2"><span class="t">Copy address</span><span class="note" id="dvm-n2">Locals have storage, not an address: stack [ebp − 0x4].</span></div></li>
+   <li role="group" aria-label="Open"><ul role="none">
+    <li role="none"><div role="menuitem" tabindex="-1" aria-disabled="true" aria-describedby="dvm-n1" aria-keyshortcuts="Enter"><span class="t">Open</span><span class="m">Enter</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-disabled="true" aria-describedby="dvm-n1" aria-keyshortcuts="Shift+Enter"><span class="t">Open beside</span><span class="m">Shift+Enter</span><span class="note" id="dvm-n1">A local is not a place to open.</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="Alt+ArrowDown"><span class="t">Peek</span><span class="m">Alt+↓</span><span class="note">Type, storage, tier and uses, read from this function</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Peek type</span><span class="m">char *</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="H"><span class="t">Highlight uses</span><span class="m">h</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="R"><span class="t">Show reflected row</span><span class="m">r</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="X"><span class="t">Find references</span><span class="m">3 uses</span><span class="note">Uses on lines 6, 7 and 9, listed in References</span></div></li>
+   </ul></li>
    <li role="separator"></li>
-   <li role="none"><div role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false"><span class="t">Reveal in</span><span class="m" aria-hidden="true">▸</span><span class="note">Compare · Evidence · Navigator</span></div></li>
+   <li role="group" aria-labelledby="dvm-g2"><span class="kicker grp" id="dvm-g2" aria-hidden="true">Edit · from the catalog</span><ul role="none">
+    <li role="none"><div role="menuitem" tabindex="-1" class="is-active" aria-keyshortcuts="F2"><span class="t">Rename…</span><span class="m">F2</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Retype…</span><span class="m">char *</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Comment…</span><span class="m">line 6</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Trace data flow…</span><span class="m">arms</span><span class="note">Arms the ActionStrip bound to local_8 on build-a; nothing runs</span></div></li>
+   </ul></li>
+   <li role="separator"></li>
+   <li role="group" aria-labelledby="dvm-g3"><span class="kicker grp" id="dvm-g3" aria-hidden="true">Reveal in</span><ul role="none">
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Evidence</span><span class="m">Why this name</span><span class="note">NameProvenance for local_8 in ResourceRef::Resolve, build-a</span></div></li>
+   </ul></li>
+   <li role="separator"></li>
+   <li role="group" aria-label="Copy"><ul role="none">
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Copy link</span><span class="m">line 6</span><span class="note">The line at 0041b217, build-a</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Copy name</span><span class="m">local_8</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-disabled="true" aria-describedby="dvm-n2"><span class="t">Copy address</span><span class="note" id="dvm-n2">Locals have storage, not an address: stack [ebp − 0x4].</span></div></li>
+   </ul></li>
   </ul>
  </div>
 </div>
 <div>
- <span class="kicker">Shift+F10 on a callee · a place</span>
+ <span class="kicker">Shift+F10 on a callee · a place · the signature edit goes through ConfirmDialog</span>
  <div class="adc-dc" role="grid" translate="no" aria-label="Decompiled C, line 7" aria-rowcount="14" aria-colcount="2" aria-readonly="true" aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Home End Control+Home Control+End PageUp PageDown" data-scroll><div class="adc-l" role="row" aria-rowindex="7" aria-selected="true" aria-label="Line 7: pCVar1 = Archive::OpenMember(resourceArchive,local_8); from 4 instructions, 0041b222 to 0041b22e"><span class="adc-ln" role="rowheader" aria-hidden="true">7</span><span class="adc-map" aria-hidden="true"><span class="addr">0041b222</span><span class="n" aria-hidden="true"> ·4</span></span><span class="adc-code" role="gridcell">  <button type="button" class="adc-t lv" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Local pCVar1, CacheEntry pointer, register eax, placeholder name. Enter to rename or retype">pCVar1</button> = <a class="ad-link adc-t fn is-focus" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041d0a0" tabindex="0" translate="no" aria-label="Function Archive::OpenMember, 0041d0a0, build-a" aria-keyshortcuts="Enter Shift+Enter Alt+ArrowDown Shift+F10">Archive::OpenMember</a>(<a class="ad-link adc-t gl" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0045e230" tabindex="-1" translate="no" aria-label="Global resourceArchive, data 0045e230, build-a">resourceArchive</a>,<button type="button" class="adc-t lv" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Local local_8, char pointer, stack minus 0x4, placeholder name. Enter to rename or retype">local_8</button>);</span></div></div>
- <div class="ad-pop adc-menu">
+ <div class="ad-pop adc-menu adc-lm">
   <span class="kicker" id="dvc-h">Archive::OpenMember · callee · function 0041d0a0</span>
   <ul class="ad-menu" role="menu" aria-labelledby="dvc-h">
-   <li role="none"><div role="menuitem" tabindex="-1" class="is-active"><span class="t">Rename…</span><span class="m">build-a 0041d0a0</span><span class="note">Opens the editor bound to that function. F2 is for locals and labels only.</span></div></li>
-   <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Retype…</span><span class="m">signature</span></div></li>
-   <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="Alt+ArrowDown"><span class="t">Peek</span><span class="m">Alt+↓</span></div></li>
-   <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Find references</span><span class="m">7 in · 4 out</span></div></li>
-   <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="Shift+Enter"><span class="t">Open to the side</span><span class="m">Shift+Enter</span><span class="note">Read-only held pane; the selection stays on line 7</span></div></li>
-   <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Copy address</span><span class="m">0041d0a0</span></div></li>
+   <li role="group" aria-label="Open"><ul role="none">
+    <li role="none"><div role="menuitem" tabindex="-1" class="is-active" aria-keyshortcuts="Enter"><span class="t">Open</span><span class="m">Enter</span><span class="note">Code Browser at 0041d0a0, build-a; one history stop</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="Shift+Enter"><span class="t">Open beside</span><span class="m">Shift+Enter</span><span class="note">Creates a Held pane; the selection stays on line 7</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="Alt+ArrowDown"><span class="t">Peek</span><span class="m">Alt+↓</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Peek type</span><span class="m">signature</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="H"><span class="t">Highlight uses</span><span class="m">h</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="R"><span class="t">Show reflected row</span><span class="m">r</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="X"><span class="t">Find references</span><span class="m">7 in · 4 out</span></div></li>
+   </ul></li>
    <li role="separator"></li>
-   <li role="none"><div role="menuitem" tabindex="-1" aria-haspopup="menu" aria-expanded="false"><span class="t">Reveal in</span><span class="m" aria-hidden="true">▸</span><span class="note">Compare · Evidence · Navigator · Dock</span></div></li>
+   <li role="group" aria-labelledby="dvc-g2"><span class="kicker grp" id="dvc-g2" aria-hidden="true">Edit · from the catalog</span><ul role="none">
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Rename…</span><span class="m">build-a 0041d0a0</span><span class="note">Opens the editor bound to that function. F2 is for locals, parameters and labels.</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Edit callee signature…</span><span class="m">build-a</span><span class="note">Changes every call of Archive::OpenMember on build-a, so it opens ConfirmDialog naming the callee, build-a and 7 known callers.</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Trace data flow…</span><span class="m">arms</span><span class="note">Arms the ActionStrip; nothing runs</span></div></li>
+   </ul></li>
+   <li role="separator"></li>
+   <li role="group" aria-labelledby="dvc-g3"><span class="kicker grp" id="dvc-g3" aria-hidden="true">Reveal in</span><ul role="none">
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Compare</span><span class="m">counterparts</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Evidence</span><span class="m">facts and receipts</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Navigator</span><span class="m">Functions row</span></div></li>
+   </ul></li>
+   <li role="separator"></li>
+   <li role="group" aria-label="Copy"><ul role="none">
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Copy link</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Copy address</span><span class="m">0041d0a0</span></div></li>
+   </ul></li>
   </ul>
  </div>
 </div>
@@ -97,6 +133,20 @@
  <section class="adc-pane" aria-label="Decompile, reflecting the Listing cursor">
   <div class="adc-dc" role="grid" translate="no" aria-label="Decompiled C, lines 5 to 7" aria-rowcount="14" aria-colcount="2" aria-readonly="true" aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight Home End Control+Home Control+End PageUp PageDown" data-scroll><div class="adc-l" role="row" aria-rowindex="5" aria-label="Line 5: blank no address mapping"><span class="adc-ln" role="rowheader" aria-hidden="true">5</span><span class="adc-map" aria-hidden="true"></span><span class="adc-code" role="gridcell"></span></div><div class="adc-l refl" role="row" aria-rowindex="6" aria-label="Line 6: local_8 = String::CStr(name); from 3 instructions, 0041b217 to 0041b21f, reflects 0041b21a"><span class="adc-ln" role="rowheader" aria-hidden="true">6</span><span class="adc-map" aria-hidden="true"><span class="addr">0041b217</span><span class="n" aria-hidden="true"> ·3</span></span><span class="adc-code" role="gridcell">  <button type="button" class="adc-t lv" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Local local_8, char pointer, stack minus 0x4, placeholder name. Enter to rename or retype">local_8</button> = <a class="ad-link adc-t fn hit" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c460" tabindex="-1" translate="no" aria-label="Function String::CStr, 0041c460, build-a">String::CStr</a>(<button type="button" class="adc-t lv" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Parameter name, String pointer, stack plus 0x8, analysis name. Enter to rename or retype">name</button>); <span class="adc-rt">↔ 0041b21a</span></span></div><div class="adc-l" role="row" aria-rowindex="7" aria-label="Line 7: pCVar1 = Archive::OpenMember(resourceArchive,local_8); from 4 instructions, 0041b222 to 0041b22e"><span class="adc-ln" role="rowheader" aria-hidden="true">7</span><span class="adc-map" aria-hidden="true"><span class="addr">0041b222</span><span class="n" aria-hidden="true"> ·4</span></span><span class="adc-code" role="gridcell">  <button type="button" class="adc-t lv" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Local pCVar1, CacheEntry pointer, register eax, placeholder name. Enter to rename or retype">pCVar1</button> = <a class="ad-link adc-t fn" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041d0a0" tabindex="-1" translate="no" aria-label="Function Archive::OpenMember, 0041d0a0, build-a">Archive::OpenMember</a>(<a class="ad-link adc-t gl" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0045e230" tabindex="-1" translate="no" aria-label="Global resourceArchive, data 0045e230, build-a">resourceArchive</a>,<button type="button" class="adc-t lv" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Local local_8, char pointer, stack minus 0x4, placeholder name. Enter to rename or retype">local_8</button>);</span></div></div>
   <div class="adc-status"><span>Listing cursor <span class="addr">0041b21a</span> <code translate="no">call String::CStr</code> produced the under-barred token on line 6.</span></div>
+ </section>
+</div>
+<div>
+ <span class="kicker">h on local_8 · every use boxed and lettered, count on the legend chip, never an underline</span>
+ <section class="adc-pane" aria-label="Decompile, highlight all">
+  <div class="adc-hlbar" role="group" aria-label="Highlights"><button type="button" class="adc-hlchip" aria-label="Remove highlight A: local_8, 3 in this function, keyed by variable"><b aria-hidden="true">A</b>local_8 · 3 in this function · variable</button><span>Build-b and build-c get it only via anchor</span></div>
+  <div class="adc-dc" role="grid" translate="no" aria-label="Decompiled C, lines 6, 7 and 9" aria-rowcount="14" aria-colcount="2" aria-readonly="true" data-scroll><div class="adc-l" role="row" aria-rowindex="6" aria-selected="true" aria-label="Line 6: local_8 = String::CStr(name); from 3 instructions, 0041b217 to 0041b21f"><span class="adc-ln" role="rowheader" aria-hidden="true">6</span><span class="adc-map" aria-hidden="true"><span class="addr">0041b217</span><span class="n" aria-hidden="true"> ·3</span></span><span class="adc-code" role="gridcell">  <button type="button" class="adc-t lv adc-hl is-focus" tabindex="0" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-keyshortcuts="H" aria-label="Local local_8, char pointer, stack minus 0x4, placeholder name, highlight A. Enter to rename or retype">local_8</button><span class="adc-hlb" aria-hidden="true">A</span> = <a class="ad-link adc-t fn" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c460" tabindex="-1" translate="no" aria-label="Function String::CStr, 0041c460, build-a">String::CStr</a>(name);</span></div><div class="adc-l" role="row" aria-rowindex="7" aria-label="Line 7: pCVar1 = Archive::OpenMember(resourceArchive,local_8); from 4 instructions, 0041b222 to 0041b22e"><span class="adc-ln" role="rowheader" aria-hidden="true">7</span><span class="adc-map" aria-hidden="true"><span class="addr">0041b222</span><span class="n" aria-hidden="true"> ·4</span></span><span class="adc-code" role="gridcell">  pCVar1 = <a class="ad-link adc-t fn" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041d0a0" tabindex="-1" translate="no" aria-label="Function Archive::OpenMember, 0041d0a0, build-a">Archive::OpenMember</a>(resourceArchive,<button type="button" class="adc-t lv adc-hl" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Local local_8, char pointer, stack minus 0x4, placeholder name, highlight A. Enter to rename or retype">local_8</button><span class="adc-hlb" aria-hidden="true">A</span>);</span></div><div class="adc-l" role="row" aria-rowindex="9" aria-label="Line 9: Log::Warn(&quot;resource not found: %s&quot;,local_8); from 3 instructions, 0041b235 to 0041b240"><span class="adc-ln" role="rowheader" aria-hidden="true">9</span><span class="adc-map" aria-hidden="true"><span class="addr">0041b235</span><span class="n" aria-hidden="true"> ·3</span></span><span class="adc-code" role="gridcell">    <a class="ad-link adc-t fn" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041f2c0" tabindex="-1" translate="no" aria-label="Function Log::Warn, 0041f2c0, build-a">Log::Warn</a>("resource not found: %s",<button type="button" class="adc-t lv adc-hl" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Local local_8, char pointer, stack minus 0x4, placeholder name, highlight A. Enter to rename or retype">local_8</button><span class="adc-hlb" aria-hidden="true">A</span>);</span></div></div>
+ </section>
+</div>
+<div>
+ <span class="kicker">Predates a job · a caller's cached decompile is never re-decompiled automatically</span>
+ <section class="adc-pane" aria-labelledby="dvp-h">
+  <header><span class="kicker">Decompile</span><h4 id="dvp-h" translate="no">Actor::LoadFromTemplate</h4><span class="small muted">build-a <span class="addr">0041a480</span></span></header>
+  <div class="adc-note caution top"><b aria-hidden="true">◷</b><div><p><strong>Predates job <a class="ad-link" href="?project=corpus-alpha&amp;dock=jobs&amp;job=c4d2" aria-label="Job c4d2, edit callee signature, finished">c4d2</a> · Enter to decompile</strong></p><p>Job c4d2 changed the signature of ResourceRef::Resolve on build-a. This cached decompile of a caller was read at 13:58, before it.</p></div><button type="button" class="ad-btn compact">Decompile</button></div>
  </section>
 </div>
 <div>

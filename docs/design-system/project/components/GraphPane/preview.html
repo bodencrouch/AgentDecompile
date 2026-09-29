@@ -40,10 +40,11 @@
  <header><span class="kicker">Graph</span><h4 id="gp2-h">Calls from <code translate="no">Actor::LoadFromTemplate</code></h4><span class="small muted">build-a · depth 2 · root kept</span>
   <span class="end"><span class="ad-sync small"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Following · sync A</span>
    <span class="ad-seg" role="group" aria-label="Graph form"><button aria-pressed="true">Graph</button><button aria-pressed="false">List</button></span>
-   <button class="ad-btn compact">Re-root on selection</button><button class="ad-btn compact" aria-pressed="false">Hold this pane</button></span>
+   <button class="ad-btn compact" aria-describedby="gp2-rr">Re-root here</button><span class="sr-only" id="gp2-rr">Makes the selected function the new root. The graph never re-roots by itself.</span><button class="ad-btn compact" aria-pressed="false">Hold this pane</button></span>
   <p id="gp2-d" class="small">Selection: <a class="ad-link" href="?project=corpus-alpha&amp;entity=91&amp;build=build-a&amp;addr=0041d0a0" translate="no">Archive::OpenMember</a>, by Enter on its node (one history stop). It is inside this graph, so the root, zoom and scroll stay.</p></header>
  <div class="ad-tools" role="toolbar" aria-label="Call graph view">
-  <span><span class="lbl" id="gp2-dl">Depth</span><span class="ad-seg" role="group" aria-labelledby="gp2-dl"><button aria-pressed="false">1</button><button aria-pressed="true">2</button><button aria-pressed="false">3</button></span></span>
+  <span class="ad-seg" role="group" aria-label="Direction"><button aria-pressed="false" aria-keyshortcuts="I">Callers</button><button aria-pressed="true" aria-keyshortcuts="O">Callees</button></span>
+   <span><span class="lbl" id="gp2-dl">Depth</span><span class="ad-seg" role="group" aria-labelledby="gp2-dl"><button aria-pressed="false">1</button><button aria-pressed="true">2</button><button aria-pressed="false">3</button></span></span>
   <span class="ad-gp-zoom"><button class="ad-btn compact" aria-label="Zoom out" aria-keyshortcuts="-"><span aria-hidden="true">−</span></button><output class="mono small" aria-label="Zoom">100%</output><button class="ad-btn compact" aria-label="Zoom in" aria-keyshortcuts="+"><span aria-hidden="true">+</span></button><button class="ad-btn compact" aria-keyshortcuts="0">Fit</button></span>
  </div>
  <div class="ad-gp-vp" data-scroll>
@@ -82,7 +83,7 @@
      <span class="ad-seg" role="group" aria-label="Graph form"><button aria-pressed="false">Graph</button><button aria-pressed="true">List</button></span>
      <button class="ad-btn compact" aria-pressed="true">Hold this pane</button><button class="ad-btn compact" aria-describedby="gp3-mp">Make primary</button><button class="ad-btn compact">Release</button></span>
     <p class="small muted">Held · read 13:52 · basis <a class="ad-link" href="?project=corpus-alpha&amp;receipt=9f3ca1e0">9f3c…a1e0</a> · unchanged</p>
-    <span class="sr-only" id="gp3-mp">Make primary moves the one selection to this pane's cursor, Archive::OpenMember on build-a, with one history stop.</span></header>
+    <span class="sr-only" id="gp3-mp">Make primary moves the one selection to this pane's cursor, Archive::OpenMember on build-a, with one history stop, and releases the hold. This pane stays open and follows.</span></header>
    <div class="ad-gp-list">
    <ul class="ad-gp-tree" role="tree" aria-label="Held calls from Actor::LoadFromTemplate, build-a, depth 2, list form">
     <li role="none"><a role="treeitem" href="?project=corpus-alpha&amp;entity=90&amp;build=build-a&amp;addr=0041a3f0" aria-level="1" aria-setsize="1" aria-posinset="1" aria-expanded="true" aria-owns="gpt-g1" tabindex="-1" style="--lvl:0"><span class="tw" aria-hidden="true">▾</span><span class="nm" translate="no">Actor::LoadFromTemplate</span><span class="addr" translate="no">0041a3f0</span><span class="meta">root · 7 callees</span></a>
@@ -106,7 +107,8 @@
  </div>
  <div class="stack" style="gap:8px">
   <span class="kicker">States</span>
-  <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Showing ResourceRef::Resolve</h4><p>The selection moved to <span translate="no">FUN_0041c880</span>. The graph is an expensive pane: it draws on Enter, or on Draw now, from existing analysis. Block frames are dashed until then.</p></div><button class="ad-btn compact">Draw now</button></div>
+  <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Shows ResourceRef::Resolve; selection is now FUN_0041c880 · Enter to load</h4><p>Blocks commits on Enter across functions. The old graph stays dimmed with dashed frames; nothing is drawn until Enter or Load, and then only from existing analysis.</p></div><button class="ad-btn compact">Load</button></div>
+  <div class="ad-notice info"><b aria-hidden="true">↺</b><div><h4>Selection is outside this graph · Re-root here</h4><p>The selection moved to Log::Warn, which the Calls graph from Actor::LoadFromTemplate does not draw. Root, zoom and scroll stay until you re-root.</p></div><button class="ad-btn compact">Re-root here</button></div>
   <div class="ad-notice info"><b aria-hidden="true">◐</b><div><h4>Truncated · 412 blocks</h4><p>Drawing the 40 blocks nearest the cursor. The list form has all 412; nothing beyond existing analysis is read.</p></div><button class="ad-btn compact">List form</button></div>
   <div class="ad-notice unknown"><b aria-hidden="true">○</b><div><h4>Not loaded. Open to read it.</h4><p>build-c is not open in this session. A graph is drawn from existing analysis only; it never opens a program or starts analysis.</p></div><span></span></div>
  </div>

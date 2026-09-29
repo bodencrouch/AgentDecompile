@@ -1,9 +1,11 @@
-<!-- @dsCard group="Shell" height=70 -->
+<!-- @dsCard group="Shell" height=120 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <div class="ad-tabs" role="tablist" aria-label="Sessions">
-<div class="ad-tab is-active" role="none"><button class="ad-tab-btn" role="tab" id="st-1" aria-selected="true" tabindex="0" aria-keyshortcuts="Delete F2"><span class="ad-chip shared-fs">shared-fs</span>corpus-alpha</button><button class="ad-tab-close" tabindex="-1" aria-label="Close corpus-alpha">×</button></div>
-<div class="ad-tab" role="none"><button class="ad-tab-btn" role="tab" id="st-2" aria-selected="false" tabindex="-1"><span class="ad-chip gpr">gpr</span>local-analysis</button><button class="ad-tab-close" tabindex="-1" aria-label="Close local-analysis">×</button></div>
-<div class="ad-tab" role="none"><button class="ad-tab-btn" role="tab" id="st-3" aria-selected="false" tabindex="-1"><span class="ad-chip shared-http">server</span>team-repository</button><button class="ad-tab-close" tabindex="-1" aria-label="Close team-repository">×</button></div>
-<div class="ad-tab" role="none"><button class="ad-tab-btn" role="tab" id="st-4" aria-selected="false" tabindex="-1"><span class="ad-chip bin">bin</span>installer-payload</button><button class="ad-tab-close" tabindex="-1" aria-label="Close installer-payload">×</button></div>
-<div class="ad-tab" role="none"><button class="ad-tab-btn" role="tab" id="st-5" aria-selected="false" tabindex="-1"><span class="ad-chip draft">draft</span>scratch 2</button><button class="ad-tab-close" tabindex="-1" aria-label="Close scratch 2">×</button></div></div>
+<div class="ad-tab is-active" role="none"><button class="ad-tab-btn" role="tab" id="st-1" aria-selected="true" tabindex="0" aria-describedby="st-del" aria-keyshortcuts="Delete F2"><span class="ad-chip shared-fs">shared-fs</span>corpus-alpha</button><button class="ad-tab-close" tabindex="-1" aria-hidden="true">×</button></div>
+<div class="ad-tab" role="none"><button class="ad-tab-btn" role="tab" id="st-2" aria-selected="false" tabindex="-1" aria-describedby="st-del"><span class="ad-chip gpr">gpr</span>local-analysis</button><button class="ad-tab-close" tabindex="-1" aria-hidden="true">×</button></div>
+<div class="ad-tab" role="none"><button class="ad-tab-btn" role="tab" id="st-3" aria-selected="false" tabindex="-1" aria-describedby="st-del"><span class="ad-chip shared-http">server</span>team-repository</button><button class="ad-tab-close" tabindex="-1" aria-hidden="true">×</button></div>
+<div class="ad-tab" role="none"><button class="ad-tab-btn" role="tab" id="st-4" aria-selected="false" tabindex="-1" aria-describedby="st-del st-other"><span class="ad-chip bin">bin</span>corpus-beta</button><button class="ad-tab-close" tabindex="-1" aria-hidden="true">×</button></div>
+<div class="ad-tab" role="none"><button class="ad-tab-btn" role="tab" id="st-5" aria-selected="false" tabindex="-1" aria-describedby="st-del"><span class="ad-chip draft">draft</span>scratch 2</button><button class="ad-tab-close" tabindex="-1" aria-hidden="true">×</button></div></div>
+<span class="sr-only" id="st-del">Delete closes this session tab.</span><span class="sr-only" id="st-other">Project corpus-beta. Activating shows Switch or Stay; it never switches by itself.</span>
+<p class="small muted" style="margin:0">Manual activation: arrows move focus, Enter or Space activates. The × is for pointers; Delete or the tab's menu ("Close ‹title›") closes from the keyboard.</p>
 </div>

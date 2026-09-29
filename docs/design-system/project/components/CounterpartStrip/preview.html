@@ -1,8 +1,8 @@
 <!-- @dsCard group="Compare" height=818 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<span class="kicker">Under the view title · focus on build-c · build-c is open beside</span>
+<span class="kicker">One strip per composite, above the Code Browser · focus on build-c · build-c is open beside</span>
 <div class="ad-cstrip-view">
- <div class="ad-pane-h"><span><span class="strong" translate="no">ResourceRef::Resolve</span> <span class="small muted">logical #88 · build-a <span class="addr">0041b210</span></span></span><span class="small muted">Listing · build-a</span></div>
+ <div class="ad-pane-h"><span><span class="strong" translate="no">ResourceRef::Resolve</span> <span class="small muted">logical #88 · build-a <span class="addr">0041b210</span></span></span><span class="small muted">Code Browser · build-a</span></div>
  <div class="ad-cstrip">
   <span class="lbl"><span class="kicker" id="cs1-l">Counterparts</span><span class="l2"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;ws=compare" aria-label="Logical id 88 on 4 builds, CounterpartMatrix">#88 · 4 builds</a><span class="src"><span class="sr-only">, read from the stored cross-build index at </span><span aria-hidden="true"> · </span><time datetime="2026-09-29T13:41">13:41</time></span></span></span>
   <div role="toolbar" aria-labelledby="cs1-l" aria-describedby="cs1-k">
@@ -11,7 +11,7 @@
    <a class="it resolved is-focus" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=00082f40" tabindex="0" translate="no" aria-label="Counterpart on build-c, address 00082f40, resolved, one to many split-or-inlined candidate, identity edge candidate, open beside" aria-keyshortcuts="Enter Shift+Enter Alt+ArrowDown"><span class="l1"><b aria-hidden="true">●</b><span class="bn">build-c</span><span class="addr">00082f40</span><span class="tag">beside</span></span><span class="l2">resolved · <span class="dv">1↔N</span> · <span class="ad-edge candidate mini"></span>candidate</span></a>
    <button class="it unresolved absent" type="button" tabindex="-1" aria-haspopup="dialog" aria-expanded="false" aria-label="build-d: absent, unresolved, diverged, no identity edge. Show why" aria-keyshortcuts="Enter Alt+ArrowDown"><span class="l1"><b aria-hidden="true">◌</b><span class="bn">build-d</span><em>absent</em></span><span class="l2">unresolved · <span class="dv">≠</span> · no edge</span></button>
   </div>
-  <span class="sr-only" id="cs1-k">Arrow keys move. Enter goes to that build, keeping the entity. Shift+Enter opens beside. Alt+Down peeks.</span>
+  <span class="sr-only" id="cs1-k">Arrow keys move and never switch the build. Enter goes to that build, keeping the entity and mapping the cursor through recorded anchors only; it clears 4 checked rows on build-a. Shift+Enter opens beside as a Held pane. Alt+Down peeks.</span>
  </div>
  <div class="ad-listing well" aria-label="Listing, build-a, ResourceRef::Resolve">
   <div class="ad-ln label"><span></span><span class="addr">0041b210</span><span></span><span>ResourceRef::Resolve:</span><span></span><span class="xref">XREF[12]</span></div>
@@ -49,6 +49,9 @@
    <ul class="ad-menu" role="menu" aria-labelledby="cs3-mh">
     <li role="none"><a role="menuitem" class="is-active" href="?project=corpus-alpha&amp;entity=91&amp;build=build-b&amp;addr=0041d140" tabindex="-1"><span class="t" translate="no">0041d140 <span class="small muted">· candidate 1</span></span><span class="m">BSim 0.81</span><span class="note">rare ref "arc/%s.idx" · margin 0.03 over candidate 2</span></a></li>
     <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;entity=91&amp;build=build-b&amp;addr=0041d6c0" tabindex="-1"><span class="t" translate="no">0041d6c0 <span class="small muted">· candidate 2</span></span><span class="m">BSim 0.78</span><span class="note">callee order only</span></a></li>
+    <li role="separator"></li>
+    <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;entity=91&amp;ws=compare&amp;hold=addr:0041d140@build-b&amp;hold=addr:0041d6c0@build-b" tabindex="-1"><span class="t">Compare candidates</span><span class="note">The Compare workspace, two held panes, “candidate 1 of 2 · ambiguous”</span></a></li>
+    <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;entity=91&amp;build=build-b&amp;ws=evidence&amp;node=ladder-A" tabindex="-1"><span class="t">Open ladder run</span><span class="m">ladder A</span></a></li>
    </ul>
    <footer><span>Enter go · Shift+Enter beside · Alt+↓ peek</span><span>Opening one does not accept it.</span></footer>
   </div>
@@ -73,7 +76,7 @@
 </div>
 
 <div class="stack" style="gap:6px;max-width:380px">
- <span class="kicker">Narrow pane · wraps, never scrolls sideways</span>
+ <span class="kicker">Narrow pane · one wrapping line, never scrolls sideways (320px wrap rule)</span>
  <div class="ad-cstrip">
   <span class="lbl"><span class="kicker" id="cs5-l">Counterparts</span><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;ws=compare">#88 · 4 builds</a></span>
   <div role="toolbar" aria-labelledby="cs5-l">
@@ -84,5 +87,13 @@
   </div>
  </div>
 </div>
-<p class="sr-only" role="status">Inspected build: build-b. ResourceRef::Resolve at 0041b2c0.</p>
+<div class="stack" style="gap:6px;max-width:360px">
+ <span class="kicker">Below 700px · more than two lines collapse behind a 44px disclosure; the Build menu stays the navigation path</span>
+ <div class="ad-cstrip">
+  <span class="lbl"><span class="kicker" id="cs6-l">Counterparts</span><span class="small">4 builds: 2 resolved, 1 pinned, 1 absent</span></span>
+  <button type="button" class="ad-cstrip-disc" aria-expanded="false" aria-controls="cs6-list">Counterparts (3) <span aria-hidden="true">▾</span></button>
+  <div id="cs6-list" hidden>The four build cells, as above.</div>
+ </div>
+</div>
+<p class="sr-only" role="status">Inspecting build-b, 0041b2c3, partner of anchor 0041b213 (rare ref; identity edge accepted).</p>
 </div>

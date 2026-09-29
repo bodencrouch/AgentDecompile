@@ -1,4 +1,8 @@
-<!-- @dsCard group="Shell" height=180 -->
+<!-- @dsCard group="Shell" height=380 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">Batch · a checked set of 3</span>
 <div class="ad-dialog" role="alertdialog" aria-labelledby="cd-t" aria-describedby="cd-d" aria-modal="true"><h3 id="cd-t">Move 3 rows to verification?</h3><p id="cd-d">The selected candidates for build-b go to verification against basis 9f3c…a1e0. This cannot be undone here.</p><footer><button class="ad-btn is-focus">Cancel</button><button class="ad-btn primary">Move to verification</button></footer></div>
+<span class="kicker">Cross-build · a struct-field retype names the type, build and use count</span>
+<div class="ad-dialog" role="alertdialog" aria-labelledby="cd-t2" aria-describedby="cd-d2" aria-modal="true"><h3 id="cd-t2">Retype <span translate="no">CacheEntry.name_len</span> on build-b</h3><p id="cd-d2">Changes the field in every use of <span class="mono" translate="no">CacheEntry</span> on build-b: 14 known uses. Other builds keep their layout.</p><footer><button class="ad-btn">Cancel</button><button class="ad-btn primary">Retype field</button></footer></div>
+<p class="small muted" style="margin:0">Single-target edits confirm in place and never open this dialog. A history move closes it as Cancel; nothing is sent.</p>
 </div>

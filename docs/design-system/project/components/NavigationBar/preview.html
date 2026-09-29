@@ -1,66 +1,72 @@
-<!-- @dsCard group="Navigation" height=560 -->
+<!-- @dsCard group="Navigation" height=940 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <div class="ad-navbar">
  <div class="bar">
   <span class="grp" role="group" aria-label="History">
-   <button class="ad-btn" aria-label="Back to Actor::LoadFromTemplate" aria-keyshortcuts="Alt+ArrowLeft"><span class="g" aria-hidden="true">←</span></button><button class="ad-btn" aria-label="Forward" aria-keyshortcuts="Alt+ArrowRight" disabled><span class="g" aria-hidden="true">→</span></button><button class="ad-btn" aria-haspopup="menu" aria-expanded="false">Recent <span aria-hidden="true">▾</span></button></span>
-  <div class="ad-goto"><input role="combobox" aria-expanded="false" aria-autocomplete="list" aria-label="Go to address, symbol, logical id, job, receipt or pipeline node" aria-keyshortcuts="Control+P" placeholder="Go to address, @symbol, #id, !job, %receipt, ~node" autocomplete="off" spellcheck="false" translate="no"><span class="ad-kbd">Ctrl P</span></div>
+   <button class="ad-btn" aria-label="Back to Actor::LoadFromTemplate" aria-keyshortcuts="Alt+ArrowLeft"><span class="g" aria-hidden="true">←</span></button><button class="ad-btn" aria-label="Forward" aria-describedby="nb-fwd-d" aria-keyshortcuts="Alt+ArrowRight" aria-disabled="true"><span class="g" aria-hidden="true">→</span></button><button class="ad-btn" aria-haspopup="menu" aria-expanded="true" aria-controls="nb-rec">Recent <span aria-hidden="true">▾</span></button></span><span class="sr-only" id="nb-fwd-d">No later location in this tab.</span>
+  <div class="ad-goto"><input role="combobox" aria-expanded="false" aria-autocomplete="list" aria-label="Go to address, symbol, logical id, job, receipt, node, string or mark" aria-keyshortcuts="Control+P Meta+P" placeholder="Go to · @symbol :address #id !job %receipt ~node" autocomplete="off" spellcheck="false" translate="no"><span class="ad-kbd">Ctrl/Cmd P</span></div>
+  <span class="adl-nb-upd"><span class="lbl" id="nb-upd-l">Update panes</span><span class="ad-seg" role="radiogroup" aria-labelledby="nb-upd-l"><button role="radio" aria-checked="true" tabindex="0">As I move</button><button role="radio" aria-checked="false" tabindex="-1">On Enter</button></span></span>
+  <button class="ad-btn quiet" aria-haspopup="menu" aria-expanded="false">Layout: Read <span aria-hidden="true">▾</span></button>
   <button class="ad-btn quiet" aria-describedby="nb-reload-d">Reload</button><span class="sr-only" id="nb-reload-d">Re-reads stored evidence for this view. Never reanalyzes.</span>
-  <button class="ad-btn quiet ad-sync" aria-pressed="true" aria-describedby="nb-sync-d"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Following</button><span class="sr-only" id="nb-sync-d">This pane follows the selection with the listing and decompiler.</span>
   <button class="ad-btn">Copy link</button>
  </div>
- <nav class="ad-crumbs" aria-label="Breadcrumb">
+ <nav class="ad-crumbs" aria-label="Location">
   <ol>
    <li><span class="lvl" aria-hidden="true">Project</span><a class="ad-link" href="?project=corpus-alpha">corpus-alpha</a><button class="ad-sib" aria-haspopup="menu" aria-expanded="false" aria-label="Other projects">▾</button></li>
-   <li><span class="lvl" aria-hidden="true">Build</span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-a">build-a</a><button class="ad-sib" aria-haspopup="menu" aria-expanded="true" aria-controls="nb-builds" aria-label="Other builds for ResourceRef::Resolve">▾</button></li>
+   <li><span class="lvl" aria-hidden="true">Build</span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-a" aria-label="Build build-a, Navigator program row">build-a</a><button class="ad-sib" aria-haspopup="menu" aria-expanded="true" aria-controls="nb-builds" aria-label="Other builds for ResourceRef::Resolve">▾</button></li>
    <li><span class="lvl" aria-hidden="true">Section</span><a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=00401000">.text</a><button class="ad-sib" aria-haspopup="menu" aria-expanded="false" aria-label="Other sections in build-a">▾</button></li>
    <li><span class="lvl" aria-hidden="true">Function</span><a class="ad-link mono" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" aria-current="location" translate="no">ResourceRef::Resolve</a><span class="addr small">&nbsp;0041b213</span><button class="ad-sib" aria-haspopup="menu" aria-expanded="false" aria-label="Neighbouring functions in .text">▾</button></li>
-  </ol><span class="tail">logical #88 · inspected build 1 of 4</span></nav>
+  </ol><span class="tail">logical #88 · inspected build 1 of 4 · follows · as I move</span></nav>
 </div>
 <div class="ad-nav-states">
- <div class="ad-pop">
-  <span class="kicker" id="nb-rec-h">Recent ▾ · back and forward</span>
+ <div class="ad-pop" id="nb-rec">
+  <span class="kicker" id="nb-rec-h">Recent · this tab's stops · right-click on Back opens it too</span>
   <ul class="ad-menu" role="menu" aria-labelledby="nb-rec-h">
-   <li role="none"><div role="menuitemcheckbox" aria-checked="false" tabindex="-1"><b aria-hidden="true"></b><span class="t">Edited only</span></div></li>
+   <li role="none"><div role="menuitemcheckbox" aria-checked="false" tabindex="-1"><b aria-hidden="true"></b><span class="t">Changed since visited</span></div></li>
    <li role="separator"></li>
-   <li role="none"><a role="menuitem" class="is-active" aria-current="location" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b213" tabindex="-1"><span class="t" translate="no">ResourceRef::Resolve</span><span class="m">now</span><span class="snip">build-a 0041b213 · mov eax, dword ptr [ebp + 0x8]</span></a></li>
-   <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041a47c" tabindex="-1"><span class="t" translate="no">Actor::LoadFromTemplate <span class="small muted">✎ edited</span></span><span class="m">13:52</span><span class="snip">build-a 0041a47c · call ResourceRef::Resolve</span></a></li>
-   <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c8d2" tabindex="-1"><span class="t" translate="no">FUN_0041c880</span><span class="m">13:47</span><span class="snip">build-a 0041c8d2 · call ResourceRef::Resolve</span></a></li>
-   <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;node=gate-4" tabindex="-1"><span class="t">gate-4 · 64 waiting</span><span class="m">13:40</span><span class="note">pipeline node · compile admits candidate, not replacement</span></a></li>
-   <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041b2c0" tabindex="-1"><span class="t" translate="no">ResourceRef::Resolve</span><span class="m">13:31</span><span class="snip">build-b 0041b2c0 · push ebp</span></a></li>
+   <li role="none"><a role="menuitem" class="is-active" aria-current="location" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b213" tabindex="-1"><span class="t" translate="no">ResourceRef::Resolve</span><span class="m">now</span><span class="snip">as read 13:58 · build-a 0041b213 · mov eax, dword ptr [ebp + 0x8]</span></a></li>
+   <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;entity=4127&amp;build=build-a&amp;addr=0041a47c" tabindex="-1"><span class="t" translate="no">Actor::LoadFromTemplate <span class="small muted">✎ edited</span></span><span class="m">13:52</span><span class="snip">as read 13:52 · build-a 0041a47c · call ResourceRef::Resolve</span></a></li>
+   <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c8d2" tabindex="-1"><span class="t" translate="no">FUN_0041c880</span><span class="m">13:47</span><span class="snip">as read 13:47 · build-a 0041c8d2 · call ResourceRef::Resolve</span></a></li>
+   <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;node=gate-4" tabindex="-1"><span class="t">gate-4 · Gate 4</span><span class="m">13:40</span><span class="note">pipeline node · compile admits candidate, not replacement</span></a></li>
+   <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041b2c0" tabindex="-1"><span class="t" translate="no">ResourceRef::Resolve</span><span class="m">13:31</span><span class="snip">as read 13:31 · build-b 0041b2c0 · push ebp</span><span class="note">changed since visited · job a3f9 13:57</span></a></li>
   </ul>
-  <footer><span>Enter go</span><span>Alt+↓ peek</span><span>Esc close</span></footer>
+  <footer><span>Enter go · a stop in this tab is a history step</span><span>Alt+↓ peek</span></footer>
  </div>
  <div class="ad-pop">
-  <div class="ad-goto" style="border-width:0 0 1px"><input role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="nb-go-list" aria-activedescendant="nb-go-1" aria-label="Go to anything" value="resolve" autocomplete="off" spellcheck="false" translate="no"></div>
+  <div class="ad-goto" style="border-width:0 0 1px"><input role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="nb-go-list" aria-activedescendant="nb-go-1" aria-label="Go to anything" value=":0041b2c0" autocomplete="off" spellcheck="false" translate="no"></div>
   <div id="nb-go-list" role="listbox" aria-label="Go to results">
-   <div role="group" aria-labelledby="nb-go-g1"><span class="kicker grp" id="nb-go-g1">Symbols · build-a (inspected)</span><ul class="ad-menu" role="presentation">
-    <li role="option" id="nb-go-1" aria-selected="true"><span class="t" translate="no">ResourceRef::Resolve</span><span class="m">0041b210</span></li>
-    <li role="option" id="nb-go-2" aria-selected="false"><span class="t" translate="no">ResourceRef::ResolveAlias</span><span class="m">0041b3a0</span></li></ul></div>
-   <div role="group" aria-labelledby="nb-go-g2"><span class="kicker grp" id="nb-go-g2">Symbols · other builds</span><ul class="ad-menu" role="presentation">
-    <li role="option" id="nb-go-3" aria-selected="false"><span class="t" translate="no">ResourceRef::ResolvePath</span><span class="m">build-b 0042a1c0</span><span class="note">only on build-b · choosing it switches the inspected build</span></li></ul></div>
-   <div role="group" aria-labelledby="nb-go-g3"><span class="kicker grp" id="nb-go-g3">Logical ids · receipts</span><ul class="ad-menu" role="presentation">
-    <li role="option" id="nb-go-4" aria-selected="false"><span class="t">#88 ResourceRef::Resolve</span><span class="m">4 builds</span></li>
-    <li role="option" id="nb-go-5" aria-selected="false"><span class="t">%7c21…e04b compile receipt</span><span class="m">build-a</span></li></ul></div>
+   <div role="group" aria-labelledby="nb-go-g0"><span class="kicker grp" id="nb-go-g0">Ctrl/Cmd+G · last address jump</span><ul class="ad-menu" role="presentation">
+    <li role="option" id="nb-go-1" aria-selected="true" aria-describedby="nb-go-1d"><span class="t" translate="no">Last: build-b:0041b2c0</span><span class="m">Enter repeats</span><span class="note" id="nb-go-1d">ResourceRef::Resolve · switches the inspected build to build-b · clears 4 checked rows on build-a</span></li></ul></div>
+   <div role="group" aria-labelledby="nb-go-g1"><span class="kicker grp" id="nb-go-g1">Addresses · build-a (inspected)</span><ul class="ad-menu" role="presentation">
+    <li role="option" id="nb-go-2" aria-selected="false"><span class="t" translate="no">0041b2c0 · FUN_0041b2a0 + 0x20</span><span class="m">build-a</span></li></ul></div>
+   <div role="group" aria-labelledby="nb-go-g2"><span class="kicker grp" id="nb-go-g2">Same number elsewhere</span><ul class="ad-menu" role="presentation">
+    <li role="option" id="nb-go-3" aria-selected="false"><span class="t" translate="no">0041b2c0 on build-c</span><span class="m">build-c</span><span class="note">same number on build-c · a different place, not a counterpart</span></li></ul></div>
+   <div role="group" aria-labelledby="nb-go-g3"><span class="kicker grp" id="nb-go-g3">Other project</span><ul class="ad-menu" role="presentation">
+    <li role="option" id="nb-go-4" aria-selected="false"><span class="t" translate="no">!a3f0 job</span><span class="m">corpus-beta</span><span class="note">in corpus-beta · not open · Enter shows Switch or Stay</span></li></ul></div>
   </div>
-  <footer><span>5 results</span><span>Enter go</span><span>Alt+↓ peek</span></footer>
-  <p class="sr-only" role="status">5 results</p>
+  <div class="adl-nb-chips" role="group" aria-label="Scope prefixes"><button class="ad-btn compact">@ symbol</button><button class="ad-btn compact" aria-pressed="true">: address</button><button class="ad-btn compact"># id</button><button class="ad-btn compact">! job</button><button class="ad-btn compact">~ node</button><button class="ad-btn compact">' marks</button></div>
+  <footer><span>4 results · not searched: build-d, not loaded</span><span>Enter go · Shift+Enter open beside · Alt+↓ peek</span></footer>
+  <p class="sr-only" role="status">4 results</p>
  </div>
  <div class="ad-pop" id="nb-builds">
-  <span class="kicker" id="nb-b-h">Build ▾ · #88 on each build</span>
+  <span class="kicker" id="nb-b-h">Build ▾ · #88 on each build · g b</span>
   <ul class="ad-menu" role="menu" aria-labelledby="nb-b-h">
    <li role="none"><a role="menuitem" class="is-active" aria-current="location" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" tabindex="-1"><span class="t"><span class="ad-loc resolved"><b aria-hidden="true">●</b>build-a</span></span><span class="m">0041b210</span><span class="note">resolved · inspected now</span></a></li>
-   <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041b2c0" tabindex="-1"><span class="t"><span class="ad-loc resolved"><b aria-hidden="true">●</b>build-b</span></span><span class="m">0041b2c0</span><span class="note">resolved(anchor_rel) · keeps #88</span></a></li>
-   <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c" tabindex="-1"><span class="t"><span class="ad-loc pinned"><b aria-hidden="true">◎</b>build-c</span></span><span class="m">module_rva 0x1b210</span><span class="note">pinned, non-portable · program not open</span></a></li>
-   <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;entity=88&amp;build=build-d" tabindex="-1"><span class="t"><span class="ad-loc unresolved"><b aria-hidden="true">◌</b>build-d</span></span><span class="m">unresolved</span><span class="note">no counterpart · opens build-d and says why</span></a></li>
+   <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041b2c0" tabindex="-1" aria-label="build-b, 0041b2c0, 1↔1, accepted"><span class="t"><span class="ad-loc resolved"><b aria-hidden="true">●</b>build-b</span></span><span class="m">0041b2c0</span><span class="note">1↔1 · accepted · keeps #88, cursor through anchors</span></a></li>
+   <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=00082f40" tabindex="-1" aria-label="build-c, 00082f40, 1↔N, candidate. Opening one does not accept it. Not loaded"><span class="t"><span class="ad-loc pinned"><b aria-hidden="true">◎</b>build-c</span></span><span class="m">00082f40</span><span class="note">1↔N · candidate · Opening one does not accept it · Not loaded · Open build-c</span></a></li>
+   <li role="none"><div role="menuitem" aria-disabled="true" tabindex="-1" aria-label="build-d, absent"><span class="t"><span class="ad-loc unresolved"><b aria-hidden="true">◌</b>build-d</span></span><span class="m">absent</span><span class="note">no counterpart · nothing to open</span></div></li>
   </ul>
-  <footer><span>Switching build is explicit and announced; never on focus.</span></footer>
+  <footer><span>Picking one is a Go: one stop, never a re-resolved address.</span></footer>
  </div>
 </div>
 <div class="stack" style="gap:6px">
- <span class="kicker">Copy link carries</span>
- <p class="ad-url" translate="no">/dashboard?<span class="k">project=</span>corpus-alpha&amp;<span class="k">entity=</span>88&amp;<span class="k">build=</span>build-a&amp;<span class="k">addr=</span>0041b213&amp;<span class="k">ws=</span>code&amp;<span class="k">views=</span>listing,decompile&amp;<span class="k">hold=</span>fn:0041c880@build-a&amp;<span class="k">cmp=</span>build-a..build-b&amp;<span class="k">node=</span>gate-4&amp;<span class="k">f=</span>xref.dir:in</p>
- <span class="small muted">The same parameters open this selection in /dashboard and /react/. A link never carries the checked set, drafts, open peeks or an action.</span>
- <p class="sr-only" role="status">Link copied</p>
+ <span class="kicker">Below 700px · collapsed bar</span>
+ <div class="ad-navbar"><div class="bar"><button class="ad-btn" aria-label="Back to Actor::LoadFromTemplate" aria-keyshortcuts="Alt+ArrowLeft"><span class="g" aria-hidden="true">←</span></button><button class="ad-btn" aria-haspopup="dialog" aria-keyshortcuts="Control+P Meta+P">Go to…</button><button class="ad-btn" aria-haspopup="dialog">Worklist 4 of 12</button><span class="small muted">Update panes: On Enter · forced below 700px</span></div></div>
+</div>
+<div class="stack" style="gap:6px">
+ <span class="kicker">Copy link carries canonical names only</span>
+ <p class="ad-url" translate="no">/dashboard?<span class="k">project=</span>corpus-alpha&amp;<span class="k">entity=</span>88&amp;<span class="k">build=</span>build-a&amp;<span class="k">addr=</span>0041b213&amp;<span class="k">ws=</span>code&amp;<span class="k">views=</span>listing,decompile&amp;<span class="k">hold=</span>fn:0041c880@build-a&amp;<span class="k">keep=</span>receipt:7c21@build-a&amp;<span class="k">f=</span>xref.dir:in</p>
+ <span class="small muted">The same parameters open this place in /dashboard and /react/. A link never carries the checked set, drafts or credentials, and never an action.</span>
+ <p class="sr-only" role="status">Copied link to ResourceRef::Resolve, build-a</p>
 </div>
 </div>

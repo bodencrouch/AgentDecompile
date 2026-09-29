@@ -8,7 +8,7 @@ A contract box from the execution and resilience companions: a role-colored titl
 - Roles: step (numbered process), bytes (bytes, recovered source, resume), operation (operation, original code), acceptance, gate (the identity question, continue, policy), contain (fence, quarantine, control plane, data/provider).
 - The title's words carry the role; the role color is never the only carrier.
 
-**Linking:** none (print diagram). Its nodes keep their pipeline-model ids (`contract-bytes`, `contract-identity`, `contract-operation`, `fence`, `quarantine`, `continue`, `exec-step-1`…, `resil-step-1`…): where the app renders the same node (RuntimeCapabilities predicate rows, TaskLifecycle and FailureRecord crosswalks, Explain), that rendering links it to `?node=` with that id, and in docs the name links to the outline anchor (`execution-contracts.outline.md#…`). The print canvas itself carries no links and no live data.
+**Linking:** none (print diagram). Its nodes keep their pipeline-model ids (`contract-bytes`, `contract-identity`, `contract-operation`, `fence`, `quarantine`, `continue`, `exec-step-1`…, `resil-step-1`…): where the app renders the same node (RuntimeCapabilities predicate rows, or a crosswalk line inside TaskLifecycle's and FailureRecord's Explain, which ends "(interpretation)" because the crosswalks are design interpretations, never recorded facts), that rendering links it to `?node=` with that id, and in docs the name links to the outline anchor (`execution-contracts.outline.md#…`). The print canvas itself carries no links and no live data.
 
 **Accessibility**
 

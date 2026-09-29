@@ -1,19 +1,72 @@
-<!-- @dsCard group="Code" height=310 -->
+<!-- @dsCard group="Code" height=900 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<section class="adl-lst" aria-labelledby="ls-h">
-<div class="adl-fnh"><h4 id="ls-h" translate="no">ResourceRef::Resolve</h4><a class="ad-link small" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;ws=evidence&amp;panel=names" aria-label="Name tier debug info, why this name">debug info</a><button class="adl-factbtn" aria-haspopup="dialog" aria-keyshortcuts="Alt+ArrowDown" aria-label="Facts: Compilation passed, ABI checks not run, Tested behavior not run, Local match passed, Linked match stale, Replacement contribution unknown, Whole-file equality not run"><span class="ad-facts" aria-hidden="true"><b class="passed">✓</b><b class="not_run">○</b><b class="not_run">○</b><b class="passed">✓</b><b class="stale">◷</b><b class="unknown">?</b><b class="not_run">○</b></span></button><span class="small muted">build-a · <span class="addr">0041b210</span></span></div>
-<div class="adl-hlbar" role="group" aria-label="Highlights"><span class="small muted">Reflected from Decompile line 7 · 3 rows</span><button class="adl-hlchip" aria-label="Remove highlight A, eax, 3 in view, keyed by variable"><b aria-hidden="true">A</b>eax · 3 in view <span aria-hidden="true">×</span></button></div>
-<div class="ad-listing well" role="grid" aria-readonly="true" aria-label="Listing, build-a, ResourceRef::Resolve" aria-rowcount="-1" data-scroll>
-<div class="ad-ln label" role="row" aria-rowindex="1" tabindex="-1"><span role="gridcell"><span aria-hidden="true"> </span></span><span role="gridcell" class="addr" translate="no">0041b210</span><span role="gridcell" class="bytes"></span><span role="gridcell" class="mn"></span><span role="gridcell"><span translate="no">ResourceRef::Resolve:</span></span><span role="gridcell" class="xref"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210&amp;f=xref.dir:in" tabindex="-1" aria-label="12 references to ResourceRef::Resolve">XREF[12]</a></span></div>
-<div class="ad-ln" role="row" aria-rowindex="2" tabindex="-1"><span role="gridcell"><span aria-hidden="true"> </span></span><span role="gridcell" class="addr" translate="no">0041b210</span><span role="gridcell" class="bytes">55</span><span role="gridcell" class="mn">push</span><span role="gridcell"><span>ebp</span></span><span role="gridcell" class="xref"></span></div>
-<div class="ad-ln" role="row" aria-rowindex="3" tabindex="-1"><span role="gridcell"><span aria-hidden="true"> </span></span><span role="gridcell" class="addr" translate="no">0041b211</span><span role="gridcell" class="bytes">8b ec</span><span role="gridcell" class="mn">mov</span><span role="gridcell"><span>ebp, esp</span></span><span role="gridcell" class="xref"></span></div>
-<div class="ad-ln  adl-refl" role="row" aria-rowindex="4" aria-current="true" aria-selected="true" tabindex="0"><span role="gridcell"><span aria-hidden="true">▸</span><span class="sr-only">current line</span></span><span role="gridcell" class="addr" translate="no">0041b213</span><span role="gridcell" class="bytes">8b 45 08</span><span role="gridcell" class="mn">mov</span><span role="gridcell"><span><span class="adl-hlA">eax</span>, dword ptr [ebp + 0x8]</span></span><span role="gridcell" class="xref"></span></div>
-<div class="ad-ln  adl-refl" role="row" aria-rowindex="5" tabindex="-1"><span role="gridcell"><span aria-hidden="true">┌</span><span class="sr-only">call</span></span><span role="gridcell" class="addr" translate="no">0041b216</span><span role="gridcell" class="bytes">e8 45 12 00 00</span><span role="gridcell" class="mn">call</span><span role="gridcell"><a class="ad-link sym" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c460" tabindex="-1" aria-label="Address 0041c460, build-a, String::CStr" translate="no">String::CStr</a></span><span role="gridcell" class="xref"><a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c460" tabindex="-1" aria-label="Address 0041c460, build-a">→ 0041c460</a></span></div>
-<div class="ad-ln  adl-refl" role="row" aria-rowindex="6" tabindex="-1"><span role="gridcell"><span aria-hidden="true"> </span></span><span role="gridcell" class="addr" translate="no">0041b21b</span><span role="gridcell" class="bytes">85 c0</span><span role="gridcell" class="mn">test</span><span role="gridcell"><span><span class="adl-hlA">eax</span>, <span class="adl-hlA">eax</span></span></span><span role="gridcell" class="xref"><a class="ad-link adl-chgm" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" tabindex="-1" aria-label="Changed by job a3f9">changed by a3f9</a></span></div>
-<div class="ad-ln" role="row" aria-rowindex="7" tabindex="-1"><span role="gridcell"><span aria-hidden="true">└</span><span class="sr-only">jump target from 0041b230</span></span><span role="gridcell" class="addr" translate="no">0041b21d</span><span role="gridcell" class="bytes">5d</span><span role="gridcell" class="mn">pop</span><span role="gridcell"><span>ebp</span></span><span role="gridcell" class="xref"></span></div>
-<div class="ad-ln" role="row" aria-rowindex="8" tabindex="-1"><span role="gridcell"><span aria-hidden="true"> </span></span><span role="gridcell" class="addr" translate="no">0041b21e</span><span role="gridcell" class="bytes">ff 50 0c</span><span role="gridcell" class="mn">call</span><span role="gridcell"><span>dword ptr [eax + 0xc]</span></span><span role="gridcell" class="xref"><span class="muted">indirect · unresolved</span></span></div>
-<div class="ad-ln" role="row" aria-rowindex="9" tabindex="-1"><span role="gridcell"><span aria-hidden="true"> </span></span><span role="gridcell" class="addr" translate="no">0041b221</span><span role="gridcell" class="bytes">c2 04 00</span><span role="gridcell" class="mn">ret</span><span role="gridcell"><span>0x4</span></span><span role="gridcell" class="xref"></span></div>
-</div>
-<p class="adl-nomap"><span class="small muted">Decompile line 9 <code>return ref-&gt;name;</code> · </span><span class="small">No instruction mapping for this statement.</span></p>
+<span class="kicker">Decompile focused on line 7 · the Listing marks the rows that produced it · h on eax boxes and letters every use</span>
+<section class="adc-pane" aria-labelledby="ls-h">
+ <header><span class="kicker" id="ls-h">Listing</span><span class="small muted">Follows · as I move · 3 rows reflect line 7</span></header>
+ <div class="adc-hlbar" role="group" aria-label="Highlights"><button type="button" class="adc-hlchip" aria-label="Remove highlight A: eax, 3 in this function, text match"><b aria-hidden="true">A</b>eax · 3 in this function · text match</button><span>Keyed by text: the decompile projection gives no variable for eax here.</span></div>
+ <div class="ad-listing well adc-lst" role="grid" translate="no" aria-readonly="true" aria-label="Listing, build-a, ResourceRef::Resolve" aria-rowcount="-1" aria-colcount="6" data-scroll>
+  <div class="ad-ln label" role="row" aria-rowindex="1" aria-label="label ResourceRef::Resolve, 12 xrefs"><span class="flow" aria-hidden="true"> </span><span class="addr" role="rowheader">0041b210</span><span class="bytes" role="gridcell"></span><span class="mn" role="gridcell"></span><span role="gridcell" aria-readonly="false">ResourceRef::Resolve:</span><span class="xref" role="gridcell"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210&amp;f=xref.dir:in" tabindex="-1" aria-label="12 references to ResourceRef::Resolve, build-a, incoming">XREF[12]</a></span></div>
+  <div class="ad-ln" role="row" aria-rowindex="2" aria-label="0041b210, push ebp"><span class="flow" aria-hidden="true"> </span><span class="addr" role="rowheader">0041b210</span><span class="bytes" role="gridcell">55</span><span class="mn" role="gridcell">push</span><span role="gridcell">ebp</span><span class="xref" role="gridcell"></span></div>
+  <div class="ad-ln" role="row" aria-rowindex="3" aria-label="0041b211, mov ebp, esp"><span class="flow" aria-hidden="true"> </span><span class="addr" role="rowheader">0041b211</span><span class="bytes" role="gridcell">8b ec</span><span class="mn" role="gridcell">mov</span><span role="gridcell">ebp, esp</span><span class="xref" role="gridcell"></span></div>
+  <div class="ad-ln adc-refl" role="row" aria-rowindex="4" aria-label="0041b213, mov eax, dword ptr [ebp + 0x8], produces decompile line 7"><span class="flow" aria-hidden="true"> </span><span class="addr" role="rowheader">0041b213</span><span class="bytes" role="gridcell">8b 45 08</span><span class="mn" role="gridcell">mov</span><span role="gridcell" aria-description="move the argument at frame offset plus 8 into eax"><span class="adc-hl">eax</span><span class="adc-hlb" aria-hidden="true">A</span>, dword ptr [ebp + 0x8]</span><span class="xref" role="gridcell"><span class="adc-rt">↔ line 7</span></span></div>
+  <div class="ad-ln adc-refl" role="row" aria-rowindex="5" aria-current="true" aria-label="cursor, 0041b216, call String::CStr, produces decompile line 7"><span class="flow" aria-hidden="true">▸</span><span class="addr" role="rowheader">0041b216</span><span class="bytes" role="gridcell">e8 45 12 00 00</span><span class="mn" role="gridcell">call</span><span role="gridcell"><a class="ad-link sym" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c460" tabindex="0" aria-label="Address 0041c460, build-a, String::CStr" aria-keyshortcuts="Enter Shift+Enter Alt+ArrowDown Shift+F10">String::CStr</a></span><span class="xref" role="gridcell"><a class="ad-link" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" tabindex="-1" aria-label="Changed by job a3f9, rename, finished">changed by job a3f9</a></span></div>
+  <div class="ad-ln adc-refl" role="row" aria-rowindex="6" aria-label="0041b21b, test eax, eax, produces decompile line 7"><span class="flow" aria-hidden="true"> </span><span class="addr" role="rowheader">0041b21b</span><span class="bytes" role="gridcell">85 c0</span><span class="mn" role="gridcell">test</span><span role="gridcell"><span class="adc-hl">eax</span><span class="adc-hlb" aria-hidden="true">A</span>, <span class="adc-hl">eax</span><span class="adc-hlb" aria-hidden="true">A</span></span><span class="xref" role="gridcell"></span></div>
+  <div class="ad-ln" role="row" aria-rowindex="7" aria-label="0041b21d, pop ebp, jump target from 0041b230"><span class="flow" aria-hidden="true">└</span><span class="addr" role="rowheader">0041b21d</span><span class="bytes" role="gridcell">5d</span><span class="mn" role="gridcell">pop</span><span role="gridcell">ebp</span><span class="xref" role="gridcell"><span class="sr-only">jump target from 0041b230</span></span></div>
+  <div class="ad-ln" role="row" aria-rowindex="8" aria-label="0041b21e, call dword ptr [eax + 0xc], indirect, unresolved"><span class="flow" aria-hidden="true"> </span><span class="addr" role="rowheader">0041b21e</span><span class="bytes" role="gridcell">ff 50 0c</span><span class="mn" role="gridcell">call</span><span role="gridcell">dword ptr [eax + 0xc]</span><span class="xref" role="gridcell"><span class="ad-absent">indirect · unresolved</span></span></div>
+  <div class="ad-ln" role="row" aria-rowindex="9" aria-label="0041b221, ret 0x4"><span class="flow" aria-hidden="true"> </span><span class="addr" role="rowheader">0041b221</span><span class="bytes" role="gridcell">c2 04 00</span><span class="mn" role="gridcell">ret</span><span role="gridcell">0x4</span><span class="xref" role="gridcell"></span></div>
+ </div>
+ <div class="adc-status"><span>Cursor <span class="addr">0041b216</span> · line 7 ← 3 instructions</span><span>Find <code translate="no">eax</code> · 2 of 3 matches</span></div>
 </section>
+<div class="adc-states">
+<div>
+ <span class="kicker">Listing focused on a row with no decompiled line · an answer, never a guess</span>
+ <section class="adc-pane" aria-label="Listing, no mapping state">
+  <div class="ad-listing well adc-lst" role="grid" translate="no" aria-readonly="true" aria-label="Listing, build-a, ResourceRef::Resolve, row 0041b21d" aria-rowcount="-1" data-scroll>
+   <div class="ad-ln" role="row" aria-rowindex="7" aria-current="true" aria-label="cursor, 0041b21d, pop ebp, jump target from 0041b230, no decompiled line"><span class="flow" aria-hidden="true">▸</span><span class="addr" role="rowheader">0041b21d</span><span class="bytes" role="gridcell">5d</span><span class="mn" role="gridcell">pop</span><span role="gridcell">ebp</span><span class="xref" role="gridcell"></span></div>
+  </div>
+  <div class="adc-note unknown"><b aria-hidden="true">○</b><div><p><strong>No decompiled line for 0041b21d.</strong> The epilogue produced no statement.</p><p>The decompile keeps its cursor on line 7 and marks nothing. Nothing is inferred from line order or the nearest address.</p></div><span></span></div>
+ </section>
+</div>
+<div>
+ <span class="kicker">Shift+F10 on a label · the one link menu · Edit items from the catalog</span>
+ <div class="ad-pop adc-menu adc-lm">
+  <span class="kicker" id="lsm-h">ResourceRef::Resolve · label · 0041b210, build-a</span>
+  <ul class="ad-menu" role="menu" aria-labelledby="lsm-h">
+   <li role="group" aria-label="Open"><ul role="none">
+    <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="Shift+Enter"><span class="t">Open beside</span><span class="m">Shift+Enter</span><span class="note">Creates a Held pane at 0041b210</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="Alt+ArrowDown"><span class="t">Peek</span><span class="m">Alt+↓</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="R"><span class="t">Show reflected row</span><span class="m">r</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-keyshortcuts="X"><span class="t">Find references</span><span class="m">12 in</span></div></li>
+   </ul></li>
+   <li role="separator"></li>
+   <li role="group" aria-labelledby="lsm-g2"><span class="kicker grp" id="lsm-g2" aria-hidden="true">Edit · from the catalog</span><ul role="none">
+    <li role="none"><div role="menuitem" tabindex="-1" class="is-active" aria-keyshortcuts="F2"><span class="t">Rename label…</span><span class="m">F2</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-disabled="true" aria-describedby="lsm-n1"><span class="t">Set data type…</span><span class="note" id="lsm-n1">0041b210 is code; data types apply to data.</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Comment…</span><span class="m">0041b210</span></div></li>
+   </ul></li>
+   <li role="separator"></li>
+   <li role="group" aria-labelledby="lsm-g3"><span class="kicker grp" id="lsm-g3" aria-hidden="true">Reveal in</span><ul role="none">
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Compare</span><span class="m">counterparts</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Evidence</span><span class="m">Why this name</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Navigator</span><span class="m">Functions row</span></div></li>
+   </ul></li>
+   <li role="separator"></li>
+   <li role="group" aria-label="Copy"><ul role="none">
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Copy link</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Copy address</span><span class="m">0041b210</span></div></li>
+   </ul></li>
+  </ul>
+ </div>
+</div>
+</div>
+<div class="stack" style="gap:6px">
+ <span class="kicker">Coarse pointer · one 44px row-menu button per row carries the same menu; inline links fall back to Go</span>
+ <div class="adc-coarse">
+  <div class="ad-listing well adc-lst" role="grid" translate="no" aria-readonly="true" aria-label="Listing, build-a, one row, coarse pointer" aria-rowcount="-1">
+   <div class="ad-ln" role="row" aria-rowindex="5" aria-label="0041b216, call String::CStr"><span class="flow" aria-hidden="true"> </span><span class="addr" role="rowheader">0041b216</span><span class="bytes" role="gridcell">e8 45 12 00 00</span><span class="mn" role="gridcell">call</span><span role="gridcell"><a class="ad-link sym" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c460" tabindex="-1" aria-label="Address 0041c460, build-a, String::CStr">String::CStr</a></span><span class="xref" role="gridcell"></span></div>
+  </div>
+  <button type="button" class="adc-rowmenu" aria-haspopup="menu" aria-expanded="false" aria-label="Row menu for 0041b216"><span aria-hidden="true">⋯</span></button>
+ </div>
+</div>
+<p class="sr-only" role="status">Decompiled C, line 7, from 3 instructions, 0041b213 to 0041b21b</p>
 </div>

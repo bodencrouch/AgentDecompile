@@ -19,6 +19,8 @@ flowchart TD
   D --> G[Corpus pipeline]
 ```
 
+**Start here:** [docs/NORTH_STAR.md](docs/NORTH_STAR.md) — what AgentDecompile builds and why — and the [product prototype](docs/prototypes/agentdecompile-product/README.md).
+
 ## What it does
 
 1. **Analyze with agents** — MCP tools read live Ghidra state (functions, xrefs, memory, decompilation) instead of guessing from file names.

@@ -11,6 +11,8 @@ flowchart TD
   learning --> skills[Skill references]
 ```
 
+Start with [north-star anchoring](architecture-patterns/north-star-anchor-plans.md) and [show, don't tell](architecture-patterns/show-dont-tell-visual-first.md).
+
 ## Categories
 
 | Directory | What is here |

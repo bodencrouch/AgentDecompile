@@ -1,5 +1,8 @@
 # AGENTS.md
 
+Read [docs/NORTH_STAR.md](docs/NORTH_STAR.md) first: what AgentDecompile builds and why.
+It ranks above every plan; this file governs how you operate.
+
 Operational authority for this repository. [VISION.md](VISION.md) is the charter;
 [STRATEGY.md](STRATEGY.md) is the single recovery pipeline and priority policy.
 Start with [README.md](README.md), [USAGE.md](USAGE.md), the

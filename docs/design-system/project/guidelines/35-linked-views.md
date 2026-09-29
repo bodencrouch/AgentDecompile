@@ -226,6 +226,7 @@ A URL or history stop that names a project other than the active one never switc
 - Everything else stays native: unknown parameters, `/api`, `/docs`, settings, downloads, `target=_blank`, and modified clicks outside the grammar.
 - An intercepted link never issues its server GET, and nothing is prefetched speculatively.
 - The URL, read through one shared location resolver, is the only navigation state. There is no separate bus or store.
+- **One handler for every window.** Interception is one delegated handler at the document root, so it covers anchors inside server-rendered fragments and every corpus window at once. There is no per-window opt-in: the same link never has two behaviors depending on the window it sits in.
 
 ## The Linking block
 

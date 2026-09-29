@@ -67,7 +67,10 @@ without inheriting historical checkmarks as completion.
 The same ledger now records a source-qualified Phase 12 U87–U90 audit: the v1
 exporter and legacy header path are partial prerequisites, while the aggregate v2
 bundle, generated Lua and readiness/v1 outputs remain open. The header producer
-requires exact-layout improvements. These findings preserve the full weekend
+requires exact-layout improvements. For U89 specifically, the ledger's partial
+source and test evidence is the synthetic `agentdecompile.recovered-project/v1`
+manifest module; it does not extend `build_types_header.py`, so the header
+producer U89 names has no delivery evidence yet. These findings preserve the full weekend
 scope and are not test or runtime acceptance claims.
 
 ## Native package-verifier ownership — 2026-09-27

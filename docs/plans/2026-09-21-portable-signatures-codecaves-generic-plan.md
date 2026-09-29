@@ -9,6 +9,13 @@ status: implementation-ready plan, audits 2, 3 and 4 applied; Step 0, Phase 0 (D
 
 # Portable Signatures, Codecaves, and ABI Export — engine-generic
 
+> **Status marks are historical.** The ✔ and "landed" marks below (Step 0, D1–D7,
+> U120–U125 and others) record implementation history when they were written. Delivery
+> status comes only from the [weekend unit ledger](2026-09-27-weekend-unit-delivery.json),
+> which advances a unit on scoped evidence and never inherits these marks
+> ([DELIVERY_STATUS](../DELIVERY_STATUS.md); STRATEGY: historical checkmarks do not
+> establish delivery). Dashboards show the ledger's state, not these marks.
+
 ## Revision log
 
 - 2026-09-21 — audit 2 (five grill sessions + cross-grill): A1–A31 applied; see

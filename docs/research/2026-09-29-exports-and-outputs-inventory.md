@@ -45,9 +45,10 @@ permission · result exists ≠ independently accepted claim"
 
 **Pipeline-model node ids** come from
 [`pipeline-model.json`](../dashboard-design/pipeline-diagram/pipeline-model.json). The
-seven export-target nodes are at lines 1413-1510. Its `catalog_verbs` map covers only
-eight verbs, for stages 1-7. Stage 0, stage 8, every lane and every export verb are
-unmapped until a recorded decision, so they render "stage: unmapped"
+seven export-target nodes are at lines 1413-1510. When this inventory was written its
+`catalog_verbs` map covered only eight verbs, for stages 1-7; the export verbs have since
+been mapped to export nodes (consolidated plan §2.1, 2026-09-29). Stage 0, stage 8 and
+every lane have no verb, and any verb missing from the map renders "stage: unmapped"
 ([pipeline-model.json `conventions.catalog_verbs`](../dashboard-design/pipeline-diagram/pipeline-model.json);
 [consolidated plan:85-93](../dashboard-design/2026-09-21-consolidated-design-plan.md)).
 
@@ -65,6 +66,10 @@ program identifiers from the [session audit](../plans/2026-09-22-session-obligat
 
 Surface columns: **S** = static 8080 `/dashboard`; **R** = React `/react/` workstation;
 **D** = designed in the design system only; **—** = no surface named in any document.
+
+**Count.** 67 artifacts in 8 groups (A 10, B 11, C 9, D 13, E 14, F 5, G 3, H 2), counted
+from the rows below. The table is authoritative; any other artifact count is derived from it
+and is corrected to it.
 
 | # | Artifact | Kind | Producer (verb/stage · node) | Units | Status | Surface today → gap |
 |---|---|---|---|---|---|---|
@@ -1303,10 +1308,14 @@ Relationship list, with sources:
      unverified. The dashboard must show ledger state, not plan checkmarks.
    - Export verbs (`export-hookpack`, future `export-bundle`, `export-lua-bindings`,
      `readiness-report`, `diff-builds`) are not in `catalog_verbs`, so their jobs would
-     read "stage: unmapped" until a mapping decision is recorded.
+     read "stage: unmapped" until a mapping decision is recorded. *Resolved 2026-09-29:* the
+     [consolidated plan §2.1](../dashboard-design/2026-09-21-consolidated-design-plan.md#21-canonical-stage-order-recovery)
+     maps them to export nodes, recorded in `catalog_verbs` with a chip label ("export · hookpack").
    - `export-hookpack`, `backfill`, `verify-determinism` and `attest` lack admission flags
      (U104), so a pause control cannot yet name or drain export work.
    - `byteExactRecoveredC` survives as a compatibility alias for a raw local count (B4);
-     any counter using that name must be relabelled.
+     any counter using that name must be relabelled. *Resolved for the design 2026-09-29:*
+     [70-copy](../design-system/project/guidelines/70-copy.md) fixes the label "raw local
+     observations" with its claim line.
    - The historical source ZIP evidence ran on ports the current mission forbids; it is
      historical evidence, not a current delivery receipt.

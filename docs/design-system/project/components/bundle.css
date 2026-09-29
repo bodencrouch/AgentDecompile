@@ -1637,6 +1637,7 @@ textarea.adc-in{height:auto;min-height:var(--control-h-comfortable);padding:var(
 .ad-stg .own{font:400 11px/16px var(--font-sans);color:var(--ink-muted)}
 .ad .ad-stg.full>a,.ad-stg.full>span{flex-wrap:wrap;align-content:center;padding-top:var(--space-1);padding-bottom:var(--space-1);white-space:normal}
 .ad-stg.unmapped{align-items:center;min-height:24px;padding:0 var(--space-3);border:1px solid var(--line-control);color:var(--ink-muted);font-style:italic;white-space:nowrap}
+.ad-stg.unmapped.requested{font-style:normal} /* StageChip "requested · no stage": a fact about the verb, not missing data */
 .ad-stg.as-text>span{min-height:20px}
 .ad-stg-row{display:flex;flex-wrap:wrap;gap:var(--space-3) var(--space-4);align-items:center}
 .ad-stg-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(380px,100%),1fr));gap:var(--space-5) var(--space-7);align-items:start}

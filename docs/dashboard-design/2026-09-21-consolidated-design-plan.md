@@ -99,6 +99,37 @@ reconstruction checks. **Never repeat valid unchanged work.** Version analysis,
 types, toolchains and dependency evidence; stale results cannot be reused merely
 because a receipt exists.
 
+**Verbs outside stages 1–7 (decision, 2026-09-29).** Export verbs map to the
+export-target nodes of the pipeline model, never to a numbered stage or a lane:
+
+| Catalog verb | Export node | Chip label | Status in the docs |
+|---|---|---|---|
+| `corpus.export-hookpack` | `export-hookpack` | export · hookpack | delivered (bounded, v1); v2 future |
+| `corpus.export-lua-bindings` | `export-lua` | export · Lua bindings | future |
+| `corpus.readiness-report` | `export-readiness` | export · readiness report | future |
+| `corpus.diff-builds` | `export-divergence` | export · divergence report | future |
+| `corpus.export-bundle` | `export-target` | export · bundle | future |
+
+Proposed corpus jobs from the Code Browser parity contracts map to the stage
+whose row above names their work (all "proposed", none in the catalog yet):
+
+| Catalog verb | Stage | Why |
+|---|---|---|
+| `corpus.detect-transformations` (proposed) | 2 | scoped toolchain and layout hypotheses |
+| `corpus.extract-toolchain-facts` (proposed) | 2 | minimum platform and toolchain facts |
+| `corpus.classify-variance` (proposed) | 2 | toolchain, ABI and layout hypotheses across builds |
+| `corpus.explain-match` (proposed) | 7 | explains a parity difference |
+| `corpus.propose-field-propagation` (proposed) | 5 | recipient candidates under layout checks |
+
+Every other parity write or job is Code Browser work a person requested; its
+catalog descriptor says `stage: "none"` and the chip reads "requested · no
+stage". Stage 0 is the workbench's open, add and resume, not a job verb, so no verb maps
+to it. Stage 8 has no verb ("—" above); its result is the whole-image receipt.
+No verb maps to a lane by name: a lane is reached through the stage or export
+node its verb maps to. A new mapping is recorded here first, then in
+`pipeline-model.json` `catalog_verbs`. The live catalog stays the verb authority,
+and a verb present on only one side still renders "stage: unmapped".
+
 Identity evidence cascade (stage 1, cheap-first): authentic symbols/provenance →
 unique exact / relocation-normalized hashes → rare refs / C++ metadata →
 neighborhood propagation → CFG/SPP → BSim significance → ABI checks → optional

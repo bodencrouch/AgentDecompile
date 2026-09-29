@@ -71,7 +71,7 @@ In the app: `?node=stage-1`
 In the app: `?node=stage-2`
 
 - Family: source recovery (SOURCE RECOVERY)
-- Catalog verbs (consolidated plan §2.1): `corpus.calibrate-global`
+- Catalog verbs (consolidated plan §2.1): `corpus.calibrate-global`; `corpus.detect-transformations` (proposed); `corpus.extract-toolchain-facts` (proposed); `corpus.classify-variance` (proposed)
 - Trying to: Establish minimum platform facts, then refine compiler, ABI and layout hypotheses with identity and function evidence; version each input.
 - How:
   - compiler/linker + headers/libs + macros + FP mode
@@ -137,7 +137,7 @@ A gate diamond on the dependency arrow from stage 4 to stage 5. Label: candidate
 In the app: `?node=stage-5`
 
 - Family: source recovery (SOURCE RECOVERY)
-- Catalog verbs (consolidated plan §2.1): `corpus.cross-place`
+- Catalog verbs (consolidated plan §2.1): `corpus.cross-place`; `corpus.propose-field-propagation` (proposed)
 - Tag: the cross-match tier
 - Trying to: Reuse a donor candidate only for compatible recipient implementation variants; each recipient earns its own acceptance.
 - How:
@@ -173,7 +173,7 @@ In the app: `?node=stage-6`
 In the app: `?node=stage-7`
 
 - Family: verification & determinism (VERIFICATION)
-- Catalog verbs (consolidated plan §2.1): `corpus.objdiff-check`
+- Catalog verbs (consolidated plan §2.1): `corpus.objdiff-check`; `corpus.explain-match` (proposed)
 - Trying to: Compare emitted code/data against validated targets and independently against linked bytes.
 - How:
   - objdiff local + linked-region checks (LTCG aware)

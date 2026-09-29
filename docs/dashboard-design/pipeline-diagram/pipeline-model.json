@@ -10,7 +10,7 @@
     "stage_gate": "A stage's gate_id names its gate node (null for stage 2, which has no gate).",
     "edges": "drawn=true marks an arrow that appears in the diagram. Labelled drawn edges carry an id (also a <g id> and outline anchor), the drawn label, a spoken form for the outline, and 'follows', the id after which the edge is read. A drawn edge that was first read from diagram text keeps inference='stated' and its quoted 'basis'; only edges whose text states them directly are drawn.",
     "inferred_edges": "Every edge that is not a drawn arrow has inferred=true and a 'basis' quoting the diagram text it was read from. inference='stated' means that text says it directly; inference='interpretation' means it is a reading of the text that needs review.",
-    "catalog_verbs": "catalog_verbs is keyed by catalog verb and names the stage and lane node ids the verb serves. It is filled only from the consolidated design plan §2.1 (docs/dashboard-design/2026-09-21-consolidated-design-plan.md), which maps verbs to stages 1–7; 'quote' is that table cell. Stage 0, stage 8 and every lane stay unmapped until a recorded decision. The live catalog (GET /api/v1/actions) is the verb authority: a future check, not run, compares this map with a catalog snapshot, and a verb missing on either side renders 'stage: unmapped'. The per-node verb lists in the outlines are derived from this map.",
+    "catalog_verbs": "catalog_verbs is keyed by catalog verb and names the stage, lane and export node ids the verb serves. It is filled only from the consolidated design plan §2.1 (docs/dashboard-design/2026-09-21-consolidated-design-plan.md): its stage table maps verbs to stages 1–7, and its 'Verbs outside stages 1–7' decision maps export verbs to export nodes ('exports', with a 'label' the stage chip shows instead of the node title, so a v1 pack never reads as v2). 'quote' is that table cell; 'status' is the plan's word for a verb not yet in the catalog. Stage 0 is the workbench's open, add and resume, never a job verb; stage 8 has no verb; no verb maps to a lane by name. The live catalog (GET /api/v1/actions) is the verb authority: a future check, not run, compares this map with a catalog snapshot, and a verb missing on either side renders 'stage: unmapped'. The per-node verb lists in the outlines are derived from this map.",
     "crosswalks": "Each crosswalks entry reads one lifecycle state as the design step it instantiates (TaskLifecycle state to an execution step, FailureRecord lifecycle state to a resilience step). Every entry is inference='interpretation': 'basis' quotes docs/plans/2026-09-22-task-acceptance-and-continuation-design.md and 'matches' quotes the step text it was matched to. Crosswalks are design readings, never the runtime's state machine. lifecycle_states lists every state and where its name comes from; a state without an entry has no supporting text and stays unmapped."
   },
   "edge_types": {
@@ -2977,6 +2977,106 @@
       "lanes": [],
       "source": "consolidated plan §2.1",
       "quote": "`corpus.objdiff-check`"
+    },
+    "corpus.export-hookpack": {
+      "stages": [],
+      "lanes": [],
+      "exports": [
+        "export-hookpack"
+      ],
+      "label": "export · hookpack",
+      "status": "delivered (bounded, v1); v2 future",
+      "source": "consolidated plan §2.1",
+      "quote": "`corpus.export-hookpack` → `export-hookpack`"
+    },
+    "corpus.export-lua-bindings": {
+      "stages": [],
+      "lanes": [],
+      "exports": [
+        "export-lua"
+      ],
+      "label": "export · Lua bindings",
+      "status": "future",
+      "source": "consolidated plan §2.1",
+      "quote": "`corpus.export-lua-bindings` → `export-lua`"
+    },
+    "corpus.readiness-report": {
+      "stages": [],
+      "lanes": [],
+      "exports": [
+        "export-readiness"
+      ],
+      "label": "export · readiness report",
+      "status": "future",
+      "source": "consolidated plan §2.1",
+      "quote": "`corpus.readiness-report` → `export-readiness`"
+    },
+    "corpus.diff-builds": {
+      "stages": [],
+      "lanes": [],
+      "exports": [
+        "export-divergence"
+      ],
+      "label": "export · divergence report",
+      "status": "future",
+      "source": "consolidated plan §2.1",
+      "quote": "`corpus.diff-builds` → `export-divergence`"
+    },
+    "corpus.export-bundle": {
+      "stages": [],
+      "lanes": [],
+      "exports": [
+        "export-target"
+      ],
+      "label": "export · bundle",
+      "status": "future",
+      "source": "consolidated plan §2.1",
+      "quote": "`corpus.export-bundle` → `export-target`"
+    },
+    "corpus.detect-transformations": {
+      "stages": [
+        "stage-2"
+      ],
+      "lanes": [],
+      "status": "proposed",
+      "source": "consolidated plan §2.1",
+      "quote": "`corpus.detect-transformations` (proposed)"
+    },
+    "corpus.extract-toolchain-facts": {
+      "stages": [
+        "stage-2"
+      ],
+      "lanes": [],
+      "status": "proposed",
+      "source": "consolidated plan §2.1",
+      "quote": "`corpus.extract-toolchain-facts` (proposed)"
+    },
+    "corpus.classify-variance": {
+      "stages": [
+        "stage-2"
+      ],
+      "lanes": [],
+      "status": "proposed",
+      "source": "consolidated plan §2.1",
+      "quote": "`corpus.classify-variance` (proposed)"
+    },
+    "corpus.explain-match": {
+      "stages": [
+        "stage-7"
+      ],
+      "lanes": [],
+      "status": "proposed",
+      "source": "consolidated plan §2.1",
+      "quote": "`corpus.explain-match` (proposed)"
+    },
+    "corpus.propose-field-propagation": {
+      "stages": [
+        "stage-5"
+      ],
+      "lanes": [],
+      "status": "proposed",
+      "source": "consolidated plan §2.1",
+      "quote": "`corpus.propose-field-propagation` (proposed)"
     }
   },
   "lifecycle_states": {

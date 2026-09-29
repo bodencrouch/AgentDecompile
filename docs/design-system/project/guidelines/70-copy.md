@@ -42,6 +42,7 @@ Keep verbatim:
 - "Reconstructed explanation, not observed compiler passes." This is the first line of every transformation timeline, followed by "Order is the conventional stage order, not an observed sequence".
 - Evidence words: "witness", "record", "hypothesis (heuristic)" with "basis: …", and "unknown". "absence is not proof". A hypothesis never reads as a witness.
 - "Delivered means a receipt records bounded evidence for that scope; it does not mean the artifact is live, current or accepted." · "not observed on 8080".
+- "raw local observations": the only label for the canonical `rawLocalObservedC` count, always with its claim line "does not certify semantic identity, current toolchain, linked contribution or a full rebuilt image". The compatibility alias `byteExactRecoveredC` is never a label, and no total built from either reads as recovered C, verified recovery or whole-image acceptance.
 
 ## Editing, undo and scripts
 

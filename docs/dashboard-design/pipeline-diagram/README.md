@@ -222,9 +222,14 @@ It is filled only from §2.1 of the
 which maps verbs to stages 1–7: `corpus.extract-stabs` and `corpus.match-pair` (stage 1),
 `corpus.calibrate-global` (2), `corpus.workspace` (3), `corpus.ghidra-bulk` (4),
 `corpus.cross-place` (5), `corpus.genproject` (6, "leftovers") and `corpus.objdiff-check` (7).
-`quote` is the §2.1 table cell. Stage 0, stage 8 (§2.1 shows "—") and every lane stay unmapped
-until a recorded decision, so a stage chip for `corpus.cross-place` reads "5 Propagation", with
-no lane part. The per-node view is derived from this map: each stage and lane section of the overview outline
+`quote` is the §2.1 table cell. §2.1's "Verbs outside stages 1–7" decision adds five export
+verbs with `"exports": [export node id]`, a chip `label` and a `status` (`corpus.export-hookpack`,
+`corpus.export-lua-bindings`, `corpus.readiness-report`, `corpus.diff-builds`,
+`corpus.export-bundle`) and five proposed corpus jobs to stages 2, 5 and 7, each with
+`"status": "proposed"` and "(proposed)" in its quote. Stage 0 is the workbench's open, add and resume, not a verb; stage 8
+(§2.1 shows "—") has no verb; no verb maps to a lane by name. So a stage chip for
+`corpus.cross-place` reads "5 Propagation", with no lane part, and one for
+`corpus.export-hookpack` reads "export · hookpack". The per-node view is derived from this map: each stage and lane section of the overview outline
 has a "Catalog verbs" line ("unmapped" when the map gives it none), and `generate_outlines.py`
 refuses to write when a verb names an unknown stage or lane id or a section's line differs from
 the map. The live catalog (`GET /api/v1/actions`) is the verb authority. A future check, not run

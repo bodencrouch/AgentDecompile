@@ -1190,9 +1190,17 @@ These entries were added when parity round 3 designed the last 26 rows. Earlier 
 - **G14 · Served outputs inventory.** A machine-readable form of the outputs
   inventory with the status vocabulary and the 8080 observation axis kept
   separate.
-- **G15 · Stage mapping for new verbs.** `catalog_verbs` maps stages 1–7 only
-  (linked views:242); every action here reads "stage: unmapped" in StageChip
-  until a decision is recorded.
+- **G15 · Stage mapping for new verbs (decided 2026-09-29).** Every descriptor
+  here carries a `stage` field. Reads have no job, so no chip. Writes and the
+  person-requested jobs carry `stage: "none"` and StageChip reads "requested ·
+  no stage", never "stage: unmapped": they are Code Browser work a person asked
+  for, not pipeline work. Five corpus jobs are pipeline work and map through
+  the consolidated plan §2.1 ("Verbs outside stages 1–7") and `catalog_verbs`:
+  J10 `corpus.detect-transformations`, J11 `corpus.extract-toolchain-facts` and
+  J12 `corpus.classify-variance` → stage 2 (calibration: toolchain, ABI and
+  layout hypotheses); J13 `corpus.explain-match` → stage 7 (parity); J14
+  `corpus.propose-field-propagation` → stage 5 (propagation). A descriptor
+  without the field still reads "stage: unmapped".
 
 - **G16 · Decompile request options.** The design keeps the decompiler's
   analysis options (Eliminate unreachable code, Respect read-only flags,

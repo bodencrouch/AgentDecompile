@@ -92,7 +92,7 @@ Each build's processor language and compiler spec, side by side, with the eviden
 
 - The settings grid is an APG Grid, one tab stop, with arrows, Home/End and Ctrl+Home/End. Enter on a value's evidence link goes to it.
 - The language choice is a text field over its listbox (an APG combobox), so plain typing filters it; no `/` is needed there. Enter selects a language and moves focus to **Review consequences…**, which opens the ConfirmDialog; nothing posts from the list.
-- Proposed keymap id `program.settings.open` has no keys; it is reached from the menu and palette only. No key changes a language.
+- Keymap id `program.settings.open` has no keys; it is reached from the menu and palette only. No key changes a language.
 
 **Accessibility**
 

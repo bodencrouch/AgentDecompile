@@ -94,7 +94,7 @@ Ghidra's post-analysis validators for every build in one panel: which validators
 
 - The results grid and the Findings table are APG Grids, one tab stop each. Arrows move between cells, and Home/End and Ctrl+Home/End also work. Enter on a result cell filters the findings. Enter on a Location goes to it, and Shift+Enter opens it beside.
 - `w` collects the findings into a worklist (`list.worklist`), `x` and Space check rows, and F8 steps the active worklist.
-- Proposed keymap id `validation.open` has no keys; it is reached from the menu and palette only. No key runs a validator.
+- Keymap id `validation.open` has no keys; it is reached from the menu and palette only. No key runs a validator.
 
 **Accessibility**
 

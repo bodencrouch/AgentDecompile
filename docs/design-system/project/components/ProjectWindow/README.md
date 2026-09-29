@@ -106,7 +106,7 @@ The project and its program files in one panel. It covers:
 - The tablist uses APG Tabs with manual activation. Program files and Projects are APG Treegrids: arrows move and expand, Enter opens (on another project it shows the StateNotice), F2 renames (`tabs.rename` in program rows), and Delete opens the Delete confirm (never deletes directly).
 - `save` (Ctrl/Cmd+S): inside an open editor it saves that editor, as today. Outside any editor it arms **Save ‹inspected build›**, so a second Enter posts. It never posts from the key alone. See the proposals.
 - `open` (Ctrl/Cmd+O) focuses the Projects tab. It never switches project.
-- Proposed keymap id `project.saveAll` has no keys; it is reached from the menu and palette only.
+- Keymap id `project.saveAll` has no keys; it is reached from the menu and palette only.
 
 **Accessibility**
 

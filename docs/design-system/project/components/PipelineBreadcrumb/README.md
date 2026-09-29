@@ -14,14 +14,14 @@ Where one entity stands on one concrete build: one crumb per stage 1–8, each s
 - **Waiting**: a `gate` ◇ glyph, the words "waiting at gate:" and the gate text from the model. The crumb where the selection waits has `aria-current="step"`, a 2px `ink-strong` frame and the words "Selection waits here". The accent is not a status, so the current step never takes the accent bar.
 - A stage that does not apply says why, in italic `ink-muted` ("not applicable: not a leftover"), as plain words that are not a link. A build with no counterpart shows one StateNotice instead of eight empty crumbs; nothing is inferred for an absent counterpart.
 - A 3px top rule in the stage's family `-fill` (identity, recovery, verify) ties the crumb to the diagram. It is decorative: the stage name carries the meaning.
-- The breadcrumb is per concrete build. The header names the build and offers an explicit "Build ▾" menu (the NavigationBar Build menu). A new selection never switches the build silently.
+- The breadcrumb is per concrete build. The header names the build and offers an explicit "Builds ▾" menu (the NavigationBar's Builds ▾). A new selection never switches the build silently.
 - Layout by container width: 8 columns at 1040px or more, 4 at 520px or more, one column below. It fits the 260px evidence rail and the full center pane. Crumb text is `type-ui` 12 and `type-kicker` 11.
 - Motion: a crumb changes only when its receipt or acceptance event exists.
 - Crosswalks from lifecycle states to stages are interpretations. Where one is shown it says "(interpretation)"; it is never presented as a recorded fact.
 
 **Linking**
 
-- **Publishes:** nothing that moves the selection. Enter on a crumb pushes one history stop to its `node=` and the node's filtered live view; the header's Build menu is a Go (one stop).
+- **Publishes:** nothing that moves the selection. Enter on a crumb pushes one history stop to its `node=` and the node's filtered live view; the header's Builds ▾ menu is a Go (one stop).
 - **Follows:** the primary selection (entity and inspected build) after the settle. It is a rail section, so it is kept as a card, never held.
 - **Targets rendered:** pipeline node (`stage-1`…`stage-8`, and the gate where the entity waits) → the PipelineMap node, filtered to this entity and build · the header's build → the Navigator program row. Link names read "4, C/C++ candidates: Compilation passed, ABI checks not run, waiting at gate: compile admits candidate, not replacement".
 - **Peek source:** the stored receipt, identity edge, transfer, diff summary or VariantLedger cell that decides the stage, plus the node's model text headed "From the pipeline design · model rev ‹8 hex›". Nothing is fetched.

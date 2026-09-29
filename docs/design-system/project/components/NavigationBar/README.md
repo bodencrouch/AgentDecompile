@@ -53,7 +53,7 @@ The row that says where you are and gets you back: Back and Forward with the Rec
 
 **Location**
 
-`location-schema.json` is the parameter, alias and history contract; this component renders it and keeps no copy. Copy link emits readable canonical names only: `project`, `session`, `entity`, `build`, `addr`, `ws`, `panel`, `views`, `cmp`, `hold`, `keep`, `dock`, `job`, `receipt`, `type`, `f`, `q`, `page`, `t`, `node`, `wl`.
+`location-schema.json` is the parameter, alias and history contract; this component renders it and keeps no copy. Copy link emits readable canonical names only, the parameters of `location-schema.json`: `project`, `session`, `entity`, `build`, `addr`, `ws`, `panel`, `views`, `layers`, `walk`, `artifact`, `cmp`, `hold`, `keep`, `help`, `dock`, `job`, `receipt`, `type`, `f`, `q`, `page`, `t`, `node`, `wl`.
 
 - `hold` carries held center panes only (`kind:id@build[:addr][~basis]`, at most two); `keep` carries Kept cards. `views` names co-visible code views. `node` is any `pipeline-model.json` id.
 - Never in a link: the checked set, drafts and credentials. A link is a place, never a command; opening it reads existing analysis only.

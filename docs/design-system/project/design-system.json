@@ -18,8 +18,8 @@
  },
  "lastChange": {
   "by": "Claude",
-  "at": "2026-09-29T07:06:31Z",
+  "at": "2026-09-29T11:20:16Z",
   "via": "Claude Code",
-  "note": "Round-2 adversarial review of the 30 new components: one consistent build world and canonical fixture sheet, Ghidra parity gaps closed (196 of 224 designed), VariantRelation rail form, read-only TypeEditor, layout presets 6 and 7, version-control/history/read-back vocabularies"
+  "note": "Parity round 3: 222 of 224 Ghidra Code Browser features designed (2 missing by decision); ProgramValidation, ProgramSettings, DebugInfoImport, FunctionIdManager, ProjectWindow; Listing, GraphPane, DecompileView, SymbolTree, ResultsTable, PropagationTransfer and ReviewDetail extensions; 211 keymap commands; validator and name sub-tier vocabularies; 113 components"
  }
 }

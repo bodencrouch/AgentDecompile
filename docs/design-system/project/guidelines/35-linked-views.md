@@ -1,93 +1,209 @@
 # Linked views
 
-The workstation removes view switching with one idea: **information comes to the selection; the operator does not travel to the information.** Every mention is a typed link, every pane either follows the one selection or is explicitly held, detail opens in place, and the location lives in the URL. This section is the contract; components implement it.
+The workstation removes view switching with one idea: **information comes to the selection; the operator does not travel to the information.** Every mention is a typed link. Every pane either follows the one selection or is explicitly held. Detail opens in place, and the location lives in the URL. This section is the contract; components implement it and point here rather than restating it.
 
 ## Typed links
 
-Every mention of a navigable object is an `<a class="ad-link" href="?…">` over the shared location schema, never plain text and never a `div` with a click handler. Each link type resolves to exactly one place:
+Every mention of a navigable object is an `<a class="ad-link" href="?…">` over the shared location schema. It is never plain text and never a `div` with a click handler. `data-kind` names the target type for routing and accessible names only; there are no per-kind colors. Each type resolves to exactly one place:
 
-| Target | Resolves to |
-|---|---|
-| address, symbol | Code Browser at that build and address |
-| logical id | Compare with the CounterpartMatrix |
-| counterpart (entity @ build) | Code Browser for that build, same entity |
-| fact | the receipt card that decided it, in the evidence rail |
-| receipt id | the receipt card; it links back to "Produced by job ‹id›" |
-| job id | the dock Jobs record, focused; its Targets line reveals the rows it changed |
-| basis digest | the ProvenanceStamp detail and what changed since |
-| compiler diagnostic file(line) | the SourceRepairDiff line in Recovery |
-| image delta region | Listing at the range start in that build, with the ObjectDiff pair |
-| merge or placement conflict | NameProvenance or the placed address, for that entity and build |
-| work-view event | the diff or transfer it drew, at that moment of the WorkTimeline |
-| pipeline node id | the PipelineMap node and its filtered live view |
+| Target | Resolves to | Moves primary location | Focus lands on |
+|---|---|---|---|
+| address, symbol | Code Browser at that build and address | yes | the Listing row at the address |
+| logical id | Compare, with the CounterpartMatrix | yes | the entity's matrix row |
+| counterpart (entity @ build) | Code Browser for that build, same entity | yes | the Listing row at the counterpart's entry |
+| fact | the receipt card that decided it, in the evidence rail | no | the receipt card |
+| receipt id | the receipt card; it links back to "Produced by job ‹id›" | no | the receipt card |
+| job id | the dock Jobs record; its Targets line reveals the rows it changed | no | the job record |
+| basis digest | the ProvenanceStamp detail and what changed since | no | the stamp detail |
+| compiler diagnostic file(line) | the SourceRepairDiff line in Recovery | yes | the diff line |
+| image delta region | Listing at the range start in that build, with the ObjectDiff pair | yes | the Listing row at the range start |
+| merge or placement conflict | NameProvenance or the placed address, for that entity and build | yes | the conflict record |
+| work-view event | the diff or transfer it drew, at that moment of the WorkTimeline | no | the timeline event |
+| pipeline node id | the PipelineMap node and its filtered live view | no | the map node |
 
-An absent or unresolved target is written as a word ("absent", "unresolved"), never a link to a guess. Each link's accessible name carries type, target and state: "Job a3f9, corpus.cross-place, finished"; "Address 0041b210, build-b".
+Every "Reveal in" destination follows the same two columns.
+
+Each link's accessible name carries type, target and state, for example "Job a3f9, corpus.cross-place, finished" or "Address 0041b210, build-b".
+
+- **Uncertain targets.** "absent" and "unresolved" are plain words (`.ad-absent`), never an anchor and never a link to a guess. "ambiguous" and "contested" are the word plus a link to the ladder evidence. A contested target also lists both evidenced members as candidate links, marked "no winner". Merges say "conflicting".
+- **Cross-build.** A counterpart link shows its identity-edge word (accepted or candidate), both visibly and in its accessible name. No counterpart link exists without a recorded edge. An address link always carries its build and is never re-resolved into another build.
+- **Cross-project.** Opening a project admits its eligible missing work (U105). So a link or new tab that names a project other than the open one never opens it. It lands on a StateNotice that names both projects, with "Open ‹project›" armed and confirm-gated, never run.
 
 ## One activation grammar
 
 The same keys and gestures on every link, on both surfaces:
 
-| Gesture | Keyboard | Result |
+| Gesture | Keyboard / pointer | Result |
 |---|---|---|
-| Go | Enter, click | The primary location changes; one history stop is pushed. |
-| Open beside | Shift+Enter, Shift+click | The target opens in a secondary pane (SplitCompare); the primary selection does not change. |
-| Peek | Alt+↓; a 400ms pointer rest or 800ms focus rest | A read-only Peek card opens in place (WCAG 1.4.13 rules). Alt+Enter and Ctrl/Cmd+I are rejected (properties in many tools; Page Info in Firefox). |
-| Keep | Shift+K inside a Peek or evidence card | The card stays in the evidence rail, labelled "Kept" (carried as `hold=card:…`). |
-| Reveal in | Shift+F10, context-menu key, right-click | Menu: Code Browser · Compare · Evidence · Navigator · Dock · Pipeline map, plus Copy link and Copy value. |
-| New browser tab | Ctrl/Cmd+Enter, Ctrl/Cmd+click, middle-click | Native; works because every target is a real URL. |
+| Go | Enter, click | Goes to the target per the table above. One history stop is pushed. |
+| Open beside | Shift+Enter, Shift+click | Creates a Held pane (below). The primary location does not change and no stop is pushed. On 8080 without split panes, the same link opens in a new window and the menu item reads "Open beside (new window)". Below 700px it is the second segment of the split toggle (U191). |
+| Peek | Alt+↓; 400ms pointer rest; 800ms focus rest | Opens a read-only Peek card in place, following the 1.4.13 rules in 90. Focus-rest opening is off by default at 400% zoom and below 700px, and the sheet never covers its trigger (2.4.11). `aria-expanded` and `aria-controls` are present only while the Peek is open. Alt+Enter and Ctrl/Cmd+I are rejected: many tools use them for properties, and Firefox uses Ctrl+I for Page Info. |
+| Keep | the Keep button (aria-pressed) in a Peek or evidence card; Shift+K while focus is inside that Peek or card | The card stays in the evidence rail, labelled "Kept", carried as `keep=`. The letter never works in lists where j/k move. From a trigger, the path is Tab then K, or the menu. The binding lives in `keymap.json` and is remappable. |
+| Link menu | Shift+F10, the context-menu key, right-click | Opens the one link menu (below). Shift+right-click passes through to the browser's native menu. |
+| New browser tab | Ctrl/Cmd+Enter, Ctrl/Cmd+click, middle-click | Native behaviour; it works because every target is a real URL. |
 
-Space stays select or check in grids. Every component README carries a **Linking** block: what it publishes, what it follows, which targets it renders, and what an absent target looks like.
+**Grid modifier precedence.** In checkable grids (entity lists, review queues), Ctrl/Cmd-click and Shift-click anywhere on a row, including its name link, belong to the checked set. Shift+↑↓ and Shift+j/k extend the range. In those grids, Open beside is Shift+Enter or the menu, and a new tab is Ctrl/Cmd+Enter, middle-click or the menu. Outside checkable grids the grammar above applies unchanged. Space stays select or check.
+
+**The link menu.** There is one menu for every link, a flat APG Menu with separated groups and no cascading submenu:
+
+1. Open · Open beside · Peek · Keep (Keep appears only inside a Peek or card).
+2. **Reveal in**: only the destinations this target type resolves to, drawn from Code Browser, Compare, Recovery, Evidence, Navigator, Dock and Pipeline map. A guessed destination is never listed.
+3. Copy link · Copy ‹typed value›, e.g. "Copy address 0041b210". Copy announces "Copied address 0041b210, build-b".
+
+With a coarse pointer, every row exposes one 44px row-menu button carrying the same menu, and inline links fall back to Go.
+
+**Arrival.** The landing cue is focus moving to the landing row or record, plus the selection or cursor shape and the existing 120ms flash. Under reduced motion the flash becomes 90's static outline. There is no separate "landed" style.
+
+**Announcements.** Focus is the primary cue. Exactly one polite message is added in these cases, coalesced as described in 90:
+- when Go changes the workspace, build or dock tab;
+- when a Go lands somewhere other than where it was asked to go;
+- when a Back/Forward stop lands, announced once.
+
+The document title updates on push and popstate only. Nothing relies on title changes being announced.
 
 ## Follow and hold
 
-There is exactly one selection owner: the primary location (project, logical entity, inspected build, address). Every other pane is one of two things.
+There is exactly one selection owner: the primary location (project, logical entity, inspected build and address). Every other pane is one of two things.
 
-- **Following** (default): a pure function of the primary location. When the selection moves with arrows or j/k, focus moves at once; following panes update after a 200ms settle, keep their previous content dimmed with its address and an inline "Loading ‹name›" notice, and drop late responses for superseded selections. A **Link panes** toggle (aria-pressed) in the NavigationBar switches to commit-on-Enter. Cached panes (Listing, Decompile, Evidence) follow by default; expensive panes (Graph, Matching, corpus sections) commit on Enter. A following pane never decompiles, fetches expensive evidence or starts work on a cache miss: it says "Not decompiled in this session · Enter to decompile" and waits for an explicit Go.
-- **Held**: frozen to one entity × build × address. Its header says **Held** with what it holds and its age, in a 2px `ink-strong` frame. It keeps its own Back/Forward, never refreshes by itself, and shows "◷ Basis changed since held · Refresh" when its basis changes. **Make primary** moves the one selection to it. Held panes and kept cards are read-only; the ActionStrip always binds the primary selection.
+- **Following** (default): a pure function of the primary location.
+  - When the selection moves with arrows or j/k, focus moves at once. Following panes redraw in place after a 200ms settle.
+  - A pane that is redrawing keeps its previous content dimmed, with its address and an inline "Loading ‹name›" notice. It drops late responses for superseded selections.
+  - Cached panes (Listing, Decompile, Evidence) follow by default. Expensive panes (Graph, Matching, corpus sections) commit on Enter.
+  - An **Update panes** control in the NavigationBar (a two-option radio group: "As I move" / "On Enter") switches every following pane to commit-on-Enter.
+  - A following pane never decompiles, fetches expensive evidence or starts work on a cache miss. It says "Not decompiled in this session · Enter to decompile" and waits for an explicit Go.
+- **Held**: frozen to one entity × build × address, with an optional basis token.
+  - The pane's toolbar has a toggle with the constant name **Hold this pane** (aria-pressed). The visible state words beside it read "Following · sync A" or "Held · ‹entity› @ ‹build› · ‹age›".
+  - A held pane has a 2px `ink-strong` frame. It shows current data labelled "Held · read ‹time›".
+  - A different basis reads "◷ Basis changed since held · Refresh". A hold without a basis token reads "Basis at hold time not recorded". Old data is never replayed, and a pane is never marked unchanged by assumption.
+  - A held pane has its own Back/Forward buttons, which never touch browser history. Inside it, Enter moves that pane.
+  - **Make primary** (Enter on its Held chip) is the only way a held pane changes the primary selection. It pushes a stop.
+  - Held panes and kept cards are read-only. The ActionStrip always binds the primary selection.
 
-At most two center panes in the Code Browser; the Compare workspace may show a three-way split as its one secondary area. Further holds become kept evidence cards. Inside a held pane, Enter moves that pane through its own history and Alt+←/→ step it while focus is there; **Make primary** (Enter on its Held chip) is the only way a held pane changes the primary selection. In a derived pane, Alt+PageDown/PageUp move it to the next or previous build with a counterpart. Held state is a word and a frame, never color alone; "Held" and "Kept" are reserved words distinct from the locator word `pinned` and the ownership word `lock`.
+The Code Browser has at most two center panes. The Compare workspace may show a three-way split as its one secondary area. Holds beyond that become kept cards, with a notice. In a derived pane, Alt+PageDown/PageUp move to the next or previous build with a counterpart.
+
+**Focus never changes workspace, build, dock tab or history.** Only Go, Make primary, a workspace or build switch, or a history step does.
+
+Held state is a word and a frame, never color alone. "Held" and "Kept" are reserved words, distinct from the locator word `pinned` and the ownership word `lock`.
 
 ## Confirming edits
 
-Inline edits (rename, retype, comment) confirm in place: the inline field names its exact binding and the tier change, and Enter commits through the catalog action path. ConfirmDialog is reserved for batch, destructive or cross-build mutations. No key commits a mutation outside an open inline editor or the ActionStrip.
+Inline edits (rename, retype, comment) confirm in place. The inline field names its exact binding (program, build, address or local storage) and the tier change, and Enter or Save posts the catalog action once. ConfirmDialog is reserved for batch, destructive or cross-build mutations. Outside an open inline editor or the ActionStrip, no key alone mutates anything.
 
 ## In place, not elsewhere
 
-- **Peek** shows a callee, counterpart, fact, receipt, job, locator cell or ladder where it is mentioned. It reads only cached or already-loaded evidence; unloaded evidence says "Not loaded. Open to read it."
-- **Detail expands in place**: FailureRecords, review decisions and matrix cells open inline or in the detail pane beside their list, never on another page.
-- **Corpus panels become rail sections** scoped to the selection ("For ResourceRef::Resolve · build-b"), each with "Show all" linking to the full corpus view.
-- **Outcomes land where the verb was invoked**: the row or token gets a compact lifecycle cell (admitted → running → terminal word, with its job link) once the terminal result arrives. Nothing is shown optimistically. Changed lines carry a "changed by job ‹id›" gutter mark until the next navigation.
-- **Dead ends name the next step**: an empty or unbound view names the program and cause and arms, but never runs, the one catalog action that would fix it.
+- **Peek** shows a callee, counterpart, fact, receipt, job, locator cell or ladder where it is mentioned. It reads only cached or already-loaded evidence; unloaded evidence says "Not loaded. Open to read it." The fact strip is one ≥24px button that opens a Peek, not a link. Per-fact receipt links live in the Peek and in the rail's Facts section.
+- **Detail expands in place.** FailureRecords, review decisions and matrix cells open inline or in the detail pane beside their list, never on another page.
+- **Corpus panels become rail sections** scoped to the selection ("For ResourceRef::Resolve · build-b"). Each has a "Show all" link to the full corpus view (`panel=`).
+- **Outcomes land where the verb was invoked.**
+  - The row or token gets a compact lifecycle cell once the terminal result arrives: admitted → running → terminal word, with its job link.
+  - Nothing is shown optimistically.
+  - Changed lines carry a "changed by job ‹id›" gutter mark until the next navigation.
+- **Dead ends name the next step.**
+  - An empty or unbound view names the program and the cause. It arms at most one action taken from `GET /api/v1/actions`, choosing reuse first, and never runs it. The design system hardcodes no action ids.
+  - When read-only discovery finds existing recovered analysis or receipts, only the catalog's binding or resume action is armed, and the evidence found is named. An analysis action is never armed while such evidence exists.
+  - Nothing is armed while discovery is not loaded.
+  - Armed fixes come from the resolved state, never from URL parameters.
 
 ## Location schema (deep links)
 
-Both surfaces parse the same query parameters and the same alias table; acceptance is that the two parsers agree exactly.
+Both surfaces load one machine-readable schema, [`location-schema.json`](../location-schema.json): parameters, value grammars, the alias table, and a mapping for every legacy `tab` and `window=wb-*` value. Acceptance is that the two parsers agree exactly.
 
 | Parameter | Carries |
 |---|---|
 | `project` · `session` | active project and session tab |
 | `entity` | logical entity |
-| `build` · `addr` | inspected build and address or cursor |
-| `ws` | workspace: code, compare, recovery, evidence |
+| `build` · `addr` | inspected build, and address or cursor |
+| `ws` | workspace: `code`, `compare`, `recovery`, `evidence` (four values only) |
+| `panel` | a full corpus view inside a workspace, such as `report` or `atlas`; the target of every "Show all" |
 | `views` | co-visible code views: listing, decompile, hex, graph |
 | `cmp` | split pair, e.g. `build-a..build-c` |
-| `hold` | repeatable `kind:id@build` for held panes and kept cards |
+| `hold` | held center panes only: `kind:id@build[:addr][~basis]`, at most two |
+| `keep` | Kept cards: `kind:id@build[~basis]`, repeatable |
 | `dock` · `job` · `receipt` | dock tab, focused job, focused receipt |
 | `type` | a type or field path, e.g. `CacheEntry.name_len` |
 | `f` · `q` | `axis:value` filters and free text |
 | `page` | review match-id cursor |
-| `t` | work-view event |
+| `t` | accepted work-view event id |
 | `node` | pipeline-model node id |
 | `wl` | active worklist |
 
-Aliases read by both surfaces: `p`, `e`, `b`, `a`, `sp`, `slug`, `logical_id`, `binary`, `tool` and `tab` (→ `views`), `pin` (→ `hold`), `window=wb-*`, `focus=`.
+- **Aliases.**
+  - Both surfaces read `p`, `e`, `b`, `a`, `sp`, `slug`, `logical_id`, `binary`, `tool`, `tab` (→ `views`), `pin` (→ `keep`), `window=wb-*` (→ `ws` + `panel`) and `focus=`.
+  - A canonical name wins over its alias, and an ignored alias is named in a notice.
+  - Old bookmarks redirect through the alias table. Explorer is the Navigator region, expanded and focused, never a center surface.
+- **Lossless round trip.** A parameter that a surface cannot render stays verbatim in its URL and gets a StateNotice. Static 8080 shows holds as Held entries in the evidence rail.
+- **Unresolved values are words**, never a guess. Examples:
+  - "Event ‹id› is no longer retained";
+  - "Worklist not available here";
+  - a score-shaped `page` is refused by name;
+  - `cmp` uses only recorded edges and locators (absent, unresolved, or contested with no winner);
+  - an `addr` without a `build` lists the builds that contain it.
+- **Never in the URL:** the checked set, drafts (durable workspace state keeps them) and credentials.
+- **Opening a URL is read-only.** It resolves against existing analysis. An unbound or empty build shows a StateNotice with its fix armed, never run, per the dead-end rule. If the basis changed since the link was copied, current data is shown and holds are marked with the basis words.
 
-- pushState only on user navigation (Go, workspace switch, build switch, split open). replaceState for cursor moves inside one function and for typed filters.
-- Browser Back, Alt+←/→ and mouse buttons 4/5 are the app's Back and Forward. Each stop restores workspace, views, split and held panes, viewport and the focused element, and the landing is announced once. The Back button has a history menu of labelled stops.
-- Never in the URL: the checked set, drafts (durable workspace state keeps them) and credentials.
-- Opening a URL is read-only. It resolves against existing analysis; an unbound or empty build shows a StateNotice with the fix armed, never run. If the basis changed since the link was copied, current data is shown and held panes are marked stale.
-- Every request is keyed by its location token; superseded responses are discarded.
+### Project and session
+
+A URL or history stop that names a project other than the active one never switches projects. It shows a StateNotice that names both projects, with **Switch** armed and **Stay**. The notice says that opening a project admits its eligible missing work and reuses its receipts. A landing with no active project offers "Open ‹project›" the same way. History never crosses session tabs silently. An explicit URL wins over a restored session tab only within the active project.
+
+### History
+
+- **Push** on:
+  - Go (a link, row Enter or click, a go-to pick, Make primary, a job or receipt link, Show all);
+  - a workspace switch by click, Enter or shortcut;
+  - a build switch;
+  - opening or closing a `cmp` pair.
+  Consecutive workspace switches with no Go in between collapse into one stop. Explicit pushes are never coalesced.
+- **Replace**, throttled to after the 200ms settle, on:
+  - list and grid focus moves (arrows, j/k);
+  - cursor moves;
+  - typed filters;
+  - `views`, `dock`, `hold` and `keep` changes;
+  - alias rewrites.
+  At narrow widths `views` and `hold` are never rewritten.
+- **Back and Forward.** Browser Back, Alt+←/→ and mouse buttons 4/5 (natively, through popstate) are the app's Back and Forward, and always act on the primary history.
+  - Alt+←/→ are not intercepted in text fields or edit mode, and are remappable in `keymap.json`.
+  - A stop stores the viewport as an anchor address plus caret, and focus as a stable region + component + row key. It restores workspace, views, split, viewport and focus.
+  - Back and Forward never open, close or re-point held panes or kept cards: those are layout, and the URL is rewritten with replaceState to the current holds.
+  - In-app Back is disabled at the tab's first stop ("no earlier location in this tab").
+- **The Recent menu.** An APG Menu Button beside Back (right-click on Back opens the same menu) lists up to 20 of this tab's stops, each with its label, time and "✎ edited". Picking a stop in this tab traverses with `history.go`. Picking an older durable entry is a Go. Snippets are labelled "as read ‹time›". Back itself has no history menu, no Alt+↓ and no long-press.
+- **History never replays.**
+  - A history move that changes the program clears the checked set, as any program change does. Back's accessible description says so first ("clears 12 checked rows on build-a"), and the polite region confirms it afterwards.
+  - A history move cancels an open ConfirmDialog, so nothing is sent.
+  - A history move rebinds the ActionStrip to the restored selection without arming it.
+  - No action or submission is ever replayed.
+- **Restore reads now.** "Restore the place; data is read now."
+  - On restore or landing, cached panes (Listing, Decompile, Evidence) render from stored evidence.
+  - Expensive panes (Graph, Matching, corpus panels, a build whose program is not open) show "Not loaded. Open to read it." until Enter.
+  - Reads are keyed by location token and selection generation, and superseded reads are aborted.
+- **Non-authoritative state.** `history.state` (per browser tab, per viewer) and Recent (stored in the durable workspace, F23) are client state. They are never evidence, and never a basis for a claim.
+
+### Link interception contract
+
+- A surface intercepts only same-origin anchors whose href parses fully under `location-schema.json` and its alias table.
+- Everything else stays native: unknown parameters, `/api`, `/docs`, settings, downloads, `target=_blank`, and modified clicks outside the grammar.
+- An intercepted link never issues its server GET, and nothing is prefetched speculatively.
+- The URL, read through one shared location resolver, is the only navigation state. There is no separate bus or store.
+
+## The Linking block
+
+Every component README carries a **Linking** block with these fields, in this order:
+
+- **Publishes**: what it changes: the primary location, a hold, a keep, or nothing.
+- **Follows**: settle or commit-on-Enter, and whether it can be held.
+- **Targets rendered**: which of the twelve types it links.
+- **Peek source**: which cached evidence its Peeks read.
+- **Absent copy**: the exact words for absent, unresolved, ambiguous and contested targets.
+- **Target-size exception**: any inline-link exception to 2.5.8, or "none".
+
+A diagram-only component with no app rendering writes "Linking: none (print diagram)".
 
 ## Why this removes clicks
 
-Most tedious switching in the documented journeys comes from four habits: travelling to a separate view to *see* something (fixed by Peek, the XrefPanel, the CounterpartStrip and rail sections), replacing the current context to compare (fixed by Open beside and held panes), losing the place on return (fixed by the location schema and shared history), and finding the next item by hand (fixed by worklists, F8 stepping and outcomes on the row). The plan document `docs/dashboard-design/2026-09-29-linked-views-and-accessibility.md` counts the before and after for each journey.
+Most tedious switching in the documented journeys comes from four habits:
+
+- **Travelling to a separate view to *see* something.** Peek, the XrefPanel, the CounterpartStrip and rail sections fix this.
+- **Replacing the current context to compare.** Open beside and held panes fix this.
+- **Losing the place on return.** The location schema and shared history fix this.
+- **Finding the next item by hand.** Worklists, F8 stepping and outcomes on the row fix this.
+
+The plan document `docs/dashboard-design/2026-09-29-linked-views-and-accessibility.md` estimates the before and after counts for each journey. Every count there is an estimate, not an observation.

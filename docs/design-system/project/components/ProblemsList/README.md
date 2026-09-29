@@ -20,7 +20,7 @@ The dock's Problems tab: one row per unmet predicate, failure or external action
 
 **Linking**
 
-- Publishes: nothing by focus. Enter on a link or row goes (pushes history); `dock=problems` and `q` carry the tab and its filter in the location, so a copied link reopens the same filtered list.
+- Publishes: nothing by focus. Enter on a link or row goes (pushes history); `dock=problems` and `f` carry the tab and its filters in the location, so a copied link reopens the same filtered list.
 - Follows: the primary selection only while **Selection only** is on. Otherwise it shows the whole project and follows nothing.
 - Renders: entity and counterpart (Code Browser at that build), receipt (receipt card), compiler diagnostic file(line) (the SourceRepairDiff line), basis digest (ProvenanceStamp detail), job (dock Jobs record, focused), pipeline node (PipelineMap node), and "N recipients" as a filtered entity list.
 - Absent: "no job admitted", "external · no job", "whole build" are words, never links. An entity whose counterpart is unresolved says "unresolved on build-d".

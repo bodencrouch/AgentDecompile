@@ -1,0 +1,73 @@
+{
+  "$comment": "Shared location schema for deep links. Both surfaces (static 8080 and the React workstation) load this file; their parsers must agree exactly. Contract: guidelines/35-linked-views.md. Values below are illustrative fixtures, not product data.",
+  "version": 1,
+  "parameters": [
+    { "name": "project",  "carries": "active project", "grammar": "slug", "history": "push", "crossProject": "never switches silently; StateNotice with Switch armed and Stay" },
+    { "name": "session",  "carries": "session tab", "grammar": "slug", "history": "push" },
+    { "name": "entity",   "carries": "logical entity", "grammar": "logical-id or symbol", "history": "push", "example": "ResourceRef::Resolve" },
+    { "name": "build",    "carries": "inspected build", "grammar": "build-id", "history": "push", "example": "build-b" },
+    { "name": "addr",     "carries": "address or cursor in the inspected build", "grammar": "hex without 0x", "history": "replace", "requires": "build; without it the builds containing the address are listed", "example": "0041b210" },
+    { "name": "ws",       "carries": "workspace", "values": ["code", "compare", "recovery", "evidence"], "history": "push; consecutive switches with no Go collapse" },
+    { "name": "panel",    "carries": "full corpus view inside a workspace; target of every Show all", "values": ["report", "atlas", "review", "builds", "pipeline"], "history": "push" },
+    { "name": "views",    "carries": "co-visible code views", "grammar": "comma list", "values": ["listing", "decompile", "hex", "graph"], "history": "replace; never rewritten at narrow widths" },
+    { "name": "cmp",      "carries": "split pair", "grammar": "build-id..build-id", "history": "push on open and close", "example": "build-a..build-c", "resolution": "recorded edges and locators only" },
+    { "name": "hold",     "carries": "held center panes", "grammar": "kind:id@build[:addr][~basis]", "max": 2, "overflow": "extra entries become keep entries, with a notice", "history": "replace; Back/Forward never open, close or re-point holds", "example": "symbol:ResourceRef::Resolve@build-c:0041c880~b7e2" },
+    { "name": "keep",     "carries": "Kept cards in the evidence rail", "grammar": "kind:id@build[~basis]", "repeatable": true, "history": "replace", "example": "receipt:r-5521@build-b" },
+    { "name": "dock",     "carries": "dock tab", "values": ["jobs", "problems", "activity", "marks"], "history": "replace" },
+    { "name": "job",      "carries": "focused job", "grammar": "job-id", "history": "push", "example": "a3f9" },
+    { "name": "receipt",  "carries": "focused receipt", "grammar": "receipt-id", "history": "push" },
+    { "name": "type",     "carries": "type or field path", "grammar": "Type[.field]", "history": "push", "example": "CacheEntry.name_len" },
+    { "name": "f",        "carries": "filter", "grammar": "axis:value", "repeatable": true, "history": "replace", "example": "xref.dir:in" },
+    { "name": "q",        "carries": "free-text filter", "grammar": "text", "history": "replace" },
+    { "name": "page",     "carries": "review cursor", "grammar": "match-id", "refuse": "a score-shaped value is refused by name", "history": "replace" },
+    { "name": "t",        "carries": "work-view event", "grammar": "accepted-event id", "unresolved": "Event ‹id› is no longer retained", "history": "push" },
+    { "name": "node",     "carries": "pipeline-model node id", "grammar": "id from pipeline-model.json", "history": "push", "example": "gate-4" },
+    { "name": "wl",       "carries": "active worklist", "grammar": "worklist-id", "unresolved": "Worklist not available here", "history": "replace" }
+  ],
+  "aliases": {
+    "p": "project",
+    "e": "entity",
+    "logical_id": "entity",
+    "b": "build",
+    "binary": "build",
+    "a": "addr",
+    "sp": "session",
+    "slug": "project",
+    "tool": "views",
+    "tab": "views",
+    "pin": "keep",
+    "focus": "addr"
+  },
+  "aliasRules": [
+    "A canonical name wins over its alias; an ignored alias is named in a notice.",
+    "Alias rewrites use replaceState.",
+    "A parameter a surface cannot render stays verbatim in its URL and gets a StateNotice (lossless round trip)."
+  ],
+  "legacyWindows": {
+    "$comment": "Documented window=wb-* values (docs/plans/2026-08-31-2245-feat-workbench-one-page-functions-plan.md, dogfood reports). Mappings are proposed and not verified against the static window registry.",
+    "wb-fnbrowse": { "ws": "code", "focus": "navigator" },
+    "wb-logical":  { "ws": "compare" },
+    "wb-review":   { "ws": "compare", "panel": "review" },
+    "wb-corpus":   { "ws": "evidence", "panel": "builds" },
+    "wb-pipeline": { "ws": "recovery", "panel": "pipeline" }
+  },
+  "legacyRoutes": {
+    "/atlas": { "panel": "atlas" },
+    "/report": { "ws": "recovery", "panel": "report" },
+    "/dashboard/explorer": { "ws": "code", "focus": "navigator", "note": "Explorer is the Navigator region, never a center surface" }
+  },
+  "neverInUrl": ["checked set", "drafts", "credentials"],
+  "history": {
+    "push": ["Go (link, row Enter or click, go-to pick, Make primary, job or receipt link, Show all)", "workspace switch", "build switch", "cmp open or close"],
+    "replace": ["list and grid focus moves", "cursor moves", "typed filters", "views", "dock", "hold", "keep", "alias rewrites"],
+    "replaceThrottle": "after the 200ms settle",
+    "stopStores": ["viewport as anchor address plus caret", "focus as region + component + row key"],
+    "nonAuthoritative": ["history.state", "Recent"]
+  },
+  "intercept": {
+    "only": "same-origin anchors whose href parses fully under this schema and alias table",
+    "native": ["unknown parameters", "/api", "/docs", "settings", "downloads", "target=_blank", "modified clicks outside the grammar"],
+    "noServerGet": true,
+    "noPrefetch": true
+  }
+}

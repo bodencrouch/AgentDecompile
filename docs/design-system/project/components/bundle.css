@@ -897,7 +897,8 @@
 .adc-legend code{font:400 12px/18px var(--font-mono);color:var(--ink);text-decoration:underline dotted var(--ink-muted);text-underline-offset:3px}
 .adc-legend code.fn,.adc-legend code.gl{color:var(--lane-identity-ink)}
 .adc-legend code.lv{text-decoration-style:dashed}
-/* Listing wells in these previews size the bytes column in ch so 6-byte instructions never collide with the mnemonic */
+/* Listing wells in these previews size the bytes column in ch so 6-byte instructions never collide with the mnemonic.
+   Remove once the .ad-ln bytes column is widened in bundle.css (coordinator fix pending). */
 .adc-lst .ad-ln{grid-template-columns:14px 8ch 17ch 5ch minmax(0,1fr) auto}
 /* Listing reflection rows (rows that produced the selected statement) */
 .ad-ln.adc-refl{background:var(--raised);box-shadow:inset 3px 0 0 var(--ink-muted)}
@@ -1005,8 +1006,10 @@
 .adc-cbbar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3) var(--space-5);padding:var(--space-3) var(--space-5);background:var(--pane);border-bottom:1px solid var(--line);min-width:0}
 .adc-cbbar .where{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:0 var(--space-3);min-width:0;margin-right:auto}
 .adc-cbbar .where .strong{font-family:var(--font-mono)}
-.adc-cbbar .ad-sync[aria-pressed="false"]{color:var(--ink-strong)}
-.adc-cbbar .ad-btn.ad-sync[aria-pressed="true"]{background:var(--pane);color:var(--ink);font-weight:400}
+.adc-hold{display:inline-flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3);font:400 12px/16px var(--font-sans);color:var(--ink);min-width:0}
+.adc-hold .st{display:inline-flex;align-items:center;gap:var(--space-2);min-width:0}
+.adc-hold.held .st{color:var(--ink-strong);font-weight:700}
+.adc-hold.held .st .ad-ico{color:var(--fact-stale)}
 .adc-cbbody{display:grid;grid-template-columns:minmax(0,1fr) 1px minmax(0,1.12fr);grid-template-areas:"lst s1 dc" "hex hex hex" "xr xr xr";gap:0;min-width:0}
 .adc-cbbody>.lst{grid-area:lst}.adc-cbbody>.dc{grid-area:dc}.adc-cbbody>.s1{grid-area:s1}
 .adc-cbbody>.hexw{grid-area:hex}.adc-cbbody>.xr{grid-area:xr}.adc-cbbody>.s2{display:none}
@@ -1095,6 +1098,7 @@
 .ad .ad-link.adc-nt{display:inline-flex;padding:3px 5px;border:1px dashed var(--line-control);border-radius:var(--radius-chip);font:400 11px/1 var(--font-mono);text-decoration:underline dotted var(--ink-muted);text-underline-offset:2px}
 .ad .ad-link.adc-nt:hover,.ad .ad-link.adc-nt:focus-visible{text-decoration:underline solid currentColor}
 .adc-cbbody>.ad-held{border:2px solid var(--ink-strong)}
+
 /* ---- css-flow.css ---- */
 /* ---------- Flow components (ProblemsList, EntityTimeline, MarksList, KeymapSettings, LayoutPresets, NarrowFlow) ----------
    Draft for merge into components/bundle.css. Consumes tokens only; no literal colors except transparent.
@@ -1227,6 +1231,8 @@
 .ad-mark-row.wl .pg{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-4);font-size:11px;color:var(--ink-muted)}
 .ad .ad-mark-row .n>a.ad-link,.ad .ad-mark-where>a.ad-link,.ad .ad-mark-cur>a.ad-link{display:inline-flex;align-items:center;min-height:24px}
 .ad-mark-letter{display:inline-grid;place-items:center;min-width:20px;height:20px;padding:0 4px;align-self:center;border:1px solid var(--ink-strong);color:var(--ink-strong);font-weight:700;font-size:12px}
+.ad-mark-named{display:inline-grid;place-items:center;height:20px;padding:0 4px;align-self:center;border:1px dashed var(--ink-strong);color:var(--ink-strong);font:700 10px/1 var(--font-sans);letter-spacing:.04em;text-transform:uppercase}
+.ad-mark-sub{font-weight:400;letter-spacing:0;text-transform:none}
 .ad-mark-scope{display:inline-flex;gap:var(--space-2);align-items:baseline;padding:1px var(--space-3);border:1px solid var(--badge-frame);border-radius:var(--radius-chip);font:400 11px/15px var(--font-mono);color:var(--ink);white-space:nowrap}
 .ad-mark-act{font:700 10px/14px var(--font-sans);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-strong);border:2px solid var(--ink-strong);padding:0 4px;border-radius:var(--radius-chip);white-space:nowrap}
 .ad-mark-bar{display:inline-flex;gap:2px;flex:1 1 120px;max-width:220px}
@@ -1315,6 +1321,10 @@
 .ad-whichkey ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-6);font-size:12px;line-height:18px}
 .ad-whichkey li{display:inline-flex;gap:var(--space-3);align-items:center;white-space:nowrap}
 .ad-whichkey .ad-kbd,.ad-keyhelp .ad-kbd{color:var(--ink-strong)}
+.ad-whichkey-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:var(--space-3) var(--space-6)}
+.ad-whichkey-groups>div{display:grid;gap:var(--space-2);align-content:start}
+.ad-whichkey-groups ul{flex-direction:column;gap:2px}
+.ad-whichkey-esc{display:inline-flex;gap:var(--space-3);align-items:center;font-size:12px}
 .ad-whichkey-note{font-size:11px;line-height:15px;color:var(--ink-muted)}
 /* Shortcuts help sheet */
 .ad-keyhelp{display:grid;min-width:0;background:var(--dialog-bg);border:1px solid var(--line-control);box-shadow:var(--shadow-popup)}
@@ -1361,14 +1371,22 @@
 .ad-preset .t{font:700 13px/18px var(--font-sans);color:var(--ink-strong)}
 .ad-preset[aria-checked="true"] .t::after{content:" · current";font-weight:400;color:var(--ink)}
 .ad-preset-mini{display:grid;grid-template-columns:var(--preset-nav) minmax(0,1fr) minmax(0,1fr) var(--preset-ev);grid-template-rows:6px 84px var(--preset-dock);gap:2px;padding:2px;background:var(--chassis);border:1px solid var(--line-control);font:400 11px/13px var(--font-sans)}
+.ad-preset-mini.band{grid-template-rows:6px 22px 60px var(--preset-dock)}
+.ad-preset-mini.below{grid-template-rows:6px 56px 26px var(--preset-dock)}
 .ad-preset-mini::before{content:"";grid-column:1/-1;grid-row:1;background:var(--raised)}
 .ad-preset-mini i{display:grid;place-items:center;min-width:0;overflow:hidden;padding:2px;font-style:normal;text-align:center;overflow-wrap:anywhere;hyphens:manual;color:var(--ink);background:var(--pane);border:1px solid var(--line-control)}
-.ad-preset-mini .nav{grid-row:2}
-.ad-preset-mini .c{grid-row:2;background:var(--well)}
-.ad-preset-mini .ev{grid-row:2}
-.ad-preset-mini .dock{grid-column:1/-1;grid-row:3}
-.ad-preset-mini .held{border:2px solid var(--ink-strong);border-style:dashed;color:var(--ink-strong);font-weight:700}
-.ad-preset-mini .off{color:var(--ink-muted);border-style:dashed}
+.ad-preset-mini .nav{grid-column:1;grid-row:2/-2}
+.ad-preset-mini .ev{grid-column:4;grid-row:2/-2}
+.ad-preset-mini .c1,.ad-preset-mini .c2,.ad-preset-mini .cw{grid-row:2;background:var(--well)}
+.ad-preset-mini .c1{grid-column:2}.ad-preset-mini .c2{grid-column:3}.ad-preset-mini .cw{grid-column:2/4}
+.ad-preset-mini.band .c1,.ad-preset-mini.band .c2,.ad-preset-mini.band .cw{grid-row:3}
+.ad-preset-mini .top{grid-column:2/4;grid-row:2;background:var(--raised)}
+.ad-preset-mini .bot{grid-column:2/4;grid-row:3;background:var(--well)}
+.ad-preset-mini .dock{grid-column:1/-1;grid-row:-2}
+.ad-preset-mini .held{border:2px dashed var(--ink-strong);color:var(--ink-strong);font-weight:700}
+.ad-preset-mini .der{border-style:dotted}
+.ad-preset-mini .off{color:var(--ink-muted);border-style:dashed;background:transparent}
+.ad-preset-mini .keep{color:var(--ink-muted);font-style:italic;border-style:dashed}
 .ad-preset-dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--space-1) var(--space-4);margin:0;font-size:12px;line-height:16px}
 .ad-preset-dl dt{color:var(--ink-muted)}.ad-preset-dl dd{margin:0;overflow-wrap:anywhere}
 .ad-preset-note{align-self:stretch}

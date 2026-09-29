@@ -18,7 +18,7 @@ Profiles: **default**; **ida** adds focus-scoped n, y, ; and g in code wells; **
 
 | Keys | Does | Replaces |
 |---|---|---|
-| Enter · Shift+Enter · Alt+↓ · Shift+K · Shift+F10 | Go · open beside · peek · keep · reveal in, on every link | opening tabs and pages to look, then coming back |
+| Enter · Shift+Enter · Alt+↓ · Shift+K · Shift+F10 | Go · open beside · peek · keep (inside a Peek or card) · link menu, on every link | opening tabs and pages to look, then coming back |
 | Ctrl/Cmd+P | go to anything, with scope prefixes | choosing the right list view before searching |
 | Alt+← / Alt+→ | back and forward across workspaces, restoring focus | re-navigating after every reference |
 | F6 / Shift+F6, Ctrl/Cmd+B, Ctrl/Cmd+Alt+B, Ctrl/Cmd+J | move between regions; show or hide rails and dock | Tab travel and pointer trips between panes |

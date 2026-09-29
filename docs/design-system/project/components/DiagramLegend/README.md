@@ -9,12 +9,7 @@ The legend every overview diagram carries: the arrow, failover, gate, lock and b
 - Swatches 18×18, `radius-pill`, family fill with family-ink stroke.
 - Every entry is a glyph plus words; the words carry the meaning in every mode, including forced colors.
 
-**Linking**
-
-- **Publishes:** nothing. Diagram-only.
-- **Follows:** nothing; the entries are fixed.
-- **Targets rendered:** in app renderings the legend is a key, not navigation: it sits on the same view as the graphic it explains, is tied to it with `aria-describedby`, and only its heading links to its pipeline node (`?node=legend`). In docs each entry keeps its node id as the outline anchor (`agentdecompile-recovery-pipeline.outline.md#legend-gate`, `#legend-family-unify`, …).
-- **Absent copy:** none; a legend is never shown without its graphic.
+**Linking:** none (print diagram). Its entries keep their pipeline-model ids (`legend-gate`, `legend-family-unify`, …) as docs outline anchors (`agentdecompile-recovery-pipeline.outline.md#legend-gate`). In the app a legend is a key, not navigation: it sits on the same view as its graphic and is tied to it with `aria-describedby`.
 
 **Accessibility**
 

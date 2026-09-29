@@ -35,7 +35,7 @@ One theme ships: **Graphite**, dark and single-accent, taken directly from the r
 
 ## Linked views and accessibility
 
-Every mention is a typed link with one activation grammar (Enter goes, Shift+Enter opens beside, Alt+↓ peeks, K keeps, Shift+F10 reveals in). Every pane follows the one selection or is explicitly **Held**. Detail opens in place, outcomes land on the row that invoked them, and the location lives in the URL so Back, Forward and shared links restore it exactly. See the Linked views section. Keyboard-only, screen-reader, low-vision and motor access are part of the same contract: see the Accessibility section.
+Every mention is a typed link with one activation grammar (Enter goes, Shift+Enter opens beside, Alt+↓ peeks, Keep keeps a Peek or card, Shift+F10 opens the link menu). Every pane follows the one selection or is explicitly **Held**. Detail opens in place, outcomes land on the row that invoked them, and the location lives in the URL (`location-schema.json`, shared by both surfaces), so Back, Forward and shared links restore the place; data is read now. See the Linked views section. Keyboard-only, screen-reader, low-vision and motor access are part of the same contract: see the Accessibility section.
 
 ## The six work families
 

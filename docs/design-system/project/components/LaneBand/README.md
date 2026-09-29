@@ -9,15 +9,9 @@ A concurrent lane from the recovery overview: lane header on the family fill, a 
 - OUTPUTS box: chassis fill, family-ink stroke dashed `dash-outputs`, heading "OUTPUTS → who consumes them", "→ " bullets.
 - The family is written as a word in the header; the fill is never the only carrier.
 
-**Linking**
-
-- **Publishes:** nothing. Diagram-only: a lane never changes the selection, the build or admission, and it has no start or stop verb.
-- **Follows:** nothing; the content is `pipeline-model.json`.
-- **Targets rendered:** in app renderings (PipelineMap lanes, WorkflowControl's scope sentence, go-to `~lane-A`) the lane title links to its pipeline node, `?node=lane-A`, and each lane card to `?node=lane-A-card-1`…; stages named in the pill ("stage 1 identity", "stage 5") link to `?node=stage-1` and `?node=stage-5`. In docs the same names link to the outline anchors (`agentdecompile-recovery-pipeline.outline.md#lane-A`). Link names read "Pipeline node lane-A, Knowledge fusion".
-- **Absent copy:** a lane this project does not run reads "not controlled here" in the app (WorkflowControl), never an empty band; external owners stay external.
+**Linking:** none (print diagram). Its nodes keep their pipeline-model ids (`lane-A`…`lane-E`, `lane-A-card-1`…): where the app renders the same node (PipelineMap lanes, WorkflowControl's scope sentence, go to `~lane-A`), that rendering links it to `?node=` with that id, and in docs the name links to the outline anchor (`agentdecompile-recovery-pipeline.outline.md#…`). The print canvas itself carries no links and no live data.
 
 **Accessibility**
 
-- In the SVG each lane is a `<g id="lane-A">` in reading order; the text outline is the primary accessible form. In the app the lane title is a heading link and the subtitle is plain text, not italic-only meaning.
+- In the SVG each lane is a `<g id="lane-A">` in reading order; the text outline is the primary accessible form. The subtitle is plain text with a family-word prefix, never italic-only meaning.
 
-**Removes switching:** opening the diagram and then searching the app for the work a lane owns (J05).

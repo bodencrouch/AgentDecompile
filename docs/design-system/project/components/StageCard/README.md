@@ -13,9 +13,11 @@ A pipeline stage card from the recovery overview: header band in the family fill
 **Linking**
 
 - **Publishes:** nothing. A stage card never changes the selection, the inspected build or admission.
-- **Follows:** static: nothing, the content is `pipeline-model.json`. Live: `project` and the active `f` filters, read from the stored projection; it never polls work into existence.
-- **Targets rendered:** in app renderings the title links to its pipeline node (`?node=stage-5`: the PipelineMap node and its filtered live view) and the gate line to `?node=gate-5`; in docs the same title links to the outline anchor (`agentdecompile-recovery-pipeline.outline.md#stage-5`). Live counts link to the Functions grid filtered by that axis (`f=`), the oldest wait to that row or job (job → dock Jobs record), running jobs to their dock records. Link names read type, target and state: "Pipeline node stage-5, Propagation (cross-place)"; "Job a3f9, corpus.cross-place, running".
-- **Absent copy:** "No work at this stage in corpus-alpha." · "Counts not loaded. Open the pipeline map to read them." · an axis with no receipts says "not run", never 0. An unmapped catalog verb reads "stage: unmapped".
+- **Follows:** static variant: nothing. Live variant: `project` and `f`, re-read from the stored projection after the settle; not holdable (a Peek of it can be kept as a card, `keep=node:stage-5`).
+- **Targets rendered:** live variant only: title → its pipeline node (`?node=stage-5`, the PipelineMap node and its filtered live view) · gate line → `?node=gate-5` · each count → the Functions grid filtered by that axis (`f=`) · the oldest wait → that entity @ build (Code Browser) or job (dock Jobs record) · running jobs → their dock records. The static variant is print only; its node id is the docs outline anchor (`agentdecompile-recovery-pipeline.outline.md#stage-5`). Link names read "Pipeline node stage-5, Propagation (cross-place)"; "Job a3f9, corpus.cross-place, running".
+- **Peek source:** Alt+↓ on the title reads the PipelineMap's cached counts, oldest waiting age and lock owner; Explain reads the generated outline text. Nothing is polled or started.
+- **Absent copy:** "No work at this stage in corpus-alpha." · "Counts not loaded. Open the pipeline map to read them." · an axis with no receipts says "not run", never 0 · an unmapped catalog verb reads "stage: unmapped".
+- **Target-size exception:** inline: links inside the count and wait sentences use the WCAG 2.5.8 inline exception; Explain and the title link are 24px.
 
 **Keyboard**
 

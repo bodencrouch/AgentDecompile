@@ -8,12 +8,7 @@ A capability milestone with its delivery status kicker, body and acceptance pred
 - Status colors: implemented foundation `role-bytes`; future delivery `role-step` (engine capability) or `role-acceptance` (creative, playback); future qualification and feasibility `role-gate`.
 - A milestone's status is a claim with evidence. Future milestones are ambitions, not completed features. The kicker's words carry the status; the stroke color never does alone.
 
-**Linking**
-
-- **Publishes:** nothing. Diagram-only.
-- **Follows:** nothing; the content is `pipeline-model.json`.
-- **Targets rendered:** in app renderings the title links to its pipeline node (`?node=milestone-M0`…`milestone-M7`); in docs to the outline anchor (`autonomous-capabilities.outline.md#milestone-M2`). An "Evidence:" line names receipts only where one exists; each is a receipt link to its receipt card.
-- **Absent copy:** "Live delivery is unverified." and "not run" where no evidence exists; a future milestone never links to a receipt.
+**Linking:** none (print diagram). Its nodes keep their pipeline-model ids (`milestone-M0`…`milestone-M7`): where the app renders the same node (a capability status view or go to `~milestone-M2`), that rendering links it to `?node=` with that id, and in docs the name links to the outline anchor (`autonomous-capabilities.outline.md#…`). The print canvas itself carries no links and no live data.
 
 **Accessibility**
 

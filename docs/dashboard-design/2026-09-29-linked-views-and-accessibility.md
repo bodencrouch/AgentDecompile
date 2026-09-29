@@ -36,7 +36,7 @@ Before = documented or implied view switches. After = switches with the units in
 | Journey | Task | Before | After | Main units |
 |---|---|---:|---:|---|
 | J01 | Inspect a function in build A, then see its counterpart(s) in builds B-D (address, divergence class, identity-edge state), and return to build A | 5 | 1 | UX-05 (Peek reads them at 0) |
-| J02 | From a function's proof state (seven facts), open the receipt behind a fact and the job that produced it | 5 | 0 | UX-04 + UX-10 (1 activation to open the job) |
+| J02 | From a function's proof state (seven facts), open the receipt behind a fact and the job that produced it | 5 | 1 | UX-04 + UX-10: 0 workspace switches, 1 dock-tab change; 2–3 activations |
 | J03 | Find which pipeline stage / concurrent lane produced a given receipt or job | 4 | 0 | UX-10 StageChip on the row |
 | J04 | Understand why a stage/entity/objective is blocked and what continues | 5 | 1 | UX-12 diagnosis in place |
 | J05 | Go from a diagram concept (stage gate, lock, lane, ladder step) to the live entities/jobs currently at it | 5 | 1 | UX-08 go to anything |
@@ -51,30 +51,30 @@ Before = documented or implied view switches. After = switches with the units in
 | J14 | Investigate a vtable: slots, targets, callers, class layout, and the same slots on other builds | 6 | 2 | UX-07 Slots mode + UX-13 |
 | J15 | Diagnose a decompile artifact (extraout/unaff/wrong return) before changing a prototype | 6 | 2 | UX-03 Code Browser composite |
 | J16 | Explore the call graph and read code of nodes along the way | 3 | 0 | UX-03 graph beside code + UX-06 held graph |
-| J17 | Walk every member of a logical identity across builds | 6 | 2 | UX-05 + UX-02 |
+| J17 | Walk every member of a logical identity across builds | 6 | 1 | UX-05 + UX-02 |
 | J18 | Find out why a function has its name: winning tier, donor build, rejected alternatives, conflicts | 4 | 0 | UX-06 rail section |
 | J19 | From a job in the dock, see which entities/builds it changed | 4 | 1 | UX-01 typed links |
 | J20 | From an actual-work event (propagation, repair, verify), inspect the underlying diff/evidence and step through history | 4 | 1 | UX-01 typed links |
 | J21 | Inner loop: run a catalog verb on the selected function and read its outcome | 5 | 2 | UX-14 outcomes on the row |
 | J22 | Run one verb on a checked set and verify each function's result | 7 | 2 | UX-10 walkable provenance |
-| J23 | Consult a corpus panel (Cross-match, Recovery, STABS, Knowledge, Review) for the current function and come back | 3 | 0 | UX-02 location schema |
-| J24 | Use Atlas similarity map / report / explorer page and return to the same function | 3 | 0 | UX-02 location schema |
-| J25 | Follow a link between the static workbench and the React app without losing the destination | 3 | 0 | UX-01 typed links |
+| J23 | Consult a corpus panel (Cross-match, Recovery, STABS, Knowledge, Review) for the current function and come back | 3 | 0 | UX-06 rail sections (via Show all: 2) |
+| J24 | Use Atlas similarity map / report / explorer page and return to the same function | 3 | 2 | UX-02 `panel=` views; 0 re-selection |
+| J25 | Follow a link between the static workbench and the React app without losing the destination | 3 | 1 | UX-02 shared schema (U172); +1 confirm when the link names another project |
 | J26 | Switch the inspected build while keeping the same logical entity | 3 | 1 | UX-05 counterparts in place |
-| J27 | Open a Ghidra program whose corpus inventory/binding is missing and get to its functions | 4 | 2 | UX-01 typed links |
+| J27 | Open a Ghidra program whose corpus inventory/binding is missing and get to its functions | 4 | 2 | UX-01 dead-end rule, plus the kept ConfirmDialog |
 | J28 | Detect and act on starvation: oldest unreviewed row, oldest waiting lane, job past deadline | 4 | 1 | UX-11 diagram ↔ live |
 | J29 | Pause/resume admission and understand exactly what it drains and which lanes it does not own | 4 | 0 | UX-11 scope sentence beside the control |
 | J30 | Import binaries, watch the admitted work, then start working on the new build | 4 | 1 | UX-10 walkable provenance |
 | J31 | After a project merge, inspect a conflicting name/type in its build | 4 | 1 | UX-01 typed links |
-| J32 | Check where context pieces were placed and resolve proposed-label conflicts | 3 | 1 | UX-01 typed links |
+| J32 | Check where context pieces were placed and resolve proposed-label conflicts | 3 | 1 | UX-01 typed links (≥1100px; 2 below 700px) |
 | J33 | See why an entity is not runtime-usable (e.g. not_detourable) on a build and whether other builds are | 4 | 1 | UX-13 (Peek reads the refusal at 0) |
 | J34 | From a whole-image delta, get to the offending function/data region and its object diff | 4 | 1 | UX-01 typed links |
-| J35 | Understand a stale fact: what dependency changed and when revalidation runs | 3 | 0 | UX-01 typed links |
+| J35 | Understand a stale fact: what dependency changed and when revalidation runs | 3 | 0 | UX-01 typed links (1 if the basis evidence is not cached) |
 | J36 | From strings/imports/exports/sections/bookmarks get to use sites and bytes | 3 | 1 | UX-01 typed links |
 | J37 | Do any cross-view journey on a narrow viewport (<700px, 598x912) | 6 | 3 | UX-21 narrow continuity |
 | J38 | Keyboard / screen-reader user: go from a job-transition announcement to the result and back to the entity | 4 | 1 | UX-18 regions and keymap |
 | J39 | Iterate on candidate source repair: diagnostic -> changed line -> compile -> objdiff | 4 | 1 | UX-01 typed links |
-| **Total** | 39 journeys | **174** | **41** | about 76% fewer switches |
+| **Total** | 39 journeys | **174** | **44** | about 75% fewer switches (estimates) |
 
 The largest single gains are the inner code loop (J09 + J10: about 10 switches per function down to about 1), match review (J07: 8 → 2 per decision) and batch verification (J22: 7 → 2, independent of batch size).
 
@@ -83,14 +83,56 @@ The largest single gains are the inner code loop (J09 + J10: about 10 switches p
 Each unit lists what changes, why it removes switching, its accessibility contract and its doctrine safeguards. P0 units are the foundation the others assume.
 
 ### U171 · Typed links and one activation grammar (P0; UX-01)
-Every mention of an address, symbol, counterpart, fact, receipt, job, logical id, basis digest, diagnostic, delta region or pipeline node is an `<a class="ad-link">` over the location schema, resolving to exactly one place (table in design-system Linked views). One grammar on both surfaces: **Enter** go · **Shift+Enter** open beside · **Alt+↓** peek (also after a 400ms pointer rest or 800ms focus rest) · **K** keep · **Shift+F10** reveal in · **Ctrl/Cmd+Enter** browser tab. Alt+Enter and Ctrl/Cmd+I were rejected for Peek (Alt+Enter means properties in many tools; Ctrl+I is Page Info in Firefox). Every component README gains a **Linking** block: publishes, follows, targets rendered, absent copy.
-*Safeguards:* activation only navigates; an unbound target shows a StateNotice with at most one catalog action armed, never run; absent and unresolved are words, never guessed links.
-*Acceptance (future):* every target type in the table opens its one destination on both surfaces; the Linking block exists in every component README.
+Every mention of an address, symbol, counterpart, fact, receipt, job, logical id, basis digest, diagnostic, delta region, conflict, work-view event or pipeline node is an `<a class="ad-link">` over the location schema. Each resolves to exactly one place. The design-system Linked views table also says, per type, whether it moves the primary location and where focus lands.
+
+One grammar on both surfaces:
+- **Enter** go;
+- **Shift+Enter** open beside (a Held pane; on 8080 without split panes, a new window labelled "(new window)");
+- **Alt+↓** peek (also after a 400ms pointer rest or 800ms focus rest; focus-rest is off at 400% zoom and below 700px);
+- the **Keep** button, whose Shift+K letter works only inside a Peek or card;
+- **Shift+F10** opens the one flat link menu (Open · Open beside · Peek · Keep; Reveal in, listing only valid destinations; Copy link · Copy ‹typed value›);
+- **Ctrl/Cmd+Enter** opens a browser tab.
+
+In checkable grids, Ctrl/Cmd-click and Shift-click belong to the checked set; there, Open beside is Shift+Enter or the menu. Alt+Enter and Ctrl/Cmd+I were rejected for Peek (Alt+Enter means properties in many tools; Ctrl+I is Page Info in Firefox). With a coarse pointer, each row exposes one 44px row-menu button. Every component README gains a **Linking** block: Publishes, Follows, Targets rendered, Peek source, Absent copy, Target-size exception.
+
+*Safeguards:*
+- Focus never changes workspace, build, dock tab or history.
+- Absent and unresolved are words. Ambiguous and contested are the word plus the ladder link, and contested lists both candidates with "no winner".
+- Counterpart links show their edge word and exist only for recorded edges. Address links carry their build.
+- A link naming another project lands on a StateNotice with "Open ‹project›" armed and confirm-gated, because opening admits work (U105).
+- Dead ends arm at most one action from `GET /api/v1/actions`, reuse first (binding or resume when recovered analysis or receipts exist), nothing while discovery is not loaded, and never run it.
+- Interception is a contract: only same-origin anchors that parse fully under the schema; no server GET for intercepted links; no speculative prefetch; the URL is the only navigation state. Whether the static surface intercepts today is **not verified from docs**.
+
+*Acceptance (future):* both surfaces emit the same href set, accessible names and absent words for one fixture entity, checked by a read-only text diff (richness fallbacks allowed); every target type opens its one destination; the Linking block exists in every component README. Observe on 8080 only when authorized.
 
 ### U172 · One location schema and browser-backed history (P0; UX-02)
-One parameter table, readable names: `project`, `session`, `entity`, `build`, `addr`, `ws`, `views`, `cmp`, `hold`, `dock`, `job`, `receipt`, `f` (axis:value filters) and `q`, `page`, `t`, `node`, `wl`, with one alias table (`p`, `e`, `b`, `a`, `sp`, `slug`, `logical_id`, `binary`, `tool`, `tab`, `pin`, `window=wb-*`, `focus=`) shared by both surfaces. pushState on Go, workspace switch, build switch and split open; replaceState for cursor moves and typed filters. Browser Back, Alt+←/→ and mouse buttons are the app's history; each stop restores workspace, views, split, held panes, viewport and focused element. /atlas, /report and /dashboard/explorer become in-shell windows addressed by the same schema. Never in the URL: the checked set, drafts, credentials.
-*Safeguards:* opening a URL is read-only; basis changes show current data and mark held panes stale; responses keyed by location token.
-*Acceptance (future):* both surfaces parse the alias table identically (diff empty); reload, shared link and surface switch land on the same entity, build, address and focused element.
+`docs/design-system/project/location-schema.json` is loaded by both surfaces. It holds readable names (`project`, `session`, `entity`, `build`, `addr`, `ws`, `panel`, `views`, `cmp`, `hold`, `keep`, `dock`, `job`, `receipt`, `type`, `f`, `q`, `page`, `t`, `node`, `wl`), one alias table (`p`, `e`, `b`, `a`, `sp`, `slug`, `logical_id`, `binary`, `tool`, `tab`, `pin` → `keep`, `window=wb-*`, `focus=`) and a mapping for every documented legacy window.
+- `ws` keeps four workspaces. `panel` addresses full corpus views (Report, Atlas, Review, Builds, Pipeline map) and is the target of every "Show all". Explorer is the Navigator region.
+- `hold` is for held center panes only (`kind:id@build[:addr][~basis]`, at most two). `keep` is for Kept cards.
+- pushState on:
+  - Go (including Make primary, job or receipt links and Show all);
+  - a workspace switch;
+  - a build switch;
+  - opening or closing a `cmp` pair.
+- replaceState, throttled to after the settle, for focus, cursor, filters, views, dock, hold and keep.
+- Browser Back, Alt+←/→ and mouse buttons are the app's history.
+  - Each stop restores workspace, views, split, viewport (anchor address plus caret) and focus (region, component, row key).
+  - Back and Forward never open, close or re-point holds.
+  - A Recent menu (right-click on Back) lists this tab's last 20 stops. Back itself has no history menu.
+- Restore reads now: cached panes render from stored evidence, and expensive panes say "Not loaded. Open to read it."
+- Never in the URL: the checked set, drafts, credentials.
+
+*Safeguards:*
+- A URL or history stop naming another project never switches it: a StateNotice names both projects, with Switch armed and Stay.
+- History moves clear the checked set on a program change (announced first), cancel an open ConfirmDialog, rebind the ActionStrip without arming it, and never replay an action.
+- Holds carry a basis token ("◷ Basis changed since held"; "Basis at hold time not recorded").
+- Reads are keyed by location token and selection generation.
+- `history.state` and Recent are non-authoritative client state.
+
+*Acceptance (future):*
+- Both surfaces parse `location-schema.json` identically, with an empty diff and lossless round trip of parameters a surface cannot render.
+- Reload, a shared link and a surface switch land on the same entity, build, address and focused element.
+- A read-only grep finds no alias names in design-system preview hrefs.
 
 ### U173 · Code Browser composite (P0; UX-03)
 A Views toolbar (aria-pressed toggles, `views=` in the URL) replaces the analysis tablist: Listing and Decompile side by side at ≥1100px, stacked at 700–1099px, one view with "Show in other view" below 700px; a HexStrip under the listing; Graph beside when chosen. One reflected cursor: focusing a token marks the mapped rows in every visible view (gutter bar plus underline, never color alone); Enter moves the cursor for all views; missing mappings say "No instruction mapping for this statement". Focus-scoped `r` moves focus to the reflected row; `h` highlights all occurrences. Xrefs and Matching leave the center tablist (see U177, U175).
@@ -98,7 +140,7 @@ A Views toolbar (aria-pressed toggles, `views=` in the URL) replaces the analysi
 *Components:* DecompilePane, HexStrip, GraphPane, CodeBrowser, FunctionOutline.
 
 ### U174 · Peek everywhere (P0; UX-04)
-A content table by target type (code lines in the host view's own form; facts with their receipt, job and StageChip; stale basis old → new; gate waits with age; ladder runs; counterparts; jobs' three readouts; name provenance). One Esc order (close peek → close menu → clear transient filter; Esc never clears the checked set). Keep is carried as `hold=card:…`. Below 700px Peek is a bottom sheet.
+A content table by target type (code lines in the host view's own form; facts with their receipt, job and StageChip; stale basis old → new; gate waits with age; ladder runs; counterparts; jobs' three readouts; name provenance). One Esc order (close peek → close menu → clear transient filter; Esc never clears the checked set). Keep is carried as `keep=`. Below 700px Peek is a bottom sheet.
 *Safeguards:* cache-only by construction; "Not loaded. Open to read it." is an answer, not a fetch; stale stays labelled.
 *Accessibility:* WCAG 1.4.13 dismissable, hoverable, persistent; opens on focus too; never steals focus.
 
@@ -107,7 +149,7 @@ A CounterpartStrip above the Code Browser names every build's counterpart with l
 *Safeguards:* counterparts only from recorded identity edges and locators; contested has no winner; equal rows in a split say "local; ≠ whole-image proof".
 
 ### U176 · Follow, Hold and Kept (P1; UX-06)
-Following panes update after a 200ms settle (`settle-delay`), keep prior content dimmed with "Loading ‹name›", cancel obsolete requests and set aria-busy; a Link panes toggle switches to commit-on-Enter. Hold freezes a pane to entity × build × address with a "Held" chip, its own history, "◷ Basis changed since held · Refresh" and Make primary; at most two center panes, further holds become Kept cards. The evidence rail absorbs the corpus panels as selection-scoped sections ("For ResourceRef::Resolve · build-b") with "Show all".
+Following panes update after a 200ms settle (`settle-delay`), keep prior content dimmed with "Loading ‹name›", cancel obsolete requests and set aria-busy; an **Update panes** control ("As I move" / "On Enter") switches to commit-on-Enter. The constant-named **Hold this pane** toggle (aria-pressed, state words "Following · sync A" / "Held · ‹entity› @ ‹build› · ‹age›") freezes a pane to entity × build × address, with a basis token, its own history, "◷ Basis changed since held · Refresh" and Make primary; at most two center panes, further holds become Kept cards. The evidence rail absorbs the corpus panels as selection-scoped sections ("For ResourceRef::Resolve · build-b") with "Show all".
 *Safeguards:* still one selection owner; held and kept are read-only and never silently refresh; the ActionStrip binds only the primary.
 
 ### U177 · XrefPanel, call hierarchy, vtable slots, outline (P1; UX-07)
@@ -184,7 +226,9 @@ Selection shown by fill plus a 3px bar; muted text and state words promoted on t
 | Checks persist "until Esc" (decisions.md, Phase C) | Esc never clears the checked set; use the count chip × or Clear checked (U174, U188). |
 | Analysis tablist with a "More…" select | Views toolbar; Xrefs and Matching move to the rail and Compare (U173, U177). |
 | Single-letter global shortcuts (S, O, N, G) | Modifier globals; single letters focus-scoped and remappable (U188). |
-| `pin=` in links | `hold=`; "pinned" is reserved for the locator status (U172). |
+| `pin=` in links | `keep=` for Kept cards and `hold=` for held panes; "pinned" is reserved for the locator status (U172). |
+| Back button history menu | The Recent menu (right-click on Back); Back and Forward never change holds (U172). |
+| "Link panes" toggle | "Update panes: As I move / On Enter" (U176). |
 | "One page, minimal tabs" vs dense tabs | Co-visible views plus rail sections; tabs remain only for workspaces, sessions and the dock (U173, U176). |
 
 ## Open questions

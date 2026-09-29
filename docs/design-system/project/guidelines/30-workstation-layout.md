@@ -16,7 +16,7 @@ Active project / related-build scope · search / goto · Pause admission
 └────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Top to bottom: header (name, active project and related-build scope, go to anything, Commands, the one WorkflowControl, Help) → session tabs → workspace tabs (Code Browser · Compare · Recovery · Evidence) → NavigationBar (Back and Forward with history, go to anything, breadcrumbs with sibling menus, Link panes, layout, copy link) → the CounterpartStrip and PipelineBreadcrumb for the selection → workspace, whose Code Browser shows a Views toolbar (Listing, Decompile, Hex, Graph as co-visible toggles; Strings, Imports, Exports and Sections are navigator scopes; References, Calls and Outline live in the evidence rail) → work view → dock → status line.
+Top to bottom: header (name, active project and related-build scope, go to anything, Commands, the one WorkflowControl, Help) → session tabs → workspace tabs (Code Browser · Compare · Recovery · Evidence) → NavigationBar (Back, Forward and the Recent menu, go to anything, breadcrumbs with sibling menus, Update panes, layout, copy link) → the CounterpartStrip and PipelineBreadcrumb for the selection → workspace, whose Code Browser shows a Views toolbar (Listing, Decompile, Hex, Graph as co-visible toggles; Strings, Imports, Exports and Sections are navigator scopes; References, Calls and Outline live in the evidence rail) → work view → dock → status line.
 
 - **One Functions surface.** Never add a second function sidebar.
 - **Listing and Decompile own the center.** Inspectors and the dock are resizable and collapsible. There is no giant blank upper workspace.
@@ -50,7 +50,7 @@ Activity, Recovery, Logs, Jobs and Problems live together at the bottom. There a
 
 ## Keyboard
 
-The Keymap section and `keymap.json` define every binding, scope and profile; the Linked views section defines the link grammar (Enter go, Shift+Enter open beside, Alt+↓ peek, K keep, Shift+F10 reveal in). Global commands always carry a modifier (Ctrl/Cmd+K palette, Ctrl/Cmd+P go to anything, Alt+←/→ history, F6 regions, Ctrl/Cmd+J dock); single letters work only inside a focused list, grid or code well and can be remapped or turned off. Every action has a palette path, a menu path and a keyboard path.
+The Keymap section and `keymap.json` define every binding, scope and profile; the Linked views section defines the link grammar (Enter go, Shift+Enter open beside, Alt+↓ peek, Keep inside a Peek or card, Shift+F10 link menu) and the grid modifier precedence. Enter always means Go; `.` repeats the armed action on the focused row. In checkable grids Space checks, and Shift extends a range (Shift+↑↓, Shift+j/k, Shift-click); Ctrl/Cmd-click toggles one row, so Open beside there is Shift+Enter or the link menu. Global commands always carry a modifier (Ctrl/Cmd+K palette, Ctrl/Cmd+P go to anything, Alt+←/→ history, F6 regions, Ctrl/Cmd+J dock); single letters work only inside a focused list, grid or code well and can be remapped or turned off. Every action has a palette path, a menu path and a keyboard path.
 
 ## Accessibility
 

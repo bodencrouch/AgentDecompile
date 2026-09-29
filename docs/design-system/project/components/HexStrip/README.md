@@ -4,7 +4,7 @@ A compact hex and ASCII strip for the current region, synchronized with the shar
 
 **Use it** under the Listing and DecompileView in CodeBrowser (the Hex view toggle) and as the Hex view of the single-view layout below 700px. It replaces opening the Hex analysis tab to see the bytes under the cursor.
 
-**Consumer provides** the build, section and region bounds (the current function plus a row of context); bytes read from the loaded program, with undefined bytes marked; the instruction boundaries in the region (start address and length per listing row, with its decompile line); the shared cursor and the reflection set (the bytes of the cursor's statement); and the follow state (linked, held, not loaded).
+**Consumer provides** the build, section and region bounds (the current function plus a row of context); bytes read from the loaded program, with undefined bytes marked; the instruction boundaries in the region (start address and length per listing row, with its decompile line); the shared cursor and the reflection set (the bytes of the cursor's statement); and the follow state (following, held, not loaded).
 
 - Rows of 16 bytes: the row address in `address`, bytes in `type-code` mono grouped 8 + 8, then ASCII (printable 0x20–0x7e, otherwise "."). Column offsets head the strip in `ink-muted`. Undefined bytes, which have no listing row, are `ink-muted`.
 - Marks, always with the key under the strip and never color alone: statement bytes (reflection) on `raised`; cursor instruction bytes bold with a 2px `ink-strong` under-bar; selected bytes on `selection` with a 2px `accent` under-bar; the rest of a partly selected instruction on `raised` with a 2px `ink-muted` under-bar. ASCII cells mirror the byte marks.
@@ -17,8 +17,8 @@ A compact hex and ASCII strip for the current region, synchronized with the shar
 
 **Linking**
 
-- Publishes the cursor (from a byte selection) to the location `a`. The byte selection itself is view state and is not in the URL.
-- Follows the primary location when linked; a held strip follows nothing.
+- Publishes the cursor (from a byte selection) to the location `addr`. The byte selection itself is view state and is not in the URL.
+- Follows the primary location while Following; a held strip follows nothing.
 - Renders row addresses and the mapped listing rows as `address` links (Code Browser at that address).
 - Absent: undefined bytes say "No listing row"; an unopened build says "Not loaded. Open to read it."
 

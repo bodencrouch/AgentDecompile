@@ -1,0 +1,112 @@
+<!-- @dsCard group="Evidence" height=1100 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<div class="ad-ebc-cols">
+<div class="stack" style="gap:8px">
+ <span class="kicker">Evidence rail · entered with Enter on a matrix cell</span>
+ <section class="ad-ebc" aria-labelledby="ebc1-t" id="ebc1">
+  <header>
+   <a class="ad-link back" href="?project=corpus-alpha&amp;ws=evidence&amp;views=readiness&amp;entity=88&amp;build=build-c&amp;focus=cell:12:build-c" aria-label="Back to ReadinessMatrix, row 12, build-c"><span aria-hidden="true">←</span> from ReadinessMatrix · row 12 · build-c</a>
+   <h3 id="ebc1-t"><code translate="no">ResourceRef::Resolve</code> · build-c</h3>
+   <span class="acts"><button class="ad-btn compact" aria-pressed="false" aria-keyshortcuts="K">Keep</button></span>
+   <span class="sub"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;ws=compare" translate="no">#88</a><span class="ad-stamp"><b>reused</b>readiness report · basis <a class="ad-link" href="?project=corpus-alpha&amp;receipt=9f3ca1e0">9f3c…a1e0</a> · 13:41</span></span>
+  </header>
+
+  <section class="sec" aria-labelledby="ebc1-s1"><h4 id="ebc1-s1">Locator · two separate axes</h4>
+   <dl class="ad-dl">
+    <dt>Pack status</dt><dd><span class="ad-loc pinned"><b aria-hidden="true">◎</b>pinned(module_rva)</span> <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=module_rva:0x1b210" translate="no">module_rva 0x1b210</a> · non-portable</dd>
+    <dt>Observed</dt><dd><span class="ad-fact not_run"><b aria-hidden="true">○</b><span>not run</span></span></dd>
+   </dl>
+  </section>
+
+  <section class="sec" aria-labelledby="ebc1-s2"><h4 id="ebc1-s2">Runtime capabilities on build-c</h4>
+   <ul class="ad-ebc-caps">
+    <li><span class="ad-caps" aria-hidden="true"><span class="on">L</span></span><span class="w">Located</span><span class="v">yes · module_rva, non-portable</span></li>
+    <li><span class="ad-caps" aria-hidden="true"><span class="on">R</span></span><span class="w">Readable</span><span class="v">yes · digest matches region</span></li>
+    <li><span class="ad-caps" aria-hidden="true"><span class="on">C</span></span><span class="w">Callable</span><span class="v">yes · ABI and lifetime checked</span></li>
+    <li class="refused"><span class="ad-caps" aria-hidden="true"><span class="refused">D</span></span><span class="w">Detourable</span><span class="v">refused: <a class="ad-link mono is-focus" href="?project=corpus-alpha&amp;node=ladder-B-5&amp;entity=88&amp;build=build-c" aria-label="Refusal not_detourable, ladder B member 5" aria-keyshortcuts="Alt+ArrowDown" aria-expanded="true" aria-controls="ebc1-pk" translate="no">not_detourable</a> · ladder B · member 5</span></li>
+    <li><span class="ad-caps" aria-hidden="true"><span class="unknown">W</span></span><span class="w">Writable</span><span class="v">unknown · not checked</span></li>
+   </ul>
+   <section class="ad-peek inline" id="ebc1-pk" role="dialog" aria-modal="false" aria-labelledby="ebc1-pk-t">
+    <header><span class="kicker">Refusal · build-c · peek</span><h4 id="ebc1-pk-t" translate="no">not_detourable</h4>
+     <div class="acts"><button class="ad-btn compact">Open ladder B <span class="ad-kbd">Enter</span></button><button class="ad-btn compact" aria-pressed="false">Keep</button></div>
+     <button class="ad-peek-x" aria-label="Close peek" aria-keyshortcuts="Escape">✕</button>
+     <div class="sub"><span class="ad-stamp"><b>reused</b>ladder run · 13:41</span></div></header>
+    <div class="pb"><p style="margin:0">No cave was placed. Ladder B tried members 1–4 on build-c without a placement; member 5 (executable allocation) is not permitted by this build’s process policy. Terminal: <span class="ad-outcome">no_placement</span></p></div>
+   </section>
+  </section>
+
+  <section class="sec" aria-labelledby="ebc1-s3"><h4 id="ebc1-s3">Ladder A · as run on build-c</h4>
+   <ol class="ad-ebc-lad">
+    <li><span class="n" aria-hidden="true">1</span><span><code translate="no">anchor_rel</code> <span class="r">no unique anchor within window</span></span></li>
+    <li><span class="n" aria-hidden="true">2</span><span><code translate="no">caller_callsite</code> <span class="r">caller unresolved on build-c</span></span></li>
+    <li><span class="n" aria-hidden="true">3</span><span><code translate="no">callee_order</code> <span class="r">2 candidates, margin below threshold</span></span></li>
+    <li class="nt"><span class="n" aria-hidden="true">4</span><span><span class="sr-only">Members </span>4–10 <span class="r">not tried (budget)</span></span></li>
+    <li class="nt"><span class="n" aria-hidden="true">11</span><span><code translate="no">annotation</code> <span class="r">a claim, never resolved</span></span></li>
+   </ol>
+   <p>No portable member resolved; the locator in use is <b class="strong">pinned(module_rva)</b>. <a class="ad-link" href="?project=corpus-alpha&amp;node=ladder-A&amp;entity=88&amp;build=build-c">Open the ladder run</a></p>
+  </section>
+
+  <section class="sec" aria-labelledby="ebc1-s4"><h4 id="ebc1-s4">What you can do on build-c</h4>
+   <p>Read and call <span translate="no">ResourceRef::Resolve</span> at module_rva 0x1b210. Detours are refused. Writing is not checked. Runtime calls never count as recovered source.</p>
+   <div class="arm"><button class="ad-btn compact" aria-describedby="ebc1-arm">Arm cave discovery</button><span class="small muted" id="ebc1-arm">Arms the Action strip for #88 on build-c. Nothing runs until you confirm.</span></div>
+  </section>
+
+  <section class="sec" aria-labelledby="ebc1-s5"><h4 id="ebc1-s5">Export readiness</h4>
+   <dl class="ad-dl">
+    <dt><a class="ad-link" href="?project=corpus-alpha&amp;node=export-readiness">Readiness report</a></dt><dd><span class="mono" translate="no">row 12 · pinned(module_rva) · observed not_run · detour refused</span><br><span class="muted">current · basis 9f3c…a1e0</span></dd>
+    <dt><a class="ad-link" href="?project=corpus-alpha&amp;node=export-hookpack">hookpack v2</a></dt><dd>included as pinned, non-portable</dd>
+    <dt><a class="ad-link" href="?project=corpus-alpha&amp;node=export-lua">Lua bindings</a></dt><dd>typed call stub; no detour stub</dd>
+   </dl>
+  </section>
+ </section>
+</div>
+
+<div class="stack" style="gap:8px">
+ <span class="kicker">The cell it came from · ReadinessMatrix row 12</span>
+ <div class="ad-scroll"><table class="ad-table ad-matrix" role="grid" aria-label="Readiness by entity and build" aria-rowcount="64" aria-colcount="5">
+  <thead><tr><th scope="col">Entity</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th></tr></thead>
+  <tbody><tr aria-rowindex="12"><th scope="row" translate="no">ResourceRef::Resolve</th>
+   <td class="cell" aria-label="build-a: resolved, callee_order; observed: called"><span class="ad-loc resolved"><b aria-hidden="true">●</b></span> <span class="ad-obs" aria-hidden="true">called</span></td>
+   <td class="cell" aria-label="build-b: resolved, anchor_rel; observed: not run"><span class="ad-loc resolved"><b aria-hidden="true">●</b></span></td>
+   <td class="cell is-focus" aria-selected="true" aria-label="build-c: pinned, module_rva, non-portable; observed: not run" tabindex="0"><span class="ad-loc pinned"><b aria-hidden="true">◎</b></span></td>
+   <td class="cell" aria-label="build-d: contested, no winner; observed: not run" tabindex="-1"><span class="ad-loc contested"><b aria-hidden="true">⇉</b></span></td></tr></tbody></table></div>
+ <p class="small muted" style="margin:0">Enter writes entity and build once and focuses the card. Arrowing across cells binds nothing. ● resolved · ◎ pinned · ⇉ contested.</p>
+
+ <span class="kicker">Contested cell · no winner</span>
+ <section class="ad-ebc" aria-labelledby="ebc2-t">
+  <header>
+   <a class="ad-link back" href="?project=corpus-alpha&amp;ws=evidence&amp;views=readiness&amp;entity=88&amp;build=build-d&amp;focus=cell:12:build-d" aria-label="Back to ReadinessMatrix, row 12, build-d"><span aria-hidden="true">←</span> from ReadinessMatrix · row 12 · build-d</a>
+   <h3 id="ebc2-t"><code translate="no">ResourceRef::Resolve</code> · build-d</h3>
+   <span class="acts"><button class="ad-btn compact" aria-pressed="false" aria-keyshortcuts="K">Keep</button></span>
+  </header>
+  <section class="sec" aria-labelledby="ebc2-s1"><h4 id="ebc2-s1">Locator</h4>
+   <p><span class="ad-loc contested"><b aria-hidden="true">⇉</b>contested</span> · two verified hits disagree · no winner</p>
+   <ul class="ad-ebc-hits">
+    <li><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-d&amp;addr=0041b2c0" translate="no">0041b2c0</a> via <code translate="no">callee_order</code> · verified hash</li>
+    <li><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-d&amp;addr=0041b3a0" translate="no">0041b3a0</a> via <code translate="no">data_xref</code> · verified hash</li>
+   </ul>
+   <div class="arm"><button class="ad-btn compact">Open both, held</button><span class="small muted">Two held panes, each labelled “contested · no winner”.</span></div>
+  </section>
+  <section class="sec" aria-labelledby="ebc2-s2"><h4 id="ebc2-s2">What you can do on build-d</h4>
+   <p>Nothing at runtime until one hit is accepted. Capabilities are not evaluated without an accepted binding. Arrival order is not a tie-breaker. The readiness report ships this row as contested and refuses unsafe use.</p>
+  </section>
+ </section>
+
+ <span class="kicker">Unresolved cell · the ladder, never an address</span>
+ <section class="ad-ebc" aria-labelledby="ebc3-t">
+  <header>
+   <a class="ad-link back" href="?project=corpus-alpha&amp;ws=evidence&amp;views=readiness&amp;entity=102&amp;build=build-c&amp;focus=cell:14:build-c" aria-label="Back to ReadinessMatrix, row 14, build-c"><span aria-hidden="true">←</span> from ReadinessMatrix · row 14 · build-c</a>
+   <h3 id="ebc3-t"><code translate="no">vtable: Actor</code> · build-c</h3>
+  </header>
+  <section class="sec" aria-labelledby="ebc3-s1"><h4 id="ebc3-s1">Ladder E · as run on build-c</h4>
+   <p><span class="ad-loc unresolved"><b aria-hidden="true">◌</b>unresolved</span> · per-slot unresolved; nothing is guessed.</p>
+   <ol class="ad-ebc-lad f-unify">
+    <li><span class="n" aria-hidden="true">1</span><span>RTTI <span class="r">no RTTI records on build-c</span></span></li>
+    <li><span class="n" aria-hidden="true">2</span><span>constructor vtable-store decode <span class="r">constructor unresolved</span></span></li>
+    <li class="nt"><span class="n" aria-hidden="true">3</span><span><span class="sr-only">Members </span>3–4 <span class="r">not tried (budget)</span></span></li>
+   </ol>
+  </section>
+ </section>
+</div>
+</div>
+</div>

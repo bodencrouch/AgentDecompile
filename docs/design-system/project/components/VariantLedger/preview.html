@@ -1,7 +1,7 @@
-<!-- @dsCard group="Evidence" height=150 -->
+<!-- @dsCard group="Evidence" height=160 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<div class="ad-scroll"><table class="ad-table"><thead><tr><th>build-a</th><th>Byte-accurate C+floor</th><th>Max-C</th></tr></thead><tbody>
-<tr><td>Reconstruction</td><td><span class="ad-fact passed"><b>✓</b>equal</span> <span class="mono muted small">sha256 5e0a… · floor 780</span></td><td><span class="ad-fact failed"><b>✕</b>differs</span> <span class="mono muted small">312 bytes in .text</span></td></tr>
-<tr><td>Original-style rebuild</td><td><span class="ad-fact not_run"><b>○</b>not run</span></td><td><span class="ad-fact not_run"><b>○</b>not run</span></td></tr></tbody></table></div>
-<div class="small muted">Real C and a complete executable are separate facts.</div>
+<div class="ad-scroll"><table class="ad-table"><thead><tr><th scope="col">build-a</th><th scope="col">Byte-accurate C+floor</th><th scope="col">Max-C</th></tr></thead><tbody>
+<tr><th scope="row">Reconstruction</th><td><a class="ad-fact passed" href="?project=corpus-alpha&amp;build=build-a&amp;receipt=5e0a" aria-label="Whole-file equality, reconstruction, byte-accurate C+floor, equal, receipt 5e0a"><b aria-hidden="true">✓</b><span class="label">equal</span></a> <span class="mono muted small">sha256 5e0a… · floor 780</span></td><td><a class="ad-fact failed" href="?project=corpus-alpha&amp;build=build-a&amp;receipt=0c4d" aria-label="Whole-file equality, reconstruction, max-C, differs, receipt 0c4d"><b aria-hidden="true">✕</b><span class="label">differs</span></a> <a class="ad-link mono small" href="?project=corpus-alpha&amp;build=build-a&amp;ws=recovery&amp;panel=report&amp;receipt=0c4d">312 bytes in .text</a></td></tr>
+<tr><th scope="row">Original-style rebuild</th><td><span class="ad-fact not_run"><b aria-hidden="true">○</b>not run</span></td><td><span class="ad-fact not_run"><b aria-hidden="true">○</b>not run</span></td></tr></tbody></table></div>
+<div class="small muted">Real C and a complete executable are separate facts. Whole-image recovery on build-a is unproven for max-C.</div>
 </div>

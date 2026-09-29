@@ -13,14 +13,14 @@ Per-entity history in the evidence rail: receipts, jobs, facts changing state, n
 - The rail is a vertical rule in `line-control` with 9px square nodes: hollow for seen, filled `ink-strong` for new, dashed for historical. Node, word and stamp all carry the difference; color never does.
 - Order is newest first. Filters: **This build | All builds** (all builds prefixes each event with its build) and provenance (All, Fresh, Reused, Historical). Filters change only this list.
 - **Older history is not loaded until asked.** The last row says "○ Not loaded. Open to read it. 22 older events are stored; reading them starts no work." **Read older** reads stored events only; it never analyzes, imports or recompiles.
-- **Follows the selection** (sync icon plus "Follows selection"). On a selection change the previous history stays, dimmed, with "Loading history for ‹name›"; a late response for the old selection is dropped. **K** keeps it as an evidence card labelled **Kept** in a 2px `ink-strong` frame with its age and "not following"; when its basis changes it says "◷ Basis changed since kept" and offers **Refresh** and **Make primary**. It never refreshes by itself.
+- **Follows the selection** (sync icon plus "Follows selection"). On a selection change the previous history stays, dimmed, with "Loading history for ‹name›"; a late response for the old selection is dropped. **Shift+K** keeps it as an evidence card labelled **Kept** in a 2px `ink-strong` frame with its age and "not following"; when its basis changes it says "◷ Basis changed since kept" and offers **Refresh** and **Make primary**. It never refreshes by itself.
 - Empty is an answer: "No recorded changes for ‹entity› on ‹build›. Existing analysis only."
 - Fits the 260px rail default and grows to 480px; times are `type-code-small`, sentences `type-ui`, reasons 11px `ink-muted`. Below 700px it becomes part of the Inspect pane with 44px targets.
 - Both surfaces read the same event store. The static 8080 surface may omit the provenance filter; it never omits stamps, the "since you looked" block or the chain links.
 
 **Linking**
 
-- Publishes: nothing on focus. Enter on an event goes to the thing that changed (the fact's receipt card, the edited name or type in the Code Browser, the job record), pushing one history stop; `receipt=` or `job=` with `e`, `b` carry it.
+- Publishes: nothing on focus. Enter on an event goes to the thing that changed (the fact's receipt card, the edited name or type in the Code Browser, the job record), pushing one history stop; `receipt` or `job` with `entity` and `build` carry it.
 - Follows: the primary selection (entity and inspected build), unless kept.
 - Renders: fact (receipt card), receipt id, job id, pipeline node id, basis digest, counterpart (entity @ build), work-view event, and a changed-entities set (the job's Targets list).
 - Absent: "no job" for direct saves, "unresolved on build-d" for a missing counterpart, and "Not loaded" for older events; never a guessed link.
@@ -28,7 +28,7 @@ Per-entity history in the evidence rail: receipts, jobs, facts changing state, n
 **Keyboard**
 
 - APG Grid (layout grid) with one tab stop: ↑/↓ move between events, ←/→ between the event and its chain links, Home/End to the first and last event. Enter goes; Shift+Enter opens beside; Alt+↓ peeks the focused link; Shift+F10 opens **Reveal in**.
-- **K** keeps the timeline as a card when focus is on the timeline card itself (its header or the "since you looked" block); on an event row, j/k keep their row-movement meaning. Both are remappable in KeymapSettings.
+- **Shift+K** (`link.keep`) keeps the timeline as a card when focus is on the timeline card itself (its header or the "since you looked" block), never on an event row, where k moves (`list.move`). Both are remappable in KeymapSettings.
 - **Go to first change** moves focus to the oldest new event. The toolbar precedes the grid in Tab order.
 
 **Accessibility**

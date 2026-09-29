@@ -75,7 +75,7 @@
    ],
    "scope": "region",
    "where": "inside a Peek or evidence card",
-   "note": "Only inside a Peek or evidence card, never on list rows (where k moves). Carried as hold=card:…"
+   "note": "The Keep button (aria-pressed) is the primary control. The letter works only while focus is inside a Peek or on a kept card, never on list rows (where k moves); from a trigger, Tab then K, or the link menu. Carried as keep=…"
   },
   {
    "id": "link.revealIn",
@@ -131,7 +131,8 @@
     "Alt+ArrowLeft",
     "mouse button 4"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "Always acts on the primary history. Not intercepted in text fields or edit mode. Mouse buttons 4/5 and the browser buttons work natively through popstate. Held panes' own Back/Forward buttons never touch browser history."
   },
   {
    "id": "history.forward",
@@ -140,16 +141,19 @@
     "Alt+ArrowRight",
     "mouse button 5"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "Always acts on the primary history. Not intercepted in text fields or edit mode. Mouse buttons 4/5 and the browser buttons work natively through popstate. Held panes' own Back/Forward buttons never touch browser history."
   },
   {
-   "id": "history.menu",
-   "label": "Back history menu",
+   "id": "history.recent",
+   "label": "Recent locations",
    "keys": [
-    "Alt+ArrowDown on Back"
+    "right-click on Back",
+    "Enter on the Recent menu button"
    ],
    "scope": "region",
-   "where": "NavigationBar"
+   "where": "NavigationBar",
+   "note": "APG Menu Button beside Back: up to 20 of this tab's stops with label, time and ✎ edited. Back itself has no history menu, no Alt+↓ and no long-press."
   },
   {
    "id": "region.next",
@@ -182,7 +186,8 @@
    "keys": [
     "Ctrl/Cmd+Alt+B"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "Ctrl+Alt+B types a character on some AltGr layouts; there the editor shows the altGrCaution warning and the command stays reachable through the palette, the View menu and g then e (focus the rail, which opens it)."
   },
   {
    "id": "toggle.dock",
@@ -556,5 +561,5 @@
   }
  ],
  "conflictPolicy": "Two commands bound to the same key in the same scope do nothing until the conflict is resolved; the status line says which binding is blocked and why.",
- "altGrCaution": "Ctrl+Alt combinations type characters on AltGr keyboards; the editor warns when a remap uses one."
+ "altGrCaution": "Ctrl+Alt combinations type characters on AltGr keyboards. The editor warns when a binding (default or remap) uses one on the active layout, and every such command stays reachable from the palette and the View menu."
 }

@@ -1,24 +1,24 @@
 <!-- @dsCard group="Diagram" height=640 -->
 <div class="ad ad-dia" style="padding:16px;display:grid;gap:12px">
-<span class="kicker">Static variant · diagram-only · titles link to the pipeline node</span>
+<span class="kicker">Static variant · print diagram · no links, no live data</span>
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;align-items:start">
-<div class="ad-stage f-identity"><header><span class="n">1</span><a class="ad-link" href="?node=stage-1" aria-label="Pipeline node stage-1, Identity">Identity</a></header><span class="tag fi">∥ extraction + indexing run in parallel</span>
+<div class="ad-stage f-identity"><header><span class="n">1</span>Identity</header><span class="tag fi">∥ extraction + indexing run in parallel</span>
 <div class="sec"><span class="lbl fi">Trying to:</span><div class="try">Decide which functions and entities across builds are the same logical entity; similarity does not prove interchangeable behavior.</div></div>
 <div class="sec"><span class="lbl fi">How:</span><div class="how">• extract facts once; short-circuit identical images
 • cheap-first cascade: symbols → exact hashes → rare refs → CFG → BSim → ABI
 • require uniqueness + margin; keep ambiguity</div></div>
 <div class="sec"><span class="lbl fi">In → out:</span><div class="io">in: analyzed programs, debug info, formats<br>out: entity / variant / instance + evidence lineage</div></div>
-<div class="gate"><b>Gate: </b><a class="ad-link" href="?node=gate-1" aria-label="Pipeline node gate-1, candidate is not acceptance">candidate ≠ acceptance</a></div></div>
-<div class="ad-stage f-recovery"><header><span class="n">5</span><a class="ad-link" href="?node=stage-5" aria-label="Pipeline node stage-5, Propagation (cross-place)">Propagation (cross-place)</a></header><span class="tag fi">the cross-match tier</span>
+<div class="gate"><b>Gate: </b>candidate ≠ acceptance</div></div>
+<div class="ad-stage f-recovery"><header><span class="n">5</span>Propagation (cross-place)</header><span class="tag fi">the cross-match tier</span>
 <div class="sec"><span class="lbl fi">Trying to:</span><div class="try">Reuse a donor candidate only for compatible recipient implementation variants; each recipient earns its own acceptance.</div></div>
 <div class="sec"><span class="lbl fi">How:</span><div class="how">• compile + variant/ABI/layout compatibility gate
 • a logical_id bind alone NEVER authorizes copying</div></div>
-<div class="gate"><b>Gate: </b><a class="ad-link" href="?node=gate-5" aria-label="Pipeline node gate-5, candidate distribution is not accepted source">candidate distribution ≠ accepted source</a></div></div></div>
+<div class="gate"><b>Gate: </b>candidate distribution ≠ accepted source</div></div></div>
 <span class="kicker">Live variant · in the app · app type scale · Explain open</span>
 <section class="ad-stage f-recovery adl-live" aria-labelledby="stc-t">
  <header><span class="n">5</span><h4 id="stc-t"><a class="ad-link" href="?project=corpus-alpha&amp;node=stage-5" aria-label="Pipeline node stage-5, Propagation (cross-place), live view">Propagation (cross-place)</a></h4><span class="fam">source recovery</span></header>
  <div class="live">
-  <p class="cnt"><span class="k">Transfers</span><a class="ad-link" href="?project=corpus-alpha&amp;node=stage-5&amp;f=transfer:accepted">accepted 412</a><span class="adl-sep" aria-hidden="true">·</span><a class="ad-link" href="?project=corpus-alpha&amp;node=stage-5&amp;f=transfer:blocked">blocked 38</a><span class="adl-sep" aria-hidden="true">·</span><span>recipient verification <span class="adl-absent">not run</span></span></p>
+  <p class="cnt"><span class="k">Transfers</span><a class="ad-link" href="?project=corpus-alpha&amp;node=stage-5&amp;f=transfer:accepted">accepted 412</a><span class="adl-sep" aria-hidden="true">·</span><a class="ad-link" href="?project=corpus-alpha&amp;node=stage-5&amp;f=transfer:blocked">blocked 38</a><span class="adl-sep" aria-hidden="true">·</span><span>recipient verification <span class="ad-absent">not run</span></span></p>
   <p class="wait"><b aria-hidden="true">◇</b><span><em>Waiting at gate:</em> <a class="ad-link" href="?project=corpus-alpha&amp;node=gate-5">candidate distribution ≠ accepted source</a> · 12 recipients · oldest <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;node=gate-5">ResourceRef::Resolve · build-c · 2h 10m</a></span></p>
   <p class="cnt"><span class="k">Running</span><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, corpus.cross-place, running">a3f9 corpus.cross-place</a></p>
   <div><button class="adl-disc" aria-expanded="true" aria-controls="stc-x"><b aria-hidden="true">▾</b>Explain stage 5</button>

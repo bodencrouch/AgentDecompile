@@ -1,9 +1,13 @@
-<!-- @dsCard group="Evidence" height=206 -->
+<!-- @dsCard group="Evidence" height=250 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<div class="ad-scroll"><table class="ad-table"><thead><tr><th>Tier</th><th>Name</th><th>Source</th><th></th></tr></thead><tbody>
-<tr aria-selected="true"><td class="mono">1 human</td><td>ResourceRef::Resolve</td><td class="small">annotation · operator</td><td class="small">winner</td></tr>
-<tr><td class="mono">2 debug info</td><td>ResourceRef::GetResRef</td><td class="small">STABS · build-c</td><td class="small muted">rejected (lower tier)</td></tr>
-<tr><td class="mono">3 symbols</td><td class="muted">—</td><td class="small muted">none</td><td></td></tr>
-<tr><td class="mono">4 analysis</td><td>resolve_ref</td><td class="small">Ghidra · build-a</td><td class="small muted">rejected</td></tr>
-<tr><td class="mono">5 placeholder</td><td class="muted">FUN_0041b210</td><td class="small muted">Ghidra</td><td class="small muted">never wins</td></tr></tbody></table></div>
+<section class="adl-sect" aria-labelledby="np-h">
+<header><h3 id="np-h">Why this name</h3><span class="small muted">For <span translate="no">ResourceRef::Resolve</span> · build-a · field: display name</span><a class="ad-link small adl-end" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;ws=evidence&amp;panel=names">Show all fields</a></header>
+<div class="ad-scroll"><table class="ad-table" role="grid" aria-label="Why this name, ResourceRef::Resolve, build-a"><thead><tr><th scope="col">Tier</th><th scope="col">Name</th><th scope="col">Source</th><th scope="col">Outcome</th></tr></thead><tbody>
+<tr aria-selected="true"><th scope="row" class="mono">1 human</th><td translate="no">ResourceRef::Resolve</td><td class="small">annotation · operator · <a class="ad-link mono" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;receipt=e019" aria-label="Receipt e019, annotation, build-a">e019</a></td><td class="small">winner</td></tr>
+<tr><th scope="row" class="mono">2 debug info</th><td translate="no">ResourceRef::GetResRef</td><td class="small">STABS · <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=00082f40" aria-label="Counterpart ResourceRef::Resolve, build-c, candidate">build-c · candidate</a> · <a class="ad-link mono" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;receipt=41c8" aria-label="Receipt 41c8, STABS, build-c">41c8</a></td><td class="small muted">rejected (lower tier)</td></tr>
+<tr><th scope="row" class="mono">3 symbols</th><td class="ad-absent">none</td><td class="small muted">—</td><td></td></tr>
+<tr><th scope="row" class="mono">4 analysis</th><td translate="no">resolve_ref</td><td class="small">Ghidra · <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041b2c0" aria-label="Counterpart ResourceRef::Resolve, build-b, accepted">build-b · accepted</a> <a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-b&amp;addr=0041b2c0" aria-label="Address 0041b2c0, build-b">0041b2c0</a></td><td class="small muted">rejected</td></tr>
+<tr><th scope="row" class="mono">5 placeholder</th><td class="muted" translate="no">FUN_0041b210</td><td class="small muted">Ghidra</td><td class="small muted">never wins</td></tr></tbody></table></div>
+<footer><span>build-d: <span class="ad-absent">unresolved on build-d</span> · no names read</span><span>Read from stored name rows · 13:58:07</span></footer>
+</section>
 </div>

@@ -1943,6 +1943,22 @@ is an override, so its starvation (H3) delays overrides and never coverage.
   names under `frontend/src` and `static/` (grill 6: 7 files / 19 hits; schema-level at
   `AtlasApp.tsx:579` and `workbench-app.js:989`) are renamed under U21a/U21b rules.
   Acceptance: the name gate returns 0 in `--strict` mode over those two trees.
+- **U171–U191. Linked views and accessibility** (design only; detailed in
+  [`docs/dashboard-design/2026-09-29-linked-views-and-accessibility.md`](../dashboard-design/2026-09-29-linked-views-and-accessibility.md),
+  requirements F29–F35 in `docs/FRONTEND_INTENT.md`, rules and components in
+  `docs/design-system/project/`). Typed links and one activation grammar (U171), one
+  `location-schema.json` and browser-backed history (U172), the Code Browser composite
+  (U173), Peek (U174), counterparts in place (U175), follow/hold (U176), references and
+  call hierarchy (U177), go to anything (U178), marks and worklists (U179), walkable
+  provenance (U180), diagram ↔ live (U181), diagnosis in place (U182), matrix grids
+  (U183), outcomes on the row (U184), edit where you read (U185), master-detail review
+  (U186), layout presets (U187), one remappable keymap (U188), screen-reader code reading
+  (U189), perceivable states (U190) and narrow continuity (U191). Same surface-ownership
+  rule: no field on only one surface; browsing, peeking, following and restoring never
+  admit work; opening a project stays U105's admission point. Acceptance: both surfaces
+  emit the same href set, accessible names and absent words for one fixture entity
+  (read-only text diff, richness fallbacks allowed), plus each unit's own acceptance in
+  the design plan; live observation on 8080 only when authorized.
 
 ### Phase 15 — Distributed compute (`agentdecompile_grid`; design: docs/plans/2026-09-21-distributed-compute-design.md)
 Walking-skeleton order (charter §6c): a thin end-to-end path through every layer landed
@@ -2263,7 +2279,8 @@ pretend otherwise.
    U67) → Phase 6 rest (U19) → U25–U27, U62–U66 → **Phase 13** (U91–U103) → **Phase 12**
    (U87–U90; U88 after U13c) — the terminal deliverable; `export-bundle` byte-identical
    across two runs under one basis is the whole plan's acceptance.
-9. **Phase 14 surfaces** — U104 first (H5), then U105, U110, U111, U106–U109, U112. Both
+9. **Phase 14 surfaces** — U104 first (H5), then U105, U110, U111, U106–U109, U112, then the
+   linked-views units (P0 first: U171, U172, U188, U184, U173–U175; then U176–U187, U189–U191). Both
    surfaces draw the bundle's readiness matrix, residue and receipts; "surfaces phase
    landed" is part of the goal's done definition.
 10. **Phase 15 distributed compute** — grid skeleton (U120–U125) then adapters interleaved

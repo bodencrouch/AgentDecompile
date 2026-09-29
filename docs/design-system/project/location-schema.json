@@ -24,7 +24,7 @@
     { "name": "cmp",      "carries": "split pair", "grammar": "build-id..build-id", "history": "push on open and close", "example": "build-a..build-c", "resolution": "recorded edges and locators only" },
     { "name": "hold",     "carries": "held center panes", "grammar": "kind:id@build[:addr][~basis]", "kinds": "see kinds", "max": 2, "overflow": "extra entries become keep entries, with a notice", "history": "replace; Back/Forward never open, close or re-point holds", "example": "symbol:ResourceRef::Resolve@build-c:0041c880~b7e2" },
     { "name": "keep",     "carries": "Kept cards in the evidence rail", "grammar": "kind:id[@build][~basis]", "kinds": "see kinds", "requires": "build, except for the build-independent kinds entity and node", "repeatable": true, "max": 3, "overflow": "refused with 'Three cards kept; release one'; nothing is evicted", "history": "replace", "example": "receipt:r-5521@build-b" },
-    { "name": "dock",     "carries": "dock tab", "values": ["jobs", "problems", "activity", "marks"], "history": "replace" },
+    { "name": "dock",     "carries": "dock tab (the five tabs of guideline 30)", "values": ["activity", "recovery", "logs", "jobs", "problems"], "history": "replace" },
     { "name": "job",      "carries": "focused job", "grammar": "job-id", "history": "push", "example": "a3f9" },
     { "name": "receipt",  "carries": "focused receipt", "grammar": "receipt-id", "history": "push" },
     { "name": "type",     "carries": "type or field path", "grammar": "Type[.field]", "history": "push", "example": "CacheEntry.name_len" },
@@ -37,7 +37,7 @@
   ],
   "kinds": {
     "$comment": "One kind list shared by hold and keep. A component that needs a new kind adds it here first.",
-    "values": ["symbol", "fn", "addr", "entity", "entitybuild", "receipt", "fact", "job", "ladder", "calls", "graph", "peek", "names", "runtime", "objective", "failure", "node"],
+    "values": ["symbol", "fn", "addr", "entity", "entitybuild", "receipt", "fact", "job", "ladder", "xref", "calls", "graph", "peek", "names", "runtime", "objective", "failure", "node"],
     "buildIndependent": ["entity", "node"]
   },
   "filterAxes": {
@@ -89,8 +89,8 @@
     "A parameter a surface cannot render stays verbatim in its URL and gets a StateNotice (lossless round trip)."
   ],
   "legacyWindows": {
-    "$comment": "Documented window=wb-* values (docs/plans/2026-08-31-2245-feat-workbench-one-page-functions-plan.md, dogfood reports). Mappings are proposed and not verified against the static window registry.",
-    "wb-fnbrowse": { "ws": "code", "focus": "navigator" },
+    "$comment": "Documented window=wb-* values (docs/plans/2026-08-31-2245-feat-workbench-one-page-functions-plan.md, dogfood reports). `region` names the region that receives focus on landing; it is not the `focus` alias, which maps to addr. Mappings are proposed and not verified against the static window registry.",
+    "wb-fnbrowse": { "ws": "code", "region": "navigator" },
     "wb-logical":  { "ws": "compare" },
     "wb-review":   { "ws": "compare", "panel": "review" },
     "wb-corpus":   { "ws": "evidence", "panel": "builds" },
@@ -99,7 +99,7 @@
   "legacyRoutes": {
     "/atlas": { "panel": "atlas" },
     "/report": { "ws": "recovery", "panel": "report" },
-    "/dashboard/explorer": { "ws": "code", "focus": "navigator", "note": "Explorer is the Navigator region, never a center surface" }
+    "/dashboard/explorer": { "ws": "code", "region": "navigator", "note": "Explorer is the Navigator region, never a center surface" }
   },
   "neverInUrl": ["checked set", "drafts", "credentials"],
   "history": {

@@ -1,7 +1,20 @@
-<!-- @dsCard group="Diagram" height=220 -->
+<!-- @dsCard group="Diagram" height=210 -->
 <div class="ad ad-dia" style="padding:16px;display:grid;gap:12px">
+<div class="ad-tools" role="group" aria-label="Export targets" style="justify-content:space-between"><strong>Export targets</strong><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="etc-key">?</button><span role="tooltip" id="etc-key">Chip: one field or state the export carries. ≠ chip: what the export never carries or claims. ⊘ chip: refused. Solid chip: backed by a receipt.</span></span></div>
 <ul style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px">
-<li class="ad-export"><h5>Readiness report</h5><div>per entity × build: resolved(member) / pinned(member) / degraded(member, reason) / ambiguous / unresolved / contested</div><div class="muted">observed_status separate · what a mod can do here</div></li>
-<li class="ad-export"><h5>Generated Lua bindings</h5><div>roots by name · typed struct accessors · typed call stubs only for ABIs the descriptor layer expresses; else refuse</div><div class="strong">NO literal address</div></li>
-<li class="ad-export"><h5>Source + comparison projects</h5><div>byte-accurate C+floor and max-C with manifests · reccmp reports + independent image receipts</div></li></ul>
+<li class="ad-export" aria-describedby="etc-d1"><h5>Readiness report</h5>
+ <p class="sr-only" id="etc-d1">per entity × build: resolved(member) / pinned(member) / degraded(member, reason) / ambiguous / unresolved / contested. observed_status separate · what a mod can do here</p>
+ <ul class="adv-chips" aria-hidden="true"><li><span>per</span>entity × build</li><li>resolved</li><li>pinned</li><li>degraded</li><li>ambiguous</li><li>unresolved</li><li>contested</li></ul>
+ <div style="margin-top:8px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="etc-t1"><b aria-hidden="true">≠</b>observed</button><span role="tooltip" id="etc-t1">observed_status separate · what a mod can do here</span></span></div>
+</li>
+<li class="ad-export" aria-describedby="etc-d2"><h5>Generated Lua bindings</h5>
+ <p class="sr-only" id="etc-d2">roots by name · typed struct accessors · typed call stubs only for ABIs the descriptor layer expresses; else refuse. NO literal address</p>
+ <ul class="adv-chips" aria-hidden="true"><li><span>roots</span>by name</li><li>struct accessors</li><li>call stubs</li></ul>
+ <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="etc-t2"><b aria-hidden="true">⊘</b>other ABIs</button><span role="tooltip" id="etc-t2">typed call stubs only for ABIs the descriptor layer expresses; else refuse</span></span><span class="adv-tip"><button type="button" class="adv-bnd" style="border-width:2px;color:var(--ink-strong)" aria-describedby="etc-t3"><b aria-hidden="true">≠</b>literal address</button><span role="tooltip" id="etc-t3">NO literal address</span></span></div>
+</li>
+<li class="ad-export" aria-describedby="etc-d3"><h5>Source + comparison projects</h5>
+ <p class="sr-only" id="etc-d3">byte-accurate C+floor and max-C with manifests · reccmp reports + independent image receipts</p>
+ <ul class="adv-chips" aria-hidden="true"><li>C+floor</li><li>max-C</li><li>manifests</li><li>reccmp reports</li></ul>
+ <div style="margin-top:8px"><span class="adv-tip end"><button type="button" class="adv-w" style="background:transparent" aria-describedby="etc-t4"><b aria-hidden="true">✓</b>image receipts</button><span role="tooltip" id="etc-t4">byte-accurate C+floor and max-C with manifests · reccmp reports + independent image receipts</span></span></div>
+</li></ul>
 </div>

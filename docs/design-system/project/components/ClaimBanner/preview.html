@@ -1,5 +1,31 @@
-<!-- @dsCard group="Diagram" height=210 -->
+<!-- @dsCard group="Diagram" height=230 -->
 <div class="ad ad-dia" style="padding:16px;display:grid;gap:12px">
-<div class="ad-claimline">DESIGN ONLY · future failure-injection checks NOT RUN · implement locally first using existing task/corpus contracts</div>
-<section class="ad-worked" aria-labelledby="cb-t"><h4 id="cb-t">Concrete design challenge · the late worker</h4><p>Attempt A loses its lease while still writing. B runs on disjoint resources. A later submits a byte-perfect artifact.</p><p>Expected: reject A's stale publication (fence); retain A's resource quarantine; permit B only with complete independent inputs.</p><p class="ad-claimline">NOT RUN. This diagram defines the acceptance mechanism; it does not claim a scheduler, binding or recovery result exists.</p></section>
+<div class="ad-claimline" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+ <b>DESIGN ONLY</b>
+ <span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="cb-nr-tip"><b aria-hidden="true">≠</b>NOT RUN</button><span role="tooltip" id="cb-nr-tip">Future failure-injection checks NOT RUN.</span></span>
+ <span class="adv-tip"><button type="button" class="adv-h" aria-describedby="cb-loc-tip"><b aria-hidden="true">⌂</b>local first</button><span role="tooltip" id="cb-loc-tip">Implement locally first using existing task/corpus contracts.</span></span>
+</div>
+<section class="ad-worked" aria-labelledby="cb-t" aria-describedby="cb-d">
+ <h4 id="cb-t">Late worker</h4>
+ <p class="sr-only" id="cb-d">Concrete design challenge, the late worker. Attempt A loses its lease while still writing. B runs on disjoint resources. A later submits a byte-perfect artifact. Expected: reject A's stale publication (fence); retain A's resource quarantine; permit B only with complete independent inputs.</p>
+ <svg width="100%" height="76" viewBox="0 0 420 76" preserveAspectRatio="xMinYMid meet" role="img" aria-label="Attempt A loses its lease while still writing. B runs on disjoint resources. A later submits a byte-perfect artifact." style="max-width:420px;display:block">
+  <text x="0" y="22" font-size="12" font-weight="700" fill="var(--ink-strong)" font-family="var(--font-mono)">A</text>
+  <line x1="20" y1="18" x2="150" y2="18" stroke="var(--ink)" stroke-width="6"/>
+  <line x1="150" y1="18" x2="300" y2="18" stroke="var(--ink-muted)" stroke-width="2" stroke-dasharray="5 4"/>
+  <line x1="150" y1="6" x2="150" y2="30" stroke="var(--status-claim)" stroke-width="2"/>
+  <text x="156" y="10" font-size="10" fill="var(--ink-muted)" font-family="var(--font-sans)">lease lost</text>
+  <rect x="296" y="9" width="18" height="18" fill="none" stroke="var(--ink-strong)" stroke-width="2"/>
+  <text x="305" y="22" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink-strong)" font-family="var(--font-mono)">✕</text>
+  <text x="320" y="22" font-size="10" fill="var(--ink-muted)" font-family="var(--font-sans)">publish · fenced</text>
+  <text x="0" y="60" font-size="12" font-weight="700" fill="var(--ink-strong)" font-family="var(--font-mono)">B</text>
+  <line x1="170" y1="56" x2="330" y2="56" stroke="var(--ink)" stroke-width="6"/>
+  <text x="170" y="74" font-size="10" fill="var(--ink-muted)" font-family="var(--font-sans)">disjoint resources</text>
+ </svg>
+ <div class="adv-chips" role="group" aria-label="Expected" style="margin-top:8px">
+  <span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="cb-e1"><b aria-hidden="true">✕</b>A publish</button><span role="tooltip" id="cb-e1">Expected: reject A's stale publication (fence).</span></span>
+  <span class="adv-tip"><button type="button" class="adv-w" aria-describedby="cb-e2"><b aria-hidden="true">▣</b>A quarantine</button><span role="tooltip" id="cb-e2">Retain A's resource quarantine.</span></span>
+  <span class="adv-tip is-open"><button type="button" class="adv-h" aria-describedby="cb-e3"><b aria-hidden="true">✓</b>B · inputs</button><span role="tooltip" id="cb-e3">Permit B only with complete independent inputs.</span></span>
+ </div>
+ <div class="ad-claimline" style="margin-top:8px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="cb-nr2"><b aria-hidden="true">≠</b>NOT RUN</button><span role="tooltip" id="cb-nr2">NOT RUN. This diagram defines the acceptance mechanism; it does not claim a scheduler, binding or recovery result exists.</span></span></div>
+</section>
 </div>

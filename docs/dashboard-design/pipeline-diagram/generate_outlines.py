@@ -173,13 +173,20 @@ def card_body(d: Doc, cd: dict, gate_id: str | None = None, stage: bool = False)
 
 def relationships(d: Doc) -> None:
     d.h(2, "relationships", "Relationships")
-    d.p("Typed edges from pipeline-model.json that involve this diagram; drawn ones appear as arrows.")
+    d.p("Typed edges from pipeline-model.json that involve this diagram. \"(drawn arrow)\" marks an arrow in "
+        "the diagram; \"(inferred)\" marks an edge read from diagram text, followed by whether that text states "
+        "it directly or it is an interpretation to review, and the text it is based on.")
     for e in M["edges"]:
         a, b = M.node(e["from"]), M.node(e["to"])
         if d.diagram not in (a["diagram"], b["diagram"]):
             continue
-        drawn = " (drawn arrow)" if e.get("drawn") else ""
-        d.li(f"{link(e['from'], d.diagram)} {EDGE_VERB[e['type']]} {link(e['to'], d.diagram)}{drawn}")
+        if e.get("drawn"):
+            note = " (drawn arrow)"
+        elif e.get("inferred"):
+            note = f" (inferred) — {e['inference']}: {words(e['basis'])}"
+        else:
+            raise SystemExit(f"edge {e['from']} {e['type']} {e['to']} is neither drawn nor marked inferred")
+        d.li(f"{link(e['from'], d.diagram)} {EDGE_VERB[e['type']]} {link(e['to'], d.diagram)}{note}")
     d.end_list()
 
 

@@ -39,8 +39,8 @@ FAM = {  # lane families: (header fill, ink)
     "intake":   ("#2c2f36", "#b0b6c2"),   # gray (intake / cross-cutting)
 }
 GATE = "#f0c060"; LOCK = "#ef968b"; FAIL = "#ef968b"; OK = "#7fd6a4"
-FONT = "Inter, 'Segoe UI', system-ui, sans-serif"
-MONO = "ui-monospace, Consolas, monospace"
+FONT = "DejaVu Sans, 'Segoe UI', system-ui, sans-serif"   # DejaVu Sans is the face for all four diagrams
+MONO = "DejaVu Sans Mono, Consolas, monospace"
 
 
 def rect(x, y, w, h, fill, stroke=LINE, rx=4, sw=1.2, dash=None, opacity=1):

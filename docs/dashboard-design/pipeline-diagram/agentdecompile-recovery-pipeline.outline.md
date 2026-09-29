@@ -695,7 +695,7 @@ DESIGN ONLY, future checks NOT RUN. Companions: execution-contracts.svg — evid
 
 ## <a id="relationships"></a>Relationships
 
-Typed edges from pipeline-model.json that involve this diagram; drawn ones appear as arrows.
+Typed edges from pipeline-model.json that involve this diagram. "(drawn arrow)" marks an arrow in the diagram; "(inferred)" marks an edge read from diagram text, followed by whether that text states it directly or it is an interpretation to review, and the text it is based on.
 
 - [Stage 1: Identity](#stage-1) depends on [Stage 0: Open, add, resume (priority-zero)](#stage-0) (drawn arrow)
 - [Stage 2: Incremental calibration](#stage-2) depends on [Stage 1: Identity](#stage-1) (drawn arrow)
@@ -708,47 +708,47 @@ Typed edges from pipeline-model.json that involve this diagram; drawn ones appea
 - [Stage 2: Incremental calibration](#stage-2) feeds back to [Stage 1: Identity](#stage-1) (drawn arrow)
 - [Stage 4: C/C++ candidates](#stage-4) fails over within [Stage 4: C/C++ candidates](#stage-4) (drawn arrow)
 - [Stage 7: Continuous parity](#stage-7) feeds back to [Stage 3: Validated linkable regions](#stage-3) (drawn arrow)
-- [Gate of stage 0](#gate-0) gates [Stage 0: Open, add, resume (priority-zero)](#stage-0)
-- [Gate of stage 1](#gate-1) gates [Stage 1: Identity](#stage-1)
-- [Gate of stage 3](#gate-3) gates [Stage 3: Validated linkable regions](#stage-3)
-- [Gate of stage 4](#gate-4) gates [Stage 4: C/C++ candidates](#stage-4)
-- [Gate of stage 5](#gate-5) gates [Stage 5: Propagation (cross-place)](#stage-5)
-- [Gate of stage 6](#gate-6) gates [Stage 6: Targeted AI (leftovers only)](#stage-6)
-- [Gate of stage 7](#gate-7) gates [Stage 7: Continuous parity](#stage-7)
-- [Gate of stage 8](#gate-8) gates [Stage 8: Whole-image byte identity](#stage-8)
+- [Gate of stage 0](#gate-0) gates [Stage 0: Open, add, resume (priority-zero)](#stage-0) (inferred) — stated: stage 0 card: 'Gate: mutation-admission only (real owner state)' (a card line, not an arrow)
+- [Gate of stage 1](#gate-1) gates [Stage 1: Identity](#stage-1) (inferred) — stated: stage 1 card: 'Gate: candidate is not acceptance' (a card line, not an arrow)
+- [Gate of stage 3](#gate-3) gates [Stage 3: Validated linkable regions](#stage-3) (inferred) — stated: stage 3 card: 'Gate: round trip + independent linked-image oracle' (a card line, not an arrow)
+- [Gate of stage 4](#gate-4) gates [Stage 4: C/C++ candidates](#stage-4) (inferred) — stated: stage 4 card: 'Gate: compile admits candidate, not replacement' (a card line, not an arrow)
+- [Gate of stage 5](#gate-5) gates [Stage 5: Propagation (cross-place)](#stage-5) (inferred) — stated: stage 5 card: 'Gate: candidate distribution is not accepted source' (a card line, not an arrow)
+- [Gate of stage 6](#gate-6) gates [Stage 6: Targeted AI (leftovers only)](#stage-6) (inferred) — stated: stage 6 card: 'Gate: candidate only' (a card line, not an arrow)
+- [Gate of stage 7](#gate-7) gates [Stage 7: Continuous parity](#stage-7) (inferred) — stated: stage 7 card: 'Gate: local zero is not full-image or behavior proof' (a card line, not an arrow)
+- [Gate of stage 8](#gate-8) gates [Stage 8: Whole-image byte identity](#stage-8) (inferred) — stated: stage 8 card: 'Gate: whole-file hash equality' (a card line, not an arrow)
 - [Gate between stage 4 and stage 5](#gate-4-5) gates [Stage 5: Propagation (cross-place)](#stage-5) (drawn arrow)
-- [Lane A](#lane-A) consumes [Stage 1: Identity](#stage-1)
-- [Lane A](#lane-A) is consumed by [Stage 5: Propagation (cross-place)](#stage-5)
-- [Lane A](#lane-A) is consumed by [hookpack v2](#export-hookpack)
-- [Lane A](#lane-A) feeds [Readiness report](#export-readiness)
-- [Lane A](#lane-A) is serialized by [Lock 2: shared corpus mutation / conflict resolution](#lock-2)
-- [Lane B](#lane-B) consumes [Stage 1: Identity](#stage-1)
-- [Lane B](#lane-B) consumes [Stage 2: Incremental calibration](#stage-2)
-- [Lane B](#lane-B) feeds [Lane C](#lane-C)
-- [Lane B](#lane-B) feeds [Export target](#export-target)
-- [Lane B](#lane-B) produces [hookpack v2](#export-hookpack)
-- [Lane B](#lane-B) produces [Divergence report](#export-divergence)
-- [Lane C](#lane-C) depends on [Stage 1: Identity](#stage-1)
-- [Lane C](#lane-C) depends on [Stage 2: Incremental calibration](#stage-2)
-- [Lane C](#lane-C) consumes [Lane B](#lane-B)
-- [Lane C](#lane-C) feeds [Stage 1: Identity](#stage-1)
-- [Lane C](#lane-C) feeds [Readiness report](#export-readiness)
-- [Lane C](#lane-C) consumes [Ladder A: Function whose bytes changed](#ladder-A)
-- [Lane C](#lane-C) consumes [Ladder B: Cave missing or too small](#ladder-B)
-- [Lane C](#lane-C) consumes [Ladder C: Data root unresolved](#ladder-C)
-- [Lane C](#lane-C) consumes [Ladder D: Struct field moved / stripped build](#ladder-D)
-- [Lane C](#lane-C) consumes [Ladder E: VTable / dispatch slots](#ladder-E)
-- [Lane C](#lane-C) consumes [Ladder F: Unknown build](#ladder-F)
-- [Lane C](#lane-C) is serialized by [Lock 4: one scenario bundle: staged tree + saves + Wine + display + ports + harness](#lock-4)
-- [Lane D](#lane-D) wraps [Main pipeline](#main-pipeline)
-- [Lane D](#lane-D) wraps [Concurrent lanes A to E](#lanes)
-- [Lane D](#lane-D) gates [Export target](#export-target)
-- [Lane D](#lane-D) produces [Receipts](#export-receipts)
-- [Lane D](#lane-D) is serialized by [Lock 5: short acceptance commit: current basis + generation + independent proof](#lock-5)
-- [Lane E](#lane-E) wraps [Main pipeline](#main-pipeline)
-- [Lane E](#lane-E) wraps [Concurrent lanes A to E](#lanes)
-- [Stage 0: Open, add, resume (priority-zero)](#stage-0) is serialized by [Lock 1: writes to one Ghidra program's analysis DB](#lock-1)
-- [Stage 4: C/C++ candidates](#stage-4) is serialized by [Lock 3: shared mutable compiler outputs / Wine context (private outputs may overlap)](#lock-3)
-- [Stage 7: Continuous parity](#stage-7) produces [Source + comparison projects](#export-projects)
-- [Stage 8: Whole-image byte identity](#stage-8) produces [Source + comparison projects](#export-projects)
-- [4: Independent acceptance, short commit](execution-contracts.outline.md#accept-4) is serialized by [Lock 5: short acceptance commit: current basis + generation + independent proof](#lock-5)
+- [Lane A](#lane-A) consumes [Stage 1: Identity](#stage-1) (inferred) — stated: lane A connects: 'consumes stage 1 identity'
+- [Lane A](#lane-A) is consumed by [Stage 5: Propagation (cross-place)](#stage-5) (inferred) — stated: lane A outputs: 'consumed by stage 5 placement (type-compatibility gate)'
+- [Lane A](#lane-A) is consumed by [hookpack v2](#export-hookpack) (inferred) — interpretation: lane A outputs: '… and by the ABI + struct blocks of the pack'; 'the pack' read as hookpack v2
+- [Lane A](#lane-A) feeds [Readiness report](#export-readiness) (inferred) — stated: lane A outputs: 'surfaces in the readiness report as which build donated which field'
+- [Lane A](#lane-A) is serialized by [Lock 2: shared corpus mutation / conflict resolution](#lock-2) (inferred) — interpretation: lane A card 'Runs alongside recovery': 'serialized only at the shared corpus mutation point', matched to lock 2
+- [Lane B](#lane-B) consumes [Stage 1: Identity](#stage-1) (inferred) — stated: lane B connects: 'consumes stages 1 to 2 (+ raw images)'
+- [Lane B](#lane-B) consumes [Stage 2: Incremental calibration](#stage-2) (inferred) — stated: lane B connects: 'consumes stages 1 to 2 (+ raw images)'
+- [Lane B](#lane-B) feeds [Lane C](#lane-C) (inferred) — stated: lane B connects: 'feeds lane C and the export bundle'
+- [Lane B](#lane-B) feeds [Export target](#export-target) (inferred) — stated: lane B connects: 'feeds lane C and the export bundle'
+- [Lane B](#lane-B) produces [hookpack v2](#export-hookpack) (inferred) — interpretation: lane B outputs: 'all of it lands in hookpack v2'; read as lane B producing the hookpack export
+- [Lane B](#lane-B) produces [Divergence report](#export-divergence) (inferred) — interpretation: lane B card 'Divergence (3-way, never forced)' and outputs 'divergence class per pair', matched to the Divergence report export
+- [Lane C](#lane-C) depends on [Stage 1: Identity](#stage-1) (inferred) — interpretation: lane C connects: 'branches after stages 1 to 2 evidence'; 'branches after' read as depends_on
+- [Lane C](#lane-C) depends on [Stage 2: Incremental calibration](#stage-2) (inferred) — interpretation: lane C connects: 'branches after stages 1 to 2 evidence'; 'branches after' read as depends_on
+- [Lane C](#lane-C) consumes [Lane B](#lane-B) (inferred) — stated: lane C connects: 'consumes lane B's pack'
+- [Lane C](#lane-C) feeds [Stage 1: Identity](#stage-1) (inferred) — stated: lane C connects: 'feeds evidence back into stage 1'
+- [Lane C](#lane-C) feeds [Readiness report](#export-readiness) (inferred) — stated: lane C outputs: 'WHICH ladder member resolved each (feeds coverage + readiness)'
+- [Lane C](#lane-C) consumes [Ladder A: Function whose bytes changed](#ladder-A) (inferred) — interpretation: lane C card 'Pack then resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
+- [Lane C](#lane-C) consumes [Ladder B: Cave missing or too small](#ladder-B) (inferred) — interpretation: lane C card 'Pack then resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
+- [Lane C](#lane-C) consumes [Ladder C: Data root unresolved](#ladder-C) (inferred) — interpretation: lane C card 'Pack then resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
+- [Lane C](#lane-C) consumes [Ladder D: Struct field moved / stripped build](#ladder-D) (inferred) — interpretation: lane C card 'Pack then resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
+- [Lane C](#lane-C) consumes [Ladder E: VTable / dispatch slots](#ladder-E) (inferred) — interpretation: lane C card 'Pack then resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
+- [Lane C](#lane-C) consumes [Ladder F: Unknown build](#ladder-F) (inferred) — interpretation: lane C card 'Pack then resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
+- [Lane C](#lane-C) is serialized by [Lock 4: one scenario bundle: staged tree + saves + Wine + display + ports + harness](#lock-4) (inferred) — interpretation: lane C card 'Preflight then controlled call/install' acts on a live process; matched to lock 4 (one scenario bundle)
+- [Lane D](#lane-D) wraps [Main pipeline](#main-pipeline) (inferred) — stated: lane D connects: 'wraps every stage and lane'
+- [Lane D](#lane-D) wraps [Concurrent lanes A to E](#lanes) (inferred) — stated: lane D connects: 'wraps every stage and lane'
+- [Lane D](#lane-D) gates [Export target](#export-target) (inferred) — stated: lane D connects: 'gates every export'
+- [Lane D](#lane-D) produces [Receipts](#export-receipts) (inferred) — interpretation: lane D outputs: 'content-addressed receipts then identical-basis re-runs are cache hits', matched to the Receipts export
+- [Lane D](#lane-D) is serialized by [Lock 5: short acceptance commit: current basis + generation + independent proof](#lock-5) (inferred) — interpretation: lane D card 'Receipts & re-baseline': 'acceptance rejects stale versions', matched to lock 5 (short acceptance commit)
+- [Lane E](#lane-E) wraps [Main pipeline](#main-pipeline) (inferred) — stated: lane E connects: 'wraps every stage and lane'
+- [Lane E](#lane-E) wraps [Concurrent lanes A to E](#lanes) (inferred) — stated: lane E connects: 'wraps every stage and lane'
+- [Stage 0: Open, add, resume (priority-zero)](#stage-0) is serialized by [Lock 1: writes to one Ghidra program's analysis DB](#lock-1) (inferred) — interpretation: stage 0 How: 'gate writes; reads use stable versioned snapshots', matched to lock 1 (writes to one program's analysis DB)
+- [Stage 4: C/C++ candidates](#stage-4) is serialized by [Lock 3: shared mutable compiler outputs / Wine context (private outputs may overlap)](#lock-3) (inferred) — interpretation: stage 4 tag: 'isolated mutable outputs / PDB / Wine state', matched to lock 3
+- [Stage 7: Continuous parity](#stage-7) produces [Source + comparison projects](#export-projects) (inferred) — interpretation: stage 7 How: 'reccmp: supported MSVC / PDB diagnostics', matched to the export card's 'reccmp reports'
+- [Stage 8: Whole-image byte identity](#stage-8) produces [Source + comparison projects](#export-projects) (inferred) — interpretation: stage 8 How: byte-accurate+floor vs max-C measured separately, matched to the export card 'byte-accurate C+floor and max-C … independent image receipts'
+- [4: Independent acceptance, short commit](execution-contracts.outline.md#accept-4) is serialized by [Lock 5: short acceptance commit: current basis + generation + independent proof](#lock-5) (inferred) — interpretation: box 4 'Independent acceptance, short commit' matched to overview lock 5 'short acceptance commit' (cross-diagram)

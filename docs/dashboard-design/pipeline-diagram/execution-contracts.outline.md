@@ -129,14 +129,14 @@ Status: NOT RUN. This diagram defines the acceptance mechanism; it does not clai
 
 ## <a id="relationships"></a>Relationships
 
-Typed edges from pipeline-model.json that involve this diagram; drawn ones appear as arrows.
+Typed edges from pipeline-model.json that involve this diagram. "(drawn arrow)" marks an arrow in the diagram; "(inferred)" marks an edge read from diagram text, followed by whether that text states it directly or it is an interpretation to review, and the text it is based on.
 
 - [Step 2: Admit one eligible attempt](#exec-step-2) depends on [Step 1: Declare one task contract](#exec-step-1) (drawn arrow)
 - [Step 3: Compute outside commit](#exec-step-3) depends on [Step 2: Admit one eligible attempt](#exec-step-2) (drawn arrow)
-- [4: Independent acceptance, short commit](#accept-4) consumes [BYTES: Are these bytes here?](#contract-bytes)
-- [4: Independent acceptance, short commit](#accept-4) consumes [IDENTITY: Is this the intended entity?](#contract-identity)
-- [4: Independent acceptance, short commit](#accept-4) consumes [OPERATION: Is this use supported?](#contract-operation)
-- [5A: Original-code capability](#cap-5A) depends on [4: Independent acceptance, short commit](#accept-4)
-- [5B: Recovered-source capability](#cap-5B) depends on [4: Independent acceptance, short commit](#accept-4)
-- [FENCE: Reject obsolete publication](#fence) gates [4: Independent acceptance, short commit](#accept-4)
-- [4: Independent acceptance, short commit](#accept-4) is serialized by [Lock 5: short acceptance commit: current basis + generation + independent proof](agentdecompile-recovery-pipeline.outline.md#lock-5)
+- [4: Independent acceptance, short commit](#accept-4) consumes [BYTES: Are these bytes here?](#contract-bytes) (inferred) — stated: note: 'All applicable proof receipts then acceptance (4)'
+- [4: Independent acceptance, short commit](#accept-4) consumes [IDENTITY: Is this the intended entity?](#contract-identity) (inferred) — stated: note: 'All applicable proof receipts then acceptance (4)'
+- [4: Independent acceptance, short commit](#accept-4) consumes [OPERATION: Is this use supported?](#contract-operation) (inferred) — stated: note: 'All applicable proof receipts then acceptance (4)'
+- [5A: Original-code capability](#cap-5A) depends on [4: Independent acceptance, short commit](#accept-4) (inferred) — stated: note: 'acceptance (4) then original-code (5A) and recovered-source (5B) independently'
+- [5B: Recovered-source capability](#cap-5B) depends on [4: Independent acceptance, short commit](#accept-4) (inferred) — stated: note: 'acceptance (4) then original-code (5A) and recovered-source (5B) independently'
+- [FENCE: Reject obsolete publication](#fence) gates [4: Independent acceptance, short commit](#accept-4) (inferred) — interpretation: FENCE row: 'Keep artifact; refuse current acceptance/promotion'
+- [4: Independent acceptance, short commit](#accept-4) is serialized by [Lock 5: short acceptance commit: current basis + generation + independent proof](agentdecompile-recovery-pipeline.outline.md#lock-5) (inferred) — interpretation: box 4 'Independent acceptance, short commit' matched to overview lock 5 'short acceptance commit' (cross-diagram)

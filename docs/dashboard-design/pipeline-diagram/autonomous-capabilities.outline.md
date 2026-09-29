@@ -106,7 +106,7 @@ Contract: docs/plans/2026-09-22-autonomous-capability-product-roadmap.md, 2026-0
 
 ## <a id="relationships"></a>Relationships
 
-Typed edges from pipeline-model.json that involve this diagram; drawn ones appear as arrows.
+Typed edges from pipeline-model.json that involve this diagram. "(drawn arrow)" marks an arrow in the diagram; "(inferred)" marks an edge read from diagram text, followed by whether that text states it directly or it is an interpretation to review, and the text it is based on.
 
 - [Step 2: Resolve evidence](#cap-step-2) depends on [Step 1: Request](#cap-step-1) (drawn arrow)
 - [Step 3: Deterministic admit](#cap-step-3) depends on [Step 2: Resolve evidence](#cap-step-2) (drawn arrow)

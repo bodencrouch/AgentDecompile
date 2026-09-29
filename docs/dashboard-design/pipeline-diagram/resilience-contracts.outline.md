@@ -121,11 +121,11 @@ Status: NOT RUN, design acceptance is artifact consistency; runtime recovery nee
 
 ## <a id="relationships"></a>Relationships
 
-Typed edges from pipeline-model.json that involve this diagram; drawn ones appear as arrows.
+Typed edges from pipeline-model.json that involve this diagram. "(drawn arrow)" marks an arrow in the diagram; "(inferred)" marks an edge read from diagram text, followed by whether that text states it directly or it is an interpretation to review, and the text it is based on.
 
 - [Step 2: Record the decision before effects](#resil-step-2) depends on [Step 1: Prevent, detect, classify](#resil-step-1) (drawn arrow)
 - [Step 3: Repair, reroute or wait](#resil-step-3) depends on [Step 2: Record the decision before effects](#resil-step-2) (drawn arrow)
-- [Step 4: Accept against the current basis](#resil-step-4) depends on [Step 3: Repair, reroute or wait](#resil-step-3)
+- [Step 4: Accept against the current basis](#resil-step-4) depends on [Step 3: Repair, reroute or wait](#resil-step-3) (inferred) — stated: row statement: 'Every recovery action returns through independent acceptance'
 - [Step 5: Resume only the justified capability](#resil-step-5) depends on [Step 4: Accept against the current basis](#resil-step-4) (drawn arrow)
 - [Step 6: Prevent recurrence without blind tuning](#resil-step-6) depends on [Step 5: Resume only the justified capability](#resil-step-5) (drawn arrow)
-- [Step 6: Prevent recurrence without blind tuning](#resil-step-6) feeds back to [Step 1: Prevent, detect, classify](#resil-step-1)
+- [Step 6: Prevent recurrence without blind tuning](#resil-step-6) feeds back to [Step 1: Prevent, detect, classify](#resil-step-1) (inferred) — interpretation: step 6 'Prevent recurrence without blind tuning' returns to step 1 'Prevent, detect, classify' (preventive policy feedback)

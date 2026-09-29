@@ -8,7 +8,8 @@
     "nested_ids": "Lane cards (lane-X-card-N) and ladder members (ladder-X-N) carry their own ids inside their parent node and are deep-link targets too.",
     "ladder_members": "slug is the locator kind the diagram shows in brackets (null when none is shown); label is present only when the bracket text differs from the slug.",
     "stage_gate": "A stage's gate_id names its gate node (null for stage 2, which has no gate).",
-    "edges": "drawn=true marks an arrow that appears in the diagram. Labelled drawn edges carry an id (also a <g id> and outline anchor), the drawn label, a spoken form for the outline, and 'follows', the id after which the edge is read."
+    "edges": "drawn=true marks an arrow that appears in the diagram. Labelled drawn edges carry an id (also a <g id> and outline anchor), the drawn label, a spoken form for the outline, and 'follows', the id after which the edge is read.",
+    "inferred_edges": "Every edge that is not a drawn arrow has inferred=true and a 'basis' quoting the diagram text it was read from. inference='stated' means that text says it directly; inference='interpretation' means it is a reading of the text that needs review."
   },
   "edge_types": {
     "depends_on": "`from` requires `to` first; drawn as a solid arrow from `to` to `from`.",
@@ -2432,42 +2433,66 @@
     {
       "from": "gate-0",
       "type": "gates",
-      "to": "stage-0"
+      "to": "stage-0",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "stage 0 card: 'Gate: mutation-admission only (real owner state)' (a card line, not an arrow)"
     },
     {
       "from": "gate-1",
       "type": "gates",
-      "to": "stage-1"
+      "to": "stage-1",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "stage 1 card: 'Gate: candidate ≠ acceptance' (a card line, not an arrow)"
     },
     {
       "from": "gate-3",
       "type": "gates",
-      "to": "stage-3"
+      "to": "stage-3",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "stage 3 card: 'Gate: round trip + independent linked-image oracle' (a card line, not an arrow)"
     },
     {
       "from": "gate-4",
       "type": "gates",
-      "to": "stage-4"
+      "to": "stage-4",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "stage 4 card: 'Gate: compile admits candidate, not replacement' (a card line, not an arrow)"
     },
     {
       "from": "gate-5",
       "type": "gates",
-      "to": "stage-5"
+      "to": "stage-5",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "stage 5 card: 'Gate: candidate distribution ≠ accepted source' (a card line, not an arrow)"
     },
     {
       "from": "gate-6",
       "type": "gates",
-      "to": "stage-6"
+      "to": "stage-6",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "stage 6 card: 'Gate: candidate only' (a card line, not an arrow)"
     },
     {
       "from": "gate-7",
       "type": "gates",
-      "to": "stage-7"
+      "to": "stage-7",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "stage 7 card: 'Gate: local zero ≠ full-image or behavior proof' (a card line, not an arrow)"
     },
     {
       "from": "gate-8",
       "type": "gates",
-      "to": "stage-8"
+      "to": "stage-8",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "stage 8 card: 'Gate: whole-file hash equality' (a card line, not an arrow)"
     },
     {
       "from": "gate-4-5",
@@ -2478,172 +2503,274 @@
     {
       "from": "lane-A",
       "type": "consumes",
-      "to": "stage-1"
+      "to": "stage-1",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "lane A connects: 'consumes stage 1 identity'"
     },
     {
       "from": "lane-A",
       "type": "consumed_by",
-      "to": "stage-5"
+      "to": "stage-5",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "lane A outputs: 'consumed by stage 5 placement (type-compatibility gate)'"
     },
     {
       "from": "lane-A",
       "type": "consumed_by",
-      "to": "export-hookpack"
+      "to": "export-hookpack",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "lane A outputs: '… and by the ABI + struct blocks of the pack'; 'the pack' read as hookpack v2"
     },
     {
       "from": "lane-A",
       "type": "feeds",
-      "to": "export-readiness"
+      "to": "export-readiness",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "lane A outputs: 'surfaces in the readiness report as which build donated which field'"
     },
     {
       "from": "lane-A",
       "type": "serialized_by",
-      "to": "lock-2"
+      "to": "lock-2",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "lane A card 'Runs alongside recovery': 'serialized only at the shared corpus mutation point', matched to lock 2"
     },
     {
       "from": "lane-B",
       "type": "consumes",
-      "to": "stage-1"
+      "to": "stage-1",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "lane B connects: 'consumes stages 1–2 (+ raw images)'"
     },
     {
       "from": "lane-B",
       "type": "consumes",
-      "to": "stage-2"
+      "to": "stage-2",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "lane B connects: 'consumes stages 1–2 (+ raw images)'"
     },
     {
       "from": "lane-B",
       "type": "feeds",
-      "to": "lane-C"
+      "to": "lane-C",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "lane B connects: 'feeds lane C and the export bundle'"
     },
     {
       "from": "lane-B",
       "type": "feeds",
-      "to": "export-target"
+      "to": "export-target",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "lane B connects: 'feeds lane C and the export bundle'"
     },
     {
       "from": "lane-B",
       "type": "produces",
-      "to": "export-hookpack"
+      "to": "export-hookpack",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "lane B outputs: 'all of it lands in hookpack v2'; read as lane B producing the hookpack export"
     },
     {
       "from": "lane-B",
       "type": "produces",
-      "to": "export-divergence"
+      "to": "export-divergence",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "lane B card 'Divergence (3-way, never forced)' and outputs 'divergence class per pair', matched to the Divergence report export"
     },
     {
       "from": "lane-C",
       "type": "depends_on",
-      "to": "stage-1"
+      "to": "stage-1",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "lane C connects: 'branches after stages 1–2 evidence'; 'branches after' read as depends_on"
     },
     {
       "from": "lane-C",
       "type": "depends_on",
-      "to": "stage-2"
+      "to": "stage-2",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "lane C connects: 'branches after stages 1–2 evidence'; 'branches after' read as depends_on"
     },
     {
       "from": "lane-C",
       "type": "consumes",
-      "to": "lane-B"
+      "to": "lane-B",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "lane C connects: 'consumes lane B's pack'"
     },
     {
       "from": "lane-C",
       "type": "feeds",
-      "to": "stage-1"
+      "to": "stage-1",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "lane C connects: 'feeds evidence back into stage 1'"
     },
     {
       "from": "lane-C",
       "type": "feeds",
-      "to": "export-readiness"
+      "to": "export-readiness",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "lane C outputs: 'WHICH ladder member resolved each (feeds coverage + readiness)'"
     },
     {
       "from": "lane-C",
       "type": "consumes",
-      "to": "ladder-A"
+      "to": "ladder-A",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder"
     },
     {
       "from": "lane-C",
       "type": "consumes",
-      "to": "ladder-B"
+      "to": "ladder-B",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder"
     },
     {
       "from": "lane-C",
       "type": "consumes",
-      "to": "ladder-C"
+      "to": "ladder-C",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder"
     },
     {
       "from": "lane-C",
       "type": "consumes",
-      "to": "ladder-D"
+      "to": "ladder-D",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder"
     },
     {
       "from": "lane-C",
       "type": "consumes",
-      "to": "ladder-E"
+      "to": "ladder-E",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder"
     },
     {
       "from": "lane-C",
       "type": "consumes",
-      "to": "ladder-F"
+      "to": "ladder-F",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder"
     },
     {
       "from": "lane-C",
       "type": "serialized_by",
-      "to": "lock-4"
+      "to": "lock-4",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "lane C card 'Preflight → controlled call/install' acts on a live process; matched to lock 4 (one scenario bundle)"
     },
     {
       "from": "lane-D",
       "type": "wraps",
-      "to": "main-pipeline"
+      "to": "main-pipeline",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "lane D connects: 'wraps every stage and lane'"
     },
     {
       "from": "lane-D",
       "type": "wraps",
-      "to": "lanes"
+      "to": "lanes",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "lane D connects: 'wraps every stage and lane'"
     },
     {
       "from": "lane-D",
       "type": "gates",
-      "to": "export-target"
+      "to": "export-target",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "lane D connects: 'gates every export'"
     },
     {
       "from": "lane-D",
       "type": "produces",
-      "to": "export-receipts"
+      "to": "export-receipts",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "lane D outputs: 'content-addressed receipts → identical-basis re-runs are cache hits', matched to the Receipts export"
     },
     {
       "from": "lane-D",
       "type": "serialized_by",
-      "to": "lock-5"
+      "to": "lock-5",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "lane D card 'Receipts & re-baseline': 'acceptance rejects stale versions', matched to lock 5 (short acceptance commit)"
     },
     {
       "from": "lane-E",
       "type": "wraps",
-      "to": "main-pipeline"
+      "to": "main-pipeline",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "lane E connects: 'wraps every stage and lane'"
     },
     {
       "from": "lane-E",
       "type": "wraps",
-      "to": "lanes"
+      "to": "lanes",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "lane E connects: 'wraps every stage and lane'"
     },
     {
       "from": "stage-0",
       "type": "serialized_by",
-      "to": "lock-1"
+      "to": "lock-1",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "stage 0 How: 'gate writes; reads use stable versioned snapshots', matched to lock 1 (writes to one program's analysis DB)"
     },
     {
       "from": "stage-4",
       "type": "serialized_by",
-      "to": "lock-3"
+      "to": "lock-3",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "stage 4 tag: 'isolated mutable outputs / PDB / Wine state', matched to lock 3"
     },
     {
       "from": "stage-7",
       "type": "produces",
-      "to": "export-projects"
+      "to": "export-projects",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "stage 7 How: 'reccmp: supported MSVC / PDB diagnostics', matched to the export card's 'reccmp reports'"
     },
     {
       "from": "stage-8",
       "type": "produces",
-      "to": "export-projects"
+      "to": "export-projects",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "stage 8 How: byte-accurate+floor vs max-C measured separately, matched to the export card 'byte-accurate C+floor and max-C … independent image receipts'"
     },
     {
       "from": "exec-step-2",
@@ -2660,37 +2787,58 @@
     {
       "from": "accept-4",
       "type": "consumes",
-      "to": "contract-bytes"
+      "to": "contract-bytes",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "note: 'All applicable proof receipts → acceptance (4)'"
     },
     {
       "from": "accept-4",
       "type": "consumes",
-      "to": "contract-identity"
+      "to": "contract-identity",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "note: 'All applicable proof receipts → acceptance (4)'"
     },
     {
       "from": "accept-4",
       "type": "consumes",
-      "to": "contract-operation"
+      "to": "contract-operation",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "note: 'All applicable proof receipts → acceptance (4)'"
     },
     {
       "from": "cap-5A",
       "type": "depends_on",
-      "to": "accept-4"
+      "to": "accept-4",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "note: 'acceptance (4) → original-code (5A) and recovered-source (5B) independently'"
     },
     {
       "from": "cap-5B",
       "type": "depends_on",
-      "to": "accept-4"
+      "to": "accept-4",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "note: 'acceptance (4) → original-code (5A) and recovered-source (5B) independently'"
     },
     {
       "from": "fence",
       "type": "gates",
-      "to": "accept-4"
+      "to": "accept-4",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "FENCE row: 'Keep artifact; refuse current acceptance/promotion'"
     },
     {
       "from": "accept-4",
       "type": "serialized_by",
-      "to": "lock-5"
+      "to": "lock-5",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "box 4 'Independent acceptance, short commit' matched to overview lock 5 'short acceptance commit' (cross-diagram)"
     },
     {
       "from": "resil-step-2",
@@ -2707,7 +2855,10 @@
     {
       "from": "resil-step-4",
       "type": "depends_on",
-      "to": "resil-step-3"
+      "to": "resil-step-3",
+      "inferred": true,
+      "inference": "stated",
+      "basis": "row statement: 'Every recovery action returns through independent acceptance'"
     },
     {
       "from": "resil-step-5",
@@ -2724,7 +2875,10 @@
     {
       "from": "resil-step-6",
       "type": "feedback",
-      "to": "resil-step-1"
+      "to": "resil-step-1",
+      "inferred": true,
+      "inference": "interpretation",
+      "basis": "step 6 'Prevent recurrence without blind tuning' returns to step 1 'Prevent, detect, classify' (preventive policy feedback)"
     },
     {
       "from": "cap-step-2",

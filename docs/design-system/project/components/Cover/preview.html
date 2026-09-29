@@ -1,17 +1,17 @@
 <!-- @dsCard height=260 -->
 <style>
   html, body { margin: 0; background: var(--chassis); }
-  .cv { position: relative; width: 100%; max-width: 960px; height: 260px; background: var(--chassis); overflow: hidden; }
-  .cv svg { position: absolute; left: 0; top: 0; width: 100%; height: auto; }
+  .cv { position: relative; width: 960px; height: 260px; background: var(--chassis); overflow: hidden; }
+  .cv svg { position: absolute; left: 0; top: 0; }
   .b-in { fill: var(--lane-intake-fill); } .b-id { fill: var(--lane-identity-fill); } .b-rec { fill: var(--lane-recovery-fill); }
   .b-ver { fill: var(--lane-verify-fill); } .b-uni { fill: var(--lane-unify-fill); }
   .gate { fill: var(--chassis); stroke: var(--gate); stroke-width: 2; }
-  .t { position: absolute; left: 48px; right: 24px; top: 150px; max-width: 640px; }
-  .t h1 { margin: 0; font: 700 clamp(40px, 8vw, 64px)/.95 var(--font-sans); letter-spacing: -.01em; color: var(--ink-strong); overflow-wrap: anywhere; }
+  .t { position: absolute; left: 48px; top: 150px; width: 640px; }
+  .t h1 { margin: 0; font: 700 64px/.95 var(--font-sans); letter-spacing: -.01em; color: var(--ink-strong); }
   .t p { margin: 16px 0 0; font: 400 14px/20px var(--font-sans); color: var(--ink-muted); }
 </style>
 <div class="cv">
-  <svg viewBox="0 0 960 112" preserveAspectRatio="xMinYMin meet" aria-hidden="true">
+  <svg width="960" height="112" viewBox="0 0 960 112" aria-hidden="true">
     <!--
       blocks: stage row (0-56): lane-intake-fill × 1 stage unit (106.67 = 960/9) · lane-identity-fill × 1 · lane-recovery-fill × 5 (stages 2-6) · lane-verify-fill × 2 (stages 7-8); lane row: lane-unify-fill from stage 1 to the edge (y 64-86, lanes A-B run beside stages 1-8) · lane-intake-fill again for lane E (y 94-112)
       arrangement: the overview diagram's own composition, flush strips read left to right as dependency order and top to bottom as concurrency; the name sits beneath because it is wider than the 440px zone

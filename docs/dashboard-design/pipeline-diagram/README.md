@@ -18,17 +18,18 @@ provenance audit; this authority correction does not require regenerating visual
 | `agentdecompile-recovery-pipeline.drawio` | The editable diagram. Open with draw.io desktop (`drawio <file>`), the VS Code "Draw.io Integration" extension, or app.diagrams.net. One layer per row, one group per model node (nested where the model nests). |
 | `agentdecompile-recovery-pipeline.svg` | The same diagram as plain SVG; opens and edits in Inkscape or any browser. |
 | `agentdecompile-recovery-pipeline.outline.md` | Text outline: the primary accessible reading form, with one anchor per node id. |
-| `agentdecompile-recovery-pipeline.png` | A rendered copy for quick viewing (currently stale; see the 2026-09-29 note). |
+| `agentdecompile-recovery-pipeline.png` | A rendered copy for quick viewing (resvg, 1:1 with the SVG canvas, DejaVu fonts only). |
 | `generate_pipeline_diagram.py` | Source of truth for overview **layout and palette**; reads its text from `pipeline-model.json`. |
 | `generate_execution_diagram.py`, `generate_resilience_diagram.py`, `generate_capabilities_diagram.py` | Companion generators; same split (layout here, content in the model). |
 | `generate_outlines.py` | Writes the four `.outline.md` files from the model and verifies model ↔ SVG ↔ outline agreement. |
-| `diagram_common.py` | Shared model loader, accessible SVG root, `<g id>` node wrapping and the text-collision check. |
+| `diagram_common.py` | Shared model loader, accessible SVG root, `<g id>` node wrapping, DejaVu metrics and the layout checks. |
 | `svg_to_drawio.py` | Turns a generated SVG into its `.drawio` file (native cells, layers, node groups with outline tooltips/links, connectors). |
+| `render_pngs.py` | Renders the four PNGs with resvg (resvg-py 0.5.0), 1:1 with each SVG canvas. |
 
 Regenerate everything (run from this directory, in this order):
 
 ```bash
-python generate_pipeline_diagram.py        # each generator runs the collision check before writing
+python generate_pipeline_diagram.py        # each generator runs the layout checks before writing
 python generate_execution_diagram.py
 python generate_resilience_diagram.py
 python generate_capabilities_diagram.py
@@ -36,8 +37,8 @@ python generate_outlines.py                # writes outlines; fails on model/SVG
 for f in agentdecompile-recovery-pipeline execution-contracts resilience-contracts autonomous-capabilities; do
   python svg_to_drawio.py "$f.svg" "$f.drawio"   # picks up "$f.outline.md" for tooltips and links
 done
-xvfb-run -a drawio --no-sandbox -x -f png -o agentdecompile-recovery-pipeline.png agentdecompile-recovery-pipeline.drawio
-python diagram_common.py check *.svg       # optional: re-run the collision check on existing SVGs
+python render_pngs.py                      # needs resvg-py 0.5.0 importable (pip install resvg-py==0.5.0)
+python diagram_common.py check *.svg       # optional: repeat the layout checks on existing SVGs
 ```
 
 All scripts are deterministic: the same source produces byte-identical output.
@@ -208,7 +209,8 @@ bracketed locator kind, e.g. `anchor_rel`), `lock-1`…`lock-5`, `failover-rule`
 `resil-step-1`…`6`, `control-plane`, `data-provider`, `policy-canary`,
 `worked-interruption`, `cap-step-1`…`6`, `milestone-M0`…`M7`). These ids are the shared
 deep-link vocabulary for the GUI (Pipeline Map, pipeline breadcrumb): the same id is the
-SVG `<g id>`, the draw.io UserObject id and the outline anchor.
+SVG `<g id>`, the draw.io UserObject id and the outline anchor. Edges drawn as arrows carry
+`drawn: true`; every other edge carries `inferred: true` (see below).
 
 **Outlines.** `generate_outlines.py` writes
 [agentdecompile-recovery-pipeline.outline.md](agentdecompile-recovery-pipeline.outline.md),
@@ -217,9 +219,11 @@ SVG `<g id>`, the draw.io UserObject id and the outline anchor.
 [autonomous-capabilities.outline.md](autonomous-capabilities.outline.md), the primary
 accessible reading form. Each heading or node item carries `<a id="<node id>"></a>`;
 meaning-carrying symbols are spelled out (≠ as "is not", ↔ as "refines, both ways" or
-"one-to-one", ∥ as "in parallel", → as "then", ranges such as 1–8 as "1 to 8"). It fails
-without writing when a model string is missing from its SVG, or when the SVG `<g id>`
-sequence differs from the outline's anchor sequence (same ids, same reading order).
+"one-to-one", ∥ as "in parallel", → as "then", ranges such as 1–8 as "1 to 8"). Each
+outline's Relationships list marks arrows "(drawn arrow)" and text-derived edges
+"(inferred)" with their basis. The script fails without writing when a model string is
+missing from its SVG, or when the SVG `<g id>` sequence differs from the outline's anchor
+sequence (same ids, same reading order).
 
 **Accessibility guarantees of the generated SVGs.**
 - Root `<svg role="img" aria-labelledby="<diagram>-title <diagram>-desc" lang="en">` with
@@ -233,20 +237,69 @@ sequence differs from the outline's anchor sequence (same ids, same reading orde
   VERIFICATION, INTAKE); feedback arrows carry "↺ feedback · …" labels; the legend now
   includes feedback (dash 4 4) and "OUTPUTS → who consumes them" (dash 5 4). The design-target
   line keeps its explicit "Design target:" prefix; italics are decoration only.
-- No empty `<text>` spacer nodes. Each generator runs a text bounding-box collision check
-  (width estimated as in `svg_to_drawio.py`) and refuses to write when text boxes of
-  different nodes overlap; the pre-change overview failed it where the 4→5 gate labels
+- All four diagrams use DejaVu Sans. The overview stack is
+  `DejaVu Sans, 'Segoe UI', system-ui, sans-serif` (mono `DejaVu Sans Mono, Consolas, monospace`,
+  currently unused); the companions and capability diagram use `DejaVu Sans, sans-serif`.
+- No empty `<text>` spacer nodes. Before writing, each generator runs layout checks and
+  refuses to write on any problem: (1) an estimated-width check (as in `svg_to_drawio.py`)
+  for overlapping text of different nodes; (2) when `/usr/share/fonts/truetype/dejavu` is
+  installed, a measured check using real DejaVu advance widths (read from the TrueType
+  files, kerning ignored) for overlap between any two texts, text that leaves its card, band,
+  pill or panel, and characters DejaVu cannot draw. Output never depends on the fonts; only
+  check strictness does. The pre-change overview failed check (1) where the 4→5 gate labels
   overprinted stage 5 and where the legend "G" overlapped "failover / fallback".
 - Layout fixes: the 4→5 gap widens to 164 px so the gate diamond sits on the dependency
   arrow with its labels inside the gap; the 7–8 feedback arrow now runs below the stage-4
   failover loop instead of crossing it; ladders widen to 460 px and shorten to their content;
   the overview canvas is trimmed from 3110 px to 2936 px (resilience 1460→1435, capabilities
-  1450→1440).
+  1450→1440). Switching the overview to DejaVu Sans needed no further layout change: the
+  tightest measured right margin inside any card is 58.5 px.
 - `svg_to_drawio.py` keeps the SVG's font family (first family; default DejaVu Sans) instead
   of forcing Inter, names the diagram from `<title>`, stores `<desc>` as the diagram
   description (root cell data) and emits each `<g id>` as a UserObject group with the outline
-  text as tooltip and `<outline>#<node id>` as link. The overview SVG still declares its
-  existing Inter-first font stack; the companions and capability diagram use DejaVu Sans.
+  text as tooltip and `<outline>#<node id>` as link.
+
+**PNG rendering.** `render_pngs.py` renders each SVG with resvg through the resvg-py 0.5.0
+binding (`pip install resvg-py==0.5.0`, or any copy on `PYTHONPATH`), loading only the DejaVu
+TrueType files in `/usr/share/fonts/truetype/dejavu` (`skip_system_fonts`, default and
+sans-serif family DejaVu Sans, monospace DejaVu Sans Mono). Output is 1:1 with the SVG canvas
+(4400×2936, 1800×1510, 1800×1435, 1800×1440), the same scale as the earlier PNGs, which
+were 1:1 renders of their older, taller canvases. The container has no DejaVu Sans Oblique
+file, so italic text renders upright. This supersedes the `drawio`/`rsvg-convert` PNG
+commands quoted in the older sections above.
+
+### Inferred edges (review)
+
+51 edges in `pipeline-model.json` were read from diagram text rather than drawn as
+arrows. Each has `inferred: true`, a quoted `basis`, and `inference: "stated"` (the text says
+it directly) or `"interpretation"` (a reading of the text). The outlines mark them "(inferred)".
+
+Interpretations to review first (22):
+
+- `lane-A consumed_by export-hookpack` — lane A outputs: '… and by the ABI + struct blocks of the pack'; 'the pack' read as hookpack v2
+- `lane-A serialized_by lock-2` — lane A card 'Runs alongside recovery': 'serialized only at the shared corpus mutation point', matched to lock 2
+- `lane-B produces export-hookpack` — lane B outputs: 'all of it lands in hookpack v2'; read as lane B producing the hookpack export
+- `lane-B produces export-divergence` — lane B card 'Divergence (3-way, never forced)' and outputs 'divergence class per pair', matched to the Divergence report export
+- `lane-C depends_on stage-1` — lane C connects: 'branches after stages 1–2 evidence'; 'branches after' read as depends_on
+- `lane-C depends_on stage-2` — lane C connects: 'branches after stages 1–2 evidence'; 'branches after' read as depends_on
+- `lane-C consumes ladder-A` — lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
+- `lane-C consumes ladder-B` — lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
+- `lane-C consumes ladder-C` — lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
+- `lane-C consumes ladder-D` — lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
+- `lane-C consumes ladder-E` — lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
+- `lane-C consumes ladder-F` — lane C card 'Pack → resolve': 'try members in order' and outputs 'WHICH ladder member resolved each'; read as lane C walking every ladder
+- `lane-C serialized_by lock-4` — lane C card 'Preflight → controlled call/install' acts on a live process; matched to lock 4 (one scenario bundle)
+- `lane-D produces export-receipts` — lane D outputs: 'content-addressed receipts → identical-basis re-runs are cache hits', matched to the Receipts export
+- `lane-D serialized_by lock-5` — lane D card 'Receipts & re-baseline': 'acceptance rejects stale versions', matched to lock 5 (short acceptance commit)
+- `stage-0 serialized_by lock-1` — stage 0 How: 'gate writes; reads use stable versioned snapshots', matched to lock 1 (writes to one program's analysis DB)
+- `stage-4 serialized_by lock-3` — stage 4 tag: 'isolated mutable outputs / PDB / Wine state', matched to lock 3
+- `stage-7 produces export-projects` — stage 7 How: 'reccmp: supported MSVC / PDB diagnostics', matched to the export card's 'reccmp reports'
+- `stage-8 produces export-projects` — stage 8 How: byte-accurate+floor vs max-C measured separately, matched to the export card 'byte-accurate C+floor and max-C … independent image receipts'
+- `fence gates accept-4` — FENCE row: 'Keep artifact; refuse current acceptance/promotion'
+- `accept-4 serialized_by lock-5` — box 4 'Independent acceptance, short commit' matched to overview lock 5 'short acceptance commit' (cross-diagram)
+- `resil-step-6 feedback resil-step-1` — step 6 'Prevent recurrence without blind tuning' returns to step 1 'Prevent, detect, classify' (preventive policy feedback)
+
+Stated directly in diagram text (29): `gate-0 gates stage-0`, `gate-1 gates stage-1`, `gate-3 gates stage-3`, `gate-4 gates stage-4`, `gate-5 gates stage-5`, `gate-6 gates stage-6`, `gate-7 gates stage-7`, `gate-8 gates stage-8`, `lane-A consumes stage-1`, `lane-A consumed_by stage-5`, `lane-A feeds export-readiness`, `lane-B consumes stage-1`, `lane-B consumes stage-2`, `lane-B feeds lane-C`, `lane-B feeds export-target`, `lane-C consumes lane-B`, `lane-C feeds stage-1`, `lane-C feeds export-readiness`, `lane-D wraps main-pipeline`, `lane-D wraps lanes`, `lane-D gates export-target`, `lane-E wraps main-pipeline`, `lane-E wraps lanes`, `accept-4 consumes contract-bytes`, `accept-4 consumes contract-identity`, `accept-4 consumes contract-operation`, `cap-5A depends_on accept-4`, `cap-5B depends_on accept-4`, `resil-step-4 depends_on resil-step-3`.
 
 ### Supersession — 2026-09-29
 
@@ -266,40 +319,42 @@ those receipts are not edited):
 
 | File | sha256 |
 |---|---|
-| `pipeline-model.json` | `3e0cce0affd95592eb2fc15f88f8a8a025baa33397321061f28e6d6c504bf6c4` |
-| `agentdecompile-recovery-pipeline.svg` | `3421837eee4bcd0ed5752af35c05049983719df87240987d9d6a5056b79e932e` |
+| `pipeline-model.json` | `759ea18d0ec2c9c56cbd8583d6acd967de26d6da4e16a72a57b7de363649e9b7` |
+| `agentdecompile-recovery-pipeline.svg` | `0792216c30656fe3c163bd10c8f969898603495b74aa200f1052fab1bf5fc13a` |
 | `execution-contracts.svg` | `128d69995f6185c8b012f6672f6a58f05b70586e511d3dc41e6a3c37401e8b9c` |
 | `resilience-contracts.svg` | `a4e5596db72863336e89b5c1ef89622028ea44e22c1e381e74a8548fb96ef8d8` |
 | `autonomous-capabilities.svg` | `faf124ee1f252b9abbb459e20982c4b20f1122b9f9a8bde50efce303f5cf0bf8` |
-| `agentdecompile-recovery-pipeline.drawio` | `ab0d00dc402c806afcddcd6cc9e49a4ed2587ecaa840db9d0a87ad614719d724` |
+| `agentdecompile-recovery-pipeline.drawio` | `8bf7f6d05ca184bdfef5438020910df5bab47cf033ecc7f694004901f22efead` |
 | `execution-contracts.drawio` | `25c1cd6285163a8e9e7557a75c91ae7608741261f04454b6658c4db04f32193f` |
 | `resilience-contracts.drawio` | `f25b71d65b7d776255dc6a6b2a42ccb8a0ce23c7f448776b74693681bf02ce14` |
 | `autonomous-capabilities.drawio` | `2316f91059bdd09ba144163f508250cf17c254b36713ba1b22e1a4c52ae48e7a` |
-| `agentdecompile-recovery-pipeline.outline.md` | `7c41aa2ec5890d83383130143a478cc75bbc0748164c2b0a048f3ed41c615474` |
-| `execution-contracts.outline.md` | `4a5ae36a49f3c5bcd47962700084c70862efe332b692f782850c6febb9109543` |
-| `resilience-contracts.outline.md` | `a886e7a3e362aa3bce5c03d1ae1336bfdee5c6b533643a0be5b48b01e27a4686` |
-| `autonomous-capabilities.outline.md` | `4ff57c7a921d9ceb72ba31d0c28416895ab4e36cf84ce5236a4682247240848d` |
-| `diagram_common.py` | `88c33e512ab91ecbd23660f3ab3a70a5023a2d8e29434e2e65e4dbf57ffae7fa` |
-| `generate_pipeline_diagram.py` | `18656f7e43891c87fb9dcb8a7ad56903eb8319116fdaeab7dfff36951c9fbd5a` |
+| `agentdecompile-recovery-pipeline.outline.md` | `848f94cf61b78e41740318aa8a0448af5e0c5c078de1b7d98a467d7a3f454d4b` |
+| `execution-contracts.outline.md` | `ebb69bf3440542a4bf7eb87b8c729824b3d142aaaba8c70be437af500bfa2ff6` |
+| `resilience-contracts.outline.md` | `81a235538e9eabe17bdce3000603300f75bf058dd6d9a777af072f795a7a43fe` |
+| `autonomous-capabilities.outline.md` | `f8302a134bb061c95831bf43cbfaa05090180620cc751595bd39784673a37c35` |
+| `agentdecompile-recovery-pipeline.png` | `be3f164591c881c09bcc77595fc6a37850616fbdf3d1fe03f08a29970db4841e` |
+| `execution-contracts.png` | `61c1a1af831e492d25561fa1615ad5d48c17fb8aac6d39375a6f1e8321abdf57` |
+| `resilience-contracts.png` | `0c75b08bd7719d31924e6ae98f9c7229ad8b19d34adb40c8cf314b24cfdde496` |
+| `autonomous-capabilities.png` | `55d503491a6f639186dbec4e253f1feb9f09d03ca1f5217af0682e370af65de6` |
+| `diagram_common.py` | `119913dcf5c1b10b0885bad9a92cb56209ff5b9567911d92a23b9fcb189e00f6` |
+| `generate_pipeline_diagram.py` | `99b0c1ad7831d92c05039fe697e11ef84840ddbbdbbf2f01db6d57afce3025ed` |
 | `generate_execution_diagram.py` | `29a9ca306d8200861ca089976da5cf99a8682835512ac1f9485528b28e5ef3b3` |
 | `generate_resilience_diagram.py` | `03c643e89d478ee7403318a5304bf32418b18cc4ddb40e5a74239527b6271761` |
 | `generate_capabilities_diagram.py` | `ff4f0b0e8a6d9182e9dde03c6fafcacd73960310e4cd042228729b240687e41b` |
-| `generate_outlines.py` | `994b33fef1ae6b1a0e71e5be6d06d264b93f004840dbb2570e48a48190addb7c` |
+| `generate_outlines.py` | `b4e5ac5bcd348d1559aa9b6ffe1e5d5f6df7a85d44252dce650c2f6a8a2c3be5` |
 | `svg_to_drawio.py` | `6838eace7469ffa88ae32fadf3844f261da9958820dfba3e0e77fec248e3c681` |
+| `render_pngs.py` | `889e5d9be489d2124a1215b01355b5b129195cc6e8de529f215e5277cdcc6a11` |
 
-**PNGs are stale.** Neither `drawio` nor `rsvg-convert` is installed in the container that
-produced this revision, so the four `.png` files were not regenerated and still show the
-pre-2026-09-29 diagrams (unchanged hashes, e.g. overview
-`c6c71566d47a7c28b349a7eae1d39eab43016673b8c69ab9b9f8f5c034fd1358`). Regenerate them with the
-commands above before relying on them. The user-facing copy
-`/home/brunner56/Documents/agentdecompile-pipeline.svg` is outside this checkout and was not
-updated.
+The user-facing copy `/home/brunner56/Documents/agentdecompile-pipeline.svg` is outside
+this checkout and was not updated.
 
-Verified here: two full regeneration runs produced byte-identical outputs; the collision
-check reports zero overlaps for all four SVGs (and fails when the old 34 px 4→5 gap is
-restored); each SVG parses as XML with `<title>` and `<desc>` as its first children; every
-model node id appears in both the SVG and its outline in the same order; every pre-change SVG
-string is still drawn except the changes listed above; the updated converter reproduces the
-previous `.drawio` cells exactly from the previous SVGs apart from font family and diagram
-name. Not verified: draw.io rendering or UI behaviour of the tooltips/links, screen-reader
-output, and the PNGs.
+Verified here: two full regeneration runs (generators, outlines, draw.io conversion and
+PNGs) produced byte-identical outputs; the estimated and measured layout checks report zero
+problems for all four SVGs (the estimate fails when the old 34 px 4→5 gap is restored, the
+measured overflow check fails when a stage card is narrowed); each SVG parses as XML with
+`<title>` and `<desc>` as its first children; every model node id appears in both the SVG
+and its outline in the same order; every pre-change SVG string is still drawn except the
+changes listed above; the updated converter reproduces the previous `.drawio` cells exactly
+from the previous SVGs apart from font family and diagram name; each PNG matches its SVG
+canvas size. Not verified: draw.io rendering or UI behaviour of the tooltips/links, and
+screen-reader output.

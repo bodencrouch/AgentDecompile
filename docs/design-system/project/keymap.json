@@ -311,7 +311,8 @@
    "keys": [
     "Ctrl/Cmd+S"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "Inside an open editor, saves that editor (as the editor defines). Outside any editor, arms Save for the inspected build in ProjectWindow and never posts from the key alone. Saving is not checking in."
   },
   {
    "id": "open",
@@ -319,7 +320,8 @@
    "keys": [
     "Ctrl/Cmd+O"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "Focuses ProjectWindow's Projects tab. Never switches project: opening another project goes through the cross-project StateNotice."
   },
   {
    "id": "layout.preset",
@@ -575,7 +577,7 @@
     "F2"
    ],
    "scope": "composite",
-   "where": "session tabs, function rows, label rows, SymbolTree and ProgramTreeView nodes, and the MemoryMapTable block name",
+   "where": "session tabs, function rows, label rows, SymbolTree and ProgramTreeView nodes, and the MemoryMapTable block name, and ProjectWindow program-file rows",
    "note": "Opens the inline editor in place. Locals, parameters and labels in code wells use code.rename."
   },
   {
@@ -1704,6 +1706,256 @@
    "scope": "region",
    "where": "evidence rail",
    "note": "Rail header menu and palette."
+  },
+  {
+   "id": "code.nextColorRange",
+   "label": "Next program color range",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "code.prevColorRange",
+   "label": "Previous program color range",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "highlight.fromSelection",
+   "label": "Highlight from selection",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "highlight.add",
+   "label": "Add selection to highlight",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "highlight.subtract",
+   "label": "Subtract selection from highlight",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "highlight.clear",
+   "label": "Clear highlight",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "highlight.toSelection",
+   "label": "Select highlight",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "code.nextHighlightRange",
+   "label": "Next highlighted range",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "code.prevHighlightRange",
+   "label": "Previous highlighted range",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "code.nextMatchingBytes",
+   "label": "Next code unit with matching bytes",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "code.prevMatchingBytes",
+   "label": "Previous code unit with matching bytes",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "code.stepInvert",
+   "label": "Invert step (toggle)",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "code.createFunction",
+   "label": "Create function",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "code.recreateFunction",
+   "label": "Re-create function",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "code.createFunctions",
+   "label": "Create multiple functions",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key. Opens the confirm; never posts from a key."
+  },
+  {
+   "id": "code.deleteFunction",
+   "label": "Delete function",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key. Opens the confirm; never posts from a key."
+  },
+  {
+   "id": "code.stackDepth",
+   "label": "Set stack depth change",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "code.entryPoint",
+   "label": "Set or remove external entry point",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "code.debugDecompile",
+   "label": "Capture decompiler debug XML",
+   "keys": [],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "code.paste",
+   "label": "Paste",
+   "keys": [
+    "Ctrl/Cmd+V"
+   ],
+   "scope": "code",
+   "where": "Listing and code wells",
+   "note": "Arms Paste and opens its preview; never posts. Same chord as symbols.paste, which is SymbolTree-scoped; scope precedence keeps them apart. Refused across builds (use Propose to…)."
+  },
+  {
+   "id": "graph.layout",
+   "label": "Graph layout…",
+   "keys": [],
+   "scope": "composite",
+   "where": "GraphPane",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "graph.satellite",
+   "label": "Satellite view (toggle)",
+   "keys": [],
+   "scope": "composite",
+   "where": "GraphPane",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "graph.filter",
+   "label": "Graph filter…",
+   "keys": [],
+   "scope": "composite",
+   "where": "GraphPane",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "results.translate",
+   "label": "Translate strings…",
+   "keys": [],
+   "scope": "composite",
+   "where": "ResultsTable (defined strings)",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "propagate.setAll",
+   "label": "Set all apply settings",
+   "keys": [],
+   "scope": "composite",
+   "where": "PropagationTransfer",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "review.manualMatch",
+   "label": "New manual match…",
+   "keys": [],
+   "scope": "composite",
+   "where": "ReviewDetail and the link menu",
+   "note": "Palette and link menu; no default key."
+  },
+  {
+   "id": "validation.open",
+   "label": "Program validation",
+   "keys": [],
+   "scope": "global",
+   "where": "ProgramValidation (panel=validation)",
+   "note": "Menu and palette only; no default key."
+  },
+  {
+   "id": "program.settings.open",
+   "label": "Program settings",
+   "keys": [],
+   "scope": "global",
+   "where": "ProgramSettings (panel=program)",
+   "note": "Menu and palette only; no default key."
+  },
+  {
+   "id": "debuginfo.open",
+   "label": "Debug info import",
+   "keys": [],
+   "scope": "global",
+   "where": "DebugInfoImport (panel=debuginfo)",
+   "note": "Menu and palette only; no default key."
+  },
+  {
+   "id": "fid.open",
+   "label": "Function ID databases",
+   "keys": [],
+   "scope": "global",
+   "where": "FunctionIdManager (panel=fid)",
+   "note": "Menu and palette only; no default key."
+  },
+  {
+   "id": "project.saveAll",
+   "label": "Save all programs…",
+   "keys": [],
+   "scope": "global",
+   "where": "ProjectWindow",
+   "note": "Menu and palette only; no default key. Opens ConfirmDialog listing the builds it leaves out."
   }
  ],
  "conflictPolicy": "Two commands bound to the same key in the same scope do nothing until the conflict is resolved; the status line says which binding is blocked and why.",

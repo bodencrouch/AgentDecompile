@@ -105,5 +105,6 @@ Previews use one shared set of example data so that components agree with each o
   - build-d: x86-64, VC 14.38 (build 33128), PDB with source and flags recorded, /INCREMENTAL, /FUNCTIONPADMIN, FH4, no RTTI.
 
   Only build-d has recorded source identity, so no variance class in corpus-alpha is solid yet.
+- **Compiler specs, as imported:** build-a, build-b and build-d `windows`; build-c `gcc`. build-c's is the loader's choice at import and deliberately conflicts with its toolchain evidence, to show a record disagreeing with a witness.
 - **More addresses:** Actor::LoadFromTemplate: build-a 0041a280 · build-b 0041a4a0 · build-c 00079a30 · build-d 0041a7d0. FUN_0041c940 on build-b is the folded counterpart of FUN_0041c880.
 - **Jobs and receipts.** job a3f9 is the example rename or propagation job. Other ids (5c1e, 6e21, 77c0, b7e2, b7e3, c4e1, d07a, e5a0) are illustrative and consistent within each preview.

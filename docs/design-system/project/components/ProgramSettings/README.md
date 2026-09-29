@@ -71,7 +71,7 @@ Each build's processor language and compiler spec, side by side, with the eviden
 **Linking**
 
 - **Publishes:**
-  - proposed `panel=program` with `build`, not registered in `location-schema.json` (see the proposals);
+  - `panel=program` with `build`, registered in `location-schema.json`.
   - Enter on an evidence address, which goes to that address on that build.
   - The change flow's choice is dialog state, never in the URL.
 - **Follows:** the inspected build, after the settle. A confirmed dialog keeps its build when the selection moves ("Bound to build-c · selection is now build-a · Rebind"). Not holdable.

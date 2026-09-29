@@ -8,8 +8,13 @@
     { "name": "build",    "carries": "inspected build", "grammar": "build-id", "history": "push", "example": "build-b" },
     { "name": "addr",     "carries": "address or cursor in the inspected build", "grammar": "hex without 0x, or ‹space›::hex for a non-default address space (e.g. OV1::00001000, EXTERNAL::0000000c)", "history": "replace", "requires": "build; without it the builds containing the address are listed", "example": "0041b210" },
     { "name": "ws",       "carries": "workspace", "values": ["code", "compare", "recovery", "evidence"], "history": "push; consecutive switches with no Go collapse" },
-    { "name": "panel",    "carries": "full corpus view inside a workspace; target of every Show all", "values": ["report", "atlas", "review", "builds", "pipeline", "readiness", "names", "reuse", "runtime", "outputs", "toolchain", "variants", "analysis", "scripts", "versions", "history", "types", "search"], "history": "push", "withBuild": ["analysis", "scripts", "versions", "history"],
+    { "name": "panel",    "carries": "full corpus view inside a workspace; target of every Show all", "values": ["report", "atlas", "review", "builds", "pipeline", "readiness", "names", "reuse", "runtime", "outputs", "toolchain", "variants", "analysis", "scripts", "versions", "history", "types", "search", "validation", "program", "debuginfo", "fid", "project"], "history": "push", "withBuild": ["analysis", "scripts", "versions", "history", "validation", "program", "debuginfo", "fid"],
       "describes": {
+        "validation": "ProgramValidation: validator results per build",
+        "program": "ProgramSettings: language, compiler spec and pointer size per build",
+        "debuginfo": "DebugInfoImport: PDB, DWARF and SARIF loads and the source files table",
+        "fid": "FunctionIdManager: Function ID databases and hashes",
+        "project": "ProjectWindow: project, program files, archive and restore, save",
         "report": "the recovery report: VariantLedger, rebuild comparisons, readiness and divergence reports",
         "atlas": "project intelligence (F19): function discovery and index, dependency and neighborhood exploration, prioritization",
         "review": "the match review queue, cursor in page",
@@ -66,6 +71,9 @@
     "$comment": "The shared f= axis vocabulary. A component that needs a new axis adds it here first. An unknown axis stays verbatim in the URL and gets a StateNotice.",
     "axes": [
       { "axis": "analyzer", "carries": "AnalyzerPanel filter: analyzers whose options differ across builds", "values": ["differs"], "example": "analyzer:differs" },
+      { "axis": "results.translation", "carries": "ResultsTable string translation state", "values": ["none", "hypothesis", "stale"], "example": "results.translation:hypothesis" },
+      { "axis": "match.channel", "carries": "review queue producing channel", "example": "match.channel:manual" },
+      { "axis": "finding", "carries": "ProgramValidation finding severity", "values": ["warning", "error"], "example": "finding:error" },
       { "axis": "src.line",        "carries": "a source file and line", "example": "src.line:resource.c:41" },
       { "axis": "log.line",        "carries": "a line of the focused job's log", "example": "log.line:211" },
       { "axis": "changed",         "carries": "rows a job's receipts recorded as changed; never changed_by", "example": "changed:a3f9" },
@@ -146,7 +154,7 @@
     "/report": { "ws": "recovery", "panel": "report" },
     "/dashboard/explorer": { "ws": "code", "region": "navigator", "note": "Explorer is the Navigator region, never a center surface" }
   },
-  "neverInUrl": ["checked set", "drafts", "credentials"],
+  "neverInUrl": ["checked set", "drafts", "credentials", "highlight sets", "graph view state (layout, zoom, satellite, filters, groups)", "apply settings", "clipboard contents", "translation service settings"],
   "history": {
     "push": ["Go (link, row Enter or click, go-to pick, Make primary, job or receipt link, Show all)", "filter applied from a link", "workspace switch", "build switch", "cmp open or close"],
     "replace": ["list and grid focus moves", "cursor moves", "typed or edited filters", "removed filter chips", "views", "layers", "walk", "dock", "hold", "keep", "alias rewrites"],

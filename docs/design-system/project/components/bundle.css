@@ -3296,13 +3296,6 @@ tr[aria-selected="true"] .ad-g3-st .m{color:var(--ink)}
 }
 .ad-g3-grid th.nw,.ad-g3-grid td.nw{white-space:nowrap}
 
-/* ---- Forced colors: selected and current items (keep this block last) ----
-   Engines may paint a Canvas backplate behind every line of text when forced-color-adjust is auto, so HighlightText text on a Highlight block
-   lands on Canvas and disappears (HighlightText equals Canvas in the usual high-contrast palettes). Selected and current items therefore opt out,
-   and everything inside them is set to HighlightText on a transparent fill, so no author color survives and descendants read as the system
-   selection. Data graphics keep their own colors because their text key carries the values. Where supported, SelectedItem and SelectedItemText
-   replace Highlight and HighlightText. The selector list repeats every Highlight rule above with the same specificity. */
-
 /* ---- css-v2 (round-2 review) ---- */
 /* css-v2 · group V1 · tokens only */
 /* Dashes mean hypothesis only: solid or no frame for states that are not hypotheses */
@@ -3322,6 +3315,75 @@ tr[aria-selected="true"] .ad-g3-st .m{color:var(--ink)}
 .ad-table tr.ade-cur{outline:2px solid var(--ink-strong);outline-offset:-2px}
 .ad-table tr.ade-cur>th[scope="row"] .small{font-weight:700;color:var(--ink-strong);margin-inline-start:var(--space-2)}
 @media (forced-colors:active){.ad-table tr.ade-cur{outline-color:CanvasText}}
+
+/* ---- css-v3-A.css (parity round 3, extensions) ---- */
+/* css-v3 · group A · parity round 3 (Listing, GraphPane, DecompileView, SymbolTree, ResultsTable, PropagationTransfer, ReviewDetail) · tokens only */
+/* Listing: Step toolbar sits inside the pane header band */
+.ad3-step{padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--line);background:var(--pane)}
+/* Listing: marker-margin letter for a range highlight, and row words */
+.ad-ln .ad3-mk{font:700 11px/1 var(--font-mono);color:var(--highlight-badge)}
+.ad3-w{display:inline-flex;align-items:center;gap:var(--space-2);font:400 11px/16px var(--font-sans);color:var(--ink-muted);white-space:nowrap}
+/* Program color: a 2px bar plus the word; never a row fill */
+.ad3-bar{display:inline-block;width:2px;height:12px;background:var(--ink-muted)}
+.ad3-cmt{font:400 11px/16px var(--font-sans);color:var(--ink-muted);white-space:normal}
+.ad3-cmt .ad-link{display:inline}
+.ad3-unres{font-style:italic;color:var(--fact-unknown)}
+.ad3-dlgb{padding:0 var(--space-7) var(--space-5);display:grid;gap:var(--space-3)}
+.ad3-dlgb p{padding:0}
+.ad3-list{margin:0;padding-left:var(--space-7);display:grid;gap:var(--space-2);font-size:12px;line-height:17px;color:var(--ink)}
+.ad3-ta{height:auto;min-height:44px;padding:var(--space-3) var(--space-4);line-height:16px;resize:vertical}
+/* GraphPane: filter popup beside the satellite overview */
+.ad3-gpbody{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(240px,100%),1fr));gap:var(--space-5);align-items:start;padding:var(--space-4)}
+.ad3-gpf{margin:0;width:100%;max-width:none}
+.ad3-fs{margin:0;padding:var(--space-2) var(--space-5) var(--space-4);border:0;display:grid;gap:var(--space-2);font-size:12px}
+.ad3-fs legend{padding:var(--space-3) 0 var(--space-1);font:700 11px/14px var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted)}
+.ad3-fs .ad-check{min-height:24px;display:flex;align-items:center;gap:var(--space-3)}
+.ad3-sat{position:relative;height:150px;background:var(--well);border:1px solid var(--line-control)}
+.ad3-satn{position:absolute;left:40%;top:8%;width:18%;height:12%;background:var(--node-bg);border:1px solid var(--node-stroke)}
+.ad3-lens{position:absolute;left:8%;top:24%;width:62%;height:52%;border:2px solid var(--ink-strong)}
+.ad3-satl{position:absolute;right:var(--space-3);bottom:var(--space-2);font:400 11px/14px var(--font-sans);color:var(--ink-muted)}
+/* ResultsTable: a translation line under the original string; dashed = hypothesis */
+.ad3-tr{display:block;margin-top:var(--space-2);padding:var(--space-1) var(--space-3);border:1px dashed var(--evidence-hypothesis-frame);font:400 12px/16px var(--font-sans);color:var(--ink);overflow-wrap:anywhere}
+
+/* Two-column form that collapses to one column */
+.ad3-form2{grid-template-columns:max-content minmax(0,1fr)}
+@container (max-width:420px){.ad3-form2{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:520px){.ad3-form2{grid-template-columns:minmax(0,1fr)}}
+.ad3-form2 .adc-in{max-width:100%}
+/* PropagationTransfer apply settings: seg wraps on narrow panes */
+.ad3-apply .ctl .ad-seg{flex-wrap:wrap}
+@media (forced-colors:active){.ad3-bar{background:CanvasText}.ad3-lens,.ad3-sat,.ad3-tr{border-color:CanvasText}}
+@media (prefers-contrast:more){.ad3-tr{border-width:2px}}
+/* Forms inside ad-g3 panels never widen their column */
+.ad3-form2 .adc-in,.ad3-form2 select.adc-in{width:100%;min-width:0}
+.ad3-form2>span{min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2)}
+.ad3-form2>span>.adc-in{flex:1 1 120px;width:auto}
+.ad-g3 .ad-seg{flex-wrap:wrap;max-width:100%}
+.ad-g3 .ad-seg>[role="radio"]{height:auto;min-height:24px;padding-top:var(--space-1);padding-bottom:var(--space-1);white-space:normal;line-height:16px}
+.adc-states>div>.ad-dialog{max-width:100%}
+.ad3-chk{display:flex;align-items:center;gap:var(--space-3);min-height:24px;font-size:12px;color:var(--ink)}
+.ad3-chk input{width:24px;height:24px;margin:0;flex:none}
+.ad3-wrap td{white-space:normal}
+
+/* ---- css-v3-B.css (parity round 3, new components) ---- */
+/* css-v3 · group B (ProgramValidation, ProgramSettings, DebugInfoImport, FunctionIdManager, ProjectWindow, ScriptConsole) · tokens only */
+/* Listbox options inside the shared ad-g3-tree frame (ProgramSettings language choice, DebugInfoImport search locations):
+   the same row, selection fill and accent bar as tree items; aria-disabled options read muted */
+.ad-g3-tree [role="option"]{display:block}
+.ad-g3-tree [role="option"]>span{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);min-height:24px;padding:0 var(--space-4);color:var(--ink)}
+.ad-g3-tree [role="option"][aria-selected="true"]>span{background:var(--row-selected-bg);color:var(--ink-strong);box-shadow:inset var(--sel-bar,3px) 0 0 var(--accent)}
+.ad-g3-tree [role="option"][aria-disabled="true"]>span{color:var(--ink-muted)}
+@media (pointer:coarse),(max-width:699px){.ad-g3-tree [role="option"]>span{min-height:var(--touch-h)}}
+@media (forced-colors:active){.ad-g3-tree [role="option"][aria-selected="true"]>span{background:Highlight;color:HighlightText;border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-4) - 3px)}}
+
+/* ---- Forced colors: selected and current items (keep this block last) ----
+   Engines may paint a Canvas backplate behind every line of text when forced-color-adjust is auto, so HighlightText text on a Highlight block
+   lands on Canvas and disappears (HighlightText equals Canvas in the usual high-contrast palettes). Selected and current items therefore opt out,
+   and everything inside them is set to HighlightText on a transparent fill, so no author color survives and descendants read as the system
+   selection. Data graphics keep their own colors because their text key carries the values. Where supported, SelectedItem and SelectedItemText
+   replace Highlight and HighlightText. The selector list repeats every Highlight rule above with the same specificity. */
+
+
 
 @media (forced-colors:active){
  .ad [aria-selected="true"]:not(.adl-tree li,.adx-hier li,.ad-g3-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-matrix td.cell[aria-selected="true"],.ad-seg>button[aria-pressed="true"],.ad-seg>[role="radio"][aria-checked="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"],.adx-step[aria-current="step"],.adx-tt>li[aria-current="step"],.ad .adx-bc[aria-current="location"],.adx-hier [aria-selected="true"]>span,.ad-g3-tree [aria-selected="true"]>span{forced-color-adjust:none;box-shadow:none}

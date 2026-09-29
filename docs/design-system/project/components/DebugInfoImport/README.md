@@ -82,7 +82,7 @@ The debug information of every build in one panel. It shows what each image reco
 **Linking**
 
 - **Publishes:**
-  - proposed `panel=debuginfo` with `build`, not registered in `location-schema.json` (see the proposals);
+  - `panel=debuginfo` with `build`, registered in `location-schema.json`.
   - a map entry's address, which goes to that build (one history stop);
   - a source line, which uses the registered `f=src.line:‹file›:‹line›` axis where a view filters by it.
   - Tabs, drafts and transforms are durable workspace state.

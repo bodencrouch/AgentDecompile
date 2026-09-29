@@ -84,7 +84,7 @@ The project and its program files in one panel. It covers:
 **Linking**
 
 - **Publishes:**
-  - proposed `panel=project` (Program files, Projects, Archive), not registered in `location-schema.json` (see the proposals);
+  - `panel=project` (Program files, Projects, Archive), registered in `location-schema.json`.
   - **Open**, which on a build publishes `build` (one history stop);
   - **Open ‹project›**, which publishes nothing until **Switch** is chosen on the StateNotice.
   - A viewed project, expansions and drafts are durable workspace state, never `project=`.

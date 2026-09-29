@@ -73,7 +73,7 @@ Function ID across the project. It covers the FidDb databases the server knows a
 **Linking**
 
 - **Publishes:**
-  - proposed `panel=fid` with `build`, not registered in `location-schema.json` (see the proposals);
+  - `panel=fid` with `build`, registered in `location-schema.json`.
   - Enter on an entity, which goes to Compare with the CounterpartStrip;
   - Enter on a match, which opens NameProvenance (`ws=evidence&panel=names`).
   - Tabs and the Populate draft are durable workspace state.

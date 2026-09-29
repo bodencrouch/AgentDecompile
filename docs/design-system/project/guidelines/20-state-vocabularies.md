@@ -297,3 +297,24 @@ Merge result per binary, name, type, comment and relationship: **added · reused
 - **Edit history:** ↶ undoable · ↷ redo available · ⊘ cannot be undone here. An executed job's side effects are always ⊘, even when the byte journal can roll bytes back.
 - **Read-back:** ✓ "read back · matches preview" after a write is re-read; ✗ "read back · differs from preview" when it is not. "Restored to defaults" is a word, never ↺, which means recovered.
 - **Option state:** "not default" as a word beside a changed option. ≠ is never used for this, because it means source variance.
+
+## Validator results (ProgramValidation)
+
+Each build shows one of these per validator, always as the word, with the glyph beside it:
+
+| Result | Glyph | Meaning |
+|---|---|---|
+| no findings | ✓ | The validator ran on this build's current receipt and reported nothing. |
+| warnings | △ | Advisory findings. They are never unmet predicates, and reach a worklist only when collected. |
+| errors | ✗ | Findings the validator marks as errors. They are still not recovery claims. |
+| not run | ○ | No validation receipt exists for this build. |
+| stale | ◷ | The receipt predates the build's current basis. |
+| not applicable | — | The validator does not apply to this build's language or format. |
+
+△ is used for validator warnings only.
+
+## Name sub-tiers from analysis (NameProvenance)
+
+- **analysis · Function ID**: a name from a Function ID hash match. It ranks below debug info and authentic symbols and above placeholders, and is always a candidate.
+- **analysis · imported SARIF**: names from a SARIF file whose hash matches the build. They rank below debug info.
+- A PDB whose identity (GUID and age) does not match the build is a hypothesis, and its names rank with analysis names, not debug info.

@@ -74,8 +74,8 @@ Ghidra's post-analysis validators for every build in one panel: which validators
 **Linking**
 
 - **Publishes:**
-  - proposed `panel=validation` with `build`, not yet registered in `location-schema.json` (see the proposals);
-  - the Result filter as proposed `f=finding:warning|error`; until registered, it is durable workspace state;
+  - `panel=validation` with `build`, registered in `location-schema.json`.
+  - the Result filter as `f=finding:warning|error`, registered in `location-schema.json`.
   - Enter on a Location, which goes to that address on that build (one history stop).
   - Arming or running never changes the selection.
 - **Follows:** the inspected build, after the settle. Not holdable. A kept findings set is a ResultsTable snapshot (`keep=results:‹id›@‹build›`).

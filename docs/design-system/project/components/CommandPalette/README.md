@@ -14,6 +14,8 @@ Ctrl/Cmd+K: the modal entry to catalog actions, places and recent jobs. It is th
 - Previews are cache-only: Alt+↓ peeks the highlighted result without fetching. Recent actions and the recent query history are per viewer, in durable workspace state.
 - Narrow: below 700px the palette is a full-width sheet, rows wrap to two lines (name and type; build and destination), per-build glyphs collapse to "on 3 of 5 builds", prefix chips wrap, and rows are 44px.
 
+**Scripts section (future).** This section appears only once scripts are catalog entries (parity C05); until then there is no Scripts section and no key. When it exists, it sits after Actions and lists recent scripts first. Enter opens the script's run confirm (target builds named); it never runs the script. There is no new default key: the Quick Action launcher is this palette section.
+
 **Linking**
 
 - **Publishes:** nothing itself. A place pick navigates like its link (`entity`, `build`, `addr`, `job`, `receipt`, `node`; one history stop). An action pick writes the ActionStrip, never the location.

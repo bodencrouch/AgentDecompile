@@ -14,6 +14,12 @@ Per-field name precedence: the winning name, its tier, its origin, and every rej
 - **Conflicts** from MergeReview and ContextPlacement land here for that entity and build in the active project. The Peek reads cached name rows only, and a proposed label is never applied by following a link.
 - Rail-section form: a scope sentence header, the precedence table, and "Show all" linking to the full per-field view.
 
+**Analysis sub-tiers.** Two named sub-tiers sit inside "analysis" (guideline 20):
+- "analysis · Function ID": a Function ID hash match (FunctionIdManager). It ranks above placeholders, below debug info and authentic symbols, and is always a candidate.
+- "analysis · imported SARIF": names from a SARIF file whose hash matches the build (DebugInfoImport). They rank below debug info.
+
+A PDB whose identity (GUID and age) does not match the build is a hypothesis, and its names rank with analysis names, never with debug info. A weaker import never overwrites a stronger name: the stronger value stays, and the imported one is listed as a rejected alternative.
+
 **Linking**
 
 - **Publishes:** nothing. Choosing a name is an edit (InlineRename in place for one target, the ActionStrip for a batch), never a click here.

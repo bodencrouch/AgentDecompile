@@ -90,7 +90,7 @@ Each block below follows the house order: what it is, anatomy and states, linkin
   - **Bytes** (a byte string, spaces ignored): opens PatchEditor's Bytes mode prefilled at the paste point on the inspected build, with its original, current and after preview. Bytes paste only over undefined bytes; a range with code or data says "Clear first; 0045f204 is data" and offers PatchEditor Clear. Every byte write uses ConfirmDialog ("Write 12 bytes at 0045f200 on build-b"), and reads back after the terminal result. "Patched bytes are not recovery evidence." Bytes are never proposed to counterparts.
   - **Anything else** (formatted code, text the Listing did not produce): "The clipboard holds text that is not a Listing format. Paste it into a field instead." Nothing is armed.
 - **Target.** The Paste preview's header names it: "Paste to build-a at 0041c880 · from build-a 0041b210" or "Paste 12 bytes to build-b at 0045f200 · copied on build-a". A clipboard from another project says so and pastes only strings.
-- **Keyboard.** `code.paste` (Ctrl/Cmd+V, code scope, proposed) arms Paste and opens its preview; it never posts. Reading the system clipboard may prompt the browser for permission; if refused, the preview says "Clipboard not readable · paste into the field with Ctrl/Cmd+V".
+- **Keyboard.** `code.paste` (Ctrl/Cmd+V, code scope, registered) arms Paste and opens its preview; it never posts. Reading the system clipboard may prompt the browser for permission; if refused, the preview says "Clipboard not readable · paste into the field with Ctrl/Cmd+V".
 
 *Step by kind, matching bytes and Invert (N03).* The step commands of the first extension gain two things.
 

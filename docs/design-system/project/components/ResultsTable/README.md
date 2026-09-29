@@ -94,7 +94,7 @@ Ghidra decorates a string with a translated value from a translation service, sh
   - **Show translations** off hides the line for this viewer only; stored translations are unchanged.
   - Alt+↓ peeks the bytes, the charset, the decoded text and the translation with its basis, side by side.
 - **Stale.** When a string's bytes or charset change after it was translated, the translation reads "◷ string changed since translated · Translate again". It is never re-sent on its own.
-- **Across builds.** A translation belongs to the string on one build. Rows joined by content ("joined by content ≠ same entity") show each build's own translation state; translating build-b's row does not translate build-c's. A new column, **Translation**, reads "none", "hypothesis" or "stale" per build, and filters by `f=results.translation:` (proposed).
+- **Across builds.** A translation belongs to the string on one build. Rows joined by content ("joined by content ≠ same entity") show each build's own translation state; translating build-b's row does not translate build-c's. A new column, **Translation**, reads "none", "hypothesis" or "stale" per build, and filters by `f=results.translation:` (registered).
 - **Charsets.** **Settings…** on string rows opens the charset picker:
   - a table of the charsets the build's server offers: Name (non-registry names start `x-`), Description, Fixed length, Min and max bytes per character, and Scripts; the details show the aligned size (UTF-16 and UTF-32 only) and sample characters;
   - a **preview** column for the checked rows, decoded client-side from bytes already read: "decodes as ‹text› · 2 bytes not decodable (shown as �)". Previewing writes nothing and fetches nothing new;

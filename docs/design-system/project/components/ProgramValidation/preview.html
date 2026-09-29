@@ -1,53 +1,53 @@
-<!-- @dsCard group="Project" height=1900 -->
+<!-- @dsCard group="Project" height=1480 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<span class="kicker">All builds · stored findings only · validators read the program and change nothing · each run is one admitted job per build</span>
+<span class="kicker">All builds<span class="sr-only"> · stored findings only · validators read the program and change nothing · each run is one admitted job per build</span></span>
 <section class="ad-g3" aria-labelledby="pv-t">
  <header class="ad-g3-head">
   <h3 id="pv-t">Validate program <span class="sub">· corpus-alpha · 4 builds</span></h3>
   <div class="ad-tools" role="group" aria-label="Validation scope">
    <span><span class="lbl" id="pv-l-sc">Scope</span><span class="ad-seg" role="group" aria-labelledby="pv-l-sc"><button type="button" aria-pressed="false">build-c</button><button type="button" aria-pressed="true">All builds</button></span></span>
   </div>
-  <p class="ad-g3-note" role="note"><strong>Validators read the program and change nothing.</strong> Running them is one admitted job per build. No findings is not proof the analysis is right.</p>
+  <div class="row" role="note" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pv-n1"><b aria-hidden="true">≠</b>writes</button><span role="tooltip" id="pv-n1">Validators read the program and change nothing.</span></span><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="pv-n2"><b aria-hidden="true">1</b>job / build</span><span role="tooltip" id="pv-n2">Running them is one admitted job per build.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pv-n3"><b aria-hidden="true">≠</b>proof</button><span role="tooltip" id="pv-n3">No findings is not proof the analysis is right.</span></span><span class="adv-tip end" style="margin-left:auto"><button type="button" class="adv-q" aria-label="Key" aria-describedby="pv-key">?</button><span role="tooltip" id="pv-key">✓ validated or no findings · △ warning · ✕ error · ◷ stale, with what it was · ● writer owned · ○ not run or free · ⊡ no analysis receipt · ⊘ not on this server · bar: share of one build · framed tile: the build the job reads · ≠ a claim boundary. Each cell is that build’s own result; nothing is summed across builds.</span></span></div>
  </header>
 
  <div class="ad-g3-sec">
-  <h4>Run state per build</h4>
+  <h4>Run state<span class="sr-only"> per build</span></h4>
   <ul class="ad-anz-state" aria-label="Validation run state per build">
    <li><span class="b">build-a</span><span class="ad-g3-st ok"><b aria-hidden="true">✓</b>validated 13:40 · current basis</span><span class="ad-stamp"><b>fresh</b><a class="ad-link" href="?project=corpus-alpha&amp;dock=jobs&amp;job=c4e1" aria-label="Job c4e1, validation of build-a, finished">job c4e1</a> basis 9f3c</span></li>
-   <li><span class="b">build-b</span><span class="ad-g3-st lock"><b aria-hidden="true">●</b>writer owned · validation waits</span><span class="small muted">owner <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=77c0" aria-label="Job 77c0, external owner of build-b">job 77c0</a> · external · pid 48211 · started 13:02</span></li>
-   <li aria-current="true"><span class="b">build-c</span><span class="ad-g3-st stale"><b aria-hidden="true">◷</b>stale · validated 11:02</span><span class="small muted"><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=b7e2" aria-label="Job b7e2, validation of build-c, finished">job b7e2</a> · 3 transactions since · old findings stay, labelled stale</span></li>
-   <li><span class="b">build-d</span><span class="ad-g3-st na"><b aria-hidden="true">○</b>not run · no analysis receipt</span><span class="small muted">validators check analysis results · <a class="ad-link" href="?project=corpus-alpha&amp;build=build-d&amp;panel=analysis" aria-label="Analysis panel, build-d">Analysis for build-d</a></span></li>
+   <li><span class="b">build-b</span><span class="ad-g3-st lock"><b aria-hidden="true">●</b>writer owned · waits<span class="sr-only">: writer owned · validation waits</span></span><span class="small muted">owner <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=77c0" aria-label="Job 77c0, external owner of build-b">job 77c0</a> · external · pid 48211 · started 13:02</span></li>
+   <li aria-current="true"><span class="b">build-c</span><span class="ad-g3-st stale"><b aria-hidden="true">◷</b>stale · validated 11:02</span><span class="small muted"><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=b7e2" aria-label="Job b7e2, validation of build-c, finished">job b7e2</a> <span class="adv-kv" aria-label="3 transactions since · old findings stay, labelled stale"><span><i>since</i>+3 tx</span><span><i>old</i>kept · stale</span></span></span></li>
+   <li><span class="b">build-d</span><span class="ad-g3-st na"><b aria-hidden="true">○</b>not run · <span aria-hidden="true">⊡</span><span class="sr-only">no analysis receipt</span></span><span class="small muted"><a class="ad-link" href="?project=corpus-alpha&amp;build=build-d&amp;panel=analysis" aria-label="Analysis panel, build-d" aria-describedby="pv-d-why">Analysis for build-d</a><span class="sr-only" id="pv-d-why">validators check analysis results</span></span></li>
   </ul>
   <div class="ad-tools" role="group" aria-label="Run validators">
    <button class="ad-btn primary" type="button" aria-haspopup="dialog">Validate build-c…</button>
    <button class="ad-btn" type="button" aria-haspopup="dialog">Validate other builds…</button>
-   <span class="small muted">Names one build per job; there is no all-builds default.</span>
+   <ul class="adv-chips" aria-label="Names one build per job; there is no all-builds default."><li><span>per job</span>1 build</li><li><span>default</span>none</li></ul>
   </div>
  </div>
 
  <div class="ad-g3-sec">
   <h4>Results <span class="n">· 3 validators</span></h4>
-  <p>As the server lists them. Each cell is that build's own result; nothing is summed across builds.</p>
-  <div class="ad-scroll" role="region" aria-label="Validator results, scrolls sideways">
+  <div class="row" style="gap:8px"><ul class="adv-chips" aria-label="As the server lists them."><li><span>order</span>server list</li></ul><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pv-sum"><b aria-hidden="true">≠</b>sum</button><span role="tooltip" id="pv-sum">Each cell is that build's own result; nothing is summed across builds.</span></span></div>
+  <div class="ad-scroll" style="position:relative" role="region" aria-label="Validator results, scrolls sideways">
   <table class="ad-table ad-g3-grid" role="grid" aria-label="Validator results per build" aria-rowcount="4" aria-colcount="5">
    <thead><tr><th scope="col">Validator</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th></tr></thead>
    <tbody>
     <tr tabindex="-1">
-     <th scope="row"><span class="nm">Percent analyzed</span><span class="d">Share of executable memory defined as code or data.</span></th>
+     <th scope="row"><span class="nm">Percent analyzed</span><span class="d sr-only">Share of executable memory defined as code or data.</span></th>
      <td class="b" role="gridcell"><span class="ad-g3-st ok"><b aria-hidden="true">✓</b>no findings</span></td>
      <td class="b" role="gridcell"><span class="ad-g3-st na"><b aria-hidden="true">○</b>not run</span></td>
      <td class="b" role="gridcell"><span class="ad-g3-st stale col"><b aria-hidden="true">◷</b>stale<span class="m">was △ 1 warning</span></span></td>
      <td class="b" role="gridcell"><span class="ad-g3-st na"><b aria-hidden="true">○</b>not run</span></td>
     </tr>
     <tr tabindex="-1">
-     <th scope="row"><span class="nm">Red flags</span><span class="d">Error bookmarks left by disassembly and analysis.</span></th>
+     <th scope="row"><span class="nm">Red flags</span><span class="d sr-only">Error bookmarks left by disassembly and analysis.</span></th>
      <td class="b" role="gridcell"><span class="ad-g3-st ok"><b aria-hidden="true">✓</b>no findings</span></td>
      <td class="b" role="gridcell"><span class="ad-g3-st na"><b aria-hidden="true">○</b>not run</span></td>
      <td class="b" role="gridcell"><span class="ad-g3-st stale col"><b aria-hidden="true">◷</b>stale<span class="m">was ✕ 2 errors</span></span></td>
      <td class="b" role="gridcell"><span class="ad-g3-st na"><b aria-hidden="true">○</b>not run</span></td>
     </tr>
     <tr aria-selected="true" class="is-focus" tabindex="0">
-     <th scope="row"><span class="nm">Offcut references</span><span class="d">References that point inside an instruction or data item.</span></th>
+     <th scope="row"><span class="nm">Offcut references</span><span class="d sr-only">References that point inside an instruction or data item.</span></th>
      <td class="b" role="gridcell"><span class="ad-g3-st stale"><b aria-hidden="true">△</b>1 warning</span></td>
      <td class="b" role="gridcell"><span class="ad-g3-st na"><b aria-hidden="true">○</b>not run</span></td>
      <td class="b" role="gridcell"><span class="ad-g3-st stale col"><b aria-hidden="true">◷</b>stale<span class="m">was ✓ no findings</span></span></td>
@@ -59,13 +59,13 @@
  </div>
 
  <div class="ad-g3-sec">
-  <h4>Findings <span class="n">· 4 rows · build-a current, build-c stale</span></h4>
+  <h4>Findings <span class="n">· 4 rows</span> <span class="adv-kv" aria-label="build-a current, build-c stale" style="font-weight:400"><span><i>build-a</i>current</span><span><i>build-c</i>◷ stale</span></span></h4>
   <div class="ad-tools" role="toolbar" aria-label="Findings actions">
    <button class="ad-btn" type="button" aria-keyshortcuts="w" aria-haspopup="dialog">Collect into worklist…</button>
    <button class="ad-btn" type="button" aria-describedby="pv-step">Step findings</button>
-   <span class="small muted" id="pv-step">Makes these 4 rows the active worklist; F8 steps it.</span>
+   <span class="sr-only" id="pv-step">Makes these 4 rows the active worklist; F8 steps it.</span><ul class="adv-chips" aria-hidden="true"><li><span>F8</span>steps</li></ul>
   </div>
-  <div class="ad-scroll" role="region" aria-label="Findings table, scrolls sideways">
+  <div class="ad-scroll" style="position:relative" role="region" aria-label="Findings table, scrolls sideways">
   <table class="ad-table ad-g3-grid" role="grid" aria-label="Validation findings, build-a and build-c, as of 14:02" aria-rowcount="5">
    <thead><tr><th scope="col">Build</th><th scope="col">Validator · result</th><th scope="col">Location</th><th scope="col">Entity</th><th scope="col">Message</th></tr></thead>
    <tbody>
@@ -74,7 +74,7 @@
      <td><span class="ad-g3-st stale col"><b aria-hidden="true">△</b>warning<span class="m">Offcut references</span></span></td>
      <td class="nw"><a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041b213" aria-label="Address 0041b213, build-a" translate="no">0041b213</a></td>
      <td><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a" aria-label="Logical entity ResourceRef::Resolve, 88" translate="no">ResourceRef::Resolve</a> <span class="small muted">· 88</span></td>
-     <td>Reference from <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c8a2" aria-label="Address 0041c8a2 in FUN_0041c880, build-a" translate="no">0041c8a2</a> (in FUN_0041c880) points into the instruction at 0041b212.<span class="d small muted" style="display:block">Same entity on other builds: none on build-b (not run) · build-c stale · build-d unresolved</span></td>
+     <td>Reference from <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c8a2" aria-label="Address 0041c8a2 in FUN_0041c880, build-a" translate="no">0041c8a2</a> (in FUN_0041c880) points into the instruction at 0041b212.<span class="d adv-kv" style="display:flex;margin-top:4px" aria-label="Same entity on other builds: none on build-b (not run) · build-c stale · build-d unresolved"><span><i>build-b</i>○</span><span><i>build-c</i>◷</span><span><i>build-d</i>◌</span></span></td>
     </tr>
     <tr tabindex="-1">
      <th scope="row" class="nw"><span class="nm">build-c</span></th>
@@ -95,29 +95,29 @@
      <td><span class="ad-g3-st stale col"><b aria-hidden="true">◷</b>stale · was warning<span class="m">Percent analyzed</span></span></td>
      <td class="muted">program-wide · no address</td>
      <td class="muted">no entity</td>
-     <td>0x3a200 of 0x51000 bytes of executable memory are defined as code or data (71.8%).</td>
+     <td><span class="adv-frac" role="img" aria-label="0x3a200 of 0x51000 bytes of executable memory are defined as code or data (71.8%)." style="--v:71.8"><i></i>71.8% · 0x3a200 / 0x51000</span></td>
     </tr>
    </tbody>
   </table>
   </div>
-  <p class="ad-g3-note">Findings are advisory: they are not problems and block no objective. Collect them into a worklist to work through them; the <a class="ad-link" href="?project=corpus-alpha&amp;dock=problems" aria-label="Problems tab in the dock">Problems tab</a> lists only unmet predicates.</p>
+  <div class="row" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pv-adv"><b aria-hidden="true">≠</b>problems</button><span role="tooltip" id="pv-adv">Findings are advisory: they are not problems and block no objective.</span></span><a class="ad-link" href="?project=corpus-alpha&amp;dock=problems" aria-label="Problems tab in the dock" aria-describedby="pv-pt">Problems tab</a><span class="sr-only" id="pv-pt">Collect them into a worklist to work through them; the Problems tab lists only unmet predicates.</span></div>
  </div>
 
  <div class="ad-g3-sec">
   <h4>Confirm a run</h4>
   <div class="ad-g3-dlg" role="alertdialog" aria-modal="true" aria-labelledby="pv-cf-t" aria-describedby="pv-cf-d">
-   <header><h3 id="pv-cf-t">Validate build-c</h3><span class="end">catalog: Validate program · 1 job</span></header>
+   <header><h3 id="pv-cf-t">Validate build-c</h3><span class="end"><ul class="adv-chips" aria-label="catalog: Validate program · 1 job"><li><span>catalog</span>Validate program</li><li><span>jobs</span>1</li></ul></span></header>
    <div class="body">
-    <p class="ad-g3-note" id="pv-cf-d">One read-only job on build-c. It changes nothing in the program. Its findings replace the stale findings of job b7e2, which stay in the job history.</p>
+    <p class="sr-only" id="pv-cf-d">One read-only job on build-c. It changes nothing in the program. Its findings replace the stale findings of job b7e2, which stay in the job history.</p><div style="display:grid;gap:8px" aria-hidden="true"><ul class="adv-tmap"><li class="x"><b>—</b>build-a</li><li class="x"><b>—</b>build-b</li><li class="w"><b>◉</b>build-c<span></span><span class="mono">read-only</span></li><li class="x"><b>—</b>build-d</li></ul><span class="adv-kv"><span><i>replaces</i>b7e2 · stale</span><span><i>history</i>kept</span></span></div>
     <fieldset><legend>Validators</legend>
      <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">Percent analyzed</span></label>
      <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">Red flags</span></label>
      <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">Offcut references</span></label>
     </fieldset>
     <dl class="ad-dl" aria-label="Preview for build-c">
-     <dt>Analysis read</dt><dd>receipt e5a0 · basis 41d7 · reused</dd>
+     <dt>Analysis read</dt><dd><span class="adv-kv" aria-label="receipt e5a0 · basis 41d7 · reused"><span><i>receipt</i>e5a0</span><span><i>basis</i>41d7</span><span>reused</span></span></dd>
      <dt>Writer</dt><dd><span class="ad-g3-st on"><b aria-hidden="true">○</b>free</span></dd>
-     <dt>Other builds</dt><dd>unchanged · not validated by this job</dd>
+     <dt>Other builds</dt><dd>unchanged<span class="sr-only"> · not validated by this job</span></dd>
     </dl>
    </div>
    <footer><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Run 1 job</button></footer>
@@ -127,18 +127,17 @@
 
 <div class="adc-states">
  <div>
-  <span class="kicker">Not run · nothing runs on open</span>
-  <div class="ad-notice info"><b aria-hidden="true">○</b><div><h4>No validation recorded for build-b</h4><p>Opening this panel did not run it. Validate waits while job 77c0 (external) owns build-b.</p></div><span></span></div>
+  <span class="kicker">Not run<span class="sr-only"> · nothing runs on open</span></span>
+  <div class="adv-empty"><span class="adv-tip"><b tabindex="0" role="img" aria-label="No validation recorded for build-b" aria-describedby="pv-e1">○</b><span role="tooltip" id="pv-e1">No validation recorded for build-b. Opening this panel did not run it. Validate waits while job 77c0 (external) owns build-b.</span></span><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="pv-e1"><span class="adv-na"><b aria-hidden="true">●</b>Validate build-b…</span></button><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=77c0" aria-label="Job 77c0, external owner of build-b">77c0</a></div>
  </div>
  <div>
-  <span class="kicker">No analysis · not offered</span>
-  <div class="ad-notice unknown"><b aria-hidden="true">⊡</b><div><h4>Validators check analysis results</h4><p>build-d has no analysis receipt. Validate is unavailable until analysis is admitted in Analysis.</p></div><span></span></div>
+  <span class="kicker">No analysis<span class="sr-only"> · not offered</span></span>
+  <div class="adv-empty"><span class="adv-tip is-open"><b tabindex="0" role="img" aria-label="Validators check analysis results" aria-describedby="pv-e2">⊡</b><span role="tooltip" id="pv-e2">Validators check analysis results. build-d has no analysis receipt. Validate is unavailable until analysis is admitted in Analysis.</span></span><a class="ad-btn primary" href="?project=corpus-alpha&amp;build=build-d&amp;panel=analysis" aria-describedby="pv-e2">Analysis for build-d</a></div>
  </div>
  <div>
   <span class="kicker">No catalog action</span>
   <div class="ad-tools" role="group" aria-label="Validate actions">
-   <button class="ad-btn" type="button" aria-disabled="true" aria-describedby="pv-nocat">Validate build-a…</button>
-   <span class="small muted" id="pv-nocat">Not available on this server yet. Stored findings still read.</span><span class="small muted"> · </span><a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a>
+   <span class="adv-tip"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="pv-nocat"><span class="adv-na"><b aria-hidden="true">⊘</b>Validate build-a…</span></button><span role="tooltip" id="pv-nocat">Not available on this server yet. Stored findings still read. <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span></span>
   </div>
  </div>
 </div>

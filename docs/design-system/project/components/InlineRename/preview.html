@@ -1,42 +1,45 @@
-<!-- @dsCard group="Code" height=1108 -->
+<!-- @dsCard group="Code" height=1480 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <div class="adc-states">
 <div>
- <span class="kicker">Editing · the editor is the review</span>
- <form class="adc-ren pop" role="dialog" aria-modal="false" aria-labelledby="ir1-t" id="ir1">
-  <header><h4 id="ir1-t">Rename or retype <code translate="no">local_8</code></h4><span class="end">catalog: Rename local · Retype local</span></header>
-  <div class="tgt"><span class="kicker">Target · bound when opened</span><span>program <strong class="strong">build-a</strong> <span class="muted">corpus-alpha</span></span><span>function <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a> <span class="addr">0041b210</span></span><span>local <code translate="no">local_8</code> · stack [ebp − 0x4]</span><span class="muted">basis gen 42</span></div>
+ <span class="kicker">Editing</span>
+ <form class="adc-ren pop" role="dialog" aria-modal="false" aria-labelledby="ir1-t" aria-describedby="ir1-d" id="ir1">
+  <header><h4 id="ir1-t">Rename or retype <code translate="no">local_8</code></h4><span class="end" style="display:inline-flex;gap:8px;align-items:center"><ul class="adv-chips" aria-label="catalog: Rename local · Retype local"><li><span>catalog</span>Rename local</li><li>Retype local</li></ul><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="ir-key">?</button><span role="tooltip" id="ir-key">Numbered chip: name tier, 1 human strongest, 5 placeholder. Target map: the one build a save writes; = builds keep their names. Chips: naming rule and type source. ⇄ another edit arrived. ≠ chip: a claim boundary. … running, ✎ saved, ? outcome unknown.</span></span></span></header>
+  <p class="sr-only" id="ir1-d">Editing · the editor is the review. Target · bound when opened.</p>
+  <div class="tgt"><span class="kicker">Target</span><span>program <strong class="strong">build-a</strong> <span class="muted">corpus-alpha</span></span><span>function <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a> <span class="addr">0041b210</span></span><span>local <code translate="no">local_8</code> · stack [ebp − 0x4]</span><span class="muted">basis gen 42</span></div>
   <div class="flds">
    <span class="lbl">Now</span><span class="val"><code translate="no">local_8</code><a class="ad-link adc-nt weak" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210&amp;ws=evidence&amp;panel=names&amp;f=name:local_8" aria-label="Name tier 5, placeholder, from the decompiler. Opens name provenance"><b>5</b> placeholder · decompiler</a></span>
    <label class="lbl" for="ir1-n">Name</label><span class="val"><input class="adc-in is-focus" id="ir1-n" name="name" value="nameText" aria-describedby="ir1-nh" spellcheck="false" autocomplete="off" translate="no"></span>
-   <span class="hint" id="ir1-nh">Locals use camelCase. Unique within ResourceRef::Resolve.</span>
+   <span class="hint"><span class="sr-only" id="ir1-nh">Locals use camelCase. Unique within ResourceRef::Resolve.</span><ul class="adv-chips" aria-hidden="true"><li>camelCase</li><li><span>unique in</span>ResourceRef::Resolve</li></ul></span>
    <label class="lbl" for="ir1-y">Type</label><span class="val"><input class="adc-in" id="ir1-y" name="type" value="const char *" aria-describedby="ir1-yh" spellcheck="false" autocomplete="off" translate="no"></span>
-   <span class="hint" id="ir1-yh">Was <code translate="no">char *</code>. Types resolve in build-a's data type manager.</span>
+   <span class="hint"><span class="sr-only" id="ir1-yh">Was char *. Types resolve in build-a's data type manager.</span><ul class="adv-chips" aria-hidden="true"><li><span>was</span>char *</li><li><span>types</span>build-a</li></ul></span>
    <span class="lbl">After save</span><span class="val"><span class="adc-nt weak"><b>5</b> placeholder</span><span aria-hidden="true">→</span><span class="adc-nt after"><b>1</b> human · you</span></span>
   </div>
-  <div class="rev"><span class="kicker">Enter or Save posts once · confirmed here</span>Rename local: <code translate="no">local_8</code> → <code translate="no">nameText</code>, and Retype local: <code translate="no">char *</code> → <code translate="no">const char *</code>, on build-a only. Counterparts on build-b and build-c keep their names; propagation is a separate reviewed step. No further confirm for a single-target edit.</div>
-  <footer><button class="ad-btn primary" type="submit" aria-keyshortcuts="Enter">Save <span class="ad-kbd">Enter</span></button><button class="ad-btn" type="button" aria-keyshortcuts="Escape">Cancel <span class="ad-kbd">Esc</span></button><span class="note">Intent 7f1e · nothing changes until the job's terminal result</span></footer>
+  <div class="rev" role="group" aria-label="Enter or Save posts once · confirmed here" aria-describedby="ir1-rev"><span class="kicker">Posts once</span><p class="sr-only" id="ir1-rev">Rename local: local_8 → nameText, and Retype local: char * → const char *, on build-a only. Counterparts on build-b and build-c keep their names; propagation is a separate reviewed step. No further confirm for a single-target edit.</p>
+   <div aria-hidden="true" style="display:grid;gap:8px"><ul class="adv-tmap"><li class="w"><b>✎</b>build-a<span></span><span class="mono">local_8 → nameText · const char *</span></li><li><b>=</b>build-b</li><li><b>=</b>build-c</li></ul>
+   <ul class="adv-chips"><li><span>propagation</span>separate</li><li><span>confirm</span>here</li></ul></div></div>
+  <footer><button class="ad-btn primary" type="submit" aria-keyshortcuts="Enter">Save <span class="ad-kbd">Enter</span></button><button class="ad-btn" type="button" aria-keyshortcuts="Escape">Cancel <span class="ad-kbd">Esc</span></button><span class="note" style="display:inline-flex;gap:8px;align-items:center"><span class="mono">7f1e</span><span class="adv-tip end"><button type="button" class="adv-bnd" aria-describedby="ir1-opt"><b aria-hidden="true">≠</b>optimistic</button><span role="tooltip" id="ir1-opt">Intent 7f1e · nothing changes until the job's terminal result</span></span></span></footer>
  </form>
 </div>
 <div class="stack" style="gap:12px"><div>
- <span class="kicker">Error after Save · field keeps focus · Save stays available</span>
- <form class="adc-ren pop" role="dialog" aria-modal="false" aria-labelledby="ir2-t">
+ <span class="kicker">Error after Save</span>
+ <form class="adc-ren pop" role="dialog" aria-modal="false" aria-labelledby="ir2-t" aria-describedby="ir2-d"><p class="sr-only" id="ir2-d">Error after Save · field keeps focus · Save stays available</p>
   <header><h4 id="ir2-t">Rename or retype <code translate="no">local_8</code></h4><span class="end">catalog: Rename local</span></header>
   <div class="flds">
    <span class="lbl">Now</span><span class="val"><code translate="no">local_8</code><span class="adc-nt weak"><b>5</b> placeholder · decompiler</span></span>
    <label class="lbl" for="ir2-n">Name</label><span class="val"><input class="adc-in is-focus" id="ir2-n" value="name" aria-invalid="true" aria-describedby="ir2-e ir2-nh" spellcheck="false" autocomplete="off" translate="no"></span>
-   <span class="adc-err" id="ir2-e"><b aria-hidden="true">✕</b><span><code translate="no">name</code> is already a parameter of ResourceRef::Resolve. Choose another name.</span></span>
-   <span class="hint" id="ir2-nh">Locals use camelCase. Unique within ResourceRef::Resolve.</span>
+   <span class="adc-err" id="ir2-e"><b aria-hidden="true">✕</b><span><span aria-hidden="true">Taken: parameter <code translate="no">name</code></span><span class="sr-only">name is already a parameter of ResourceRef::Resolve. Choose another name.</span></span></span>
+   <span class="hint"><span class="sr-only" id="ir2-nh">Locals use camelCase. Unique within ResourceRef::Resolve.</span><ul class="adv-chips" aria-hidden="true"><li>camelCase</li><li><span>unique in</span>ResourceRef::Resolve</li></ul></span>
    <span class="lbl">After save</span><span class="val"><span class="adc-nt after"><b>1</b> human · you</span></span>
   </div>
-  <footer><button class="ad-btn primary" type="submit">Save <span class="ad-kbd">Enter</span></button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button><span class="note">Nothing was posted</span></footer>
+  <footer><button class="ad-btn primary" type="submit">Save <span class="ad-kbd">Enter</span></button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button><span class="note"><span aria-hidden="true">∅ posted</span><span class="sr-only">Nothing was posted</span></span></footer>
   <p class="sr-only" role="status">Name: name is already a parameter of ResourceRef::Resolve. Choose another name.</p>
  </form>
 </div><div>
- <span class="kicker">Conflict · another edit arrived</span>
+ <span class="kicker">Conflict</span>
  <form class="adc-ren pop" role="dialog" aria-modal="false" aria-labelledby="ir3-t">
   <header><h4 id="ir3-t">Rename <code translate="no">local_8</code></h4><span class="end">catalog: Rename local</span></header>
-  <div class="adc-cf" role="alert"><p><b aria-hidden="true">⇄</b><span>This local changed while you were editing. Review both values.</span></p>
+  <div class="adc-cf" role="alert"><p><b aria-hidden="true">⇄</b><span><span aria-hidden="true">Changed while editing</span><span class="sr-only">Conflict · another edit arrived. This local changed while you were editing. Review both values.</span></span></p>
    <div class="both">
     <div><span class="kicker">Your draft</span><code translate="no">nameText</code><span class="muted">basis gen 42 · not posted</span></div>
     <div><span class="kicker">Arrived 13:58:40</span><code translate="no">memberName</code><span class="muted">job <a class="ad-link mono" href="?project=corpus-alpha&amp;job=b71e" aria-label="Job b71e, rename local, finished">b71e</a> · session s2 · tier 1 human · gen 43</span></div>
@@ -44,37 +47,38 @@
   <div class="flds">
    <label class="lbl" for="ir3-n">Name</label><span class="val"><input class="adc-in" id="ir3-n" value="nameText" spellcheck="false" autocomplete="off" translate="no"></span>
   </div>
-  <footer><button class="ad-btn primary" type="submit">Save mine over gen 43</button><button class="ad-btn" type="button">Keep memberName</button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button><span class="note">Arrival order is not a tie-breaker.</span></footer>
+  <footer><button class="ad-btn primary" type="submit">Save mine<span class="sr-only"> over</span> · gen 43</button><button class="ad-btn" type="button">Keep memberName</button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button><span class="note adv-tip end"><button type="button" class="adv-bnd" aria-describedby="ir3-tb"><b aria-hidden="true">≠</b>tie-breaker</button><span role="tooltip" id="ir3-tb">Arrival order is not a tie-breaker.</span></span></footer>
  </form>
 </div></div>
 </div>
 <div>
- <span class="kicker">Comment mode · Comment… or ; in the ida and ghidra profiles · opens under the line, confirms in place</span>
- <form class="adc-ren inline" role="dialog" aria-modal="false" aria-labelledby="ir5-t">
-  <header><h4 id="ir5-t">Comment at <span class="addr">0041b229</span></h4><span class="end">catalog: Set comment</span></header>
-  <div class="tgt"><span class="kicker">Target · bound when opened</span><span>program <strong class="strong">build-a</strong></span><span>address <a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041b229" translate="no" aria-label="Address 0041b229, build-a">0041b229</a></span><span class="muted">basis gen 42</span></div>
+ <span class="kicker">Comment mode</span>
+ <form class="adc-ren inline" role="dialog" aria-modal="false" aria-labelledby="ir5-t" aria-describedby="ir5-d"><p class="sr-only" id="ir5-d">Comment mode · Comment… or ; in the ida and ghidra profiles · opens under the line, confirms in place</p>
+  <header><h4 id="ir5-t">Comment at <span class="addr">0041b229</span></h4><span class="end" style="display:inline-flex;gap:8px;align-items:center"><ul class="adv-chips" aria-hidden="true"><li><span class="ad-kbd">;</span>ida · ghidra</li></ul><ul class="adv-chips" aria-label="catalog: Set comment"><li><span>catalog</span>Set comment</li></ul></span></header>
+  <div class="tgt"><span class="kicker">Target</span><span>program <strong class="strong">build-a</strong></span><span>address <a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041b229" translate="no" aria-label="Address 0041b229, build-a">0041b229</a></span><span class="muted">basis gen 42</span></div>
   <div class="flds">
    <label class="lbl" for="ir5-k">Kind</label><span class="val"><select class="adc-in" id="ir5-k" aria-describedby="ir5-kh"><option>end of line</option><option>pre</option><option>plate</option></select></span>
-   <span class="hint" id="ir5-kh">Only the comment kinds the catalog exposes for build-a are listed.</span>
+   <span class="hint"><span class="sr-only" id="ir5-kh">Only the comment kinds the catalog exposes for build-a are listed.</span><ul class="adv-chips" aria-hidden="true"><li><span>kinds from</span>catalog · build-a</li></ul></span>
    <span class="lbl">Now</span><span class="val"><span class="muted">none</span></span>
    <label class="lbl" for="ir5-c">Comment</label><span class="val"><input class="adc-in is-focus" id="ir5-c" value="opens the member by name" spellcheck="true" autocomplete="off"></span>
   </div>
-  <div class="rev"><span class="kicker">Enter or Save posts once · confirmed here</span>Set comment (end of line) at <span class="addr">0041b229</span> on build-a only. Other builds keep theirs.</div>
+  <div class="rev" role="group" aria-label="Enter or Save posts once · confirmed here" aria-describedby="ir5-rev"><span class="kicker">Posts once</span><p class="sr-only" id="ir5-rev">Set comment (end of line) at 0041b229 on build-a only. Other builds keep theirs.</p>
+   <ul class="adv-tmap" aria-hidden="true"><li class="w"><b>✎</b>build-a<span></span><span class="mono">EOL · 0041b229</span></li><li><b>=</b>build-b</li><li><b>=</b>build-c</li><li><b>=</b>build-d</li></ul></div>
   <footer><button class="ad-btn primary" type="submit" aria-keyshortcuts="Enter">Save <span class="ad-kbd">Enter</span></button><button class="ad-btn" type="button" aria-keyshortcuts="Escape">Cancel <span class="ad-kbd">Esc</span></button></footer>
  </form>
 </div>
 <div>
- <span class="kicker">In EntityRow · F2 on a function row</span>
+ <span class="kicker">EntityRow · F2</span>
  <div class="ad-scroll"><table class="ad-table" role="grid" aria-label="Functions"><colgroup><col style="width:84px"><col></colgroup><tbody>
   <tr><td class="addr">0041b210</td><td translate="no">ResourceRef::Resolve <span class="muted small">· human</span></td></tr>
   <tr aria-selected="true"><td class="addr">0041c880</td><td class="adc-editing">
    <form class="adc-ren" role="dialog" aria-modal="false" aria-labelledby="ir4-t">
     <header><h4 id="ir4-t">Rename <code translate="no">FUN_0041c880</code></h4><span class="end">catalog: Rename function</span></header>
-    <div class="tgt"><span>program <strong class="strong">build-a</strong></span><span>function at <span class="addr">0041c880</span></span><span class="muted">no identity · no counterparts to update</span></div>
+    <div class="tgt"><span>program <strong class="strong">build-a</strong></span><span>function at <span class="addr">0041c880</span></span><span class="muted"><span aria-hidden="true">∅ identity · ∅ counterparts</span><span class="sr-only">no identity · no counterparts to update</span></span></div>
     <div class="flds">
      <span class="lbl">Now</span><span class="val"><code translate="no">FUN_0041c880</code><span class="adc-nt weak"><b>5</b> placeholder · Ghidra</span></span>
      <label class="lbl" for="ir4-n">Name</label><span class="val"><input class="adc-in is-focus" id="ir4-n" value="Archive::ReadIndex" aria-describedby="ir4-h" spellcheck="false" autocomplete="off" translate="no"></span>
-     <span class="hint" id="ir4-h">Class and function names use CapitalCase.</span>
+     <span class="hint"><span class="sr-only" id="ir4-h">Class and function names use CapitalCase.</span><ul class="adv-chips" aria-hidden="true"><li>CapitalCase</li></ul></span>
      <span class="lbl">After save</span><span class="val"><span class="adc-nt after"><b>1</b> human · you</span></span>
     </div>
     <footer><button class="ad-btn primary" type="submit">Save <span class="ad-kbd">Enter</span></button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button></footer>
@@ -83,14 +87,14 @@
  </tbody></table></div>
 </div>
 <div class="stack" style="gap:6px">
- <span class="kicker">After Save · the outcome lands on the token, nothing optimistic</span>
- <section class="adc-pane" aria-label="Decompile, rename outcome states">
+ <span class="kicker">After Save</span>
+ <section class="adc-pane" aria-label="Decompile, rename outcome states" aria-describedby="ir-as"><p class="sr-only" id="ir-as">After Save · the outcome lands on the token, nothing optimistic</p>
   <div class="adc-dc" role="grid" translate="no" aria-label="Decompiled C, line 6, rename running" aria-rowcount="14" aria-colcount="2" aria-readonly="true" data-scroll><div class="adc-l" role="row" aria-rowindex="6" aria-label="Line 6: local_8 = String::CStr(name); from 3 instructions, 0041b217 to 0041b21f"><span class="adc-ln" role="rowheader" aria-hidden="true">6</span><span class="adc-map" aria-hidden="true"><span class="addr">0041b217</span><span class="n" aria-hidden="true"> ·3</span></span><span class="adc-code" role="gridcell">  <button type="button" class="adc-t lv" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Local local_8, char pointer, stack minus 0x4, placeholder name. Enter to rename or retype">local_8</button> = <a class="ad-link adc-t fn" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c460" tabindex="-1" translate="no" aria-label="Function String::CStr, 0041c460, build-a">String::CStr</a>(<button type="button" class="adc-t lv" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Parameter name, String pointer, stack plus 0x8, analysis name. Enter to rename or retype">name</button>); <span class="adc-life" role="group" aria-label="Rename local, job c4d2, running"><span class="s done">admitted</span><span class="ar" aria-hidden="true">→</span><span class="s now">running</span><span class="ar" aria-hidden="true">·</span><span>job <a class="ad-link mono" href="?project=corpus-alpha&amp;job=c4d2" aria-label="Job c4d2, rename local, running">c4d2</a></span></span></span></div></div>
-  <div class="adc-note"><b aria-hidden="true">…</b><div><p><strong>Running.</strong> The token keeps <code translate="no">local_8</code> until job c4d2 reports its terminal result.</p></div><span></span></div>
+  <div class="adc-note"><b aria-hidden="true">…</b><div><p><strong>Running</strong> <span aria-hidden="true">· <code translate="no">local_8</code> kept · ⧗ c4d2</span><span class="sr-only">. The token keeps local_8 until job c4d2 reports its terminal result.</span></p></div><span></span></div>
   <div class="adc-dc" role="grid" translate="no" aria-label="Decompiled C, line 6, rename saved" aria-rowcount="14" aria-colcount="2" aria-readonly="true" data-scroll><div class="adc-l chg" role="row" aria-rowindex="6" aria-label="Line 6: nameText = String::CStr(name); from 3 instructions, 0041b217 to 0041b21f, changed by job c4d2"><span class="adc-ln" role="rowheader" aria-hidden="true">6</span><span class="adc-map" aria-hidden="true"><span aria-hidden="true">✎</span> job c4d2</span><span class="adc-code" role="gridcell">  <button type="button" class="adc-t lv" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Local nameText, char pointer, stack minus 0x4, human name. Enter to rename or retype">nameText</button> = <a class="ad-link adc-t fn" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c460" tabindex="-1" translate="no" aria-label="Function String::CStr, 0041c460, build-a">String::CStr</a>(<button type="button" class="adc-t lv" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Parameter name, String pointer, stack plus 0x8, analysis name. Enter to rename or retype">name</button>); <span class="adc-life" role="group" aria-label="Rename local, job c4d2, saved"><span class="s done">saved</span><span class="ar" aria-hidden="true">·</span><span>tier 1 human · job <a class="ad-link mono" href="?project=corpus-alpha&amp;job=c4d2" aria-label="Job c4d2, rename local, finished">c4d2</a></span></span></span></div></div>
-  <div class="adc-note"><b aria-hidden="true">✎</b><div><p><strong>Saved by job c4d2.</strong> Line 6 carries “changed by job c4d2” until the next navigation. Other builds are unchanged.</p></div><span></span></div>
+  <div class="adc-note"><b aria-hidden="true">✎</b><div><p><strong>Saved · c4d2</strong> <span aria-hidden="true">· ✎ line 6 · = other builds</span><span class="sr-only">Saved by job c4d2. Line 6 carries “changed by job c4d2” until the next navigation. Other builds are unchanged.</span></p></div><span></span></div>
   <div class="adc-dc" role="grid" translate="no" aria-label="Decompiled C, line 6, outcome unknown" aria-rowcount="14" aria-colcount="2" aria-readonly="true" data-scroll><div class="adc-l" role="row" aria-rowindex="6" aria-label="Line 6: local_8 = String::CStr(name); from 3 instructions, 0041b217 to 0041b21f"><span class="adc-ln" role="rowheader" aria-hidden="true">6</span><span class="adc-map" aria-hidden="true"><span class="addr">0041b217</span><span class="n" aria-hidden="true"> ·3</span></span><span class="adc-code" role="gridcell">  <button type="button" class="adc-t lv" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Local local_8, char pointer, stack minus 0x4, placeholder name. Enter to rename or retype">local_8</button> = <a class="ad-link adc-t fn" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c460" tabindex="-1" translate="no" aria-label="Function String::CStr, 0041c460, build-a">String::CStr</a>(<button type="button" class="adc-t lv" tabindex="-1" translate="no" aria-haspopup="dialog" aria-expanded="false" aria-label="Parameter name, String pointer, stack plus 0x8, analysis name. Enter to rename or retype">name</button>); <span class="adc-life" role="group" aria-label="Rename local, job c4d2, outcome unknown"><span class="s done">admitted</span><span class="ar" aria-hidden="true">→</span><span class="s unk">outcome unknown</span></span></span></div></div>
-  <div class="adc-note unknown"><b aria-hidden="true">?</b><div><p><strong>Checking whether the operation completed.</strong> Rename and retype of <code translate="no">local_8</code> wait until job c4d2 is reconciled. Reading, peek and references stay available.</p></div><a class="ad-link small" href="?project=corpus-alpha&amp;job=c4d2" aria-label="Job c4d2, rename local, outcome unknown">Open job c4d2</a></div>
+  <div class="adc-note unknown"><b aria-hidden="true">?</b><div><p><strong>Checking · c4d2</strong> <span aria-hidden="true">· rename ⧗ · read · peek · refs ✓</span><span class="sr-only">Checking whether the operation completed. Rename and retype of local_8 wait until job c4d2 is reconciled. Reading, peek and references stay available.</span></p></div><a class="ad-link small" href="?project=corpus-alpha&amp;job=c4d2" aria-label="Job c4d2, rename local, outcome unknown">Open job c4d2</a></div>
  </section>
  <p class="sr-only" role="status">Rename saved: local_8 is now nameText on build-a, job c4d2.</p>
 </div>

@@ -1,68 +1,68 @@
-<!-- @dsCard group="Project" height=1670 -->
-<div class="ad" style="padding:16px;display:grid;gap:12px">
+<!-- @dsCard group="Project" height=1495 -->
+<div class="ad" style="padding:16px 16px 72px;display:grid;gap:12px">
 <div class="ad-art-cols">
 
 <div class="stack" style="gap:8px">
- <span class="kicker">Delivered report · Enter on its name in OutputsCatalog · Alt+↓ shows the same header and first two sections as a Peek</span>
+ <span class="kicker">Delivered report</span><span class="sr-only">Delivered report · Enter on its name in OutputsCatalog · Alt+↓ shows the same header and first two sections as a Peek</span>
  <section class="ad-art" aria-labelledby="ac1-t">
   <header>
    <a class="ad-link kicker" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs" aria-label="Back to OutputsCatalog, group B, Local parity report"><span aria-hidden="true">←</span> from Outputs · B · Parity</a>
    <h3 id="ac1-t">Local parity report</h3>
-   <span class="acts"><button class="ad-btn compact" aria-label="Copy path reports/objdiff">Copy path</button><button class="ad-btn compact" aria-pressed="false" aria-keyshortcuts="Shift+K">Keep</button></span>
-   <span class="sub"><span class="ad-ast delivered"><b aria-hidden="true">▣</b>delivered (existing path)</span><span class="ad-tier verified">verified</span><span class="small muted">per function</span><span class="ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed on 8080</span></span>
+   <span class="acts"><button class="ad-btn compact" aria-label="Copy path reports/objdiff">Copy path</button><button class="ad-btn compact" aria-pressed="false" aria-keyshortcuts="Shift+K">Keep</button><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="ac-k1">?</button><span role="tooltip" id="ac-k1">▣ delivered, ◐ partial, ▷ future, ○ never run, ◷ stale, ∅ no report, ⊡ not observed on 8080. Solid chip: what the output proves, with its record. ≠ chip: what it does not prove; its tip holds the full sentence. Dashed chip: hypothesis or design text. Bars: one measure per build on one scale, truncated, never rounded up, never summed or averaged.</span></span></span>
+   <span class="sub"><span class="ad-ast delivered"><b aria-hidden="true">▣</b>delivered<span class="sr-only"> (existing path)</span></span><span class="ad-tier verified">verified</span><span class="small muted">per function</span><span class="ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed<span class="sr-only"> on 8080</span></span></span>
   </header>
 
-  <section class="sec" aria-labelledby="ac1-s1"><h4 id="ac1-s1">What it proves · what it does not</h4>
+  <section class="sec" aria-labelledby="ac1-s1"><h4 id="ac1-s1">Proves / does not</h4>
    <div class="ad-art-proves">
-    <div><h5>Proves</h5><p>For each listed function on one build: the candidate object matched the target bytes under a relocation-aware objdiff, with a receipt.</p></div>
-    <div><h5>Does not prove</h5><p class="ne">Local zero ≠ full-image or behavior proof.</p><p>Not linked contribution, not tested behaviour, not toolchain origin. A match on one build does not transfer to another.</p></div>
+    <div><h5>Proves</h5><div class="adv-chips"><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="ac-t1">✓ objdiff 0 · receipt</span><span role="tooltip" id="ac-t1">For each listed function on one build: the candidate object matched the target bytes under a relocation-aware objdiff, with a receipt.</span></span></div></div>
+    <div><h5>Does not prove</h5><div class="adv-chips"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t2"><b aria-hidden="true">≠</b>full-image</button><span role="tooltip" id="ac-t2">Local zero ≠ full-image or behavior proof.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t3"><b aria-hidden="true">≠</b>linked</button><span role="tooltip" id="ac-t3">Not linked contribution</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t4"><b aria-hidden="true">≠</b>behaviour</button><span role="tooltip" id="ac-t4">not tested behaviour</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t5"><b aria-hidden="true">≠</b>origin</button><span role="tooltip" id="ac-t5">not toolchain origin.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t6"><b aria-hidden="true">≠</b>transfer</button><span role="tooltip" id="ac-t6">A match on one build does not transfer to another.</span></span></div></div>
    </div>
   </section>
 
   <section class="sec" aria-labelledby="ac1-s2"><h4 id="ac1-s2">Identity</h4>
    <dl class="ad-dl">
     <dt>Format</dt><dd><span class="mono" translate="no">objdiff report · schema 2</span></dd>
-    <dt>Bytes</dt><dd><span class="mono" translate="no">sha256 7c21…e04b</span> <span class="small muted">per build; build-a shown</span></dd>
-    <dt>Basis</dt><dd><a class="ad-link mono" href="?project=corpus-alpha&amp;receipt=9f3ca1e0" aria-label="Basis 9f3c, current" translate="no">9f3c…a1e0</a> <span class="small muted">current for build-a and build-b; changed for build-c</span></dd>
+    <dt>Bytes</dt><dd><span class="mono" translate="no">sha256 7c21…e04b</span> <span class="small muted"><span aria-hidden="true">build-a</span><span class="sr-only">per build; build-a shown</span></span></dd>
+    <dt>Basis</dt><dd><a class="ad-link mono" href="?project=corpus-alpha&amp;receipt=9f3ca1e0" aria-label="Basis 9f3c, current" translate="no">9f3c…a1e0</a> <span class="small muted"><span aria-hidden="true">a ✓ · b ✓ · c ◷</span><span class="sr-only">current for build-a and build-b; changed for build-c</span></span></dd>
    </dl>
   </section>
 
   <section class="sec" aria-labelledby="ac1-s3"><h4 id="ac1-s3">Produced by</h4>
    <dl class="ad-dl">
-    <dt>Verb</dt><dd><span class="mono" translate="no">corpus.objdiff-check</span> <span class="small muted">from the job record</span></dd>
+    <dt>Verb</dt><dd><span class="mono" translate="no">corpus.objdiff-check</span> <span class="small muted"><span aria-hidden="true">← job record</span><span class="sr-only">from the job record</span></span></dd>
     <dt>Stage</dt><dd><span class="ad-stg full"><a class="fam-verify" href="?project=corpus-alpha&amp;node=stage-7" aria-label="7 Continuous parity, pipeline stage, verification"><span class="n">7</span><span class="nm">Continuous parity</span><span class="fw">verification</span></a></span></dd>
     <dt>Receipt · job</dt><dd><span class="ad-stamp adl-lg" role="group" aria-label="Provenance: reused objdiff"><b>reused</b><a class="ad-link" href="?project=corpus-alpha&amp;receipt=7c21" aria-label="Receipt 7c21, objdiff, reused" translate="no">receipt 7c21</a><span class="adl-sep" aria-hidden="true">·</span><a class="ad-link" href="?project=corpus-alpha&amp;dock=jobs&amp;job=c4e1" aria-label="Job c4e1, corpus.objdiff-check, finished" translate="no">job c4e1</a><span class="adl-sep" aria-hidden="true">·</span><span>13:58 · 3 d</span></span></dd>
-    <dt>Provider</dt><dd><span class="ad-provdiff"><b aria-hidden="true">⇄</b>build-c: requested profile <span class="mono" translate="no">vc8.0</span>, served <span class="mono" translate="no">cl 19.51</span> · provider differed</span> <a class="ad-link small" href="?project=corpus-alpha&amp;build=build-c&amp;ws=evidence&amp;panel=toolchain">toolchain evidence, build-c</a></dd>
+    <dt>Provider</dt><dd><span class="ad-provdiff"><b aria-hidden="true">⇄</b><span aria-hidden="true">build-c · <span class="mono" translate="no">vc8.0</span> → <span class="mono" translate="no">cl 19.51</span></span><span class="sr-only">build-c: requested profile vc8.0, served cl 19.51 · provider differed</span></span> <a class="ad-link small" href="?project=corpus-alpha&amp;build=build-c&amp;ws=evidence&amp;panel=toolchain" aria-label="toolchain evidence, build-c">ToolchainEvidence</a></dd>
    </dl>
   </section>
 
-  <section class="sec" aria-labelledby="ac1-s4"><h4 id="ac1-s4">Coverage by build · measures kept apart</h4>
-   <div class="ad-scroll"><table class="ad-table ad-art-cov" aria-label="Local parity by build">
+  <section class="sec" aria-labelledby="ac1-s4"><h4 id="ac1-s4">Coverage by build<span class="sr-only"> · measures kept apart</span></h4>
+   <div class="ad-scroll" style="position:relative"><table class="ad-table ad-art-cov" aria-label="Local parity by build">
     <thead><tr><th scope="col">Build</th><th scope="col">Matched (objdiff 0)</th><th scope="col">Linked</th><th scope="col">Fuzzy · objdiff</th><th scope="col">Report</th></tr></thead>
     <tbody>
-     <tr><th scope="row">build-a</th><td class="mono">1,142 of 1,188 <span class="muted">· 96.1%</span></td><td class="muted">not measured</td><td class="mono">97.4%</td><td><span class="ad-ast delivered"><b aria-hidden="true">▣</b></span> <a class="ad-link mono" href="?project=corpus-alpha&amp;receipt=7c21">7c21</a></td></tr>
-     <tr><th scope="row">build-b</th><td class="mono">1,090 of 1,188 <span class="muted">· 91.7%</span></td><td class="muted">not measured</td><td class="mono">95.0%</td><td><span class="ad-ast delivered"><b aria-hidden="true">▣</b></span> <a class="ad-link mono" href="?project=corpus-alpha&amp;receipt=7c30">7c30</a></td></tr>
-     <tr><th scope="row">build-c</th><td class="mono">610 of 1,201 <span class="muted">· 50.7%</span></td><td class="muted">not measured</td><td class="mono">71.1%</td><td><span class="ad-ast stale"><b aria-hidden="true">◷</b>stale</span> <a class="ad-link mono" href="?project=corpus-alpha&amp;receipt=6d02">6d02</a></td></tr>
-     <tr><th scope="row">build-d</th><td colspan="3"><span class="ad-ast noreport"><b aria-hidden="true">∅</b><span class="w">no report</span></span> <span class="small muted">· run a61f recorded; its report file is missing</span></td><td><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a61f" aria-label="Job a61f, corpus.objdiff-check, finished, no report">job a61f</a></td></tr>
+     <tr><th scope="row">build-a</th><td><span class="adv-frac" role="img" aria-label="1,142 of 1,188, 96.1 percent" style="--v:96.1"><i></i>1,142 · 96.1%</span></td><td class="muted">not measured</td><td class="mono">97.4%</td><td><span class="ad-ast delivered"><b aria-hidden="true">▣</b></span> <a class="ad-link mono" href="?project=corpus-alpha&amp;receipt=7c21">7c21</a></td></tr>
+     <tr><th scope="row">build-b</th><td><span class="adv-frac" role="img" aria-label="1,090 of 1,188, 91.7 percent" style="--v:91.7"><i></i>1,090 · 91.7%</span></td><td class="muted">not measured</td><td class="mono">95.0%</td><td><span class="ad-ast delivered"><b aria-hidden="true">▣</b></span> <a class="ad-link mono" href="?project=corpus-alpha&amp;receipt=7c30">7c30</a></td></tr>
+     <tr><th scope="row">build-c</th><td><span class="adv-frac" role="img" aria-label="610 of 1,201, 50.7 percent" style="--v:50.7"><i></i>610 · 50.7%</span></td><td class="muted">not measured</td><td class="mono">71.1%</td><td><span class="ad-ast stale"><b aria-hidden="true">◷</b>stale</span> <a class="ad-link mono" href="?project=corpus-alpha&amp;receipt=6d02">6d02</a></td></tr>
+     <tr><th scope="row">build-d</th><td colspan="3"><span class="ad-ast noreport"><b aria-hidden="true">∅</b><span class="w">no report</span></span> <span class="sr-only">· run a61f recorded; its report file is missing</span></td><td><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a61f" aria-label="Job a61f, corpus.objdiff-check, finished, no report">job a61f</a></td></tr>
     </tbody></table></div>
-   <p class="small muted">Percentages are truncated, never rounded up; “done” appears only at exactly 1,188 of 1,188. Fuzzy is objdiff similarity, truncated, never rounded up · not a claim; it is never summed with matched or linked.</p>
-   <p><span class="ad-varies"><b aria-hidden="true">◐</b>varies across builds</span> Best build-a (1,142), worst build-c (610, stale). Not averaged. <span class="ad-absent">Merge refused for build-c: different source revision (recorded digest).</span></p>
+   <div class="adv-chips"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t7"><b aria-hidden="true">⌊</b>truncated</button><span role="tooltip" id="ac-t7">Percentages are truncated, never rounded up; “done” appears only at exactly 1,188 of 1,188.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t8"><b aria-hidden="true">≠</b>claim</button><span role="tooltip" id="ac-t8">Fuzzy is objdiff similarity, truncated, never rounded up · not a claim; it is never summed with matched or linked.</span></span></div>
+   <div class="adv-chips"><span class="ad-varies"><b aria-hidden="true">◐</b>varies</span><ul class="adv-chips" aria-label="Best build-a (1,142), worst build-c (610, stale)."><li><span>best</span>build-a 1,142</li><li><span>worst</span>build-c 610 ◷</li></ul><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t9"><b aria-hidden="true">≠</b>averaged</button><span role="tooltip" id="ac-t9">Not averaged.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t10"><b aria-hidden="true">⊘</b>merge build-c</button><span role="tooltip" id="ac-t10">Merge refused for build-c: different source revision (recorded digest).</span></span></div>
   </section>
 
-  <section class="sec" aria-labelledby="ac1-s5"><h4 id="ac1-s5">Changes since the previous report · broken first</h4>
+  <section class="sec" aria-labelledby="ac1-s5"><h4 id="ac1-s5">Changes · broken first</h4><span class="sr-only">Changes since the previous report · broken first</span>
    <div class="ad-art-chg">
-    <details open><summary>build-b <span class="n">1 broken · 2 new · 3 improved · 0 regressed · since basis 41c0</span></summary>
+    <details open><summary>build-b <span class="n"><span aria-hidden="true">✕ 1 · + 2 · ↑ 3 · ↓ 0 · 41c0</span><span class="sr-only">1 broken · 2 new · 3 improved · 0 regressed · since basis 41c0</span></span></summary>
      <table class="ad-table" aria-label="Broken matches on build-b"><thead><tr><th scope="col">Broken</th><th scope="col">Before</th><th scope="col">After</th></tr></thead>
-      <tbody><tr><td><a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;build=build-b&amp;addr=0041d160" translate="no">Archive::OpenMember</a> <span class="small muted">· build-b</span></td><td class="mono">objdiff 0</td><td class="mono">14 bytes differ</td></tr></tbody></table></details>
-    <details><summary>build-a <span class="n">0 broken · 4 new · 1 improved · 0 regressed</span></summary><p class="more">…and 5 more rows.</p></details>
-    <details><summary>build-c <span class="n">not computed · the report is stale</span></summary><p class="more">Basis changed since receipt 6d02.</p></details>
-    <details><summary>build-d <span class="n">previous report not found · changes not available</span></summary><p class="more">Nothing is reported as unchanged.</p></details>
+      <tbody><tr><td><a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;build=build-b&amp;addr=0041d160" translate="no">Archive::OpenMember</a> <span class="small muted">· build-b</span></td><td class="mono">objdiff 0</td><td class="mono"><span aria-hidden="true">± 14 B</span><span class="sr-only">14 bytes differ</span></td></tr></tbody></table></details>
+    <details><summary>build-a <span class="n"><span aria-hidden="true">✕ 0 · + 4 · ↑ 1 · ↓ 0</span><span class="sr-only">0 broken · 4 new · 1 improved · 0 regressed</span></span></summary><p class="more">…and 5 more rows.</p></details>
+    <details><summary>build-c <span class="n"><span aria-hidden="true">◷ stale</span><span class="sr-only">not computed · the report is stale</span></span></summary><p class="more"><span aria-hidden="true">basis ◷ since 6d02</span><span class="sr-only">Basis changed since receipt 6d02.</span></p></details>
+    <details><summary>build-d <span class="n"><span aria-hidden="true">∅ previous</span><span class="sr-only">previous report not found · changes not available</span></span></summary><p class="more"><span aria-hidden="true">≠ unchanged</span><span class="sr-only">Nothing is reported as unchanged.</span></p></details>
    </div>
   </section>
 
-  <section class="sec" aria-labelledby="ac1-s6"><h4 id="ac1-s6">Acceptance is separate · per build</h4>
+  <section class="sec" aria-labelledby="ac1-s6"><h4 id="ac1-s6">Acceptance · per build</h4><span class="sr-only">Acceptance is separate · per build</span>
    <ul class="ad-claims3" aria-label="Three separate acceptance claims for build-a"><li><span class="k">build-a byte exact</span><span class="ad-fact not_run"><b aria-hidden="true">○</b>not run</span></li><li><span class="k">behaviour</span><span class="ad-fact not_run"><b aria-hidden="true">○</b>not run</span></li><li><span class="k">toolchain origin</span><span class="ad-fact not_run"><b aria-hidden="true">○</b>not run</span></li></ul>
-   <p class="small">This report is accuracy. 1,142 matched functions on build-a are not accepted. <a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=whole-image-acceptance">Whole-image acceptance</a>: future, unproven on every build.</p>
+   <div class="adv-chips"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t11"><b aria-hidden="true">≠</b>accepted</button><span role="tooltip" id="ac-t11">This report is accuracy. 1,142 matched functions on build-a are not accepted.</span></span><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=whole-image-acceptance">Whole-image acceptance</a><span class="adv-tip"><span class="ad-ast future" tabindex="0" aria-describedby="ac-t12"><b aria-hidden="true">▷</b>future</span><span role="tooltip" id="ac-t12">Whole-image acceptance: future, unproven on every build.</span></span></div>
   </section>
 
   <section class="sec" aria-labelledby="ac1-s7"><h4 id="ac1-s7">Determinism rule</h4>
@@ -70,64 +70,64 @@
   </section>
 
   <section class="sec" aria-labelledby="ac1-s8"><h4 id="ac1-s8">On 8080</h4>
-   <div class="ad-art-o8"><b aria-hidden="true">⊡</b><div><p>Not observed on 8080. No read-back of this report through the service is recorded.</p><p>The receipts above are reused, from 3 days ago; they are not fresh progress.</p></div></div>
+   <div class="adv-chips"><div class="adv-empty"><span class="adv-tip"><b tabindex="0" role="img" aria-label="Not observed" aria-describedby="ac-t13">⊡</b><span role="tooltip" id="ac-t13">Not observed on 8080. No read-back of this report through the service is recorded.</span></span><span class="small muted">Not observed</span></div><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="ac-t14">reused · 3 d</span><span role="tooltip" id="ac-t14">The receipts above are reused, from 3 days ago; they are not fresh progress.</span></span></div>
   </section>
  </section>
 </div>
 
 <div class="stack" style="gap:8px">
- <span class="kicker">A bundle · members with their own status · future</span>
+ <span class="kicker">Bundle · future</span><span class="sr-only">A bundle · members with their own status · future</span>
  <section class="ad-art" aria-labelledby="ac2-t">
   <header>
    <h3 id="ac2-t">Export bundle</h3>
-   <span class="acts"><button class="ad-btn compact" aria-disabled="true" aria-describedby="ac2-np">Copy path</button><button class="ad-btn compact" aria-pressed="false" aria-keyshortcuts="Shift+K">Keep</button></span>
-   <span class="sub"><span class="ad-ast future"><b aria-hidden="true">▷</b>future · corpus scope</span><span class="ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed on 8080</span><span class="sr-only" id="ac2-np">No stored path: never produced.</span></span>
+   <span class="acts"><button class="ad-btn compact" aria-disabled="true" aria-describedby="ac2-np">Copy path</button><button class="ad-btn compact" aria-pressed="false" aria-keyshortcuts="Shift+K">Keep</button><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="ac-k2">?</button><span role="tooltip" id="ac-k2">▣ delivered, ◐ partial, ▷ future, ○ never run, ◷ stale, ∅ no report, ⊡ not observed on 8080. Solid chip: what the output proves, with its record. ≠ chip: what it does not prove; its tip holds the full sentence. Dashed chip: hypothesis or design text. Bars: one measure per build on one scale, truncated, never rounded up, never summed or averaged.</span></span></span>
+   <span class="sub"><span class="ad-ast future"><b aria-hidden="true">▷</b>future · corpus scope</span><span class="ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed<span class="sr-only"> on 8080</span></span><span class="sr-only" id="ac2-np">No stored path: never produced.</span></span>
   </header>
-  <section class="sec" aria-labelledby="ac2-s1"><h4 id="ac2-s1">What it proves · what it does not</h4>
+  <section class="sec" aria-labelledby="ac2-s1"><h4 id="ac2-s1">Proves / does not</h4>
    <div class="ad-art-proves">
-    <div><h5>Proves</h5><p>When produced: every member passed its own verify gate under one basis, and the member list and hashes are fixed.</p></div>
-    <div><h5>Does not prove</h5><p class="ne">Packaging adds no claim.</p><p>Each member keeps its own tier. Ambiguous and contested records ship as structured outputs that refuse unsafe use.</p></div>
+    <div><h5>Proves</h5><div class="adv-chips"><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="ac-t15">✓ gates · 1 basis · hashes</span><span role="tooltip" id="ac-t15">When produced: every member passed its own verify gate under one basis, and the member list and hashes are fixed.</span></span></div></div>
+    <div><h5>Does not prove</h5><div class="adv-chips"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t16"><b aria-hidden="true">≠</b>claim</button><span role="tooltip" id="ac-t16">Packaging adds no claim.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t17">own tier</button><span role="tooltip" id="ac-t17">Each member keeps its own tier.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t18"><b aria-hidden="true">⊘</b>unsafe use</button><span role="tooltip" id="ac-t18">Ambiguous and contested records ship as structured outputs that refuse unsafe use.</span></span></div></div>
    </div>
   </section>
   <section class="sec" aria-labelledby="ac2-s2"><h4 id="ac2-s2">Identity · produced by</h4>
-   <dl class="ad-dl"><dt>Format</dt><dd><span class="mono" translate="no">bundle.json</span> · basis, corpus manifest hash, members with hashes</dd><dt>Bytes</dt><dd><span class="ad-absent">no hash · never produced</span></dd><dt>Verb</dt><dd>no bundle verb in the catalog yet <span class="ad-stg unmapped" aria-describedby="ac2-um">stage: unmapped</span><span class="sr-only" id="ac2-um">No verb recorded; no stage is guessed.</span></dd><dt>Node</dt><dd><a class="ad-link" href="?project=corpus-alpha&amp;node=export-target" aria-label="export-target, pipeline node, cross-build unification and export">export-target</a></dd><dt>Receipt · job</dt><dd><span class="ad-absent">no receipt · job not recorded</span></dd></dl>
+   <dl class="ad-dl"><dt>Format</dt><dd><span class="mono" translate="no">bundle.json</span> <ul class="adv-chips" style="display:inline-flex" aria-label="basis, corpus manifest hash, members with hashes"><li>basis</li><li>manifest #</li><li>members #</li></ul></dd><dt>Bytes</dt><dd><span class="ad-absent"><span aria-hidden="true">∅ never produced</span><span class="sr-only">no hash · never produced</span></span></dd><dt>Verb</dt><dd><span aria-hidden="true">∅ verb</span><span class="sr-only">no bundle verb in the catalog yet</span> <span class="ad-stg unmapped" aria-describedby="ac2-um">stage: unmapped</span><span class="sr-only" id="ac2-um">No verb recorded; no stage is guessed.</span></dd><dt>Node</dt><dd><a class="ad-link" href="?project=corpus-alpha&amp;node=export-target" aria-label="export-target, pipeline node, cross-build unification and export">export-target</a></dd><dt>Receipt · job</dt><dd><span class="ad-absent"><span aria-hidden="true">∅ receipt · ∅ job</span><span class="sr-only">no receipt · job not recorded</span></span></dd></dl>
   </section>
   <section class="sec" aria-labelledby="ac2-s3"><h4 id="ac2-s3">Members · 7</h4>
    <ul class="ad-art-mem" aria-label="Members of the export bundle">
-    <li><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=hookpack-v2">Portable pack v2</a><span class="ad-ast future"><b aria-hidden="true">▷</b>future</span><span class="h">verify gate: not run</span></li>
-    <li><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=lua-bindings">Lua bindings</a><span class="ad-ast future"><b aria-hidden="true">▷</b>future</span><span class="h">reads pack v2 only</span></li>
-    <li><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=build-headers">Headers + build manifest</a><span class="ad-ast partial"><b aria-hidden="true">◐</b>partial</span><span class="h">layout asserts stripped today</span></li>
-    <li><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=readiness-report">Readiness report</a><span class="ad-ast future"><b aria-hidden="true">▷</b>future</span><span class="h">verify gate: not run</span></li>
-    <li><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=divergence-report">Divergence report</a><span class="ad-ast future"><b aria-hidden="true">▷</b>future</span><span class="h">verify gate: not run</span></li>
+    <li><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=hookpack-v2">Portable pack v2</a><span class="ad-ast future"><b aria-hidden="true">▷</b>future</span><span class="h"><span aria-hidden="true">gate ○</span><span class="sr-only">verify gate: not run</span></span></li>
+    <li><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=lua-bindings">Lua bindings</a><span class="ad-ast future"><b aria-hidden="true">▷</b>future</span><span class="h"><span aria-hidden="true">← pack v2</span><span class="sr-only">reads pack v2 only</span></span></li>
+    <li><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=build-headers">Headers + build manifest</a><span class="ad-ast partial"><b aria-hidden="true">◐</b>partial</span><span class="h"><span aria-hidden="true">asserts stripped</span><span class="sr-only">layout asserts stripped today</span></span></li>
+    <li><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=readiness-report">Readiness report</a><span class="ad-ast future"><b aria-hidden="true">▷</b>future</span><span class="h"><span aria-hidden="true">gate ○</span><span class="sr-only">verify gate: not run</span></span></li>
+    <li><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=divergence-report">Divergence report</a><span class="ad-ast future"><b aria-hidden="true">▷</b>future</span><span class="h"><span aria-hidden="true">gate ○</span><span class="sr-only">verify gate: not run</span></span></li>
     <li><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=receipts">Receipts</a><span class="ad-ast future"><b aria-hidden="true">▷</b>future</span><span class="h">content-addressed</span></li>
-    <li class="opt"><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=source-projects">Source projects</a><span class="ad-ast partial"><b aria-hidden="true">◐</b>partial · optional</span><span class="h">absent → not_in_scope receipt</span></li>
+    <li class="opt"><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=source-projects">Source projects</a><span class="ad-ast partial"><b aria-hidden="true">◐</b>partial · optional</span><span class="h"><span aria-hidden="true">absent → not_in_scope</span><span class="sr-only">absent → not_in_scope receipt</span></span></li>
    </ul>
-   <p class="small muted">Refused as a whole if any member fails its own verify gate.</p>
+   <div class="adv-chips"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t19"><b aria-hidden="true">⊘</b>all or none</button><span role="tooltip" id="ac-t19">Refused as a whole if any member fails its own verify gate.</span></span></div>
   </section>
-  <section class="sec" aria-labelledby="ac2-s4"><h4 id="ac2-s4">Coverage by build</h4><p>One bundle for every build; each member states its own per-build coverage.</p></section>
-  <section class="sec" aria-labelledby="ac2-s5"><h4 id="ac2-s5">Determinism rule</h4><p class="ad-art-rule">re-run under the same basis → byte-identical bundle</p><p class="small muted">Design text from the export-target node · not yet checked by any receipt.</p></section>
-  <section class="sec" aria-labelledby="ac2-s6"><h4 id="ac2-s6">On 8080</h4><div class="ad-art-o8"><b aria-hidden="true">⊡</b><div><p>Not observed on 8080. Never produced anywhere.</p></div></div></section>
+  <section class="sec" aria-labelledby="ac2-s4"><h4 id="ac2-s4">Coverage by build</h4><ul class="adv-chips" aria-label="One bundle for every build; each member states its own per-build coverage."><li><span>bundle</span>1 · all builds</li><li><span>coverage</span>per member</li></ul></section>
+  <section class="sec" aria-labelledby="ac2-s5"><h4 id="ac2-s5">Determinism rule</h4><p class="ad-art-rule"><span aria-hidden="true">re-run · = basis → = bytes</span><span class="sr-only">re-run under the same basis → byte-identical bundle</span></p><div class="adv-chips"><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="ac-t20"><b aria-hidden="true">H</b>design text</button><span role="tooltip" id="ac-t20">Design text from the export-target node · not yet checked by any receipt.</span></span></div></section>
+  <section class="sec" aria-labelledby="ac2-s6"><h4 id="ac2-s6">On 8080</h4><div class="adv-empty"><span class="adv-tip"><b tabindex="0" role="img" aria-label="Not observed" aria-describedby="ac-t21">⊡</b><span role="tooltip" id="ac-t21">Not observed on 8080. Never produced anywhere.</span></span><span class="small muted">Not observed</span></div></section>
  </section>
 
- <span class="kicker">Historical, from a forbidden port · never current delivery</span>
+ <span class="kicker">Historical</span><span class="sr-only">Historical, from a forbidden port · never current delivery</span>
  <section class="ad-art" aria-labelledby="ac3-t">
   <header>
    <h3 id="ac3-t">Source-variant ZIP</h3>
-   <span class="acts"><button class="ad-btn compact" aria-disabled="true" aria-describedby="ac3-nd">Download</button></span>
-   <span class="sub"><span class="ad-ast partial"><b aria-hidden="true">◐</b>partial (historical)</span><span class="ad-stamp"><b class="historical">historical</b>2026-09-08 · from a port outside 8080 that current operations forbid · not a current delivery receipt</span></span>
+   <span class="acts"><button class="ad-btn compact" aria-disabled="true" aria-describedby="ac3-nd">Download</button><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="ac-k3">?</button><span role="tooltip" id="ac-k3">▣ delivered, ◐ partial, ▷ future, ○ never run, ◷ stale, ∅ no report, ⊡ not observed on 8080. Solid chip: what the output proves, with its record. ≠ chip: what it does not prove; its tip holds the full sentence. Dashed chip: hypothesis or design text. Bars: one measure per build on one scale, truncated, never rounded up, never summed or averaged.</span></span></span>
+   <span class="sub"><span class="ad-ast partial"><b aria-hidden="true">◐</b>partial<span class="sr-only"> (historical)</span></span><span class="ad-stamp"><b class="historical">historical</b>2026-09-08</span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t22"><b aria-hidden="true">≠</b>current</button><span role="tooltip" id="ac-t22">2026-09-08 · from a port outside 8080 that current operations forbid · not a current delivery receipt</span></span></span>
    <span class="sr-only" id="ac3-nd">No current archive to download. The historical archive is not served on 8080.</span>
   </header>
-  <section class="sec" aria-labelledby="ac3-s1"><h4 id="ac3-s1">What it proves · what it does not</h4>
+  <section class="sec" aria-labelledby="ac3-s1"><h4 id="ac3-s1">Proves / does not</h4>
    <div class="ad-art-proves">
-    <div><h5>Proves</h5><p>On 2026-09-08 a byte-accurate archive for build-a was downloaded with its manifest.</p></div>
-    <div><h5>Does not prove</h5><p class="ne">A source ZIP ≠ full-image acceptance.</p><p>Not a current max-C archive. Floor regions are copied bytes, not recovered C.</p></div>
+    <div><h5>Proves</h5><div class="adv-chips"><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="ac-t23">✓ build-a · manifest</span><span role="tooltip" id="ac-t23">On 2026-09-08 a byte-accurate archive for build-a was downloaded with its manifest.</span></span></div></div>
+    <div><h5>Does not prove</h5><div class="adv-chips"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t24"><b aria-hidden="true">≠</b>full-image</button><span role="tooltip" id="ac-t24">A source ZIP ≠ full-image acceptance.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t25"><b aria-hidden="true">≠</b>max-C</button><span role="tooltip" id="ac-t25">Not a current max-C archive.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t26"><b aria-hidden="true">≠</b>recovered C</button><span role="tooltip" id="ac-t26">Floor regions are copied bytes, not recovered C.</span></span></div></div>
    </div>
   </section>
   <section class="sec" aria-labelledby="ac3-s2"><h4 id="ac3-s2">Coverage by build</h4>
-   <dl class="ad-dl"><dt>build-a</dt><dd><span class="ad-ast partial"><b aria-hidden="true">◐</b>historical byte-accurate archive</span> · max-C: <span class="ad-ast never"><b aria-hidden="true">○</b>never run</span></dd><dt>build-b–d</dt><dd><span class="ad-ast never"><b aria-hidden="true">○</b>never run</span></dd></dl>
+   <dl class="ad-dl"><dt>build-a</dt><dd><span class="ad-ast partial"><b aria-hidden="true">◐</b>historical byte-accurate<span class="sr-only"> archive</span></span> · max-C: <span class="ad-ast never"><b aria-hidden="true">○</b>never run</span></dd><dt>build-b–d</dt><dd><span class="ad-ast never"><b aria-hidden="true">○</b>never run</span></dd></dl>
   </section>
-  <section class="sec" aria-labelledby="ac3-s3"><h4 id="ac3-s3">Determinism rule</h4><p class="ad-art-rule">refuses a changed target · replaying a persisted key never exports twice</p><p class="small muted">The archive is not an atomic snapshot across concurrent writers.</p></section>
-  <section class="sec" aria-labelledby="ac3-s4"><h4 id="ac3-s4">On 8080</h4><div class="ad-art-o8"><b aria-hidden="true">⊡</b><div><p>Not observed on 8080.</p><p>The only observation came from a port the current mission forbids. It stays historical and is never shown as fresh.</p></div></div></section>
+  <section class="sec" aria-labelledby="ac3-s3"><h4 id="ac3-s3">Determinism rule</h4><p class="ad-art-rule"><span aria-hidden="true">⊘ changed target · key replay → 1 export</span><span class="sr-only">refuses a changed target · replaying a persisted key never exports twice</span></p><div class="adv-chips"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ac-t27"><b aria-hidden="true">≠</b>atomic</button><span role="tooltip" id="ac-t27">The archive is not an atomic snapshot across concurrent writers.</span></span></div></section>
+  <section class="sec" aria-labelledby="ac3-s4"><h4 id="ac3-s4">On 8080</h4><div class="adv-empty"><span class="adv-tip is-open"><b tabindex="0" role="img" aria-label="Not observed" aria-describedby="ac-t28">⊡</b><span role="tooltip" id="ac-t28">Not observed on 8080. The only observation came from a port the current mission forbids. It stays historical and is never shown as fresh.</span></span><span class="small muted">Not observed</span></div></section>
  </section>
 </div>
 </div>

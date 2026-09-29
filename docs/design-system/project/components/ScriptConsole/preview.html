@@ -1,10 +1,10 @@
-<!-- @dsCard group="Dock" height=2330 -->
+<!-- @dsCard group="Dock" height=1760 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<span class="kicker">Advanced · script manager, read-only transcript and bundles · every run is one catalog job per named build, confirmed first</span>
+<span class="kicker">Advanced · scripts<span class="sr-only">: script manager, read-only transcript and bundles · every run is one catalog job per named build, confirmed first</span></span>
 <section class="ad-g3" aria-labelledby="sc-t">
  <header class="ad-g3-head">
-  <h3 id="sc-t">Scripts <span class="sub">· corpus-alpha · advanced</span></h3>
-  <div class="ad-notice caution" role="note"><b aria-hidden="true">⚑</b><div><h4>A script can change anything in a program</h4><p>Each run is one catalog job against one named build and confirms first. Its writes are not limited to what the script's description says. Scripts are not catalog entries and have no keys of their own.</p></div><span></span></div>
+  <h3 id="sc-t">Scripts <span class="sub">· corpus-alpha · advanced</span> <span class="adv-tip"><button type="button" class="adv-q" aria-label="Key" aria-describedby="sc-key">?</button><span role="tooltip" id="sc-key">⚑ may write anything · ✓ compiles · ✕ error · ? writes unknown · ● writer owned or active · ○ free · ◌ unresolved · ⊘ not on this server · ⊡ advanced off · framed tile: a build the run writes · struck tile: not included · dashed chip: hypothesis or unknown scope · ≠ a claim boundary.</span></span></h3>
+  <div class="ad-notice caution" role="note"><b aria-hidden="true">⚑</b><div><h4>Writes anything<span class="sr-only">: a script can change anything in a program</span></h4><p class="sr-only">Each run is one catalog job against one named build and confirms first. Its writes are not limited to what the script's description says. Scripts are not catalog entries and have no keys of their own.</p><div class="row" style="gap:8px;margin-top:4px"><span class="adv-kv" aria-hidden="true"><span><i>per run</i>1 job · 1 build</span><span><i>confirm</i>first</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="sc-w1"><b aria-hidden="true">≠</b>description</button><span role="tooltip" id="sc-w1">Its writes are not limited to what the script's description says.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="sc-w2"><b aria-hidden="true">≠</b>catalog</button><span role="tooltip" id="sc-w2">Scripts are not catalog entries and have no keys of their own.</span></span></div></div><span></span></div>
   <div class="ad-tabs" role="tablist" aria-label="Scripts views">
    <button class="ad-tab" role="tab" aria-selected="true" aria-controls="sc-p1" id="sc-tab1">Manager</button>
    <button class="ad-tab" role="tab" aria-selected="false" tabindex="-1" id="sc-tab2">Interpreter</button>
@@ -15,7 +15,7 @@
  <div id="sc-p1" role="tabpanel" aria-labelledby="sc-tab1" class="ad-g3-sec">
   <div class="ad-tools" role="group" aria-label="Script filter">
    <span><label class="lbl" for="sc-f">Filter</label><input class="adc-in sans auto" id="sc-f" type="text" value="cache" aria-describedby="sc-fn"></span>
-   <span class="small muted" id="sc-fn">2 of 148 scripts match "cache" in name or description</span>
+   <span class="small muted" id="sc-fn"><span aria-hidden="true">2 / 148</span><span class="sr-only">2 of 148 scripts match "cache" in name or description</span></span>
   </div>
   <div class="ad-g3-cols">
    <ul class="ad-g3-tree" role="tree" aria-label="Script categories">
@@ -28,19 +28,19 @@
     </li>
    </ul>
    <div class="ad-g3-sec">
-    <div class="ad-scroll" role="region" aria-label="Scripts table, scrolls sideways">
+    <div class="ad-scroll" style="position:relative" role="region" aria-label="Scripts table, scrolls sideways">
     <table class="ad-table ad-g3-grid" role="grid" aria-label="Scripts in Data types matching cache" aria-rowcount="3">
      <thead><tr><th scope="col">Script</th><th scope="col">Status</th><th scope="col">Declares</th><th scope="col">Last run</th></tr></thead>
      <tbody>
       <tr aria-selected="true" class="is-focus" tabindex="0">
-       <th scope="row"><span class="nm mono" translate="no">ApplyCacheEntryLayout.py</span><span class="d">Applies CacheEntry (name_len, flags, next) at each reference to a table start.</span></th>
+       <th scope="row"><span class="nm mono" translate="no">ApplyCacheEntryLayout.py</span><span class="d sr-only">Applies CacheEntry (name_len, flags, next) at each reference to a table start.</span></th>
        <td role="gridcell"><span class="ad-g3-st ok"><b aria-hidden="true">✓</b>compiles</span></td>
-       <td role="gridcell"><span class="ad-g3-st unk col"><b aria-hidden="true">?</b>writes: unknown<span class="m">scripts declare no write scope; treated as mutating</span></span></td>
+       <td role="gridcell"><span class="ad-g3-st unk col"><b aria-hidden="true">?</b>writes: unknown<span class="m"><span aria-hidden="true">⚑ mutating</span><span class="sr-only">scripts declare no write scope; treated as mutating</span></span></span></td>
        <td role="gridcell"><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, ApplyCacheEntryLayout.py on build-a, finished">a3f9</a> · build-a · finished</td>
       </tr>
       <tr tabindex="-1">
-       <th scope="row"><span class="nm mono" translate="no">ListCacheEntryUses.java</span><span class="d">Prints every use of CacheEntry.next with its function.</span></th>
-       <td role="gridcell"><span class="ad-g3-st fail col"><b aria-hidden="true">✕</b>compile error<span class="m">line 41 · see transcript</span></span></td>
+       <th scope="row"><span class="nm mono" translate="no">ListCacheEntryUses.java</span><span class="d sr-only">Prints every use of CacheEntry.next with its function.</span></th>
+       <td role="gridcell"><span class="ad-g3-st fail col"><b aria-hidden="true">✕</b>compile error<span class="m">line 41 <span aria-hidden="true">↓</span><span class="sr-only">· see transcript</span></span></span></td>
        <td role="gridcell"><span class="ad-g3-st unk"><b aria-hidden="true">?</b>writes: unknown</span></td>
        <td role="gridcell" class="muted">never run</td>
       </tr>
@@ -48,25 +48,25 @@
     </table>
     </div>
     <dl class="ad-dl" aria-label="Description of ApplyCacheEntryLayout.py">
-     <dt>Category</dt><dd>Data types</dd>
-     <dt>Author</dt><dd>as the header states: analyst</dd>
-     <dt>Menu path and key binding</dt><dd>declared in the header · not bound here; scripts are not catalog entries</dd>
+     <dt>Header</dt><dd class="mono" translate="no">"Applies CacheEntry (name_len, flags, next) at each reference to a table start."</dd><dt>Category</dt><dd>Data types</dd>
+     <dt>Author</dt><dd><span class="sr-only">as the header states: </span>analyst</dd>
+     <dt>Menu, key binding</dt><dd><span class="row" style="gap:8px"><span aria-hidden="true">header · not bound</span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="sc-mk"><b aria-hidden="true">≠</b>catalog</button><span role="tooltip" id="sc-mk">declared in the header · not bound here; scripts are not catalog entries</span></span></span></dd>
      <dt>Directory</dt><dd class="mono" translate="no">user scripts · ghidra_scripts/</dd>
     </dl>
     <div class="ad-tools" role="group" aria-label="Script actions">
      <button class="ad-btn primary" type="button" aria-haspopup="dialog">Run on build-a…</button>
-     <button class="ad-btn" type="button" aria-haspopup="dialog">Run on other builds…</button>
+     <button class="ad-btn" type="button" aria-haspopup="dialog" aria-label="Run on other builds…">Other builds…</button>
      <button class="ad-btn" type="button" aria-describedby="sc-last">Run last…</button>
      <span class="sr-only" id="sc-last">Arms ApplyCacheEntryLayout.py against the current selection's build, never the last run's build.</span>
     </div>
     <div class="ad-tools" role="toolbar" aria-label="Manage scripts, not available on this server yet">
-     <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-new">New script…</button>
-     <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-edit">Edit…</button>
-     <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-ren">Rename…</button>
-     <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-del">Delete…</button>
-     <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nokey">Assign key binding…</button>
+     <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-new"><span class="adv-na"><b aria-hidden="true">⊘</b>New script…</span></button>
+     <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-edit"><span class="adv-na"><b aria-hidden="true">⊘</b>Edit…</span></button>
+     <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-ren"><span class="adv-na"><b aria-hidden="true">⊘</b>Rename…</span></button>
+     <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-del"><span class="adv-na"><b aria-hidden="true">⊘</b>Delete…</span></button>
+     <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nokey"><span class="adv-na"><b aria-hidden="true">⊘</b>Assign key…</span></button>
      <button class="ad-btn compact" type="button" aria-describedby="sc-d-dir">Script directories…</button>
-     <span class="small muted" id="sc-nocat">Not available on this server yet. The script list still reads. Script files are edited outside the workbench.</span><span class="small muted"> · </span><a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a>
+     <span class="adv-tip end"><b class="adv-q" tabindex="0" role="img" aria-label="Not available on this server" aria-describedby="sc-nocat">⊘</b><span role="tooltip" id="sc-nocat">Not available on this server yet. The script list still reads. Script files are edited outside the workbench. <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span></span>
      <span class="sr-only" id="sc-d-new">Will choose a script language and a user directory, then open the new file in Edit.</span>
      <span class="sr-only" id="sc-d-edit">Will open the source in a code well; Save posts one catalog write, confirmed in place.</span>
      <span class="sr-only" id="sc-d-ren">Will rename the file; past runs show the old name as recorded.</span>
@@ -81,16 +81,16 @@
  <div class="ad-g3-sec">
   <h4>Confirm a run</h4>
   <div class="ad-g3-dlg" role="alertdialog" aria-modal="true" aria-labelledby="sc-cf-t" aria-describedby="sc-cf-d">
-   <header><h3 id="sc-cf-t">Run ApplyCacheEntryLayout.py on build-b and build-c</h3><span class="end">catalog: Execute script · 2 jobs</span></header>
+   <header><h3 id="sc-cf-t">Run ApplyCacheEntryLayout.py on build-b and build-c</h3><span class="end"><ul class="adv-chips" aria-label="catalog: Execute script · 2 jobs"><li><span>catalog</span>Execute script</li><li><span>jobs</span>2</li></ul></span></header>
    <div class="body">
-    <p class="ad-g3-note" id="sc-cf-d">Two jobs, one per build. Each may change anything in its program; what it writes is not known before it runs. Program changes can be undone per build in EditHistory while the undo stack holds them; files, logs and receipts it writes cannot be undone.</p>
-    <div class="ad-scroll" role="region" aria-label="Per-build preview">
+    <p class="sr-only" id="sc-cf-d">Two jobs, one per build. Each may change anything in its program; what it writes is not known before it runs. Program changes can be undone per build in EditHistory while the undo stack holds them; files, logs and receipts it writes cannot be undone.</p><div style="display:grid;gap:8px" aria-hidden="true"><ul class="adv-tmap"><li class="x"><b>—</b>build-a</li><li class="w"><b>⚑</b>build-b<span></span><span class="mono">● waits</span></li><li class="w"><b>⚑</b>build-c<span></span><span class="mono">○ free</span></li><li class="x"><b>◌</b>build-d</li></ul><span class="adv-chips"><span class="adv-h"><b>?</b>writes</span><span class="adv-w"><b>↶</b>EditHistory</span><span class="adv-bnd"><b>≠</b>undo files</span></span></div>
+    <div class="ad-scroll" style="position:relative" role="region" aria-label="Per-build preview">
     <table class="ad-table ad-g3-grid"><caption class="sr-only">Per-build preview of the script run</caption>
      <thead><tr><th scope="col">Build</th><th scope="col">Script state passed</th><th scope="col">Writer</th></tr></thead>
      <tbody>
-      <tr><th scope="row" class="nw"><span class="nm">build-b</span></th><td>current address <span class="mono">0041b2c0</span> (ResourceRef::Resolve through an accepted edge) · no selection</td><td><span class="ad-g3-st lock col"><b aria-hidden="true">●</b>owned by job 77c0 · external<span class="m">this job waits in admission</span></span></td></tr>
-      <tr><th scope="row" class="nw"><span class="nm">build-c</span></th><td>current address <span class="mono">00082f40</span> (accepted edge) · no selection</td><td><span class="ad-g3-st on"><b aria-hidden="true">○</b>free</span></td></tr>
-      <tr><th scope="row" class="nw"><span class="nm">build-d</span></th><td><span class="ad-absent">◌ unresolved</span> · no counterpart on build-d · not runnable there, not included</td><td class="muted">not checked</td></tr>
+      <tr><th scope="row" class="nw"><span class="nm">build-b</span></th><td><span class="adv-kv" aria-label="current address 0041b2c0 (ResourceRef::Resolve through an accepted edge) · no selection"><span><i>cursor</i>0041b2c0</span><span><i>edge</i>ResourceRef::Resolve</span><span><i>selection</i>none</span></span></td><td><span class="ad-g3-st lock col"><b aria-hidden="true">●</b>77c0 · external<span class="m">waits<span class="sr-only">: owned by job 77c0 · external · this job waits in admission</span></span></span></td></tr>
+      <tr><th scope="row" class="nw"><span class="nm">build-c</span></th><td><span class="adv-kv" aria-label="current address 00082f40 (accepted edge) · no selection"><span><i>cursor</i>00082f40</span><span><i>edge</i>accepted</span><span><i>selection</i>none</span></span></td><td><span class="ad-g3-st on"><b aria-hidden="true">○</b>free</span></td></tr>
+      <tr><th scope="row" class="nw"><span class="nm">build-d</span></th><td><span class="ad-absent">◌ unresolved</span> · excluded<span class="sr-only">: no counterpart on build-d · not runnable there, not included</span></td><td class="muted">not checked</td></tr>
      </tbody>
     </table>
     </div>
@@ -105,32 +105,32 @@
    <button class="ad-btn" type="button" aria-pressed="true">Pause scrolling</button>
    <button class="ad-btn" type="button" aria-describedby="sc-clr">Clear view</button>
    <button class="ad-btn" type="button" aria-keyshortcuts="Control+F">Find</button>
-   <span class="small muted" id="sc-clr">Clear view hides lines here only; the job's log is retained.</span>
+   <span class="sr-only" id="sc-clr">Clear view hides lines here only; the job's log is retained.</span><ul class="adv-chips" aria-hidden="true"><li><span>job log</span>kept</li></ul>
   </div>
   <div class="well"><pre class="ad-g3-tx" aria-label="Console transcript, job a3f9, build-a, read-only"><span class="j">a3f9 14:02:01</span> ApplyCacheEntryLayout.py on build-a · current address <a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041b210" aria-label="Address 0041b210, build-a" translate="no">0041b210</a>
 <span class="j">a3f9 14:02:03</span> applied CacheEntry at 12 addresses in <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" aria-label="Function ResourceRef::Resolve, 0041b210, build-a" translate="no">ResourceRef::Resolve</a>
 <span class="j">a3f9 14:02:03</span> transaction "ApplyCacheEntryLayout.py" committed · 12 changes
 <span class="err"><span class="j">c4e1 13:40:17</span> <b aria-hidden="true">✕</b> ListCacheEntryUses.java:41: cannot find symbol next_entry</span></pre></div>
-  <p class="ad-g3-note">Job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, finished">a3f9</a> finished. Its transaction is in <a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;panel=history" aria-label="Edit history, build-a">EditHistory for build-a</a>. A finished job is not a match.</p>
+  <div class="row" style="gap:8px"><span class="sr-only">Job a3f9 finished. Its transaction is in EditHistory for build-a.</span><ul class="adv-chips"><li><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, finished">a3f9</a> ✓</li><li><span>↶</span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;panel=history" aria-label="Edit history, build-a">EditHistory · build-a</a></li></ul><span class="adv-tip is-open"><button type="button" class="adv-bnd" aria-describedby="sc-nm"><b aria-hidden="true">≠</b>match</button><span role="tooltip" id="sc-nm">A finished job is not a match.</span></span></div>
  </div>
 </section>
 
 <div class="adc-states">
  <div>
-  <span class="kicker">Interpreter · one confirmed session per build · each line is a job</span>
+  <span class="kicker" style="margin-top:32px">Interpreter<span class="sr-only"> · one confirmed session per build · each line is a job</span></span>
   <section class="ad-g3" aria-label="Interpreter session, build-a" style="padding:0;gap:0">
-   <div class="ad-scon-bind"><span>Session on <strong>build-a</strong></span><span>confirmed 14:10 · 3 lines run</span><span>switching build ends the session</span></div>
+   <div class="ad-scon-bind"><span>Session on <strong>build-a</strong></span><span>confirmed 14:10 · 3 lines run</span><span><span aria-hidden="true">⇄ build → ends</span><span class="sr-only">switching build ends the session</span></span></div>
    <div class="well" style="border:0"><pre class="ad-g3-tx" aria-label="Interpreter transcript, build-a"><span class="in">&gt;&gt;&gt; getFunctionAt(toAddr(0x0041b210)).getName(True)</span>
 <span class="j">b7e2</span> 'ResourceRef::Resolve'
 <span class="in">&gt;&gt;&gt; len(getReferencesTo(toAddr(0x0041b210)))</span>
 <span class="j">b7e3</span> Progress unknown · last event 14:11:02</pre></div>
    <div class="ad-scon-repl"><label class="pr" for="sc-in">&gt;&gt;&gt;</label><input id="sc-in" class="adc-in" type="text" aria-describedby="sc-in-d"><button class="ad-btn" type="button">Interrupt b7e3</button></div>
-   <p class="ad-g3-note" id="sc-in-d" style="padding:0 12px 8px">Enter posts this line as one job on build-a. Interrupt cancels the running line's job; Reset starts a new session and confirms again.</p>
+   <p class="sr-only" id="sc-in-d">Enter posts this line as one job on build-a. Interrupt cancels the running line's job; Reset starts a new session and confirms again.</p><ul class="adv-chips" aria-hidden="true" style="padding:0 12px 8px"><li><span>Enter</span>1 job</li><li><span>Interrupt</span>cancel job</li><li><span>Reset</span>confirm again</li></ul>
   </section>
  </div>
  <div>
-  <span class="kicker">Bundles · actions not available on this server yet</span>
-  <div class="ad-scroll" role="region" aria-label="Script bundles">
+  <span class="kicker">Bundles<span class="sr-only"> · actions not available on this server yet</span></span>
+  <div class="ad-scroll" style="position:relative" role="region" aria-label="Script bundles">
   <table class="ad-table ad-g3-grid" style="min-width:0"><caption class="sr-only">Script source bundles</caption>
    <thead><tr><th scope="col">Bundle</th><th scope="col">State</th></tr></thead>
    <tbody>
@@ -141,32 +141,32 @@
   </table>
   </div>
   <div class="ad-tools" role="toolbar" aria-label="Bundle actions, not available on this server yet" style="margin-top:8px">
-   <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat">Enable</button>
-   <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat sc-b-dis">Disable…</button>
-   <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat sc-b-cln">Clean…</button>
-   <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat">Refresh</button>
-   <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat">Add directory…</button>
+   <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat"><span class="adv-na"><b aria-hidden="true">⊘</b>Enable</span></button>
+   <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat sc-b-dis"><span class="adv-na"><b aria-hidden="true">⊘</b>Disable…</span></button>
+   <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat sc-b-cln"><span class="adv-na"><b aria-hidden="true">⊘</b>Clean…</span></button>
+   <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat"><span class="adv-na"><b aria-hidden="true">⊘</b>Refresh</span></button>
+   <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat"><span class="adv-na"><b aria-hidden="true">⊘</b>Add directory…</span></button>
    <span class="sr-only" id="sc-b-dis">Will stop dependents first, then remove the bundle's scripts from the manager, with both counts.</span>
    <span class="sr-only" id="sc-b-cln">Will deactivate the bundle and wipe its compiled output; the next run recompiles.</span>
   </div>
-  <p class="ad-g3-note"><span id="sc-bnocat">Not available on this server yet. Bundle states still read. Bundles apply to script runs on every build.</span><span class="small muted"> · </span><a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></p>
+  <p style="margin:0"><span class="adv-tip"><b class="adv-q" tabindex="0" role="img" aria-label="Not available on this server" aria-describedby="sc-bnocat">⊘</b><span role="tooltip" id="sc-bnocat">Not available on this server yet. Bundle states still read. Bundles apply to script runs on every build. <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span></span></p>
  </div>
  <div>
-  <span class="kicker">Quick launcher · design for when scripts are catalog entries (G13) · not available today</span>
+  <span class="kicker">Quick launcher<span class="sr-only"> · design for when scripts are catalog entries (G13) · not available today</span></span>
   <div class="ad-g3-dlg" role="dialog" aria-label="Command palette, Scripts section (future design)" style="max-width:none">
    <div class="body" style="padding-top:12px">
     <input class="adc-in sans" type="text" value="&gt; cache" aria-label="Palette query" readonly>
     <ul class="ad-g3-tree" role="listbox" aria-label="Scripts">
-     <li role="option" id="sc-q1" aria-selected="true"><span><span translate="no">ApplyCacheEntryLayout.py</span> · recent · Data types · writes: unknown · Enter arms Run on build-a</span></li>
+     <li role="option" id="sc-q1" aria-selected="true"><span><span translate="no">ApplyCacheEntryLayout.py</span> <span class="adv-kv" aria-hidden="true"><span>recent</span><span>Data types</span><span><i>writes</i>unknown</span><span><i>Enter</i>Run · build-a</span></span><span class="sr-only"> · recent · Data types · writes: unknown · Enter arms Run on build-a</span></span></li>
      <li role="option" id="sc-q2" aria-selected="false" aria-disabled="true"><span><span translate="no">ListCacheEntryUses.java</span> · compile error, line 41</span></li>
     </ul>
-    <p class="ad-g3-note">A Scripts section after Actions in Ctrl/Cmd+K. No new key. Recent first (up to 10), then by name. Enter opens the run confirm; it never posts.</p>
+    <div class="row" style="gap:8px"><span class="sr-only" id="sc-ql">A Scripts section after Actions in Ctrl/Cmd+K. No new key. Recent first (up to 10), then by name. Enter opens the run confirm; it never posts.</span><ul class="adv-chips" aria-describedby="sc-ql"><li><span>palette</span>Ctrl/Cmd K</li><li><span>new key</span>none</li><li><span>order</span>recent ≤10 · name</li><li><span>Enter</span>confirm</li></ul><span class="adv-bnd" aria-hidden="true"><b>≠</b>post</span></div>
    </div>
   </div>
  </div>
  <div>
-  <span class="kicker">Advanced off · the panel is hidden, not disabled</span>
-  <div class="ad-notice unknown"><b aria-hidden="true">⊡</b><div><h4>Scripts are an advanced tool</h4><p>Turn on Advanced in View settings to show Scripts. Reading past transcripts in the dock does not need it.</p></div><span></span></div>
+  <span class="kicker">Advanced off<span class="sr-only"> · the panel is hidden, not disabled</span></span>
+  <div class="adv-empty"><span class="adv-tip"><b tabindex="0" role="img" aria-label="Scripts are an advanced tool" aria-describedby="sc-adv">⊡</b><span role="tooltip" id="sc-adv">Scripts are an advanced tool. Turn on Advanced in View settings to show Scripts. Reading past transcripts in the dock does not need it.</span></span><button class="ad-btn primary" type="button" aria-describedby="sc-adv">View settings…</button></div>
  </div>
 </div>
 </div>

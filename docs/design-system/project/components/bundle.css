@@ -3456,6 +3456,10 @@ tr[aria-selected="true"] .ad-g3-st .m{color:var(--ink)}
  .adv-stack>i.p2,.adv-stack>i.p3,.adv-stack>i.p4,.adv-skey i.p2,.adv-skey i.p3,.adv-skey i.p4{background:Canvas;outline:1px solid CanvasText}
  .adv-tip>[role="tooltip"]{border-color:CanvasText}
 }
+/* Show, don't tell merges: a witness chip used as a tip trigger keeps a transparent fill like adv-h and adv-bnd;
+   scroll regions contain their own .sr-only text so it never widens the page */
+button.adv-w{background:transparent}
+.ad-scroll{position:relative}
 /* ---- Forced colors: selected and current items (keep this block last) ----
    Engines may paint a Canvas backplate behind every line of text when forced-color-adjust is auto, so HighlightText text on a Highlight block
    lands on Canvas and disappears (HighlightText equals Canvas in the usual high-contrast palettes). Selected and current items therefore opt out,

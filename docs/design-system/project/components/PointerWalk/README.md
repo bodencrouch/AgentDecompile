@@ -69,7 +69,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 - **Follows:** the primary cursor after the settle. It follows as I move because it is cheap: it reads stored operand decomposition, dataflow and layouts only. Holdable.
 - **Targets rendered:** type and field (registered typed-link target; below) · address and symbol (vtable targets, thunk targets) · counterpart (vtable slot target on another build, with its edge word) · receipt and job (in the Peek provenance) · research section (a native `/docs` link).
 - **Peek source:** the stored type record and layout store for that build, the recorded witness (PDB type record, RTTI), and cached access sites. Nothing is re-typed or re-analyzed.
-- **Absent copy:** "absent in build-a" (plain word, `.ad-absent`, never a link) · "unknown" · "unresolved: no dataflow origin for eax at 0041c88d" · "Not loaded. Open build-d to read it." · union: "Conflicting uses at one offset. Neither is picked." · contested vtable target: "2 addresses · contested · no winner", with both as candidate links.
+- **Absent copy:** "absent in build-a" (plain word, `.ad-absent`, never a link) · "unknown" · "unresolved: no dataflow origin for eax at 0041b2cd" · "Not loaded. Open build-d to read it." · union: "Conflicting uses at one offset. Neither is picked." · contested vtable target: "2 addresses · contested · no winner", with both as candidate links.
 - **Target-size exception:** type links in step headers are inline text inside a 24px step row (the inline-link exception). Steps are reached by row focus. With a coarse pointer, each step has the 44px row-menu button.
 
 ## Keyboard

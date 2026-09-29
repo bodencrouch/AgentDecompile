@@ -65,7 +65,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 ## Accessibility
 
 - Status items are separate named elements, never one "verified" badge. The effective-match state reads its full words ("Effective match: no, 3 rows are not register-only").
-- Row names follow the ObjectDiff template plus the class word: "0041c883, target mov esi, candidate mov edi, differs, register allocation, pair A".
+- Row names follow the ObjectDiff template plus the class word: "0041b2c3, target mov esi, candidate mov edi, differs, register allocation, pair A".
 - Register pairs are framed and lettered; the first pair is solid and the second dashed, so colour is never needed.
 - Accessible View lists the classes, then every row with its class word.
 

@@ -54,7 +54,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 
 ## Accessibility
 
-- The tree and table are named ("Class hierarchy"; "ResourceRef vftable for Base, slot by logical method, target per build"). Cells read the slot index, target and state in words ("slot 2, 0041c8f0, slot shifted, hypothesis, base class gained a virtual").
+- The tree and table are named ("Class hierarchy"; "ResourceRef vftable for Base, slot by logical method, target per build"). Cells read the slot index, target and state in words ("slot 2, 00082f40, slot shifted, hypothesis, base class gained a virtual").
 - Kind labels are text; dashed outlines repeat the word "hypothesis".
 - Identifiers and mangled names carry `translate="no"`.
 

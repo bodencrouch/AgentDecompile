@@ -2,21 +2,21 @@
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">References from one code unit · one build · memory, external, stack and register panels · flow and fallthrough overrides</span>
 <form class="ade inline" aria-labelledby="rf-t">
- <header><h4 id="rf-t">References from <code translate="no">0041c89a</code> <code translate="no">CALL dword ptr [0041f020]</code></h4><span class="end">Add or edit reference (catalog)</span></header>
+ <header><h4 id="rf-t">References from <code translate="no">0041b22a</code> <code translate="no">CALL dword ptr [0041f020]</code></h4><span class="end">Add or edit reference (catalog)</span></header>
  <div class="ade-tgt">
   <span class="kicker">Source · bound when opened</span>
-  <span class="ade-bld target">build-a</span><span>in <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041c880" translate="no" aria-label="Function ResourceRef::Resolve, 0041c880, build-a">ResourceRef::Resolve</a></span>
+  <span class="ade-bld target">build-a</span><span>in <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a></span>
   <span><label for="rf-op" class="muted">Operand</label> <select class="adc-in" id="rf-op"><option>operand 0 · [0041f020]</option><option>mnemonic</option></select></span>
   <span class="ad-writer"><b aria-hidden="true">●</b>writer: this session</span>
  </div>
- <div class="ade-grid ad-scroll"><table class="ad-table" role="grid" aria-label="References from 0041c89a on build-a"><thead><tr><th scope="col">Operand</th><th scope="col">Kind</th><th scope="col">Destination</th><th scope="col">Ref-type</th><th scope="col">Primary</th><th scope="col">Source</th><th scope="col">Action</th></tr></thead><tbody>
+ <div class="ade-grid ad-scroll"><table class="ad-table" role="grid" aria-label="References from 0041b22a on build-a"><thead><tr><th scope="col">Operand</th><th scope="col">Kind</th><th scope="col">Destination</th><th scope="col">Ref-type</th><th scope="col">Primary</th><th scope="col">Source</th><th scope="col">Action</th></tr></thead><tbody>
   <tr aria-selected="true"><td>op 0</td><td>memory</td><td><a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041f020" translate="no" aria-label="Address 0041f020, build-a">0041f020</a></td><td class="mono">INDIRECTION</td><td>primary</td><td>analysis</td><td><button class="ad-btn compact" type="button" aria-label="Delete reference to 0041f020 from operand 0">Delete</button></td></tr>
-  <tr><td>op 0</td><td>memory</td><td><a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Address 0041b210, build-a">0041b210</a></td><td class="mono">COMPUTED_CALL</td><td>—</td><td>user</td><td><button class="ad-btn compact" type="button" aria-label="Delete reference to 0041b210 from operand 0">Delete</button></td></tr>
+  <tr><td>op 0</td><td>memory</td><td><a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c210" translate="no" aria-label="Address 0041c210, build-a">0041c210</a></td><td class="mono">COMPUTED_CALL</td><td>—</td><td>user</td><td><button class="ad-btn compact" type="button" aria-label="Delete reference to 0041c210 from operand 0">Delete</button></td></tr>
  </tbody></table></div>
  <div class="ad-subtabs" role="tablist" aria-label="Reference kind"><button role="tab" type="button" id="rf-tab-m" aria-selected="true" aria-controls="rf-p-m">Memory</button><button role="tab" type="button" id="rf-tab-e" aria-selected="false" tabindex="-1">External</button><button role="tab" type="button" id="rf-tab-s" aria-selected="false" tabindex="-1">Stack</button><button role="tab" type="button" id="rf-tab-r" aria-selected="false" tabindex="-1">Register</button></div>
  <div class="ade-sec" role="tabpanel" id="rf-p-m" aria-labelledby="rf-tab-m">
   <div class="ade-flds">
-   <label class="lbl" for="rf-to">To address</label><div class="val"><input class="adc-in num" id="rf-to" value="0041b210" translate="no"><span class="muted">an address on build-a; never re-resolved into another build</span></div>
+   <label class="lbl" for="rf-to">To address</label><div class="val"><input class="adc-in num" id="rf-to" value="0041c210" translate="no"><span class="muted">an address on build-a; never re-resolved into another build</span></div>
    <label class="lbl" for="rf-off">Offset reference</label><div class="val"><label class="ad-flag"><input type="checkbox" id="rf-off">base +</label><input class="adc-in num" id="rf-offv" value="0x0" translate="no" aria-label="Offset from the base"></div>
    <label class="lbl" for="rf-rt">Ref-type</label><div class="val"><select class="adc-in" id="rf-rt"><option>COMPUTED_CALL</option><option>UNCONDITIONAL_CALL</option><option>DATA</option><option>READ</option><option>WRITE</option><option>INDIRECTION</option></select><label class="ad-flag"><input type="checkbox">Primary</label></div>
   </div>
@@ -27,29 +27,29 @@
   <div class="ade-flds">
    <label class="lbl" for="rf-fo">Flow override</label><div class="val"><select class="adc-in" id="rf-fo"><option>none</option><option>branch</option><option>call</option><option>call-return</option><option>return</option></select><span class="muted">changes how build-a's decompile reads this instruction</span></div>
    <label class="lbl" for="rf-il">Instruction length</label><div class="val"><input class="adc-in num" id="rf-il" value="6" translate="no"><span class="muted">decoded 6 · override only when bytes are shared</span></div>
-   <label class="lbl" for="rf-ft">Fallthrough</label><div class="val"><input class="adc-in num" id="rf-ft" value="0041c8a0" translate="no"><button class="ad-btn compact" type="button">Auto override</button><button class="ad-btn compact" type="button">Clear override</button></div>
+   <label class="lbl" for="rf-ft">Fallthrough</label><div class="val"><input class="adc-in num" id="rf-ft" value="0041b230" translate="no"><button class="ad-btn compact" type="button">Auto override</button><button class="ad-btn compact" type="button">Clear override</button></div>
   </div>
  </div>
- <div class="ade-rev"><span class="kicker">Enter or Save posts once · confirmed here</span>Add memory reference on build-a from <code translate="no">0041c89a</code> operand 0 to <code translate="no">0041b210</code>, <code translate="no">COMPUTED_CALL</code>, not primary. Cached decompile of ResourceRef::Resolve on build-a is marked stale. Other builds are unchanged.</div>
+ <div class="ade-rev"><span class="kicker">Enter or Save posts once · confirmed here</span>Add memory reference on build-a from <code translate="no">0041b22a</code> operand 0 to <code translate="no">0041c210</code>, <code translate="no">COMPUTED_CALL</code>, not primary. Cached decompile of ResourceRef::Resolve on build-a is marked stale. Other builds are unchanged.</div>
  <footer><button class="ad-btn primary" type="submit">Save <span class="ad-kbd">Enter</span></button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button><span class="note">A flow or length override opens ConfirmDialog.</span></footer>
 </form>
 
 <div class="adc-states">
 <div>
  <span class="kicker">Flow override · ConfirmDialog</span>
- <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="rf-cd-t" aria-describedby="rf-cd-d"><h3 id="rf-cd-t">Override flow at <span translate="no">0041c89a</span> on build-a</h3><p id="rf-cd-d">The call becomes call-return, so code after it stops being reachable from here and the body of ResourceRef::Resolve on build-a may shrink; nothing is re-disassembled or re-analyzed unless that is admitted as a job.</p><footer><button class="ad-btn is-focus">Cancel</button><button class="ad-btn primary">Override flow</button></footer></div>
+ <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="rf-cd-t" aria-describedby="rf-cd-d"><h3 id="rf-cd-t">Override flow at <span translate="no">0041b22a</span> on build-a</h3><p id="rf-cd-d">The call becomes call-return, so code after it stops being reachable from here and the body of ResourceRef::Resolve on build-a may shrink; nothing is re-disassembled or re-analyzed unless that is admitted as a job.</p><footer><button class="ad-btn is-focus">Cancel</button><button class="ad-btn primary">Override flow</button></footer></div>
 </div>
 <div>
  <span class="kicker">Stack panel · binds to a frame variable of this build</span>
  <div class="ade" role="group" aria-labelledby="rf-st-t">
-  <header><h4 id="rf-st-t">Stack reference from <code translate="no">0041c8b2</code> operand 1</h4></header>
+  <header><h4 id="rf-st-t">Stack reference from <code translate="no">0041b242</code> operand 1</h4></header>
   <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="rf-so">Stack offset</label><div class="val"><input class="adc-in num" id="rf-so" value="-0x8" translate="no"><span>binds <code translate="no">slotIndex</code> in build-a's frame</span></div><label class="lbl" for="rf-sr">Ref-type</label><div class="val"><select class="adc-in" id="rf-sr"><option>WRITE</option><option>READ</option></select></div></div></div>
  </div>
 </div>
 <div>
  <span class="kicker">Register panel · registers from the build's language</span>
  <div class="ade" role="group" aria-labelledby="rf-rg-t">
-  <header><h4 id="rf-rg-t">Register reference from <code translate="no">0041b21c</code></h4></header>
+  <header><h4 id="rf-rg-t">Register reference from <code translate="no">00082f4c</code></h4></header>
   <div class="ade-tgt"><span class="ade-bld target">build-c</span><span>register list from build-c's language</span></div>
   <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="rf-rr">Register</label><div class="val"><select class="adc-in" id="rf-rr"><option>EAX</option><option>EDX</option></select><span>binds parameter <code translate="no">name</code> (custom storage EAX:4)</span></div></div></div>
  </div>
@@ -58,17 +58,17 @@
  <span class="kicker">Offset references table from a selection · batch preview</span>
  <div class="ade" role="group" aria-labelledby="rf-ot-t">
   <header><h4 id="rf-ot-t">Create offset references table</h4><span class="end">build-a · 0041f020–0041f02f</span></header>
-  <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="rf-ob">Base</label><div class="val"><input class="adc-in num" id="rf-ob" value="0041b000" translate="no"></div><label class="lbl" for="rf-oe">Entry size</label><div class="val"><select class="adc-in" id="rf-oe"><option>4</option><option>2</option></select><label class="ad-flag"><input type="checkbox">Signed</label></div></div></div>
+  <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="rf-ob">Base</label><div class="val"><input class="adc-in num" id="rf-ob" value="0041c000" translate="no"></div><label class="lbl" for="rf-oe">Entry size</label><div class="val"><select class="adc-in" id="rf-oe"><option>4</option><option>2</option></select><label class="ad-flag"><input type="checkbox">Signed</label></div></div></div>
   <div class="ade-grid ad-scroll"><table class="ad-table"><caption class="sr-only">Computed destinations</caption><thead><tr><th scope="col">Entry</th><th scope="col">Value</th><th scope="col">Destination</th></tr></thead><tbody>
-   <tr><td class="mono">0041f020</td><td class="mono">0x210</td><td><span class="mono">0041b210</span> · instruction</td></tr>
-   <tr><td class="mono">0041f024</td><td class="mono">0x2a8</td><td><span class="mono">0041b2a8</span> · <span class="ad-absent">undefined bytes</span></td></tr>
+   <tr><td class="mono">0041f020</td><td class="mono">0x210</td><td><span class="mono">0041c210</span> · instruction</td></tr>
+   <tr><td class="mono">0041f024</td><td class="mono">0x2a8</td><td><span class="mono">0041c2a8</span> · <span class="ad-absent">undefined bytes</span></td></tr>
   </tbody></table></div>
   <div class="ade-foot"><button class="ad-btn" type="button">Create 4 references…</button><span class="note">Opens ConfirmDialog: a batch of 4 on build-a. Targets are not disassembled.</span></div>
  </div>
 </div>
 <div>
  <span class="kicker">Counterpart · compared, never merged</span>
- <div class="ad-notice info"><b aria-hidden="true">↔</b><div><h4>build-c at 0041b21c, via anchor 0041c89a ↔ 0041b21c</h4><p>build-c has 1 reference from this operand (register EAX). References are program-local; nothing here is proposed to build-c unless both ends are anchor-mapped, and then only through ConfirmDialog.</p></div><span></span></div>
+ <div class="ad-notice info"><b aria-hidden="true">↔</b><div><h4>build-c at 00082f4c, via anchor 0041b22a ↔ 00082f4c</h4><p>build-c has 1 reference from this operand (register EAX). References are program-local; nothing here is proposed to build-c unless both ends are anchor-mapped, and then only through ConfirmDialog.</p></div><span></span></div>
 </div>
 </div>
 </div>

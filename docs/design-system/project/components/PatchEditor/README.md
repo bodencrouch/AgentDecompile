@@ -34,16 +34,16 @@ The spec maps E01, E04 and E05 to the Listing link menu → ActionStrip. PatchEd
    - the standing sentence "There is no "all builds" target. Another build is a new editor opened on that build."
    If the invoking context has no build (an address link without `build`), the editor does not open. It shows "Address ‹addr› has no build; it exists in build-a, build-c", with one link per build.
 3. **Mode tabs** (APG Tabs, manual activation): Assemble, Patch data, Bytes, Clear, Disassemble and Create data.
-   - **Assemble.** The current instruction, the assembly input (assembled with this build's language, which the hint says), and a radio group of encodings, each with its bytes and length. A longer encoding names the instructions it overwrites ("Overwrites MOV ECX, [ESI+0x10] at 0041c8b4; that instruction is cleared and not re-disassembled"). A shorter one names the leftover bytes. Assemble… accepts several lines and previews each.
+   - **Assemble.** The current instruction, the assembly input (assembled with this build's language, which the hint says), and a radio group of encodings, each with its bytes and length. A longer encoding names the instructions it overwrites ("Overwrites MOV ECX, [ESI+0x10] at 0041b244; that instruction is cleared and not re-disassembled"). A shorter one names the leftover bytes. Assemble… accepts several lines and previews each.
    - **Patch data.** The data unit's type and a typed value input. The value is encoded with this build's endianness and width.
    - **Bytes.** Hex entry over a range, following HexStrip's grid and keys, with a count entry for the range.
    - **Clear.** Clear code bytes, or Clear with options: a checklist of instructions, data, symbols, comments, properties, user, analysis, import and default references, functions, registers, equates and bookmarks. Clear flow and repair is a separate verb. The words "Bytes are kept; only the listed markup is removed" are always shown.
    - **Disassemble.** Follow flow, Restricted to selection, Static, and the processor-mode variants the build's language offers. The preview decodes bytes only and is a dashed "hypothesis until posted". It states where decoding stops.
    - **Create data.** A type input (with array syntax and completion from this build's type manager), the data settings (format, endianness, charset), and the interpreted value preview. Counts and pointer widths are per build, and counts are never copied between builds.
-4. **Bytes preview** (`dl`): "original file", "current" and "after" rows in mono, with changed bytes underlined in `fact-stale` (plus the words "Changed byte underlined: 0041c8b2 74 → EB (1 byte)"). Where current differs from original, both are shown, so an earlier patch stays visible.
+4. **Bytes preview** (`dl`): "original file", "current" and "after" rows in mono, with changed bytes underlined in `fact-stale` (plus the words "Changed byte underlined: 0041b242 74 → EB (1 byte)"). Where current differs from original, both are shown, so an earlier patch stays visible.
 5. **Review block.** The catalog action, the exact bytes and range, the build, "After the terminal result the bytes are read back and compared with this preview", the stale-decompile note ("nothing is re-disassembled or re-analyzed") and the claim boundary "Patched bytes are not recovery evidence".
 6. **Footer.** Patch ‹build›… (or Clear, Disassemble or Create on ‹build›), Cancel, and "Never proposed to counterparts".
-7. **Counterparts**, for comparison only. The counterpart's bytes at the anchor-mapped address ("via anchor 0041c8b2 ↔ 0041b242") and "To patch build-c, open PatchEditor on build-c". There is no propose step and no "apply to all".
+7. **Counterparts**, for comparison only. The counterpart's bytes at the anchor-mapped address ("via anchor 0041b242 ↔ 00082f72") and "To patch build-c, open PatchEditor on build-c". There is no propose step and no "apply to all".
 
 **Confirm tier**
 

@@ -20,7 +20,7 @@ The register manager for one explicit build. Its register tree comes from that b
 4. **Range editor.** Start, End and Value, validated against the register's width and, for context registers, its defined values.
 5. **Consequence block**, always shown before Save. It states the register, the value, the range, the build, "changes how build-a disassembles and decompiles that range the next time it is disassembled; existing instructions are not re-disassembled, and re-disassembly requires admission as a job" and "Other builds are unchanged".
 6. **Footer.** Save on ‹build›…, Set over selection…, Clear values in selection… and Cancel. Each opens ConfirmDialog.
-7. **Across builds.** A comparison grid, program-local and side by side. It has one row per range on the target build and a column per build. Values come through recorded anchors ("via anchor 0041c880"), and between anchors the row names the anchor it used. It also has a context row that states which context registers each build's language has, with a variance class and its evidence level (for example a solid "compile variance: x86-64 language adds longMode"). Register values are never proposed to other builds.
+7. **Across builds.** A comparison grid, program-local and side by side. It has one row per range on the target build and a column per build. Values come through recorded anchors ("via anchor 0041b2c0"), and between anchors the row names the anchor it used. It also has a context row that states which context registers each build's language has, with a variance class and its evidence level (for example a solid "compile variance: x86-64 language adds longMode"). Register values are never proposed to other builds.
 
 **Confirm tier** (P07: CAT, CF-dlg, 1W, NA)
 
@@ -66,7 +66,7 @@ The register manager for one explicit build. Its register tree comes from that b
 
 - The tree is named "Registers of ‹build›". The grid is named "Value ranges of ‹register› on ‹build›", and each Delete… button is named by its range.
 - The consequence block is visible text before Save, and ConfirmDialog repeats it (WCAG 3.3.4). The "predates" notice is `role="status"` only when the operator's own Save caused it.
-- The comparison grid reads "build-b, 0x0, via anchor 0041c880".
+- The comparison grid reads "build-b, 0x0, via anchor 0041b2c0".
 
 **Parity rows covered**
 

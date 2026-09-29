@@ -35,7 +35,7 @@ The editor for references from one code unit on one explicit build: add and edit
    - Add memory references from a selection. It previews one row per scalar operand whose value is a valid address on this build.
    - Create offset references table. It takes a base, an entry size (2, 4 or 8), a count taken from the selection, and Signed, and previews each computed destination with what is there ("instruction", "undefined bytes").
    - Both are a batch: "Create 4 references…" opens ConfirmDialog. Targets are never disassembled by this step.
-9. **Counterpart.** An info line compares the counterpart code unit, reached through a recorded anchor ("build-c at 0041b21c, via anchor 0041c89a ↔ 0041b21c"), and lists its references as last read. The two are compared, never merged. References are program-local. A proposal to a counterpart is offered only when both the source and the destination are anchor-mapped, and it goes through ConfirmDialog with a preview on that build. Otherwise it reads "not offered: destination 0041f020 has no anchor on build-c".
+9. **Counterpart.** An info line compares the counterpart code unit, reached through a recorded anchor ("build-c at 00082f4c, via anchor 0041b22a ↔ 00082f4c"), and lists its references as last read. The two are compared, never merged. References are program-local. A proposal to a counterpart is offered only when both the source and the destination are anchor-mapped, and it goes through ConfirmDialog with a preview on that build. Otherwise it reads "not offered: destination 0041f020 has no anchor on build-c".
 
 **Confirm tier**
 

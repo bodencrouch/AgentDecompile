@@ -5,7 +5,7 @@
  <header><h4 id="sg-t">Edit signature <code translate="no">ResourceRef::Resolve</code></h4><span class="end"><span>Set function prototype (catalog)</span><span>source: analysis → user-defined</span></span></header>
  <div class="ade-tgt">
   <span class="kicker">Target · bound when opened</span>
-  <span class="ade-bld target">build-a</span><span>function <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041c880" translate="no" aria-label="Function ResourceRef::Resolve, FUN_0041c880, 0041c880, build-a">0041c880</a></span><span>basis gen 41</span>
+  <span class="ade-bld target">build-a</span><span>function <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, FUN_0041b210, 0041b210, build-a">0041b210</a></span><span>basis gen 41</span>
   <span class="ad-writer"><b aria-hidden="true">●</b>writer: this session</span>
   <span class="muted wrap">Conventions, registers and call fixups come from build-a's compiler spec.</span>
  </div>
@@ -39,8 +39,8 @@
  <div class="ade-prop" role="group" aria-labelledby="sg-prop-t">
   <h5 id="sg-prop-t">Propose to build-b, build-c, build-d · through the ABI gate, after Save's terminal result</h5>
   <div class="ade-grid ad-scroll"><table class="ad-table"><caption class="sr-only">Recipients for the prototype</caption><thead><tr><th scope="col">Recipient</th><th scope="col">Counterpart</th><th scope="col">Preview on that build</th><th scope="col">ABI gate</th></tr></thead><tbody>
-   <tr><th scope="row">build-b</th><td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041c880" translate="no" aria-label="Counterpart ResourceRef::Resolve on build-b, 0041c880, accepted">0041c880</a> accepted</td><td class="mono">int __thiscall (this, name, size) · purge 8</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>passes: same convention and storage</span></td></tr>
-   <tr><th scope="row">build-c</th><td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=0041b210" translate="no" aria-label="Counterpart ResourceRef::Resolve on build-c, 0041b210, accepted">0041b210</a> accepted</td><td class="mono">not previewed</td><td><span class="ade-m bad"><b aria-hidden="true">✕</b>blocked: custom register storage; a __thiscall prototype would misplace name and size</span></td></tr>
+   <tr><th scope="row">build-b</th><td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041b2c0" translate="no" aria-label="Counterpart ResourceRef::Resolve on build-b, 0041b2c0, accepted">0041b2c0</a> accepted</td><td class="mono">int __thiscall (this, name, size) · purge 8</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>passes: same convention and storage</span></td></tr>
+   <tr><th scope="row">build-c</th><td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=00082f40" translate="no" aria-label="Counterpart ResourceRef::Resolve on build-c, 00082f40, accepted">00082f40</a> accepted</td><td class="mono">not previewed</td><td><span class="ade-m bad"><b aria-hidden="true">✕</b>blocked: custom register storage; a __thiscall prototype would misplace name and size</span></td></tr>
    <tr><th scope="row">build-d</th><td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-d" translate="no" aria-label="Counterpart ResourceRef::Resolve on build-d, candidate">counterpart</a> candidate</td><td class="mono">not previewed</td><td><span class="ade-m bad"><b aria-hidden="true">✕</b>blocked: identity edge is a candidate, and the x86-64 ABI differs</span></td></tr>
   </tbody></table></div>
   <div class="ade-foot"><button class="ad-btn" type="button">Propose to build-b…</button><span class="note">Names and types can be proposed to build-c separately; its storage stays its own.</span></div>
@@ -59,7 +59,7 @@
 <div>
  <span class="kicker">Call-site override · one call on one build, confirmed in place</span>
  <form class="ade inline" aria-labelledby="sg-cs-t">
-  <header><h4 id="sg-cs-t">Override signature at call <code translate="no">0041b23c</code></h4><span class="end">Override call signature (catalog)</span></header>
+  <header><h4 id="sg-cs-t">Override signature at call <code translate="no">0041a47c</code></h4><span class="end">Override call signature (catalog)</span></header>
   <div class="ade-tgt"><span class="ade-bld target">build-a</span><span>in <a class="ad-link" href="?project=corpus-alpha&amp;entity=91&amp;build=build-a" translate="no" aria-label="Function Actor::LoadFromTemplate, build-a">Actor::LoadFromTemplate</a></span><span>callee <code translate="no">ResourceRef::Resolve</code></span></div>
   <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="sg-cs-p">Prototype</label><div class="val"><input class="adc-in wide" id="sg-cs-p" value="int __thiscall (ResourceRef *this, char *name)" translate="no"></div></div><p class="small muted">Only this call changes. The counterpart call on build-c is reached through anchors only; it is not overridden by this edit.</p></div>
   <footer><button class="ad-btn primary" type="submit">Save override <span class="ad-kbd">Enter</span></button><button class="ad-btn" type="button">Remove override</button><button class="ad-btn" type="button">Cancel</button></footer>
@@ -72,8 +72,8 @@
 <div>
  <span class="kicker">Thunk · set or follow the thunk target</span>
  <div class="ade" role="group" aria-labelledby="sg-th-t">
-  <header><h4 id="sg-th-t">Thunk target of <code translate="no">0041b210</code></h4><span class="end">Set thunk target (catalog)</span></header>
-  <div class="ade-tgt"><span class="ade-bld target">build-b</span><span>currently a thunk of <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041c880" translate="no" aria-label="Thunk target FUN_0041c880, 0041c880, build-b">FUN_0041c880</a></span></div>
+  <header><h4 id="sg-th-t">Thunk target of <code translate="no">0041e4c0</code></h4><span class="end">Set thunk target (catalog)</span></header>
+  <div class="ade-tgt"><span class="ade-bld target">build-b</span><span>currently a thunk of <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041b2c0" translate="no" aria-label="Thunk target FUN_0041b2c0, 0041b2c0, build-b">FUN_0041b2c0</a></span></div>
   <div class="ade-foot"><button class="ad-btn" type="button">Change target…</button><button class="ad-btn" type="button">Clear thunk…</button><span class="note">Following the thunk is a read: Enter on the target link.</span></div>
  </div>
 </div>

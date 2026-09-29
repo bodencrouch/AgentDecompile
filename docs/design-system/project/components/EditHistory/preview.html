@@ -9,7 +9,7 @@
    <span><span class="lbl" id="eh-l-sc">Program</span><span class="ad-seg" role="group" aria-labelledby="eh-l-sc"><button aria-pressed="true">build-a</button><button aria-pressed="false">build-b</button><button aria-pressed="false">build-c</button><button aria-pressed="false">build-d</button></span></span>
    <button class="ad-btn" type="button" aria-haspopup="dialog" aria-describedby="eh-u-d">Undo (catalog)…</button>
    <button class="ad-btn" type="button" aria-haspopup="dialog">Redo (catalog)…</button>
-   <span class="sr-only" id="eh-u-d">Undo Set comment at 0041c880 on build-a. Confirms first.</span>
+   <span class="sr-only" id="eh-u-d">Undo Set comment at 0041b210 on build-a. Confirms first.</span>
   </div>
  </header>
 
@@ -17,9 +17,9 @@
   <li class="sep">Redo · undone, can be redone until the next edit</li>
   <li class="redo"><span class="pos">↷</span><span class="t">Retype parameter 2 of ResourceRef::Resolve: uint → size_t</span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↷</b>redo available</span></span><span class="meta"><span>by you · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=b7e2" aria-label="Job b7e2, retype, undone">b7e2</a></span><span>undone 14:07</span></span></li>
   <li class="sep">Undo stack · newest first</li>
-  <li aria-current="true"><span class="pos">5</span><span class="t">Set comment at <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" aria-label="Address 0041c880, build-a" translate="no">0041c880</a></span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↶</b>undoable</span></span><span class="meta"><span>by you · inline edit</span><span>14:06</span></span></li>
+  <li aria-current="true"><span class="pos">5</span><span class="t">Set comment at <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041b210" aria-label="Address 0041b210, build-a" translate="no">0041b210</a></span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↶</b>undoable</span></span><span class="meta"><span>by you · inline edit</span><span>14:06</span></span></li>
   <li><span class="pos">4</span><span class="t">ApplyCacheEntryLayout.py · 12 changes</span><span class="end"><span class="ad-g3-st on col"><b aria-hidden="true">↶</b>program changes undoable<span class="m">side effects are not</span></span></span><span class="meta"><span>script · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, ApplyCacheEntryLayout.py, finished">a3f9</a> finished</span><span>14:02</span><span class="ad-g3-cant"><b aria-hidden="true">⊘</b>its log, receipt and transcript cannot be undone</span><button class="ad-btn compact" type="button" aria-haspopup="dialog" aria-label="Undo to here, 2 transactions on build-a (catalog)">Undo to here…</button></span></li>
-  <li><span class="pos">3</span><span class="t">Propagated name from build-c: FUN_0041c880 → ResourceRef::Resolve</span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↶</b>undoable on build-a only</span></span><span class="meta"><span>propagation from build-c · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=d07a" aria-label="Job d07a, propagate names, finished">d07a</a></span><span>13:55</span><span>build-b keeps its value; build-c is the donor and is unchanged</span></span></li>
+  <li><span class="pos">3</span><span class="t">Propagated name from build-c: FUN_0041b210 → ResourceRef::Resolve</span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↶</b>undoable on build-a only</span></span><span class="meta"><span>propagation from build-c · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=d07a" aria-label="Job d07a, propagate names, finished">d07a</a></span><span>13:55</span><span>build-b keeps its value; build-c is the donor and is unchanged</span></span></li>
   <li><span class="pos">2</span><span class="t">Rename local_8 → itemCount in Actor::LoadFromTemplate</span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↶</b>undoable</span></span><span class="meta"><span>by agent · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=c4e1" aria-label="Job c4e1, rename, finished">c4e1</a></span><span>13:40</span></span></li>
   <li><span class="pos">1</span><span class="t">Analyze build-a · 3,184 changes</span><span class="end"><span class="ad-g3-st on col"><b aria-hidden="true">↶</b>undoable<span class="m">would make receipt 5c1e stale</span></span></span><span class="meta"><span>analysis · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=5c1e" aria-label="Job 5c1e, analyze build-a">5c1e</a></span><span>12:10</span></span></li>
   <li class="sep">Before the undo stack · cannot be undone here</li>
@@ -29,7 +29,7 @@
 
  <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="eh-cf-t" aria-describedby="eh-cf-d" style="max-width:560px">
   <h3 id="eh-cf-t">Undo 2 transactions on build-a</h3>
-  <p id="eh-cf-d">Undoes "Set comment at 0041c880" and "ApplyCacheEntryLayout.py · 12 changes" on build-a. Job a3f9's log, receipt and transcript stay; its 12 program changes are reverted. Other builds are unchanged. Both can be redone until the next edit on build-a.</p>
+  <p id="eh-cf-d">Undoes "Set comment at 0041b210" and "ApplyCacheEntryLayout.py · 12 changes" on build-a. Job a3f9's log, receipt and transcript stay; its 12 program changes are reverted. Other builds are unchanged. Both can be redone until the next edit on build-a.</p>
   <footer><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Undo 2</button></footer>
  </div>
 </section>

@@ -73,8 +73,12 @@
 </g>
 <!--SEC:Acceptance and readiness fork-->
 <g id="exec-proof-flow">
-<text x="45" y="690" font-family="DejaVu Sans, sans-serif" font-size="16" fill="#98a0ad" font-weight="normal">All applicable proof receipts → acceptance (4) → original-code (5A) and recovered-source (5B) independently.</text>
+<text x="625" y="690" font-family="DejaVu Sans, sans-serif" font-size="16" fill="#98a0ad" font-weight="normal">All applicable proof receipts → acceptance (4) → original-code (5A) and recovered-source (5B) independently.</text>
 </g>
+<path d="M1490,650 V664 H900" fill="none" stroke="#8cbaff" stroke-width="3"/>
+<path d="M900,650 V664 H310" fill="none" stroke="#8cbaff" stroke-width="3"/>
+<line x1="310" y1="650" x2="310" y2="710" stroke="#8cbaff" stroke-width="3"/>
+<polygon points="310,710 304,699 316,699" fill="#8cbaff"/>
 <g id="accept-4">
 <rect x="35" y="710" width="550" height="215" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="51" y="739" font-family="DejaVu Sans, sans-serif" font-size="20" fill="#c9a4f0" font-weight="bold">4 · Independent acceptance, short commit</text>
@@ -84,6 +88,10 @@
 <text x="51" y="845" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Task complete only when required predicates pass</text>
 <text x="51" y="870" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Producers cannot self-promote or change criteria</text>
 </g>
+<line x1="585" y1="817" x2="625" y2="817" stroke="#8cbaff" stroke-width="3"/>
+<polygon points="625,817 614,811 614,823" fill="#8cbaff"/>
+<path d="M605,817 V964 H1710 V925" fill="none" stroke="#8cbaff" stroke-width="3"/>
+<polygon points="1710,925 1704,936 1716,936" fill="#8cbaff"/>
 <g id="cap-5A">
 <rect x="625" y="710" width="550" height="215" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="641" y="739" font-family="DejaVu Sans, sans-serif" font-size="20" fill="#67d3d0" font-weight="bold">5A · Original-code capability</text>

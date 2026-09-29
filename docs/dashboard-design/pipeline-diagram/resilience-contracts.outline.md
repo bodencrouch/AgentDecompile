@@ -2,7 +2,9 @@
 
 # <a id="resil-header"></a>Prevention, containment and recovery
 
-Text outline of [resilience-contracts.svg](resilience-contracts.svg); the primary accessible reading form of that diagram. Each anchor equals the node id in `pipeline-model.json`, the `<g id>` in the SVG and the object id in the `.drawio` file. Symbols that carry meaning are spelled out in words.
+In the app: `?node=resil-header`
+
+Text outline of [resilience-contracts.svg](resilience-contracts.svg); the primary accessible reading form of that diagram. Each anchor equals the node id in `pipeline-model.json`, the `<g id>` in the SVG and the object id in the `.drawio` file, whose single link per object points back to this anchor. "In the app" gives each node's location in the workbench, which resolves it against the active project. Symbols that carry meaning are spelled out in words.
 
 Summary: Reading order: six lifecycle steps (prevent, detect and classify; record the decision; repair, reroute or wait; accept against the current basis; resume only the justified capability; prevent recurrence), then the control-plane, data/provider and policy/canary containment boundaries and a worked interruption. Every recovery action returns through independent acceptance, and an available process is not a repaired capability. Design only: failure-injection checks are NOT RUN; resilience-contracts.outline.md is the text outline.
 
@@ -11,6 +13,8 @@ DESIGN ONLY, future failure-injection checks NOT RUN, implement locally first us
 One durable decision owner. Recover the affected dependency; retain the objective, evidence and independent work.
 
 ## <a id="resil-step-1"></a>Step 1: Prevent, detect, classify
+
+In the app: `?node=resil-step-1`
 
 - Fixture recheck after ownership, before mutation
 - Observe process tree, unit receipts and goal facts
@@ -22,6 +26,8 @@ One durable decision owner. Recover the affected dependency; retain the objectiv
 
 ## <a id="resil-step-2"></a>Step 2: Record the decision before effects
 
+In the app: `?node=resil-step-2`
+
 - Pure reducer: frozen facts + policy then next action
 - Atomically reserve attempt budget + effect intent
 - One durable retry budget; no nested retry owners
@@ -32,6 +38,8 @@ One durable decision owner. Recover the affected dependency; retain the objectiv
 
 ## <a id="resil-step-3"></a>Step 3: Repair, reroute or wait
 
+In the app: `?node=resil-step-3`
+
 - Repair only classified prerequisites with evidence
 - Reroute only to declared compatible capabilities
 - Checkpoint/split within the unchanged claim scope
@@ -40,9 +48,11 @@ One durable decision owner. Recover the affected dependency; retain the objectiv
 - Quarantine resources until end of access is proven
 - Independent work continues only if fully supplied
 
-<a id="resil-acceptance"></a>Every recovery action returns through independent acceptance; an available process is not a repaired capability.
+<a id="resil-acceptance"></a>Every recovery action returns through independent acceptance; an available process is not a repaired capability. In the app: `?node=resil-acceptance`
 
 ## <a id="resil-step-4"></a>Step 4: Accept against the current basis
+
+In the app: `?node=resil-step-4`
 
 - Inspect new artifact and claim-specific proof roots
 - Recheck dependencies, generation and policy version
@@ -54,6 +64,8 @@ One durable decision owner. Recover the affected dependency; retain the objectiv
 
 ## <a id="resil-step-5"></a>Step 5: Resume only the justified capability
 
+In the app: `?node=resil-step-5`
+
 - Revalidate affected descendants, preserve others
 - Clear quarantine only on resource-release evidence
 - Expire old runtime preflight and reacquire live facts
@@ -64,6 +76,8 @@ One durable decision owner. Recover the affected dependency; retain the objectiv
 
 ## <a id="resil-step-6"></a>Step 6: Prevent recurrence without blind tuning
 
+In the app: `?node=resil-step-6`
+
 - Aggregate failure signatures by input/policy basis
 - Propose narrow policy change with deciding metric
 - Canary uses frozen baseline and bounded population
@@ -73,6 +87,8 @@ One durable decision owner. Recover the affected dependency; retain the objectiv
 - Roll back policy, not arbitrary already-run effects
 
 ## <a id="control-plane"></a>CONTROL PLANE: Fail read-only
+
+In the app: `?node=control-plane`
 
 - Lost durable decision or acceptance authority:
 - pause new managed mutation/admission in that scope
@@ -85,6 +101,8 @@ One durable decision owner. Recover the affected dependency; retain the objectiv
 
 ## <a id="data-provider"></a>DATA / PROVIDER: Isolate dependency
 
+In the app: `?node=data-provider`
+
 - Bound storage probes outside coordinator loop
 - One recovery probe per provider + shared retry budget
 - Complete input closure required for alternate worker
@@ -96,6 +114,8 @@ One durable decision owner. Recover the affected dependency; retain the objectiv
 
 ## <a id="policy-canary"></a>POLICY / CANARY: Bound the change
 
+In the app: `?node=policy-canary`
+
 - Policy is immutable versioned data; producer cannot edit
 - Canary declares baseline, population and abort rule
 - Compare acceptance errors, useful throughput and cost
@@ -106,6 +126,8 @@ One durable decision owner. Recover the affected dependency; retain the objectiv
 - Wake: accepted policy version or corrected evidence
 
 ## <a id="worked-interruption"></a>Worked interruption, the command was sent, then the decision store disappeared
+
+In the app: `?node=worked-interruption`
 
 Observe: command ID C may have changed the game; the connection closed before its result was durably recorded.
 
@@ -121,11 +143,24 @@ Status: NOT RUN, design acceptance is artifact consistency; runtime recovery nee
 
 ## <a id="relationships"></a>Relationships
 
-Typed edges from pipeline-model.json that involve this diagram. "(drawn arrow)" marks an arrow in the diagram; "(inferred)" marks an edge read from diagram text, followed by whether that text states it directly or it is an interpretation to review, and the text it is based on.
+Typed edges from pipeline-model.json that involve this diagram. "(drawn arrow)" marks an arrow in the diagram, followed by the diagram text that states it when it was first read from text; "(inferred)" marks an edge read from diagram text and not drawn, followed by whether that text states it directly or it is an interpretation to review, and the text it is based on.
 
 - [Step 2: Record the decision before effects](#resil-step-2) depends on [Step 1: Prevent, detect, classify](#resil-step-1) (drawn arrow)
 - [Step 3: Repair, reroute or wait](#resil-step-3) depends on [Step 2: Record the decision before effects](#resil-step-2) (drawn arrow)
-- [Step 4: Accept against the current basis](#resil-step-4) depends on [Step 3: Repair, reroute or wait](#resil-step-3) (inferred) — stated: row statement: 'Every recovery action returns through independent acceptance'
+- [Step 4: Accept against the current basis](#resil-step-4) depends on [Step 3: Repair, reroute or wait](#resil-step-3) (drawn arrow) — stated: row statement: 'Every recovery action returns through independent acceptance'
 - [Step 5: Resume only the justified capability](#resil-step-5) depends on [Step 4: Accept against the current basis](#resil-step-4) (drawn arrow)
 - [Step 6: Prevent recurrence without blind tuning](#resil-step-6) depends on [Step 5: Resume only the justified capability](#resil-step-5) (drawn arrow)
 - [Step 6: Prevent recurrence without blind tuning](#resil-step-6) feeds back to [Step 1: Prevent, detect, classify](#resil-step-1) (inferred) — interpretation: step 6 'Prevent recurrence without blind tuning' returns to step 1 'Prevent, detect, classify' (preventive policy feedback)
+
+## <a id="crosswalks"></a>Crosswalks (interpretation)
+
+Each line reads one lifecycle state as the design step it instantiates. These are interpretations of the design text, not the runtime's state machine: a lifecycle rail shows the backend's states only. Each basis quotes the task acceptance design, followed by the step text it was matched to.
+
+FailureRecord states (names from `docs/design-system/project/components/FailureRecord/README.md`). The task acceptance design does not name these states; each crosswalk basis quotes the behaviour the state name describes.
+
+- State `observed` is read as [Step 1: Prevent, detect, classify](#resil-step-1) (interpretation). Basis: §3: 'Liveness means a process/connection exists. Execution progress means a distinct unit has a durable terminal result, including a legitimate non-match.' §10: 'Process count and heartbeat rate are diagnostic telemetry only.' Matches step 1 rows 'Observe process tree, unit receipts and goal facts' and 'No health decision from one noisy sample alone'.
+- State `classified` is read as [Step 1: Prevent, detect, classify](#resil-step-1) (interpretation). Basis: §3 attempt field `failure_class`: 'Retry history survives coordinator and conversation restarts'. §6 failure classes: 'Deterministic compile/match rejection', 'Compiler/provider transient crash', 'Resource profile exceeded', 'Provider outage'. Matches step 1 row 'Classify: mismatch / transient / resource / policy'.
+- State `contained` is read as [Step 3: Repair, reroute or wait](#resil-step-3) (interpretation). Basis: §5: 'Suspected old access changes owned to quarantined.' and '… their quarantine blocks dependents but does not block independent bundles.' Matches step 3 row 'Quarantine resources until end of access is proven'.
+- State `recovery_pending` is read as [Step 3: Repair, reroute or wait](#resil-step-3) (interpretation). Basis: §6 continuation rules: 'Wait on release; continue unrelated tasks; never kill external owner' and 'Open circuit after policy threshold; compatible provider or bounded health probe after cooldown'. Matches step 3 'Repair, reroute or wait' and its row 'Reroute only to declared compatible capabilities'.
+- State `reconciling` is read as [Step 3: Repair, reroute or wait](#resil-step-3) (interpretation). Basis: §3: 'On coordinator restart, restore accepted receipts and retry state, reconcile actual owners, retain uncertain resources in quarantine, discover private completed results by manifest, and revalidate before acceptance.' §8: 'If effect cannot be established, record unknown outcome and restore/reconcile before continuing'. Matches step 3 rows 'Reconcile cursor + exact version/owner/provider wake' and 'Unknown non-idempotent effect: inspect, never replay'.
+- State `eligible` is read as [Step 5: Resume only the justified capability](#resil-step-5) (interpretation). Basis: §1: 'A task is eligible when its exact prerequisites are satisfied, its mutable resource set can be owned, and a compatible environment has capacity.' §5: 'Clearance requires observed termination with no remaining descendant/handle access, verified release through the owning system, or a newly provisioned genuinely disjoint bundle.' Matches step 5 'Resume only the justified capability' and its row 'Clear quarantine only on resource-release evidence'.

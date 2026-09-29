@@ -8,6 +8,9 @@
   "code": "Active while focus is inside a code well (Listing, Decompile, Hex, diffs).",
   "edit": "Active in edit mode inside an editable well or inline editor; other single keys are off."
  },
+ "precedence": "edit > code > composite > region > global. A key bound in an inner active scope shadows the outer binding and is not a conflict. Inside a code well x focuses References; in a grid x checks the row. Code wells have no checked set.",
+ "typeahead": "In composites that bind single-letter commands (the Functions grid, ProblemsList, the MarksList grids), typeahead starts with / into a visible filter field and plain letters are commands. Elsewhere typeahead needs no prefix.",
+ "punctuationKeys": "], [ and ' match the typed character (the key value), not the physical key, and accept AltGr and dead-key input. KeymapSettings shows the layout hint.",
  "browserReserved": [
   "Ctrl/Cmd+W",
   "Ctrl/Cmd+T",
@@ -17,23 +20,33 @@
   "Ctrl/Cmd+F (outside a well)",
   "Ctrl/Cmd+E",
   "Ctrl/Cmd+I",
+  "Ctrl/Cmd+Shift+O (bookmarks manager)",
   "Ctrl+1…9",
+  "Ctrl+Tab",
+  "Ctrl+PageUp/PageDown",
+  "Ctrl+Shift+PageUp/PageDown",
   "F5",
   "F11",
   "F12"
  ],
+ "boundOnPurpose": "Ctrl/Cmd+P (browser print) and Ctrl/Cmd+F inside a code well are bound on purpose. Browser print stays in the browser menu, and a second Ctrl/Cmd+F while the well's find field is focused passes to browser find.",
  "escapeOrder": [
-  "close the open peek or menu",
-  "leave edit mode, restoring the text",
-  "close the dialog, returning focus to its invoker",
-  "clear a transient filter typed in this view",
-  "nothing else — Esc never clears the checked set or held panes"
+  "Esc acts on the innermost layer that holds focus; an open modal is always that layer, because everything under it is inert.",
+  "1. the topmost modal (palette, go-to list, ConfirmDialog, a full-height sheet): close it and return focus to its invoker",
+  "2. the which-key hint, open Peek, sheet or menu",
+  "3. edit mode, restoring the text",
+  "4. the armed ActionStrip, only when focus is inside it: disarm it and keep its fields as a draft",
+  "5. a transient extent such as a byte range: collapse it to the cursor",
+  "6. a transient filter typed in this view: clear it",
+  "7. in a secondary or held pane: return focus to the primary pane",
+  "never: Esc never clears the checked set, releases held panes, removes kept cards, discards drafts or goes Back"
  ],
  "profiles": {
   "default": "Modifier globals plus focus-scoped single keys below.",
-  "ida": "Adds focus-scoped n (rename), y (set type), ; (comment), g (go to address) in code wells.",
+  "ida": "Adds focus-scoped n (rename), y (set type) and ; (opens the comment editor) in code wells. Go to address is g then g from the leader, as in every profile.",
   "off": "Turns every single-character key off; modifier globals and menus remain."
  },
+ "profilesNote": "Ghidra-style and VS Code-style profiles are deferred until each is specified against this file. F12 stays browser-reserved, and Esc never goes Back in any profile.",
  "commands": [
   {
    "id": "link.go",
@@ -54,8 +67,8 @@
     "Shift+click"
    ],
    "scope": "composite",
-   "where": "any typed link",
-   "note": "Opens a secondary pane; the primary selection does not change."
+   "where": "any typed link; Shift+click only outside checkable grids",
+   "note": "Creates a Held pane. The primary selection does not change and no stop is pushed. In checkable grids Shift+click extends the checked set (list.range), so Open beside there is Shift+Enter or the link menu. On 8080 without split panes it opens a new window."
   },
   {
    "id": "link.peek",
@@ -65,7 +78,7 @@
    ],
    "scope": "composite",
    "where": "any typed link",
-   "note": "Also after a 400ms pointer rest or 800ms focus rest. Alt+Enter and Ctrl/Cmd+I are rejected."
+   "note": "Also after a 400ms pointer rest (peek-pointer-rest) or an 800ms focus rest (peek-focus-rest); focus-rest opening is off by default at 400% zoom and below 700px. Alt+Enter and Ctrl/Cmd+I are rejected. aria-keyshortcuts is set once on the well or grid, not on every token."
   },
   {
    "id": "link.keep",
@@ -79,13 +92,14 @@
   },
   {
    "id": "link.revealIn",
-   "label": "Reveal in…",
+   "label": "Link menu",
    "keys": [
     "Shift+F10",
     "ContextMenu"
    ],
    "scope": "composite",
-   "where": "any typed link or token"
+   "where": "any typed link or token",
+   "note": "One flat APG Menu: Open · Open beside · Peek · Keep; Edit (editable tokens only, items from GET /api/v1/actions, inapplicable items aria-disabled with the reason); Reveal in; Copy. With a coarse pointer the 44px row-menu button opens the same menu. Shift+right-click passes through to the browser menu."
   },
   {
    "id": "link.newTab",
@@ -96,8 +110,8 @@
     "middle-click"
    ],
    "scope": "composite",
-   "where": "any typed link",
-   "note": "Native browser behavior."
+   "where": "any typed link; Ctrl/Cmd+click only outside checkable grids",
+   "note": "Native browser behavior. In checkable grids Ctrl/Cmd+click toggles the row (list.toggle); a new tab there is Ctrl/Cmd+Enter, middle-click or the link menu."
   },
   {
    "id": "palette.open",
@@ -105,7 +119,8 @@
    "keys": [
     "Ctrl/Cmd+K"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "Opens the modal CommandPalette with > typed; it shares the go-to engine."
   },
   {
    "id": "goto.anything",
@@ -114,7 +129,7 @@
     "Ctrl/Cmd+P"
    ],
    "scope": "global",
-   "note": "Prefixes @ symbol, : address, # logical id, ! job, % receipt, ~ node, > command, $ string, ' marks, ? help."
+   "note": "Focuses the NavigationBar go-to combobox. Below 1100px, where the field is collapsed, it opens the same engine in the palette dialog. A prefix counts only as the first character: @ or :: symbol, : address, # logical id, ! job, % receipt or basis digest, ~ node, > command, $ string, ' marks and program bookmarks. ? is not a prefix, because decorated names start with it; help is Ctrl/Cmd+/ and the Help menu. The empty query lists Recent locations, Marks, Recent actions and Recent jobs."
   },
   {
    "id": "goto.address",
@@ -122,7 +137,8 @@
    "keys": [
     "Ctrl/Cmd+G"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "Focuses the go-to field with : typed. Its first, highlighted row is the last address jump ('Last: build-b:0041b2c0'), so Enter repeats it visibly. Also g then g inside a list, grid, tree or code well."
   },
   {
    "id": "history.back",
@@ -162,7 +178,7 @@
     "F6"
    ],
    "scope": "global",
-   "note": "Restores the region's last focus. Where the browser takes F6, use g then the region letter."
+   "note": "Cycles header, navigator, center, evidence, work view and dock in visual order and restores each region's last focus. Where the browser or a screen reader takes F6, use g then the region letter (platformCautions)."
   },
   {
    "id": "region.prev",
@@ -170,7 +186,8 @@
    "keys": [
     "Shift+F6"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "The reverse of F6, with the same focus memory."
   },
   {
    "id": "toggle.navigator",
@@ -196,7 +213,16 @@
     "Ctrl/Cmd+J"
    ],
    "scope": "global",
-   "note": "Opening focuses the row of the last announced transition; again returns."
+   "note": "Only shows or hides the dock. Hiding the region that holds focus moves focus to its restore strip. F6 and Shift+F6 return with focus memory."
+  },
+  {
+   "id": "dock.lastAnnouncement",
+   "label": "Go to last announcement",
+   "keys": [
+    "g then j"
+   ],
+   "scope": "composite",
+   "note": "Opens the dock if it is collapsed and focuses the row of the last announced transition. Also the palette."
   },
   {
    "id": "split.open",
@@ -221,7 +247,8 @@
     "Alt+PageDown"
    ],
    "scope": "region",
-   "where": "center"
+   "where": "center",
+   "note": "Steps to the next build with a single-address counterpart (resolved, pinned or degraded) and an accepted or candidate identity edge. It skips absent, unresolved, ambiguous and contested builds and announces them by state. In a derived pane it moves that pane's build."
   },
   {
    "id": "build.prev",
@@ -230,7 +257,8 @@
     "Alt+PageUp"
    ],
    "scope": "region",
-   "where": "center"
+   "where": "center",
+   "note": "The reverse of build.next, with the same skipping and announcement."
   },
   {
    "id": "worklist.next",
@@ -238,7 +266,8 @@
    "keys": [
     "F8"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "Moves the primary selection and focus to the next item, like Go; from the stepper toolbar focus stays on the stepper. With no active worklist it says 'No active worklist' and names the collect paths (Collect into worklist, w; Step problems on the Problems tab); there is no implicit default. It does nothing while an inline editor is open or the ActionStrip holds unsent edited fields ('Finish or cancel the edit first (Esc)'). At a program boundary it stops once ('Next: build-c · clears 4 checked rows on build-b'); a second press continues. Also the stepper buttons and the palette (platformCautions: Fn on macOS)."
   },
   {
    "id": "worklist.prev",
@@ -246,7 +275,16 @@
    "keys": [
     "Shift+F8"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "The reverse of worklist.next, with the same edit guard and boundary stop."
+  },
+  {
+   "id": "worklist.handled",
+   "label": "Mark item handled",
+   "keys": [],
+   "scope": "composite",
+   "where": "worklist stepper and item grid",
+   "note": "No default key. A per-viewer checklist toggle described 'your checklist · not a review decision · starts no work'. The item grid is not checkable, so Space and x do not toggle it."
   },
   {
    "id": "diff.next",
@@ -255,7 +293,8 @@
     "F7"
    ],
    "scope": "region",
-   "where": "diffs and SplitCompare"
+   "where": "diffs, SplitCompare, CandidateAlignment, ReviewDetail, ObjectDiff and SourceRepairDiff",
+   "note": "Steps hunks or alignment anchors and says 'Difference 2 of 9: 0041b240 differs'. Also the toolbar's difference buttons and the palette (platformCautions: caret browsing)."
   },
   {
    "id": "diff.prev",
@@ -264,7 +303,7 @@
     "Shift+F7"
    ],
    "scope": "region",
-   "where": "diffs and SplitCompare"
+   "where": "diffs, SplitCompare, CandidateAlignment, ReviewDetail, ObjectDiff and SourceRepairDiff"
   },
   {
    "id": "save",
@@ -297,7 +336,8 @@
    "keys": [
     "Ctrl/Cmd+/"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "Also the Help menu and the palette ('keys', 'shortcuts'). ? is not bound."
   },
   {
    "id": "help.a11y",
@@ -305,7 +345,8 @@
    "keys": [
     "Alt+F1"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "GNOME and KDE take Alt+F1 (platformCautions). Remappable; also the palette, the Help menu and the pane-header button."
   },
   {
    "id": "view.accessible",
@@ -313,15 +354,18 @@
    "keys": [
     "Alt+F2"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "GNOME and KDE take Alt+F2 (platformCautions). Remappable; also the palette, the Help menu and the pane-header button."
   },
   {
    "id": "tabfocus.toggle",
    "label": "Tab moves focus (in editable wells)",
    "keys": [
-    "Ctrl+M"
+    "Ctrl+M (Windows, Linux)",
+    "Ctrl+Shift+M (macOS)"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "On macOS Cmd+M minimizes the window, so the toggle uses Ctrl+Shift+M there. The status line shows the state."
   },
   {
    "id": "list.move",
@@ -344,17 +388,29 @@
     "Space"
    ],
    "scope": "composite",
-   "where": "lists and grids"
+   "where": "checkable lists and grids; never in code wells, which have no checked set"
   },
   {
    "id": "list.range",
    "label": "Extend checked range",
    "keys": [
     "Shift+ArrowUp/Down",
+    "Shift+j/k",
     "Shift+click"
    ],
    "scope": "composite",
-   "where": "lists and grids"
+   "where": "checkable grids",
+   "note": "Shift-click anywhere on a row, including its name link, extends the checked set (Grid modifier precedence). Outside checkable grids Shift+click is Open beside."
+  },
+  {
+   "id": "list.toggle",
+   "label": "Toggle row in checked set",
+   "keys": [
+    "Ctrl/Cmd+click"
+   ],
+   "scope": "composite",
+   "where": "checkable grids",
+   "note": "Toggles one row, including a click on its name link (Grid modifier precedence). Outside checkable grids Ctrl/Cmd+click opens a browser tab."
   },
   {
    "id": "list.repeat",
@@ -364,7 +420,7 @@
    ],
    "scope": "composite",
    "where": "lists and grids",
-   "note": "Arms the ActionStrip; mutations still confirm."
+   "note": "Rebinds the armed ActionStrip action to the focused row and focuses Run; never posts."
   },
   {
    "id": "list.mark",
@@ -374,7 +430,7 @@
    ],
    "scope": "composite",
    "where": "lists, grids, code wells",
-   "note": "Lowercase a–z per viewer; named marks through the palette ('Set mark…'). Marks resolve per build through the locator."
+   "note": "Per viewer, lowercase a–z; named marks through the palette ('Set mark…'). A mark is scoped to the concrete build and address where it was set; 'Set logical mark…' (palette, row menu) makes one that resolves on other builds through the locator. Marks and notes are per-viewer annotations: never input to context fusion, propagation or agent bundles, and never a claim tier."
   },
   {
    "id": "list.jumpMark",
@@ -383,7 +439,8 @@
     "' then letter"
    ],
    "scope": "composite",
-   "where": "lists, grids, code wells"
+   "where": "lists, grids, code wells",
+   "note": "Matches the typed ' character and accepts a dead-key composition; the go-to ' chip and g then ' are fallbacks."
   },
   {
    "id": "list.worklist",
@@ -392,7 +449,18 @@
     "w"
    ],
    "scope": "composite",
-   "where": "any result set"
+   "where": "any result set",
+   "note": "Collects the current result set as a snapshot worklist through the MarksList dialog. The active worklist is never replaced silently."
+  },
+  {
+   "id": "list.typeahead",
+   "label": "Type to filter",
+   "keys": [
+    "/"
+   ],
+   "scope": "composite",
+   "where": "composites that bind single-letter commands",
+   "note": "Starts typeahead in a visible filter field; plain letters stay commands there."
   },
   {
    "id": "grid.cell",
@@ -408,7 +476,8 @@
     "PageDown"
    ],
    "scope": "composite",
-   "where": "matrices"
+   "where": "cell-focus matrices (ReadinessMatrix and its slots mode)",
+   "note": "Arrows move focus only; Enter commits."
   },
   {
    "id": "review.open",
@@ -417,7 +486,8 @@
     "o"
    ],
    "scope": "composite",
-   "where": "MatchReview"
+   "where": "MatchReview",
+   "note": "Re-points the Review held-pair slot to the focused match; it never adds holds."
   },
   {
    "id": "review.decide",
@@ -429,13 +499,94 @@
    "where": "MatchReview"
   },
   {
+   "id": "graph.zoomIn",
+   "label": "Zoom in",
+   "keys": [
+    "+"
+   ],
+   "scope": "composite",
+   "where": "GraphPane canvas only",
+   "note": "Also the toolbar's Zoom in button. Remappable; off under the off profile."
+  },
+  {
+   "id": "graph.zoomOut",
+   "label": "Zoom out",
+   "keys": [
+    "-"
+   ],
+   "scope": "composite",
+   "where": "GraphPane canvas only",
+   "note": "Also the toolbar's Zoom out button."
+  },
+  {
+   "id": "graph.fit",
+   "label": "Fit graph",
+   "keys": [
+    "0"
+   ],
+   "scope": "composite",
+   "where": "GraphPane canvas only",
+   "note": "Also the toolbar's Fit button."
+  },
+  {
+   "id": "refs.incoming",
+   "label": "Incoming",
+   "keys": [
+    "i"
+   ],
+   "scope": "composite",
+   "where": "XrefPanel and CallHierarchy grids only",
+   "note": "Switches the direction to incoming."
+  },
+  {
+   "id": "refs.outgoing",
+   "label": "Outgoing",
+   "keys": [
+    "o"
+   ],
+   "scope": "composite",
+   "where": "XrefPanel and CallHierarchy grids only",
+   "note": "Switches the direction to outgoing. g then o stays the outline chord: after g, the next key belongs to the leader."
+  },
+  {
+   "id": "refs.scope",
+   "label": "Token or line",
+   "keys": [
+    "t"
+   ],
+   "scope": "composite",
+   "where": "XrefPanel grid only",
+   "note": "Toggles token and line scope."
+  },
+  {
+   "id": "tree.expandSiblings",
+   "label": "Expand siblings",
+   "keys": [
+    "*"
+   ],
+   "scope": "composite",
+   "where": "GraphPane list form and CallHierarchy only",
+   "note": "Opens every sibling of the focused row within the depth limit (APG tree)."
+  },
+  {
    "id": "tabs.rename",
    "label": "Rename",
    "keys": [
     "F2"
    ],
    "scope": "composite",
-   "where": "session tabs, functions, labels, locals"
+   "where": "session tabs, function rows and label rows",
+   "note": "Opens the inline editor in place. Locals, parameters and labels in code wells use code.rename."
+  },
+  {
+   "id": "code.rename",
+   "label": "Rename in place",
+   "keys": [
+    "F2"
+   ],
+   "scope": "code",
+   "where": "locals, parameters and labels in code wells",
+   "note": "Opens InlineRename under the line, never over it; it confirms in place."
   },
   {
    "id": "tabs.close",
@@ -449,12 +600,10 @@
   {
    "id": "tabs.move",
    "label": "Move tab",
-   "keys": [
-    "Ctrl+Shift+PageUp",
-    "Ctrl+Shift+PageDown"
-   ],
+   "keys": [],
    "scope": "composite",
-   "where": "Sessions tablist"
+   "where": "Sessions tablist",
+   "note": "Menu-only: the tab's context menu and the palette ('Move tab left', 'Move tab right'). Ctrl+Shift+PageUp/PageDown are browser-taken."
   },
   {
    "id": "code.reflect",
@@ -462,7 +611,8 @@
    "keys": [
     "r"
    ],
-   "scope": "code"
+   "scope": "code",
+   "note": "Targets: Listing → Decompile, Decompile → Listing, Hex → Listing, Graph → Listing at the block's first instruction. A hidden target view is shown in the same slot and the switch is announced once. With no mapping focus stays ('No mapping; focus stays'). Also 'Show reflected row' in the link menu, the row menu and the palette."
   },
   {
    "id": "code.highlight",
@@ -470,7 +620,8 @@
    "keys": [
     "h"
    ],
-   "scope": "code"
+   "scope": "code",
+   "note": "Up to four highlights, lettered A–D, in each visible view of the same build; a fifth says 'Four highlights in use; remove one'. Per-viewer view state, never in the URL. Also 'Highlight all' in the link menu, the row menu and the palette."
   },
   {
    "id": "code.xrefs",
@@ -478,7 +629,8 @@
    "keys": [
     "x"
    ],
-   "scope": "code"
+   "scope": "code",
+   "note": "Code scope wins over composite, so inside a code well x focuses References and never checks a row."
   },
   {
    "id": "code.xrefNext",
@@ -486,7 +638,8 @@
    "keys": [
     "]"
    ],
-   "scope": "code"
+   "scope": "code",
+   "note": "The first press snapshots the References list and keeps the section ('Kept · stepping references to ‹token› · 3 of 12 · as listed 14:02', keep=); it stops following until Follow selection or Esc inside the section. The first step pushes one history stop from the origin; later steps replace it, so one Alt+← returns. Steps stop at either end and say so, never wrap, never change build and never touch the active worklist."
   },
   {
    "id": "code.xrefPrev",
@@ -494,7 +647,8 @@
    "keys": [
     "["
    ],
-   "scope": "code"
+   "scope": "code",
+   "note": "The reverse of code.xrefNext, with the same snapshot and history rules."
   },
   {
    "id": "code.find",
@@ -503,7 +657,7 @@
     "Ctrl/Cmd+F"
    ],
    "scope": "code",
-   "note": "Announces '3 of 12 matches'; browser find elsewhere."
+   "note": "Announces '3 of 12 matches'; HexStrip matches byte patterns. A second Ctrl/Cmd+F while the well's find field is focused passes to browser find; outside a well it is browser find."
   },
   {
    "id": "code.edit",
@@ -521,7 +675,7 @@
     "n"
    ],
    "scope": "code",
-   "note": "profile ida"
+   "note": "profile ida; opens InlineRename under the line"
   },
   {
    "id": "ida.type",
@@ -530,7 +684,7 @@
     "y"
    ],
    "scope": "code",
-   "note": "profile ida"
+   "note": "profile ida; opens the type editor under the line"
   },
   {
    "id": "ida.comment",
@@ -539,7 +693,7 @@
     ";"
    ],
    "scope": "code",
-   "note": "profile ida"
+   "note": "profile ida; opens the comment editor (InlineRename Comment mode) under the line"
   },
   {
    "id": "leader",
@@ -548,7 +702,7 @@
     "g"
    ],
    "scope": "composite",
-   "note": "Shows which-key hints. Regions: g n navigator, g m main, g e evidence, g w work view, g j dock. Views: g l listing, g d decompile, g h hex, g r graph. Panels: g o outline, g x references, g c counterparts, g ' marks. Layouts: g 1…5."
+   "note": "Shows which-key hints, only in the composite and code scopes. Regions: g n navigator, g m main, g e evidence, g w work view, g j dock at the row of the last announced transition (dock.lastAnnouncement). Views: g l listing, g d decompile, g h hex, g r graph. Panels: g o outline, g x references, g c counterparts, g ' marks. Dock: g p Problems tab. g b build menu. g g go to address. Layouts: g 1…5. Sequences go in aria-describedby text, not aria-keyshortcuts."
   },
   {
    "id": "code.outline",
@@ -557,9 +711,99 @@
     "g then o"
    ],
    "scope": "code",
-   "note": "Blocks, locals, calls and strings of the current function; the same content as the rail's Outline section."
+   "note": "Blocks, locals, calls and strings of the current function; the same projection as the rail's Outline section. Also the Views toolbar's Outline button and the palette ('Outline of this function'). Ctrl/Cmd+Shift+O is not bound."
+  },
+  {
+   "id": "pane.hold",
+   "label": "Hold this pane",
+   "keys": [],
+   "scope": "region",
+   "where": "center and secondary panes",
+   "note": "aria-pressed toggle with a stable name in the pane header; also the pane menu and the palette. Carried in hold= (two at most); a further hold becomes a Kept card with a notice."
+  },
+  {
+   "id": "pane.makePrimary",
+   "label": "Make primary",
+   "keys": [
+    "Enter"
+   ],
+   "scope": "composite",
+   "where": "a Held chip",
+   "note": "Moves the one selection to the held location, pushes a stop and releases the hold; the pane stays open and follows. Also the pane menu and the palette."
+  },
+  {
+   "id": "pane.followAgain",
+   "label": "Follow again",
+   "keys": [],
+   "scope": "region",
+   "where": "held or derived panes",
+   "note": "Turns the pane back into a following pane. Pane menu and palette."
+  },
+  {
+   "id": "pane.release",
+   "label": "Release",
+   "keys": [],
+   "scope": "region",
+   "where": "held panes and Kept cards",
+   "note": "Releases the hold or the kept card. Pane or card menu, and the palette."
+  },
+  {
+   "id": "panes.update",
+   "label": "Update panes",
+   "keys": [],
+   "scope": "region",
+   "where": "NavigationBar",
+   "note": "Radio group 'As I move' / 'On Enter'; also the View menu and the palette. Below 700px it is forced to 'On Enter' and says so."
+  },
+  {
+   "id": "rail.expandAll",
+   "label": "Expand all sections",
+   "keys": [],
+   "scope": "region",
+   "where": "evidence rail",
+   "note": "Per-viewer collapsed state lives in durable workspace state. Rail header menu and palette."
+  },
+  {
+   "id": "rail.collapseAll",
+   "label": "Collapse all sections",
+   "keys": [],
+   "scope": "region",
+   "where": "evidence rail",
+   "note": "Rail header menu and palette."
   }
  ],
  "conflictPolicy": "Two commands bound to the same key in the same scope do nothing until the conflict is resolved; the status line says which binding is blocked and why.",
- "altGrCaution": "Ctrl+Alt combinations type characters on AltGr keyboards. The editor warns when a binding (default or remap) uses one on the active layout, and every such command stays reachable from the palette and the View menu."
+ "altGrCaution": "Ctrl+Alt combinations type characters on AltGr keyboards. The editor warns when a binding (default or remap) uses one on the active layout, and every such command stays reachable from the palette and the View menu.",
+ "platformCautions": [
+  {
+   "keys": "F6",
+   "cause": "Some browsers and screen readers take it.",
+   "fallback": "g then the region letter; the palette."
+  },
+  {
+   "keys": "F7 / Shift+F7",
+   "cause": "Caret browsing in some browsers.",
+   "fallback": "The toolbar's difference buttons; the palette ('Next difference')."
+  },
+  {
+   "keys": "F8 / Shift+F8",
+   "cause": "Needs Fn on many macOS keyboards.",
+   "fallback": "The stepper buttons; the palette ('Next worklist item', 'Previous worklist item')."
+  },
+  {
+   "keys": "Alt+F1, Alt+F2",
+   "cause": "GNOME and KDE take them.",
+   "fallback": "The palette, the Help menu and the pane-header button; the binding is remappable."
+  },
+  {
+   "keys": "Alt+F8",
+   "cause": "GNOME and KDE take it.",
+   "fallback": "Not bound."
+  },
+  {
+   "keys": "Ctrl+Alt combinations",
+   "cause": "They type characters on AltGr layouts (altGrCaution).",
+   "fallback": "The palette and the View menu."
+  }
+ ]
 }

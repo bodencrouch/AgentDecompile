@@ -60,9 +60,16 @@ with c.node("exec-binding"):
     box(625, 445, 550, 205, "contract-identity")
     box(1215, 445, 550, 205, "contract-operation")
 c.sec("Acceptance and readiness fork")
-with c.node("exec-proof-flow"):
-    text(45, 690, N("exec-proof-flow")["title"], 16, '#98a0ad')
+with c.node("exec-proof-flow"):  # starts right of the receipts bus that drops into box 4 at x=310
+    text(625, 690, N("exec-proof-flow")["title"], 16, '#98a0ad')
+# Drawn model edges (inference 'stated'): accept-4 consumes contract-bytes, -identity and -operation,
+# as one receipts bus into box 4; cap-5A and cap-5B each depend_on accept-4, as a fork out of box 4.
+c.elbow([(1490, 650), (1490, 664), (900, 664)], '#8cbaff', head=False)
+c.elbow([(900, 650), (900, 664), (310, 664)], '#8cbaff', head=False)
+arrow(310, 650, 310, 710)
 box(35, 710, 550, 215, "accept-4")
+arrow(585, 817, 625, 817)
+c.elbow([(605, 817), (605, 964), (1710, 964), (1710, 925)], '#8cbaff')
 box(625, 710, 550, 215, "cap-5A")
 box(1215, 710, 550, 215, "cap-5B")
 with c.node("exec-separate-outputs"):

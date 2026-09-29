@@ -2,7 +2,9 @@
 
 # <a id="exec-header"></a>Execution and evidence contracts
 
-Text outline of [execution-contracts.svg](execution-contracts.svg); the primary accessible reading form of that diagram. Each anchor equals the node id in `pipeline-model.json`, the `<g id>` in the SVG and the object id in the `.drawio` file. Symbols that carry meaning are spelled out in words.
+In the app: `?node=exec-header`
+
+Text outline of [execution-contracts.svg](execution-contracts.svg); the primary accessible reading form of that diagram. Each anchor equals the node id in `pipeline-model.json`, the `<g id>` in the SVG and the object id in the `.drawio` file, whose single link per object points back to this anchor. "In the app" gives each node's location in the workbench, which resolves it against the active project. Symbols that carry meaning are spelled out in words.
 
 Summary: Reading order: three task steps (declare, admit, compute outside the commit), three independent binding proofs (bytes, identity, operation), independent acceptance feeding separate original-code and recovered-source capabilities, then fence, quarantine and continue, and the late-worker design challenge. Missing evidence blocks only its own claim, an unhealthy resource blocks its dependents, and ready independent work continues. Design specification only: the late-worker experiment and all future software acceptance checks are NOT RUN; execution-contracts.outline.md is the text outline.
 
@@ -11,6 +13,8 @@ Design specification, companion to the recovery overview, future software accept
 Missing evidence blocks its claim. An unhealthy resource blocks its dependents. Ready independent work continues.
 
 ## <a id="exec-step-1"></a>Step 1: Declare one task contract
+
+In the app: `?node=exec-step-1`
 
 - Immutable input manifest + dependency versions
 - Claim or capability requested; required evidence
@@ -21,6 +25,8 @@ Missing evidence blocks its claim. An unhealthy resource blocks its dependents. 
 
 ## <a id="exec-step-2"></a>Step 2: Admit one eligible attempt
 
+In the app: `?node=exec-step-2`
+
 - Complete input closure on healthy working storage
 - Capacity reserve + pressure + storage + limit events
 - Acquire entire resource set atomically or release
@@ -29,6 +35,8 @@ Missing evidence blocks its claim. An unhealthy resource blocks its dependents. 
 - No provider: record exact dependency/wake condition
 
 ## <a id="exec-step-3"></a>Step 3: Compute outside commit
+
+In the app: `?node=exec-step-3`
 
 - Stable analysis snapshot; immutable proposals
 - Durable completed-unit receipts, including negatives
@@ -39,7 +47,11 @@ Missing evidence blocks its claim. An unhealthy resource blocks its dependents. 
 
 ## <a id="exec-binding"></a>Runtime use requires presence, identity and operation evidence
 
+In the app: `?node=exec-binding`
+
 ### <a id="contract-bytes"></a>BYTES: Are these bytes here?
+
+In the app: `?node=contract-bytes`
 
 - Exact target digest + image/address mapping
 - Observed region and independent byte comparison
@@ -48,6 +60,8 @@ Missing evidence blocks its claim. An unhealthy resource blocks its dependents. 
 
 ### <a id="contract-identity"></a>IDENTITY: Is this the intended entity?
 
+In the app: `?node=contract-identity`
+
 - Target-side boundaries and discriminating evidence
 - Donor labels remain hypotheses until accepted
 - Signature from selected RVA cannot prove its label
@@ -55,14 +69,18 @@ Missing evidence blocks its claim. An unhealthy resource blocks its dependents. 
 
 ### <a id="contract-operation"></a>OPERATION: Is this use supported?
 
+In the app: `?node=contract-operation`
+
 - ABI + layout + runtime state + policy requirements
 - Located / readable / callable / detourable / writable
 - Object lifetime and dynamic-root resolution recipe
 - Hook install AND removal; reclaim only when safe
 
-<a id="exec-proof-flow"></a>All applicable proof receipts then acceptance (4) then original-code (5A) and recovered-source (5B) independently.
+<a id="exec-proof-flow"></a>All applicable proof receipts then acceptance (4) then original-code (5A) and recovered-source (5B) independently. In the app: `?node=exec-proof-flow`
 
 ## <a id="accept-4"></a>4: Independent acceptance, short commit
+
+In the app: `?node=accept-4`
 
 - Verifier checks exact claimed level and raw evidence
 - Check input versions AND current generation
@@ -72,6 +90,8 @@ Missing evidence blocks its claim. An unhealthy resource blocks its dependents. 
 
 ## <a id="cap-5A"></a>5A: Original-code capability
 
+In the app: `?node=cap-5A`
+
 - Original implementation may remain assembly floor
 - Accept only operation-specific prerequisites
 - Scenario: build + fixture + driver + postconditions
@@ -80,15 +100,19 @@ Missing evidence blocks its claim. An unhealthy resource blocks its dependents. 
 
 ## <a id="cap-5B"></a>5B: Recovered-source capability
 
+In the app: `?node=cap-5B`
+
 - Recovery / compilation / comparison units may differ
 - Validated fixups + metadata + unchanged round trip
 - Compile is not local match is not linked match is not full equality
 - Prove replacement contributes; fallback is separate
 - C+assembly-floor and max-C have separate ledgers
 
-<a id="exec-separate-outputs"></a>Separate outputs, never an implied readiness ladder
+<a id="exec-separate-outputs"></a>Separate outputs, never an implied readiness ladder. In the app: `?node=exec-separate-outputs`
 
 ## <a id="fence"></a>FENCE: Reject obsolete publication
+
+In the app: `?node=fence`
 
 - Old generation or changed inputs then historical only
 - Keep artifact; refuse current acceptance/promotion
@@ -99,6 +123,8 @@ Missing evidence blocks its claim. An unhealthy resource blocks its dependents. 
 
 ## <a id="quarantine"></a>QUARANTINE: Keep resources occupied
 
+In the app: `?node=quarantine`
+
 - Expired lease / timeout is not safe resource release
 - Late or kernel-blocked worker may still access state
 - Release needs corroborated end of access + owner
@@ -107,6 +133,8 @@ Missing evidence blocks its claim. An unhealthy resource blocks its dependents. 
 - Bound isolated storage probes; never block scheduler
 
 ## <a id="continue"></a>CONTINUE: Only ready independent work
+
+In the app: `?node=continue`
 
 - Transient failure: one owner, bounded durable retry
 - Deterministic negative: changed hypothesis required
@@ -117,6 +145,8 @@ Missing evidence blocks its claim. An unhealthy resource blocks its dependents. 
 
 ## <a id="challenge-late-worker"></a>Concrete design challenge, the late worker
 
+In the app: `?node=challenge-late-worker`
+
 Attempt A loses its lease while still writing. B runs on disjoint resources. A later submits a byte-perfect artifact.
 
 Expected: reject A’s stale publication; retain A’s resource quarantine; permit B only with complete independent inputs.
@@ -125,18 +155,32 @@ Future proof: inject this race and inspect accepted-generation receipts, ownersh
 
 Status: NOT RUN. This diagram defines the acceptance mechanism; it does not claim a scheduler, binding or recovery result exists.
 
-<a id="exec-footer"></a>Failure lifecycle and control-plane recovery: resilience-contracts.svg, detailed future checks in the linked plan
+<a id="exec-footer"></a>Failure lifecycle and control-plane recovery: resilience-contracts.svg, detailed future checks in the linked plan. In the app: `?node=exec-footer`
 
 ## <a id="relationships"></a>Relationships
 
-Typed edges from pipeline-model.json that involve this diagram. "(drawn arrow)" marks an arrow in the diagram; "(inferred)" marks an edge read from diagram text, followed by whether that text states it directly or it is an interpretation to review, and the text it is based on.
+Typed edges from pipeline-model.json that involve this diagram. "(drawn arrow)" marks an arrow in the diagram, followed by the diagram text that states it when it was first read from text; "(inferred)" marks an edge read from diagram text and not drawn, followed by whether that text states it directly or it is an interpretation to review, and the text it is based on.
 
 - [Step 2: Admit one eligible attempt](#exec-step-2) depends on [Step 1: Declare one task contract](#exec-step-1) (drawn arrow)
 - [Step 3: Compute outside commit](#exec-step-3) depends on [Step 2: Admit one eligible attempt](#exec-step-2) (drawn arrow)
-- [4: Independent acceptance, short commit](#accept-4) consumes [BYTES: Are these bytes here?](#contract-bytes) (inferred) — stated: note: 'All applicable proof receipts then acceptance (4)'
-- [4: Independent acceptance, short commit](#accept-4) consumes [IDENTITY: Is this the intended entity?](#contract-identity) (inferred) — stated: note: 'All applicable proof receipts then acceptance (4)'
-- [4: Independent acceptance, short commit](#accept-4) consumes [OPERATION: Is this use supported?](#contract-operation) (inferred) — stated: note: 'All applicable proof receipts then acceptance (4)'
-- [5A: Original-code capability](#cap-5A) depends on [4: Independent acceptance, short commit](#accept-4) (inferred) — stated: note: 'acceptance (4) then original-code (5A) and recovered-source (5B) independently'
-- [5B: Recovered-source capability](#cap-5B) depends on [4: Independent acceptance, short commit](#accept-4) (inferred) — stated: note: 'acceptance (4) then original-code (5A) and recovered-source (5B) independently'
+- [4: Independent acceptance, short commit](#accept-4) consumes [BYTES: Are these bytes here?](#contract-bytes) (drawn arrow) — stated: note: 'All applicable proof receipts then acceptance (4)'
+- [4: Independent acceptance, short commit](#accept-4) consumes [IDENTITY: Is this the intended entity?](#contract-identity) (drawn arrow) — stated: note: 'All applicable proof receipts then acceptance (4)'
+- [4: Independent acceptance, short commit](#accept-4) consumes [OPERATION: Is this use supported?](#contract-operation) (drawn arrow) — stated: note: 'All applicable proof receipts then acceptance (4)'
+- [5A: Original-code capability](#cap-5A) depends on [4: Independent acceptance, short commit](#accept-4) (drawn arrow) — stated: note: 'acceptance (4) then original-code (5A) and recovered-source (5B) independently'
+- [5B: Recovered-source capability](#cap-5B) depends on [4: Independent acceptance, short commit](#accept-4) (drawn arrow) — stated: note: 'acceptance (4) then original-code (5A) and recovered-source (5B) independently'
 - [FENCE: Reject obsolete publication](#fence) gates [4: Independent acceptance, short commit](#accept-4) (inferred) — interpretation: FENCE row: 'Keep artifact; refuse current acceptance/promotion'
 - [4: Independent acceptance, short commit](#accept-4) is serialized by [Lock 5: short acceptance commit: current basis + generation + independent proof](agentdecompile-recovery-pipeline.outline.md#lock-5) (inferred) — interpretation: box 4 'Independent acceptance, short commit' matched to overview lock 5 'short acceptance commit' (cross-diagram)
+
+## <a id="crosswalks"></a>Crosswalks (interpretation)
+
+Each line reads one lifecycle state as the design step it instantiates. These are interpretations of the design text, not the runtime's state machine: a lifecycle rail shows the backend's states only. Each basis quotes the task acceptance design, followed by the step text it was matched to.
+
+TaskLifecycle states (names from `docs/plans/2026-09-22-task-acceptance-and-continuation-design.md §3`).
+
+- State `ready` is read as [Step 2: Admit one eligible attempt](#exec-step-2) (interpretation). Basis: §4: 'For each ready task, choose a compatible healthy provider and reserve its complete resource set atomically; if reservation fails, release temporary reservations and leave the task ready.' Matches step 2 row 'Acquire entire resource set atomically or release'.
+- State `admitted` is read as [Step 2: Admit one eligible attempt](#exec-step-2) (interpretation). Basis: §1: 'A task is eligible when its exact prerequisites are satisfied, its mutable resource set can be owned, and a compatible environment has capacity.' §4: 'Admission uses a shared budget including nested subprocesses, not independent per-agent limits.' Matches step 2 'Admit one eligible attempt' and its row 'Share nested build budget; external jobs not adopted'.
+- State `running` is read as [Step 3: Compute outside commit](#exec-step-3) (interpretation). Basis: §3: 'Liveness means a process/connection exists. Execution progress means a distinct unit has a durable terminal result, including a legitimate non-match.' §5: 'Do not hold a corpus write transaction while waiting for a compiler, model or game.' Matches step 3 rows 'Liveness is not execution progress is not goal progress', 'Durable completed-unit receipts, including negatives' and 'No corpus transaction during compiler / model / game'.
+- State `awaiting_acceptance` is read as [4: Independent acceptance, short commit](#accept-4) (interpretation). Basis: §2: 'The acceptance coordinator checks schema, target/input digests, relevant dependency versions, independent evidence lineage, current publication generation and operation-specific predicates. It computes outside the write transaction; the short transaction rechecks versions/generation and commits once.' Matches step 4 rows 'Check input versions AND current generation' and 'Commit manifest + ledger; no artifact IO here'.
+- State `accepted` is read as [4: Independent acceptance, short commit](#accept-4) (interpretation). Basis: §3: 'A task reaches `accepted` only when every mandatory output and claim contract has a terminal result and every success predicate required by its pinned acceptance policy passes.' Matches step 4 row 'Task complete only when required predicates pass'.
+
+No crosswalk, because no supporting text was found: `proposed`, `waiting`, `negative`, `unsupported`, `cancelled`, `retry_wait`, `budget_exhausted`.

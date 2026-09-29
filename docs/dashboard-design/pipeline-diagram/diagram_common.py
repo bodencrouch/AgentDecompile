@@ -2,8 +2,9 @@
 """Shared helpers for the recovery design diagrams (document authoring only).
 
 * ``load_model`` reads ``pipeline-model.json``, the single content model.
-* ``Canvas`` collects SVG lines, wraps model nodes in ``<g id="...">`` and emits an
-  accessible root (``role="img"``, ``aria-labelledby``, ``lang``, ``<title>``, ``<desc>``).
+* ``Canvas`` collects SVG lines, wraps model nodes in ``<g id="...">``, draws routed
+  (horizontal/vertical) arrows with ``elbow`` and emits an accessible root
+  (``role="img"``, ``aria-labelledby``, ``lang``, ``<title>``, ``<desc>``).
 * ``text_width``/``text_bbox`` are the text-geometry estimate shared with
   ``svg_to_drawio.py``; ``collisions`` uses them to find overlapping text boxes that
   belong to different nodes.
@@ -326,6 +327,25 @@ class Canvas:
         finally:
             self.stack.pop()
             self.body.append("</g>")
+
+    def elbow(self, points: list[tuple[int, int]], color: str, width: int = 3, head: bool = True) -> None:
+        """Axis-aligned polyline (``<path d="M.. H.. V..">``, the form svg_to_drawio.py turns into a
+        connector with waypoints) plus, when ``head``, a block arrowhead at the last point pointing
+        along the last segment.  A path without a head is a feeder that joins another arrow."""
+        (px, py), d = points[0], [f"M{points[0][0]},{points[0][1]}"]
+        for x, y in points[1:]:
+            assert (x == px) != (y == py), f"segment {(px, py)} -> {(x, y)} is not horizontal or vertical"
+            d.append(f"H{x}" if y == py else f"V{y}")
+            px, py = x, y
+        self.body.append(f'<path d="{" ".join(d)}" fill="none" stroke="{color}" stroke-width="{width}"/>')
+        if head:
+            (ax, ay), (bx, by) = points[-2], points[-1]
+            dx, dy = (bx > ax) - (bx < ax), (by > ay) - (by < ay)
+            if dx:
+                tri = [(bx, by), (bx - 11 * dx, by - 6), (bx - 11 * dx, by + 6)]
+            else:
+                tri = [(bx, by), (bx - 6, by - 11 * dy), (bx + 6, by - 11 * dy)]
+            self.body.append(f'<polygon points="{" ".join(f"{x},{y}" for x, y in tri)}" fill="{color}"/>')
 
     def render(self, *, width: int, height: int, diagram_id: str, title: str, desc: str, first_sec: str) -> str:
         assert not self.stack

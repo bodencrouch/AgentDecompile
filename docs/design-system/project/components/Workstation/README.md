@@ -24,14 +24,14 @@ The whole shell composed from the system: a banner header with the one workflow 
 - **Targets rendered:** every region renders its components' targets (Linked views table): address and symbol → Code Browser · logical id → Compare · counterpart → Code Browser for that build · fact → receipt card in the rail · job → dock Jobs record · basis → ProvenanceStamp detail · pipeline node → PipelineMap. The status line's basis links to its detail; the work view's "Work is at …" chip links to that entity and build.
 - **Peek source:** each component's own cached evidence; the shell adds none.
 - **Absent copy:** an unbound or empty build is a StateNotice naming the program and cause with one armed fix ("No function inventory in the corpus store for build-e. The Ghidra program is bound.") · "Not loaded. Open to read it." in the rail · "unresolved" and "absent" as plain words in the CounterpartStrip.
-- **Target-size exception:** none at the shell level; every control is 24px or more, 44px below 700px.
+- **Target-size exception:** equivalent: splitters are 1px rules with a `splitter-hit` zone; the pane-header size menu and the View menu offer the same sizes and collapse (WCAG 2.5.8 equivalent, 2.5.7). Every other control is 24px or more, 44px below 700px.
 
 **Keyboard**
 
 - Global, always with a modifier: Ctrl/Cmd+P go to anything, Ctrl/Cmd+K commands, Ctrl/Cmd+G go to address, Alt+←/→ back and forward, F6 / Shift+F6 cycle regions in visual order with focus memory, Ctrl/Cmd+B navigator, Ctrl/Cmd+Alt+B evidence rail, Ctrl/Cmd+J dock, Alt+PageDown/PageUp next or previous build with a counterpart, F8 / Shift+F8 the active worklist.
 - Skip links (first in Tab order): Skip to Functions, Listing, Evidence, Activity.
 - Splitters: ←/→ move 16px, Shift 64px, Enter collapses or restores, Home resets.
-- The link grammar (Enter, Shift+Enter, Alt+↓, K, Shift+F10, Ctrl/Cmd+Enter) is the same in every region.
+- The link grammar (Enter, Shift+Enter, Alt+↓, Shift+F10, Ctrl/Cmd+Enter; Shift+K keeps inside a Peek or card) is the same in every region.
 
 **Accessibility**
 

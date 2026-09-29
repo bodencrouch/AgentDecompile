@@ -52,8 +52,11 @@ box(625, 140, 550, 260, "resil-step-2")
 arrow(1175, 269, 1215, 269)
 box(1215, 140, 550, 260, "resil-step-3")
 c.sec("Acceptance and preventive feedback")
-with c.node("resil-acceptance"):
-    text(35, 449, N("resil-acceptance")["title"], 21, '#f2f4f7', True)
+with c.node("resil-acceptance"):  # starts right of the 3 -> 4 arrow, which drops into step 4 at x=310
+    text(360, 449, N("resil-acceptance")["title"], 21, '#f2f4f7', True)
+# Drawn model edge (inference 'stated'): resil-step-4 depends_on resil-step-3.  The step 6 -> 1
+# feedback stays an undrawn interpretation until its review concludes.
+c.elbow([(1490, 400), (1490, 416), (310, 416), (310, 480)], '#8cbaff')
 box(35, 480, 550, 260, "resil-step-4")
 arrow(585, 610, 625, 610)
 box(625, 480, 550, 260, "resil-step-5")

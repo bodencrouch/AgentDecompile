@@ -4,6 +4,17 @@
 
 The recovery pipeline is the product's organizing structure. The app and the diagrams draw the same stages, lanes, ladders and export targets, with the same names and family colors. Stage order and prerequisites follow STRATEGY; the UI presents actual state and never reimplements the ladder.
 
+## Live pipeline map and deep links
+
+- **One served copy.** The backend serves `pipeline-model.json` with its sha256 revision, and both surfaces render the PipelineMap, PipelineBreadcrumb and Explain from that one copy.
+- **Node links are links, never verbs.** A node id opens the map node and its filtered live view. It never runs, pauses or admits anything.
+- **No project in a node link.** Node links omit `project` and resolve against the active project. With no active project they show the cross-project notice from Linked views and never open a project.
+- **Outlines.** The generated outlines keep their node-id anchors. They write the in-app location as code text ("In the app: `?node=gate-4`"), and as a link only when an explicit app base is configured for the backend-served rendering. They never emit a host, port or project. A draw.io cell carries one link, to its outline anchor; the outline carries the in-app location.
+- **Stated edges only.** Only edges the model marks `stated` are drawn. Edges inferred from card text stay `inferred` until their review concludes.
+- **Explain is design text.** Explain reads the node from the served model, never from the outline markdown. Its header reads "From the pipeline design · model rev ‹8 hex›" with "Design description ≠ this item's evidence", in the context-hint claim tier (dotted frame).
+- **Crosswalks are interpretations.** A TaskLifecycle or FailureRecord state mapped to a companion step is shown only inside Explain, and the line ends "(interpretation)". The lifecycle rails show backend states only.
+- **Catalog verbs.** Verbs map to stages through one verb-keyed `catalog_verbs` map in the model, filled only from the consolidated plan's §2.1 table (stages 1–7). Stage 0, stage 8 and every lane stay unmapped until a decision records them. A verb present on only one side of the model and `GET /api/v1/actions` reads "stage: unmapped". Any verb column in this section's tables is generated from that map, never typed by hand.
+
 ## Main pipeline: stage 0 plus eight named stages
 
 Left to right is dependency order. Feedback is allowed: identity and calibration refine each other (dashed `dash-feedback` arrow labelled "↺ feedback · 1 ↔ 2 refine scoped hypotheses"), and parity runs continuously ("↺ feedback · 7–8 verify early scaffold and candidates"). There is no ninth stage.

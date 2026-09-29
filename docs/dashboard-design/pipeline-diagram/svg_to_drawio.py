@@ -9,7 +9,9 @@ Accessibility and deep links:
 * the SVG <title> becomes the diagram name and its <desc> the diagram description
   (stored on the root cell; Edit > Edit Data with nothing selected shows it);
 * every <g id="..."> model node becomes a draw.io group whose UserObject id is the node id,
-  with a tooltip holding that node's outline text and a link to its outline anchor;
+  with a tooltip holding that node's outline text and a link to its outline anchor.  A draw.io
+  object has a single link attribute, so that link is the only one; the node's in-app location
+  ("In the app: ?node=<id>") is carried by the outline, and therefore by the tooltip text;
 * text cells keep the SVG's font family (first family in the stack; default "DejaVu Sans").
 Elements outside any <g id> are grouped with the rectangle that contains them, as before.
 

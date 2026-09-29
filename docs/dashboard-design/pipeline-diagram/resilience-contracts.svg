@@ -48,8 +48,10 @@
 </g>
 <!--SEC:Acceptance and preventive feedback-->
 <g id="resil-acceptance">
-<text x="35" y="449" font-family="DejaVu Sans, sans-serif" font-size="21" fill="#f2f4f7" font-weight="bold">Every recovery action returns through independent acceptance; an available process is not a repaired capability.</text>
+<text x="360" y="449" font-family="DejaVu Sans, sans-serif" font-size="21" fill="#f2f4f7" font-weight="bold">Every recovery action returns through independent acceptance; an available process is not a repaired capability.</text>
 </g>
+<path d="M1490,400 V416 H310 V480" fill="none" stroke="#8cbaff" stroke-width="3"/>
+<polygon points="310,480 304,469 316,469" fill="#8cbaff"/>
 <g id="resil-step-4">
 <rect x="35" y="480" width="550" height="260" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="51" y="510" font-family="DejaVu Sans, sans-serif" font-size="21" fill="#c9a4f0" font-weight="bold">4 · Accept against the current basis</text>

@@ -9,13 +9,13 @@ The resolution ladder as it actually ran for one entity on one build: members tr
 - Same order and numbering as the ResolutionLadder in the diagrams. The member that resolved is the current step (`aria-current="step"`, selection fill plus the 3px bar).
 - Untried members say "not tried (budget)" or "not applicable"; never imply exhaustive failure.
 - The terminal line is an OutcomeTag. An annotation is a claim, never resolved.
-- **Following** (default): the card follows the primary entity and build after the settle delay, keeping its old content dimmed with "Loading ‹name›". **Kept**: the card's Keep button (`aria-pressed`; K while focus is inside the card) keeps it in the rail labelled "Kept", with its entity, build and age; it never refreshes by itself and shows "◷ Basis changed since kept · Refresh" when its basis changes.
+- **Following** (default): the card follows the primary entity and build after the settle delay, keeping its old content dimmed with "Loading ‹name›". **Kept**: the card's Keep button (`aria-pressed`; Shift+K while focus is inside the card) keeps it in the rail labelled "Kept", with its entity, build and age; it never refreshes by itself and shows "◷ Basis changed since kept · Refresh" when its basis changes.
 - **Entered from**: opened from a matrix cell or Peek, the header carries a back-link ("from ReadinessMatrix · row 12 · build-c").
 - **Contested split form**: a contested terminal shows both addresses with "contested · no winner"; Enter opens both as held panes.
 
 **Linking**
 
-- **Publishes:** nothing. K adds the card to the URL as `keep=ladder:88@build-c`.
+- **Publishes:** a keep: Keep adds the card to the URL as `keep=ladder:88@build-c`; nothing else.
 - **Follows:** `entity` and `build`, after the settle, keeping the old run dimmed with "Loading ‹name›". Not holdable in the centre; keepable as a Kept card, which never refreshes by itself.
 - **Targets rendered:** member → its pipeline node (`?node=ladder-A-3`), whose Explain text opens in place · resolved address → the counterpart in the Code Browser, with `build` and its edge word · contested pair → two address links marked "no winner" · run receipt → the receipt card · back-link → the entering matrix row and column. Link names read "Ladder A step 3, callee_order, resolved".
 - **Peek source:** the stored ladder run for that entity × build and the node's generated outline text.
@@ -24,7 +24,7 @@ The resolution ladder as it actually ran for one entity on one build: members tr
 
 **Keyboard**
 
-- A list of rows in Tab order through their links; Enter goes, Alt+↓ peeks, Shift+F10 opens the one link menu; K keeps the card only while focus is inside it.
+- A list of rows in Tab order through their links; Enter goes, Alt+↓ peeks, Shift+F10 opens the one link menu; Shift+K keeps the card only while focus is inside it.
 
 **Accessibility**
 

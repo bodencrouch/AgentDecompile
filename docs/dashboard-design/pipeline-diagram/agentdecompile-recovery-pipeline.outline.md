@@ -2,7 +2,9 @@
 
 # <a id="overview-header"></a>AgentDecompile — the recovery pipeline, end to end
 
-Text outline of [agentdecompile-recovery-pipeline.svg](agentdecompile-recovery-pipeline.svg); the primary accessible reading form of that diagram. Each anchor equals the node id in `pipeline-model.json`, the `<g id>` in the SVG and the object id in the `.drawio` file. Symbols that carry meaning are spelled out in words.
+In the app: `?node=overview-header`
+
+Text outline of [agentdecompile-recovery-pipeline.svg](agentdecompile-recovery-pipeline.svg); the primary accessible reading form of that diagram. Each anchor equals the node id in `pipeline-model.json`, the `<g id>` in the SVG and the object id in the `.drawio` file, whose single link per object points back to this anchor. "In the app" gives each node's location in the workbench, which resolves it against the active project. Symbols that carry meaning are spelled out in words.
 
 Summary: Reading order: header and key, then the main pipeline left to right from stage 0 (open, add or resume) through stage 8 (whole-image byte identity), then concurrent lanes A to E, bounded resolution ladders A to F, ownership locks, the failover rule, the export target and the full legend. Solid arrows are prerequisites, dashed arrows are failover or labelled feedback, and every gate must pass before its claim is accepted. Candidates, compiled code, local parity zeros, runtime calls and original bytes never count as recovered source or whole-image proof; only whole-file hash equality is terminal. Design only: future checks are not run; agentdecompile-recovery-pipeline.outline.md is the text outline with the same node ids.
 
@@ -14,6 +16,8 @@ Runs on a laptop; scales by concurrency, then by donated idle compute and free c
 
 ## <a id="how-to-read"></a>How to read this in 20 seconds
 
+In the app: `?node=how-to-read`
+
 1. Follow prerequisites; identity/calibration iterate and parity runs continuously.
 2. Lanes may overlap within ownership, resource and snapshot-dependency limits.
 3. Try applicable lookups; exports state capabilities, uncertainty and evidence.
@@ -22,11 +26,16 @@ Key: solid arrow = dependency, dashed red arrow = failover, feedback = dashed ar
 
 ## <a id="main-pipeline"></a>Main pipeline
 
+In the app: `?node=main-pipeline`
+
 MAIN PIPELINE — compatible reuse, validated reconstruction, independent claim gates. 0 + eight named stages, feedback allowed, reuse valid unchanged receipts. Stages run left to right in dependency order.
 
 ### <a id="stage-0"></a>Stage 0: Open, add, resume (priority-zero)
 
+In the app: `?node=stage-0`
+
 - Family: intake / cross-cutting (INTAKE)
+- Catalog verbs: unmapped (no recorded mapping)
 - Trying to: Start from the actual project, never a setup ritual: open, add or resume admits only missing eligible work; pause/resume controls admission — no Start ritual.
 - How:
   - reconcile bindings; reuse dependency-valid receipts
@@ -38,11 +47,14 @@ MAIN PIPELINE — compatible reuse, validated reconstruction, independent claim 
 - In to out:
   - in: .gpr / repo / binaries / prior receipts
   - out: one active project, known state, no duplicate work
-- <a id="gate-0"></a>Gate: mutation-admission only (real owner state)
+- <a id="gate-0"></a>Gate: mutation-admission only (real owner state). In the app: `?node=gate-0`
 
 ### <a id="stage-1"></a>Stage 1: Identity
 
+In the app: `?node=stage-1`
+
 - Family: identity (IDENTITY)
+- Catalog verbs (consolidated plan §2.1): `corpus.extract-stabs` then `corpus.match-pair`
 - Tag: in parallel: extraction + indexing run in parallel
 - Trying to: Decide which functions/entities across builds are logical entity, implementation variant and instance; similarity does not prove interchangeable behavior.
 - How:
@@ -52,11 +64,14 @@ MAIN PIPELINE — compatible reuse, validated reconstruction, independent claim 
 - In to out:
   - in: analyzed programs, debug info, formats
   - out: entity / variant / instance + evidence lineage
-- <a id="gate-1"></a>Gate: candidate is not acceptance
+- <a id="gate-1"></a>Gate: candidate is not acceptance. In the app: `?node=gate-1`
 
 ### <a id="stage-2"></a>Stage 2: Incremental calibration
 
+In the app: `?node=stage-2`
+
 - Family: source recovery (SOURCE RECOVERY)
+- Catalog verbs (consolidated plan §2.1): `corpus.calibrate-global`
 - Trying to: Establish minimum platform facts, then refine compiler, ABI and layout hypotheses with identity and function evidence; version each input.
 - How:
   - compiler/linker + headers/libs + macros + FP mode
@@ -70,11 +85,16 @@ MAIN PIPELINE — compatible reuse, validated reconstruction, independent claim 
 
 ### <a id="feedback-1-2"></a>Feedback arrow from stage 2 back to stage 1
 
+In the app: `?node=feedback-1-2`
+
 Feedback (dashed arrow from stage 2 back to stage 1): stages 1 and 2 refine scoped hypotheses, both ways.
 
 ### <a id="stage-3"></a>Stage 3: Validated linkable regions
 
+In the app: `?node=stage-3`
+
 - Family: source recovery (SOURCE RECOVERY)
+- Catalog verbs (consolidated plan §2.1): `corpus.workspace`
 - Trying to: Reconstruct objects and placement from the image; keep uncertain boundaries in larger regions; prove reconstruction before scaling source work.
 - How:
   - bytes + fixups + refs + data + unwind metadata
@@ -84,11 +104,14 @@ Feedback (dashed arrow from stage 2 back to stage 1): stages 1 and 2 refine scop
 - In to out:
   - in: calibration + donor build
   - out: validated region scaffold; floor is not recovered C
-- <a id="gate-3"></a>Gate: round trip + independent linked-image oracle
+- <a id="gate-3"></a>Gate: round trip + independent linked-image oracle. In the app: `?node=gate-3`
 
 ### <a id="stage-4"></a>Stage 4: C/C++ candidates
 
+In the app: `?node=stage-4`
+
 - Family: source recovery (SOURCE RECOVERY)
+- Catalog verbs (consolidated plan §2.1): `corpus.ghidra-bulk`
 - Tag: isolated mutable outputs / PDB / Wine state
 - Trying to: Produce readable candidates; preserve the floor until replacement acceptance passes.
 - How:
@@ -100,16 +123,21 @@ Feedback (dashed arrow from stage 2 back to stage 1): stages 1 and 2 refine scop
 - In to out:
   - in: scaffold + decompiler output
   - out: compiled candidates + scoped compile receipts
-- <a id="gate-4"></a>Gate: compile admits candidate, not replacement
-- <a id="stage-4-failover"></a>Failover loop (dashed, below stage 4): when compile fails, run helpers, then one bounded LLM cleanup, then retry; failover never blocks sibling work.
+- <a id="gate-4"></a>Gate: compile admits candidate, not replacement. In the app: `?node=gate-4`
+- <a id="stage-4-failover"></a>Failover loop (dashed, below stage 4): when compile fails, run helpers, then one bounded LLM cleanup, then retry; failover never blocks sibling work. In the app: `?node=stage-4-failover`
 
 ### <a id="gate-4-5"></a>Gate between stage 4 and stage 5: candidate
+
+In the app: `?node=gate-4-5`
 
 A gate diamond on the dependency arrow from stage 4 to stage 5. Label: candidate. Condition: compile + compatibility.
 
 ### <a id="stage-5"></a>Stage 5: Propagation (cross-place)
 
+In the app: `?node=stage-5`
+
 - Family: source recovery (SOURCE RECOVERY)
+- Catalog verbs (consolidated plan §2.1): `corpus.cross-place`
 - Tag: the cross-match tier
 - Trying to: Reuse a donor candidate only for compatible recipient implementation variants; each recipient earns its own acceptance.
 - How:
@@ -121,11 +149,14 @@ A gate diamond on the dependency arrow from stage 4 to stage 5. Label: candidate
 - In to out:
   - in: compile receipts + identity table
   - out: recipient candidates; separate verification
-- <a id="gate-5"></a>Gate: candidate distribution is not accepted source
+- <a id="gate-5"></a>Gate: candidate distribution is not accepted source. In the app: `?node=gate-5`
 
 ### <a id="stage-6"></a>Stage 6: Targeted AI (leftovers only)
 
+In the app: `?node=stage-6`
+
 - Family: source recovery (SOURCE RECOVERY)
+- Catalog verbs (consolidated plan §2.1): `corpus.genproject` (leftovers)
 - Trying to: Spend model effort ONLY on what deterministic methods left behind — leaves before callers.
 - How:
   - residue queue, tagged with WHY AI was needed
@@ -135,11 +166,14 @@ A gate diamond on the dependency arrow from stage 4 to stage 5. Label: candidate
 - In to out:
   - in: residue after 4 to 5
   - out: candidate C for review + provenance
-- <a id="gate-6"></a>Gate: candidate only
+- <a id="gate-6"></a>Gate: candidate only. In the app: `?node=gate-6`
 
 ### <a id="stage-7"></a>Stage 7: Continuous parity
 
+In the app: `?node=stage-7`
+
 - Family: verification & determinism (VERIFICATION)
+- Catalog verbs (consolidated plan §2.1): `corpus.objdiff-check`
 - Trying to: Compare emitted code/data against validated targets and independently against linked bytes.
 - How:
   - objdiff local + linked-region checks (LTCG aware)
@@ -149,11 +183,14 @@ A gate diamond on the dependency arrow from stage 4 to stage 5. Label: candidate
 - In to out:
   - in: emitted regions + validated original references
   - out: separate facts with mapping, bounds + evidence
-- <a id="gate-7"></a>Gate: local zero is not full-image or behavior proof
+- <a id="gate-7"></a>Gate: local zero is not full-image or behavior proof. In the app: `?node=gate-7`
 
 ### <a id="stage-8"></a>Stage 8: Whole-image byte identity
 
+In the app: `?node=stage-8`
+
 - Family: verification & determinism (VERIFICATION)
+- Catalog verbs: unmapped (no recorded mapping)
 - Tag: terminal
 - Trying to: The terminal goal: relink into a file whose whole-file hash EQUALS the shipped binary.
 - How:
@@ -165,19 +202,26 @@ A gate diamond on the dependency arrow from stage 4 to stage 5. Label: candidate
 - In to out:
   - in: scoped parity + contribution map + layout recipe
   - out: rebuilt image + whole-file hash receipt
-- <a id="gate-8"></a>Gate: whole-file hash equality
+- <a id="gate-8"></a>Gate: whole-file hash equality. In the app: `?node=gate-8`
 
 ### <a id="feedback-7-8"></a>Feedback arrow from stage 7 back to stage 3
+
+In the app: `?node=feedback-7-8`
 
 Feedback (dashed arrow from stages 7 and 8 back to stage 3): stages 7 and 8 verify the early scaffold and candidates.
 
 ## <a id="lanes"></a>Concurrent lanes A to E
 
+In the app: `?node=lanes`
+
 RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 ### <a id="lane-A"></a>Lane A: Knowledge fusion — bidirectional, per field
 
+In the app: `?node=lane-A`
+
 - Family: cross-build unification & export (UNIFICATION & EXPORT)
+- Catalog verbs: unmapped (no recorded mapping)
 - Connects: consumes stage 1 identity, runs beside stages 4 to 5, feeds every sibling build
 - Scope: labels, comments, structs/types, debug-info names flow between every build sharing a logical id; strongest source per field wins; a build donates a FIELD, never everything
 - Outputs and who consumes them:
@@ -187,6 +231,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
   - never overwrites a stronger field; conflicts stay visible for review
 
 #### <a id="lane-A-card-1"></a>Name precedence (per field)
+
+In the app: `?node=lane-A-card-1`
 
 - Tag: field-level
 - Trying to: Keep the strongest name for every field, never let a placeholder win.
@@ -198,6 +244,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
   - out: merged names with origin
 
 #### <a id="lane-A-card-2"></a>Types & layouts
+
+In the app: `?node=lane-A-card-2`
 
 - Trying to: Merge struct/type knowledge only where compatibility gates allow.
 - How:
@@ -211,6 +259,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 #### <a id="lane-A-card-3"></a>Comments, bookmarks, evidence
 
+In the app: `?node=lane-A-card-3`
+
 - Trying to: Nothing authored is lost; conflicts stay visible.
 - How:
   - per-field precedence merge, never wholesale
@@ -222,6 +272,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 #### <a id="lane-A-card-4"></a>Runs alongside recovery
 
+In the app: `?node=lane-A-card-4`
+
 - Tag: concurrent
 - Trying to: Fusion never waits for source recovery and never blocks it.
 - How:
@@ -231,7 +283,10 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 ### <a id="lane-B"></a>Lane B: Cross-build entity unification & export — every entity, not just functions
 
+In the app: `?node=lane-B`
+
 - Family: cross-build unification & export (UNIFICATION & EXPORT)
+- Catalog verbs: unmapped (no recorded mapping)
 - Connects: consumes stages 1 to 2 (+ raw images), feeds lane C and the export bundle
 - Scope: portable signatures, entity catalog, data-root locator families with fallbacks, divergence, codecaves, ABI — feeds the runtime pack
 - Outputs and who consumes them:
@@ -241,6 +296,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
   - generic core + adapters: a new engine adds an L3 data pack, never core code
 
 #### <a id="lane-B-card-1"></a>Portable signatures (identity is not locator)
+
+In the app: `?node=lane-B-card-1`
 
 - Tag: deterministic
 - Trying to: Discover supported entities across related builds; record absent, ambiguous and unsupported outcomes.
@@ -255,6 +312,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 #### <a id="lane-B-card-2"></a>Entity catalog
 
+In the app: `?node=lane-B-card-2`
+
 - Tag: 30 kinds (pack enum)
 - Trying to: Everything a mod could want, unified:
 - How:
@@ -268,6 +327,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 #### <a id="lane-B-card-3"></a>Data-root locator families
 
+In the app: `?node=lane-B-card-3`
+
 - Trying to: Known build: identity then RVA then live check. Unknown build: applicable discovery + refusal.
 - How:
   - symbol then xref-from-identified-function then anchor-rel then masked adjacency then pointer chain then vtable/RTTI known-build RVA is preferred; portable:false
@@ -278,6 +339,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 - Gate: verify before trust
 
 #### <a id="lane-B-card-4"></a>Divergence (3-way, never forced)
+
+In the app: `?node=lane-B-card-4`
 
 - Trying to: When the surrounding logic is too different, SAY so and SHOW it — never fake a match.
 - How:
@@ -291,6 +354,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 #### <a id="lane-B-card-5"></a>Codecaves & ABI (Lua-ready)
 
+In the app: `?node=lane-B-card-5`
+
 - Trying to: Export what injection needs, portable: caves as plan templates, ABI as data.
 - How:
   - cave = anchor-sig + offset + capacity REQUIREMENT + relocation rules + originals + restoration + claim
@@ -303,6 +368,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 #### <a id="lane-B-card-6"></a>Generic core, adapters
 
+In the app: `?node=lane-B-card-6`
+
 - Tag: 3 layers
 - Trying to: No product ever in the core.
 - How:
@@ -314,7 +381,10 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 ### <a id="lane-C"></a>Lane C: Runtime reuse & learn-the-build — branches after identity/ABI evidence, before whole-image recovery
 
+In the app: `?node=lane-C`
+
 - Family: runtime reuse / learn (RUNTIME)
+- Catalog verbs: unmapped (no recorded mapping)
 - Connects: branches after stages 1 to 2 evidence, consumes lane B's pack, feeds evidence back into stage 1
 - Scope: calling original code never counts as recovered source; observations feed back as evidence with provenance
 - Outputs and who consumes them:
@@ -324,6 +394,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
   - never promotes source parity; never counts original bytes as recovered C
 
 #### <a id="lane-C-card-1"></a>Pack then resolve
+
+In the app: `?node=lane-C-card-1`
 
 - Trying to: Verify build identity and live evidence before authorizing each requested runtime operation.
 - How:
@@ -336,6 +408,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 - Gate: verify or refuse
 
 #### <a id="lane-C-card-2"></a>Preflight then controlled call/install
+
+In the app: `?node=lane-C-card-2`
 
 - Trying to: Never write into a process blind.
 - How:
@@ -350,6 +424,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 #### <a id="lane-C-card-3"></a>Observe then evidence
 
+In the app: `?node=lane-C-card-3`
+
 - Trying to: Turn runtime behavior into corpus evidence.
 - How:
   - traces: calls, args, returns, field changes
@@ -360,6 +436,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
   - out: observations with provenance
 
 #### <a id="lane-C-card-4"></a>Learn the build
+
+In the app: `?node=lane-C-card-4`
 
 - Tag: records uncertainty
 - Trying to: Each new build contributes provisional evidence; contradictions may lower accepted coverage.
@@ -373,7 +451,10 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 ### <a id="lane-D"></a>Lane D: Verification & determinism — same inputs then byte-identical outputs, under a declared basis
 
+In the app: `?node=lane-D`
+
 - Family: verification & determinism (VERIFICATION)
+- Catalog verbs: unmapped (no recorded mapping)
 - Connects: wraps every stage and lane, gates every export
 - Scope: replay recorded proposals and observations under a versioned basis; discovery itself need not be deterministic
 - Outputs and who consumes them:
@@ -383,6 +464,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
   - basis change then deliberate re-baseline with a recorded supersession, never silent drift
 
 #### <a id="lane-D-card-1"></a>Determinism basis
+
+In the app: `?node=lane-D-card-1`
 
 - Tag: recorded
 - Trying to: Make 'same result' meaningful.
@@ -399,6 +482,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 #### <a id="lane-D-card-2"></a>Two gates
 
+In the app: `?node=lane-D-card-2`
+
 - Trying to: Prove reproducibility, don't assume it.
 - How:
   - export byte-diff: export twice then identical bytes
@@ -410,6 +495,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 #### <a id="lane-D-card-3"></a>Ordering discipline
 
+In the app: `?node=lane-D-card-3`
+
 - Trying to: No hidden order can reach a persisted value.
 - How:
   - every SELECT feeding a decision has a total ORDER BY
@@ -419,6 +506,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 #### <a id="lane-D-card-4"></a>Receipts & re-baseline
 
+In the app: `?node=lane-D-card-4`
+
 - Trying to: Change the basis deliberately, never silently.
 - How:
   - receipts hash relevant dependencies + snapshot
@@ -427,7 +516,10 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 ### <a id="lane-E"></a>Lane E: Distributed compute (agentdecompile_grid) — laptop then concurrency then donated idle compute and free cloud nodes
 
+In the app: `?node=lane-E`
+
 - Family: intake / cross-cutting (INTAKE)
+- Catalog verbs: unmapped (no recorded mapping)
 - Connects: wraps every stage and lane, one-command join, fleet of free cloud nodes
 - Scope: content-addressed objects, per-partition logs, every result a proposal, capability by canary, never by role, SQLite as a materialized view
 - Outputs and who consumes them:
@@ -437,6 +529,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
   - timeouts record attempt outcomes, not termination; resource release requires evidence; independent acceptance only
 
 #### <a id="lane-E-card-1"></a>Objects & logs
+
+In the app: `?node=lane-E-card-1`
 
 - Tag: substrate
 - Trying to: Working state supports independent replicas: content-addressed, log-structured, network-capable.
@@ -453,6 +547,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 #### <a id="lane-E-card-2"></a>Tasks & frontier
 
+In the app: `?node=lane-E-card-2`
+
 - Tag: never awaited
 - Trying to: Jobs bounded and addressable; resume where inputs exist; result exists is not independently accepted claim.
 - How:
@@ -467,6 +563,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 - Gate: basis projection admitted
 
 #### <a id="lane-E-card-3"></a>Join (one command)
+
+In the app: `?node=lane-E-card-3`
 
 - Tag: capability-only
 - Trying to: Any machine, one verb: laptop, donated idle box, free cloud node, browser tab.
@@ -483,6 +581,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 #### <a id="lane-E-card-4"></a>Verify (every result a proposal)
 
+In the app: `?node=lane-E-card-4`
+
 - Tag: H8
 - Trying to: Trust the hash, never the key — fleet nodes included.
 - How:
@@ -497,6 +597,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 - Gate: independent evidence lineage
 
 #### <a id="lane-E-card-5"></a>Views (SQLite as a materialized view)
+
+In the app: `?node=lane-E-card-5`
 
 - Tag: H1 / H11
 - Trying to: The corpus store and the similarity index are replays of verified records: deletable, rebuildable, never locked by work.
@@ -513,6 +615,8 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 #### <a id="lane-E-card-6"></a>Fleet (free cloud nodes)
 
+In the app: `?node=lane-E-card-6`
+
 - Tag: conditional host failover
 - Trying to: The operator never depends on volunteers: rented free-tier nodes join with the same command in cloud-init.
 - How:
@@ -528,23 +632,27 @@ RUNS CONCURRENTLY WITH STAGES 1 to 8 (where ownership permits).
 
 ## <a id="ladders"></a>Bounded resolution ladders A to F
 
+In the app: `?node=ladders`
+
 BOUNDED RESOLUTION — try applicable methods; stop with absent / inlined-only / ambiguous / unsupported / insufficient evidence / budget exhausted.
 
 ### <a id="ladder-A"></a>Ladder A: Function whose bytes changed
 
+In the app: `?node=ladder-A`
+
 Family: identity (IDENTITY). Members are tried in order; the locator kind, when the diagram shows one, comes first.
 
-1. <a id="ladder-A-1"></a>anchor_rel: anchor-relative (import/export/string)
-2. <a id="ladder-A-2"></a>caller_callsite: via a resolved CALLER (decode its call)
-3. <a id="ladder-A-3"></a>callee_order: via resolved CALLEES (order match)
-4. <a id="ladder-A-4"></a>data_xref: via data it references (inverse xref)
-5. <a id="ladder-A-5"></a>vtable_slot: via its vtable slot
-6. <a id="ladder-A-6"></a>neighbour_position: positional neighbour (order-preserving)
-7. <a id="ladder-A-7"></a>structural: structural match (embedded decoder)
-8. <a id="ladder-A-8"></a>region, review-only (region): region match (inlined / split)
-9. <a id="ladder-A-9"></a>symbol: symbol/debug info at runtime
-10. <a id="ladder-A-10"></a>offline: emulation, BSim on residue
-11. <a id="ladder-A-11"></a>annotation: annotation with provenance (a claim, never resolved)
+1. <a id="ladder-A-1"></a>anchor_rel: anchor-relative (import/export/string). In the app: `?node=ladder-A-1`
+2. <a id="ladder-A-2"></a>caller_callsite: via a resolved CALLER (decode its call). In the app: `?node=ladder-A-2`
+3. <a id="ladder-A-3"></a>callee_order: via resolved CALLEES (order match). In the app: `?node=ladder-A-3`
+4. <a id="ladder-A-4"></a>data_xref: via data it references (inverse xref). In the app: `?node=ladder-A-4`
+5. <a id="ladder-A-5"></a>vtable_slot: via its vtable slot. In the app: `?node=ladder-A-5`
+6. <a id="ladder-A-6"></a>neighbour_position: positional neighbour (order-preserving). In the app: `?node=ladder-A-6`
+7. <a id="ladder-A-7"></a>structural: structural match (embedded decoder). In the app: `?node=ladder-A-7`
+8. <a id="ladder-A-8"></a>region, review-only (region): region match (inlined / split). In the app: `?node=ladder-A-8`
+9. <a id="ladder-A-9"></a>symbol: symbol/debug info at runtime. In the app: `?node=ladder-A-9`
+10. <a id="ladder-A-10"></a>offline: emulation, BSim on residue. In the app: `?node=ladder-A-10`
+11. <a id="ladder-A-11"></a>annotation: annotation with provenance (a claim, never resolved). In the app: `?node=ladder-A-11`
 
 Terminal outcomes:
 
@@ -553,14 +661,16 @@ Terminal outcomes:
 
 ### <a id="ladder-B"></a>Ladder B: Cave missing or too small
 
+In the app: `?node=ladder-B`
+
 Family: cross-build unification & export (UNIFICATION & EXPORT). Members are tried in order; the locator kind, when the diagram shows one, comes first.
 
-1. <a id="ladder-B-1"></a>N candidate caves per anchor
-2. <a id="ladder-B-2"></a>live cave discovery (validated)
-3. <a id="ladder-B-3"></a>section slack only with expendability proof
-4. <a id="ladder-B-4"></a>header / stub space only with explicit proof
-5. <a id="ladder-B-5"></a>executable allocation if process policy permits
-6. <a id="ladder-B-6"></a>image extension (on-disk patches)
+1. <a id="ladder-B-1"></a>N candidate caves per anchor. In the app: `?node=ladder-B-1`
+2. <a id="ladder-B-2"></a>live cave discovery (validated). In the app: `?node=ladder-B-2`
+3. <a id="ladder-B-3"></a>section slack only with expendability proof. In the app: `?node=ladder-B-3`
+4. <a id="ladder-B-4"></a>header / stub space only with explicit proof. In the app: `?node=ladder-B-4`
+5. <a id="ladder-B-5"></a>executable allocation if process policy permits. In the app: `?node=ladder-B-5`
+6. <a id="ladder-B-6"></a>image extension (on-disk patches). In the app: `?node=ladder-B-6`
 
 Terminal outcomes:
 
@@ -568,18 +678,20 @@ Terminal outcomes:
 
 ### <a id="ladder-C"></a>Ladder C: Data root unresolved
 
+In the app: `?node=ladder-C`
+
 Family: cross-build unification & export (UNIFICATION & EXPORT). Members are tried in order; the locator kind, when the diagram shows one, comes first.
 
-1. <a id="ladder-C-1"></a>known build (known_build): identity then RVA then live check
-2. <a id="ladder-C-2"></a>unknown: symbol / debug info
-3. <a id="ladder-C-3"></a>xref_from_function: xref from identified function
-4. <a id="ladder-C-4"></a>data_xref: inverse access-instruction scan
-5. <a id="ladder-C-5"></a>anchor_rel: relative to import/export/string
-6. <a id="ladder-C-6"></a>masked_window: data-section adjacency
-7. <a id="ladder-C-7"></a>pointer_chain: from a resolved root
-8. <a id="ladder-C-8"></a>via constructor / initializer
-9. <a id="ladder-C-9"></a>vtable_slot: vtable / RTTI-derived
-10. <a id="ladder-C-10"></a>value-shape probe + independent confirmation
+1. <a id="ladder-C-1"></a>known build (known_build): identity then RVA then live check. In the app: `?node=ladder-C-1`
+2. <a id="ladder-C-2"></a>unknown: symbol / debug info. In the app: `?node=ladder-C-2`
+3. <a id="ladder-C-3"></a>xref_from_function: xref from identified function. In the app: `?node=ladder-C-3`
+4. <a id="ladder-C-4"></a>data_xref: inverse access-instruction scan. In the app: `?node=ladder-C-4`
+5. <a id="ladder-C-5"></a>anchor_rel: relative to import/export/string. In the app: `?node=ladder-C-5`
+6. <a id="ladder-C-6"></a>masked_window: data-section adjacency. In the app: `?node=ladder-C-6`
+7. <a id="ladder-C-7"></a>pointer_chain: from a resolved root. In the app: `?node=ladder-C-7`
+8. <a id="ladder-C-8"></a>via constructor / initializer. In the app: `?node=ladder-C-8`
+9. <a id="ladder-C-9"></a>vtable_slot: vtable / RTTI-derived. In the app: `?node=ladder-C-9`
+10. <a id="ladder-C-10"></a>value-shape probe + independent confirmation. In the app: `?node=ladder-C-10`
 
 Terminal outcomes:
 
@@ -587,14 +699,16 @@ Terminal outcomes:
 
 ### <a id="ladder-D"></a>Ladder D: Struct field moved / stripped build
 
+In the app: `?node=ladder-D`
+
 Family: cross-build unification & export (UNIFICATION & EXPORT). Members are tried in order; the locator kind, when the diagram shows one, comes first.
 
-1. <a id="ladder-D-1"></a>name / debug-info donor
-2. <a id="ladder-D-2"></a>ACCESSOR DECODE then exact per-build offset
-3. <a id="ladder-D-3"></a>constructor initializer sequence
-4. <a id="ladder-D-4"></a>field-access fingerprint match
-5. <a id="ladder-D-5"></a>sibling-field anchoring
-6. <a id="ladder-D-6"></a>pointer-width hints only; verify actual layout
+1. <a id="ladder-D-1"></a>name / debug-info donor. In the app: `?node=ladder-D-1`
+2. <a id="ladder-D-2"></a>ACCESSOR DECODE then exact per-build offset. In the app: `?node=ladder-D-2`
+3. <a id="ladder-D-3"></a>constructor initializer sequence. In the app: `?node=ladder-D-3`
+4. <a id="ladder-D-4"></a>field-access fingerprint match. In the app: `?node=ladder-D-4`
+5. <a id="ladder-D-5"></a>sibling-field anchoring. In the app: `?node=ladder-D-5`
+6. <a id="ladder-D-6"></a>pointer-width hints only; verify actual layout. In the app: `?node=ladder-D-6`
 
 Terminal outcomes:
 
@@ -602,12 +716,14 @@ Terminal outcomes:
 
 ### <a id="ladder-E"></a>Ladder E: VTable / dispatch slots
 
+In the app: `?node=ladder-E`
+
 Family: cross-build unification & export (UNIFICATION & EXPORT). Members are tried in order; the locator kind, when the diagram shows one, comes first.
 
-1. <a id="ladder-E-1"></a>RTTI
-2. <a id="ladder-E-2"></a>constructor vtable-store decode
-3. <a id="ladder-E-3"></a>slot matched by METHOD identity
-4. <a id="ladder-E-4"></a>dispatch entries by HANDLER identity
+1. <a id="ladder-E-1"></a>RTTI. In the app: `?node=ladder-E-1`
+2. <a id="ladder-E-2"></a>constructor vtable-store decode. In the app: `?node=ladder-E-2`
+3. <a id="ladder-E-3"></a>slot matched by METHOD identity. In the app: `?node=ladder-E-3`
+4. <a id="ladder-E-4"></a>dispatch entries by HANDLER identity. In the app: `?node=ladder-E-4`
 
 Terminal outcomes:
 
@@ -615,13 +731,15 @@ Terminal outcomes:
 
 ### <a id="ladder-F"></a>Ladder F: Unknown build
 
+In the app: `?node=ladder-F`
+
 Family: runtime reuse / learn (RUNTIME). Members are tried in order; the locator kind, when the diagram shows one, comes first.
 
-1. <a id="ladder-F-1"></a>admit in signature-only mode
-2. <a id="ladder-F-2"></a>run applicable ladders within declared budget
-3. <a id="ladder-F-3"></a>record every resolution + residue
-4. <a id="ladder-F-4"></a>ingest as runtime_claim then bind_identities confirms then KNOWN
-5. <a id="ladder-F-5"></a>residue re-attacked offline
+1. <a id="ladder-F-1"></a>admit in signature-only mode. In the app: `?node=ladder-F-1`
+2. <a id="ladder-F-2"></a>run applicable ladders within declared budget. In the app: `?node=ladder-F-2`
+3. <a id="ladder-F-3"></a>record every resolution + residue. In the app: `?node=ladder-F-3`
+4. <a id="ladder-F-4"></a>ingest as runtime_claim then bind_identities confirms then KNOWN. In the app: `?node=ladder-F-4`
+5. <a id="ladder-F-5"></a>residue re-attacked offline. In the app: `?node=ladder-F-5`
 
 Terminal outcomes:
 
@@ -629,73 +747,95 @@ Terminal outcomes:
 
 ## <a id="locks"></a>Ownership locks
 
+In the app: `?node=locks`
+
 OWNERSHIP IS RESOURCE-SCOPED (eligible independent work overlaps). Each lock below is a one-owner serialization point.
 
-1. <a id="lock-1"></a>writes to one Ghidra program's analysis DB
-2. <a id="lock-2"></a>shared corpus mutation / conflict resolution
-3. <a id="lock-3"></a>shared mutable compiler outputs / Wine context (private outputs may overlap)
-4. <a id="lock-4"></a>one scenario bundle: staged tree + saves + Wine + display + ports + harness
-5. <a id="lock-5"></a>short acceptance commit: current basis + generation + independent proof
+1. <a id="lock-1"></a>writes to one Ghidra program's analysis DB. In the app: `?node=lock-1`
+2. <a id="lock-2"></a>shared corpus mutation / conflict resolution. In the app: `?node=lock-2`
+3. <a id="lock-3"></a>shared mutable compiler outputs / Wine context (private outputs may overlap). In the app: `?node=lock-3`
+4. <a id="lock-4"></a>one scenario bundle: staged tree + saves + Wine + display + ports + harness. In the app: `?node=lock-4`
+5. <a id="lock-5"></a>short acceptance commit: current basis + generation + independent proof. In the app: `?node=lock-5`
 
 Atomic resource-set admission; measured process-tree budgets and pressure; external owners remain external.
 
 ## <a id="failover-rule"></a>Failover rule
 
+In the app: `?node=failover-rule`
+
 The affected branch stops VISIBLY at its real unmet dependency; every eligible sibling lane continues. Show the named owner/provider failure, last evidence, chosen fallback, one retry owner and persistent budget; deterministic negatives require changed basis. Deadline ends attempt, not objective; expired ownership does not free resources; quarantine uncertain resources; show wake conditions, progress unknown and aging.
 
 ## <a id="export-target"></a>Export target
+
+In the app: `?node=export-target`
 
 EXPORT TARGET — reusable recovery projects + vanilla-game bindings; capabilities and unknowns explicit. re-run under the same basis then byte-identical bundle.
 
 ### <a id="export-hookpack"></a>hookpack v2
 
+In the app: `?node=export-hookpack`
+
 every entity kind, locator families, per-build coverage, ABI blocks, caves, integrity ranges, basis, pack hash
 
 ### <a id="export-lua"></a>Generated Lua bindings
+
+In the app: `?node=export-lua`
 
 roots by name, typed struct accessors table/handle/bitfield/string helpers typed call stubs only for ABIs the descriptor layer expresses; else refuse NO literal address
 
 ### <a id="export-headers"></a>Per-build C/C++ headers
 
+In the app: `?node=export-headers`
+
 evidenced per-build layouts; opaque unknown spans, prototypes with conventions + storage, build manifest
 
 ### <a id="export-readiness"></a>Readiness report
+
+In the app: `?node=export-readiness`
 
 per entity by build: resolved(member) / pinned(member) / degraded(member, reason) / ambiguous / unresolved / contested observed_status separate, what a mod can do here
 
 ### <a id="export-divergence"></a>Divergence report
 
+In the app: `?node=export-divergence`
+
 one-to-one, split-or-inlined, diverged field-map, slot and table deltas between any two builds
 
 ### <a id="export-receipts"></a>Receipts
+
+In the app: `?node=export-receipts`
 
 content-addressed, keyed by hash(inputs+basis), every artifact identical-basis re-run = cache hit
 
 ### <a id="export-projects"></a>Source + comparison projects
 
+In the app: `?node=export-projects`
+
 byte-accurate C+floor and max-C with manifests reccmp reports + independent image receipts
 
 ## <a id="legend"></a>Legend
 
-- <a id="legend-dependency"></a>Solid arrow: data / dependency flow
-- <a id="legend-failover"></a>Dashed arrow (dash 6 4): failover / fallback
-- <a id="legend-feedback"></a>Dashed arrow (dash 4 4): feedback — dashed arrow back to an earlier stage
-- <a id="legend-gate"></a>Diamond marked G: gate — must pass (compile receipt, verify, hash)
-- <a id="legend-lock"></a>Padlock: serialized — one owner
-- <a id="legend-bracket"></a>Bracket: bracket — eligible independent work may overlap
-- <a id="legend-outputs"></a>Dashed box (dash 5 4): OUTPUTS and who consumes them
-- <a id="legend-family-identity"></a>Colour swatch named by the header word IDENTITY: identity
-- <a id="legend-family-recovery"></a>Colour swatch named by the header word SOURCE RECOVERY: source recovery
-- <a id="legend-family-unify"></a>Colour swatch named by the header word UNIFICATION & EXPORT: cross-build unification & export
-- <a id="legend-family-runtime"></a>Colour swatch named by the header word RUNTIME: runtime reuse / learn
-- <a id="legend-family-verify"></a>Colour swatch named by the header word VERIFICATION: verification & determinism
-- <a id="legend-family-intake"></a>Colour swatch named by the header word INTAKE: intake / cross-cutting
+In the app: `?node=legend`
+
+- <a id="legend-dependency"></a>Solid arrow: data / dependency flow. In the app: `?node=legend-dependency`
+- <a id="legend-failover"></a>Dashed arrow (dash 6 4): failover / fallback. In the app: `?node=legend-failover`
+- <a id="legend-feedback"></a>Dashed arrow (dash 4 4): feedback — dashed arrow back to an earlier stage. In the app: `?node=legend-feedback`
+- <a id="legend-gate"></a>Diamond marked G: gate — must pass (compile receipt, verify, hash). In the app: `?node=legend-gate`
+- <a id="legend-lock"></a>Padlock: serialized — one owner. In the app: `?node=legend-lock`
+- <a id="legend-bracket"></a>Bracket: bracket — eligible independent work may overlap. In the app: `?node=legend-bracket`
+- <a id="legend-outputs"></a>Dashed box (dash 5 4): OUTPUTS and who consumes them. In the app: `?node=legend-outputs`
+- <a id="legend-family-identity"></a>Colour swatch named by the header word IDENTITY: identity. In the app: `?node=legend-family-identity`
+- <a id="legend-family-recovery"></a>Colour swatch named by the header word SOURCE RECOVERY: source recovery. In the app: `?node=legend-family-recovery`
+- <a id="legend-family-unify"></a>Colour swatch named by the header word UNIFICATION & EXPORT: cross-build unification & export. In the app: `?node=legend-family-unify`
+- <a id="legend-family-runtime"></a>Colour swatch named by the header word RUNTIME: runtime reuse / learn. In the app: `?node=legend-family-runtime`
+- <a id="legend-family-verify"></a>Colour swatch named by the header word VERIFICATION: verification & determinism. In the app: `?node=legend-family-verify`
+- <a id="legend-family-intake"></a>Colour swatch named by the header word INTAKE: intake / cross-cutting. In the app: `?node=legend-family-intake`
 
 DESIGN ONLY, future checks NOT RUN. Companions: execution-contracts.svg — evidence/admission; resilience-contracts.svg — prevention, containment, recovery. Replay records observations + dependencies.
 
 ## <a id="relationships"></a>Relationships
 
-Typed edges from pipeline-model.json that involve this diagram. "(drawn arrow)" marks an arrow in the diagram; "(inferred)" marks an edge read from diagram text, followed by whether that text states it directly or it is an interpretation to review, and the text it is based on.
+Typed edges from pipeline-model.json that involve this diagram. "(drawn arrow)" marks an arrow in the diagram, followed by the diagram text that states it when it was first read from text; "(inferred)" marks an edge read from diagram text and not drawn, followed by whether that text states it directly or it is an interpretation to review, and the text it is based on.
 
 - [Stage 1: Identity](#stage-1) depends on [Stage 0: Open, add, resume (priority-zero)](#stage-0) (drawn arrow)
 - [Stage 2: Incremental calibration](#stage-2) depends on [Stage 1: Identity](#stage-1) (drawn arrow)

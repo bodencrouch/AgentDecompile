@@ -55,6 +55,8 @@ Display order: contested, unresolved, ambiguous, pinned, degraded, resolved.
 
 `observed_status` is a separate axis and never overwrites pack status. The word "contested" is reserved for this set; merges say "conflicting".
 
+Call trees reuse these words for per-build reachability (resolved, absent, unresolved, ambiguous, contested) plus "not loaded". There is no present/absent pair.
+
 ## Identity edges (IdentityEdge)
 
 candidate (dashed `lane-identity-ink`) · accepted (solid) · rejected (struck, `fact-failed`) · unresolved (dotted, `fact-unknown`). An edge animates from candidate to accepted only after its acceptance event exists.

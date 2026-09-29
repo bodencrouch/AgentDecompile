@@ -2,7 +2,9 @@
 
 # <a id="cap-header"></a>Autonomous capability delivery
 
-Text outline of [autonomous-capabilities.svg](autonomous-capabilities.svg); the primary accessible reading form of that diagram. Each anchor equals the node id in `pipeline-model.json`, the `<g id>` in the SVG and the object id in the `.drawio` file. Symbols that carry meaning are spelled out in words.
+In the app: `?node=cap-header`
+
+Text outline of [autonomous-capabilities.svg](autonomous-capabilities.svg); the primary accessible reading form of that diagram. Each anchor equals the node id in `pipeline-model.json`, the `<g id>` in the SVG and the object id in the `.drawio` file, whose single link per object points back to this anchor. "In the app" gives each node's location in the workbench, which resolves it against the active project. Symbols that carry meaning are spelled out in words.
 
 Summary: Reading order: six workflow steps from request to continuation, the reconciliation banner, milestones M0 to M7, the first complete product demonstration and the human-input boundary. One existing task authority connects evidence, admission, isolated operations, independent acceptance and continuation. M0 has implemented foundations and partial software verification; M1 through M7 are future capabilities and the first demonstration is NOT RUN; autonomous-capabilities.outline.md is the text outline.
 
@@ -12,39 +14,55 @@ One task/acceptance authority, reuse preparation, corpus receipts, recovery supe
 
 ## <a id="cap-step-1"></a>Step 1: Request
 
+In the app: `?node=cap-step-1`
+
 - Behavior, target, predicates
 - Allowed effects and cost
 
 ## <a id="cap-step-2"></a>Step 2: Resolve evidence
+
+In the app: `?node=cap-step-2`
 
 - Reuse valid receipts
 - Name missing prerequisites
 
 ## <a id="cap-step-3"></a>Step 3: Deterministic admit
 
+In the app: `?node=cap-step-3`
+
 - Pinned observations + policy
 - Ownership and budget gates
 
 ## <a id="cap-step-4"></a>Step 4: Isolated action
+
+In the app: `?node=cap-step-4`
 
 - Typed catalog operation
 - Qualified engine adapter
 
 ## <a id="cap-step-5"></a>Step 5: Accept independently
 
+In the app: `?node=cap-step-5`
+
 - Observe required behavior
 - Retain scoped proof
 
 ## <a id="cap-step-6"></a>Step 6: Continue
 
+In the app: `?node=cap-step-6`
+
 - Reuse accepted observations
 - Exact wake; no blind replay
 
-<a id="cap-banner"></a>Unknown effects then reconcile; unavailable authority then pause new mutations; unrelated eligible work then keep progressing.
+<a id="cap-banner"></a>Unknown effects then reconcile; unavailable authority then pause new mutations; unrelated eligible work then keep progressing. In the app: `?node=cap-banner`
 
 ## <a id="cap-milestones"></a>Useful native capabilities first; platform and browser investigations can proceed independently.
 
+In the app: `?node=cap-milestones`
+
 ### <a id="milestone-M0"></a>M0: Reliable continuation
+
+In the app: `?node=milestone-M0`
 
 - Status: IMPLEMENTED FOUNDATION, PARTIALLY VERIFIED
 - Scope: Preserve attempts across resume. Explain exhaustion, unknown outcomes and the exact next action.
@@ -52,11 +70,15 @@ One task/acceptance authority, reuse preparation, corpus receipts, recovery supe
 
 ### <a id="milestone-M1"></a>M1: Effective scenario
 
+In the app: `?node=milestone-M1`
+
 - Status: FUTURE DELIVERY
 - Scope: Pin fixture and effective script. Prepare, run, observe, capture, clean. Resume a mixed pass/blocked batch.
 - Acceptance: actual game receipt; no routine user repair of paths, manifests or lifecycle state.
 
 ### <a id="milestone-M2"></a>M2: Operation bundle
+
+In the app: `?node=milestone-M2`
 
 - Status: FUTURE DELIVERY
 - Scope: Generate ABI, units, ID domains, lifetime and effect/restore contract. Share help, CLI, Lua and harness.
@@ -64,11 +86,15 @@ One task/acceptance authority, reuse preparation, corpus receipts, recovery supe
 
 ### <a id="milestone-M3"></a>M3: F12 workspace
 
+In the app: `?node=milestone-M3`
+
 - Status: FUTURE DELIVERY
 - Scope: Select/query object; execute Lua. Edit supported property; inspect result/error; undo; Copy as Lua.
 - Acceptance: real key/focus/input, engine-thread execution and shared operation IDs in UI/script/harness.
 
 ### <a id="milestone-M4"></a>M4: Creative projects
+
+In the app: `?node=milestone-M4`
 
 - Status: FUTURE DELIVERY
 - Scope: Compose meaningful scene + shot. Reopen in a fresh game session. Record the defining native effect.
@@ -76,11 +102,15 @@ One task/acceptance authority, reuse preparation, corpus receipts, recovery supe
 
 ### <a id="milestone-M5"></a>M5: Playback / checkpoints
 
+In the app: `?node=milestone-M5`
+
 - Status: FUTURE DELIVERY
 - Scope: Owned pause, save and restore. Replay supported dialog branches. Stable selectors; fresh lifetimes.
 - Acceptance: inventory/quest/party and script restoration; exclusions. No arbitrary-memory rewind claim.
 
 ### <a id="milestone-M6"></a>M6: Native host matrix
+
+In the app: `?node=milestone-M6`
 
 - Status: FUTURE QUALIFICATION
 - Scope: Exact native builds per platform; compatible Windows/Linux workers. Qualify each build and architecture.
@@ -88,25 +118,31 @@ One task/acceptance authority, reuse preparation, corpus receipts, recovery supe
 
 ### <a id="milestone-M7"></a>M7: Whole-game browser
 
+In the app: `?node=milestone-M7`
+
 - Status: FUTURE FEASIBILITY then DELIVERY
 - Scope: Inspect prior browser-runtime work. Prove an executable runtime route. Then prove interactive game use.
 - Acceptance: rendering/input/audio, save, main loop, sustained play and shared devtools protocol.
 
 ## <a id="cap-demo"></a>First complete product demonstration — FUTURE / NOT RUN
 
+In the app: `?node=cap-demo`
+
 One requested native capability: discovery then binding then UI or Lua then prepared scenario, independent state observation then verified supported restoration then useful recorded clip. Behavior, capture integrity and presentation are separate acceptance predicates. A job result, syntax pass, browser shell or Wasm utility does not prove this delivery. Source parity, native game behavior and platform qualification keep separate receipts.
 
 ## <a id="cap-human"></a>Human input only for genuine exceptions
 
+In the app: `?node=cap-human`
+
 Material objective / acceptance changes; unavailable legal, credential or device access; required external interaction; uninferable subjective creative direction. Deduplicate requests; continue independent work. Local artifact creation is not external publication authority.
 
-<a id="cap-footer"></a>Design status: M1 to M7 are ambitions, not completed features. M0 software evidence does not establish live-game autonomy.
+<a id="cap-footer"></a>Design status: M1 to M7 are ambitions, not completed features. M0 software evidence does not establish live-game autonomy. In the app: `?node=cap-footer`
 
 Contract: docs/plans/2026-09-22-autonomous-capability-product-roadmap.md, 2026-09-22
 
 ## <a id="relationships"></a>Relationships
 
-Typed edges from pipeline-model.json that involve this diagram. "(drawn arrow)" marks an arrow in the diagram; "(inferred)" marks an edge read from diagram text, followed by whether that text states it directly or it is an interpretation to review, and the text it is based on.
+Typed edges from pipeline-model.json that involve this diagram. "(drawn arrow)" marks an arrow in the diagram, followed by the diagram text that states it when it was first read from text; "(inferred)" marks an edge read from diagram text and not drawn, followed by whether that text states it directly or it is an interpretation to review, and the text it is based on.
 
 - [Step 2: Resolve evidence](#cap-step-2) depends on [Step 1: Request](#cap-step-1) (drawn arrow)
 - [Step 3: Deterministic admit](#cap-step-3) depends on [Step 2: Resolve evidence](#cap-step-2) (drawn arrow)

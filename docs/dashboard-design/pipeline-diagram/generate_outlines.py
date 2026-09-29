@@ -4,16 +4,27 @@
 The outlines are the primary accessible reading form of the diagrams.  Every heading
 (and every item that is a node) carries an explicit ``<a id="<node id>"></a>`` anchor so
 the GUI and docs can deep-link.  Symbols that carry meaning are spelled out in words.
+Every node also names its in-app location, ``?node=<id>``, as code text.  It becomes a
+link only when an explicit app base is configured (``--app-base PATH`` or the
+PIPELINE_OUTLINE_APP_BASE environment variable), for a backend-served rendering.  The base
+must be a root-relative path, so no host, port or project parameter is ever emitted, and such
+a rendering must be written with ``--out-dir`` so the committed outlines stay link-free.
+Stage and lane sections list their catalog verbs (from ``catalog_verbs``), and the two
+companion outlines end with the lifecycle crosswalks, marked as interpretations.
 
 Run the four diagram generators first: this script also verifies that
-  1. every content string in the model appears in the generated SVG (no drift), and
+  1. every content string in the model appears in the generated SVG (no drift),
   2. the SVG ``<g id>`` sequence equals the outline's node-anchor sequence
-     (same ids, same reading order).
+     (same ids, same reading order),
+  3. catalog_verbs, lifecycle_states, crosswalks and edge flags reference real nodes and
+     states, and each stage and lane section lists exactly the verbs the map gives it.
 Document authoring only; nothing here exercises AgentDecompile.
 """
 from __future__ import annotations
 
+import argparse
 import html
+import os
 import re
 import sys
 from pathlib import Path
@@ -22,7 +33,10 @@ from diagram_common import HERE, load_model, svg_texts
 
 M = load_model()
 FAMILIES = M["families"]
-EXTRA_ANCHORS = {"relationships"}
+EXTRA_ANCHORS = {"relationships", "crosswalks"}
+APP_BASE_ENV = "PIPELINE_OUTLINE_APP_BASE"
+APP_BASE_OK = re.compile(r"/(?!/)[A-Za-z0-9._~/-]*")  # root-relative path: no scheme, host, port, query or fragment
+APP_BASE: str | None = None
 
 # ------------------------------------------------------------------ words for symbols
 PHRASES = [
@@ -68,6 +82,31 @@ def bullets(how: list[str]) -> list[str]:
 
 def anchor(node_id: str) -> str:
     return f'<a id="{node_id}"></a>'
+
+
+def in_app(node_id: str) -> str:
+    """The node's in-app location; resolved by the app against the active project."""
+    loc = f"?node={node_id}"
+    return f"In the app: `{loc}`" if APP_BASE is None else f"In the app: [`{loc}`]({APP_BASE}{loc})"
+
+
+def with_in_app(s: str, node_id: str) -> str:
+    s = s.rstrip()
+    return s + (" " if s.endswith((".", ":", ";", "!", "?")) else ". ") + in_app(node_id)
+
+
+def verbs_line(node_id: str, key: str) -> str:
+    """Catalog verbs of a stage (key 'stages') or lane (key 'lanes'), derived from catalog_verbs."""
+    quotes, sources = [], []
+    for v in M["catalog_verbs"].values():
+        if node_id in v[key]:
+            if v["quote"] not in quotes:
+                quotes.append(v["quote"])
+            if v["source"] not in sources:
+                sources.append(v["source"])
+    if not quotes:
+        return "Catalog verbs: unmapped (no recorded mapping)"
+    return f"Catalog verbs ({'; '.join(sources)}): " + "; ".join(words(q) for q in quotes)
 
 
 def family_text(fam: str) -> str:
@@ -134,11 +173,17 @@ class Doc:
 
     def h(self, level: int, node_id: str | None, title: str) -> None:
         self.lines += ["#" * level + " " + self._mark(node_id) + words(title), ""]
+        if node_id is not None and node_id not in EXTRA_ANCHORS:
+            self.lines += [in_app(node_id), ""]
 
     def p(self, s: str, node_id: str | None = None) -> None:
+        if node_id is not None:
+            s = with_in_app(s, node_id)
         self.lines += [self._mark(node_id) + s, ""]
 
     def li(self, s: str, node_id: str | None = None, indent: int = 0, marker: str = "-") -> None:
+        if node_id is not None:
+            s = with_in_app(s, node_id)
         self.lines.append("  " * indent + f"{marker} " + self._mark(node_id) + s)
 
     def end_list(self) -> None:
@@ -148,6 +193,7 @@ class Doc:
 def card_body(d: Doc, cd: dict, gate_id: str | None = None, stage: bool = False) -> None:
     if stage:
         d.li(f"Family: {family_text(cd['family'])}")
+        d.li(verbs_line(cd["id"], "stages"))
     if cd.get("tag"):
         d.li(f"Tag: {words(cd['tag'])}")
     d.li(f"Trying to: {joined(cd['try'])}")
@@ -174,14 +220,15 @@ def card_body(d: Doc, cd: dict, gate_id: str | None = None, stage: bool = False)
 def relationships(d: Doc) -> None:
     d.h(2, "relationships", "Relationships")
     d.p("Typed edges from pipeline-model.json that involve this diagram. \"(drawn arrow)\" marks an arrow in "
-        "the diagram; \"(inferred)\" marks an edge read from diagram text, followed by whether that text states "
-        "it directly or it is an interpretation to review, and the text it is based on.")
+        "the diagram, followed by the diagram text that states it when it was first read from text; \"(inferred)\" "
+        "marks an edge read from diagram text and not drawn, followed by whether that text states it directly or it "
+        "is an interpretation to review, and the text it is based on.")
     for e in M["edges"]:
         a, b = M.node(e["from"]), M.node(e["to"])
         if d.diagram not in (a["diagram"], b["diagram"]):
             continue
         if e.get("drawn"):
-            note = " (drawn arrow)"
+            note = " (drawn arrow)" + (f" — {e['inference']}: {words(e['basis'])}" if e.get("basis") else "")
         elif e.get("inferred"):
             note = f" (inferred) — {e['inference']}: {words(e['basis'])}"
         else:
@@ -190,13 +237,40 @@ def relationships(d: Doc) -> None:
     d.end_list()
 
 
+def crosswalks(d: Doc) -> None:
+    """Lifecycle states read as the design steps of this diagram; interpretations only."""
+    items = [c for c in M["crosswalks"] if M.node(c["to"])["diagram"] == d.diagram]
+    if not items:
+        return
+    d.h(2, "crosswalks", "Crosswalks (interpretation)")
+    d.p("Each line reads one lifecycle state as the design step it instantiates. These are interpretations of the "
+        "design text, not the runtime's state machine: a lifecycle rail shows the backend's states only. Each basis "
+        "quotes the task acceptance design, followed by the step text it was matched to.")
+    for lc in dict.fromkeys(c["lifecycle"] for c in items):
+        ls = M["lifecycle_states"][lc]
+        d.p(f"{lc} states (names from `{ls['source']}`)." + (f" {words(ls['note'])}" if ls.get("note") else ""))
+        mapped = []
+        for c in items:
+            if c["lifecycle"] != lc:
+                continue
+            mapped.append(c["state"])
+            d.li(f"State `{c['state']}` is read as {link(c['to'], d.diagram)} (interpretation). "
+                 f"Basis: {words(c['basis'])} Matches {words(c['matches'])}.")
+        d.end_list()
+        unmapped = [s for s in ls["states"] if s not in mapped]
+        if unmapped:
+            d.p("No crosswalk, because no supporting text was found: " + ", ".join(f"`{s}`" for s in unmapped) + ".")
+
+
 def preamble(d: Doc, header_id: str) -> None:
     dg = M["diagrams"][d.diagram]
     d.lines += ["<!-- Generated by generate_outlines.py from pipeline-model.json; do not edit by hand. -->", ""]
     d.h(1, header_id, M.node(header_id)["title"])
     d.p(f"Text outline of [{dg['svg']}]({dg['svg']}); the primary accessible reading form of that diagram. "
         "Each anchor equals the node id in `pipeline-model.json`, the `<g id>` in the SVG and the object id in "
-        f"the `.drawio` file. Symbols that carry meaning are spelled out in words.")
+        "the `.drawio` file, whose single link per object points back to this anchor. \"In the app\" gives each "
+        "node's location in the workbench, which resolves it against the active project. Symbols that carry "
+        "meaning are spelled out in words.")
     d.p(f"Summary: {words(dg['desc'])}")
 
 
@@ -240,6 +314,7 @@ def overview() -> Doc:
         lane = M.node(f"lane-{letter}")
         d.h(3, lane["id"], f"Lane {letter}: {lane['title']}")
         d.li(f"Family: {family_text(lane['family'])}")
+        d.li(verbs_line(lane["id"], "lanes"))
         d.li(f"Connects: {words(lane['connects'])}")
         d.li(f"Scope: {words(lane['subtitle'])}")
         d.li("Outputs and who consumes them:")
@@ -365,6 +440,7 @@ def companion(diagram: str, header_id: str) -> Doc:
         else:
             raise SystemExit(f"no outline renderer for {n['id']} ({k})")
     relationships(d)
+    crosswalks(d)
     return d
 
 
@@ -394,6 +470,63 @@ def model_ids(diagram: str) -> set[str]:
         if e.get("id") and M.node(e["from"])["diagram"] == diagram:
             ids.add(e["id"])
     return ids
+
+
+def verify_model() -> list[str]:
+    """Cross-references of the non-node sections: catalog_verbs, lifecycle_states, crosswalks, edge flags."""
+    problems = []
+    stage_ids = {n["id"] for n in M["nodes"] if n["kind"] == "stage"}
+    lane_ids = {n["id"] for n in M["nodes"] if n["kind"] == "lane"}
+    for verb, v in M["catalog_verbs"].items():
+        if not (set(v) >= {"stages", "lanes", "source", "quote"} and verb and verb in v["quote"]):
+            problems.append(f"catalog verb {verb!r}: needs stages, lanes, source and a quote naming the verb")
+            continue
+        bad = sorted(set(v["stages"]) - stage_ids) + sorted(set(v["lanes"]) - lane_ids)
+        if bad:
+            problems.append(f"catalog verb {verb!r} maps to unknown stage or lane ids {bad}")
+    for c in M["crosswalks"]:
+        where = f"crosswalk {c.get('lifecycle')}.{c.get('state')}"
+        states = M["lifecycle_states"].get(c.get("lifecycle"), {}).get("states", [])
+        if c.get("state") not in states:
+            problems.append(f"{where}: state is not in lifecycle_states")
+        if c.get("to") not in M.by_id:
+            problems.append(f"{where}: unknown step {c.get('to')!r}")
+            continue
+        if c.get("inference") != "interpretation" or not c.get("basis") or not c.get("source"):
+            problems.append(f"{where}: needs inference 'interpretation', a quoted basis and its source")
+        n = M.node(c["to"])
+        for q in re.findall(r"'([^']+)'", c.get("matches", "")):
+            if q != n["title"] and q not in n.get("rows", []):
+                problems.append(f"{where}: matched text {q!r} is not in {c['to']}")
+    for e in M["edges"]:
+        where = f"edge {e['from']} {e['type']} {e['to']}"
+        if bool(e.get("drawn")) == bool(e.get("inferred")):
+            problems.append(f"{where}: must be exactly one of drawn or inferred")
+        if e.get("drawn") and e.get("inference", "stated") != "stated":
+            problems.append(f"{where}: only edges stated by diagram text are drawn")
+    return problems
+
+
+def section_lines(doc: Doc, node_id: str) -> list[str]:
+    start = next(i for i, s in enumerate(doc.lines) if anchor(node_id) in s)
+    end = next((j for j in range(start + 1, len(doc.lines)) if doc.lines[j].startswith("#")), len(doc.lines))
+    return doc.lines[start:end]
+
+
+def verify_verbs(doc: Doc) -> list[str]:
+    """Each stage and lane section lists exactly the verbs catalog_verbs maps to it."""
+    problems = []
+    for n in M.nodes_of(doc.diagram):
+        key = {"stage": "stages", "lane": "lanes"}.get(n["kind"])
+        if key is None:
+            continue
+        want = {verb for verb, v in M["catalog_verbs"].items() if n["id"] in v[key]}
+        line = next((s for s in section_lines(doc, n["id"]) if s.startswith("- Catalog verbs")), None)
+        if line is None:
+            problems.append(f"{n['id']}: outline section has no catalog verbs line")
+        elif set(re.findall(r"`([^`]+)`", line)) != want or (not want and "unmapped" not in line):
+            problems.append(f"{n['id']}: outline verbs line {line!r} differs from catalog_verbs {sorted(want)}")
+    return problems
 
 
 def verify(diagram: str, doc: Doc) -> list[str]:
@@ -430,20 +563,36 @@ def verify(diagram: str, doc: Doc) -> list[str]:
     return problems
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    global APP_BASE
+    ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
+    ap.add_argument("--app-base", default=os.environ.get(APP_BASE_ENV) or None,
+                    help=f"root-relative app path (e.g. /dashboard) that turns each in-app location into a link; "
+                         f"default ${APP_BASE_ENV}, unset means code text only")
+    ap.add_argument("--out-dir", type=Path, default=HERE, help="where to write the outlines (default: this directory)")
+    args = ap.parse_args(argv)
+    if args.app_base is not None:
+        if not APP_BASE_OK.fullmatch(args.app_base):
+            raise SystemExit(f"app base {args.app_base!r} must be a root-relative path such as /dashboard: no scheme, "
+                             "host, port, query or fragment, so no host, port or project parameter is ever emitted")
+        if args.out_dir.resolve() == HERE:
+            raise SystemExit("an app base is for a served rendering: pass --out-dir so the committed outlines keep "
+                             "their in-app locations as code text")
+        APP_BASE = args.app_base
     docs = [(overview(), "agentdecompile-recovery-pipeline"),
             (companion("execution-contracts", "exec-header"), "execution-contracts"),
             (companion("resilience-contracts", "resil-header"), "resilience-contracts"),
             (companion("autonomous-capabilities", "cap-header"), "autonomous-capabilities")]
-    problems = []
+    problems = verify_model()
     for doc, diagram in docs:
-        problems += verify(diagram, doc)
+        problems += verify(diagram, doc) + verify_verbs(doc)
     if problems:
         print("\n".join(problems), file=sys.stderr)
         return 1
+    args.out_dir.mkdir(parents=True, exist_ok=True)
     for doc, diagram in docs:
         text = "\n".join(doc.lines).rstrip() + "\n"
-        path = HERE / M["diagrams"][diagram]["outline"]
+        path = args.out_dir / M["diagrams"][diagram]["outline"]
         path.write_text(text, encoding="utf-8")
         print(path, len(text.encode("utf-8")), "bytes;", len(doc.anchors), "anchors; verified against", M["diagrams"][diagram]["svg"])
     return 0

@@ -1,4 +1,4 @@
-<!-- @dsCard group="Code" height=910 -->
+<!-- @dsCard group="Code" height=920 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">The stack frame of one function, per build · higher addresses at the top · rows keyed by logical slot, offsets per build</span>
 <section class="adc-pane" aria-labelledby="fl-h">
@@ -23,9 +23,9 @@
     <tr><th scope="row"><span class="adx-slot">align</span> frame size</th><td class="o">0x5C</td><td class="o">0x64</td><td class="o">0x60</td><td class="o">0x5C</td></tr>
    </tbody></table></div>
   <div class="adx-flags">
-   <span class="adx-var"><b>/GS buffer ordering</b> · build-b, build-c, build-d place <code>nameBuf</code> directly under the cookie, above the scalars; build-a keeps declaration order · solid: cookie bytes; <a class="ad-link" href="/docs/research/2026-09-29-msvc-optimization-for-decomp.md#t8-gs-security-cookies">research T8</a></span>
-   <span class="adx-var hyp"><b>Slot reuse</b> · build-c: <code>slotIndex</code> and <code>entry</code> share −0x54 · hypothesis, basis: lifetimes do not overlap in build-c; <a class="ad-link" href="/docs/research/2026-09-29-msvc-optimization-for-decomp.md#i6-register-allocation-order-stack-slot-reuse-local-ordering">research I6</a></span>
-   <span class="adx-var hyp"><b>Same source, compiled differently</b> · build-d keeps <code>slotIndex</code> in esi · hypothesis, basis: equal source digest with build-b, LTCG recorded</span>
+   <span class="adx-var"><b>/GS buffer ordering</b> · build-b, build-c, build-d place <code>nameBuf</code> directly under the cookie, above the scalars; build-a keeps declaration order · witness: cookie bytes; <a class="ad-link" href="/docs/research/2026-09-29-msvc-optimization-for-decomp.md#t8-gs-security-cookies">research T8</a> · <a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=toolchain&amp;build=build-b" aria-label="Toolchain evidence, build-b">flags in ToolchainEvidence</a></span>
+   <span class="adx-var hyp"><b>Slot reuse</b> · build-c: <code>slotIndex</code> and <code>entry</code> share −0x54 · hypothesis (heuristic), basis: lifetimes do not overlap in build-c; <a class="ad-link" href="/docs/research/2026-09-29-msvc-optimization-for-decomp.md#i6-register-allocation-order-stack-slot-reuse-local-ordering">research I6</a></span>
+   <span class="adx-var hyp"><b><span aria-hidden="true">≈ </span>Same source, compiled differently</b> · build-d keeps <code>slotIndex</code> in esi · hypothesis (heuristic), basis: equal source digest with build-b, LTCG recorded</span>
    <span class="adx-var hyp"><b>FPO</b> · not applied in any build: the C++ EH frame keeps EBP · hypothesis; <a class="ad-link" href="/docs/research/2026-09-29-msvc-optimization-for-decomp.md#t2-oy-frame-pointer-omission-ebp-versus-esp-frames-fpo-data">research T2</a></span>
   </div>
  </div>
@@ -41,7 +41,7 @@
     <tr><th scope="row"><span class="adx-slot">frame</span> base</th><td class="o">EBP frame</td><td class="o"><b>ESP frame (FPO)</b></td><td class="o"><b>ESP frame (FPO)</b></td><td class="absent">unknown · not decompiled</td></tr>
     <tr><th scope="row"><span class="adx-slot">arg</span> i</th><td class="o">[ebp+0x8]</td><td class="o">entry ESP+0x4 <span class="muted">(raw [esp+0x8] after push esi)</span></td><td class="o">entry ESP+0x4</td><td class="absent">unknown</td></tr>
    </tbody></table></div>
-  <span class="adx-var unk"><b>Unknown</b> · build-a EBP frame against build-b ESP frame: source (r12, r14) and flags both differ, so the cause is not separated. Frame shapes themselves are solid: prologue bytes.</span>
+  <span class="adx-var unk"><b><span aria-hidden="true">? </span>Unknown</b> · build-a EBP frame against build-b ESP frame: source (r12, r14) and flags both differ, so the cause is not separated. Frame shapes themselves are solid: prologue bytes.</span>
  </div>
 </section>
 </div>

@@ -45,11 +45,13 @@ MatchExplain explains why a recompiled candidate does not match its target bytes
 - Receipt: fresh · reused · historical ("◷ compiled from r14; source is r15"; the rows are marked historical, never current).
 - No receipt: "No comparison receipt for this pair. Nothing is compiled from here." The one armed fix comes from the catalog and is never run.
 
+Difference classes use VariantRelation's glyphs and words: `≈` same source, compiled differently (compile variance) · `∼` same source and flags, build state differs (entropy) · `≠` source changed · `?` unknown · `≡` identical. Evidence words are shared with ToolchainEvidence: **witness** or **record** (solid frame), **hypothesis (heuristic)** (dashed frame, basis named), **unknown** (italic word, no frame). A build-wide cause (a flag, LTCG, /GS, /Oy, EH model, ICF) links to ToolchainEvidence (`ws=evidence&panel=toolchain&build=…`) instead of restating its evidence.
+
 ## Linking
 
-- **Publishes:** nothing on focus. Enter on a class filters the rows to it (`f=diffclass:regalloc`, proposed; replaceState). Enter on an address is Go to the Listing at that build. The ToolchainEvidence link is a Go to the build's toolchain panel. Open beside holds the pair (`hold=receipt:3e10@build-b`).
+- **Publishes:** nothing on focus. Enter on a class filters the rows to it (`f=diffclass:regalloc`, proposed; replaceState). Enter on an address is Go to the Listing at that build. The ToolchainEvidence link is a Go to that build's column in ToolchainEvidence. Open beside holds the pair (`hold=receipt:3e10@build-b`).
 - **Follows:** the entity and the object pair recorded for it, on Enter (derived pane). Holdable.
-- **Targets rendered:** address (target rows) · receipt and job (stamp) · fact (badges open their Peek) · FrameLayout (kept card, proposed `keep=frame:88@build-b`) · ToolchainEvidence (build panel) · research section.
+- **Targets rendered:** address (target rows) · receipt and job (stamp) · fact (badges open their Peek) · FrameLayout (kept card, proposed `keep=frame:88@build-b`) · ToolchainEvidence (`ws=evidence&panel=toolchain&build=build-b`) · research section.
 - **Peek source:** the stored comparison receipt, classifier record and stack comparison.
 - **Absent copy:** "not run" · "No comparison receipt" · "none found" · "unknown: no row is explained only by source" · "(inferred)" on relocation sizes.
 - **Target-size exception:** address links sit one per 24px grid row (the inline exception); row focus and the 44px row-menu button apply.

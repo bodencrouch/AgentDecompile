@@ -1,0 +1,82 @@
+<!-- @dsCard group="Code" height=1500 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">Fields band open above the Listing · per viewer · the same layout on every build and in both SplitCompare panes</span>
+<section class="ad-lfl" role="region" aria-labelledby="lfl-h">
+ <header><span class="kicker">Listing fields</span><h4 id="lfl-h">Per viewer · applies to every build</h4><span class="small muted">4 changes from default</span>
+  <span class="end"><button class="ad-btn compact" aria-pressed="true">Follow cursor row kind</button><button class="ad-btn compact">Reset this row kind</button><button class="ad-btn compact">Reset all</button><button class="ad-btn compact">Close</button></span></header>
+ <div class="ad-subtabs" role="tablist" aria-label="Row kinds">
+  <button role="tab" aria-selected="false" tabindex="-1">Address break</button><button role="tab" aria-selected="false" tabindex="-1">Plate</button><button role="tab" aria-selected="false" tabindex="-1">Function</button><button role="tab" aria-selected="false" tabindex="-1">Variable</button><button role="tab" aria-selected="true" tabindex="0" id="lfl-t-id" aria-controls="lfl-p-id">Instruction/Data</button><button role="tab" aria-selected="false" tabindex="-1">Open data</button><button role="tab" aria-selected="false" tabindex="-1" aria-describedby="lfl-cust-d">Custom · <span translate="no">CacheEntry</span></button>
+ </div>
+ <span class="sr-only" id="lfl-cust-d">Per viewer; not saved to the program.</span>
+ <div id="lfl-p-id" role="tabpanel" aria-labelledby="lfl-t-id">
+  <div class="ad-lfl-cat">
+   <div class="ad-lfl-row" role="toolbar" aria-label="Instruction/Data row 1, 8 fields"><span class="rn" aria-hidden="true">Row 1</span>
+    <button class="ad-lfl-f" style="--w:9ch" aria-label="Address, on" tabindex="0"><span class="nm">Address</span></button>
+    <button class="ad-lfl-f add" style="--w:14ch" aria-label="Function offset, on, added" tabindex="-1"><span class="nm">Function offset</span><span class="st">added</span></button>
+    <button class="ad-lfl-f add" style="--w:12ch" aria-label="File offset, catalog action needed, added" aria-disabled="true" aria-describedby="lfl-fo-d" tabindex="-1"><span class="nm">File offset</span><span class="st">catalog action needed</span></button>
+    <button class="ad-lfl-f" style="--w:12ch" aria-label="Bytes, on" tabindex="-1"><span class="nm">Bytes</span></button>
+    <button class="ad-lfl-f" style="--w:7ch" aria-label="Mnemonic, on" tabindex="-1"><span class="nm">Mnemonic</span></button>
+    <button class="ad-lfl-f" style="--w:18ch" aria-label="Operands, on, under cursor, settings open" aria-current="true" aria-selected="true" tabindex="-1"><span class="nm">Operands</span><span class="st">under cursor</span></button>
+    <button class="ad-lfl-f" style="--w:10ch" aria-label="XREF, on" tabindex="-1"><span class="nm">XREF</span></button>
+    <button class="ad-lfl-f off" style="--w:9ch" aria-label="Stack depth, off, keeps its space" tabindex="-1"><span class="nm">Stack depth</span><span class="st">off</span></button>
+   </div>
+   <span class="sr-only" id="lfl-fo-d">No catalog read maps addresses to file offsets on this server. The column shows unavailable.</span>
+   <div class="ad-lfl-row" role="toolbar" aria-label="Instruction/Data row 2, 2 fields"><span class="rn" aria-hidden="true">Row 2</span>
+    <button class="ad-lfl-f spacer" style="--w:9ch" aria-label="Spacer, no text" tabindex="0"><span class="nm">spacer</span></button>
+    <button class="ad-lfl-f add" style="--w:30ch" aria-label="P-code, on, added, not read for this range" tabindex="-1"><span class="nm">P-code</span><span class="st">added · not read</span></button>
+   </div>
+   <div class="ad-lfl-row" role="group" aria-label="Available fields"><span class="rn" aria-hidden="true">Add</span>
+    <span class="ad-lfl-avail"><button class="ad-btn compact">EOL comment</button><button class="ad-btn compact">Block offset</button><button class="ad-btn compact">Image-base offset</button><button class="ad-btn compact">Register transition</button><button class="ad-btn compact">Parallel</button><button class="ad-btn compact">Source map</button><button class="ad-btn compact">Spacer</button><button class="ad-btn compact">Insert row</button></span>
+   </div>
+  </div>
+  <div class="ad-lfl-set">
+   <section aria-labelledby="lfl-so-h"><h5 id="lfl-so-h">Operands · settings</h5>
+    <dl class="ad-lfl-opts">
+     <dt id="lfl-o1">Reference underline</dt><dd><span class="ad-seg" role="group" aria-labelledby="lfl-o1"><button aria-pressed="true">Current row</button><button aria-pressed="false">All rows</button><button aria-pressed="false">None</button></span></dd>
+     <dt id="lfl-o2">Namespace prefix</dt><dd><span class="ad-seg" role="group" aria-labelledby="lfl-o2"><button aria-pressed="true">Non-local</button><button aria-pressed="false">Local too</button></span></dd>
+     <dt id="lfl-o3">Block names</dt><dd><span class="ad-seg" role="group" aria-labelledby="lfl-o3"><button aria-pressed="false">Show</button><button aria-pressed="true">Hide</button></span></dd>
+     <dt id="lfl-o4">Variable markup</dt><dd><span class="ad-seg" role="group" aria-labelledby="lfl-o4"><button aria-pressed="true">Register</button><button aria-pressed="true">Stack</button><button aria-pressed="false">Inferred</button></span></dd>
+     <dt id="lfl-o5">Primary reference</dt><dd><span class="ad-seg" role="group" aria-labelledby="lfl-o5"><button aria-pressed="false">Always (=&gt;)</button><button aria-pressed="true">When replaced</button></span></dd>
+     <dt>Wrap</dt><dd><span class="small muted">word wrap off · max 2 lines · semicolons on one line</span></dd>
+    </dl>
+   </section>
+   <section aria-labelledby="lfl-sx-h"><h5 id="lfl-sx-h">XREF · settings</h5>
+    <dl class="ad-lfl-opts">
+     <dt id="lfl-x1">Ref-type letter</dt><dd><span class="ad-seg" role="group" aria-labelledby="lfl-x1"><button aria-pressed="true">Show</button><button aria-pressed="false">Hide</button></span><span class="small muted">c call · j jump · R read · W write · * data · T thunk</span></dd>
+     <dt id="lfl-x2">Group by function</dt><dd><span class="ad-seg" role="group" aria-labelledby="lfl-x2"><button aria-pressed="true">On</button><button aria-pressed="false">Off</button></span></dd>
+     <dt id="lfl-x3">Sort</dt><dd><span class="ad-seg" role="group" aria-labelledby="lfl-x3"><button aria-pressed="true">Address</button><button aria-pressed="false">Type</button></span></dd>
+     <dt><label for="lfl-x4">Maximum shown</label></dt><dd><input class="ad-g1-in" id="lfl-x4" value="3" size="3" inputmode="numeric"><span class="small muted">then “N more” links to References</span></dd>
+     <dt><label for="lfl-x5">Delimiter</label></dt><dd><input class="ad-g1-in" id="lfl-x5" value=", " size="3"></dd>
+    </dl>
+   </section>
+  </div>
+  <div class="ad-lfl-set">
+   <section aria-labelledby="lfl-sm-h"><h5 id="lfl-sm-h">Marker margin</h5>
+    <div class="ad-swb-set" role="group" aria-labelledby="lfl-sm-h"><button class="ad-btn compact" aria-pressed="true">▪ Bookmarks</button><button class="ad-btn compact" aria-pressed="true">a Marks</button><button class="ad-btn compact" aria-pressed="true">Selection</button><button class="ad-btn compact" aria-pressed="true">A–D Highlights</button><button class="ad-btn compact" aria-pressed="true">✎ Changed by job</button><button class="ad-btn compact" aria-pressed="true">• Search hits</button><button class="ad-btn compact" aria-pressed="false">± Differences</button></div>
+   </section>
+   <section aria-labelledby="lfl-sf-h"><h5 id="lfl-sf-h">Flow-arrow margin</h5>
+    <dl class="ad-lfl-opts"><dt><label for="lfl-fw">Width</label></dt><dd><select class="ad-g1-in sans" id="lfl-fw"><option>Narrow</option><option selected>Default</option><option>Wide</option><option>Hidden (0)</option></select><span class="small muted">solid = recorded flow · dashed only for a hypothesis target</span></dd></dl>
+   </section>
+  </div>
+ </div>
+ <p class="sr-only" role="status">Operands moved before XREF</p>
+</section>
+
+<span class="kicker">Result · Listing, build-a, with the changed layout · optional columns name their source · a collapsed callee</span>
+<section class="adc-pane" aria-labelledby="lfl-ls-h">
+ <header><span class="kicker" id="lfl-ls-h">Listing</span><span class="small muted">build-a · <span translate="no">ResourceRef::Resolve</span> · Follows · as I move</span><span class="end"><button class="ad-btn compact" aria-pressed="true">Fields</button></span></header>
+ <div class="ad-lfl-well" role="grid" aria-readonly="true" aria-label="Listing, build-a, ResourceRef::Resolve" aria-rowcount="-1" aria-colcount="9" translate="no" style="--lfl-cols:30px 44px 9ch 27ch 12ch 21ch 5ch minmax(34ch,1fr) 20ch">
+  <div class="ad-lfl-ln hd" role="row"><span role="columnheader">Mk</span><span role="columnheader">Flow</span><span role="columnheader">Address</span><span role="columnheader">Function offset</span><span role="columnheader">File offset</span><span role="columnheader">Bytes</span><span role="columnheader">Mn</span><span role="columnheader">Operands</span><span role="columnheader">XREF</span></div>
+  <div class="ad-lfl-ln lb" role="row" aria-label="label ResourceRef::Resolve, 12 xrefs, bookmark Analysis"><span class="mk" aria-hidden="true">▪</span><span class="fl" aria-hidden="true"> </span><span class="addr" role="rowheader">0041c880</span><span class="off" role="gridcell"></span><span class="off" role="gridcell"></span><span class="by" role="gridcell"></span><span role="gridcell"></span><span role="gridcell" aria-readonly="false">ResourceRef::Resolve:</span><span class="xr" role="gridcell"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041c880&amp;f=xref.dir:in" tabindex="-1" aria-label="12 references to ResourceRef::Resolve, build-a, incoming">c 0041a47c, 3 more</a></span></div>
+  <div class="ad-lfl-ln" role="row" aria-label="0041c880, function offset plus 0, push ebp"><span class="mk" aria-hidden="true"></span><span class="fl" aria-hidden="true"> </span><span class="addr" role="rowheader">0041c880</span><span class="off" role="gridcell">ResourceRef::Resolve+0x0</span><span class="off" role="gridcell"><span class="ad-absent">unavailable</span></span><span class="by" role="gridcell">55</span><span class="mn" role="gridcell">push</span><span role="gridcell">ebp</span><span class="xr" role="gridcell"></span></div>
+  <div class="ad-lfl-ln" role="row" aria-label="0041c89e, function offset plus 0x1e, jz 0041c8b0, conditional jump source, search hit 3 of 40"><span class="mk" aria-hidden="true">•</span><span class="fl" aria-hidden="true">┌</span><span class="addr" role="rowheader">0041c89e</span><span class="off" role="gridcell">ResourceRef::Resolve+0x1e</span><span class="off" role="gridcell"><span class="ad-absent">unavailable</span></span><span class="by" role="gridcell">74 10</span><span class="mn" role="gridcell">jz</span><span role="gridcell"><a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c8b0" tabindex="-1" aria-label="Address 0041c8b0, build-a, conditional jump target">LAB_0041c8b0</a></span><span class="xr" role="gridcell"></span></div>
+  <div class="ad-lfl-ln" role="row" aria-current="true" aria-label="cursor, 0041c8a0, function offset plus 0x20, mov eax, CacheEntry.flags, changed by job a3f9"><span class="mk" aria-hidden="true">✎</span><span class="fl" aria-hidden="true">│</span><span class="addr" role="rowheader">0041c8a0</span><span class="off" role="gridcell">ResourceRef::Resolve+0x20</span><span class="off" role="gridcell"><span class="ad-absent">unavailable</span></span><span class="by" role="gridcell">8b 46 04</span><span class="mn" role="gridcell">mov</span><span role="gridcell">eax, dword ptr [esi + <a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c8a0&amp;type=CacheEntry.flags" tabindex="0" aria-label="Field CacheEntry.flags, build-a" aria-keyshortcuts="Enter Shift+Enter Alt+ArrowDown Shift+F10">CacheEntry.flags</a>]</span><span class="xr" role="gridcell"><a class="ad-link" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" tabindex="-1" aria-label="Changed by job a3f9, rename, finished">job a3f9</a></span></div>
+  <div class="ad-lfl-ln pc" role="row" aria-label="p-code for 0041c8a0, not read for this range"><span aria-hidden="true"></span><span class="fl" aria-hidden="true">│</span><span role="rowheader"><span class="sr-only">p-code 0041c8a0</span></span><span role="gridcell"></span><span role="gridcell"></span><span role="gridcell"></span><span role="gridcell"></span><span role="gridcell"><span class="ad-absent">p-code not read · Enter to read</span></span><span role="gridcell"></span></div>
+  <div class="ad-lfl-ln" role="row" aria-label="0041c8a4, function offset plus 0x24, jmp dword ptr [eax*4 + 0x45e300], computed jump, targets hypothesis, basis jump-table inference"><span class="mk" aria-hidden="true"></span><span class="fl" aria-hidden="true">│<span class="hyp">┆</span></span><span class="addr" role="rowheader">0041c8a4</span><span class="off" role="gridcell">ResourceRef::Resolve+0x24</span><span class="off" role="gridcell"><span class="ad-absent">unavailable</span></span><span class="by" role="gridcell">ff 24 85 00 e3 45 00</span><span class="mn" role="gridcell">jmp</span><span role="gridcell">dword ptr [eax*4 + 0x45e300] <span class="ad-g1-ev hyp">basis: jump-table inference</span></span><span class="xr" role="gridcell"></span></div>
+  <div class="ad-lfl-ln" role="row" aria-label="0041c8b0, function offset plus 0x30, call Archive::OpenMember, conditional jump target from 0041c89e, highlight A"><span class="mk" aria-hidden="true"><span class="ar">A</span></span><span class="fl" aria-hidden="true">└</span><span class="addr" role="rowheader">0041c8b0</span><span class="off" role="gridcell">ResourceRef::Resolve+0x30</span><span class="off" role="gridcell"><span class="ad-absent">unavailable</span></span><span class="by" role="gridcell">e8 7b 07 00 00</span><span class="mn" role="gridcell">call</span><span role="gridcell"><a class="ad-link sym" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041d030" tabindex="-1" aria-label="Address 0041d030, build-a, Archive::OpenMember">Archive::OpenMember</a></span><span class="xr" role="gridcell"></span></div>
+  <div class="ad-lfl-ln fold" role="row" aria-label="Function Archive::OpenMember, 48 rows collapsed, view state only"><span aria-hidden="true"></span><span class="fl" aria-hidden="true"> </span><span class="addr" role="rowheader">0041d030</span><span role="gridcell" class="off">Archive::OpenMember</span><span role="gridcell"></span><span role="gridcell"></span><span role="gridcell"></span><span role="gridcell"><button class="fold-b" aria-expanded="false" aria-keyshortcuts="z">Expand · 48 rows collapsed</button></span><span role="gridcell"></span></div>
+ </div>
+ <div class="ad-lfl-key" aria-label="Margin key"><span><b aria-hidden="true">▪</b> program bookmark</span><span><b aria-hidden="true">•</b> search hit</span><span><b aria-hidden="true">✎</b> changed by job</span><span><b aria-hidden="true">A</b> highlight A</span><span><b aria-hidden="true">┌ │ └</b> conditional jump</span><span><b aria-hidden="true">┏ ┃ ┗</b> unconditional · bold at the cursor</span><span><b aria-hidden="true">┆</b> hypothesis target</span><span>File offset: catalog action needed on this server</span></div>
+</section>
+<p class="small muted" style="margin:0">Presentation only. The layout is per viewer, never in the URL and never propagated. Reading p-code or a file offset is a read on Enter; a following Listing never reads on a cache miss and never analyzes.</p>
+</div>

@@ -1,0 +1,81 @@
+<!-- @dsCard group="Code" height=1900 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">Edit function signature · one explicit build · conventions from that build's compiler spec · other builds shown side by side</span>
+<form class="ade inline" aria-labelledby="sg-t">
+ <header><h4 id="sg-t">Edit signature <code translate="no">ResourceRef::Resolve</code></h4><span class="end"><span>Set function prototype (catalog)</span><span>source: analysis → user-defined</span></span></header>
+ <div class="ade-tgt">
+  <span class="kicker">Target · bound when opened</span>
+  <span class="ade-bld target">build-a</span><span>function <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041c880" translate="no" aria-label="Function ResourceRef::Resolve, FUN_0041c880, 0041c880, build-a">0041c880</a></span><span>basis gen 41</span>
+  <span class="ade-lock"><b aria-hidden="true">●</b>writer: this session</span>
+  <span class="muted wrap">Conventions, registers and call fixups come from build-a's compiler spec.</span>
+ </div>
+ <div class="ade-sec">
+  <div class="ade-flds">
+   <label class="lbl" for="sg-ns">Namespace</label><div class="val"><input class="adc-in" id="sg-ns" value="ResourceRef" translate="no" aria-describedby="sg-ns-h"></div>
+   <span class="hint" id="sg-ns-h">Classes and namespaces use PascalCase. The class is one logical entity across builds.</span>
+   <label class="lbl" for="sg-n">Name</label><div class="val"><input class="adc-in" id="sg-n" value="Resolve" translate="no"></div>
+   <label class="lbl" for="sg-cc">Calling convention</label><div class="val"><select class="adc-in" id="sg-cc"><option>__thiscall</option><option>__cdecl</option><option>__stdcall</option><option>__fastcall</option><option>unknown</option></select><span class="muted">5 conventions in build-a's spec</span></div>
+   <label class="lbl" for="sg-rt">Return type</label><div class="val"><input class="adc-in" id="sg-rt" value="int" translate="no"><span class="mono">storage EAX:4 · auto</span><button class="ad-btn compact" type="button" aria-expanded="false">Edit storage…</button></div>
+   <label class="lbl" for="sg-cf">Call fixup</label><div class="val"><select class="adc-in" id="sg-cf"><option>none</option><option>alloca_probe</option></select></div>
+   <label class="lbl" for="sg-pg">Purge</label><div class="val"><input class="adc-in num" id="sg-pg" value="8" translate="no"><span class="muted">bytes removed by the callee on return; "unknown" is allowed</span></div>
+   <span class="lbl" id="sg-fl">Attributes</span><div class="val"><div class="ade-flags" role="group" aria-labelledby="sg-fl"><label class="ade-flag"><input type="checkbox" class="ade-cb">Varargs</label><label class="ade-flag"><input type="checkbox" class="ade-cb">No return</label><label class="ade-flag"><input type="checkbox" class="ade-cb">Inline</label><label class="ade-flag"><input type="checkbox" class="ade-cb">Custom storage</label></div></div>
+   <span class="lbl">Thunk</span><div class="val"><span>not a thunk</span><button class="ad-btn compact" type="button">Set thunk target…</button></div>
+  </div>
+ </div>
+ <div class="ade-grid ad-scroll" tabindex="0" role="region" aria-label="Parameters, scrollable">
+ <table class="ad-table" role="grid" aria-label="Parameters of ResourceRef::Resolve, draft on build-a, storage per build" aria-describedby="sg-key">
+  <thead><tr><th scope="col">#</th><th scope="col">Parameter</th><th scope="col">Type (draft)</th><th scope="col" class="b target">build-a</th><th scope="col" class="b">build-b</th><th scope="col" class="b">build-c</th><th scope="col" class="b">build-d</th></tr></thead>
+  <tbody>
+   <tr><td class="mono">0</td><th scope="row"><code translate="no">this</code></th><td class="mono">ResourceRef *</td><td class="b target">ECX:4</td><td class="b">ECX:4</td><td class="b">ECX:4</td><td class="b">RCX:8</td></tr>
+   <tr aria-selected="true"><td class="mono">1</td><th scope="row"><code translate="no">name</code></th><td class="mono">char *</td><td class="b target">Stack[0x4]:4</td><td class="b">Stack[0x4]:4</td><td class="b"><span class="ade-m diff"><b aria-hidden="true">±</b>EAX:4</span></td><td class="b">RDX:8</td></tr>
+   <tr><td class="mono">2</td><th scope="row"><code translate="no">size</code></th><td class="mono">uint</td><td class="b target">Stack[0x8]:4</td><td class="b">Stack[0x8]:4</td><td class="b"><span class="ade-m diff"><b aria-hidden="true">±</b>EDX:4</span></td><td class="b">R8D:4</td></tr>
+   <tr><td></td><th scope="row"><span class="muted">convention · purge</span></th><td></td><td class="b target">__thiscall · 8</td><td class="b">__thiscall · 8</td><td class="b">custom · 0<span class="w"><span class="ade-var hyp"><b>compile variance</b> hypothesis · <span class="basis">basis: LTCG objects in build-c's rich header; parameters arrive in EAX and EDX</span></span></span></td><td class="b">__fastcall · 0<span class="w"><span class="ade-var"><b>compile variance</b> <span class="basis">witness: build-d compiler spec is x86-64</span></span></span></td></tr>
+  </tbody>
+ </table>
+ </div>
+ <p class="small muted" id="sg-key" style="margin:0;padding:var(--space-3) var(--space-5)">Parameters are keyed by logical parameter, not by ordinal alone. Storage per build is read from each build's own program; ± marks storage that differs from the target. Parameter names use camelCase. Never borrow another build's spec.</p>
+ <div class="ade-rev"><span class="kicker">Save opens ConfirmDialog · a signature change reaches every caller on build-a</span>Set the prototype of <code translate="no">ResourceRef::Resolve</code> on build-a: return <code translate="no">int</code>, convention <code translate="no">__thiscall</code>, 3 parameters, purge 8; source becomes user-defined. 23 known callers on build-a; their cached decompile is marked stale and nothing is re-decompiled. Other builds are unchanged.</div>
+ <footer><button class="ad-btn primary" type="submit">Save on build-a <span class="ad-kbd">Ctrl+S</span></button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button><span class="note" role="status">Name, namespace, inline and call fixup alone confirm here, without a dialog.</span></footer>
+ <div class="ade-prop" role="group" aria-labelledby="sg-prop-t">
+  <h5 id="sg-prop-t">Propose to build-b, build-c, build-d · through the ABI gate, after Save's terminal result</h5>
+  <div class="ade-grid ad-scroll"><table class="ad-table"><caption class="sr-only">Recipients for the prototype</caption><thead><tr><th scope="col">Recipient</th><th scope="col">Counterpart</th><th scope="col">Preview on that build</th><th scope="col">ABI gate</th></tr></thead><tbody>
+   <tr><th scope="row">build-b</th><td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041c880" translate="no" aria-label="Counterpart ResourceRef::Resolve on build-b, 0041c880, accepted">0041c880</a> accepted</td><td class="mono">int __thiscall (this, name, size) · purge 8</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>passes: same convention and storage</span></td></tr>
+   <tr><th scope="row">build-c</th><td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=0041b210" translate="no" aria-label="Counterpart ResourceRef::Resolve on build-c, 0041b210, accepted">0041b210</a> accepted</td><td class="mono">not previewed</td><td><span class="ade-m bad"><b aria-hidden="true">✕</b>blocked: custom register storage; a __thiscall prototype would misplace name and size</span></td></tr>
+   <tr><th scope="row">build-d</th><td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-d" translate="no" aria-label="Counterpart ResourceRef::Resolve on build-d, candidate">counterpart</a> candidate</td><td class="mono">not previewed</td><td><span class="ade-m bad"><b aria-hidden="true">✕</b>blocked: identity edge is a candidate, and the x86-64 ABI differs</span></td></tr>
+  </tbody></table></div>
+  <div class="ade-foot"><button class="ad-btn" type="button">Propose to build-b…</button><span class="note">Names and types can be proposed to build-c separately; its storage stays its own.</span></div>
+ </div>
+</form>
+
+<div class="adc-states">
+<div>
+ <span class="kicker">Callee-signature change · cross-build ConfirmDialog with the caller count</span>
+ <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="sg-cd-t" aria-describedby="sg-cd-d"><h3 id="sg-cd-t">Change the signature of <span translate="no">ResourceRef::Resolve</span> on build-a</h3><p id="sg-cd-d">Every call on build-a (23 known callers) is re-typed against the new prototype and their cached decompile is marked stale; build-b, build-c and build-d are unchanged.</p><footer><button class="ad-btn is-focus">Cancel</button><button class="ad-btn primary">Change signature</button></footer></div>
+</div>
+<div>
+ <span class="kicker">No return · changes callers' flow, so it confirms</span>
+ <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="sg-nr-t" aria-describedby="sg-nr-d"><h3 id="sg-nr-t">Mark <span translate="no">FUN_0041c880</span> No return on build-a</h3><p id="sg-nr-d">Code after its 23 call sites on build-a stops being a fallthrough; nothing is re-disassembled or re-analyzed unless that is admitted as a job.</p><footer><button class="ad-btn">Cancel</button><button class="ad-btn primary">Mark No return</button></footer></div>
+</div>
+<div>
+ <span class="kicker">Call-site override · one call on one build, confirmed in place</span>
+ <form class="ade inline" aria-labelledby="sg-cs-t">
+  <header><h4 id="sg-cs-t">Override signature at call <code translate="no">0041b23c</code></h4><span class="end">Override call signature (catalog)</span></header>
+  <div class="ade-tgt"><span class="ade-bld target">build-a</span><span>in <a class="ad-link" href="?project=corpus-alpha&amp;entity=91&amp;build=build-a" translate="no" aria-label="Function Actor::LoadFromTemplate, build-a">Actor::LoadFromTemplate</a></span><span>callee <code translate="no">ResourceRef::Resolve</code></span></div>
+  <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="sg-cs-p">Prototype</label><div class="val"><input class="adc-in wide" id="sg-cs-p" value="int __thiscall (ResourceRef *this, char *name)" translate="no"></div></div><p class="small muted">Only this call changes. The counterpart call on build-c is reached through anchors only; it is not overridden by this edit.</p></div>
+  <footer><button class="ad-btn primary" type="submit">Save override <span class="ad-kbd">Enter</span></button><button class="ad-btn" type="button">Remove override</button><button class="ad-btn" type="button">Cancel</button></footer>
+ </form>
+</div>
+<div>
+ <span class="kicker">Unknown convention on build-c · the editor opens on build-c's own spec</span>
+ <div class="ad-notice caution"><b aria-hidden="true">?</b><div><h4>Convention unknown on build-c</h4><p>The decompiler shows <code translate="no">in_EAX</code> and <code translate="no">in_EDX</code>. build-c's spec has no named convention that places parameters there. Use Custom storage to set EAX and EDX per parameter (StorageEditor); nothing is copied from build-a.</p></div><span></span></div>
+</div>
+<div>
+ <span class="kicker">Thunk · set or follow the thunk target</span>
+ <div class="ade" role="group" aria-labelledby="sg-th-t">
+  <header><h4 id="sg-th-t">Thunk target of <code translate="no">0041b210</code></h4><span class="end">Set thunk target (catalog)</span></header>
+  <div class="ade-tgt"><span class="ade-bld target">build-b</span><span>currently a thunk of <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041c880" translate="no" aria-label="Thunk target FUN_0041c880, 0041c880, build-b">FUN_0041c880</a></span></div>
+  <div class="ade-foot"><button class="ad-btn" type="button">Change target…</button><button class="ad-btn" type="button">Clear thunk…</button><span class="note">Following the thunk is a read: Enter on the target link.</span></div>
+ </div>
+</div>
+</div>
+</div>

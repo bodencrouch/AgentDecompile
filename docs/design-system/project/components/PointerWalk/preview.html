@@ -1,4 +1,4 @@
-<!-- @dsCard group="Code" height=1980 -->
+<!-- @dsCard group="Code" height=2040 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">Cursor on 0041c88d in build-b · p walks the expression at the cursor · each hop is a logical step with every build's offset in its own cell</span>
 <section class="adc-pane" aria-labelledby="pw-h">
@@ -9,40 +9,40 @@
   <li class="adx-step" id="pw-s0" tabindex="-1" aria-label="Step 0, root: this in ecx, ResourceRef pointer">
    <span class="n" aria-hidden="true">0</span>
    <div class="m">
-    <div class="hd"><span class="adx-op">root</span><code class="adx-arith" translate="no">ecx</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;type=ResourceRef" tabindex="-1" aria-label="Type ResourceRef, build-b">ResourceRef</a>* this</span><span class="adx-ev"><b>solid</b>__thiscall in the mangled name (build-a PDB, reused)</span><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span></div>
+    <div class="hd"><span class="adx-op">root</span><code class="adx-arith" translate="no">ecx</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;type=ResourceRef" tabindex="-1" aria-label="Type ResourceRef, build-b">ResourceRef</a>* this</span><span class="adx-ev"><b>witness</b>__thiscall in the mangled name (build-a PDB, reused)</span><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span></div>
     <div class="adx-builds" role="group" aria-label="this, per build">
-     <div class="adx-bc"><span class="b">build-a</span><span class="v" translate="no">ecx</span><span class="w">solid · PDB</span></div>
+     <div class="adx-bc"><span class="b">build-a</span><span class="v" translate="no">ecx</span><span class="w">witness · PDB</span></div>
      <div class="adx-bc hyp" aria-current="location"><span class="b">build-b <span class="cur">inspected</span></span><span class="v" translate="no">ecx</span><span class="w">hypothesis: ECX read before written</span></div>
      <div class="adx-bc hyp"><span class="b">build-c</span><span class="v" translate="no">ecx</span><span class="w">hypothesis: ECX read before written</span></div>
      <div class="adx-bc hyp moved"><span class="b">build-d</span><span class="v" translate="no"><strong>esi</strong></span><span class="w">hypothesis: LTCG custom convention; callers set ESI, ECX never read</span></div>
     </div>
-    <span class="adx-var hyp"><b>Same source, compiled differently</b> · build-d: LTCG custom convention · hypothesis, basis: equal source r14, callers load ESI</span>
+    <span class="adx-var hyp"><b><span aria-hidden="true">≈ </span>Same source, compiled differently</b> · build-d: LTCG custom convention · hypothesis (heuristic), basis: equal source r14, callers load ESI</span>
    </div>
   </li>
   <li class="adx-step" id="pw-s1" tabindex="-1" aria-label="Step 1, offset and dereference: ecx plus 0x14 is cache, ResourceCache pointer, same in all builds">
    <span class="n" aria-hidden="true">1</span>
    <div class="m">
-    <div class="hd"><span class="adx-op">+offset · deref</span><code class="adx-arith" translate="no">[ecx+0x14]</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;type=ResourceRef.cache" tabindex="-1" aria-label="Field ResourceRef.cache, build-b">ResourceCache* cache</a> at +0x14</span><span class="adx-ev"><b>solid</b>PDB type record, build-a (reused)</span><span class="adx-cmp"><b aria-hidden="true">=</b>same in all builds</span></div>
+    <div class="hd"><span class="adx-op">+offset · deref</span><code class="adx-arith" translate="no">[ecx+0x14]</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;type=ResourceRef.cache" tabindex="-1" aria-label="Field ResourceRef.cache, build-b">ResourceCache* cache</a> at +0x14</span><span class="adx-ev"><b>witness</b>PDB type record, build-a (reused)</span><span class="adx-cmp"><b aria-hidden="true">≡</b>same in all builds</span></div>
     <div class="adx-builds" role="group" aria-label="cache offset, per build">
-     <div class="adx-bc"><span class="b">build-a</span><span class="v" translate="no">+0x14</span><span class="w">solid · PDB</span></div>
-     <div class="adx-bc" aria-current="location"><span class="b">build-b <span class="cur">inspected</span></span><span class="v" translate="no">+0x14</span><span class="w">solid · bytes at 0041c880</span></div>
-     <div class="adx-bc"><span class="b">build-c</span><span class="v" translate="no">+0x14</span><span class="w">solid · bytes</span></div>
-     <div class="adx-bc"><span class="b">build-d</span><span class="v" translate="no">+0x14</span><span class="w">solid · bytes</span></div>
+     <div class="adx-bc"><span class="b">build-a</span><span class="v" translate="no">+0x14</span><span class="w">witness · PDB</span></div>
+     <div class="adx-bc" aria-current="location"><span class="b">build-b <span class="cur">inspected</span></span><span class="v" translate="no">+0x14</span><span class="w">witness · bytes at 0041c880</span></div>
+     <div class="adx-bc"><span class="b">build-c</span><span class="v" translate="no">+0x14</span><span class="w">witness · bytes</span></div>
+     <div class="adx-bc"><span class="b">build-d</span><span class="v" translate="no">+0x14</span><span class="w">witness · bytes</span></div>
     </div>
    </div>
   </li>
   <li class="adx-step" id="pw-s2" tabindex="-1" aria-label="Step 2, offset and dereference: plus 0x8 is entries, CacheEntry pointer, same in all builds">
    <span class="n" aria-hidden="true">2</span>
    <div class="m">
-    <div class="hd"><span class="adx-op">+offset · deref</span><code class="adx-arith" translate="no">[eax+0x8]</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;type=ResourceCache.entries" tabindex="-1" aria-label="Field ResourceCache.entries, build-b">CacheEntry* entries</a> at +0x8</span><span class="adx-ev"><b>solid</b>PDB type record, build-a (reused)</span><span class="adx-cmp"><b aria-hidden="true">=</b>same in all builds</span></div>
+    <div class="hd"><span class="adx-op">+offset · deref</span><code class="adx-arith" translate="no">[eax+0x8]</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;type=ResourceCache.entries" tabindex="-1" aria-label="Field ResourceCache.entries, build-b">CacheEntry* entries</a> at +0x8</span><span class="adx-ev"><b>witness</b>PDB type record, build-a (reused)</span><span class="adx-cmp"><b aria-hidden="true">≡</b>same in all builds</span></div>
    </div>
   </li>
   <li class="adx-step" id="pw-s3" tabindex="-1" aria-label="Step 3, array index: stride differs, 0xC in build-a, 0x10 in build-b and build-d, 0x14 in build-c">
    <span class="n" aria-hidden="true">3</span>
    <div class="m">
-    <div class="hd"><span class="adx-op">index · stride</span><code class="adx-arith" translate="no">[ecx+edx]; edx = i &lt;&lt; 4</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;type=CacheEntry" tabindex="-1" aria-label="Type CacheEntry, build-b">CacheEntry</a> entries[i]</span><span class="adx-ev hyp"><b>hypothesis</b>stride = sizeof(CacheEntry); basis: shl edx,4 at 3 sites</span><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span></div>
+    <div class="hd"><span class="adx-op">index · stride</span><code class="adx-arith" translate="no">[ecx+edx]; edx = i &lt;&lt; 4</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;type=CacheEntry" tabindex="-1" aria-label="Type CacheEntry, build-b">CacheEntry</a> entries[i]</span><span class="adx-ev hyp"><b>hypothesis (heuristic)</b>stride = sizeof(CacheEntry); basis: shl edx,4 at 3 sites</span><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span></div>
     <div class="adx-builds" role="group" aria-label="stride, per build">
-     <div class="adx-bc"><span class="b">build-a</span><span class="v" translate="no"><strong>0xC</strong></span><span class="w">solid · PDB size 0xC</span></div>
+     <div class="adx-bc"><span class="b">build-a</span><span class="v" translate="no"><strong>0xC</strong></span><span class="w">witness · PDB size 0xC</span></div>
      <div class="adx-bc hyp" aria-current="location"><span class="b">build-b <span class="cur">inspected</span></span><span class="v" translate="no">0x10</span><span class="w">hypothesis · shl edx,4</span></div>
      <div class="adx-bc hyp moved"><span class="b">build-c</span><span class="v" translate="no"><strong>0x14</strong></span><span class="w">hypothesis · lea edx,[edx+edx*4]; shl edx,2</span></div>
      <div class="adx-bc hyp"><span class="b">build-d</span><span class="v" translate="no">0x10</span><span class="w">hypothesis · shl edx,4</span></div>
@@ -52,15 +52,15 @@
   <li class="adx-step" id="pw-s4" tabindex="0" aria-current="step" aria-label="Step 4 of 4, current, field: plus 0x6 is name_len, uint16; absent in build-a, moved plus 4 in build-c">
    <span class="n" aria-hidden="true">4</span>
    <div class="m">
-    <div class="hd"><span class="adx-op">+offset · field</span><code class="adx-arith" translate="no">word ptr [ecx+edx+6]</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no"><a class="ad-link is-focus" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041c88d&amp;type=CacheEntry.name_len&amp;walk=this.cache.entries%5Bi%5D.name_len:4" tabindex="-1" aria-label="Field CacheEntry.name_len, build-b" aria-keyshortcuts="Enter Shift+Enter Alt+ArrowDown Shift+F10" aria-expanded="true" aria-controls="pw-peek">uint16 name_len</a> at +0x6</span><span class="adx-ev hyp"><b>hypothesis</b>access pattern: movzx of 16 bits at 4 sites; compared with a strlen result</span><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span></div>
+    <div class="hd"><span class="adx-op">+offset · field</span><code class="adx-arith" translate="no">word ptr [ecx+edx+6]</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no"><a class="ad-link is-focus" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041c88d&amp;type=CacheEntry.name_len&amp;walk=this.cache.entries%5Bi%5D.name_len:4" tabindex="-1" aria-label="Field CacheEntry.name_len, build-b" aria-keyshortcuts="Enter Shift+Enter Alt+ArrowDown Shift+F10" aria-expanded="true" aria-controls="pw-peek">uint16 name_len</a> at +0x6</span><span class="adx-ev hyp"><b>hypothesis (heuristic)</b>access pattern: movzx of 16 bits at 4 sites; compared with a strlen result</span><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span></div>
     <div class="adx-builds" role="group" aria-label="name_len offset, per build">
-     <div class="adx-bc absent"><span class="b">build-a</span><span class="v">absent in build-a</span><span class="w">solid · PDB: CacheEntry is 0xC with no member at +0x6</span></div>
+     <div class="adx-bc absent"><span class="b">build-a</span><span class="v">absent in build-a</span><span class="w">witness · PDB: CacheEntry is 0xC with no member at +0x6</span></div>
      <div class="adx-bc hyp" aria-current="location"><span class="b">build-b <span class="cur">inspected</span></span><span class="v" translate="no">+0x6</span><span class="w">hypothesis · access pattern</span></div>
      <div class="adx-bc hyp moved"><span class="b">build-c</span><span class="v" translate="no"><strong>+0xA</strong> · moved +4 in build-c</span><span class="w">hypothesis: same field, layout shift from an added member</span></div>
      <div class="adx-bc hyp"><span class="b">build-d</span><span class="v" translate="no">+0x6</span><span class="w">hypothesis · access pattern</span></div>
     </div>
-    <span class="adx-var"><b>Source changed</b> · build-a → build-b: field added · solid: recorded revisions differ (r12, r14) and the build-a PDB has no member</span>
-    <span class="adx-var hyp"><b>Source changed</b> · build-c: member added before +0x4 · hypothesis, basis: every CacheEntry access at +0x4 or above shifts by +4, stride 0x10 → 0x14, source digest differs from build-b</span>
+    <span class="adx-var"><b><span aria-hidden="true">≠ </span>Source changed</b> · build-a → build-b: field added · record: revisions differ (r12, r14) and the build-a PDB has no member</span>
+    <span class="adx-var hyp"><b><span aria-hidden="true">≠ </span>Source changed</b> · build-c: member added before +0x4 · hypothesis (heuristic), basis: every CacheEntry access at +0x4 or above shifts by +4, stride 0x10 → 0x14, source digest differs from build-b</span>
     <div class="ad-peek inline" id="pw-peek" role="dialog" aria-label="Peek: CacheEntry.name_len, type definition and provenance">
      <header><span class="kicker">Type · field · build-b</span><h4 translate="no">CacheEntry.name_len</h4><button type="button" class="ad-peek-x" aria-label="Close peek">✕</button>
       <div class="sub"><span class="ad-stamp"><b>reused</b>PDB type record · build-a · read 13:41</span><span class="small muted">no PDB for build-b, build-c, build-d</span></div></header>
@@ -90,11 +90,11 @@
    <caption class="sr-only" id="pw-memkey-cap">CacheEntry fields by logical field, offset in each build</caption>
    <thead><tr><th scope="col">Field</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th><th scope="col">Across builds</th></tr></thead>
    <tbody>
-    <tr><th scope="row" translate="no">name</th><td class="mono">+0x0</td><td class="mono">+0x0</td><td class="mono">+0x0</td><td class="mono">+0x0</td><td><span class="adx-cmp"><b aria-hidden="true">=</b>same in all builds</span></td></tr>
-    <tr><th scope="row"><span class="ad-absent">unnamed, build-c only</span></th><td class="ad-absent">absent</td><td class="ad-absent">absent</td><td class="mono">+0x4 <span class="adx-ev hyp"><b>hypothesis</b>4-byte gap</span></td><td class="ad-absent">absent</td><td><span class="adx-cmp absent"><b aria-hidden="true">−</b>absent in build-a, build-b, build-d</span></td></tr>
-    <tr><th scope="row" translate="no">flags</th><td class="mono">+0x4</td><td class="mono">+0x4</td><td class="mono">+0x8</td><td class="mono">+0x4</td><td><span class="adx-cmp"><b aria-hidden="true">≈</b>differs: consistent pattern (+4 in build-c)</span></td></tr>
+    <tr><th scope="row" translate="no">name</th><td class="mono">+0x0</td><td class="mono">+0x0</td><td class="mono">+0x0</td><td class="mono">+0x0</td><td><span class="adx-cmp"><b aria-hidden="true">≡</b>same in all builds</span></td></tr>
+    <tr><th scope="row"><span class="ad-absent">unnamed, build-c only</span></th><td class="ad-absent">absent</td><td class="ad-absent">absent</td><td class="mono">+0x4 <span class="adx-ev hyp"><b>hypothesis (heuristic)</b>4-byte gap</span></td><td class="ad-absent">absent</td><td><span class="adx-cmp absent"><b aria-hidden="true">−</b>absent in build-a, build-b, build-d</span></td></tr>
+    <tr><th scope="row" translate="no">flags</th><td class="mono">+0x4</td><td class="mono">+0x4</td><td class="mono">+0x8</td><td class="mono">+0x4</td><td><span class="adx-cmp"><b aria-hidden="true">±</b>differs: consistent pattern (+4 in build-c)</span></td></tr>
     <tr aria-selected="true"><th scope="row" translate="no">name_len</th><td class="ad-absent">absent</td><td class="mono">+0x6</td><td class="mono">+0xA</td><td class="mono">+0x6</td><td><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span></td></tr>
-    <tr><th scope="row" translate="no">hash</th><td class="mono">+0x8</td><td class="mono">+0x8</td><td class="mono">+0xC</td><td class="mono">+0x8</td><td><span class="adx-cmp"><b aria-hidden="true">≈</b>differs: consistent pattern (+4 in build-c)</span></td></tr>
+    <tr><th scope="row" translate="no">hash</th><td class="mono">+0x8</td><td class="mono">+0x8</td><td class="mono">+0xC</td><td class="mono">+0x8</td><td><span class="adx-cmp"><b aria-hidden="true">±</b>differs: consistent pattern (+4 in build-c)</span></td></tr>
     <tr><th scope="row" translate="no">owner</th><td class="ad-absent">absent</td><td class="mono">+0xC</td><td class="mono">+0x10</td><td class="mono">+0xC</td><td><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span></td></tr>
    </tbody></table></div>
  </div>
@@ -102,11 +102,11 @@
 
 <span class="kicker">Other chain shapes · each is a logical step with per-build cells</span>
 <div class="adx-branch" role="group" aria-label="this-adjustor thunk">
- <div class="hd"><span class="adx-op">this-adjust thunk</span><code class="adx-arith" translate="no">sub ecx, 4; jmp</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no">IObserver sub-object → <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;type=ResourceRef" aria-label="Type ResourceRef, build-b">ResourceRef</a> (this − 4)</span><span class="adx-ev"><b>solid</b>thunk bytes</span></div>
+ <div class="hd"><span class="adx-op">this-adjust thunk</span><code class="adx-arith" translate="no">sub ecx, 4; jmp</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no">IObserver sub-object → <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;type=ResourceRef" aria-label="Type ResourceRef, build-b">ResourceRef</a> (this − 4)</span><span class="adx-ev"><b>witness</b>thunk bytes</span></div>
  <div class="adx-builds" role="group" aria-label="adjustor delta, per build"><div class="adx-bc"><span class="b">build-a</span><span class="v">−4</span></div><div class="adx-bc" aria-current="location"><span class="b">build-b <span class="cur">inspected</span></span><span class="v">−4</span></div><div class="adx-bc hyp moved"><span class="b">build-c</span><span class="v"><strong>−8</strong></span><span class="w">hypothesis: Base gained a member</span></div><div class="adx-bc"><span class="b">build-d</span><span class="v">−4</span></div></div>
 </div>
 <div class="adx-branch" role="group" aria-label="virtual call through the vftable">
- <div class="hd"><span class="adx-op">vptr · vftable[slot]</span><code class="adx-arith" translate="no">mov eax,[ecx]; call [eax+0x4]</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;type=ResourceRef.vftable" aria-label="vftable of ResourceRef, build-b">ResourceRef::vftable</a> slot 1</span><span class="adx-ev"><b>solid</b>RTTI COL, build-a, build-b, build-c</span><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span></div>
+ <div class="hd"><span class="adx-op">vptr · vftable[slot]</span><code class="adx-arith" translate="no">mov eax,[ecx]; call [eax+0x4]</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no"><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;type=ResourceRef.vftable" aria-label="vftable of ResourceRef, build-b">ResourceRef::vftable</a> slot 1</span><span class="adx-ev"><b>witness</b>RTTI COL, build-a, build-b, build-c</span><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span></div>
  <div class="adx-builds" role="group" aria-label="slot 1 target, per build">
   <div class="adx-bc"><span class="b">build-a</span><span class="v"><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Counterpart on build-a, address 0041b210, ResourceRef::Resolve, accepted">0041b210</a></span><span class="w">ResourceRef::Resolve · accepted</span></div>
   <div class="adx-bc" aria-current="location"><span class="b">build-b <span class="cur">inspected</span></span><span class="v"><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041c880" translate="no" aria-label="Address 0041c880, build-b, FUN_0041c880, identity edge candidate">FUN_0041c880</a></span><span class="w">candidate</span></div>
@@ -115,10 +115,10 @@
  </div>
 </div>
 <div class="adx-branch" role="group" aria-label="pointer to pointer">
- <div class="hd"><span class="adx-op">deref · deref</span><code class="adx-arith" translate="no">mov eax,[eax+0xC]; mov eax,[eax+edx*4]</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no">CacheEntry** slots → CacheEntry*</span><span class="adx-ev hyp"><b>hypothesis</b>two loads, 4-byte stride</span><span class="adx-cmp"><b aria-hidden="true">=</b>same in all builds</span></div>
+ <div class="hd"><span class="adx-op">deref · deref</span><code class="adx-arith" translate="no">mov eax,[eax+0xC]; mov eax,[eax+edx*4]</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no">CacheEntry** slots → CacheEntry*</span><span class="adx-ev hyp"><b>hypothesis (heuristic)</b>two loads, 4-byte stride</span><span class="adx-cmp"><b aria-hidden="true">≡</b>same in all builds</span></div>
 </div>
 <div class="adx-branch" role="group" aria-label="union: two interpretations at one offset">
- <div class="hd"><span class="adx-op">union</span><code class="adx-arith" translate="no">[eax+0x8]</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no">CacheEntry* entries</span><span class="adx-ev hyp"><b>hypothesis</b>3 sites load and index</span><span class="small">and</span><span class="adx-ty" translate="no">uint32 inline_count</span><span class="adx-ev hyp"><b>hypothesis</b>1 site in build-d compares with 4</span></div>
+ <div class="hd"><span class="adx-op">union</span><code class="adx-arith" translate="no">[eax+0x8]</code><span class="adx-to" aria-hidden="true">→</span><span class="adx-ty" translate="no">CacheEntry* entries</span><span class="adx-ev hyp"><b>hypothesis (heuristic)</b>3 sites load and index</span><span class="small">and</span><span class="adx-ty" translate="no">uint32 inline_count</span><span class="adx-ev hyp"><b>hypothesis (heuristic)</b>1 site in build-d compares with 4</span></div>
  <span class="small">Conflicting uses at one offset. Neither is picked; both stay listed until a witness decides.</span>
 </div>
 <div class="adx-branch" role="group" aria-label="unresolved base">

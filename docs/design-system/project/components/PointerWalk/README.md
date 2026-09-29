@@ -42,24 +42,26 @@ A pointer walk turns the value or expression at the code cursor, such as `this->
 
 | Level | Drawn | Example |
 |---|---|---|
-| solid | solid frame | "SOLID · PDB type record, build-a (reused)"; "SOLID · bytes" |
-| hypothesis | dashed frame, basis named | "HYPOTHESIS · access pattern: movzx of 16 bits at 4 sites" |
+| witness or record | solid frame | "WITNESS · PDB type record, build-a (reused)"; "WITNESS · bytes"; "record: revisions r12, r14" |
+| hypothesis (heuristic) | dashed frame, basis named | "HYPOTHESIS (HEURISTIC) · access pattern: movzx of 16 bits at 4 sites" |
 | unknown | no frame, italic word | "UNKNOWN · base eax is the return of call [edx+0xC]; no type" |
 
-**Cross-build comparison** (word plus glyph, never color alone): `=` same in all builds · `≈` differs: consistent pattern (for example +4 in build-c) · `±` differs · `−` absent in build-x. The grouping key (recorded source revision) is shown on the provenance line.
+**Cross-build comparison** (word plus glyph, never color alone): `≡` same in all builds · `±` differs: consistent pattern (for example +4 in build-c) · `±` differs · `−` absent in build-x. The grouping key (recorded source revision) is shown on the provenance line.
 
 **Difference class** of a differing step (four classes, each with its own evidence level):
 
-- **Same source, compiled differently.** The cause is named: LTCG custom convention, /Zp packing, register allocation. It is solid only when source digest, toolchain and flags are recorded for both builds.
-- **Same source and flags, incidental build state differs.** This is entropy: paths, object or link order.
-- **Source changed.** What changed is named: "field added", "member added before +0x4".
-- **Unknown.** Source and flags both differ, or no source identity is recorded.
+- `≈` **Same source, compiled differently.** The cause is named: LTCG custom convention, /Zp packing, register allocation. It is solid only when source digest, toolchain and flags are recorded for both builds.
+- `∼` **Same source and flags, build state differs.** This is entropy: paths, object or link order.
+- `≠` **Source changed.** What changed is named: "field added", "member added before +0x4".
+- `?` **Unknown.** Source and flags both differ, or no source identity is recorded.
 
 A class inferred from instructions alone is dashed, labelled "hypothesis", and names its basis.
 
 **Per-build cell states:** value (solid or dashed frame) · "moved ±N in build-x" · "absent in build-x" (dashed `line-control` frame on `chassis`, italic word, and the witness for the absence when there is one) · "unknown" · "Not loaded. Open build-d to read it." · "slot shifted: hypothesis, ‹basis›".
 
 **Pane states:** following · "Selection is not an address expression; nothing to walk" · "Not decompiled in this session · Enter to decompile" (the walk never decompiles on its own) · stale ("◷ types changed by job ‹id› since read").
+
+Difference classes use VariantRelation's glyphs and words: `≈` same source, compiled differently (compile variance) · `∼` same source and flags, build state differs (entropy) · `≠` source changed · `?` unknown · `≡` identical. Evidence words are shared with ToolchainEvidence: **witness** or **record** (solid frame), **hypothesis (heuristic)** (dashed frame, basis named), **unknown** (italic word, no frame). A build-wide cause (a flag, LTCG, /GS, /Oy, EH model, ICF) links to ToolchainEvidence (`ws=evidence&panel=toolchain&build=…`) instead of restating its evidence.
 
 ## Linking
 

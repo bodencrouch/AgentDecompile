@@ -29,8 +29,8 @@ TransformTimeline explains one function across one build pair as an ordered list
 
 ## States
 
-- Evidence per item: solid · hypothesis (dashed, basis named) · unknown.
-- Cross-build per item: `=` same in both builds (hidden by the default filter) · `≈` differs: consistent pattern · `±` differs · `−` absent in build-x.
+- Evidence per item: witness or record (solid) · hypothesis (heuristic) (dashed, basis named) · unknown.
+- Cross-build per item: `≡` same in both builds (hidden by the default filter) · `±` differs: consistent pattern · `±` differs · `−` absent in build-x.
 - Difference class per item:
   - same source, compiled differently (cause named);
   - same source and flags, build state differs (entropy);
@@ -39,6 +39,8 @@ TransformTimeline explains one function across one build pair as an ordered list
   For a pair whose source and flags both differ (build-a ↔ build-b here), most items read Unknown, and the component says so on the provenance line.
 - The item under the cursor, or the one whose ranges are highlighted, is current (`aria-current="step"`, selection fill and bar).
 - Pane: follows on Enter (it is an expensive, derived pane) · "Shows ‹entity›; selection is now ‹entity› · Enter to load" · stale basis.
+
+Difference classes use VariantRelation's glyphs and words: `≈` same source, compiled differently (compile variance) · `∼` same source and flags, build state differs (entropy) · `≠` source changed · `?` unknown · `≡` identical. Evidence words are shared with ToolchainEvidence: **witness** or **record** (solid frame), **hypothesis (heuristic)** (dashed frame, basis named), **unknown** (italic word, no frame). A build-wide cause (a flag, LTCG, /GS, /Oy, EH model, ICF) links to ToolchainEvidence (`ws=evidence&panel=toolchain&build=…`) instead of restating its evidence.
 
 ## Linking
 

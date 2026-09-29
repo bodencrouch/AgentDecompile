@@ -1,0 +1,112 @@
+<!-- @dsCard group="Project" height=2250 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">Ghidra Server repository · one row per build · an exclusive checkout is the one-writer lock · every verb is a catalog job</span>
+<section class="ad-g3" aria-labelledby="vc-t">
+ <header class="ad-g3-head">
+  <h3 id="vc-t">Version control <span class="sub">· corpus-alpha</span></h3>
+  <p class="ad-vcs-conn"><span><strong>connected</strong> · Ghidra Server repository corpus-alpha (RMI over SSL)</span><span>as you</span><span>checkout state read 14:02</span><a class="ad-link" href="?project=corpus-alpha&amp;node=lock-1" aria-label="Lock lock-1, writes to one Ghidra program's analysis DB">one writer per program</a></p>
+ </header>
+
+ <div class="ad-scroll" role="region" aria-label="Builds under version control, scrolls sideways">
+ <table class="ad-table ad-g3-grid" role="grid" aria-label="Checkout state per build" aria-rowcount="5" aria-colcount="5" style="min-width:780px">
+  <thead><tr><th scope="col">Build</th><th scope="col">Version</th><th scope="col">Checkout</th><th scope="col">Local changes · writer</th><th scope="col">Verbs (catalog)</th></tr></thead>
+  <tbody>
+   <tr aria-selected="true" class="is-focus" tabindex="0">
+    <th scope="row" class="nw"><span class="nm">build-a</span><span class="d">program file</span></th>
+    <td role="gridcell"><span class="mono">7 of 7</span><span class="ad-g3-st ok col"><b aria-hidden="true">=</b>latest</span></td>
+    <td role="gridcell"><span class="ad-g3-st lock col"><b aria-hidden="true">●</b>checked out · exclusive · by you<span class="m">this checkout is the writer lock for build-a</span></span></td>
+    <td role="gridcell"><span class="ad-g3-st stale col"><b aria-hidden="true">◷</b>4 transactions not checked in<span class="m">saved 14:06 · writer: this session</span></span></td>
+    <td role="gridcell"><span class="ad-vcs-acts"><button class="ad-btn compact" type="button" tabindex="-1" aria-haspopup="dialog">Check in…</button><button class="ad-btn compact" type="button" tabindex="-1" aria-haspopup="dialog">Undo checkout…</button><button class="ad-btn compact" type="button" tabindex="-1">History</button></span></td>
+   </tr>
+   <tr tabindex="-1">
+    <th scope="row" class="nw"><span class="nm">build-b</span><span class="d">program file</span></th>
+    <td role="gridcell"><span class="mono">5 of 6</span><span class="ad-g3-st wait col"><b aria-hidden="true">↓</b>update available<span class="m">version 6 checked in by another user 13:58</span></span></td>
+    <td role="gridcell"><span class="ad-g3-st on col"><b aria-hidden="true">○</b>checked out · not exclusive · by you</span></td>
+    <td role="gridcell"><span class="ad-g3-st lock col"><b aria-hidden="true">●</b>writer: job 77c0 · external<span class="m">pid 48211 · started 13:02 · Update waits</span></span></td>
+    <td role="gridcell"><span class="ad-vcs-acts"><button class="ad-btn compact" type="button" tabindex="-1" aria-disabled="true" aria-describedby="vc-b-w">Update…</button><button class="ad-btn compact" type="button" tabindex="-1">History</button></span></td>
+   </tr>
+   <tr tabindex="-1">
+    <th scope="row" class="nw"><span class="nm">build-c</span><span class="d">program file</span></th>
+    <td role="gridcell"><span class="mono">3 of 3</span></td>
+    <td role="gridcell"><span class="ad-g3-st lock col"><b aria-hidden="true">●</b>checked out · exclusive · by another user<span class="m">as reported: analyst-2 · since 11:20</span></span></td>
+    <td role="gridcell"><span class="ad-g3-st off col"><b aria-hidden="true">—</b>read-only here<span class="m">latest version can be opened read-only</span></span></td>
+    <td role="gridcell"><span class="ad-vcs-acts"><button class="ad-btn compact" type="button" tabindex="-1">Open version 3 read-only</button><button class="ad-btn compact" type="button" tabindex="-1">History</button></span></td>
+   </tr>
+   <tr tabindex="-1">
+    <th scope="row" class="nw"><span class="nm">build-d</span><span class="d">private file</span></th>
+    <td role="gridcell"><span class="ad-absent">not versioned</span></td>
+    <td role="gridcell"><span class="ad-g3-st na"><b aria-hidden="true">○</b>not under version control</span></td>
+    <td role="gridcell"><span class="ad-g3-st on"><b aria-hidden="true">○</b>writer: free</span></td>
+    <td role="gridcell"><span class="ad-vcs-acts"><button class="ad-btn compact" type="button" tabindex="-1" aria-haspopup="dialog">Add to version control…</button></span></td>
+   </tr>
+  </tbody>
+ </table>
+ </div>
+ <span class="sr-only" id="vc-b-w">Update waits: build-b has a writer, job 77c0, external.</span>
+ <p class="ad-g3-note">Program options, including analysis options, are not merged on check-in or update; the latest checked-in values can replace yours. <a class="ad-link" href="?project=corpus-alpha&amp;panel=analysis" aria-label="Analysis panel, compare analysis options per build">Compare analysis options</a> first.</p>
+
+ <div class="ad-g3-sec">
+  <h4>Check in build-a</h4>
+  <div class="ad-g3-dlg" role="alertdialog" aria-modal="true" aria-labelledby="vc-ci-t" aria-describedby="vc-ci-d">
+   <header><h3 id="vc-ci-t">Check in build-a as version 8</h3><span class="end">catalog: Check in program</span></header>
+   <div class="body">
+    <p class="ad-g3-note" id="vc-ci-d">4 transactions on build-a become version 8 on the server. The server is at version 7, the same version you checked out, so nothing needs merging. After check-in these transactions cannot be undone here.</p>
+    <div class="ad-g3-form">
+     <label class="lbl" for="vc-cm">Comment</label><textarea id="vc-cm" rows="2">Rename FUN_0041c880 to ResourceRef::Resolve; apply CacheEntry at 12 addresses</textarea>
+     <span class="lbl">After check-in</span><label class="ad-g3-chk"><input type="checkbox" checked>Keep build-a checked out <span class="m">· the writer lock stays yours</span></label>
+     <span class="lbl" aria-hidden="true"></span><label class="ad-g3-chk"><input type="checkbox">Keep a private copy of this version <span class="m">· .keep file</span></label>
+    </div>
+   </div>
+   <footer><span class="note">Other builds are unchanged.</span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Check in</button></footer>
+  </div>
+ </div>
+
+ <div class="ad-g3-sec">
+  <h4>Update build-b · merge conflicts</h4>
+  <p>Version 6 was merged into your checkout of build-b by job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=c4e1" aria-label="Job c4e1, update build-b, waiting for conflict choices">c4e1</a>. Non-conflicting changes merged automatically; 3 conflicts wait for your choice. Nothing is picked for you.</p>
+  <ul class="ad-vcs-merge" aria-label="Merge results by category, build-b">
+   <li><span>Memory</span><span class="muted">0 conflicts</span></li>
+   <li><span>Program trees</span><span class="muted">0 conflicts</span></li>
+   <li><span>Data types</span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-b&amp;ws=evidence&amp;f=merge:types" aria-label="1 data type conflict on build-b, CacheEntry">1 conflict · CacheEntry</a></li>
+   <li><span>Program context</span><span class="muted">0 conflicts</span></li>
+   <li><span>Listing: functions, symbols, comments</span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-b&amp;ws=evidence&amp;f=merge:listing" aria-label="2 listing conflicts on build-b">2 conflicts</a></li>
+   <li><span>Externals · properties</span><span class="muted">0 conflicts</span></li>
+  </ul>
+  <p class="ad-g3-note">Each conflict opens in MergeReview with three values: the latest checked-in version, your checkout and the common original. A choice is a catalog action on build-b; "use for all in this category" confirms through ConfirmDialog.</p>
+ </div>
+
+ <div class="ad-g3-sec">
+  <h4>History · build-a</h4>
+  <div class="ad-scroll" role="region" aria-label="Version history of build-a">
+  <table class="ad-table ad-g3-grid"><caption class="sr-only">Version history of build-a</caption>
+   <thead><tr><th scope="col">Version</th><th scope="col">Checked in</th><th scope="col">By</th><th scope="col">Comment</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+   <tbody>
+    <tr><th scope="row" class="nw"><span class="nm mono">7</span></th><td class="mono">2026-09-28 17:40</td><td>you</td><td>Apply CacheEntry to table at 0041b210</td><td><button class="ad-btn compact" type="button">Open read-only</button></td></tr>
+    <tr><th scope="row" class="nw"><span class="nm mono">6</span></th><td class="mono">2026-09-27 10:12</td><td>agent · job 5c1e</td><td>Import receipts reused from build-c</td><td><button class="ad-btn compact" type="button">Open read-only</button></td></tr>
+    <tr><th scope="row" class="nw"><span class="nm mono">1</span></th><td class="mono">2026-09-20 09:03</td><td>you</td><td>Initial import · never analyzed</td><td><button class="ad-btn compact" type="button" aria-haspopup="dialog">Delete version 1…</button></td></tr>
+   </tbody>
+  </table>
+  </div>
+  <p class="ad-g3-note">Opening a version reads it; it never checks out, merges or analyzes. Only the oldest or latest version can be deleted, and never while it is checked out.</p>
+ </div>
+</section>
+
+<div class="adc-states">
+ <div>
+  <span class="kicker">Disconnected · last snapshot, read-only</span>
+  <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Reconnecting. Showing data from 14:02.</h4><p>Check-in, update and checkout are unavailable until the server answers. Local edits continue on builds you have checked out.</p></div><span></span></div>
+ </div>
+ <div>
+  <span class="kicker">Not a shared project</span>
+  <div class="ad-notice info"><b aria-hidden="true">○</b><div><h4>corpus-alpha is not under version control</h4><p>Builds are private files. Add to version control (catalog)… names each build and confirms.</p></div><span></span></div>
+ </div>
+ <div>
+  <span class="kicker">Hijacked file</span>
+  <div class="ad-notice fault"><b aria-hidden="true">✕</b><div><h4>build-c is hijacked</h4><p>A private file has the same name as the versioned build-c. Undo hijack (catalog)… keeps the private file as a copy and confirms first.</p></div><span></span></div>
+ </div>
+ <div>
+  <span class="kicker">Checkout of another user</span>
+  <div class="ad-notice unknown"><b aria-hidden="true">?</b><div><h4>Checkouts of build-c: 1</h4><p>analyst-2, exclusive, since 11:20, as the server reports. Ending another user's checkout needs a repository administrator and is not offered here.</p></div><span></span></div>
+ </div>
+</div>
+</div>

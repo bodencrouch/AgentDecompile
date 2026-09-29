@@ -33,6 +33,8 @@ FrameLayout shows one function's stack frame per build as a vertical strip with 
   - unknown.
 - Pane: follows as I move (stored prologue and reference analysis) · "Not decompiled in this session · Enter to decompile" for a build without references.
 
+Difference classes use VariantRelation's glyphs and words: `≈` same source, compiled differently (compile variance) · `∼` same source and flags, build state differs (entropy) · `≠` source changed · `?` unknown · `≡` identical. Evidence words are shared with ToolchainEvidence: **witness** or **record** (solid frame), **hypothesis (heuristic)** (dashed frame, basis named), **unknown** (italic word, no frame). A build-wide cause (a flag, LTCG, /GS, /Oy, EH model, ICF) links to ToolchainEvidence (`ws=evidence&panel=toolchain&build=…`) instead of restating its evidence.
+
 ## Linking
 
 - **Publishes:** Enter on a local or parameter is Go to its decompiler variable (`views=decompile`, `addr` of its first use, same build). Moving across cells replaces nothing (focus only). Keep adds the frame as a kept card (`keep=frame:‹entity›@‹build›`, proposed kind).

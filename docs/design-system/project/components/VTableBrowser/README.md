@@ -17,7 +17,7 @@ VTableBrowser shows a class hierarchy with its vftables per build. Each slot is 
   - The row header carries a kind label: `scalar deleting destructor ??_G`, `vector deleting destructor ??_E`, `override`, `inherited`, `new in Base`, `adjustor thunk`.
   - One cell per build holds the slot index and the target address, a counterpart link with its edge word, or a word: "slot added in build-c", "absent", "unknown".
   - "slot shifted: hypothesis, base class gained a virtual" and "override differs: hypothesis, …" are dashed cells with their basis.
-- **Summary lines:** the cross-build word ("≈ differs: consistent pattern · build-c slots from 1 onward are +1"), then each difference class with its evidence.
+- **Summary lines:** the cross-build word ("± differs: consistent pattern · build-c slots from 1 onward are +1"), then each difference class with its evidence.
 - **RTTI provenance panel:**
   - COL → TypeDescriptor → hierarchy, with the evidence chip and the builds it covers;
   - builds without RTTI, whose names come only from identity edges (dashed);
@@ -28,12 +28,14 @@ VTableBrowser shows a class hierarchy with its vftables per build. Each slot is 
 ## States
 
 - Cells: target (solid: RTTI and vftable bytes) · candidate target (edge word "candidate") · hypothesis (dashed; basis named) · "slot added in build-x" · "absent" · "unknown" (no RTTI and no edge) · "Not loaded. Open build-d to read it."
-- Cross-build: `=` same in all builds · `≈` differs: consistent pattern (uniform slot shift) · `±` differs · `−` absent in build-x.
+- Cross-build: `≡` same in all builds · `±` differs: consistent pattern (uniform slot shift) · `±` differs · `−` absent in build-x.
 - Difference classes:
   - slot order changed is **source changed** (declaration order; hypothesis unless source digests are recorded);
   - equal order with different targets is relocation, which is not a difference;
   - a folded slot on the same source is **same source, compiled differently** (/OPT:ICF);
   - otherwise **unknown**.
+
+Difference classes use VariantRelation's glyphs and words: `≈` same source, compiled differently (compile variance) · `∼` same source and flags, build state differs (entropy) · `≠` source changed · `?` unknown · `≡` identical. Evidence words are shared with ToolchainEvidence: **witness** or **record** (solid frame), **hypothesis (heuristic)** (dashed frame, basis named), **unknown** (italic word, no frame). A build-wide cause (a flag, LTCG, /GS, /Oy, EH model, ICF) links to ToolchainEvidence (`ws=evidence&panel=toolchain&build=…`) instead of restating its evidence.
 
 ## Linking
 

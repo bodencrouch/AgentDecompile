@@ -47,7 +47,7 @@ CompilerLayer is a toggleable annotation layer over Listing, DecompileView and S
 
 `/RTC` fills, `__chkstk` probes and bool idioms (`neg/sbb`) use the same band with the tags `RTC`, `PROBE` and `BOOL` when their detectors exist (T11, I8, I3).
 
-**Evidence:** solid (a witness or an unambiguous byte pattern) · hypothesis (dashed; basis named: clone similarity, pattern match without a witness) · unknown (the word; nothing drawn in the gutter).
+**Evidence:** witness or record (solid; a PDB record, FuncInfo, table parse or an unambiguous byte pattern) · hypothesis (heuristic) (dashed; basis named: clone similarity, pattern match without a witness) · unknown (the word; nothing drawn in the gutter).
 
 **Presence across builds:** each build is written as present, absent, or with its alternative form ("call", "call memcpy", "call + ret"), or as "unknown" when that build has no detector output. The presence line is classed as one of four:
 
@@ -57,6 +57,8 @@ CompilerLayer is a toggleable annotation layer over Listing, DecompileView and S
 - unknown.
 
 **Layer states:** off (the wells render as usual) · on · filtered ("5 hidden by Kind") · "No detector output for build-c · Not loaded" (the build's gutter is empty with that notice, never a guess) · stale ("◷ detectors ran on basis b7e2; program changed since").
+
+Difference classes use VariantRelation's glyphs and words: `≈` same source, compiled differently (compile variance) · `∼` same source and flags, build state differs (entropy) · `≠` source changed · `?` unknown · `≡` identical. Evidence words are shared with ToolchainEvidence: **witness** or **record** (solid frame), **hypothesis (heuristic)** (dashed frame, basis named), **unknown** (italic word, no frame). A build-wide cause (a flag, LTCG, /GS, /Oy, EH model, ICF) links to ToolchainEvidence (`ws=evidence&panel=toolchain&build=…`) instead of restating its evidence.
 
 ## Linking
 

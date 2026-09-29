@@ -77,3 +77,25 @@ Plain, operational English from the operator's side. Sentence case; only `type-k
 ## Iconography
 
 There is no logo and no icon font. Set the name **AgentDecompile** in DejaVu Sans Bold. State glyphs are text characters in DejaVu Sans Mono from one fixed vocabulary (see State vocabularies). Diagram glyphs are drawn: the gate diamond, the lock, the concurrency bracket, arrows with explicit triangular heads, and numbered ladder circles (see DiagramLegend). Interface icons, where needed, are 1.5px line icons at 16px in `ink-muted`. No emoji anywhere.
+
+## Fixtures (canonical example data)
+
+Previews use one shared set of example data so that components agree with each other. None of it is product data.
+
+- **Builds.** build-a, build-b and build-c are x86-32 builds of one application from one toolchain family. build-d is an x86-64 build from another toolchain, so it has 8-byte pointers. Project: corpus-alpha.
+- **Entities (id, address per build):**
+  - ResourceRef::Resolve (88): build-a 0041b210 · build-b 0041b2c0 (accepted) · build-c 00082f40 · build-d unresolved.
+  - Archive::OpenMember (90).
+  - Actor::LoadFromTemplate (4127).
+  - FUN_0041c880: a separate, unnamed function on build-a, never another name for ResourceRef::Resolve.
+- **CacheEntry layout (by logical field):**
+
+  | Field | build-a | build-b | build-c | build-d |
+  |---|---|---|---|---|
+  | `name_len` (ushort) | +0x0 | +0x0 | +0x0 | +0x0 |
+  | `flags` (CacheEntryFlags) | +0x4 | +0x4 | +0x4 | +0x4 |
+  | `next` (CacheEntry *) | +0x10 | +0x10 | +0x18 | +0x18, 8-byte pointer |
+  | size · align | 0x18 · 4 | 0x18 · 4 | 0x1c · 4 | 0x20 · 8 |
+
+  The build-c shift is drawn as a dashed "hypothesis (heuristic)", ≈ compile variance. The build-d shift is a witness, from pointer width.
+- **Jobs and receipts.** job a3f9 is the example rename or propagation job. Other ids (5c1e, 6e21, 77c0, b7e2, b7e3, c4e1, d07a, e5a0) are illustrative and consistent within each preview.

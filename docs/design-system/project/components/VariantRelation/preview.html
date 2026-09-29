@@ -34,6 +34,34 @@
   </tbody></table></div>
  <footer>…and 24 more. Enter on an entity opens it in Compare with this pair (cmp=build-c..build-d); opening one decides nothing. Scores from different tools are shown side by side and never combined.</footer>
 </section>
+<span class="kicker">Rail form · the Explain build difference preset · the current cmp pair only, scoped to the selection · evidence-rail width</span>
+ <div class="ad-vrel-railw">
+ <section class="adl-sect ad-vrel-rail" aria-labelledby="vr-r-h">
+  <header><h3 id="vr-r-h"><button type="button" class="adl-disc" aria-expanded="true" aria-controls="vr-r-b"><b aria-hidden="true">▾</b>Variant relation</button></h3><span class="small muted">For <span translate="no">ResourceRef::Resolve</span> · build-a ↔ build-c</span></header>
+  <div class="body" id="vr-r-b">
+   <div class="stack" style="gap:4px"><span class="kicker">This pair</span>
+    <span class="ad-evd solid"><span class="lv">witness</span><span class="v">VC 7.1 → 8.0</span><span class="basis">Rich header product ids · <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;ws=evidence&amp;panel=toolchain&amp;build=build-c" aria-label="Toolchain evidence, build-c">toolchain evidence</a></span></span>
+    <span class="ad-evd unk"><span class="lv">unknown</span><span class="v">source identity on build-a</span><span class="basis">recorded on build-c only, so no class here can be solid</span></span>
+   </div>
+   <div class="stack" style="gap:4px"><span class="kicker">This entity</span>
+    <span class="adx-var hyp"><b><span aria-hidden="true">≠ </span>Source changed</b> · hypothesis (heuristic), basis: vftable slot 1 → 2 and CacheEntry grew from 0xC to 0x14 bytes; no checked transformation explains either</span>
+    <span class="small muted">One of 28 entities with source variance for this pair.</span>
+   </div>
+   <div class="stack" style="gap:4px"><span class="kicker">Differences · each with its class</span>
+    <ul class="ad-vrel-rdiff" aria-label="Differences of ResourceRef::Resolve between build-a and build-c">
+     <li><span>Frame: EBP on build-a, ESP (FPO) on build-c</span><span class="adx-var hyp"><b><span aria-hidden="true">≈ </span>compile variance</b> · hypothesis (heuristic), basis: /Oy recorded for build-c; build-a keeps EBP frames (frame detector)</span></li>
+     <li><span>vftable slot 1 → 2</span><span class="adx-var hyp"><b><span aria-hidden="true">≠ </span>source variance</b> · hypothesis (heuristic), basis: every slot from 1 onward is +1</span></li>
+     <li><span translate="no">CacheEntry.name_len: unknown on build-a, +0xA on build-c</span><span class="adx-var hyp"><b><span aria-hidden="true">≠ </span>source variance</b> · hypothesis (heuristic), basis: stride 0xC → 0x14</span></li>
+     <li><span>Registers in the lookup loop</span><span class="adx-var unk"><b><span aria-hidden="true">? </span>unknown</b> · toolchain and source both differ</span></li>
+    </ul>
+   </div>
+   <div class="stack" style="gap:4px"><span class="kicker">Opinions · never combined</span>
+    <ul class="ad-opin"><li><span class="sc">0.74</span><span class="src">BSim similarity</span></li><li><span class="sc">212 bytes differ</span><span class="src">objdiff</span></li></ul>
+   </div>
+  </div>
+  <footer><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;ws=compare&amp;panel=variants&amp;cmp=build-a..build-c">Show all pairs</a><span class="small muted">Read-only · nothing is compared</span></footer>
+ </section>
+ </div>
  <p class="sr-only" role="status"></p>
 </section>
 </div>

@@ -54,19 +54,19 @@
      <dt>Directory</dt><dd class="mono" translate="no">user scripts · ghidra_scripts/</dd>
     </dl>
     <div class="ad-tools" role="group" aria-label="Script actions">
-     <button class="ad-btn primary" type="button" aria-haspopup="dialog">Run on build-a (catalog)…</button>
+     <button class="ad-btn primary" type="button" aria-haspopup="dialog">Run on build-a…</button>
      <button class="ad-btn" type="button" aria-haspopup="dialog">Run on other builds…</button>
      <button class="ad-btn" type="button" aria-describedby="sc-last">Run last…</button>
      <span class="sr-only" id="sc-last">Arms ApplyCacheEntryLayout.py against the current selection's build, never the last run's build.</span>
     </div>
-    <div class="ad-tools" role="toolbar" aria-label="Manage scripts, catalog action needed">
+    <div class="ad-tools" role="toolbar" aria-label="Manage scripts, not available on this server yet">
      <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-new">New script…</button>
      <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-edit">Edit…</button>
      <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-ren">Rename…</button>
      <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-del">Delete…</button>
      <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nokey">Assign key binding…</button>
      <button class="ad-btn compact" type="button" aria-describedby="sc-d-dir">Script directories…</button>
-     <span class="small muted" id="sc-nocat">catalog action needed · not offered yet. Script files are edited outside the workbench.</span>
+     <span class="small muted" id="sc-nocat">Not available on this server yet. The script list still reads. Script files are edited outside the workbench.</span><span class="small muted" aria-hidden="true">·</span><button class="ad-btn quiet compact" type="button" aria-haspopup="dialog">What this server offers</button>
      <span class="sr-only" id="sc-d-new">Will choose a script language and a user directory, then open the new file in Edit.</span>
      <span class="sr-only" id="sc-d-edit">Will open the source in a code well; Save posts one catalog write, confirmed in place.</span>
      <span class="sr-only" id="sc-d-ren">Will rename the file; past runs show the old name as recorded.</span>
@@ -124,12 +124,12 @@
 <span class="j">b7e2</span> 'ResourceRef::Resolve'
 <span class="in">&gt;&gt;&gt; len(getReferencesTo(toAddr(0x0041b210)))</span>
 <span class="j">b7e3</span> Progress unknown · last event 14:11:02</pre></div>
-   <div class="ad-scon-repl"><label class="pr" for="sc-in">&gt;&gt;&gt;</label><input id="sc-in" class="adc-in" type="text" aria-describedby="sc-in-d"><button class="ad-btn" type="button">Interrupt b7e3 (catalog)</button></div>
+   <div class="ad-scon-repl"><label class="pr" for="sc-in">&gt;&gt;&gt;</label><input id="sc-in" class="adc-in" type="text" aria-describedby="sc-in-d"><button class="ad-btn" type="button">Interrupt b7e3</button></div>
    <p class="ad-g3-note" id="sc-in-d" style="padding:0 12px 8px">Enter posts this line as one job on build-a. Interrupt cancels the running line's job; Reset starts a new session and confirms again.</p>
   </section>
  </div>
  <div>
-  <span class="kicker">Bundles · actions need a catalog action</span>
+  <span class="kicker">Bundles · actions not available on this server yet</span>
   <div class="ad-scroll" role="region" aria-label="Script bundles">
   <table class="ad-table ad-g3-grid" style="min-width:0"><caption class="sr-only">Script source bundles</caption>
    <thead><tr><th scope="col">Bundle</th><th scope="col">State</th></tr></thead>
@@ -140,7 +140,7 @@
    </tbody>
   </table>
   </div>
-  <div class="ad-tools" role="toolbar" aria-label="Bundle actions, catalog action needed" style="margin-top:8px">
+  <div class="ad-tools" role="toolbar" aria-label="Bundle actions, not available on this server yet" style="margin-top:8px">
    <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat">Enable</button>
    <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat sc-b-dis">Disable…</button>
    <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat sc-b-cln">Clean…</button>
@@ -149,7 +149,7 @@
    <span class="sr-only" id="sc-b-dis">Will stop dependents first, then remove the bundle's scripts from the manager, with both counts.</span>
    <span class="sr-only" id="sc-b-cln">Will deactivate the bundle and wipe its compiled output; the next run recompiles.</span>
   </div>
-  <p class="ad-g3-note" id="sc-bnocat">catalog action needed · not offered yet. Bundles apply to script runs on every build.</p>
+  <p class="ad-g3-note"><span id="sc-bnocat">Not available on this server yet. Bundle states still read. Bundles apply to script runs on every build.</span><span aria-hidden="true"> · </span><button class="ad-btn quiet compact" type="button" aria-haspopup="dialog">What this server offers</button></p>
  </div>
  <div>
   <span class="kicker">Quick launcher · design for when scripts are catalog entries (G13) · not available today</span>

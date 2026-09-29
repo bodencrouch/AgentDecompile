@@ -2,7 +2,7 @@
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">Assemble, patch, clear, disassemble or create data · one explicit build · before and after bytes · never applied to all builds</span>
 <form class="ade inline" aria-labelledby="pe-t">
- <header><h4 id="pe-t">Patch instruction at <code translate="no">0041b242</code></h4><span class="end">Patch bytes (catalog)</span></header>
+ <header><h4 id="pe-t">Patch instruction at <code translate="no">0041b242</code></h4><span class="end">Patch bytes</span></header>
  <div class="ade-tgt">
   <span class="kicker">Target · required, bound when opened</span>
   <span class="ade-bld target">build-a</span><span>in <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a></span><span>block <code translate="no">.text</code> · initialized · writable in the program</span>
@@ -53,7 +53,7 @@
 <div>
  <span class="kicker">Clear with options · destructive, one build</span>
  <div class="ade" role="group" aria-labelledby="pe-cl-t">
-  <header><h4 id="pe-cl-t">Clear <code translate="no">0041c900–0041c917</code></h4><span class="end">Clear code units (catalog)</span></header>
+  <header><h4 id="pe-cl-t">Clear <code translate="no">0041c900–0041c917</code></h4><span class="end">Clear code units</span></header>
   <div class="ade-tgt"><span class="ade-bld target">build-a</span><span>24 bytes · 5 instructions</span></div>
   <div class="ade-sec"><div class="ade-flags" role="group" aria-label="What to clear"><label class="ad-flag"><input type="checkbox" checked>Instructions</label><label class="ad-flag"><input type="checkbox" checked>Data</label><label class="ad-flag"><input type="checkbox">Symbols</label><label class="ad-flag"><input type="checkbox">Comments</label><label class="ad-flag"><input type="checkbox">User references</label><label class="ad-flag"><input type="checkbox">Functions</label><label class="ad-flag"><input type="checkbox">Registers</label><label class="ad-flag"><input type="checkbox">Equates</label><label class="ad-flag"><input type="checkbox">Bookmarks</label></div><p class="small muted">Bytes are kept; only the listed markup is removed. Clear flow and repair is a separate verb.</p></div>
   <footer><button class="ad-btn primary" type="button">Clear on build-a…</button><button class="ad-btn" type="button">Cancel</button></footer>
@@ -62,7 +62,7 @@
 <div>
  <span class="kicker">Disassemble · decodes only this range; follow-on analysis only if admitted</span>
  <div class="ade" role="group" aria-labelledby="pe-ds-t">
-  <header><h4 id="pe-ds-t">Disassemble at <code translate="no">0041c2a8</code></h4><span class="end">Disassemble (catalog)</span></header>
+  <header><h4 id="pe-ds-t">Disassemble at <code translate="no">0041c2a8</code></h4><span class="end">Disassemble</span></header>
   <div class="ade-tgt"><span class="ade-bld target">build-a</span><span id="pe-ds-l">Mode</span><div class="ad-seg" role="radiogroup" aria-labelledby="pe-ds-l"><span role="radio" aria-checked="true" tabindex="0">Follow flow</span><span role="radio" aria-checked="false" tabindex="-1">Restricted to selection</span><span role="radio" aria-checked="false" tabindex="-1">Static</span></div></div>
   <div class="ade-sec"><p class="small">Preview from build-a's language: 4 instructions, 0041c2a8–0041c2b7, ending at <code translate="no">RET</code>. The preview decodes bytes only and is not program state; nothing is in build-a's listing until posted. Restricted to selection over a range is a batch and opens ConfirmDialog.</p></div>
   <footer><button class="ad-btn primary" type="button">Disassemble on build-a</button><span class="note">Single target: Run posts once. No function is created and nothing is analyzed.</span></footer>
@@ -71,7 +71,7 @@
 <div>
  <span class="kicker">Create data · array, pointer or string with its settings</span>
  <div class="ade" role="group" aria-labelledby="pe-cd2-t">
-  <header><h4 id="pe-cd2-t">Create data at <code translate="no">0041f060</code></h4><span class="end">Apply data type (catalog)</span></header>
+  <header><h4 id="pe-cd2-t">Create data at <code translate="no">0041f060</code></h4><span class="end">Apply data type</span></header>
   <div class="ade-tgt"><span class="ade-bld target">build-a</span></div>
   <div class="ade-sec"><div class="ade-flds">
    <label class="lbl" for="pe-dt">Type</label><div class="val"><input class="adc-in" id="pe-dt" value="CacheEntry *[4]" translate="no"></div>

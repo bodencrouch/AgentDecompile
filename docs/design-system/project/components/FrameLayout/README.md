@@ -33,6 +33,7 @@ FrameLayout shows one function's stack frame per build as a vertical strip with 
   - source changed (a local exists in one revision only);
   - unknown.
 - Pane: follows as I move (stored prologue and reference analysis) · "Not decompiled in this session · Enter to decompile" for a build without references.
+- Narrow: below a 480px container the grid becomes one list item per slot, with each build as a labelled line ("build-c: +0x18 · hypothesis"). NarrowFlow owns this rule.
 
 Difference classes use VariantRelation's glyphs and words: `≈` same source, compiled differently (compile variance) · `∼` same source and flags, build state differs (entropy) · `≠` source changed · `?` unknown · `≡` identical. Evidence words are shared with ToolchainEvidence: **witness** or **record** (solid frame), **hypothesis (heuristic)** (dashed frame, basis named), **unknown** (italic word, no frame). A build-wide cause (a flag, LTCG, /GS, /Oy, EH model, ICF) links to ToolchainEvidence (`ws=evidence&panel=toolchain&build=…`) instead of restating its evidence.
 

@@ -26,7 +26,7 @@ A PDB whose identity (GUID and age) does not match the build is a hypothesis, an
 - **Follows:** `entity` and `build`, after the settle. Keepable as a card (`keep=names:88@build-a`); a Kept card stays on its entity and build.
 - **Targets rendered:** source build → the counterpart (entity @ build) in the Code Browser for that build, showing its edge word ("build-c · candidate") · witness (STABS, annotation) → the receipt card that recorded it · analysis name → its address, with `build` · knowledge entry → its context piece's receipt card · conflicting value → this section for that entity and build (the target of MergeReview and ContextPlacement conflict links) · "Show all fields" → the names panel (`ws=evidence&panel=names`).
 - **Peek source:** Alt+↓ on a name anywhere reads the stored name-candidate rows and witness receipt headers; nothing is fetched or re-fused.
-- **Absent copy:** "none" for a tier with no candidate · "unresolved on build-d" (plain words) · "Not loaded. Open build-c to read its names." Never a guessed donor.
+- **Absent copy:** "none" for a tier with no candidate · "unresolved on build-d" (plain words) · "Not loaded · Enter to load build-c's names". Never a guessed donor.
 - **Target-size exception:** spacing: a Source cell may contain two short links separated by `·`; grid rows are 28px. With a coarse pointer each grid row carries one 44px row-menu button with the same link menu; there is no long-press.
 
 **Keyboard**
@@ -37,4 +37,4 @@ A PDB whose identity (GUID and age) does not match the build is a hypothesis, an
 
 - `role="grid"` named "Why this name, ResourceRef::Resolve, build-a"; the tier is the row header (`th scope="row"`). "winner" and "rejected" are words; the winner never borrows the selection fill or the accent, which mark only the focused row.
 
-**Removes switching:** opening the Evidence workspace, the Compare workspace and the donor build to learn why a function has its name (J18, J31).
+**Removes switching:** opening the Corpus workspace, the Compare workspace and the donor build to learn why a function has its name (J18, J31).

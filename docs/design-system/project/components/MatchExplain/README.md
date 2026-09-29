@@ -44,6 +44,7 @@ MatchExplain explains why a recompiled candidate does not match its target bytes
 - Class rows: counted · zero · hypothesis (dashed chip, basis named) · unknown.
 - Receipt: fresh · reused · historical ("◷ compiled from r14; source is r15"; the rows are marked historical, never current).
 - No receipt: "No comparison receipt for this pair. Nothing is compiled from here." The one armed fix comes from the catalog and is never run.
+- Narrow: below a 480px container the build-column grid becomes one list item per row, with each build as a labelled line. NarrowFlow owns this rule.
 
 Difference classes use VariantRelation's glyphs and words: `≈` same source, compiled differently (compile variance) · `∼` same source and flags, build state differs (entropy) · `≠` source changed · `?` unknown · `≡` identical. Evidence words are shared with ToolchainEvidence: **witness** or **record** (solid frame), **hypothesis (heuristic)** (dashed frame, basis named), **unknown** (italic word, no frame). A build-wide cause (a flag, LTCG, /GS, /Oy, EH model, ICF) links to ToolchainEvidence (`ws=evidence&panel=toolchain&build=…`) instead of restating its evidence.
 

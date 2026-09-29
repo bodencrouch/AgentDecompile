@@ -2,7 +2,7 @@
 
 Entity × build readiness: locator status and observed status as separate glyph axes, row for row equal to the readiness report. It is the corpus view `panel=readiness` and the single owner of the vtable slots × builds rows.
 
-**Use it** as the full corpus view in the Evidence workspace (`ws=evidence&panel=readiness`), reached from "Show all" on the rail's readiness section and from go to. Its **slots mode** (a `type` naming a vtable, for example `type=Actor::vtable`) makes the rows the slots of one vtable aligned by the stored ladder E results; XrefPanel's Slots mode shows the same rows at rail width and links "Open slots matrix".
+**Use it** as the full corpus view in the Corpus workspace (`ws=evidence&panel=readiness`), reached from "Show all" on the rail's readiness section and from go to. Its **slots mode** (a `type` naming a vtable, for example `type=Actor::vtable`) makes the rows the slots of one vtable aligned by the stored ladder E results; XrefPanel's Slots mode shows the same rows at rail width and links "Open slots matrix".
 
 **Consumer provides** rows keyed by stable key, one column per build, each cell's locator status, member and observed status, the landed address or addresses, and the per-build "what you can do" line from the shared readiness projection; in slots mode, the slot rows from ladder E with each cell's slot target.
 
@@ -32,8 +32,8 @@ Entity × build readiness: locator status and observed status as separate glyph 
 **Keyboard**
 
 - A cell-focus APG Grid with one tab stop: ←/→ across builds, ↑/↓ across entities, Home/End to the first and last cell in the row, Ctrl+Home/Ctrl+End to the first and last cell in the grid, PageUp/PageDown one viewport. Arrows move focus only; Enter commits.
-- Enter as above; Shift+Enter opens beside; Alt+↓ peeks; Shift+F10 opens the one link menu (Open · Open beside · Peek; Reveal in Compare, Evidence, Pipeline map; Copy). On an ambiguous or contested cell, Enter, Space or ↓ opens its candidate menu, and Esc returns to the cell (`keymap.json` `escapeOrder`).
-- `w` (focus-scoped, remappable) makes a worklist of the filtered rows; typeahead starts with `/` because the grid binds letter commands.
+- Enter as above; Shift+Enter opens beside; Alt+↓ peeks; Shift+F10 opens the one link menu (Open · Open beside · Peek; Reveal in Compare, the Evidence rail, Pipeline map; Copy). On an ambiguous or contested cell, Enter, Space or ↓ opens its candidate menu, and Esc returns to the cell (`keymap.json` `escapeOrder`).
+- `w` (focus-scoped, remappable) makes a worklist of the filtered rows; typeahead starts with `/`, as in every grid, because plain letters are commands.
 
 **Accessibility**
 

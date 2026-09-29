@@ -27,18 +27,18 @@ One build's program trees (named organizations of folders and fragments over its
    - The restriction is per-viewer view state, read-only and never program data.
    - The OverviewBar and the SearchWorkbench's "View" scope use the same restriction. Searches say "within the view".
 5. **Row menu** (Edit items listed only when the catalog exposes them, otherwise `aria-disabled` with the reason):
-   - Go · Restrict view to this · Add to view · Remove from view · Select in Listing (makes the Listing's address-set selection on this build; read-only);
+   - Go · Restrict view to this · Add to view · Remove from view · Make address selection (makes the Listing's address selection on this build; read-only);
    - Expand all · Collapse all;
    - Create folder… · Create fragment… · Rename… (inline, confirms in place);
    - Delete…, allowed only when the node is empty or has another parent, otherwise disabled with "Not empty and has no other parent";
-   - Merge with parent… · Sort by name or address… · Move Listing selection here… (moves the code units of the Listing's selection on this build into this fragment);
+   - Merge with parent… · Sort by name or address… · Move address selection here… (moves the code units of the Listing's address selection on this build into this fragment);
    - Move to… (a folder picker; cut and paste arm the same move) · Copy to… (adds another parent, so the node becomes shared and says "also in …") · Move up and Move down (reorder within the folder);
    - Organize ▸ By subroutine (block model…) · Dominance · Complexity depth.
 6. **Compare** (optional): the same tree name on two builds side by side, aligned by folder or fragment name. The header says "aligned by name ≠ same contents". Rows present on one side only read "absent" on the other. Ranges and sizes are that build's own. Nothing is merged or copied.
 
 ## Edits, jobs and honesty
 
-- **Exact target.** Every edit names the build and the tree ("Create folder in build-b · Program Tree (catalog)").
+- **Exact target.** Every edit names the build and the tree ("Create folder in build-b · Program Tree").
 - **Single target confirms in place:** create one folder or fragment, rename one node.
 - **ConfirmDialog** for:
   - delete (names the node and whether it is shared);
@@ -70,7 +70,7 @@ One build's program trees (named organizations of folders and fragments over its
 - **Publishes:**
   - Go on a node pushes one stop to the Code Browser at the fragment's first address on this build.
   - Restrict view changes the Listing's view. It is carried as the registered `f=ptree.view:‹tree›/‹path›` axis (replaceState) and is not a history stop.
-  - Select in Listing sets the address-set selection (client state, never in the URL).
+  - Make address selection sets the Listing's address selection (client state, never in the URL).
 - **Follows:** the inspected build, and the cursor, to mark the fragment containing it ("contains cursor"). A **Select fragment at cursor** toggle mirrors Ghidra's option; it marks and scrolls, and never moves the cursor. Not holdable.
 - **Targets rendered:** address (range starts) → the Code Browser at that build · build → its Navigator row · job → the dock Jobs record.
 - **Peek source:** Alt+↓ on a fragment peeks its cached Listing lines at the first address and its full range list. Nothing is fetched.
@@ -79,11 +79,11 @@ One build's program trees (named organizations of folders and fragments over its
 
 ## Keyboard
 
-- APG Treegrid: ↑/↓, →/← open, close and move to the parent, Home/End, `*` expands siblings, `/` typeahead. Enter goes, Shift+Enter opens beside, Alt+↓ peeks, Shift+F10 opens the menu, F2 renames inline.
+- APG Treegrid: ↑/↓, →/← open, close and move to the parent, Home/End, `*` expands siblings, and typeahead starts with `/` into a visible filter field (plain letters are commands). Enter goes, Shift+Enter opens beside, Alt+↓ peeks, Shift+F10 opens the menu, F2 renames inline.
 - Composite-scope ids (the ProgramTreeView treegrid only; registered in `keymap.json`):
   - `ptree.restrict` (`v`) restricts the Listing view to the focused node; `ptree.addToView` (Shift+V) adds it.
   - `ptree.clearView` has no default key; it is on the view band and in the palette.
-  - `ptree.select` (`s`) selects the node's addresses in the Listing.
+  - `ptree.select` (`s`, "Make address selection") makes an address selection of the node's addresses in the Listing.
 - Tree tabs are APG Tabs with manual activation. Moves use the menu or arm the ActionStrip; drag and drop is an optional path to the same armed Move.
 
 ## Accessibility

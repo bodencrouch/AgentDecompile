@@ -32,7 +32,7 @@ The memory map of one build as a table: blocks with their range, length, permiss
    Columns can be chosen and sorted with the ResultsTable header grammar.
 3. **Inline editor** for a single block (the single-target fields): name, R/W/X, volatile, artificial and comment. It opens under the row and shows:
    - the build;
-   - the catalog action by its label, with "(catalog)";
+   - the catalog action by its label;
    - the old → new values;
    - the consequence in one sentence, for example "Removing execute from .text on build-b changes what analysis treats as code. Nothing re-analyzes on Save; re-disassembly needs admission."
 
@@ -71,7 +71,7 @@ The memory map of one build as a table: blocks with their range, length, permiss
 
 | State | Shown as |
 |---|---|
-| Not loaded | "Not loaded. Open build-c to read it." (per build column in Align builds; nothing opens) |
+| Not loaded | "Not loaded · Enter to load build-c" (per build column in Align builds; nothing opens until Enter) |
 | Overlay | the start carries the overlay space prefix; the row says "overlay · does not move with the image base" |
 | Uninitialized | the word "uninitialized", and "no bytes" in the byte-source cell |
 | Editing | the inline editor under the row; the row keeps its current values until the terminal result |
@@ -85,7 +85,7 @@ The memory map of one build as a table: blocks with their range, length, permiss
 - **Follows:** the inspected build, and the cursor, to mark the block that contains it ("contains cursor"). It is cached and never fetches another build on follow. Not holdable.
 - **Targets rendered:** address (start, end, mapped-from address) → the Code Browser at that build · build → its Navigator row · job → the dock Jobs record · receipt that classified a difference → its receipt card.
 - **Peek source:** Alt+↓ on a block peeks its cached Listing lines at the start and its byte-source detail. Nothing is fetched.
-- **Absent copy:** "absent on build-d" · "no bytes" · "Not loaded. Open build-c to read it." · "unknown · no source identity for build-d".
+- **Absent copy:** "absent on build-d" · "no bytes" · "Not loaded · Enter to load build-c" · "unknown · no source identity for build-d".
 - **Target-size exception:** address links sit in 28px rows with one link per cell (44px below 700px and with a coarse pointer). Toggle and checkbox cells are 24px.
 
 ## Keyboard

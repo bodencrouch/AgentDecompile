@@ -13,15 +13,15 @@ Undo and redo for one build's program as its list of recorded transactions, with
 - **Undo stack**, newest first. Each row: position, the transaction name with typed links (address, entity), its state word on the right, and a meta line: submitter and job or "inline edit", time, and what it touched. State words: "↶ undoable"; "↶ program changes undoable · side effects are not" for a job; "↶ undoable on build-a only" for a propagated edit; "would make receipt ‹id› stale" when undoing invalidates a receipt.
 - **Cannot be undone.** A separate group below the stack: "⊘ cannot be undone here" rows for transactions checked in to the server, beyond the stack limit, or recorded before the program was last closed. A job row also carries "⊘ its log, receipt and transcript cannot be undone".
 - **The boundary sentence**, always under the list: "Undo reverts the program's changes on ‹build›. It does not delete jobs, logs, receipts, artifacts or files a job wrote: byte journal rollback ≠ undo of executed side effects. Undone work leaves its receipts marked ◷ stale."
-- **Verbs.** **Undo (catalog)…** (the top transaction), **Redo (catalog)…** (the next redo), and **Undo to here…** on a row, which undoes that transaction and every newer one. A single top undo or redo of a single-target edit (one inline rename, retype or comment) confirms in place, naming the transaction and the build (Linked views, Confirming edits; `edit.undo`). Every other undo or redo (a job's transaction, a batch, a propagated edit, or Undo to here…) opens ConfirmDialog: title "Undo 2 transactions on build-a"; the consequence names each transaction, what a job keeps, "Other builds are unchanged" and "Both can be redone until the next edit on build-a". The primary button repeats the verb and count ("Undo 2").
+- **Verbs.** **Undo…** (the top transaction), **Redo…** (the next redo), and **Undo to here…** on a row, which undoes that transaction and every newer one. A single top undo or redo of a single-target edit (one inline rename, retype or comment) confirms in place, naming the transaction and the build (Linked views, Confirming edits; `edit.undo`). Every other undo or redo (a job's transaction, a batch, a propagated edit, or Undo to here…) opens ConfirmDialog: title "Undo 2 transactions on build-a"; the consequence names each transaction, what a job keeps, "Other builds are unchanged" and "Both can be redone until the next edit on build-a". The primary button repeats the verb and count ("Undo 2").
 
 **States**
 
 - **Propagated edit:** "Undo applies to build-a only." The donor keeps its value; other recipients keep theirs; each recipient's undo is its own step in its own history.
 - **Writer owned:** "‹build› has a writer" with the owner as reported; Undo waits; nothing is killed or restarted.
-- **Modification conflict:** "Undo refused: ‹build› changed since you armed it", naming the new transaction; nothing was undone; resolve with `resolve-modification-conflict` or arm again on the new top.
+- **Modification conflict:** "Undo refused: ‹build› changed since you armed it", naming the new transaction; nothing was undone. "Review the new change, then Undo again on the new top."
 - **Stack cleared:** "No undo stack for ‹build›", with why (closed at ‹time›, or "Redo list cleared by ‹transaction› at ‹time›"). Earlier transactions are listed from the event store and cannot be undone here.
-- **No catalog action:** Undo and Redo are disabled with "catalog action needed · not offered yet"; the list still reads.
+- **No catalog action:** Undo and Redo are disabled with "Not available on this server yet. The list still reads. · What this server offers", where the last part links to Help › What this server offers.
 - **After a verb:** the Job outcome words on the invoking row; the terminal message names the result ("Undo saved on build-a: 2 transactions reverted, job ‹id›"). Nothing is shown optimistically.
 - **Unsaved and saved:** the summary distinguishes transactions not yet saved from saved but not checked in (Ghidra Save; V03); saving never clears the undo stack, checking in does.
 
@@ -37,7 +37,7 @@ Undo and redo for one build's program as its list of recorded transactions, with
 - **Follows:** the inspected build, settle, unless the Program segment was set by hand in this panel. Not holdable.
 - **Targets rendered:** addresses and entities in transaction names → the Code Browser at that build · jobs → the dock Jobs record · propagation → PropagationTransfer's record for that job · receipts → the receipt card · a checked-in version → VersionControlPanel history (`panel=versions`).
 - **Peek source:** Alt+↓ on a transaction reads its stored change summary (what it changed, from the event store); on a job, the stored job record.
-- **Absent copy:** "cannot be undone here" · "No undo stack for ‹build›" · "Redo list cleared by ‹transaction› at ‹time›" · "catalog action needed · not offered yet" · "beyond the undo limit (20)".
+- **Absent copy:** "cannot be undone here" · "No undo stack for ‹build›" · "Redo list cleared by ‹transaction› at ‹time›" · "Not available on this server yet. The list still reads. · What this server offers" · "beyond the undo limit (20)".
 - **Target-size exception:** addresses and job ids inside transaction rows are inline tokens (the inline exception); row buttons are 24px, 44px below 700px and with a coarse pointer.
 
 **Keyboard**

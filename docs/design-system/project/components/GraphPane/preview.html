@@ -3,7 +3,7 @@
 <span class="kicker">Beside the code · Blocks · follows the cursor inside the function, commits on Enter across functions</span>
 <section class="ad-gp" aria-labelledby="gp1-h">
  <header><span class="kicker">Graph</span><h4 id="gp1-h">Blocks · <code translate="no">ResourceRef::Resolve</code></h4><span class="small muted">build-a · 5 blocks · 7 edges</span>
-  <span class="end"><span class="ad-sync small"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Following · sync A · commits on Enter</span>
+  <span class="end"><span class="ad-sync small"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Follows · on Enter</span>
    <span class="ad-seg" role="group" aria-label="Graph form"><button aria-pressed="true">Graph</button><button aria-pressed="false">List</button></span>
    <button class="ad-btn compact" aria-pressed="false">Hold this pane</button></span></header>
  <div class="ad-tools" role="toolbar" aria-label="Graph view">
@@ -38,7 +38,7 @@
 <span class="kicker">Calls · a navigator · Enter on a node is Go; the graph keeps its root while the selection stays inside it</span>
 <section class="ad-gp" aria-labelledby="gp2-h" aria-describedby="gp2-d">
  <header><span class="kicker">Graph</span><h4 id="gp2-h">Calls from <code translate="no">Actor::LoadFromTemplate</code></h4><span class="small muted">build-a · depth 2 · root kept</span>
-  <span class="end"><span class="ad-sync small"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Following · sync A</span>
+  <span class="end"><span class="ad-sync small"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Follows · on Enter</span>
    <span class="ad-seg" role="group" aria-label="Graph form"><button aria-pressed="true">Graph</button><button aria-pressed="false">List</button></span>
    <button class="ad-btn compact" aria-describedby="gp2-rr">Re-root here</button><span class="sr-only" id="gp2-rr">Makes the selected function the new root. The graph never re-roots by itself.</span><button class="ad-btn compact" aria-pressed="false">Hold this pane</button></span>
   <p id="gp2-d" class="small">Selection: <a class="ad-link" href="?project=corpus-alpha&amp;entity=91&amp;build=build-a&amp;addr=0041d0a0" translate="no">Archive::OpenMember</a>, by Enter on its node (one history stop). It is inside this graph, so the root, zoom and scroll stay.</p></header>
@@ -110,7 +110,7 @@
   <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Shows ResourceRef::Resolve; selection is now FUN_0041c880 · Enter to load</h4><p>Blocks commits on Enter across functions. The old graph stays dimmed under this notice; nothing is drawn until Enter or Load, and then only from existing analysis.</p></div><button class="ad-btn compact">Load</button></div>
   <div class="ad-notice info"><b aria-hidden="true">⊡</b><div><h4>Selection is outside this graph · Re-root here</h4><p>The selection moved to Log::Warn, which the Calls graph from Actor::LoadFromTemplate does not draw. Root, zoom and scroll stay until you re-root.</p></div><button class="ad-btn compact">Re-root here</button></div>
   <div class="ad-notice info"><b aria-hidden="true">◐</b><div><h4>Truncated · 412 blocks</h4><p>Drawing the 40 blocks nearest the cursor. The list form has all 412; nothing beyond existing analysis is read.</p></div><button class="ad-btn compact">List form</button></div>
-  <div class="ad-notice unknown"><b aria-hidden="true">○</b><div><h4>Not loaded. Open to read it.</h4><p>build-c is not open in this session. A graph is drawn from existing analysis only; it never opens a program or starts analysis.</p></div><span></span></div>
+  <div class="ad-notice unknown"><b aria-hidden="true">○</b><div><h4>Not loaded · Enter to load</h4><p>build-c is not open in this session. A graph is drawn from existing analysis only; it never opens a program or starts analysis.</p></div><span></span></div>
  </div>
 </div>
 <span class="kicker">Round 3 · layout, satellite and filters · per-viewer view state · nothing relayouts or decompiles on its own</span>
@@ -159,7 +159,7 @@
     <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Grow to whole component</span></div></li>
     <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Hide checked</span><span class="m">listed in footer</span></div></li>
     <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Show checked as a new graph</span><span class="m">Held pane</span></div></li>
-    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Make selection</span><span class="m">Listing · build-a</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Make address selection</span><span class="m">Listing · build-a</span></div></li>
     <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Clear checked</span></div></li>
    </ul></li>
   </ul>

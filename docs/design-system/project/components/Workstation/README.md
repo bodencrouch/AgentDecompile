@@ -49,7 +49,7 @@ The whole shell composed from the system: a banner header with the menubar and t
 
 **Accessibility**
 
-- Landmarks: `header` (banner) holding the menubar, with Help its last item; navigation "Location and history" (session tabs, Workspaces tabs and the NavigationBar); navigation "Project"; the one `main`, labelled by the workspace name only (Code Browser, Compare, Recovery or Corpus); complementary "Evidence"; regions "Work view", "Dock" and "Status" (the status line is not live). No two landmarks share a name.
+- Landmarks: `header` (banner) holding the menubar, with Help its last item; navigation "Location and history" (session tabs, Workspaces tabs and the NavigationBar, whose breadcrumb is a nested navigation "Breadcrumb"); navigation "Project"; the one `main`, labelled by the workspace name only (Code Browser, Compare, Recovery or Corpus); complementary "Evidence"; regions "Work view", "Dock" and "Status" (the status line is not live). No two landmarks share a name.
 - The menubar is an APG Menubar: ←/→ move between menus, ↓ or Enter opens one, Esc closes it and returns focus to its menubar item. It is one tab stop.
 - Headings: h1 the active project; h2 each region (Location and history, the navigator, the workspace name, Evidence, Work view, Dock); h3 each rail section.
 - The Views toolbar is an APG Toolbar (one tab stop, `aria-pressed`); the Workspaces and Sessions tablists are APG Tabs, each with one selected tab. Focus returns to the invoker, never to `body`.

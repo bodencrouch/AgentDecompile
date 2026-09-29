@@ -45,7 +45,7 @@ Ghidra's post-analysis validators for every build in one panel: which validators
      - **Collect into worklist…** (`w`), which hands the checked or filtered rows, in order, to the MarksList dialog;
      - **Step findings**, which makes the snapshot the active worklist so F8 steps it.
 5. **Run.**
-   - **Validate ‹build› (catalog)…** opens a ConfirmDialog. It is a ConfirmDialog, not in place, because it can queue behind a writer and replaces the build's current findings.
+   - **Validate ‹build›…** (a catalog action) opens a ConfirmDialog. It is a ConfirmDialog, not in place, because it can queue behind a writer and replaces the build's current findings.
    - The dialog lists the validators, all checked by default as in Ghidra, and each can be unchecked.
    - Its consequence sentence reads: "One read-only job on build-c. It changes nothing in the program. Its findings replace the stale findings of job ‹id›, which stay in the job history."
    - A per-build preview gives the writer state and the analysis receipt read.
@@ -57,13 +57,13 @@ Ghidra's post-analysis validators for every build in one panel: which validators
 
 **States**
 
-- **Not run:** "No validation recorded for build-a. Opening this panel did not run it." **Validate build-a (catalog)…** is armed, not run.
+- **Not run:** "No validation recorded for build-a. Opening this panel did not run it." **Validate build-a…** is armed, not run.
 - **No analysis:** on a build with no analysis receipt the Validate button is `aria-disabled`, with "Validators check analysis results; build-d has no analysis receipt." It links AnalyzerPanel.
 - **Stale:** the findings stay, labelled "stale · 3 transactions since job ‹id›". Nothing re-runs by itself.
 - **Writer owned:** the run waits in admission with the owner as reported. Nothing is killed or restarted, and an external owner is never offered either.
 - **Running, checking, finished, failed, cancelled:** the Job outcome words appear on the build's card and in the dock. A running validator shows measured units, or "Progress unknown · last event ‹time›". A cancelled run names the validators that already finished; their results stay.
-- **Not loaded:** "Not loaded. Open to read it." in that build's column. Reading stored findings is a read.
-- **No catalog action:** "Validation is read-only here · catalog action needed · not offered yet". Stored findings still read, and the Validate buttons are `aria-disabled` with that reason.
+- **Not loaded:** "Not loaded · Enter to load" in that build's column. Reading stored findings is a read.
+- **No catalog action:** "Not available on this server yet. Stored findings still read. · What this server offers" (the last part links to Help › What this server offers). The Validate buttons are `aria-disabled` with that reason.
 
 **Multi-variant rules**
 
@@ -87,7 +87,7 @@ Ghidra's post-analysis validators for every build in one panel: which validators
   - an owner → OwnershipPanel;
   - an error bookmark cited as evidence → MarksList, Bookmarks scope.
 - **Peek source:** Alt+↓ on a Location reads the cached Listing lines. On a job, it reads the stored job record. Nothing is decompiled or fetched.
-- **Absent copy:** "not run" · "no findings" · "program-wide · no address" · "no entity at this address" · "unresolved on build-d" · "Not loaded. Open to read it." · "catalog action needed · not offered yet".
+- **Absent copy:** "not run" · "no findings" · "program-wide · no address" · "no entity at this address" · "unresolved on build-d" · "Not loaded · Enter to load" · "Not available on this server yet. Stored findings still read. · What this server offers".
 - **Target-size exception:** none. Rows are 28px, and links in cells are 24px tall (44px below 700px and with a coarse pointer).
 
 **Keyboard**

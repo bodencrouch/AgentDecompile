@@ -23,7 +23,7 @@ One logical entity across every build: counterparts, divergence class, identity 
 - **Follows:** `entity` (the one logical entity) and marks `build` (the inspected build's row); commit-on-Enter (a matrix: arrows move focus only). The matrix is not holdable; its Open-beside panes are.
 - **Targets rendered:** address → the Code Browser for that build, same entity (counterpart), with its edge word · identity → the IdentityEdge evidence and its receipt card · facts → a facts Peek whose facts link to receipts · ambiguous and contested → the candidate menu, candidates marked "no winner" for contested, and the ladder run's receipt (`receipt=‹id›` with `project`, `entity` and `build`). Row names read "build-c: 00082f40, 1↔N, candidate, facts: compilation not run".
 - **Peek source:** the stored identity edges, locator rows, ladder runs and fact rows for this entity; nothing is matched or decompiled.
-- **Absent copy:** "absent" (italic, plain) · "unresolved" (plain) · "diverged — counterpart structurally different, possibly inlined/split" · "Not loaded. Open build-c to read it." · "No instruction mapping for build-c; showing function start" · "build-d: no counterpart (absent); staying on build-a" · "Opening one does not accept it."
+- **Absent copy:** "absent" (italic, plain) · "unresolved" (plain) · "diverged — counterpart structurally different, possibly inlined/split" · "Not loaded · Enter to load build-c" · "No instruction mapping for build-c; showing function start" · "build-d: no counterpart (absent); staying on build-a" · "Opening one does not accept it."
 - **Target-size exception:** none; cells are at least 24px (28px rows). With a coarse pointer each row adds one 44px row-menu button carrying the link menu.
 
 **Keyboard**

@@ -1,8 +1,8 @@
 # ReferenceEditor
 
-The editor for references from one code unit on one explicit build: add and edit memory (including offset), external, stack and register references, and set ref-type, operand and primary. It also carries the instruction-flow, instruction-length and fallthrough overrides, and the batch verbs that create references from a selection or an offset table.
+The editor for references from one code unit on one explicit build: add and edit memory (including offset), external, stack and register references, and set ref-type, operand and primary. It also carries the instruction-flow, instruction-length and fallthrough overrides, and the batch verbs that create references from an address selection or an offset table.
 
-**Use it** from the Listing's link menu on an instruction, operand or data unit: References… and Add reference… (E07), Override flow… (E02), Set fallthrough… (E03), and Create offset references table… on a selection (E09). A stack or register operand opens it on that panel (E10). XrefPanel's outgoing rows offer Edit reference… as well. It replaces Ghidra's References dialog, the Add/Edit Reference dialog, and the Modify Instruction Flow and Set Fallthrough dialogs. It opens inline under the Listing row, pushing the rows below down. The static 8080 surface may render it as a dialog anchored to the row, with identical words, fields and states. E08 (create the default reference, delete all references on a code unit) stays a Listing link-menu verb through the ActionStrip; its result appears in this editor's reference list.
+**Use it** from the Listing's link menu on an instruction, operand or data unit: References… and Add reference… (E07), Override flow… (E02), Set fallthrough… (E03), and Create offset references table… on an address selection (E09). A stack or register operand opens it on that panel (E10). XrefPanel's outgoing rows offer Edit reference… as well. It replaces Ghidra's References dialog, the Add/Edit Reference dialog, and the Modify Instruction Flow and Set Fallthrough dialogs. It opens inline under the Listing row, pushing the rows below down. The static 8080 surface may render it as a dialog anchored to the row, with identical words, fields and states. E08 (create the default reference, delete all references on a code unit) stays a Listing link-menu verb through the ActionStrip; its result appears in this editor's reference list.
 
 **Consumer provides**
 
@@ -12,11 +12,11 @@ The editor for references from one code unit on one explicit build: add and edit
 - **External binding:** external programs and locations, for external references.
 - **Decoding:** the decoded instruction length and any flow, length or fallthrough overrides already stored.
 - **Counterparts:** the anchor pair to the counterpart code unit on other builds, if one is recorded, with that build's references as last read.
-- **Actions:** the catalog actions from `GET /api/v1/actions` for adding, editing and deleting references, flow, length and fallthrough overrides, and batch creation. `get-references` is read-only; the verbs are "catalog action needed". No action id is named here.
+- **Actions:** the catalog actions from `GET /api/v1/actions` for adding, editing and deleting references, flow, length and fallthrough overrides, and batch creation. `get-references` is read-only; until the catalog offers the verbs they are `aria-disabled` with "Not available on this server yet. References still read. · What this server offers". No action id is named here.
 
 **Anatomy**
 
-1. **Header.** The source address and code unit text, and the catalog action label marked "(catalog)".
+1. **Header.** The source address and code unit text, and the catalog action's label (never marked "(catalog)").
 2. **Source bar**, bound when opened: the framed target build chip, the containing function link, the Operand picker (mnemonic, or operand N with its text) and the writer line.
 3. **Reference list.** A grid of every reference from this code unit with these columns: operand, kind, destination (an address link that always carries its build), ref-type, primary, source, and a Delete button per row. Deleting one reference is a single-target edit that confirms in place. The reference being added appears as a draft row ("new in draft", with a 3px `ink-strong` bar) with Discard instead of Delete, so the list and the review block always agree.
 4. **Kind tabs** (APG Tabs, manual activation): Memory, External, Stack and Register.
@@ -31,16 +31,16 @@ The editor for references from one code unit on one explicit build: add and edit
    Each states its effect in words: "changes how build-a's decompile reads this instruction".
 6. **Review block.** The catalog action, source → destination, ref-type and primary, the build, the stale-decompile note and "Other builds are unchanged".
 7. **Footer.** Save (Enter), Cancel (Esc) and the tier note.
-8. **From a selection** (E09):
-   - Add memory references from a selection. It previews one row per scalar operand whose value is a valid address on this build.
-   - Create offset references table. It takes a base, an entry size (2, 4 or 8), a count taken from the selection, and Signed, and previews each computed destination with what is there ("instruction", "undefined bytes").
+8. **From an address selection** (E09):
+   - Add memory references from an address selection. It previews one row per scalar operand whose value is a valid address on this build.
+   - Create offset references table. It takes a base, an entry size (2, 4 or 8), a count taken from the address selection, and Signed, and previews each computed destination with what is there ("instruction", "undefined bytes").
    - Both are a batch: "Create 4 references…" opens ConfirmDialog. Targets are never disassembled by this step.
 9. **Counterpart.** An info line compares the counterpart code unit, reached through a recorded anchor ("build-c at 00082f4c, via anchor 0041b22a ↔ 00082f4c"), and lists its references as last read. The two are compared, never merged. References are program-local. A proposal to a counterpart is offered only when both the source and the destination are anchor-mapped, and it goes through ConfirmDialog with a preview on that build. Otherwise it reads "not offered: destination 0041f020 has no anchor on build-c".
 
 **Confirm tier**
 
 - **Confirmed in place** with Enter or Save: adding, editing or deleting one reference; setting the primary; a fallthrough set, auto override or clear (E03 is CAT and 1W).
-- **ConfirmDialog:** a flow override and an instruction-length override. They change the function body and flow on that build, so the dialog says "nothing is re-disassembled or re-analyzed unless that is admitted as a job". Batch creation from a selection or table and any counterpart proposal also go through ConfirmDialog.
+- **ConfirmDialog:** a flow override and an instruction-length override. They change the function body and flow on that build, so the dialog says "nothing is re-disassembled or re-analyzed unless that is admitted as a job". Batch creation from an address selection or table and any counterpart proposal also go through ConfirmDialog.
 - **Validation before anything posts:**
   - a destination outside this build's address spaces;
   - mixing kinds on one operand;
@@ -97,7 +97,7 @@ The editor for references from one code unit on one explicit build: add and edit
 **Parity rows covered**
 
 - E02 flow override and instruction length; E03 fallthrough set, auto override and clear.
-- E07 the add and edit references panels, ref-type, operand and primary; E09 references from a selection and the offset references table; E10 stack and register references and their variable binding.
+- E07 the add and edit references panels, ref-type, operand and primary; E09 references from an address selection and the offset references table; E10 stack and register references and their variable binding.
 - Also E08: the create-default and delete-all verbs run through the ActionStrip, and their results appear in this list.
 
 **Prior art**

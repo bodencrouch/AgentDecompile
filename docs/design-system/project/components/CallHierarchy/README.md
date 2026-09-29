@@ -30,7 +30,7 @@ Who calls this function and what it calls, as an APG treegrid read from the stor
 
 - APG Treegrid with one tab stop and row focus first. Moving is focus movement, never a Go: ↓/↑ move between rows; → opens a closed row (reading its children from the index), or on an open row moves into its cells; ← closes an open row, or on a closed row moves to its parent, or from a cell moves back toward the row. Home/End go to the first or last row; Ctrl+Home/Ctrl+End likewise across the whole tree; PageUp/PageDown move a viewport.
 - Enter on a row goes to the function; Enter on the call-site cell goes to the call site (focus moves to that Listing row). Shift+Enter opens beside (a Held pane); Alt+↓ peeks; Shift+F10 opens the one link menu (Open · Open beside · Peek; Reveal in Code Browser, Compare, Navigator; Copy link · Copy address).
-- Composite-scope keys, only while focus is inside the grid, remappable and off under the `off` profile (WCAG 2.1.4): `i` and `o` switch direction, and `*` opens every sibling of the focused row within the depth cap. The toolbar buttons are the other path.
+- Composite-scope keys, only while focus is inside the grid, remappable and off under the `off` profile (WCAG 2.1.4): `i` and `o` switch direction, and `*` opens every sibling of the focused row within the depth cap. The toolbar buttons are the other path. Because plain letters are commands here, typeahead starts with `/` into a visible filter field.
 - Esc follows the one order in `keymap.json` `escapeOrder`; while a lazy read is outstanding, Cancel on the row stops it.
 - The toolbar precedes the grid in Tab order.
 

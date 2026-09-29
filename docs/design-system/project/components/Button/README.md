@@ -8,7 +8,7 @@ A square catalog-action control; the only clickable box in the chrome. Buttons a
 
 - `radius-none`, `line-control` border, `pane` fill, `row-hover-bg` on hover; `control-h-comfortable` (28px) or `.compact` (24px); `touch-h` (44px) below 700px and with a coarse pointer.
 - `.primary` is a 2px `ink-strong` frame and bold label; the accent is not a status. A pressed toggle uses `selection` plus `ink-strong`.
-- **Toggles keep a constant name.** An `aria-pressed` toggle never renames itself; its state is words beside it ("Hold this pane" with "Following · sync A" or "Held · ResourceRef::Resolve @ build-c · 4 min"; "Keep" with the "Kept" tag; "Selection only" with "On · ResourceRef::Resolve · build-a").
+- **Toggles keep a constant name.** An `aria-pressed` toggle never renames itself; its state is words beside it ("Hold this pane" with "Follows · as I move" or "Held · ResourceRef::Resolve @ build-c · 4 min"; "Keep" with the "Kept" tag; "Selection only" with "On · ResourceRef::Resolve · build-a").
 - No colored fills for "go"; destructive verbs are not red. Batch, destructive and cross-build verbs open ConfirmDialog; single-target inline edits confirm in place.
 - **Unavailable** actions are `aria-disabled="true"` with the reason in `aria-describedby`, so they stay focusable and explain themselves; `disabled` is only for controls that must leave the tab order.
 - Never a per-stage Run button: pipeline stages are observable, not a checklist. Keys and buttons only arm; only the ActionStrip's Run, or Enter or Save in an inline editor, posts, and it posts once. Labels of catalog verbs come from `GET /api/v1/actions`; the design system names no action ids.

@@ -1,6 +1,6 @@
 # ResultsTable
 
-The one generic results table behind every Ghidra-style list: search hits, references, symbols, defined strings and data, comments, equates, relocations, function tags, types, address tables and selection ranges. Every instance has sortable, filterable and choosable columns, selection-to-listing, Make selection, Collect into worklist, CSV export, a checked set for the ActionStrip, and per-build hit columns when its scope is all builds.
+The one generic results table behind every Ghidra-style list: search hits, references, symbols, defined strings and data, comments, equates, relocations, function tags, types, address tables and selection ranges. Every instance has sortable, filterable and choosable columns, selection-to-listing, Make address selection, Collect into worklist, CSV export, a checked set for the ActionStrip, and per-build hit columns when its scope is all builds.
 
 **Use it** wherever a feature produces rows keyed to addresses or entities: under SearchWorkbench; as the navigator's Strings, Symbols and Imports scopes in table form; as the corpus "Show all" view for equates, relocations, tags, types and defined data; and as a temporary table made from a selection. It never replaces the one Functions grid or the XrefPanel. References that open "as a table" (All builds with many rows) render in this component with the XrefPanel's words.
 
@@ -22,7 +22,7 @@ The one generic results table behind every Ghidra-style list: search hits, refer
    - **Columns…** (choose, reorder, reset; Fit to content and Default width per column, so nothing needs dragging);
    - **Copy** (the focused cell, the row, or the checked rows; columns chosen);
    - **Export CSV…** (the chosen columns in displayed order, for the checked rows or for all loaded rows; the dialog states "exports the 500 loaded rows; the table was cut at the limit");
-   - **Make selection** (below);
+   - **Make address selection** (below);
    - **Collect into worklist** (`w`);
    - **Remove from table** (view only);
    - the ActionStrip's arming menu for the kind's catalog actions.
@@ -44,25 +44,25 @@ The one generic results table behind every Ghidra-style list: search hits, refer
 
 | Kind | Default columns | Row actions through the ActionStrip (catalog) |
 |---|---|---|
-| Search hits (memory, text, instruction, scalar, decompiled text) | Location, Match bytes or text, Match value, Label, Code unit, Function | Make selection, Collect, Make string or data where offered |
-| Symbols (S05) | Name, Location, Type, Namespace, Source, Refs, Offcut refs | Rename…, Delete…, Set primary…, Keep at address on rebase… (Ghidra "pin symbol"), Delete references… |
-| Defined strings (A01) | Location, String, Type, Length, Charset, Referencing functions | Translate… (A03), Settings… (charset and rendering of the string data; catalog, ConfirmDialog for more than one row), Make selection |
+| Search hits (memory, text, instruction, scalar, decompiled text) | Location, Match bytes or text, Match value, Label, Code unit, Function | Make address selection, Collect, Make string or data where offered |
+| Symbols (S05) | Name, Location, Type, Namespace, Source, Refs, Offcut refs | Rename…, Delete…, Set primary…, Stay at this address on rebase… (Ghidra "pin symbol"), Delete references… |
+| Defined strings (A01) | Location, String, Type, Length, Charset, Referencing functions | Translate… (A03), Settings… (charset and rendering of the string data; catalog, ConfirmDialog for more than one row), Make address selection |
 | Found strings (Q06) | Defined state, Location, Label, Preview, String, Type, Length, Is word | Make string…, Make char array… (offset, auto label) |
-| Defined data (A02) | Location, Data type, Value, Label, Size | Make selection; a type filter chip |
+| Defined data (A02) | Location, Data type, Value, Label, Size | Make address selection; a type filter chip |
 | Comments (A08) | Location, Kind (EOL, pre, post, plate, repeatable), Text, Function | Comment… (InlineRename comment mode, one target) |
 | Equates (P06) | Name, Value, Refs, Enum-backed, Display | Rename…, Remove…, Apply enum…, Show enum (TypeManager at that enum), Edit enum… (TypeEditor enum mode), Convert display… (signed or unsigned decimal, hex, octal, char, binary, float, double) |
 | Relocations (P05) | Address, Type, Values, Original bytes, Symbol | none; read-only, feeds ObjectDiff's relocation-aware equality |
 | Function tags (F14) | Tag, Comment, Use count per build | Create…, Edit…, Delete…, Add to checked functions…, Remove from checked functions…, Load tags… |
 | Types (T17) | Name, Category, Size, Kind, Uses per build | open in TypeManager (Go); program types only filter |
 | Address tables (Q08, E11) | Location, Label, Length, Data (hex and ASCII) | Make table… (offset, auto label), Disassemble targets… |
-| Ranges (L24) | Start, End, Length, Block | Make selection; ranges come from a Listing selection |
-| Direct references (Q07) | From, Label, From preview, To, To preview | Make selection; Create reference… through ReferenceEditor |
+| Ranges (L24) | Start, End, Length, Block | Make address selection; ranges come from an address selection |
+| Direct references (Q07) | From, Label, From preview, To, To preview | Make address selection; Create reference… through ReferenceEditor |
 
 **Temporary tables.** Tables made from a query or a selection are snapshots. They say "as of 14:02", keep their source link, and never merge in new rows silently. Refresh re-reads. If the basis moved, rows are marked "changed since you looked", "new since you looked" or "left this page since you looked", as in the Copy rules.
 
-## Make selection, worklists and removal
+## Make address selection, worklists and removal
 
-- **Make selection** sets the Listing's address-set selection on one build from the checked rows, or from all rows. With all builds in scope, it asks "Make selection on build-a (inspected)" or "on build-c" and names the rows that will not be included ("9 rows on other builds are not included; a selection belongs to one build"). It is client state and never in the URL. Changing the program clears it (F11).
+- **Make address selection** sets the Listing's address selection on one build from the checked rows, or from all rows. With all builds in scope, it asks "Make address selection on build-a (inspected)" or "on build-c" and names the rows that will not be included ("9 rows on other builds are not included; an address selection belongs to one build"). It is client state and never in the URL. Changing the program clears it (F11).
 - **Collect into worklist** (`w`) snapshots the rows in their current order, across builds if they span builds, through the MarksList dialog: "It changes nothing in the project and starts no work." F8 then steps them.
 - **Remove from table** removes rows from this view only. The row is struck until the next refresh, and the status line says "Removed 3 rows from this table; nothing in the program changed".
 
@@ -100,7 +100,7 @@ Ghidra decorates a string with a translated value from a translation service, sh
   - a **preview** column for the checked rows, decoded client-side from bytes already read: "decodes as ‹text› · 2 bytes not decodable (shown as the Unicode replacement character, U+FFFD)". Previewing writes nothing and fetches nothing new;
   - **Apply charset on build-b** is the catalog's data-settings write: in place for one row, ConfirmDialog for more ("Set charset UTF-16LE on 4 strings on build-b · their translations become stale").
   Charset changes and translations are never proposed to counterparts.
-- **States.** No service in the catalog: "No translation service on this server · Manual only". Service unreachable: "✕ translate.lab.internal did not respond in 30 s · nothing was changed · Retry". Partial batch: "9 of 12 translated · 3 failed, listed". Pending and terminal OutcomeCell words per row.
+- **States.** No service in the catalog: "Not available on this server yet. Manual translations still work. · What this server offers" (the last part links to Help › What this server offers). Service unreachable: "✕ translate.lab.internal did not respond in 30 s · nothing was changed · Retry". Partial batch: "9 of 12 translated · 3 failed, listed". Pending and terminal OutcomeCell words per row.
 - **Keyboard.** `results.translate` (no default key) opens Translate… for the checked rows. In the form, Tab order is service, settings, strings preview, Cancel, Run.
 - **Accessibility.** The translation line's name is "Translation, hypothesis, basis self-hosted server, auto to English: resource not found"; the dashed frame is the second cue after the word. Chevrons are `aria-hidden`.
 
@@ -154,7 +154,7 @@ Ghidra decorates a string with a translated value from a translation service, sh
 ## Parity rows covered
 
 - **L24**: selection tables (ranges mode).
-- **S05** and **S06**: the Symbol Table, with its columns, filters, rename, delete symbols or references, set primary, pin (as "keep at address on rebase"), make selection and temporary tables.
+- **S05** and **S06**: the Symbol Table, with its columns, filters, rename, delete symbols or references, set primary, pin (as "Stay at this address on rebase"), make selection (as "Make address selection") and temporary tables.
 - **T17**: data types as a flat table with a program-types filter.
 - **P05**: the relocation table. **P06**: the equates table with rename, remove, apply enum and convert display.
 - **A01**: defined strings, with refresh and settings. **A02**: defined data. **A03**: translate strings with service choice, service settings, network approval, manual translation, clear and show, and charset handling, with every translation a hypothesis naming its service. **A08**: the comment window.

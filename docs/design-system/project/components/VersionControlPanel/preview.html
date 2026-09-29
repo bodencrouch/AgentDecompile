@@ -9,13 +9,13 @@
 
  <div class="ad-scroll" role="region" aria-label="Builds under version control, scrolls sideways">
  <table class="ad-table ad-g3-grid" role="grid" aria-label="Checkout state per build" aria-rowcount="5" aria-colcount="5" style="min-width:780px">
-  <thead><tr><th scope="col">Build</th><th scope="col">Version</th><th scope="col">Checkout</th><th scope="col">Local changes · writer</th><th scope="col">Verbs (catalog)</th></tr></thead>
+  <thead><tr><th scope="col">Build</th><th scope="col">Version</th><th scope="col">Checkout</th><th scope="col">Local changes · writer</th><th scope="col">Verbs</th></tr></thead>
   <tbody>
    <tr aria-selected="true" class="is-focus" tabindex="0">
     <th scope="row" class="nw"><span class="nm">build-a</span><span class="d">program file</span></th>
-    <td role="gridcell"><span class="mono">7 of 7</span><span class="ad-g3-st ok col"><b aria-hidden="true">●</b>latest</span></td>
+    <td role="gridcell"><span class="mono">7 of 7</span><span class="ad-g3-st ok col"><b aria-hidden="true">✓</b>latest</span></td>
     <td role="gridcell"><span class="ad-g3-st lock col"><b aria-hidden="true">●</b>checked out · exclusive · by you<span class="m">this checkout is the writer lock for build-a</span></span></td>
-    <td role="gridcell"><span class="ad-g3-st stale col"><b aria-hidden="true">◷</b>5 transactions not checked in<span class="m">saved 14:06 · writer: this session</span></span></td>
+    <td role="gridcell"><span class="ad-g3-st on col"><b aria-hidden="true">✎</b>5 transactions not checked in<span class="m">saved 14:06 · writer: this session</span></span></td>
     <td role="gridcell"><span class="ad-vcs-acts"><button class="ad-btn compact" type="button" tabindex="-1" aria-haspopup="dialog">Check in…</button><button class="ad-btn compact" type="button" tabindex="-1" aria-haspopup="dialog">Undo checkout…</button><button class="ad-btn compact" type="button" tabindex="-1">History</button></span></td>
    </tr>
    <tr tabindex="-1">
@@ -98,11 +98,15 @@
  </div>
  <div>
   <span class="kicker">Not a shared project</span>
-  <div class="ad-notice info"><b aria-hidden="true">○</b><div><h4>corpus-alpha is not under version control</h4><p>Builds are private files. Add to version control (catalog)… names each build and confirms.</p></div><span></span></div>
+  <div class="ad-notice info"><b aria-hidden="true">○</b><div><h4>corpus-alpha is not under version control</h4><p>Builds are private files. Add to version control… names each build and confirms.</p></div><span></span></div>
  </div>
  <div>
   <span class="kicker">Hijacked file</span>
-  <div class="ad-notice fault"><b aria-hidden="true">⇄</b><div><h4>build-c is hijacked</h4><p>A private file has the same name as the versioned build-c. Undo hijack (catalog)… keeps the private file as a copy and confirms first.</p></div><span></span></div>
+  <div class="ad-notice fault"><b aria-hidden="true">⇄</b><div><h4>build-c is hijacked</h4><p>A private file has the same name as the versioned build-c. Undo hijack… keeps the private file as a copy and confirms first.</p></div><span></span></div>
+ </div>
+ <div>
+  <span class="kicker">Modification conflict · nothing was applied</span>
+  <div class="ad-notice fault"><b aria-hidden="true">⇄</b><div><h4>build-a changed since Check in was prepared</h4><p>Job 5d20 wrote build-a at 14:07. Nothing was checked in. Review the new change, then prepare Check in again.</p></div><button class="ad-btn" type="button">Review changes</button></div>
  </div>
  <div>
   <span class="kicker">Checkout of another user</span>

@@ -49,7 +49,7 @@
   </div>
   <span class="sr-only" id="ps-mm">Opens the memory map of the focused build; Set image base lives there.</span>
   <div class="ad-tools" role="group" aria-label="Program settings actions">
-   <button class="ad-btn primary" type="button" aria-haspopup="dialog">Change language or compiler spec on build-c (catalog)…</button>
+   <button class="ad-btn primary" type="button" aria-haspopup="dialog">Change language or compiler spec on build-c…</button>
    <span class="small muted">One build per change. There is no all-builds change.</span>
   </div>
  </div>
@@ -59,7 +59,8 @@
   <div class="ad-g3-cols">
    <div>
     <span class="lbl" id="ps-ch-l">Compatible with x86:LE:32:default · 3 of 12 shown · 186 installed</span>
-    <ul class="ad-g3-tree" role="listbox" aria-labelledby="ps-ch-l" aria-activedescendant="ps-o2" tabindex="0">
+    <input class="adc-in sans" type="text" role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="ps-ch-lb" aria-activedescendant="ps-o2" aria-labelledby="ps-ch-l" placeholder="Type to filter languages" autocomplete="off" spellcheck="false">
+    <ul class="ad-g3-tree" id="ps-ch-lb" role="listbox" aria-labelledby="ps-ch-l">
      <li role="option" id="ps-o1" aria-selected="false"><span>x86:LE:32:default · gcc · current</span></li>
      <li role="option" id="ps-o2" aria-selected="true"><span>x86:LE:32:default · windows</span></li>
      <li role="option" id="ps-o3" aria-selected="false"><span>x86:LE:64:default · windows · 32 → 64</span></li>

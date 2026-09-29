@@ -2,7 +2,7 @@
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">Structure mode · rows keyed by logical field · one offset column per build · layout check per build before Save</span>
 <form class="ade" aria-labelledby="te-t">
- <header><h4 id="te-t">Edit structure <code translate="no">CacheEntry</code></h4><span class="end"><span>Edit structure (catalog)</span><span>draft · undo 1 · redo 0</span></span></header>
+ <header><h4 id="te-t">Edit structure <code translate="no">CacheEntry</code></h4><span class="end"><span>Edit structure</span><span>draft · undo 1 · redo 0</span></span></header>
  <div class="ade-tgt">
   <span class="kicker">Target · bound when opened</span>
   <span class="ade-bld target">build-a</span><span>program types <code translate="no">/resource</code></span><span>basis gen 41</span>
@@ -84,7 +84,7 @@
 <div>
  <span class="kicker">Pointer-typedef mode · Adjust Pointer Offset from the decompiler</span>
  <div class="ade" role="group" aria-labelledby="te-pt-t">
-  <header><h4 id="te-pt-t">Pointer to <code translate="no">CacheEntry</code> with offset</h4><span class="end">Edit data type (catalog)</span></header>
+  <header><h4 id="te-pt-t">Pointer to <code translate="no">CacheEntry</code> with offset</h4><span class="end">Edit data type</span></header>
   <div class="ade-tgt"><span class="ade-bld target">build-a</span><span>pointer width 4 on build-a · 8 on build-d</span></div>
   <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="te-po">Offset</label><div class="val"><input class="adc-in num" id="te-po" value="0x4" translate="no"><span class="muted">the pointer holds the base plus 0x4: it points at field <code translate="no">flags</code> of <code translate="no">CacheEntry</code></span></div><label class="lbl" for="te-ps">Address space</label><div class="val"><select class="adc-in" id="te-ps"><option>default</option></select></div><label class="lbl" for="te-pty">Pointer type</label><div class="val"><select class="adc-in" id="te-pty"><option>default</option><option>image-base relative</option><option>relative</option><option>file offset</option></select></div><label class="lbl" for="te-pm">Offset mask</label><div class="val"><input class="adc-in num" id="te-pm" value="none" translate="no"></div><label class="lbl" for="te-psh">Offset shift</label><div class="val"><input class="adc-in num" id="te-psh" value="0" translate="no"><span class="muted">bits; left is negative</span></div></div></div>
  </div>
@@ -100,7 +100,7 @@
 <div>
  <span class="kicker">Function-definition mode · created from a function on one build</span>
  <div class="ade" role="group" aria-labelledby="te-fd-t">
-  <header><h4 id="te-fd-t">Function definition <code translate="no">ResolveFn</code></h4><span class="end">Create function definition (catalog)</span></header>
+  <header><h4 id="te-fd-t">Function definition <code translate="no">ResolveFn</code></h4><span class="end">Create function definition</span></header>
   <div class="ade-tgt"><span class="ade-bld target">build-a</span><span>from <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a></span></div>
   <div class="ade-sec"><code translate="no" class="small">int __thiscall ResolveFn(ResourceRef *this, char *name, uint size)</code><p class="small muted">The convention comes from build-a's compiler spec. On build-c the same function uses custom register storage, so this definition is not offered there.</p></div>
  </div>
@@ -108,7 +108,7 @@
 <div>
  <span class="kicker">Read-only following form · Walk pointers preset · follows PointerWalk's current step · no draft, Save or Propose</span>
  <section class="ade" role="region" aria-labelledby="te-ro-t">
-  <header><h4 id="te-ro-t">Type at the walk's current step · <code translate="no">CacheEntry</code> · read-only</h4><span class="end">Following PointerWalk · step 3 of 3 · <code translate="no">next</code> · inspected build-a</span></header>
+  <header><h4 id="te-ro-t">Type at the walk's current step · <code translate="no">CacheEntry</code> · read-only</h4><span class="end">Follows PointerWalk · step 3 of 3 · <code translate="no">next</code> · inspected build-a</span></header>
   <div class="ade-grid ad-scroll" tabindex="0" role="region" aria-label="Components at the current step, scrollable">
   <table class="ad-table" role="grid" aria-readonly="true" aria-label="Components of CacheEntry, read-only, offsets per build">
    <thead><tr><th scope="col">Field</th><th scope="col">Type</th><th scope="col" class="b">build-a</th><th scope="col" class="b">build-b</th><th scope="col" class="b">build-c</th><th scope="col" class="b">build-d</th></tr></thead>

@@ -2,6 +2,8 @@
 
 The top of every objective: accepted capabilities, active attempts, independent eligible work, unmet required predicates and the next automatic action. Its values are typed links or disclosures that expand in place.
 
+**Use it** at the top of each objective and as the dock's **Objectives** tab (`dock=objectives`), which shows the ObjectiveSummary for the active project with its FailureRecords. The tab's empty state reads "No blocked objectives".
+
 **Consumer provides** those five fields from the shared projection that also drives the other surface, the CLI and agents; for each unmet predicate, its diagnosis in FailureRecord's fields; for each attempt, its job record and its verb's `catalog_verbs` mapping.
 
 - **Five fields, always in this order**, everywhere: accepted capabilities · active attempts · independent eligible work · unmet required predicates · next automatic action. Diagnosis expands in place; nobody should correlate logs to learn whether work is progressing.
@@ -11,7 +13,7 @@ The top of every objective: accepted capabilities, active attempts, independent 
 - **Unmet predicates** are APG disclosures. Each expands into FailureRecord's fields in guideline 50's order: reason · lifecycle rail · classification · scope · evidence · owner and resource · freshness · attempts and budget spent · recovery action · wake condition · what continues · escalation (only when unavoidable) · Explain. The five-field order above is unchanged by this; the diagnosis sits inside field 4.
 - **Next automatic action** is a sentence whose wake condition is a link to the awaited job or lock ("wake: a3f9 terminal" → the job). If none exists, it says so and names what is needed.
 - **Expand all** and **Collapse all** sit in the header; expanded state lives in durable workspace state, never localStorage.
-- **Empty or unbound scope** follows 35's dead-end rule: name the program and cause in words, show existing reuse evidence and any existing or pending admission first, and only then arm at most one catalog action for the primary selection ("Arm: resume from receipts (catalog)"), never run it, and never while discovery is not loaded. No action ids are fixed in the design system.
+- **Empty or unbound scope** follows 35's dead-end rule: name the program and cause in words, show existing reuse evidence and any existing or pending admission first, and only then arm at most one catalog action for the primary selection (labelled "Prepare: resume from receipts"; its accessible name adds "nothing runs until Run"), never run it, and never while discovery is not loaded. No action ids are fixed in the design system.
 
 **Linking**
 

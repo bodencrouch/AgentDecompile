@@ -37,7 +37,7 @@ The project and its program files in one panel. It covers:
    - An APG Treegrid of folders and members with these columns:
      - **Kind:** build, program copy, type archive or file;
      - **Language**;
-     - **Saved:** "saved 14:06", "◷ 2 not saved · saved 14:06", or "not reported by owner";
+     - **Saved:** "saved 14:06", "✎ 2 transactions not saved · saved 14:06", or "not reported by owner";
      - **Version:** "v7 · 5 not checked in" or "not versioned", linking VersionControlPanel;
      - **Writer:** "this session", "job 77c0 · external", or "○ free".
    - A program copy is labelled "program copy · alias of build-a (same SHA-256) · not a build". The copy has no receipts of its own, and binding it to a build's evidence is a separate program-binding step.
@@ -49,21 +49,21 @@ The project and its program files in one panel. It covers:
      - **Read-only**, a toggle posted through the catalog. As in Ghidra, the read-only state cannot change while the file is in use.
 3. **Save row** for the inspected build:
    - "build-a · 2 transactions not saved · last saved 14:06 · 5 not checked in".
-   - **Save build-a (catalog)** confirms in place: Enter on the armed button posts. Ctrl/Cmd+S outside an editor arms it and never posts on its own.
-   - **Save As… (catalog)** opens a small dialog (folder and name). Its consequence sentence says "build-a's own file stays at its last save (14:06); this session then writes to the copy until you reopen build-a."
-   - **Save All… (catalog)** is a ConfirmDialog listing each build where this session is the writer, with its count. It also lists the builds it leaves out with the reason, for example "build-b · writer job 77c0 · external · only its owner can save".
+   - **Save build-a** (a catalog action, as are the verbs below) confirms in place: Enter on the armed button posts. Ctrl/Cmd+S outside an editor arms it and never posts on its own.
+   - **Save As…** opens a small dialog (folder and name). Its consequence sentence says "build-a's own file stays at its last save (14:06); this session then writes to the copy until you reopen build-a."
+   - **Save All…** is a ConfirmDialog listing each build where this session is the writer, with its count. It also lists the builds it leaves out with the reason, for example "build-b · writer job 77c0 · external · only its owner can save".
    - One sentence separates Save from check-in: "Save writes transactions to the project file and never clears the undo stack. Check-in sends a version to the server and clears it (Version control)."
 4. **Projects.**
    - A table of known projects: name, kind, location, builds, last opened, and owners as reported.
    - **New project…** asks for the name, kind and location (a Ghidra Server repository takes a host and port; it is RMI over SSL). The result says "Created corpus-gamma. Opening it is a separate step." Creating never switches project.
    - **View read-only** reads the other project's stored inventory into a read-only tree headed "corpus-beta · viewed read-only · nothing admitted". It opens no program and admits no work.
    - **Copy into ‹active project›…** on a viewed member is an import through ImportAdmission.
-   - **Open ‹project›…** always lands on the cross-project StateNotice, which names both projects and says that opening admits eligible missing work. **Switch to corpus-beta** is armed, and **Stay** is the alternative.
+   - **Open ‹project›…** always lands on the cross-project StateNotice, which names both projects and says that opening admits eligible missing work. **Switch to corpus-beta** is armed and confirm-gated, and **Stay** is the alternative. "Open ‹project›" is the StateNotice's action only when no project is active.
    - **Delete ‹project›…** is offered only for a project that is not active. It is a ConfirmDialog: "Delete corpus-beta permanently. Its 2 programs, receipts and history are removed and cannot be recovered." It offers **Archive it first**. Delete is refused while any owner or running job is reported ("job 6e21 · external holds corpus-beta"). Nothing is killed.
 5. **Archive.**
-   - **Archive ‹project›… (catalog)** is a non-mutating job. It shows the archive file name (`.gar`) and the consequence: "Captures each build's last saved state. 2 unsaved transactions on build-a are not included; save first to include them."
+   - **Archive ‹project›…** is a non-mutating job. It shows the archive file name (`.gar`) and the consequence: "Captures each build's last saved state. 2 unsaved transactions on build-a are not included; save first to include them."
    - The finished archive is an artifact in OutputsCatalog with its receipt (digest, time and per-build versions). "Delivered" means only that a bounded receipt exists.
-   - **Restore… (catalog)** is a mutating job into a **new** project: archive file, directory and name. A name that exists is refused ("corpus-alpha exists · choose another name"). Restore never replaces a project.
+   - **Restore…** is a mutating job into a **new** project: archive file, directory and name. A name that exists is refused ("corpus-alpha exists · choose another name"). Restore never replaces a project.
    - The restored project's receipts are labelled "historical · restored from archive ‹digest›", never fresh. Opening it goes through the cross-project StateNotice.
 
 **States**
@@ -72,8 +72,8 @@ The project and its program files in one panel. It covers:
 - **Writer owned:** Save and Save All exclude that build with the owner as reported. Delete and Restore wait or refuse. Nothing is killed or restarted, and an external owner is never offered either.
 - **Running, checking, finished, failed, cancelled:** the Job outcome words on the invoking row and in the dock. A save that is "checking whether the operation completed" disables another save of that build until reconciled. A cancelled restore removes the files it created, as Ghidra does, and names them.
 - **Viewed project gone:** "corpus-beta is no longer at its recorded location". The view closes and nothing is created.
-- **Not loaded:** "Not loaded. Open to read it."
-- **No catalog action:** each missing verb is `aria-disabled` with "catalog action needed · not offered yet". The inventory still reads.
+- **Not loaded:** "Not loaded · Enter to load".
+- **No catalog action:** each missing verb is `aria-disabled` with "Not available on this server yet. The inventory still reads. · What this server offers" (the last part links to Help › What this server offers).
 
 **Multi-variant rules**
 
@@ -86,7 +86,7 @@ The project and its program files in one panel. It covers:
 - **Publishes:**
   - `panel=project` (Program files, Projects, Archive), registered in `location-schema.json`.
   - **Open**, which on a build publishes `build` (one history stop);
-  - **Open ‹project›**, which publishes nothing until **Switch** is chosen on the StateNotice.
+  - **Open ‹project›**, which publishes nothing until **Switch to ‹project›** is chosen on the StateNotice.
   - A viewed project, expansions and drafts are durable workspace state, never `project=`.
 - **Follows:** the active project and the inspected build for the Save row, after the settle. Not holdable.
 - **Targets rendered:**
@@ -98,7 +98,7 @@ The project and its program files in one panel. It covers:
   - a job → the dock records;
   - another project → the cross-project StateNotice.
 - **Peek source:** Alt+↓ on a member reads its stored inventory row, and on an archive, its receipt header. Nothing opens or loads.
-- **Absent copy:** "not reported by owner" · "not versioned" · "Nothing to save on ‹build›" · "viewed read-only · nothing admitted" · "Not loaded. Open to read it." · "catalog action needed · not offered yet".
+- **Absent copy:** "not reported by owner" · "not versioned" · "Nothing to save on ‹build›" · "viewed read-only · nothing admitted" · "Not loaded · Enter to load" · "Not available on this server yet. The inventory still reads. · What this server offers".
 - **Target-size exception:** none; tree rows are 28px and every control is 24px, or 44px below 700px and with a coarse pointer.
 
 **Keyboard**

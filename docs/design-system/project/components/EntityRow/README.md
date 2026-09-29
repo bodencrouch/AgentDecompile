@@ -10,7 +10,7 @@ A dense row in the single Functions list: address, name with its provenance tier
 - **OutcomeCell** shows the latest job whose own record names the row's target, and who submitted it: "a3f9 · running · unit 3 of 6 · by you", then a terminal word from the Job outcome vocabulary (finished, failed, cancelled). After HTTP 202 it reads "pending · job c4e1". Nothing is optimistic, client memory is never the source, and lifecycle never merges into the facts. With no such job, no cell is drawn.
 - **Narrow widths.** At navigator widths the outcome renders as a wrapped second line under the name, never truncated, and only when a job exists.
 - A function without an accepted identity says "no identity"; never invent a counterpart.
-- **Checked set.** The batch column is a 24px checkbox cell plus a count chip in the header, never a second fill. Esc never clears the checked set; the count chip's × or Clear checked does, leaving "Checked set cleared (4) · Undo" beside the chip until the next check change. A program change clears it and says so first (Back's description) and after (one polite message).
+- **Checked set.** The batch column is a 24px checkbox cell plus a count chip in the header, never a second fill. Esc never clears the checked set; the count chip's × or Clear checked does, leaving "Checked set cleared (4) · Restore" beside the chip until the next check change. A program change clears it and says so first (Back's description) and after (one polite message).
 - **Grid modifier precedence** (Linked views). In this checkable grid, Ctrl/Cmd-click toggles a row and Shift-click extends the checked set anywhere on the row, including its name link. Open beside is Shift+Enter or the link menu; a new browser tab is Ctrl/Cmd+Enter, middle-click or the menu.
 - A FilterChip ("Changed by a3f9 ×", `f=changed:a3f9`) above the grid names any filter applied from a link.
 - **Coarse pointer.** Each row has one 44px row-menu button carrying the one link menu (and Peek). There is no long-press. Below 700px every target is 44px.
@@ -21,7 +21,7 @@ A dense row in the single Functions list: address, name with its provenance tier
 - **Follows:** `build` (addresses are in the inspected build), `f`, `q` and the active worklist (`wl`); following panes update after the settle. The list is not holdable.
 - **Targets rendered:** address and name → the Code Browser at that build and address · logical id ("#88 · 4 builds") → Compare with the CounterpartMatrix · OutcomeCell job id → the dock Jobs record · a fact named under "finished" → its new receipt card. Link names read "Address 0041b210, build-a" and "Job a3f9, match siblings, running".
 - **Peek source:** the fact strip's Peek reads the cached fact rows and receipts; the name's Peek reads cached name candidates (NameProvenance); the job link's Peek reads the stored job record as of the dock's last read. Nothing is decompiled or fetched.
-- **Absent copy:** "no identity" · "in batch job a3f9 · per-row outcome not reported" · no OutcomeCell when no job record names the row.
+- **Absent copy:** "no identity" · "in batch job a3f9 · per-row outcome not reported" · no OutcomeCell when no job record names the row · "No functions match ‘‹q›’ on build-a · Clear filter" (Clear filter clears `q`) · "No function inventory for build-e" (a StateNotice dead end with at most one prepared reuse action; the empty list never reimports or reanalyzes) · loading, "Reading functions for build-a…" with the previous rows dimmed.
 - **Target-size exception:** the OutcomeCell's inline job link is 22px inside a 24px row, relying on the WCAG 2.5.8 inline exception; the whole address cell, the fact button and the checkbox cell are 24px. Everything is 44px below 700px and with a coarse pointer.
 
 **Keyboard**
@@ -32,6 +32,6 @@ A dense row in the single Functions list: address, name with its provenance tier
 
 **Accessibility**
 
-- `role="grid"` named "Functions, build-a"; the name cell is `th scope="row"`; checkbox cells are labels named "Select ‹entity›". The OutcomeCell is referenced from its row by `aria-describedby`; job transitions are announced once, politely, never per poll.
+- `role="grid"` named "Functions, build-a"; the name cell is `th scope="row"`; checkbox cells are labels named "Check ‹entity›". The OutcomeCell is referenced from its row by `aria-describedby`; job transitions are announced once, politely, never per poll.
 
-**Removes switching:** opening the dock after every run, the Evidence workspace to read facts, and the Compare workspace to check identity. J21 (5 → 2) and J22 (7 → 2) are credited to U184.
+**Removes switching:** opening the dock after every run, the Corpus workspace to read facts, and the Compare workspace to check identity. J21 (5 → 2) and J22 (7 → 2) are credited to U184.

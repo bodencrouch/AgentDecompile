@@ -71,6 +71,7 @@ How the project's builds relate, pair by pair: what differs in toolchain, flags 
 - The map is a `role="group"` named "Builds and how each pair differs; the pair table below is the same information as a grid". The SVG is `aria-hidden`, and every label is real text.
 - The pair grid is named, and `aria-describedby` points to the class legend. Class glyphs are `aria-hidden` beside their words. Every count's accessible name carries count, class, pair and level.
 - Dashed versus solid is a second cue: the level word is always visible. Forced colors map the frames to `CanvasText`.
+- Below a 480px container the pair grid and the entity rows follow NarrowFlow's build-column grid rule: one list item per row, each build a labelled line ("build-c: +0x18 · hypothesis"), with nothing scrolling sideways.
 - The announcement comes on the drill only, debounced: "Filter applied: source variance. 27 of 1,201 entities, build-c and build-d."
 
 **Removes switching:** telling compiler differences from source changes no longer means opening each pair's toolchain headers, diff report and entity list separately. One view gives the classes and their evidence, and a class opens its entities in place.

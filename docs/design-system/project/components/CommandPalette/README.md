@@ -8,7 +8,7 @@ Ctrl/Cmd+K: the modal entry to catalog actions, places and recent jobs. It is th
 
 - A `dialog-bg` sheet with `shadow-popup` over the `overlay` scrim; the query field is a `well`.
 - **One engine.** The prefix table, address rules and project scope live in the NavigationBar README; this component does not keep its own copy. Ctrl/Cmd+K opens it with `>` typed (commands); deleting the `>` searches places in the same listbox. No typed character ever opens another dialog or switches context (WCAG 3.2.2).
-- **Help is a row, not a mode.** The words "help", "keys" or "shortcuts" list "Keyboard shortcuts · Ctrl/Cmd+/", "Accessibility help for this view" and "Accessible View"; Enter opens them. `?` is not a prefix.
+- **Help is a row, not a mode.** The words "help", "keys" or "shortcuts" list "Keyboard shortcuts · Ctrl/Cmd+/", "Accessibility help for this view", "Accessible View" and "What this server offers"; Enter opens them. `?` is not a prefix.
 - **Rows** name type, target build, locator words and where they open ("opens Compare"). A place row is a Go: Enter goes, Shift+Enter opens beside. A row that switches the inspected build says so before activation ("only on build-b · clears 4 checked rows on build-a"). Results that exist only in another project read "in corpus-beta · not open"; Enter lands on the cross-project StateNotice.
 - **Actions arm, never post.** Action labels come from the catalog; the design system names no action ids. Picking an action arms the ActionStrip with its target bound from the selection and focuses Run; it never posts. Unavailable actions stay in the list, `aria-disabled`, with the reason ("needs a function selection"). A job row shows its StageChip as text.
 - Previews are cache-only: Alt+↓ peeks the highlighted result without fetching. Recent actions and the recent query history are per viewer, in durable workspace state.
@@ -22,7 +22,7 @@ Ctrl/Cmd+K: the modal entry to catalog actions, places and recent jobs. It is th
 - **Follows:** the primary selection (actions bind it: "Match siblings for ResourceRef::Resolve"); results come from stored indexes of the active project only. Not holdable.
 - **Targets rendered:** address or symbol → the Code Browser at that build · logical id → Compare with the CounterpartMatrix · job → the dock Jobs record · receipt → the receipt card · basis → the ProvenanceStamp detail · pipeline node → the PipelineMap node · mark or program bookmark → its address.
 - **Peek source:** Alt+↓ on the highlighted result reads its cached Peek content (listing lines, facts, the stored job record, the node's model text); nothing is decompiled or fetched.
-- **Absent copy:** "only on build-b · choosing it switches the inspected build" · "not searched: build-d, not loaded" · "in corpus-beta · not open" · "No results in stored indexes." · the unavailable reason ("needs a function selection").
+- **Absent copy:** "only on build-b · choosing it switches the inspected build" · "not searched: build-d, not loaded" · "in corpus-beta · not open" · "No results in stored indexes · Search the program for ‘‹q›’…" (the second part is an option row that opens SearchWorkbench prefilled in text mode, Ctrl/Cmd+Shift+F; nothing runs until its Enter) · the unavailable reason ("needs a function selection").
 - **Target-size exception:** none; options are 28px rows (44px below 700px and with a coarse pointer).
 
 **Keyboard**

@@ -2,7 +2,7 @@
 
 The dock's Problems tab: one row per unmet predicate, failure or external action, grouped by objective. Each row is a set of typed links to the entity, the evidence and the job, carries a StageChip, and expands its FailureRecord in place.
 
-**Use it** as the Problems tab of the activity dock on both surfaces (`dock=problems`, `g p`), and anywhere an objective needs "what is blocked and why" without leaving the current view. It is the list form of ObjectiveSummary's unmet predicates; it never replaces FailureRecord, it hosts it. It is an existing component amended in place.
+**Use it** as the Problems tab of the dock (Events · Objectives · Logs · Jobs · Problems) on both surfaces (`dock=problems`, `g p`), and anywhere an objective needs "what is blocked and why" without leaving the current view. It is the list form of ObjectiveSummary's unmet predicates; it never replaces FailureRecord, it hosts it. It is an existing component amended in place.
 
 **Consumer provides** the objectives from the shared projection (name, next automatic action with its wake condition, independent work that continues); per problem: kind (unmet predicate, failure, external action), the stable reason phrase, the governing fact and its state for a predicate, the FailureRecord fields for a failure, the entity or scope with its build, the evidence reference (receipt, diagnostic, basis digest or pipeline node), the job when one exists with its catalog verb for the StageChip, the observation time it started waiting and any deadline; for an external action its deduplication key, report count and the objectives it blocks; and the snapshot time and projection revision.
 
@@ -38,7 +38,7 @@ The dock's Problems tab: one row per unmet predicate, failure or external action
 - Within a row, ←/→ move between cells; Enter on a link cell goes; Shift+Enter opens it beside; Alt+↓ peeks it; Shift+F10 opens the one link menu. On the reason cell, Enter toggles the FailureRecord.
 - In an expanded FailureRecord, Tab moves through its links. Esc follows the one Esc order in the Keymap section.
 - Space or x (`list.check`) checks the focused row; checked rows show a 24px checkbox cell and a count chip, never a second fill. `w` collects the checked rows, or every visible row when none is checked, in their current order. The toolbar comes before the grid in Tab order.
-- This grid binds single-letter commands (`list.move` j/k, `list.worklist` w, `list.mark` m then a letter, `leader` g), so typeahead starts with `/` into a visible filter field. Keys come from `keymap.json`, act only while focus is in the grid, and can be turned off or remapped in KeymapSettings (WCAG 2.1.4).
+- As in every list, grid and tree, typeahead starts with `/` into a visible filter field, and plain letters are commands (`list.move` j/k, `list.worklist` w, `list.mark` m then a letter, `leader` g). Keys come from `keymap.json`, act only while focus is in the grid, and can be turned off or remapped in KeymapSettings (WCAG 2.1.4).
 
 **Accessibility**
 

@@ -12,7 +12,7 @@ A compact hex and ASCII strip for the current region, synchronized with the shar
 - Undefined bytes map to nothing and say so: `fact-unknown` ∅ "No listing row. 0041b254–0041b25f are undefined bytes after ResourceRef::Resolve." The cursor stays where it was. Data bytes map to their data label's row.
 - **Find matches byte patterns** and says so: Ctrl/Cmd+F in the strip takes hex bytes ("8b 4d 08"), not text, and reports "2 of 5 matches · byte pattern". Its field label and placeholder say "Byte pattern".
 - The status line names the cursor instruction and its length, the statement's byte range and the read basis ("read from the loaded program · gen 42").
-- It reads memory of the program that is already open. An unopened program shows `fact-unknown` ○ "Not loaded. Open to read it." with an explicit Open; follow, hover and peek never fetch it. There is no patch mode: the strip never writes bytes.
+- It reads memory of the program that is already open. An unopened program shows `fact-unknown` ○ "Not loaded · Enter to load" with an explicit **Load ‹build›** button; follow, hover and peek never fetch it. There is no patch mode: the strip never writes bytes.
 - Below a 600px container the ASCII column hides; each row's accessible name still carries its bytes. The strip scrolls horizontally inside its own well if it must.
 - Both surfaces render the same rows and marks from the same memory read. The static 8080 surface may render a table with the same row names.
 
@@ -22,7 +22,7 @@ A compact hex and ASCII strip for the current region, synchronized with the shar
 - **Follows:** the primary location after the settle, as a cached pane (it reads the loaded program only); under Update panes: On Enter it commits on Enter. Holdable with Hold this pane; a held strip follows nothing.
 - **Targets rendered:** row addresses and the mapped listing rows as `address` links (the Code Browser at that build and address, focus on the Listing row).
 - **Peek source:** Alt+↓ reads the cached listing row of the instruction that holds the cursor byte. Nothing is disassembled or fetched.
-- **Absent copy:** "No listing row" for undefined bytes; "Not loaded. Open to read it." for an unopened build.
+- **Absent copy:** "No listing row" for undefined bytes; "Not loaded · Enter to load" for an unopened build.
 - **Target-size exception:** byte cells are 18px cells inside a grid reached by roving focus (the inline exception for code wells); header controls are 24px, 44px below 700px, and with a coarse pointer each row has one 44px row-menu button carrying the link menu.
 
 **Keyboard**

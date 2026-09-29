@@ -21,7 +21,7 @@ A dismantled delivery artifact as a navigable tree: installer payload, image sec
 
 **Keyboard**
 
-- APG Tree view: ↑/↓ move, → opens or moves to the first child, ← closes or moves to the parent, Home/End, typeahead (the tree binds no letter commands, so it needs no `/`). Enter on a container expands it; Enter on an imported member goes to its build; Shift+Enter opens it beside; Alt+↓ peeks; Shift+F10 opens the one link menu. Esc follows the one Esc order in the Keymap section.
+- APG Tree view: ↑/↓ move, → opens or moves to the first child, ← closes or moves to the parent, Home/End; typeahead starts with `/` into a visible filter field, because plain letters are commands (j, k, x, g and the rest). Enter on a container expands it; Enter on an imported member goes to its build; Shift+Enter opens it beside; Alt+↓ peeks; Shift+F10 opens the one link menu. Esc follows the one Esc order in the Keymap section.
 
 **Accessibility**
 

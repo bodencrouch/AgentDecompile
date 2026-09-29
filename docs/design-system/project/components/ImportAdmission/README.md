@@ -7,7 +7,7 @@ Nonblocking import: validate, durably accept, close the dialog, and show the adm
 - **The dialog closes as soon as the import is durably accepted.** No application-wide "Working…".
 - **Focus after acceptance** (the one documented APG dialog exception, in 90):
   - at 700px and wider with the dock open, focus moves to the admitted batch row in the dock, because the task continues there, and the acceptance is announced once, politely;
-  - otherwise focus returns to the invoker, and the polite message says "Import accepted: 3 inputs, batch b7. Ctrl/Cmd+J shows it."
+  - otherwise focus returns to the invoker, and the polite message says "Import accepted: 3 inputs, batch b7. Go to last announcement (g then j, or the palette) shows it."
   Nothing else moves focus by itself.
 - Duplicates alias an existing identity (shown as "alias of"); aliases and provenance are kept, nothing unrelated is deleted.
 - Grouping into variant families comes from match evidence, not filenames. Insufficient evidence means "variant group unresolved".
@@ -30,6 +30,6 @@ Nonblocking import: validate, durably accept, close the dialog, and show the adm
 
 **Accessibility**
 
-- One polite message when the batch is accepted ("Import accepted: 3 inputs, batch b7. Ctrl/Cmd+J shows it."). The table names each input as its row header. The focus move to the batch row is announced once and happens only while that row is visible.
+- One polite message when the batch is accepted ("Import accepted: 3 inputs, batch b7. Go to last announcement (g then j, or the palette) shows it."). The table names each input as its row header. The focus move to the batch row is announced once and happens only while that row is visible.
 
 **Removes switching:** watching a blocking dialog, then hunting the dock for the admitted jobs, then the project tree for the new build (J30; counts in the plan ledger).

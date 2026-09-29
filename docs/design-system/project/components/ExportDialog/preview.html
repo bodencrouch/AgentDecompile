@@ -9,18 +9,18 @@
   <fieldset>
    <legend>What</legend>
    <label class="ad-g3-choice"><input type="radio" name="xp-w" checked><span class="nm">This function</span><span class="end small muted">counterpart on each chosen build</span><span class="d">ResourceRef::Resolve through its accepted identity edges.</span></label>
-   <label class="ad-g3-choice"><input type="radio" name="xp-w"><span class="nm">Listing selection</span><span class="end small mono muted">0041b210–0041b30f · build-a</span><span class="d">Only on build-a: a selection is an address set on one build. Not every format supports it.</span></label>
+   <label class="ad-g3-choice"><input type="radio" name="xp-w"><span class="nm">Address selection</span><span class="end small mono muted">0041b210–0041b30f · build-a</span><span class="d">Only on build-a: an address selection belongs to one build. Not every format supports it.</span></label>
    <label class="ad-g3-choice"><input type="radio" name="xp-w"><span class="nm">Whole program</span><span class="d">Every function and data item of each chosen build.</span></label>
   </fieldset>
 
   <fieldset>
    <legend>Format</legend>
-   <label class="ad-g3-choice"><input type="radio" name="xp-f" checked><span class="nm">C/C++</span><span class="end small muted">catalog</span><span class="d">Decompiled functions and, optionally, type definitions. Exported C ≠ recovered source.</span></label>
-   <label class="ad-g3-choice"><input type="radio" name="xp-f"><span class="nm">SARIF</span><span class="end small muted">catalog</span><span class="d">Program facts as SARIF records.</span></label>
-   <label class="ad-g3-choice"><input type="radio" name="xp-f"><span class="nm">XML</span><span class="end small muted">catalog</span><span class="d">Program facts in Ghidra's XML schema.</span></label>
-   <label class="ad-g3-choice"><input type="radio" name="xp-f"><span class="nm">ASCII · HTML</span><span class="end small muted">catalog</span><span class="d">The listing as text or hypertext, with the fields chosen in options.</span></label>
-   <label class="ad-g3-choice dis"><input type="radio" name="xp-f" disabled aria-describedby="xp-gzf"><span class="nm">GZF</span><span class="end small muted">catalog · whole program only</span><span class="d" id="xp-gzf">A packed copy of the whole program database; a function or selection is not supported.</span></label>
-   <label class="ad-g3-choice dis"><input type="radio" name="xp-f" disabled aria-describedby="xp-raw"><span class="nm">Raw bytes · Original file · Intel Hex</span><span class="end small muted">not in the catalog</span><span class="d" id="xp-raw">No catalog action exports these formats yet. Original file can include byte patches (PatchEditor); patched bytes are not recovery evidence.</span></label>
+   <label class="ad-g3-choice"><input type="radio" name="xp-f" checked><span class="nm">C/C++</span><span class="d">Decompiled functions and, optionally, type definitions. Exported C ≠ recovered source.</span></label>
+   <label class="ad-g3-choice"><input type="radio" name="xp-f"><span class="nm">SARIF</span><span class="d">Program facts as SARIF records.</span></label>
+   <label class="ad-g3-choice"><input type="radio" name="xp-f"><span class="nm">XML</span><span class="d">Program facts in Ghidra's XML schema.</span></label>
+   <label class="ad-g3-choice"><input type="radio" name="xp-f"><span class="nm">ASCII · HTML</span><span class="d">The listing as text or hypertext, with the fields chosen in options.</span></label>
+   <label class="ad-g3-choice dis"><input type="radio" name="xp-f" disabled aria-describedby="xp-gzf"><span class="nm">GZF</span><span class="end small muted">whole program only</span><span class="d" id="xp-gzf">A packed copy of the whole program database; a function or selection is not supported.</span></label>
+   <label class="ad-g3-choice dis"><input type="radio" name="xp-f" disabled aria-describedby="xp-raw"><span class="nm">Raw bytes · Original file · Intel Hex</span><span class="end small muted">not available yet</span><span class="d"><span id="xp-raw">Not available on this server yet. The formats above still export.</span> · <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a>. Original file can include byte patches (PatchEditor); patched bytes are not recovery evidence.</span></label>
   </fieldset>
 
   <fieldset>
@@ -74,13 +74,12 @@
     <div class="ad-g3-form"><label class="lbl" for="xp-g-f">Format</label><select class="adc-in sans auto" id="xp-g-f"><option>GraphML</option><option>DOT</option><option>GML</option><option>JSON</option><option>CSV (vertices and edges)</option></select>
     <span class="lbl">Basis</span><span class="small">build-a · depth 2 · the graph as drawn, including collapsed groups · read 14:02</span></div>
    </div>
-   <footer><span class="note">catalog action needed · not offered yet</span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="xp-g-n">Export</button></footer>
-   <span class="sr-only" id="xp-g-n">No catalog action exports graphs yet.</span>
+   <footer><span class="note"><span id="xp-g-n">Not available on this server yet. The graph still reads.</span> · <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="xp-g-n">Export</button></footer>
   </div>
  </div>
  <div>
   <span class="kicker">Types · from TypeManager</span>
-  <div class="ad-notice unknown"><b aria-hidden="true">⊘</b><div><h4>GDT export is not in the catalog</h4><p>Exporting the program archive of build-a as a data type archive (GDT) needs a catalog action that does not exist yet. C header export with Emit data type definitions covers CacheEntry today.</p></div><span></span></div>
+  <div class="ad-notice unknown"><b aria-hidden="true">⊘</b><div><h4>GDT export · Not available on this server yet. C header export still works.</h4><p>Exporting the program archive of build-a as a data type archive (GDT) is not among the actions this server lists. C header export with Emit data type definitions covers CacheEntry today.</p></div><a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></div>
  </div>
 </div>
 </div>

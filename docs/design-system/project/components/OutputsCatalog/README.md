@@ -2,7 +2,7 @@
 
 Every export, output and result the project can produce, in one grid keyed by artifact with one cell per build: what each artifact is for, what produced it, its status on each build, its basis, and its claim tier with the sentence that says what it is not.
 
-**Use it** as the corpus view `ws=evidence&panel=outputs` (a registered `panel` value), reached from go to, from "Show all" on any rail section that names an output, and from the PipelineMap export band. It answers "what does this project produce, for which builds, and how much of it is real today?" It is a catalog, never a launcher: nothing runs from here.
+**Use it** as a corpus view in the Corpus workspace, `ws=evidence&panel=outputs` (a registered `panel` value), reached from go to, from "Show all" on any rail section that names an output, and from the PipelineMap export band. It answers "what does this project produce, for which builds, and how much of it is real today?" It is a catalog, never a launcher: nothing runs from here.
 
 **Consumer provides** the served outputs inventory (artifact id, group, name, one plain-words purpose line, format or schema, producing verb and pipeline node, claim tier and its "is not" sentence, corpus or per-build scope); for each artifact × build, the status from the stored receipts, with the receipt id, the producing job when recorded, the basis digest and its age; whether a stored file exists (path, size, hash, download route); the 8080 observation record (none today); and `catalog_verbs` from the served `pipeline-model.json` for the StageChip.
 
@@ -52,7 +52,7 @@ Every export, output and result the project can produce, in one grid keyed by ar
 | H · Reports and context packs · 2 | H1 `recovery-report` partial (corpus) · H2 `agent-context-bundle` future (corpus) |
 
   Per-build versus corpus scope follows the inventory's shape: a corpus-scoped artifact gets one spanning cell. Scope is a display rule only; it never changes a status.
-- **Narrow form.** Below a 480px container, one list item per artifact: name, purpose, each build in words, tier and ≠ sentence, and the 8080 word. Otherwise the grid is a labelled horizontal scroll region.
+- **Narrow form.** Below a 480px container, one list item per artifact: name, purpose, each build as a labelled line in words, tier and ≠ sentence, and the 8080 word (NarrowFlow's build-column grid rule). Otherwise the grid is a labelled horizontal scroll region.
 - Read-only by construction: it reads the served inventory, receipts, job records and file metadata. It never exports, verifies, rebuilds or opens a program.
 
 **Linking**
@@ -68,8 +68,8 @@ Every export, output and result the project can produce, in one grid keyed by ar
 
 - A row-focus APG Grid with one tab stop. ↑/↓ move between rows (group headers included); ←/→ move across cells and their links. Home/End and Ctrl+Home/End work as in the Semantics table (90).
 - On a group header, Enter or Space toggles the group. On a row, Enter opens the artifact, and Shift+Enter opens it beside as a Held pane (a new window on 8080).
-- Alt+↓ peeks the row or the focused build cell. Shift+F10 opens the link menu: Open · Open beside · Peek · Keep, Reveal in Evidence and Pipeline map, then Copy link · Copy path.
-- `c` copies the focused row's path, and `w` collects the filtered rows as a worklist. Both are focus-scoped and remappable in `keymap.json`, and typeahead starts with `/`.
+- Alt+↓ peeks the row or the focused build cell. Shift+F10 opens the link menu: Open · Open beside · Peek · Keep, Reveal in Corpus and Pipeline map, then Copy link · Copy path.
+- Ctrl/Cmd+C (`outputs.copyPath`) copies the focused row's path, and `w` collects the filtered rows as a worklist. Both are focus-scoped and remappable in `keymap.json`, and typeahead starts with `/`.
 - Chips form the FilterChip toolbar before the grid in Tab order.
 
 **Accessibility**

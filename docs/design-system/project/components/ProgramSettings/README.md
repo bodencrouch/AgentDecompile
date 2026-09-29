@@ -39,7 +39,7 @@ Each build's processor language and compiler spec, side by side, with the eviden
    - **Image base.** Read-only here, with "edit in Memory map". MemoryMapTable owns Set image base (P04) and its anchor consequences.
    - **Program properties.** A link to Peek's Properties (P12) and OptionsPanel's program options.
    - The Across builds cell compares stored values only: "same in all builds" (≡), "differs: build-d x86:LE:64" (±), or "unknown for ‹build›" (?).
-3. **Change language or compiler spec… (catalog).** This opens the change flow for **one** build: the inspected build, or the build whose column holds focus.
+3. **Change language or compiler spec…** (a catalog action). This opens the change flow for **one** build: the inspected build, or the build whose column holds focus.
    - **Choose.** A listbox of the compatible languages and compiler specs the server reports, headed with the compatible and installed counts ("3 of 12 shown · 186 installed"). **Show all installed** lists the rest `aria-disabled`, each with the reason it cannot be chosen ("address space ram is 32-bit; the new language's is smaller" or "not closely related"). A 32-bit to 64-bit move is allowed; the reverse is refused, as in Ghidra.
    - **Consequences (ConfirmDialog).** Title "Change ‹build›'s compiler spec from gcc to windows". The body is a numbered list, one consequence per line, each with the dry-run count:
      1. Ownership: the job needs build-c's writer and, if versioned, an exclusive checkout. It waits in admission for any other owner, and nothing is killed.
@@ -50,7 +50,7 @@ Each build's processor language and compiler spec, side by side, with the eviden
      6. Decompile caches, comparisons and FID hashes on build-c's old basis become stale. Identity edges stay, with their comparison evidence marked stale.
      7. It cannot be undone with Undo. To revert, undo the checkout (versioned) or change the language again. The dialog offers **Archive the project first** (ProjectWindow) and, for a versioned build, **Save a private copy**.
    - The footer says "Other builds are unchanged. There is no all-builds change and nothing is proposed to counterparts." The primary button names the build ("Change build-c · 1 job"). Focus starts on Cancel.
-4. **After the job.** The build's column re-reads and shows a read-back line: "✓ read back · compiler spec windows · job ‹id›", or "✗ read back · differs from preview". Downstream stale state is listed with links to AnalyzerPanel and the stale receipts.
+4. **After the job.** The build's column re-reads and shows a read-back line: "✓ read back · compiler spec windows · job ‹id›", or "✕ read back · differs from preview". Downstream stale state is listed with links to AnalyzerPanel and the stale receipts.
 
 **States**
 
@@ -58,9 +58,9 @@ Each build's processor language and compiler spec, side by side, with the eviden
 - **Not checked out:** for a versioned build without an exclusive checkout, the button is `aria-disabled` with "Check out build-c exclusively first", linking VersionControlPanel.
 - **Incompatible choice:** a choice the server refuses is listed with its reason, and Change stays disabled.
 - **Running, checking, finished, failed, cancelled:** the Job outcome words on the build's column and in the dock. "Checking whether the operation completed" disables another change on that build until reconciled. A failed or cancelled change names what the program now holds, as read back.
-- **Not loaded:** "Not loaded. Open to read it." Reading settings is a read.
+- **Not loaded:** "Not loaded · Enter to load". Reading settings is a read.
 - **Conflicting evidence:** when the compiler spec disagrees with the toolchain evidence, the cell carries ⇄ and "conflicts with Toolchain" in words (the conflict glyph) and links ToolchainEvidence. Nothing is changed automatically.
-- **No catalog action:** "Settings are read-only here · catalog action needed · not offered yet".
+- **No catalog action:** "Not available on this server yet. Settings still read. · What this server offers" (the last part links to Help › What this server offers).
 
 **Multi-variant rules**
 
@@ -85,13 +85,13 @@ Each build's processor language and compiler spec, side by side, with the eviden
   - stale receipts → their cards;
   - a job → the dock records.
 - **Peek source:** Alt+↓ on a value reads its stored evidence record, and on a job, the stored job record. Nothing is fetched or re-derived.
-- **Absent copy:** "not recorded" · "unknown for ‹build›" · "Not loaded. Open to read it." · "catalog action needed · not offered yet" · "not closely related".
+- **Absent copy:** "not recorded" · "unknown for ‹build›" · "Not loaded · Enter to load" · "Not available on this server yet. Settings still read. · What this server offers" · "not closely related".
 - **Target-size exception:** none; every control is 24px, and 44px below 700px and with a coarse pointer.
 
 **Keyboard**
 
 - The settings grid is an APG Grid, one tab stop, with arrows, Home/End and Ctrl+Home/End. Enter on a value's evidence link goes to it.
-- The language choice is an APG Listbox with typeahead. Enter selects a language and moves focus to **Review consequences…**, which opens the ConfirmDialog; nothing posts from the list.
+- The language choice is a text field over its listbox (an APG combobox), so plain typing filters it; no `/` is needed there. Enter selects a language and moves focus to **Review consequences…**, which opens the ConfirmDialog; nothing posts from the list.
 - Proposed keymap id `program.settings.open` has no keys; it is reached from the menu and palette only. No key changes a language.
 
 **Accessibility**

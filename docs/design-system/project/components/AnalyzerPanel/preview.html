@@ -75,7 +75,7 @@
   </div>
   <div class="ad-tools" role="group" aria-label="Configuration">
    <span><label class="lbl" for="anz-cfg">Configuration</label><select class="adc-in sans auto" id="anz-cfg"><option>Current program options · build-a</option><option>Standard defaults</option><option>Saved: corpus-alpha-baseline</option></select></span>
-   <button class="ad-btn" type="button">Set analysis options on build-d (catalog)…</button>
+   <button class="ad-btn" type="button">Set analysis options on build-d…</button>
    <button class="ad-btn" type="button" aria-describedby="anz-prop-d">Propose build-a's options to build-b, build-c…</button>
    <span class="sr-only" id="anz-prop-d">Opens a per-build preview and a ConfirmDialog. build-d is excluded because its compiler spec differs.</span>
   </div>
@@ -84,8 +84,8 @@
 
  <div class="ad-g3-sec">
   <h4>Run</h4>
-  <div class="ad-strip" role="toolbar" aria-label="Armed action: Analyze build-d"><div class="what"><span class="strong">Analyze build-d (catalog)</span><span class="small">build-d has no receipt, so nothing is reused. The job reads build-d's stored options; the unposted Stack draft is not included. Run admits it under the one-writer rule; build-d's writer is free.</span></div><button class="ad-btn">Fields…</button><button class="ad-btn primary">Run</button><button class="ad-btn quiet" aria-label="Disarm action strip" aria-keyshortcuts="Escape">✕</button></div>
-  <div class="ad-strip" role="toolbar" aria-label="Armed action: One-shot Aggressive Instruction Finder on a selection"><div class="what"><span class="strong">One-shot · Aggressive Instruction Finder (catalog)</span><span class="small">Bound to the Listing selection <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" aria-label="Selection start 0041c880, build-a" translate="no">0041c880</a>–<span class="mono">0041c97f</span> · 256 bytes · build-a · frozen when armed. Analysis can change code outside the selection.</span></div><button class="ad-btn primary">Run</button><button class="ad-btn quiet" aria-label="Disarm action strip" aria-keyshortcuts="Escape">✕</button></div>
+  <div class="ad-strip" role="toolbar" aria-label="Armed action: Analyze build-d"><div class="what"><span class="strong">Analyze build-d</span><span class="small">build-d has no receipt, so nothing is reused. The job reads build-d's stored options; the unposted Stack draft is not included. Run admits it under the one-writer rule; build-d's writer is free.</span></div><button class="ad-btn">Fields…</button><button class="ad-btn primary">Run</button><button class="ad-btn quiet" aria-label="Disarm action strip" aria-keyshortcuts="Escape">✕</button></div>
+  <div class="ad-strip" role="toolbar" aria-label="Armed action: One-shot Aggressive Instruction Finder on a selection"><div class="what"><span class="strong">One-shot · Aggressive Instruction Finder</span><span class="small">Bound to the address selection <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" aria-label="Address selection start 0041c880, build-a" translate="no">0041c880</a>–<span class="mono">0041c97f</span> · 256 bytes · build-a · frozen when armed. Analysis can change code outside the selection.</span></div><button class="ad-btn primary">Run</button><button class="ad-btn quiet" aria-label="Disarm action strip" aria-keyshortcuts="Escape">✕</button></div>
  </div>
 
  <div class="ad-g3-sec">
@@ -101,7 +101,7 @@
 <div class="adc-states">
  <div>
   <span class="kicker">Never analyzed · the empty view is not permission to analyze</span>
-  <div class="ad-notice unknown"><b aria-hidden="true">○</b><div><h4>build-d has no analysis</h4><p>No receipt and no analysis job for build-d. Opening it did not start analysis. Analyze build-d (catalog)… arms the action; Run admits it under the one-writer rule.</p></div><span></span></div>
+  <div class="ad-notice unknown"><b aria-hidden="true">○</b><div><h4>build-d has no analysis</h4><p>No receipt and no analysis job for build-d. Opening it did not start analysis. Analyze build-d… prepares it; Run admits it under the one-writer rule.</p></div><span></span></div>
  </div>
  <div>
   <span class="kicker">Valid receipt · reanalysis needs Force and confirms</span>
@@ -113,7 +113,7 @@
  </div>
  <div>
   <span class="kicker">No catalog action · configuration is read-only</span>
-  <div class="ad-notice unknown"><b aria-hidden="true">⊘</b><div><h4>Options are read-only here</h4><p><code>GET /api/v1/actions</code> lists no action that sets analyzer options. The grid still reads them; set buttons say why they are unavailable.</p></div><span></span></div>
+  <div class="ad-notice unknown"><b aria-hidden="true">⊘</b><div><h4>Not available on this server yet. Options still read.</h4><p><code>GET /api/v1/actions</code> lists no action that sets analyzer options. Set buttons say why they are unavailable.</p></div><a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></div>
  </div>
 </div>
 </div>

@@ -1,23 +1,23 @@
 # SearchWorkbench
 
-One search surface for memory bytes, program text, decompiled text, instruction patterns (masked or wildcard), scalars, strings, direct references, address tables and search-and-replace. Every search takes a scope (its search bounds) of this build, all builds, a selection or the view, shows exactly what it will search for per build, and sends its results to a ResultsTable with per-build hit columns.
+One search surface for memory bytes, program text, decompiled text, instruction patterns (masked or wildcard), scalars, strings, direct references, address tables and search-and-replace. Every search takes a scope (its search bounds) of this build, all builds, an address selection or the view, shows exactly what it will search for per build, and sends its results to a ResultsTable with per-build hit columns.
 
-**Use it** from the palette ("Search…"), the Code Browser's Search menu, the Listing link menu ("Search for matching instructions", "Search for direct references"), or a ResultsTable's "Edit search". It opens as a secondary area under the Code Browser center (`panel=search`, registered), with its ResultsTable below the form. Below 700px it is its own pane in NarrowFlow's Analyze group. The static 8080 surface may render the same form and table on one page with identical words.
+**Use it** from the palette ("Search…"), the Code Browser's Search menu, the Listing link menu ("Search for matching instructions", "Search for direct references"), or a ResultsTable's "Edit search". It opens as a secondary area under the Code Browser center (`panel=search`, registered), with its ResultsTable below the form. Below 700px it is its own pane in NarrowFlow's Code group. The static 8080 surface may render the same form and table on one page with identical words.
 
 **Consumer provides**
 - The builds of the project with their load state, language, endianness and pointer size.
-- The Listing's current selection (one build) and the ProgramTreeView view restriction.
+- The Listing's current address selection (one build) and the ProgramTreeView view restriction.
 - For instruction mode: the selected code units with their bytes and the operand masks per code unit. These come from the build's language, through a catalog read.
-- The catalog's search reads and the mutating actions (Make string, Make table, Disassemble, batch replace) from `GET /api/v1/actions` (no action id is named here). A mode with no backing read is listed with "catalog action needed".
+- The catalog's search reads and the mutating actions (Make string, Make table, Disassemble, batch replace) from `GET /api/v1/actions` (no action id is named here). A mode with no backing read is listed with the unavailable copy ("Not available on this server yet. The other modes still search. · What this server offers").
 - The viewer's recent searches for this project, in durable workspace state.
 
 ## Anatomy
 
-1. **Mode tabs** (manual activation): Memory · Text · Decompiled text · Instructions · Scalars · Strings · Direct references · Address tables · Replace. A mode whose catalog read is missing stays listed, `aria-disabled`, with "catalog action needed".
+1. **Mode tabs** (manual activation): Memory · Text · Decompiled text · Instructions · Scalars · Strings · Direct references · Address tables · Replace. A mode whose catalog read is missing stays listed, `aria-disabled`, with "Not available on this server yet. The other modes still search. · What this server offers"; the last part links to Help › What this server offers.
 2. **Scope chips** (a radio group, carried as the registered `f=search.scope:` axis):
    - **This build · build-a**;
    - **All builds**, listing each build and its state: loaded, "not loaded · will be skipped · Open build-d to include it", or "unsupported for this mode";
-   - **Selection · build-a 0041b210–0041b37f** (enabled only with a Listing selection; disabled in All builds, with "A selection belongs to one build");
+   - **Address selection · build-a 0041b210–0041b37f** (enabled only with an address selection in the Listing; disabled in All builds, with "An address selection belongs to one build");
    - **View** (the ProgramTreeView restriction).
 
    The chosen scope is repeated in the Search button ("Search all builds") and the results header. Nothing is searched outside it.
@@ -30,7 +30,7 @@ One search surface for memory bytes, program text, decompiled text, instruction 
    - **Instructions** (Q03, Q04, Q11): the pattern builder (below), or a wildcard assembler line (`mov `Q1`, dword ptr [`Q2` + 0x4]`) where the catalog offers it.
    - **Scalars** (Q05): a specific value, or a range (minimum and maximum), signed or unsigned, and the operand kinds to include.
    - **Strings** (Q06): minimum length, alignment, require null termination, Pascal strings, charset, the word model (Is word column), and loaded blocks only or all blocks. **Encoded strings** adds a charset choice, the scripts to allow, and "show only valid strings". Validity is a score from the build's own bytes and is drawn as a dashed "hypothesis (heuristic)" with its basis ("charset guess; not checked against the program's locale"), never as a defined string.
-   - **Direct references** (Q07): to the cursor address or to the addresses in the Listing selection, with an alignment filter. With **All builds**, each build is searched for **its own counterpart address**, which is taken from its locator and its accepted identity edge ("build-c: 00082f40 · accepted"). A build without a resolved counterpart is skipped and says why ("build-d: unresolved; not searched"). An address value is never carried across builds.
+   - **Direct references** (Q07): to the cursor address or to the addresses in the Listing's address selection, with an alignment filter. With **All builds**, each build is searched for **its own counterpart address**, which is taken from its locator and its accepted identity edge ("build-c: 00082f40 · accepted"). A build without a resolved counterpart is skipped and says why ("build-d: unresolved; not searched"). An address value is never carried across builds.
    - **Address tables** (Q08): minimum length, alignment, skip length.
    - **Replace** (Q10): find, replace, regular expression with capture groups (`$1`), case, whole word, and element kinds (classes, functions, labels, namespaces, parameters, locals, data types, data-type categories, data-type fields, data-type comments, enum values, comments, memory blocks, program trees), with Select all and Deselect all. Memory blocks and program trees are program-local; their rows are never proposed to other builds.
 4. **What will be searched** (always shown before Search). A per-build `dl`:
@@ -53,7 +53,7 @@ One search surface for memory bytes, program text, decompiled text, instruction 
 
 ## The pattern builder (instruction mode)
 
-- It is filled from the Listing selection on one build, as **Load selection** or **Add selection**, or by **Enter bytes manually**.
+- It is filled from the Listing's address selection on one build, as **Load address selection** or **Add address selection**, or by **Enter bytes manually**.
 - Each code unit is a row: address, bytes, mnemonic and its operands. Each operand is a **mask toggle** (`aria-pressed`, the word "masked" when on).
 - The quick masks mirror Ghidra: Mask all operands · Mask scalars · Mask addresses · Mask data (non-instructions) · Clear masks. The three presets from Search for Matching Instructions are available: include operands, exclude operands, include operands except constants.
 - The **masked-bits view** shows the resulting value and mask in binary (masked bits as `.`) and hex (a partly masked byte shows its bits in brackets), with **Copy pattern**.
@@ -72,7 +72,7 @@ One search surface for memory bytes, program text, decompiled text, instruction 
 | State | Shown as |
 |---|---|
 | Invalid input | the field has `aria-invalid` and "Hex digits only; ‘g’ at position 7"; Search stays enabled and reports the reason again on activation |
-| Mode unavailable | the tab is `aria-disabled` with "catalog action needed" |
+| Mode unavailable | the tab is `aria-disabled` with "Not available on this server yet. The other modes still search. · What this server offers" |
 | Build skipped | "build-d: not loaded · skipped · Open build-d to include it"; nothing opens |
 | Searching | per-build measured units; Cancel |
 | Cut at limit | passed to the ResultsTable truncation line |
@@ -83,10 +83,10 @@ One search surface for memory bytes, program text, decompiled text, instruction 
 ## Linking
 
 - **Publishes:** Search pushes one stop carrying `panel=search`, the mode and scope as the registered `f=search.mode:` and `f=search.scope:` axes, and the text as `q`. The byte pattern and masks are in the result set's source and not in the URL. Next and Previous move the Listing cursor (replaceState, like Find). A result row Go pushes from the ResultsTable.
-- **Follows:** the inspected build and the Listing selection, to keep the Selection chip and "Load selection" current. It never re-runs a search on follow. Not holdable; its ResultsTable can be kept.
-- **Targets rendered:** address (cursor, selection bounds, counterpart addresses in direct-reference mode) → the Code Browser at that build · counterpart with its edge word · build → its Navigator row · job → the dock Jobs record · the result set → its ResultsTable.
+- **Follows:** the inspected build and the Listing's address selection, to keep the Address selection chip and "Load address selection" current. It never re-runs a search on follow. Not holdable; its ResultsTable can be kept.
+- **Targets rendered:** address (cursor, address selection bounds, counterpart addresses in direct-reference mode) → the Code Browser at that build · counterpart with its edge word · build → its Navigator row · job → the dock Jobs record · the result set → its ResultsTable.
 - **Peek source:** Alt+↓ on a code-unit row in the pattern builder peeks the cached Listing lines there. On a counterpart address, it peeks the locator evidence. Nothing is fetched.
-- **Absent copy:** "not loaded · skipped" · "unresolved on build-d; not searched" · "catalog action needed" · "A selection belongs to one build" · "zero hits is not absence" · "not decompiled in the stored cache; not searched".
+- **Absent copy:** "not loaded · skipped" · "unresolved on build-d; not searched" · "Not available on this server yet. The other modes still search. · What this server offers" · "An address selection belongs to one build" · "zero hits is not absence" · "not decompiled in the stored cache; not searched".
 - **Target-size exception:** none. Tabs, chips, toggles and mask buttons are 24px or more (44px below 700px and with a coarse pointer).
 
 ## Keyboard
@@ -95,8 +95,8 @@ One search surface for memory bytes, program text, decompiled text, instruction 
 - In the query field, Enter runs Search. Keymap ids (registered in `keymap.json`; `search.next` and `search.prev` in region scope, SearchWorkbench):
   - `search.next` and `search.prev`: Ctrl/Cmd+↓ and Ctrl/Cmd+↑, incremental from the Listing cursor on this build;
   - `search.open`: Ctrl/Cmd+Shift+F, global, with a platform caution. It opens the workbench in the last mode and focuses the query. The palette's "Search…" does the same. There is no leader key, because `g then f` belongs to FrameLayout;
-  - `search.loadSelection`: no default key; the Load selection button and the palette.
-- Axis values: `f=search.mode:` is `memory`, `text`, `decompiled`, `instructions`, `scalars`, `strings`, `directrefs`, `addrtables` or `replace`; `f=search.scope:` is `build`, `all`, `selection` or `view`.
+  - `search.loadSelection`: no default key; the Load address selection button and the palette.
+- Axis values: `f=search.mode:` is `memory`, `text`, `decompiled`, `instructions`, `scalars`, `strings`, `directrefs`, `addrtables` or `replace`; `f=search.scope:` is `build`, `all`, `addrsel` (the address selection, one build) or `view`.
 - F8 steps the active worklist collected from its results. `w` in the ResultsTable collects.
 - Keys never post a mutation. Replace's Apply and every row action pass through the ActionStrip, and ConfirmDialog where required.
 
@@ -112,7 +112,7 @@ One search surface for memory bytes, program text, decompiled text, instruction 
 - **Q01**: Search Memory in hex, binary, string, regular-expression, decimal, float and double formats, with incremental forward and backward, combined searches (set operations) and the byte options. The scan controls become **Re-check hits** (changed, not changed, increased, decreased) on the same build, and on another build only through anchors, never by offset. Highlight matches is a per-viewer toggle.
 - **Q02**: Search Program Text, with fields, database versus Listing-display search, incremental and all, and regular expressions.
 - **Q03** and **Q04**: Search for Matching Instructions, with the three presets, and the Instruction Pattern Search dialog, with the instruction table, mask toolbar, binary and hex preview, bounds and manual entry.
-- **Q05**: Search for Scalars, with a specific value or range, the selection scope, and filters in the ResultsTable.
+- **Q05**: Search for Scalars, with a specific value or range, the address selection scope, and filters in the ResultsTable.
 - **Q06**: Search for Strings, with its options, encoded strings (validity as a labelled hypothesis) and Make string as a row action.
 - **Q07**: Search for Direct References, per build, using each build's own counterpart address.
 - **Q08**: Search for Address Tables, with Make table and Disassemble as row actions.

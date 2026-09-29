@@ -16,7 +16,7 @@ The editor for one data type on one explicit build target: structure, union, enu
 
 **Anatomy**
 
-1. **Header.** The mode and type name ("Edit structure CacheEntry") and the catalog action label, marked "(catalog)". The draft's own undo and redo depth appears here ("draft · undo 1 · redo 0").
+1. **Header.** The mode and type name ("Edit structure CacheEntry") and the catalog action's label (never marked "(catalog)"). The draft's own undo and redo depth appears here ("draft · undo 1 · redo 0").
 2. **Target bar**, bound when the editor opens. It names the target build (a framed "target" chip, such as `build-a`) or the archive, the category, the basis generation and the writer line in ResourceState words. A standing sentence says other builds are read for comparison only. The target never changes while the editor is open. A different build is a new editor.
 3. **Properties.**
    - Name, with the hint "Types use PascalCase."
@@ -65,7 +65,7 @@ The editor for one data type on one explicit build target: structure, union, enu
   - no draft, no Save, no Propose, no edit actions and no editable cells (every cell is `aria-readonly="true"`);
   - the component grid keyed by logical field, with one `+offset : size` column per build, filler rows and the size row, exactly as in structure mode;
   - the current step's field marked with a 2px `ink-strong` frame and the visible word "current step" (the reflection shape, never the accent or the selection fill);
-  - a header that names the walk and step ("Following PointerWalk · step 3 of 3 · `next`") and the build the walk is inspected on;
+  - a header that names the walk and step ("Follows PointerWalk · step 3 of 3 · `next`") and the build the walk is inspected on;
   - **Edit on ‹build›…**, a button that opens the real editor in the center, bound to that one explicit build. It defaults to the inspected build and lists the other loaded builds by name; it never offers "all builds".
   It reads stored layouts only. When the step's type has no stored layout on a build, that column says "not read" or "not loaded"; it never decompiles, re-types or analyzes to fill it. When the walk has no current step, it says "No pointer walk · press p on an expression".
 - **Inferred (Auto Create or Auto Fill).** Inferred rows are dashed and read "hypothesis". Their basis is the access address and width on the build they were inferred from. They are never proof of layout (NP). A row becomes a normal row only once the operator names or retypes it. Even then, the other builds' size checks still gate any proposal.
@@ -89,7 +89,7 @@ The editor for one data type on one explicit build target: structure, union, enu
 - read-only, for a built-in or read-only archive, where Save is `aria-disabled` with its reason;
 - waiting for the writer, when the target's writer is owned elsewhere: "● writer: ‹owner› as reported · Save waits"; it never starts a second writer or offers kill or restart;
 - not loaded, for a comparison build;
-- following (read-only form): "Following PointerWalk · step 3 of 3"; held: "Held · CacheEntry.next @ build-a · read 14:02"; no walk: "No pointer walk · press p on an expression".
+- following (read-only form): "Follows PointerWalk · step 3 of 3"; held: "Held · CacheEntry.next @ build-a · read 14:02"; no walk: "No pointer walk · press p on an expression".
 
 **Linking**
 

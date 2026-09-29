@@ -10,7 +10,7 @@
   <button class="ad-btn quiet" aria-describedby="nb-reload-d">Reload</button><span class="sr-only" id="nb-reload-d">Re-reads stored evidence for this view. Never reanalyzes.</span>
   <button class="ad-btn">Copy link</button>
  </div>
- <nav class="ad-crumbs" aria-label="Location">
+ <nav class="ad-crumbs" aria-label="Breadcrumb">
   <ol>
    <li><span class="lvl" aria-hidden="true">Project</span><a class="ad-link" href="?project=corpus-alpha">corpus-alpha</a><button class="ad-sib" aria-haspopup="menu" aria-expanded="false" aria-label="Other projects">▾</button></li>
    <li><span class="lvl" aria-hidden="true">Build</span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-a" aria-label="Build build-a, Navigator program row">build-a</a><button class="ad-sib" aria-haspopup="menu" aria-expanded="true" aria-controls="nb-builds" aria-label="Other builds for ResourceRef::Resolve">▾</button></li>
@@ -42,14 +42,22 @@
    <div role="group" aria-labelledby="nb-go-g2"><span class="kicker grp" id="nb-go-g2">Same number elsewhere</span><ul class="ad-menu" role="presentation">
     <li role="option" id="nb-go-3" aria-selected="false"><span class="t" translate="no">0041b2c0 on build-c</span><span class="m">build-c</span><span class="note">same number on build-c · a different place, not a counterpart</span></li></ul></div>
    <div role="group" aria-labelledby="nb-go-g3"><span class="kicker grp" id="nb-go-g3">Other project</span><ul class="ad-menu" role="presentation">
-    <li role="option" id="nb-go-4" aria-selected="false"><span class="t" translate="no">!a3f0 job</span><span class="m">corpus-beta</span><span class="note">in corpus-beta · not open · Enter shows Switch or Stay</span></li></ul></div>
+    <li role="option" id="nb-go-4" aria-selected="false"><span class="t" translate="no">!a3f0 job</span><span class="m">corpus-beta</span><span class="note">in corpus-beta · not open · Enter shows Switch to corpus-beta or Stay</span></li></ul></div>
   </div>
-  <div class="adl-nb-chips" role="group" aria-label="Scope prefixes"><button class="ad-btn compact">@ symbol</button><button class="ad-btn compact" aria-pressed="true">: address</button><button class="ad-btn compact"># id</button><button class="ad-btn compact">! job</button><button class="ad-btn compact">~ node</button><button class="ad-btn compact">' marks</button></div>
+  <div class="adl-nb-chips" role="group" aria-label="Scope prefixes"><button class="ad-btn compact">@ symbol</button><button class="ad-btn compact" aria-pressed="true">: address</button><button class="ad-btn compact"># id</button><button class="ad-btn compact">! job</button><button class="ad-btn compact">~ node</button><button class="ad-btn compact">' marks</button><button class="ad-btn compact">= expression</button><button class="ad-btn compact">file: offset</button></div>
   <footer><span>4 results · not searched: build-d, not loaded</span><span>Enter go · Shift+Enter open beside · Alt+↓ peek</span></footer>
   <p class="sr-only" role="status">4 results</p>
  </div>
+ <div class="ad-pop">
+  <div class="ad-goto" style="border-width:0 0 1px"><input role="combobox" aria-expanded="true" aria-autocomplete="list" aria-controls="nb-none-list" aria-activedescendant="nb-none-1" aria-label="Go to anything" value="@Resolv3" autocomplete="off" spellcheck="false" translate="no"></div>
+  <div id="nb-none-list" role="listbox" aria-label="Go to results">
+   <div role="group" aria-labelledby="nb-none-g"><span class="kicker grp" id="nb-none-g">No results in stored indexes</span><ul class="ad-menu" role="presentation">
+    <li role="option" id="nb-none-1" aria-selected="true" aria-describedby="nb-none-1d"><span class="t">Search the program for ‘Resolv3’…</span><span class="m">Ctrl/Cmd Shift F</span><span class="note" id="nb-none-1d">Opens SearchWorkbench in text mode with this query; nothing runs until its Enter.</span></li></ul></div>
+  </div>
+  <footer><span>0 results · searched build-a, build-b, build-c · not searched: build-d, not loaded</span></footer>
+ </div>
  <div class="ad-pop" id="nb-builds">
-  <span class="kicker" id="nb-b-h">Build ▾ · #88 on each build · g b</span>
+  <span class="kicker" id="nb-b-h">Builds ▾ · #88 on each build · g b</span>
   <ul class="ad-menu" role="menu" aria-labelledby="nb-b-h">
    <li role="none"><a role="menuitem" class="is-active" aria-current="location" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" tabindex="-1"><span class="t"><span class="ad-loc resolved"><b aria-hidden="true">●</b>build-a</span></span><span class="m">0041b210</span><span class="note">resolved · inspected now</span></a></li>
    <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041b2c0" tabindex="-1" aria-label="build-b, 0041b2c0, 1↔1, accepted"><span class="t"><span class="ad-loc resolved"><b aria-hidden="true">●</b>build-b</span></span><span class="m">0041b2c0</span><span class="note">1↔1 · accepted · keeps #88, cursor through anchors</span></a></li>

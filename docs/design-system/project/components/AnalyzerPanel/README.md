@@ -14,20 +14,20 @@ The analyzers of every build in one grid: each build's enablement and per-analyz
 - **Function Start Search row.** Its options disclosure includes the pattern file the analyzer reads, and a **Patterns…** button opens FunctionStartPatterns for the inspected build. A pattern file drafted there by "Use in analysis…" arrives here as an ordinary per-build draft ("pattern file: pf-03 (was default)"), posted only through this panel's own confirm.
 - **Options disclosure.** "Options · N" on a row expands a per-build table of that analyzer's options under the grid. Values are read, never inferred; a build that was not read says "not read".
 - **Drafts.** Editing a cell or an option (Space on a focused cell, or a value in the options table) makes a per-build draft, drawn in the shared "draft" frame (solid `line-control` with the word "draft"; dashes are reserved for hypotheses) with the old value ("on (was off)"). Drafts are per viewer in durable workspace state and never in the URL. A draft never runs analysis and is never applied until posted.
-- **Configuration row.** The Configuration select (Standard defaults, Current program options · ‹build›, saved configurations) fills drafts; it posts nothing. **Set analysis options on ‹build› (catalog)…** arms the ActionStrip for that one build with the drafts as fields. **Propose ‹build›'s options to ‹builds›…** is the separate cross-build step: a per-build preview (which values change, which analyzers are not applicable on that build's language and are skipped) and a ConfirmDialog naming each recipient. A recipient with a different language or compiler spec is excluded by name, never silently.
-- **Run.** Two ActionStrip forms. **Analyze ‹build› (catalog)** names the build, the receipt it would reuse or why it is stale, and that the job reads that build's stored options. **One-shot · ‹analyzer› (catalog)** is bound to the Listing selection as an address set on one build, frozen when armed, and says "Analysis can change code outside the selection" (Ghidra: areas outside the selection may be changed). Only analyzers that support one-shot use on that build's language are listed.
+- **Configuration row.** The Configuration select (Standard defaults, Current program options · ‹build›, saved configurations) fills drafts; it posts nothing. **Set analysis options on ‹build›…** arms the ActionStrip for that one build with the drafts as fields. **Propose ‹build›'s options to ‹builds›…** is the separate cross-build step: a per-build preview (which values change, which analyzers are not applicable on that build's language and are skipped) and a ConfirmDialog naming each recipient. A recipient with a different language or compiler spec is excluded by name, never silently.
+- **Run.** Two ActionStrip forms. **Analyze ‹build›** names the build, the receipt it would reuse or why it is stale, and that the job reads that build's stored options. **One-shot · ‹analyzer›** is bound to the address selection on one build, frozen when armed, and says "Analysis can change code outside the selection" (Ghidra: areas outside the selection may be changed). Only analyzers that support one-shot use on that build's language are listed.
 - **Analysis log.** The current job's log tail in a `well`, read-only, lines prefixed by job id and time, addresses as typed links for that build. It links to the dock's Logs and Jobs records, which own the full record (ActivityRecord). "A finished analysis job is not recovery."
 
 **States**
 
-- **Never analyzed:** StateNotice "‹build› has no analysis. Opening it did not start analysis." with Analyze ‹build› (catalog)… armed-not-run. An empty Listing or Functions list is not permission to analyze again.
+- **Never analyzed:** StateNotice "‹build› has no analysis. Opening it did not start analysis." with Analyze ‹build›… armed-not-run. An empty Listing or Functions list is not permission to analyze again.
 - **Valid receipt:** "Receipt ‹id› is valid for ‹build›." The stored analysis is reused and labelled reused. Reanalysis needs the catalog's force field and a ConfirmDialog that names the build and what it rewrites.
 - **Stale:** the receipt names its basis and the transactions since; nothing re-runs by itself.
 - **Writer owned:** "Waiting: ‹build› has a writer", with the owner as reported. Run is disabled with that reason. Nothing is killed or restarted to make room; an external owner is never offered either.
 - **Running, checking, finished, failed, cancelled:** the Job outcome words on the invoking row and in the dock; "Checking whether the operation completed" disables Run on that build until reconciled.
-- **Options not read:** "Not loaded. Open to read it." in that build's cells. Reading options is a read; it never analyzes.
+- **Options not read:** "Not loaded · Enter to load" in that build's cells. Reading options is a read; it never analyzes.
 - **Option not stored:** a program that was never analyzed may hold no value for an analyzer; the cell says "unknown · not stored in ‹build›'s options", never the default as if it were read.
-- **No catalog action:** "Options are read-only here" names the missing action class. The grid still reads; set and propose buttons are `aria-disabled` with that reason.
+- **No catalog action:** "Not available on this server yet. Options still read. · What this server offers", where the last part links to Help › What this server offers. The grid still reads; set and propose buttons are `aria-disabled` with that reason.
 - **Analyze All Open:** not a button here. Corpus-wide analysis is WorkflowControl admission (Z03); this panel links to it.
 
 **Multi-variant rules**
@@ -40,15 +40,15 @@ The analyzers of every build in one grid: each build's enablement and per-analyz
 **Linking**
 
 - **Publishes:** `panel=analysis` (registered) with `build` for the inspected build. The Show filter is `f=analyzer:differs` (registered in `location-schema.json`). Scope and the options disclosure are durable workspace state, not location. Arming or running never changes the selection.
-- **Follows:** the inspected build, settle; the one-shot strip is bound to the Listing selection and does not follow once armed ("Bound to 0041c880–0041c97f · selection is now …· Rebind"). Not holdable.
+- **Follows:** the inspected build, settle; the one-shot strip is bound to the address selection and does not follow once armed ("Bound to 0041c880–0041c97f · selection is now …· Rebind"). Not holdable.
 - **Targets rendered:** receipts → the receipt card · jobs → the dock Jobs and Logs records · owners → OwnershipPanel for that lock · the Function Start Search row's Patterns… → FunctionStartPatterns · addresses in the log → the Code Browser at that build · a failed run → its FailureRecord.
 - **Peek source:** Alt+↓ on a receipt or job reads the stored record; on an analyzer name, its stored description and options. Nothing is fetched.
-- **Absent copy:** "not read" · "Not loaded. Open to read it." · "not applicable · ‹reason›" · "no receipt" · "unknown for ‹build›" · "Options are read-only here".
+- **Absent copy:** "not read" · "Not loaded · Enter to load" · "not applicable · ‹reason›" · "no receipt" · "unknown for ‹build›" · "Not available on this server yet. Options still read. · What this server offers".
 - **Target-size exception:** addresses in the log are inline code tokens (the inline exception); everything else is 24px, 44px below 700px and with a coarse pointer.
 
 **Keyboard**
 
-- The analyzers grid is an APG Grid, one tab stop: arrows between cells, Home/End, Ctrl+Home/End. Space on a build cell toggles that build's draft (a draft, never a post); Enter on "Options · N" expands the options table. Typeahead needs `/` because Space and `x` act in the grid.
+- The analyzers grid is an APG Grid, one tab stop: arrows between cells, Home/End, Ctrl+Home/End. Space on a build cell toggles that build's draft (a draft, never a post); Enter on "Options · N" expands the options table. Typeahead starts with `/` into a visible filter field; plain letters are commands, and Space and `x` act in the grid.
 - Keymap id `analysis.open` (registered; "Analysis", `g then a` in composite and code scopes; palette). No key runs analysis: Run in the ActionStrip posts, ConfirmDialog for cross-build and forced runs.
 
 **Accessibility**

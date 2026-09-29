@@ -2,7 +2,7 @@
 
 The register manager for one explicit build. Its register tree comes from that build's language. It shows register and context-register values over address ranges, and lets you set, edit, clear and delete ranges. Before Save it states the consequence: "re-disassembly requires admission". Other builds' values are shown side by side through anchors and never merged or proposed.
 
-**Use it** from the palette ("Register values"), the build crumb's Peek, the Listing link menu on a selection (Set register values…, Clear register values…), and from a StateNotice that names a context-register cause. It replaces Ghidra's Register Manager window and its Set Register Values dialog. It opens as a secondary surface in the Code Browser; below 700px it is its own NarrowFlow pane.
+**Use it** from the palette ("Register values"), the build crumb's Peek, the Listing link menu on an address selection (Set register values…, Clear register values…), and from a StateNotice that names a context-register cause. It replaces Ghidra's Register Manager window and its Set Register Values dialog. It opens as a secondary surface in the Code Browser; below 700px it is its own NarrowFlow pane.
 
 **Consumer provides**
 
@@ -10,7 +10,7 @@ The register manager for one explicit build. Its register tree comes from that b
 - **Stored ranges:** each register's explicit ranges on this build (start, end, value, source: user, analysis or import).
 - **Writer and counterparts:** the writer state. For every other build, that build's ranges for the same register as last read, mapped through recorded anchor pairs, or "not loaded".
 - **Evidence:** any recorded variance witness (for example the language id).
-- **Actions:** the catalog actions from `GET /api/v1/actions` for setting, clearing and deleting register values, and for re-disassembly (admitted as a job, never run here). The verbs are "catalog action needed". No action id is named here.
+- **Actions:** the catalog actions from `GET /api/v1/actions` for setting, clearing and deleting register values, and for re-disassembly (admitted as a job, never run here). Until the catalog offers them, the verbs are `aria-disabled` with "Not available on this server yet. Register values still read. · What this server offers". No action id is named here.
 
 **Anatomy**
 
@@ -19,12 +19,12 @@ The register manager for one explicit build. Its register tree comes from that b
 3. **Ranges grid** (right). A "Track cursor" toggle (per viewer, like Ghidra's) selects the row whose range contains the Listing cursor; it never moves the cursor. It is for the selected register on the target build, with columns Start (an address link with its build), End, Value, Source and a Delete… button per row. A "Show language defaults" checkbox adds default-value rows, marked "language default" and read-only.
 4. **Range editor.** Start, End and Value, validated against the register's width and, for context registers, its defined values.
 5. **Consequence block**, always shown before Save. It states the register, the value, the range, the build, and what the value changes, which depends on the register kind: a context register changes how that range disassembles the next time it is disassembled; any register value changes the next decompile of that range. It always says "existing instructions are not re-disassembled, and re-disassembly requires admission as a job" and "Other builds are unchanged".
-6. **Footer.** Save on ‹build›…, Set over selection…, Clear values in selection… and Cancel. Each opens ConfirmDialog.
+6. **Footer.** Save on ‹build›…, Set over address selection…, Clear values in address selection… and Cancel. Each opens ConfirmDialog.
 7. **Across builds.** A comparison grid, program-local and side by side. It has one row per range on the target build and a column per build. Values come through recorded anchors ("via anchor 0041b2c0"), and between anchors the row names the anchor it used. It also has a context row that states which context registers each build's language has. The language itself is a solid record ("build-d language is x86 64-bit"); the variance class for the difference is a dashed "hypothesis (heuristic)" unless source, toolchain and flag identity are recorded for both builds. A build where the anchor's function is unresolved reads "◌ unresolved" and names the missing anchor. Register values are never proposed to other builds.
 
 **Confirm tier** (P07: CAT, CF-dlg, 1W, NA)
 
-- **ConfirmDialog:** setting a value over a range, editing a range, deleting a range, and clearing values in a selection. The dialog names the register, the range size and the build.
+- **ConfirmDialog:** setting a value over a range, editing a range, deleting a range, and clearing values in an address selection. The dialog names the register, the range size and the build.
 - **Save stays enabled.** An unchanged draft posts nothing and says "No register change to submit".
 - **Validation before anything posts:** a value wider than the register, an undefined context value, End before Start, or a range outside this build's memory. Each is reported inline with ✕ and the fix.
 - **No analysis (NA).** After the terminal result, affected Listing and Decompile ranges read "◷ predates job ‹id›". The catalog's re-disassembly action is armed in the ActionStrip for that range and build, never run, and it waits for admission. Valid receipts are reused.
@@ -47,7 +47,7 @@ The register manager for one explicit build. Its register tree comes from that b
 **Linking**
 
 - **Publishes:** nothing. Selecting a register is local view state, not location. A range start link is Go.
-- **Follows:** the inspected build is chosen at open, not after it. With the editor open, a selection in the Listing prefills Start and End when Set over selection… is chosen. The editor can be kept as a card (read-only, registered kind `registers`), but it cannot be held.
+- **Follows:** the inspected build is chosen at open, not after it. With the editor open, an address selection in the Listing prefills Start and End when Set over address selection… is chosen. The editor can be kept as a card (read-only, registered kind `registers`), but it cannot be held.
 - **Targets rendered:**
   - range start → the Code Browser at that build and address;
   - a counterpart value → that build's address through its anchor;
@@ -59,7 +59,7 @@ The register manager for one explicit build. Its register tree comes from that b
 
 **Keyboard**
 
-- The register tree is an APG Tree: ↑/↓, → opens, ← closes or goes to the parent, `*` expands siblings, and typeahead works without a prefix (no letter commands are bound there). The ranges grid is an APG Grid. F6 moves between regions, and Tab moves between tree, grid and editor.
+- The register tree is an APG Tree: ↑/↓, → opens, ← closes or goes to the parent, `*` expands siblings, and typeahead starts with `/` into a visible filter field, as in every tree (plain letters are commands). The ranges grid is an APG Grid. F6 moves between regions, and Tab moves between tree, grid and editor.
 - Keymap ids (registered): `registers.open` (no default key; palette "Register values"); `registers.setOverSelection` and `registers.clearInSelection` (link menu and palette only; keys only arm).
 
 **Accessibility**

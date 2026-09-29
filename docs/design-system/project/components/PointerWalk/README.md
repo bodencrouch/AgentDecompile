@@ -76,7 +76,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 
 - `p` (registered `code.walk`, code scope) opens the walk for the cursor's expression and focuses the current step.
 - The step list is a composite with one tab stop. ↑/↓ or j/k step back and forward through the chain (`list.move`), and Home/End go to the root and the last step.
-- **Enter** on a step follows its dereference: Go to the step's type or field, one history stop. On a vtable step it goes to the inspected build's slot target. Shift+Enter opens it beside; Alt+↓ peeks the type definition; Shift+F10 opens the link menu (Reveal in: Code Browser, Evidence › Types, VTableBrowser, FrameLayout for stack bases).
+- **Enter** on a step follows its dereference: Go to the step's type or field, one history stop. On a vtable step it goes to the inspected build's slot target. Shift+Enter opens it beside; Alt+↓ peeks the type definition; Shift+F10 opens the link menu (Reveal in: Code Browser, Corpus › Types, VTableBrowser, FrameLayout for stack bases).
 - Tab moves from the steps to the layout key table (an APG Grid). `r` in a step moves focus to the reflected Listing row of that hop's instruction.
 - Esc follows `keymap.json` `escapeOrder`.
 
@@ -85,6 +85,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 - The step list is an `<ol>` with `aria-current="step"` on the current step. Each step's accessible name is a sentence: "Step 4, offset and dereference: plus 0x10 is next, CacheEntry pointer; moved plus 8 in build-c, hypothesis; plus 0x18, 8-byte pointer, in build-d, witness".
 - Evidence levels and comparison states are words; frame style and glyphs are `aria-hidden` repeats. The layout strip is `role="img"` described by the key table.
 - Per-build cells are a group named "‹field› offset, per build". The inspected cell also says "inspected" in text.
+- Below a 480px container the per-build columns follow NarrowFlow's build-column grid rule: one list item per step, each build a labelled line ("build-c: +0x18 · hypothesis"), with nothing scrolling sideways.
 - Identifiers carry `translate="no"`. Arithmetic is spoken as rendered, and a plain-words form goes in `aria-description`.
 - Forced colors: solid, dashed and none survive as border styles, and hatching becomes a dotted outline plus the word "pad".
 

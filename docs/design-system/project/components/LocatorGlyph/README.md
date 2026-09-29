@@ -17,7 +17,7 @@ Where one entity lands in one build: the closed locator status set, with observe
 - **Follows:** the entity and build of its host cell; holdable only with its host.
 - **Targets rendered:** a resolved, pinned or degraded address → the Code Browser at that build and address (the counterpart), with its edge word (accepted or candidate) · ambiguous → the word plus a link to its ladder run (the run receipt, `receipt=‹id›` with `project`, `entity` and `build`) · contested → the word, the ladder-run link, and both candidate addresses as links marked "no winner". Enter on an ambiguous or contested cell opens its host's candidate menu: each candidate, **Compare candidates** (the Compare workspace with two held panes, each "candidate 1 of 2 · contested · no winner") and Open ladder run; opening one does not accept it. `node=ladder-‹X›` is the design step and links only to the PipelineMap or Explain. Link names read "Counterpart ResourceRef::Resolve, build-c, pinned module_rva, non-portable, candidate".
 - **Peek source:** the stored ladder run for that entity × build (members tried, reasons, member used, terminal OutcomeTag).
-- **Absent copy:** "unresolved" and "absent" are plain words with no link · "Not loaded. Open build-c to read it."
+- **Absent copy:** "unresolved" and "absent" are plain words with no link · "Not loaded · Enter to load build-c"
 - **Target-size exception:** in dense cells the whole cell is the target (at least 24px); in lists each locator is a 24px row.
 
 **Accessibility**

@@ -16,7 +16,7 @@ Context fusion results: puzzle pieces placed by address, left unplaced, conflict
 - **Follows:** `project` and the placement record; the detail follows the focused row after the settle and reads cache only. Not holdable.
 - **Targets rendered:** links resolve only inside the active project. A placed address → the Code Browser at that build and address (always with `build`) · a conflict → NameProvenance for that entity and build, as a cache-only Peek or the rail's "Why this name" · "project locked" → the lock's node and its owner job. An item that exists only in another project is words ("in corpus-beta · not open"), never a link; any link that names another project lands on 35's cross-project StateNotice (Switch armed and confirm-gated, Stay) and never opens it.
 - **Peek source:** Alt+↓ on a placed address reads the cached listing at that address; on a conflict, the stored name candidates. Nothing is fetched or re-fused.
-- **Absent copy:** "unplaced · no address" (plain) · "skipped · project locked" · "2 names disagree · not applied" · "in corpus-beta · not open" · "Not loaded. Open build-a to read it."
+- **Absent copy:** "unplaced · no address" (plain) · "skipped · project locked" · "2 names disagree · not applied" · "in corpus-beta · not open" · "Not loaded · Enter to load build-a"
 - **Target-size exception:** none; rows are 28px and links and buttons at least 24px, 44px below 700px. With a coarse pointer each row carries one 44px row-menu button with the same link menu; there is no long-press.
 
 **Keyboard**

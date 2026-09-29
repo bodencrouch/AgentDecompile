@@ -79,7 +79,7 @@
   <button class="ad-btn compact" aria-pressed="false" aria-describedby="ls3-inv">Invert</button><span class="sr-only" id="ls3-inv">Inverted, Next goes to the first unit whose first byte differs from this unit's first byte.</span>
   <span class="small muted">Shift reverses one step · stays on build-a · never analyzes</span>
  </div>
- <div class="adc-hlbar" role="group" aria-label="Highlights and program colors"><button type="button" class="adc-hlchip" aria-label="Remove highlight B: 3 ranges, 32 bytes, from selection, build-a"><b aria-hidden="true">B</b>3 ranges · 32 bytes · from selection · build-a</button><span>Program colors: 1 range on build-a · read 14:02 · read-only here</span></div>
+ <div class="adc-hlbar" role="group" aria-label="Highlights and program colors"><button type="button" class="adc-hlchip" aria-label="Remove highlight B: 3 ranges, 32 bytes, from address selection, build-a"><b aria-hidden="true">B</b>3 ranges · 32 bytes · from address selection · build-a</button><span>Program colors: 1 range on build-a · read 14:02 · read-only here</span></div>
  <div class="ad-listing well adc-lst" role="grid" translate="no" aria-readonly="true" aria-label="Listing, build-a, ResourceRef::Resolve, with program colors and highlight B" aria-rowcount="-1" aria-colcount="6" data-scroll>
   <div class="ad-ln" role="row" aria-rowindex="2" aria-label="0041b211, mov ebp, esp, highlight B"><span class="flow ad3-mk" aria-hidden="true">B</span><span class="addr" role="rowheader">0041b211</span><span class="bytes" role="gridcell">8b ec</span><span class="mn" role="gridcell">mov</span><span role="gridcell">ebp, esp</span><span class="xref" role="gridcell"><span class="ad3-w">highlight B</span></span></div>
   <div class="ad-ln" role="row" aria-rowindex="3" aria-label="0041b213, mov eax, dword ptr [ebp + 0x8], highlight B, program color #c8d8ff, build-a, range 0041b213 to 0041b21b"><span class="flow ad3-mk" aria-hidden="true">B</span><span class="addr" role="rowheader">0041b213</span><span class="bytes" role="gridcell">8b 45 08</span><span class="mn" role="gridcell">mov</span><span role="gridcell">eax, dword ptr [ebp + 0x8]</span><span class="xref" role="gridcell"><span class="ad3-w"><span class="ad3-bar" aria-hidden="true"></span>color · program · #c8d8ff</span></span></div>
@@ -92,11 +92,11 @@
 
 <div class="adc-states">
 <div>
- <span class="kicker">Shift+F10 on 0041c880 · the Selection and Function groups (Open, Edit, Reveal in and Copy as above) · each names its build · nothing posts from the menu</span>
+ <span class="kicker">Shift+F10 on 0041c880 · the Address selection and Function groups (Open, Edit, Reveal in and Copy as above) · each names its build · nothing posts from the menu</span>
  <div class="ad-pop adc-menu adc-lm">
   <span class="kicker" id="ls3m-h">FUN_0041c880 · function header · build-a</span>
   <ul class="ad-menu" role="menu" aria-labelledby="ls3m-h">
-   <li role="group" aria-labelledby="ls3m-g1"><span class="kicker grp" id="ls3m-g1" aria-hidden="true">Selection · 3 ranges selected</span><ul role="none">
+   <li role="group" aria-labelledby="ls3m-g1"><span class="kicker grp" id="ls3m-g1" aria-hidden="true">Address selection · 3 ranges</span><ul role="none">
     <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Highlight selection</span><span class="m">as B</span></div></li>
     <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Add selection to highlight B</span></div></li>
     <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Subtract selection from highlight B</span></div></li>
@@ -106,7 +106,7 @@
    <li role="group" aria-labelledby="ls3m-g2"><span class="kicker grp" id="ls3m-g2" aria-hidden="true">Function · from the catalog · build-a</span><ul role="none">
     <li role="none"><div role="menuitem" tabindex="-1" aria-disabled="true" aria-describedby="ls3m-n1"><span class="t">Create function…</span><span class="note" id="ls3m-n1">A function already starts at 0041c880.</span></div></li>
     <li role="none"><div role="menuitem" tabindex="-1" class="is-active"><span class="t">Re-create function…</span><span class="m">body from flow</span></div></li>
-    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Create multiple functions…</span><span class="m">over the selection</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Create multiple functions…</span><span class="m">over the address selection</span></div></li>
     <li role="none"><div role="menuitem" tabindex="-1" aria-haspopup="dialog"><span class="t">Delete function…</span><span class="m">confirms</span></div></li>
     <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Set stack depth change…</span><span class="m">at the cursor</span></div></li>
     <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Set as external entry point</span><span class="m">build-a</span></div></li>

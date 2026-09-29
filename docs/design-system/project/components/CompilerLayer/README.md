@@ -2,7 +2,7 @@
 
 CompilerLayer is a toggleable annotation layer over Listing, DecompileView and SplitCompare that shows what the compiler and linker did to the code under the cursor. Each annotation is a gutter tag plus a word with its evidence level. Where builds differ, it says which builds show the transformation and how the difference is classed.
 
-**Use it** as a layer, never as a separate view: the Views toolbar's **Compiler layer** toggle (`c` in a code well) turns it on for every visible code well of the Code Browser and for SplitCompare. It reads only stored detector output, so it follows the cursor like the well it decorates.
+**Use it** as a layer, never as a separate view: the Views toolbar's **Compiler layer** toggle (`c` in a code well; in the Ghidra profile `c` is clear code, and the toolbar toggle and the palette remain) turns it on for every visible code well of the Code Browser and for SplitCompare. It reads only stored detector output, so it follows the cursor like the well it decorates.
 
 **Consumer provides**, per build and address range:
 
@@ -58,6 +58,8 @@ CompilerLayer is a toggleable annotation layer over Listing, DecompileView and S
 
 **Layer states:** off (the wells render as usual) · on · filtered ("5 hidden by Kind") · "No detector output for build-c · Not loaded" (the build's gutter is empty with that notice, never a guess) · stale ("◷ detectors ran on basis b7e2; program changed since").
 
+**Narrow:** below a 480px container the tags wrap under their row. NarrowFlow owns the narrow rule for build-column grids.
+
 Difference classes use VariantRelation's glyphs and words: `≈` same source, compiled differently (compile variance) · `∼` same source and flags, build state differs (entropy) · `≠` source changed · `?` unknown · `≡` identical. Evidence words are shared with ToolchainEvidence: **witness** or **record** (solid frame), **hypothesis (heuristic)** (dashed frame, basis named), **unknown** (italic word, no frame). A build-wide cause (a flag, LTCG, /GS, /Oy, EH model, ICF) links to ToolchainEvidence (`ws=evidence&panel=toolchain&build=…`) instead of restating its evidence.
 
 ## Linking
@@ -66,12 +68,12 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 - **Follows:** the well it decorates. It is on whenever the toggle is on, and holdable with that well.
 - **Targets rendered:** logical id (inlinee, folded entities) · address and symbol (twin body, table, thunk target) · counterpart (presence cells for other builds, with edge words) · receipt (detector receipt in the Peek) · research section (native `/docs` link).
 - **Peek source:** the stored detector record (detector id, version, evidence, parameters) and the per-build presence row. Nothing is re-detected.
-- **Absent copy:** "absent in build-a" · "unknown: no detector output for build-d" · "Not loaded. Open build-c to read it." · "folded with 3 functions" never picks one name as the function's name.
+- **Absent copy:** "absent in build-a" · "unknown: no detector output for build-d" · "Not loaded · Enter to load build-c" · "folded with 3 functions" never picks one name as the function's name.
 - **Target-size exception:** research and entity links inside 16px bands use the code-well inline exception; band rows are reached by row focus and the 44px row-menu button with a coarse pointer.
 
 ## Keyboard
 
-- `c` (registered `code.compilerLayer`, code scope) toggles the layer. It only changes view state and posts nothing.
+- `c` (registered `code.compilerLayer`, code scope) toggles the layer. It only changes view state and posts nothing. In the Ghidra profile `c` is clear code (it arms only), so the layer is reached from the Views toolbar's toggle and the palette ('Compiler layer').
 - `a` / Shift+A (`code.annotationNext` / `code.annotationPrev`; `{`/`}` stay with ListingFieldLayout's flow arrows) move the cursor to the next or previous annotation of the visible kinds and announce it ("Annotation 3 of 9: inlined ResourceRef::Resolve, hypothesis").
 - Enter on a band's subject is Go; Enter on a tag highlights its range; Alt+↓ peeks the detector record; Shift+F10 opens the link menu (Reveal in: TransformTimeline, MatchExplain, Evidence).
 - The FilterChips follow FilterChip's keys. Esc follows `keymap.json` `escapeOrder`.

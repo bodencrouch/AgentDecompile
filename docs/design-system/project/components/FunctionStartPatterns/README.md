@@ -56,8 +56,8 @@ Byte and instruction patterns around function starts and returns, per build, wit
 - **Not comparable:** another language's column reads "not comparable · ‹language id›" in every cell; it never shows 0.
 - **Running, checking, finished, failed, cancelled:** the Job outcome words, for gather, mine and export.
 - **Truncated:** an evaluation over its limit reads "first 5,000 matches of 12,340 · counts are complete", and the counts are exact.
-- **Not loaded:** "Not loaded. Open to read it."
-- **No catalog action:** "Pattern gathering is read-only here · catalog action needed · not offered yet". Stored gathers and results still read.
+- **Not loaded:** "Not loaded · Enter to load"
+- **No catalog action:** "Not available on this server yet. Stored gathers still read. · What this server offers", where the last part links to Help › What this server offers. Stored gathers and results still read.
 - **Narrow (below 700px):** builds stack under each sequence as rows ("build-a · 812 of 1,144 · 71%"); trees stack per build; the clipboard becomes a list with one row menu per pattern.
 
 **Multi-variant rules**
@@ -85,7 +85,7 @@ Byte and instruction patterns around function starts and returns, per build, wit
   - an exported file → OutputsCatalog and ArtifactCard;
   - a created function → EditHistory's transaction.
 - **Peek source:** Alt+↓ on a sequence reads its first 20 stored occurrences on that build with their addresses. On a tree node, it reads the node's sequences. Nothing is searched beyond stored results.
-- **Absent copy:** "No gather on ‹build›" · "absent" · "not comparable · ‹language›" · "no dominant residue" · "no recorded function starts" · "Not loaded. Open to read it." · "catalog action needed · not offered yet".
+- **Absent copy:** "No gather on ‹build›" · "absent" · "not comparable · ‹language›" · "no dominant residue" · "no recorded function starts" · "Not loaded · Enter to load" · "Not available on this server yet. Stored gathers still read. · What this server offers".
 - **Target-size exception:** none; rows are 28px and every control is 24px, or 44px below 700px and with a coarse pointer.
 
 **Keyboard**

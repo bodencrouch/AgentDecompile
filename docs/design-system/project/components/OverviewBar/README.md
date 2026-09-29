@@ -12,7 +12,7 @@ A vertical navigation margin beside the Listing that shows one build's whole vie
 - The markers:
   - program bookmarks by category, read-only;
   - the viewer's marks;
-  - the Listing's address-set selection;
+  - the Listing's address selection;
   - highlights A–D;
   - rows changed by a job, with the job id;
   - hits of the active ResultsTable.
@@ -20,7 +20,7 @@ A vertical navigation margin beside the Listing that shows one build's whole vie
 
 ## Anatomy
 
-1. **Header.** "Overview · build-a · whole image 00401000–0046ffff · about 1.5 KB per row". When the view is restricted: "Overview · build-a · view: .text, io (ProgramTreeView)". It has a lane menu, **Show key**, and the Following word.
+1. **Header.** "Overview · build-a · whole image 00401000–0046ffff · about 1.5 KB per row". When the view is restricted: "Overview · build-a · view: .text, io (ProgramTreeView)". It has a lane menu, **Show key**, and the follow word ("Follows · as I move" or "Follows · on Enter").
 2. **Lanes**, 16px wide each, separated by 2px `chassis` gaps. Each lane has a one-letter head that is restated in words in the key.
    - **T · Address type** (row L17). Precedence as in Ghidra: function, external reference, instruction outside a function, defined data, undefined bytes, uninitialized. Graphite steps plus patterns (solid, stripes, diagonal hatch, dots, outline) carry the kinds. A family or fact color is never used, because these are not states. The type map is an approximation: each pixel row shows one sample, and the key says so ("one sample per row; a mostly-data region can show as undefined").
    - **E · Byte entropy** (row L18). A graphite ramp from 0.0 (dark) to 8.0 (light) per chunk. The value is measured from bytes, so it is solid. A range label such as "machine code" or "compressed or encrypted" is a hypothesis: it names its basis ("entropy 7.6–8.0; range heuristic") and never becomes a claim. The chunk size and the configured ranges live in lane settings, per viewer.
@@ -48,7 +48,7 @@ A vertical navigation margin beside the Listing that shows one build's whole vie
 |---|---|
 | Loading | the previous bar dimmed with "Loading overview · build-b"; `aria-busy` on the bar only when it does not hold focus |
 | Not read | a lane whose read has not run shows the hatch and "Byte entropy not read for build-c · Enter to read"; following never reads |
-| Unavailable | "⊡ Code-unit type map: catalog action needed" in the lane head and key; the lane is omitted from the bar and listed in the key |
+| Unavailable | "⊡ Code-unit type map: Not available on this server yet. The other lanes still draw. · What this server offers" in the lane head and key; the lane is omitted from the bar and listed in the key |
 | Partial | "◐ 3 of 5 blocks read" with the unread blocks hatched |
 | Stale | "◷ build-b changed since read by job a3f9 · Refresh"; the old bar stays, marked stale |
 | Empty markers | "No markers in this view" in the key; the lane stays |
@@ -60,7 +60,7 @@ A vertical navigation margin beside the Listing that shows one build's whole vie
 - **Follows:** the inspected build, the view (whole image or the ProgramTreeView restriction), the cursor (drawn as the rule), the Listing selection, highlights, the active ResultsTable and marks, after the settle. It is a cached pane; reads that are not cached wait for Enter. It can be held with the Listing (a held Listing's bar freezes with it).
 - **Targets rendered:** address (range starts and ends, markers) → the Code Browser at that build · job id ("changed by job a3f9") → the dock Jobs record · search result set → its ResultsTable · divergence range → ImageDeltaMap region (the Listing at the range start in that build, with the ObjectDiff pair) · receipt id for a classified range → its receipt card.
 - **Peek source:** Alt+↓ on a key row peeks the cached Listing lines at the range start, and for a divergence range the receipt that classified it. Nothing is fetched.
-- **Absent copy:** "Not loaded. Open build-c to read it." · "Byte entropy not read · Enter to read" · "catalog action needed" · "no anchor; not drawn on build-d" · "unknown · no source identity for build-d" · "No markers in this view".
+- **Absent copy:** "Not loaded. Open build-c to read it." · "Byte entropy not read · Enter to read" · "Not available on this server yet. ‹What still works›. · What this server offers" · "no anchor; not drawn on build-d" · "unknown · no source identity for build-d" · "No markers in this view".
 - **Target-size exception:** the lanes are a 16px-wide graphic. Pointer clicks on it are an enhancement only. The ranges list and key rows (28px, 44px below 700px and with a coarse pointer) reach every destination, which is the 2.5.8 Equivalent exception.
 
 ## Keyboard

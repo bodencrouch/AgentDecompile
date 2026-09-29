@@ -42,6 +42,7 @@
     { "name": "cmp",      "carries": "split pair", "grammar": "build-id..build-id", "history": "push on open and close", "example": "build-a..build-c", "resolution": "recorded edges and locators only" },
     { "name": "hold",     "carries": "held center panes", "grammar": "kind:id@build[:addr][~basis]", "kinds": "see kinds", "max": 2, "overflow": "extra entries become keep entries, with a notice", "history": "replace; Back/Forward never open, close or re-point holds", "example": "symbol:ResourceRef::Resolve@build-c:00082f40~b7e2" },
     { "name": "keep",     "carries": "Kept cards in the evidence rail", "grammar": "kind:id[@build][~basis]", "kinds": "see kinds", "requires": "build, except for the build-independent kinds entity and node", "repeatable": true, "max": 3, "overflow": "refused with 'Three cards kept; release one'; nothing is evicted", "history": "replace", "example": "receipt:r-5521@build-b" },
+    { "name": "help",     "carries": "the Help dialog at one section, opened over the current view; closing it returns focus to its invoker", "values": ["server-offers", "keys", "accessibility", "about"], "history": "replace" },
     { "name": "dock",     "carries": "dock tab (the five tabs of guideline 30: Events, Objectives, Logs, Jobs, Problems)", "values": ["events", "objectives", "logs", "jobs", "problems"], "history": "replace" },
     { "name": "job",      "carries": "focused job", "grammar": "job-id", "history": "push", "example": "a3f9" },
     { "name": "receipt",  "carries": "focused receipt", "grammar": "receipt-id", "history": "push" },

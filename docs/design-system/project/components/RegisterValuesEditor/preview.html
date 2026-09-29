@@ -2,7 +2,7 @@
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">Register manager · register and context values over address ranges · one build's language · other builds compared, never merged</span>
 <section class="ade" aria-labelledby="rv-t">
- <header><h4 id="rv-t">Register values</h4><span class="end">Set register values (catalog)</span></header>
+ <header><h4 id="rv-t">Register values</h4><span class="end">Set register values</span></header>
  <div class="ade-tgt">
   <span class="ade-bld target">build-a</span><span>registers from build-a's language · x86 32-bit</span>
   <span class="ad-writer"><b aria-hidden="true">●</b>writer: this session</span>
@@ -40,7 +40,7 @@
   </div>
  </div>
  <div class="ade-rev"><span class="kicker">Consequence · stated before Save</span>Set DF = 0x1 over 0041b210–0041b24f (64 bytes) on build-a. DF is a flag, not a context register: the next decompile of that range on build-a treats it as the constant 1, and disassembly is unchanged. A context register would also change how the range disassembles; existing instructions are never re-disassembled here, and re-disassembly requires admission as a job. Other builds are unchanged.</div>
- <footer><button class="ad-btn primary" type="button">Save on build-a…</button><button class="ad-btn" type="button">Set over selection…</button><button class="ad-btn" type="button">Clear values in selection…</button><button class="ad-btn" type="button">Cancel</button><span class="note">Each of these opens ConfirmDialog.</span></footer>
+ <footer><button class="ad-btn primary" type="button">Save on build-a…</button><button class="ad-btn" type="button">Set over address selection…</button><button class="ad-btn" type="button">Clear values in address selection…</button><button class="ad-btn" type="button">Cancel</button><span class="note">Each of these opens ConfirmDialog.</span></footer>
  <div class="ade-prop" role="group" aria-labelledby="rv-cmp-t">
   <h5 id="rv-cmp-t">DF across builds · program-local, compared side by side</h5>
   <div class="ade-grid ad-scroll"><table class="ad-table"><caption class="sr-only">DF ranges per build, anchor-mapped</caption><thead><tr><th scope="col">Range on build-a</th><th scope="col" class="b target">build-a</th><th scope="col" class="b">build-b</th><th scope="col" class="b">build-c</th><th scope="col" class="b">build-d</th></tr></thead><tbody>
@@ -58,7 +58,7 @@
 </div>
 <div>
  <span class="kicker">After Save · stale range, re-disassembly waits for admission</span>
- <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Range predates job a3f9</h4><p>DF changed on build-a at 14:06 (job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, set register values, finished">a3f9</a>). The cached decompile of 0041b210–0041b24f used the old value. Decompiling it again is Enter in DecompileView; for a context register, Re-disassemble range (catalog) would be armed in the ActionStrip, never run.</p></div><span></span></div>
+ <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Range predates job a3f9</h4><p>DF changed on build-a at 14:06 (job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, set register values, finished">a3f9</a>). The cached decompile of 0041b210–0041b24f used the old value. Decompiling it again is Enter in DecompileView; for a context register, Re-disassemble range would be armed in the ActionStrip, never run.</p></div><span></span></div>
 </div>
 <div>
  <span class="kicker">Invalid value · nothing posts</span>

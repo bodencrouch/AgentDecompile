@@ -57,6 +57,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 - The tree and table are named ("Class hierarchy"; "ResourceRef vftable for Base, slot by logical method, target per build"). Cells read the slot index, target and state in words ("slot 2, 00082f40, slot shifted, hypothesis, base class gained a virtual").
 - Kind labels are text; dashed outlines repeat the word "hypothesis".
 - Identifiers and mangled names carry `translate="no"`.
+- Below a 480px container the slot table follows NarrowFlow's build-column grid rule: one list item per slot, each build a labelled line ("build-c: slot 2 · 00082f40 · hypothesis"), with nothing scrolling sideways.
 
 **Research:** [MSVC transformations §6, T6, §9.7](../../../../research/2026-09-29-msvc-optimization-for-decomp.md#6-c-object-model-msvc-abi); [reference UI patterns A4, A6, C8, C11](../../../../research/2026-09-29-reference-re-ui-patterns.md).
 

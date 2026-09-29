@@ -14,7 +14,7 @@ The Edit Function Signature editor for one function on one explicit build. It co
 
 **Anatomy**
 
-1. **Header.** The function name, the catalog action label marked "(catalog)", and the signature source change ("analysis → user-defined").
+1. **Header.** The function name, the catalog action's label (never marked "(catalog)"), and the signature source change ("analysis → user-defined").
 2. **Target bar**, bound when opened.
    - It shows the framed target build chip, the function address link, the basis generation and the writer line.
    - A standing sentence reads "Conventions, registers and call fixups come from build-a's compiler spec."
@@ -93,7 +93,7 @@ After the terminal result, BeforeAfterBand shows old → new under the signature
 
 - Tab moves through the fields. The parameter grid is an APG Grid: Enter or F2 edits a cell and Esc leaves it. Ctrl/Cmd+S saves. Esc follows `keymap.json` `escapeOrder` and returns focus to the invoking token.
 - Keymap ids (registered):
-  - `code.editSignature` (code scope; no default key in any profile, because `y` on a function name already means set type in the ida profile; the path is Shift+F10 → Edit signature… and the palette);
+  - `code.editSignature` (code scope; no default key in any profile, because `y` (ida profile) and `t` (ghidra profile) on a function name already mean set data type; the path is Shift+F10 → Edit signature… and the palette);
   - `signature.paramUp` and `signature.paramDown` (Alt+Shift+↑ and Alt+Shift+↓, grid);
   - `signature.editStorage` (no default key; the proposed Alt+S was not registered. It is palette and row menu only and opens StorageEditor for the focused parameter).
 

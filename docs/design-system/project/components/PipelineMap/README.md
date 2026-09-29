@@ -40,7 +40,7 @@ The recovery overview diagram as live navigation: stages 0–8 with their gates,
   - ↑/↓ move across rows: main row, then lanes A to E one per row, then locks, ladders and exports, landing on the nearest column.
   - Home/End go to the first or last node in the row; Ctrl+Home and Ctrl+End go to `stage-0` and the last export.
 - Moving focus is focus movement, never a Go. Enter goes; Shift+Enter opens beside; Alt+↓ peeks; Shift+F10 opens the one link menu. Browser modifiers keep their meaning.
-- Typeahead on a stage number or lane letter works only while focus is inside the map. The map binds no single-letter commands, so typeahead needs no `/` prefix; `g` stays the leader.
+- Typeahead on a stage number or lane letter starts with `/` into a visible filter field, as in every list, grid and tree, and works only while focus is inside the map. Plain letters are commands (`g` stays the leader).
 
 **Accessibility**
 

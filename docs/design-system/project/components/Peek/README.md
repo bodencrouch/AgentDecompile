@@ -6,7 +6,7 @@ A read-only look at any linked target without leaving the current view: a card b
 
 **Consumer provides** the target's kind and title; the concrete build and address when there is one; where the shown copy came from (fresh, reused or historical, with basis and read time); the cached content for that kind (table below); and the cache state: cached, not loaded or stale.
 
-**Content by target type.** Every row is cache-only. Anything not already read says "Not loaded. Open to read it." and is never fetched.
+**Content by target type.** Every row is cache-only. Anything not already read says "Not loaded. Open to read it." (the Peek's Open button reads it) and is never fetched. Panes and panels say "Not loaded · Enter to load" instead; the Peek keeps its own words because it has an Open button.
 
 | Target | The Peek shows |
 |---|---|
@@ -55,7 +55,7 @@ A read-only look at any linked target without leaving the current view: a card b
 - **Alt+↓** (Option+↓ on macOS) opens a Peek at once on the focused link, cell or node. It is a modifier chord, so Space, x, j/k and plain arrows keep their list and grid meaning. It does nothing in text fields; in an open go-to list it peeks the highlighted result. Alt+Enter and Ctrl/Cmd+I are rejected (35).
 - It also opens after a `peek-pointer-rest` (400ms) pointer rest on a link token or whole-strip button, and after a `peek-focus-rest` (800ms) focus rest. Focus-rest opening is off by default at 400% zoom and below 700px. Pointer rest can be turned off with "Peek on hover" in View settings. Moving focus quickly through a list opens nothing.
 - **Tab** from the trigger moves into the Peek's first action. Shift+Tab returns to the trigger. Tab past the last action continues to the element after the trigger.
-- **Enter** on Open (or on the trigger) goes. **Shift+Enter** opens beside, from the trigger or from inside the Peek. **Shift+K** keeps, only while focus is inside the Peek; from the trigger, Tab then Shift+K, or the link menu. Ctrl/Cmd+Enter on a trigger keeps the browser's new-tab behaviour.
+- **Enter** on Open (or on the trigger) goes. **Shift+Enter** opens beside, from the trigger or from inside the Peek. **Shift+K** keeps, only while focus is inside the Peek; from the trigger, Tab, then Shift+K, or the link menu. Ctrl/Cmd+Enter on a trigger keeps the browser's new-tab behaviour.
 - **Esc** follows the one Esc order in the Keymap section (`keymap.json` `escapeOrder`); an open Peek is its second layer, after any modal. Focus stays on, or returns to, the trigger.
 - Shift+F10, the context-menu key or right-click on a trigger opens the one link menu (Linked views). With a coarse pointer, Peek is an item in the row's 44px row-menu button.
 
@@ -76,7 +76,7 @@ A read-only look at any linked target without leaving the current view: a card b
 Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): L27, L28, T16, I03, P12.
 
 - **Instruction info (L27).** Alt+↓ on a mnemonic in the Listing opens an instruction card: the build's language id, the instruction prototype, operand objects with their kinds, inputs and outputs (registers and memory), and the raw bytes. It is cache-only like every Peek; until a catalog read action returns instruction info, it reads "Instruction info not loaded. Open to read it." It never re-disassembles.
-- **Speculative disassembly (L28).** On a data or undefined cursor, **Disassemble here (preview)** in the link menu opens an inline Peek of instructions decoded at that address with the build's language, drawn in a dashed frame, labelled "hypothesis", with its basis ("decoded at 0041b210 with build-c's language · not committed"). It never commits code. Committing is **Disassemble (catalog)…** through the ActionStrip, which admits a job.
+- **Speculative disassembly (L28).** On a data or undefined cursor, **Disassemble here (preview)** in the link menu opens an inline Peek of instructions decoded at that address with the build's language, drawn in a dashed frame, labelled "hypothesis", with its basis ("decoded at 0041b210 with build-c's language · not committed"). It never commits code. Committing is **Disassemble…** (a catalog action) through the ActionStrip, which admits a job.
 - **Type at address (T16).** **Preview type here…** in the link menu takes a type (CacheEntry) and shows its fields laid over the bytes at the address (name_len, flags, next with values), dashed and labelled "hypothesis · not applied". **On every build** repeats the preview at each counterpart address reached through anchors, one block per build; a size or alignment that does not fit reads "does not fit on build-d: 12 of 16 bytes defined". Applying the type is TypeEditor or the ActionStrip, never the Peek.
 - **Checksums (I03).** The checksum card that HexStrip's selection opens is a Peek kind: algorithm rows, range, build, and the per-build rows when requested. It is read-only and keepable.
 - **Program properties (P12).** On an address, **Properties** lists the program's property maps that hold a value there (name, value, build). It is cache-only; "no properties at 0041b210 on build-c" when empty; "Property maps not loaded" until read.

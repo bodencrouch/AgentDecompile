@@ -2,7 +2,7 @@
 
 Starvation drawn beside the work: the age of the oldest unreviewed review row, the oldest waiting lane, and the longest-running job against its deadline. The age words are links to the row, lane or job each bar measures.
 
-**Use it** in the dock's Activity tab header, in the MatchReview queue header (oldest unreviewed row only), and in PipelineMap node Peeks.
+**Use it** in the dock's Events tab header, in the MatchReview queue header (oldest unreviewed row only), and in PipelineMap node Peeks.
 
 **Consumer provides** the three ages, each deadline when one is set, and what each age measures: the review row (match id), the lane node id from `pipeline-model.json`, the job id.
 

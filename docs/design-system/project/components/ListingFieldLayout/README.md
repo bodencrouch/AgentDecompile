@@ -37,7 +37,7 @@ The per-viewer field formatter for the Listing: which fields each row kind shows
 | Function offset | `ResourceRef::Resolve+0x6` | client, from the loaded function's entry | blank outside a function |
 | Block offset | `.text+0x1a216` | client, from the build's memory blocks | — |
 | Image-base offset | `imagebase+0x1b216` | client, from the build's image base | "other space" when the address is not in the image-base space |
-| File offset | `build-a:0x1a616` | catalog read (address → file offset) | "not mapped" when the importer recorded no file bytes; "catalog action needed" when the server has no such read |
+| File offset | `build-a:0x1a616` | catalog read (address → file offset) | "not mapped" when the importer recorded no file bytes; "Not available on this server yet. The other fields still read. · What this server offers" when the server has no such read |
 | P-code | one sub-row per p-code op | catalog read | "not read · Enter to read" |
 | Stack depth | `-0x10` | catalog read | "unknown" (Ghidra's bogus value is never printed as a number) |
 | Register transition | `eax := 0x0` | catalog read | blank where no value changes |
@@ -69,7 +69,7 @@ Reading an optional column is read-only and never analyzes. A following Listing 
 |---|---|
 | Default layout | "Default layout" in the header; Reset is disabled with "Already the default" |
 | Changed | "4 changes from default"; each changed field carries its word (added, off, moved) |
-| Optional column without a catalog read | the field control reads "catalog action needed", `aria-disabled` with that reason; it can stay in the layout and shows "unavailable" in rows |
+| Optional column without a catalog read | the field control reads "not available yet", `aria-disabled` with the reason "Not available on this server yet. The other fields still read. · What this server offers"; it can stay in the layout and shows "unavailable" in rows |
 | Optional column not read for this range | "not read · Enter to read" in the column; nothing is fetched on follow |
 | Read failed | "✕ read failed · 14:02 · Retry" in the column header only; rows keep what was read |
 | Stale | "◷ build-b changed since read by job a3f9 · Refresh" on the column header |
@@ -82,7 +82,7 @@ Reading an optional column is read-only and never analyzes. A following Listing 
 - **Follows:** the Listing's cursor row kind, only while **Follow cursor row kind** is on, to choose the tab and mark the field under the cursor. It never moves the cursor, fetches or analyzes. Not holdable; a held Listing shows the same layout read-only.
 - **Targets rendered:** in the preview key and optional columns, the file offset is a copyable value, not a link. A source-map cell is a compiler-diagnostic-style link (`src.line`) to the SourceRepairDiff line, present only when a recorded source map names it. Arrow ends are address links carrying their build.
 - **Peek source:** none in the band. In the Listing, Alt+↓ on an optional cell peeks the cached value's basis ("read 14:02 · catalog read · build-a").
-- **Absent copy:** "catalog action needed" · "not read · Enter to read" · "not mapped" · "unknown" (stack depth) · "no source map for build-c" · "other space".
+- **Absent copy:** "Not available on this server yet. The other fields still read. · What this server offers" · "not available yet" (the field control) · "not read · Enter to read" · "not mapped" · "unknown" (stack depth) · "no source map for build-c" · "other space".
 - **Target-size exception:** field controls, Add, Reset and Collapse are 24px or more (44px below 700px and with a coarse pointer). Marker and arrow glyphs in the margins are `aria-hidden` and are not targets. They are reached through row focus, the margin cell's link menu and the OverviewBar key (the 2.5.8 Equivalent exception).
 
 ## Keyboard
@@ -94,7 +94,7 @@ Reading an optional column is read-only and never analyzes. A following Listing 
   - `fields.remove`: Delete removes the focused field to Available fields, with "Removed Stack depth · Add to restore" in the status line.
   - `fields.settings`: Enter opens the focused field's settings.
   - `listing.fields`: toggles the band. It has no default key; use the pane-header button or the palette.
-- Code-scope ids for the Listing (extensions this component configures; registered in `keymap.json`, checked against precedence, the leader, `browserReserved` and the ida profile):
+- Code-scope ids for the Listing (extensions this component configures; registered in `keymap.json`, checked against precedence, the leader, `browserReserved` and the ghidra and ida profiles):
   - `code.fold`: `z` collapses or expands the function at the cursor.
   - `code.arrowSource` and `code.arrowTarget`: `{` and `}` move the cursor to the source or target of the arrow at the cursor, pushing one history stop.
   - Both match the typed character.

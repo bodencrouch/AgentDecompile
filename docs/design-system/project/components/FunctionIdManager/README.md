@@ -60,8 +60,8 @@ Function ID across the project. It covers the FidDb databases the server knows a
 - **Database writer owned:** Populate waits in admission for the job that holds the database. Nothing is killed.
 - **Read-only database:** Populate lists only writable databases. A `.fidbf` says "read-only form · cannot be populated".
 - **Running, checking, finished, failed, cancelled:** the Job outcome words. A cancelled populate names what was ingested before it stopped.
-- **Not loaded:** "Not loaded. Open to read it."
-- **No catalog action:** "Function ID databases are read-only here · catalog action needed · not offered yet". Stored hashes and database metadata still read.
+- **Not loaded:** "Not loaded · Enter to load"
+- **No catalog action:** "Not available on this server yet. Stored hashes still read. · What this server offers", where the last part links to Help › What this server offers. Stored hashes and database metadata still read.
 
 **Multi-variant rules**
 
@@ -87,13 +87,13 @@ Function ID across the project. It covers the FidDb databases the server knows a
   - a job → the dock records;
   - the analyzer → AnalyzerPanel.
 - **Peek source:** Alt+↓ on a hash reads the stored FidDb records that share it. On a match, it reads the stored match record. Nothing is hashed or searched beyond stored records.
-- **Absent copy:** "not hashed" · "no match" · "left unnamed" · "unresolved on build-d" · "not comparable · ‹language›" · "Not loaded. Open to read it." · "catalog action needed · not offered yet".
+- **Absent copy:** "not hashed" · "no match" · "left unnamed" · "unresolved on build-d" · "not comparable · ‹language›" · "Not loaded · Enter to load" · "Not available on this server yet. Stored hashes still read. · What this server offers".
 - **Target-size exception:** none; rows are 28px and every control is 24px, or 44px below 700px and with a coarse pointer.
 
 **Keyboard**
 
 - The tablist uses APG Tabs with manual activation. The databases table and the hashes grid are APG Grids, one tab stop each. Space in the Active column toggles a draft, never a post; **Apply…** confirms.
-- Proposed keymap id `fid.open` has no keys; it is reached from the menu and palette only. No key populates, attaches or detaches.
+- Keymap id `fid.open` has no keys; it is reached from the menu and palette only. No key populates, attaches or detaches.
 
 **Accessibility**
 

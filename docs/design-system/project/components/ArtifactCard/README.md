@@ -2,7 +2,7 @@
 
 One output or result artifact in full. It says what the artifact proves and what it does not, and gives its identity (schema, hash, basis), the job and receipt that produced it, its members if it is a bundle, its coverage on each build, its determinism rule and its 8080 observation, with historical provenance labelled as historical.
 
-**Use it** when an artifact name is opened from OutputsCatalog, a member list, a receipt, a job's Changed line or the PipelineMap export band (`ws=evidence&panel=outputs&artifact=‹id›`, a registered parameter). It sits in the Evidence workspace beside the catalog, or in the evidence rail. Alt+↓ on an artifact link shows its header and first two sections as a Peek. Keep keeps it (`keep=artifact:‹id›`, a registered kind).
+**Use it** when an artifact name is opened from OutputsCatalog, a member list, a receipt, a job's Changed line or the PipelineMap export band (`ws=evidence&panel=outputs&artifact=‹id›`, a registered parameter). It sits in the Corpus workspace beside the catalog, or in the evidence rail. Alt+↓ on an artifact link shows its header and first two sections as a Peek. Keep keeps it (`keep=artifact:‹id›`, a registered kind).
 
 **Consumer provides** the inventory row (name, kind, group, format or schema version, tier, the proves and does-not-prove sentences, and the determinism rule text with its source); the stored bytes hash and basis digest per build; the producing verb, job and receipt, with the provider requested and the provider served; per-build coverage with each measure kept separate (matched, linked, fuzzy) and the report state; for a bundle, its members with each member's status, hash and verify-gate outcome; the previous report per build, for changes; and the 8080 observation record, plus any historical observation with its port class.
 
@@ -32,7 +32,7 @@ One output or result artifact in full. It says what the artifact proves and what
   7. **Acceptance is separate**: for accuracy and parity reports, three FactBadge claims per build: byte exact · behaviour · toolchain origin. Then "This report is accuracy. 1,142 matched functions on build-a are not accepted.", with a link to Whole-image acceptance.
   8. **Determinism rule**: the rule in a mono well ("re-run under the same basis → byte-identical bundle"), with its source ("design text from the export-target node · not yet checked by any receipt") when no receipt has checked it.
   9. **On 8080**: ⊡ "Not observed on 8080", with the reason. Reused receipts are called reused ("from 3 days ago; they are not fresh progress"). A historical observation from a forbidden port stays historical and is never shown as fresh.
-- Surfaces and fit: a `pane` card with a 1px `line` and square corners. It fits the evidence rail (260–480px) and the Evidence workspace; two cards sit side by side at 400px each or wider.
+- Surfaces and fit: a `pane` card with a 1px `line` and square corners. It fits the evidence rail (260–480px) and the Corpus workspace; two cards sit side by side at 400px each or wider.
 - Read-only by construction. The card never exports, verifies, downloads by itself or re-runs anything. Unstored evidence says "Not loaded. Open to read it."
 
 **Linking**

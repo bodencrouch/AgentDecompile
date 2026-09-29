@@ -20,11 +20,11 @@ The editor adds these on top: the explicit target, editable cells on the target 
 - **Other builds:** the same function's frame as FrameLayout reads it (normalised offsets, raw offsets for ESP frames, register-resident locals, "not loaded").
 - **Slot mapping:** the logical-slot mapping between builds, with its pairing quality (bijective, non-bijective, or insufficient alignment).
 - **Evidence:** the recorded variance witnesses, and the stack-reference count on the target build, or "references not indexed".
-- **Actions:** the catalog actions from `GET /api/v1/actions` that edit the frame and its variables. The inventory notes that function variable operations cover part of this, and the rest is "catalog action needed". No action id is named here.
+- **Actions:** the catalog actions from `GET /api/v1/actions` that edit the frame and its variables. The inventory notes that function variable operations cover part of this, and the rest needs catalog actions; until then those verbs are `aria-disabled` with "Not available on this server yet. The frame still reads. · What this server offers". No action id is named here.
 
 **Anatomy**
 
-1. **Header.** "Edit stack frame ‹function›", the catalog action label marked "(catalog)", and a Hex toggle (a per-viewer display setting).
+1. **Header.** "Edit stack frame ‹function›", the catalog action's label (never marked "(catalog)"), and a Hex toggle (a per-viewer display setting).
 2. **Target bar.** The framed target build chip, the function address link, the frame base in words, and the writer line.
 3. **Frame fields.** Frame size (read-only, computed, old → new); Local size; Parameter offset, with the return address offset in words; Parameter size, which is cross-checked against the signature's purge ("matches purge 8 in the signature", or a caution when it does not).
 4. **Slot grid.** One row per logical slot, higher addresses first. Columns: slot (tag and name), type (the draft), then one column per build, with the target column framed and editable. Other build cells read as FrameLayout does ("entry ESP −0x8", with the raw offset under it, "none (FPO)", "register EAX", "absent", "not loaded").

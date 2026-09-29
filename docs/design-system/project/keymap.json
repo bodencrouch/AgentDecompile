@@ -1198,7 +1198,7 @@
   },
   {
    "id": "ptree.select",
-   "label": "Select in Listing",
+   "label": "Make address selection",
    "keys": [
     "s"
    ],
@@ -1238,7 +1238,7 @@
   },
   {
    "id": "results.makeSelection",
-   "label": "Make selection",
+   "label": "Make address selection",
    "keys": [
     "s"
    ],
@@ -1313,7 +1313,7 @@
   },
   {
    "id": "search.loadSelection",
-   "label": "Load selection into pattern",
+   "label": "Load address selection into pattern",
    "keys": [],
    "scope": "region",
    "where": "SearchWorkbench instruction mode",
@@ -1398,7 +1398,7 @@
   },
   {
    "id": "hex.checksums",
-   "label": "Checksums of selection",
+   "label": "Checksums of address selection",
    "keys": [],
    "scope": "region",
    "where": "HexStrip menu, palette",
@@ -1850,7 +1850,7 @@
   },
   {
    "id": "registers.setOverSelection",
-   "label": "Set register value over selection",
+   "label": "Set register value over address selection",
    "keys": [],
    "scope": "region",
    "where": "RegisterValuesEditor and code wells with a selection",
@@ -1858,7 +1858,7 @@
   },
   {
    "id": "registers.clearInSelection",
-   "label": "Clear register value in selection",
+   "label": "Clear register value in address selection",
    "keys": [],
    "scope": "region",
    "where": "RegisterValuesEditor and code wells with a selection",
@@ -1982,7 +1982,7 @@
   },
   {
    "id": "highlight.fromSelection",
-   "label": "Highlight from selection",
+   "label": "Highlight from address selection",
    "keys": [],
    "scope": "code",
    "where": "Listing and code wells",
@@ -1990,7 +1990,7 @@
   },
   {
    "id": "highlight.add",
-   "label": "Add selection to highlight",
+   "label": "Add address selection to highlight",
    "keys": [],
    "scope": "code",
    "where": "Listing and code wells",
@@ -1998,7 +1998,7 @@
   },
   {
    "id": "highlight.subtract",
-   "label": "Subtract selection from highlight",
+   "label": "Subtract address selection from highlight",
    "keys": [],
    "scope": "code",
    "where": "Listing and code wells",

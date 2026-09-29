@@ -21,7 +21,7 @@ Matching drawn as the work: counterpart blocks from two builds aligned on record
 - **Follows:** the pair its host selects (the ReviewDetail row, a Compare pair), after the settle; holdable through Open both beside.
 - **Targets rendered:** each endpoint → the Code Browser for that build, same entity, with `build`, address and its edge word (candidate or accepted) · a shared symbol anchor → the Code Browser at that symbol on that build · each alternative → its instance, with its margin · the edge → its receipt card when one exists.
 - **Peek source:** the cached listing rows of both endpoints already read for this pair; nothing is decompiled or matched.
-- **Absent copy:** "No aligned block on build-b." · "Not loaded. Open build-b to read it." · "no alternative within margin" · "candidate · no acceptance event yet" · "rows between anchors are not paired".
+- **Absent copy:** "No aligned block on build-b." · "Not loaded · Enter to load build-b" · "no alternative within margin" · "candidate · no acceptance event yet" · "rows between anchors are not paired".
 - **Target-size exception:** anchor links sit inside 18px code rows, at most one link per side per row (the code-well inline exception); buttons are 24px, 44px below 700px.
 
 **Keyboard**

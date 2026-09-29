@@ -20,12 +20,12 @@ The spec maps E01, E04 and E05 to the Listing link menu → ActionStrip. PatchEd
 - **Bytes:** the original file bytes at the range (from the program's original-byte record), or "original bytes not recorded", and the current bytes.
 - **Language:** the build's language for assembling (candidate encodings with their lengths), decoding and data layout (pointer width, endianness, charsets), and the code units a write would overwrite.
 - **Counterpart:** the counterpart address reached through a recorded anchor, with its current bytes as last read.
-- **Actions:** the catalog actions from `GET /api/v1/actions` for patching bytes, clearing, disassembling and applying data types. The inventory found no bounded patch tool, only `execute-script` `setBytes`, so these are "catalog action needed". No action id is named here.
+- **Actions:** the catalog actions from `GET /api/v1/actions` for patching bytes, clearing, disassembling and applying data types. The inventory found no bounded patch tool, only `execute-script` `setBytes`, so these need catalog actions; until then the verbs are `aria-disabled` with "Not available on this server yet. The bytes and listing still read. · What this server offers". No action id is named here.
 - **After Save:** the job, its transaction receipt, and the post-write read.
 
 **Anatomy**
 
-1. **Header.** The mode, the address, and the catalog action label marked "(catalog)".
+1. **Header.** The mode, the address, and the catalog action's label (never marked "(catalog)").
 2. **Target bar**, required and bound when opened:
    - a framed target chip with the build (for example `build-a`);
    - the containing function;
@@ -91,7 +91,7 @@ The spec maps E01, E04 and E05 to the Listing link menu → ActionStrip. PatchEd
 **Keyboard**
 
 - The mode tabs follow APG Tabs with manual activation. The encodings are a radio group. Enter in the assembly field previews, and Ctrl/Cmd+S (or Enter on the primary button) opens ConfirmDialog. Esc follows `escapeOrder`.
-- Keymap ids (registered; code scope; keys only open the editor, never write): `code.patchInstruction` (no default key; link menu and palette "Patch instruction"); `code.patchBytes` (no default key); `code.clear` (no default key; Delete is not bound, because a single key never destroys); `code.disassemble` (`d` in the `ida` profile only, matching its habit; default has none); `code.createData` (no default key).
+- Keymap ids (registered; code scope; keys only open the editor, never write): `code.patchInstruction` (no default key; link menu and palette "Patch instruction"); `code.patchBytes` (no default key); `code.clear` (no default key; `c` in the `ghidra` profile, which arms only; Delete is not bound, because a single key never destroys); `code.disassemble` (`d` in the `ida` and `ghidra` profiles, arming only, matching their habit; default has none); `code.createData` (no default key).
 
 **Accessibility**
 

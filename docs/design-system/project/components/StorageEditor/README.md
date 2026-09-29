@@ -26,7 +26,7 @@ A genuine editor for custom parameter and return storage: ordered register and s
 
 **Keyboard**
 
-- Enter enters edit mode on a cell; Tab moves between cells in edit mode; Alt+↑/↓ reorder a piece. Enter in the footer or Ctrl/Cmd+S saves. Esc follows the one order in `keymap.json` `escapeOrder`. F6 always leaves the region.
+- Enter enters edit mode on a cell; Tab moves between cells in edit mode; Alt+Shift+↑/↓ reorder a piece (`storage.pieceUp`, `storage.pieceDown`; plain Alt+↓ stays Peek). Enter in the footer or Ctrl/Cmd+S saves. Esc follows the one order in `keymap.json` `escapeOrder`. F6 always leaves the region.
 
 **Accessibility**
 

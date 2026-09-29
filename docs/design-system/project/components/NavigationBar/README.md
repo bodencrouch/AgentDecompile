@@ -2,9 +2,9 @@
 
 The row that says where you are and gets you back: Back and Forward with the Recent menu, the one go-to-anything field, breadcrumbs with sibling menus, the Update panes control, Layout, Reload and Copy link.
 
-**Use it** once per workspace, under the Workspaces tablist and above the CounterpartStrip, the PipelineBreadcrumb and the center panes. It owns history and the deep link. It never runs an action.
+**Use it** once per workspace, under the Workspaces tablist and above the CounterpartStrip, the PipelineBreadcrumb and the center panes. It sits inside the Workstation's "Location and history" navigation landmark with the session tabs and the Workspaces tablist, so F6 and the "Skip to location" link reach it. It owns history and the deep link. It never runs an action.
 
-**Consumer provides** this tab's history stops (label, entity, build, address, one snippet with its read time, stop time, and whether an edit was saved there) and the older Recent entries from durable workspace state; go-to results grouped by kind, with the coverage searched; the breadcrumb path (project › build › section › function) with each level's siblings; for the Build menu, each build's counterpart address, divergence class, identity-edge word and locator word for the current entity; the Update panes mode; the active worklist, if any; and the canonical URL for the current state.
+**Consumer provides** this tab's history stops (label, entity, build, address, one snippet with its read time, stop time, and whether an edit was saved there) and the older Recent entries from durable workspace state; go-to results grouped by kind, with the coverage searched; the breadcrumb path (project › build › section › function) with each level's siblings; for the Builds ▾ menu, each build's counterpart address, divergence class, identity-edge word and locator word for the current entity; the Update panes mode; the active worklist, if any; and the canonical URL for the current state.
 
 - **History** follows the Linked views History rules; this component renders them.
   - Back and Forward act on the primary history, the same stack as the browser buttons, Alt+←/→ and mouse buttons 4 and 5. They restore workspace, views, split, viewport and the focused element, and never open, close or re-point held panes or kept cards.
@@ -15,10 +15,11 @@ The row that says where you are and gets you back: Back and Forward with the Rec
   - The **Changed since visited** filter (a `menuitemcheckbox`) keeps the stops whose entity and build appear in a job's recorded change units after the visit, each with its job link and time. Jobs that recorded no units, or only reused evidence, do not qualify.
   - Picking a stop in this tab traverses with `history.go`. Picking an older durable entry is a Go. Recent is client state; it is never evidence.
 - **Go to anything** is one APG combobox over the one engine that CommandPalette shares.
-  - Ctrl/Cmd+P focuses it. Ctrl/Cmd+G focuses it with `:` typed; its first, highlighted row is the last address jump ("Last: build-b:0041b2c0"), so Enter repeats it visibly. Ctrl/Cmd+K opens the modal CommandPalette with `>` typed.
+  - Ctrl/Cmd+P focuses it. Ctrl/Cmd+G (or `g then g`) focuses it with `:` typed; its first, highlighted row is the last address jump ("Last: build-b:0041b2c0"), so Enter repeats it visibly. Ctrl/Cmd+K opens the modal CommandPalette with `>` typed.
   - Below `bp-compact` (1100px) the field collapses to a button, and P and G open the same engine in the palette dialog.
   - No typed character ever opens a dialog or changes context (WCAG 3.2.2). `>` lists commands inline in the same listbox. The words "help", "keys" or "shortcuts" list the option row "Keyboard shortcuts · Ctrl/Cmd+/", which opens the sheet on Enter.
   - The empty query lists Recent locations, Marks, Recent actions and Recent jobs. ↑ in an empty field recalls earlier queries.
+  - A query with no match reads "No results in stored indexes" and offers one option row, "Search the program for ‘‹q›’…" (Ctrl/Cmd+Shift+F). Enter on that row opens SearchWorkbench prefilled in text mode; nothing runs until its own Enter.
 
 | Prefix (first character only) | Finds | Example |
 |---|---|---|
@@ -31,13 +32,15 @@ The row that says where you are and gets you back: Back and Forward with the Rec
 | `>` | command, listed inline | `>match siblings` |
 | `$` | string | `$resource.cfg` |
 | `'` | marks and program bookmarks | `'a`, `'before repair` |
+| `=` | address expression, evaluated on the inspected build | `= FUN_0041c880 + 0x10` |
+| `file:` | file offset, mapped through each build's memory map | `file:0x1c880` |
 
-- `?` is not a prefix, because decorated names start with it; a query that starts with `?` is searched as a symbol. The detected scope shows as a removable chip in the field ("Scope: addresses ×"). Prefix chips under the field insert their prefix; they are the reliable path on touch and on dead-key layouts.
+- `*` is the only name wildcard. `?` is always literal and is not a prefix, because decorated names contain it; a query that starts with `?` is searched as a symbol. The detected scope shows as a removable chip in the field ("Scope: addresses ×"). Prefix chips under the field insert their prefix; they are the reliable path on touch and on dead-key layouts.
 - **Addresses.** `:0041b210` resolves in the inspected build first, highlighted. Other builds whose mapped sections contain the same number follow as separate rows, "same number on build-c · a different place, not a counterpart". Counterparts come only from recorded edges. A link whose `addr` has no `build` lists the builds that contain it; nothing is guessed.
-- **Scope and honesty.** Search covers stored indexes of the active project only, with coverage in words ("not searched: build-d, not loaded"). Jobs, receipts and marks that exist only in another project read "in corpus-beta · not open"; Enter lands on the cross-project StateNotice (Switch armed, Stay). A row that switches the inspected build says so before activation, in its text and `aria-describedby`: "only on build-b · clears 4 checked rows on build-a". Typing never navigates; Enter or a click does. Ambiguous text, such as a hex string that is also a job id, lists both groups and never jumps.
+- **Scope and honesty.** Search covers stored indexes of the active project only, with coverage in words ("not searched: build-d, not loaded"). Jobs, receipts and marks that exist only in another project read "in corpus-beta · not open"; Enter lands on the cross-project StateNotice ("Switch to corpus-beta" armed and confirm-gated, beside "Stay"). A row that switches the inspected build says so before activation, in its text and `aria-describedby`: "only on build-b · clears 4 checked rows on build-a". Typing never navigates; Enter or a click does. Ambiguous text, such as a hex string that is also a job id, lists both groups and never jumps.
 - Rows name type, target build, per-build locator words, destination, an action's binding and a job's StageChip.
 - **Breadcrumbs**: project › build › section › function, then the cursor address in `address`. Each level is an `.ad-link` with a visible level kicker and a 24px ▾ sibling menu. The build crumb's Peek is the program's Info.
-- **The Build menu** (the build crumb's ▾, also `g b`) is a flat APG Menu, one item per build.
+- **Builds ▾** (the build crumb's menu, also `g b`) is a flat APG Menu, one item per build. There is no separate Build menu.
   - Each item shows the counterpart address, the divergence class (1↔1, 1↔N, ≠) and the identity-edge word (accepted or candidate), in words and in its accessible name.
   - An absent build is the word "absent" as an `aria-disabled` item, never a link. Unresolved says "unresolved" the same way.
   - Candidate and ambiguous items carry "Opening one does not accept it". A contested build lists both candidates, "contested · no winner".
@@ -59,11 +62,11 @@ The row that says where you are and gets you back: Back and Forward with the Rec
 
 **Linking**
 
-- **Publishes:** the primary location on a go-to pick, a crumb, a Build menu item or an older Recent entry (Go, one history stop); a Recent stop in this tab traverses with `history.go` instead. `ws` and `panel` when a pick opens a workspace or a full corpus view. The Update panes mode is per-viewer view state and never in the URL.
-- **Follows:** the primary location. The breadcrumbs, the Build menu and the Recent current mark update after the settle. Not holdable.
+- **Publishes:** the primary location on a go-to pick, a crumb, a Builds ▾ item or an older Recent entry (Go, one history stop); a Recent stop in this tab traverses with `history.go` instead. `ws` and `panel` when a pick opens a workspace or a full corpus view. The Update panes mode is per-viewer view state and never in the URL.
+- **Follows:** the primary location. The breadcrumbs, Builds ▾ and the Recent current mark update after the settle. Not holdable.
 - **Targets rendered:** project · build → the Navigator program row · section → the Listing at the section start · function and address → the Code Browser at that build · counterpart build items with their edge word · logical id → Compare · job → the dock Jobs record · receipt and basis digest · pipeline node → the PipelineMap node · string, mark and program bookmark → their address. Link names read "Address 0041b210, build-b".
 - **Peek source:** Alt+↓ on a highlighted result, crumb or Recent entry reads its cached Peek (listing lines, facts, the stored job record, the node's model text). The build crumb's Peek reads the stored program inventory.
-- **Absent copy:** "absent" and "unresolved" (disabled Build menu items) · "Opening one does not accept it" · "contested · no winner" · "no earlier location in this tab" · "not searched: build-d, not loaded" · "in corpus-beta · not open" · "same number on build-c · a different place, not a counterpart" · "No results in stored indexes."
+- **Absent copy:** "absent" and "unresolved" (disabled Builds ▾ items) · "Opening one does not accept it" · "contested · no winner" · "no earlier location in this tab" · "not searched: build-d, not loaded" · "in corpus-beta · not open" · "same number on build-c · a different place, not a counterpart" · "No results in stored indexes · Search the program for ‘‹q›’…"
 - **Target-size exception:** none. Controls and ▾ buttons are 24px or larger; 44px below 700px and with a coarse pointer.
 
 **Keyboard**
@@ -71,28 +74,28 @@ The row that says where you are and gets you back: Back and Forward with the Rec
 - Alt+← and Alt+→ go back and forward on the primary history; they are not intercepted in text fields or edit mode.
 - The Recent button opens with Enter, Space or ↓, and right-click on Back opens the same menu. ↑/↓ move, Enter picks, Space toggles Changed since visited.
 - Ctrl/Cmd+P, Ctrl/Cmd+G and Ctrl/Cmd+K as above. In the field ↑/↓ move through results, Enter goes, Shift+Enter opens beside, and Alt+↓ opens the list when it is closed (APG) and peeks the highlighted result when it is open.
-- Breadcrumbs are links in Tab order, each followed by its ▾ menu button (APG Menu Button). `g b` in a list, grid or code well opens the Build menu.
+- Breadcrumbs are links in Tab order, each followed by its ▾ menu button (APG Menu Button). `g b` in a list, grid or code well opens Builds ▾. `g then g` from a list, grid or code well is the same as Ctrl/Cmd+G.
 - Update panes is an APG radio group: one tab stop, arrows move and select.
 - Shift+F10 on a crumb or Recent entry opens the one link menu (Linked views).
 - Esc follows the one Esc order in the Keymap section (`keymap.json` `escapeOrder`).
 
 **Accessibility**
 
-- The breadcrumb is `<nav aria-label="Location">` around an ordered list; the last crumb has `aria-current="location"`. Level kickers are visible. Each ▾ is named for what it lists ("Other builds for ResourceRef::Resolve") and carries `aria-haspopup="menu"` and `aria-expanded`.
+- The breadcrumb is `<nav aria-label="Breadcrumb">` around an ordered list, nested in the "Location and history" landmark (so no two landmarks are both called Location); the last crumb has `aria-current="location"`. Level kickers are visible. Each ▾ is named for what it lists ("Other builds for ResourceRef::Resolve") and carries `aria-haspopup="menu"` and `aria-expanded`.
 - Back and Forward are named for their destination and expose `aria-keyshortcuts`; a disabled Forward stays focusable with `aria-disabled`. Recent is a menu with a `menuitemcheckbox` for Changed since visited; the current entry has `aria-current="location"`.
 - Go to is an APG combobox with a grouped listbox and `aria-activedescendant`; the result count goes to the polite region once it settles. Identifiers carry `translate="no"`.
 - WCAG 3.2.1 and 3.2.2: focus and typing never navigate or switch the build. A build change is stated before activation and announced after it ("Inspected build: build-b").
 - WCAG 4.1.3: copy confirmations, result counts and build switches are polite status messages. Nothing is announced per keystroke except the settled count.
 - Every control is at least 24px, and 44px below 700px and with a coarse pointer. The bar wraps; nothing scrolls sideways.
 
-**Removes switching:** J05 (from a diagram concept to the live items at it) goes from 5 switches to 1 with `~gate-4`, credited to U178. The Build menu carries J26's position-keeping build switch, credited to U175. Opening the Functions list to find a symbol, or the dock to find a job or receipt by id, becomes one field.
+**Removes switching:** J05 (from a diagram concept to the live items at it) goes from 5 switches to 1 with `~gate-4`, credited to U178. Builds ▾ carries J26's position-keeping build switch, credited to U175. Opening the Functions list to find a symbol, or the dock to find a job or receipt by id, becomes one field.
 
 **Parity extensions (2026-09-29)**
 
 Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): N01, N02, I04.
 
-- **Wildcards and repeat (N01).** The go-to field accepts `*` and `?` in names ("Resource*::Resolve") and lists every match with its per-build locator words; it never picks one. **Repeat last go-to** is the first entry of the empty `:` list.
-- **Expressions (N02).** An `=` prefix evaluates an address expression on the inspected build: arithmetic, logic and bit operators over numbers and symbol names ("= FUN_0041c880 + 0x10"). The result is one go-to row: "0041c890 on build-a · from FUN_0041c880 + 0x10". A symbol that is ambiguous on the build lists the candidates. Until a catalog read action evaluates expressions, the row reads "Expressions are not evaluated yet; catalog action needed".
+- **Wildcards and repeat (N01).** The go-to field accepts `*` as a wildcard in names ("Resource*::Resolve"); `?` is always literal, because decorated names contain it. It lists every match with its per-build locator words; it never picks one. **Repeat last go-to** is the first entry of the empty `:` list.
+- **Expressions (N02).** An `=` prefix evaluates an address expression on the inspected build: arithmetic, logic and bit operators over numbers and symbol names ("= FUN_0041c880 + 0x10"). The result is one go-to row: "0041c890 on build-a · from FUN_0041c880 + 0x10". A symbol that is ambiguous on the build lists the candidates. Until a catalog read action evaluates expressions, the row reads "Not available on this server yet. Plain addresses and symbols still resolve. · What this server offers", where the last part links to Help › What this server offers.
 - **File offset (N02).** A `file:` prefix ("file:0x1c880") maps a file offset to an address through the build's memory map, one row per build that has the offset, or "offset 0x1c880 is outside every block on build-d".
 - **Evaluator (I04).** The `=` result row also shows the value in hex, decimal, signed and char forms; Alt+↓ on it opens the Peek scalar conversions. Evaluating is a read and never moves anything until Enter.
-- Keymap id: none new; `=` and `file:` are prefixes of `goto.anything` (Ctrl/Cmd+P) and `goto.address` (Ctrl/Cmd+G). The preview is unchanged; the prefixes appear in the field's existing result list.
+- Keymap id: none new; `=` and `file:` are prefixes of `goto.anything` (Ctrl/Cmd+P) and `goto.address` (Ctrl/Cmd+G). The preview's prefix chips include `=` and `file:`, and it shows the no-match state with its Search the program row.

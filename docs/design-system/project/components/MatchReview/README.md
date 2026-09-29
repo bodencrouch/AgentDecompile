@@ -6,7 +6,7 @@ The cross-match review queue: token-bound decisions over pairs, with the U17 mat
 
 **Consumer provides** rows in U17 order: match id, source and destination build and address, then relation, divergence_class, components, thresholds_version, producing_channel and reason, each "unavailable" where missing; status; the observed-basis token and the page; for each decided row, its job and OutcomeCell; after a refusal, the refreshed rows to compare with the rows shown.
 
-- Paged by match id. Select-all checks every decidable row on the page. Batches are all-or-nothing.
+- Paged by match id. **Check all** checks every decidable row on the page. Batches are all-or-nothing.
 - **Columns:** the checkbox, Match (the row header), Source, Destination (with the edge word, never "counterpart"), the six U17 fields in U17 order, and an **OutcomeCell** column. Missing relation, components or reason read "unavailable" and are never fabricated.
 - **Master-detail** is ReviewDetail: Enter on a row expands its detail in place, or fills the detail pane beside the queue, and the detail follows the focused row after the 200ms settle. There is no "Detail in rail" option.
 - **Buttons** above the grid, 24px (44px below 700px): **Open both beside** (`o`) re-points the Review held pair to the focused match and never adds holds; **Decide…** (`d`) arms Decide in the ActionStrip bound to the checked set, then Run opens ConfirmDialog ("Move 3 rows to verification? This cannot be undone here."). HTTP 202 means pending: each decided row's OutcomeCell reads "pending · job c4e1" and changes only when that job's terminal result arrives. Nothing is announced on pending, and the row stays in place.
@@ -35,7 +35,7 @@ The cross-match review queue: token-bound decisions over pairs, with the U17 mat
 
 **Accessibility**
 
-- `role="grid"` named for the page, with `aria-rowcount`; row headers are the match ids. The detail is a labelled region ("Detail: match 18421, build-a 0041b210 to build-c 00082f40") referenced by `aria-controls` from the row while open. Checkboxes are named "Select match 18421, ResourceRef::Resolve, build-a to build-c".
+- `role="grid"` named for the page, with `aria-rowcount`; row headers are the match ids. The detail is a labelled region ("Detail: match 18421, build-a 0041b210 to build-c 00082f40") referenced by `aria-controls` from the row while open. Checkboxes are named "Check match 18421, ResourceRef::Resolve, build-a to build-c".
 - Terminal outcomes are announced politely, once per job; nothing is announced on pending. A refusal is assertive because it blocks the action in hand.
 - Change words are text ("changed since you looked", "new since you looked"); glyphs are `aria-hidden` beside them.
 

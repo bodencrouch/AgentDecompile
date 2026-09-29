@@ -35,7 +35,7 @@ The debug information of every build in one panel. It shows what each image reco
    - **Found.** "local symbol storage · GUID and age match" as a record. Otherwise "not searched", or "searched 14:02 · not found in 3 locations".
    - **Applied.** Either "applied · job ‹id› · 1,930 types · 5,812 names · reused" with its ProvenanceStamp, or "not applied · no debug-info receipt". A PDB that was read only for toolchain facts says "read for Toolchain facts · not applied to the program".
    - **DWARF.** For a PE build: "⊘ not applicable · no .gnu_debuglink or build-id note (witness)".
-   - Row actions: **Load PDB on ‹build› (catalog)…**, **Load DWARF file… (catalog)** and **Import SARIF… (catalog)**. Each opens its dialog for that one build. There is no all-builds load.
+   - Row actions: **Load PDB on ‹build›…**, **Load DWARF file…** and **Import SARIF…**. Each opens its dialog for that one build. There is no all-builds load.
 3. **Load PDB (ConfirmDialog; it writes many fields on one build):**
    - **PDB file.** The found file, with its match stated. **Choose file…** picks another.
    - **Search options.** Ignore age and Ignore GUID are off by default. Turning either on says: "A non-exact PDB is a hypothesis: its names enter with analysis names, not debug info, and every value is marked 'GUID or age not matched'."
@@ -52,7 +52,7 @@ The debug information of every build in one panel. It shows what each image reco
 6. **Search locations.**
    - An ordered list: Local symbol storage (required; its layout, level 1 or level 2, is read from the directory), then the additional locations, which are Program's import location, directories, symbol-server URLs and, for DWARF, build-id, debuglink and debug-info server locations.
    - Each location shows enabled, status, and "⚑ needs approval before use" for a URL. **Refresh status** reads local locations; a URL is not contacted, even to check its status, until approval is recorded, and until then its status reads "not checked · needs approval".
-   - Add, Remove and Move up or down edit the next job's fields as a per-viewer draft. **Save as server default (catalog)** is `aria-disabled` "catalog action needed · not offered yet".
+   - Add, Remove and Move up or down edit the next job's fields as a per-viewer draft. **Save as server default** is `aria-disabled` "Not available on this server yet. The draft still applies to the next job. · What this server offers".
 7. **Source files (Z09).**
    - A build segment chooses the build.
    - The table lists each source file's path, ID type (NONE, UNKNOWN, TIMESTAMP_64, MD5, SHA1, SHA256 or SHA512), identifier, number of map entries and **Transformed path**.
@@ -70,7 +70,7 @@ The debug information of every build in one panel. It shows what each image reco
 - **Running, checking, finished, failed, cancelled:** the Job outcome words appear on the build row and in the dock. A cancelled load names what it applied before it stopped. It never claims a rollback, and EditHistory holds the transaction.
 - **Conflicts after a load:** "2 stronger values stayed" links NameProvenance, filtered to those fields.
 - **No source files:** "∅ No source files on build-a. Source files come from an applied PDB or DWARF import."
-- **No catalog action:** "Debug info is read-only here · catalog action needed · not offered yet". The Builds and Source files tabs still read.
+- **No catalog action:** "Not available on this server yet. The Builds and Source files tabs still read. · What this server offers", where the last part links to Help › What this server offers.
 
 **Multi-variant rules**
 
@@ -97,13 +97,13 @@ The debug information of every build in one panel. It shows what each image reco
   - a job → the dock records;
   - a SARIF artifact → its ArtifactCard.
 - **Peek source:** Alt+↓ on a receipt, job or map entry reads the stored record or cached Listing lines. Nothing is fetched, downloaded or parsed.
-- **Absent copy:** "no CodeView entry" · "not searched" · "not applied" · "not applicable" · "no entity at this address" · "Not loaded. Open to read it." · "catalog action needed · not offered yet".
+- **Absent copy:** "no CodeView entry" · "not searched" · "not applied" · "not applicable" · "no entity at this address" · "Not loaded · Enter to load" · "Not available on this server yet. ‹What still works›. · What this server offers".
 - **Target-size exception:** addresses in the map-entry table are 24px links. Everything is 44px below 700px and with a coarse pointer.
 
 **Keyboard**
 
-- The tablist uses APG Tabs with manual activation. The builds table, source files table and map entries table are APG Grids. The search locations list is an APG Listbox; Alt+↑ and Alt+↓ move the focused location.
-- Proposed keymap id `debuginfo.open` has no keys; it is reached from the menu and palette only. No key loads or imports.
+- The tablist uses APG Tabs with manual activation. The builds table, source files table and map entries table are APG Grids. The search locations list is an APG Listbox; Alt+Shift+↑ and Alt+Shift+↓ move the focused location (`debuginfo.locationUp`, `debuginfo.locationDown`), and plain Alt+↓ stays Peek.
+- Keymap id `debuginfo.open` has no keys; it is reached from the menu and palette only. No key loads or imports.
 
 **Accessibility**
 

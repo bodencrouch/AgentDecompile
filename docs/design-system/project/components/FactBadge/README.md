@@ -31,4 +31,4 @@ One named proof fact with its state, glyph and word; in rows, the compact seven-
 - A visible legend of the six glyphs sits on the same view as any strip (Workstation status line or the grid header).
 - The Peek follows WCAG 1.4.13 (dismissable, hoverable, persistent), never covers its trigger (2.4.11), uses the inline form below 480px of height, and never contains the only copy: the evidence rail's Facts section shows the same words.
 
-**Removes switching:** opening the Evidence workspace, then the receipt list, then the Jobs dock to learn why one fact is in its state (J02, J35).
+**Removes switching:** opening the Corpus workspace, then the receipt list, then the Jobs dock to learn why one fact is in its state (J02, J35).

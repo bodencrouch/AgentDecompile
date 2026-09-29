@@ -30,7 +30,7 @@ Where one entity stands on one concrete build: one crumb per stage 1–8, each s
 
 **Keyboard**
 
-- A list of links in Tab order. Enter goes to the node; Shift+Enter opens it beside; Alt+↓ peeks the deciding evidence; Shift+F10 opens the one link menu, whose Reveal in lists Pipeline map and Evidence. Browser modifiers keep their meaning.
+- A list of links in Tab order. Enter goes to the node; Shift+Enter opens it beside; Alt+↓ peeks the deciding evidence; Shift+F10 opens the one link menu, whose Reveal in lists Pipeline map and the Evidence rail's Pipeline section. Browser modifiers keep their meaning.
 - The "Build ▾" menu follows APG Menu Button: Enter, Space or ↓ opens, ↑/↓ move, Enter picks. Esc follows the one Esc order in the Keymap section.
 
 **Accessibility**
@@ -41,4 +41,4 @@ Where one entity stands on one concrete build: one crumb per stage 1–8, each s
 - A stage change for the selected entity is announced once in the polite region after its acceptance event ("ResourceRef::Resolve on build-a passed gate 4"). Polls announce nothing.
 - Each crumb reflows to one column at 320px.
 
-**Removes switching:** opening the Recovery workspace, the Evidence workspace or the Jobs dock only to learn where one entity stands on one build. It supports J03 and J04, which the ledger credits to U180 and U182.
+**Removes switching:** opening the Recovery workspace, the Corpus workspace or the Jobs dock only to learn where one entity stands on one build. It supports J03 and J04, which the ledger credits to U180 and U182.

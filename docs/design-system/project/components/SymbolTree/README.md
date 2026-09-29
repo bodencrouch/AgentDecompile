@@ -46,15 +46,15 @@ The symbol hierarchy of the project as an APG treegrid: Imports, Exports, Functi
    - Move to… (a namespace picker), and Cut and Paste for the same move;
    - Delete…;
    - Imports only: Create library…, Set external program…, Clear external program…, Move library up and Move library down (the library search order), Create external location… and Edit external location… (with Restore original label when the importer recorded one), and Create external function.
-   - Reads, in the Open and Reveal groups: Show references to (XrefPanel), Make selection (the node's addresses on one build, client state) and Create table from selection (a ResultsTable of the checked nodes, symbols kind, on one build).
+   - Reads, in the Open and Reveal groups: Show references to (XrefPanel), Make address selection (the node's addresses on one build, client state) and Create table from selection (a ResultsTable of the checked nodes, symbols kind, on one build).
 
 ## Edits and the multi-build rules
 
-- **Exact target.** Every edit acts on one concrete build. In logical scope, the Edit items name it ("Rename on build-a (catalog)"). When the node is present on several builds, a build chooser inside the editor defaults to the inspected build and never to "all".
+- **Exact target.** Every edit acts on one concrete build. In logical scope, the Edit items name it ("Rename on build-a"). When the node is present on several builds, a build chooser inside the editor defaults to the inspected build and never to "all".
 - **Single target confirms in place.** Rename, create one namespace or class, convert one namespace, and edit one external location confirm in their own inline editor (Enter or Save). The editor shows:
   - the naming-convention hint for the kind (classes and namespaces PascalCase, functions and labels as the repository convention);
   - the build;
-  - the catalog action by its label, with "(catalog)".
+  - the catalog action by its label, never marked "(catalog)".
 - **Batch, destructive and cross-build use ConfirmDialog.** This covers moving several symbols, deleting any symbol, and pasting a cut set. The dialog names the build, the count and the known reference count ("Delete 3 labels on build-b · 17 references become unnamed").
 - **Propagation is separate.** After a terminal result on build-a, the row offers **Propose to build-b, build-c**. That opens PropagationTransfer with:
   - one preview row per recipient (old → new namespace path per field);
@@ -72,7 +72,7 @@ The symbol hierarchy of the project as an APG treegrid: Imports, Exports, Functi
 Ghidra marks an address as an external entry point: an address where execution can start from outside the program (the program entry, a DLL's exports). The property belongs to the address, so every label there shares it; it needs at least one symbol at the address; and a default label there reads `EXT_` with an "EXTERNAL" plate.
 
 - **Where.** The row menu's Edit group on a function or label, and the Listing link menu's Function group: **Set as external entry point on build-a** and **Remove external entry point on build-a**. Each is present only when the catalog exposes it; on a node with no address (a class or namespace) it is not listed; on an address with no symbol it is `aria-disabled` with "Add a label first; entry points need a symbol".
-- **One build, confirmed.** Set confirms in place in the ActionStrip, naming the build, the address and the catalog action ("Set external entry point (catalog) · build-a · 0041b210"). Remove uses ConfirmDialog when the importer recorded the entry point: "Remove external entry point at 0041b210 on build-a? The importer recorded it from the export table." A batch over checked nodes uses ConfirmDialog with the count.
+- **One build, confirmed.** Set confirms in place in the ActionStrip, naming the build, the address and the catalog action ("Set external entry point · build-a · 0041b210"). Remove uses ConfirmDialog when the importer recorded the entry point: "Remove external entry point at 0041b210 on build-a? The importer recorded it from the export table." A batch over checked nodes uses ConfirmDialog with the count.
 - **Evidence, per build.** The Exports category lists entry points per build with their basis in words: "entry point · importer record (export table)" (solid, a record) or "entry point · set by you · job 6e21". A set entry point is an operator statement, not a witness: it never makes the export table say anything.
 - **Program-local.** Entry points are never proposed to counterparts, because each build's export set is its own fact: build-b may export a function build-a does not. A logical row shows each build's own state ("entry point on build-a · not an entry point on build-c"), never merged.
 - **What it does not do.** Setting an entry point starts no analysis and creates no function. If a function should start there, Create function… is a separate Listing action.
@@ -110,7 +110,7 @@ Ghidra marks an address as an external entry point: an address where execution c
   - `symbols.paste` (Ctrl/Cmd+V) on a destination arms the Move action in the ActionStrip bound to that build. It never posts.
   - `symbols.delete` (Delete) arms Delete in the ActionStrip.
   - `symbols.newNamespace` has no default key; use the menu or the palette.
-  - `symbols.scope` (`s`) toggles Logical and one-build scope and announces it.
+  - `symbols.scope` (`a`, the build-scope key everywhere; `s` always makes an address selection) toggles Logical · all builds and one-build scope and announces it.
 - Keys only navigate or arm. Every post goes through the inline editor's Enter or the ActionStrip's Run, and ConfirmDialog where required. Drag and drop is an optional pointer path that arms the same Move action; Move to… and Cut/Paste reach every move without dragging.
 
 ## Accessibility
@@ -130,7 +130,7 @@ Ghidra marks an address as an external entry point: an address where execution c
 - **S04** (navigation mode and snapshot) stays with Following and HeldPane. This tree adds "Reveal current".
 - **S11**: set and remove an external entry point, per build and never proposed, with its basis (importer record or set by you) under Exports.
 - **I10**: the tree-filter part: strategies, multi-term, globbing, case sensitivity, invert and use path.
-- Also from `SymbolTree.htm`: show references to, make selection, create table from selection, and disable or enable a category (as per-viewer hide and show).
+- Also from `SymbolTree.htm`: show references to, make selection (Make address selection here), create table from selection, and disable or enable a category (as per-viewer hide and show).
 
 ## Prior art
 

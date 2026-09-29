@@ -1,4 +1,4 @@
-<!-- @dsCard group="Shell" height=1080 -->
+<!-- @dsCard group="Shell" height=1564 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <div class="ad-preset-bar">
  <span class="kicker">NavigationBar · layout</span>
@@ -14,12 +14,14 @@
    <li role="none"><div role="menuitemradio" aria-checked="true" class="is-active" tabindex="-1" aria-describedby="lp-seq"><span class="t">Review <span class="muted">· modified</span></span><span class="m">g 3</span></div></li>
    <li role="none"><div role="menuitemradio" aria-checked="false" tabindex="-1" aria-describedby="lp-seq"><span class="t">Triage</span><span class="m">g 4</span></div></li>
    <li role="none"><div role="menuitemradio" aria-checked="false" tabindex="-1" aria-describedby="lp-seq"><span class="t">Verify rebuild</span><span class="m">g 5</span></div></li>
+   <li role="none"><div role="menuitemradio" aria-checked="false" tabindex="-1" aria-describedby="lp-seq"><span class="t">Explain build difference</span><span class="m">g 6</span></div></li>
+   <li role="none"><div role="menuitemradio" aria-checked="false" tabindex="-1" aria-describedby="lp-seq"><span class="t">Walk pointers</span><span class="m">g 7</span></div></li>
    <li role="separator"></li>
    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Save changes to Review</span><span class="m">evidence 260 → 360</span></div></li>
    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Reset Review to default</span></div></li>
    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Panes and sizes…</span><span class="m">View menu</span></div></li>
   </ul>
-  <footer><span id="lp-seq">g then 1…5 in any list, grid or tree. Changes panes only; never the project, the selection or admission.</span></footer>
+  <footer><span id="lp-seq">g then 1…7 in any list, grid or tree (6 and 7 proposed). Changes panes only; never the project, the selection or admission.</span></footer>
  </div>
  <div class="stack" style="gap:8px">
   <div class="ad-preset-status"><span class="kicker">Status line after g 5</span><span><strong>Layout: Verify rebuild.</strong> Selection unchanged: <span translate="no">ResourceRef::Resolve</span> · build-a <span class="addr">0041b213</span>. Project unchanged. No work started. Focus stays in the list.</span></div>
@@ -66,6 +68,18 @@
    <i class="nav off"></i><i class="c1">Repair diff</i><i class="c2">ObjectDiff</i><i class="bot">ImageDeltaMap</i><i class="ev">Variant­Ledger</i><i class="dock">Jobs</i></div>
   <dl class="ad-preset-dl" id="lp5-d"><dt>Panes</dt><dd>SourceRepairDiff | ObjectDiff · ImageDeltaMap below · VariantLedger in the rail</dd><dt>Follows</dt><dd>SourceRepairDiff and ObjectDiff</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>Jobs · navigator collapsed</dd></dl>
  </div>
- <div class="ad-notice caution ad-preset-note"><b aria-hidden="true">◐</b><div><h4>On the static 8080 surface</h4><p>There are no split panes. The counterpart pane and the held endpoint pair open as a new window at the same link (“Open beside (new window)”); rails, sizes and the dock tab still apply.</p></div><span></span></div>
+ <div class="ad-preset" role="radio" aria-checked="false" tabindex="-1" aria-describedby="lp6-d">
+  <header><span class="t">Explain build difference</span><kbd class="ad-kbd">g 6</kbd></header>
+  <div class="ad-preset-mini band" role="img" aria-label="Explain build difference: Functions navigator; expanded CounterpartStrip above a SplitCompare of the primary listing, following, and a derived counterpart pane, both with the Compiler layer on; VariantRelation for the current pair in the evidence rail; ToolchainEvidence available, not opened; dock collapsed" style="--preset-nav:60px;--preset-ev:66px;--preset-dock:8px">
+   <i class="nav">Functions</i><i class="top">CounterpartStrip</i><i class="c1">Listing · compiler</i><i class="c2 der">Counter­part · derived · compiler</i><i class="ev">Variant­Relation · pair</i><i class="dock off"></i></div>
+  <dl class="ad-preset-dl" id="lp6-d"><dt>Panes</dt><dd>Functions · CounterpartStrip, expanded, above SplitCompare: primary listing | counterpart pane · Compiler layer on (<code>layers=compiler</code>) · VariantRelation for the pair in the rail</dd><dt>Follows</dt><dd>primary listing; the counterpart pane is derived from it; the rail follows the pair</dd><dt>Available</dt><dd>ToolchainEvidence, one Go from the rail's toolchain values; not opened by the preset</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>collapsed</dd><dt>Key</dt><dd>g then 6, proposed</dd></dl>
+ </div>
+ <div class="ad-preset" role="radio" aria-checked="false" tabindex="-1" aria-describedby="lp7-d">
+  <header><span class="t">Walk pointers</span><kbd class="ad-kbd">g 7</kbd></header>
+  <div class="ad-preset-mini" role="img" aria-label="Walk pointers: Functions navigator; decompile and PointerWalk side by side, both following; read-only TypeEditor for the walk's current step in the evidence rail; dock collapsed" style="--preset-nav:60px;--preset-ev:66px;--preset-dock:8px">
+   <i class="nav">Functions</i><i class="c1">Decompile</i><i class="c2">Pointer­Walk</i><i class="ev">Type­Editor · read-only</i><i class="dock off"></i></div>
+  <dl class="ad-preset-dl" id="lp7-d"><dt>Panes</dt><dd>Functions · DecompileView | PointerWalk · TypeEditor, read-only, in the rail</dd><dt>Follows</dt><dd>both center panes; the rail follows the walk's current step</dd><dt>Held</dt><dd>none; Edit on ‹build›… opens a real editor bound to one build</dd><dt>Dock</dt><dd>collapsed</dd><dt>Key</dt><dd>g then 7, proposed</dd></dl>
+ </div>
+ <div class="ad-notice caution ad-preset-note"><b aria-hidden="true">◐</b><div><h4>On the static 8080 surface</h4><p>There are no split panes. The counterpart pane and the held endpoint pair open as a new window at the same link (“Open beside (new window)”); Walk pointers shows PointerWalk as a rail section above the read-only TypeEditor; rails, sizes, layers and the dock tab still apply.</p></div><span></span></div>
 </div>
 </div>

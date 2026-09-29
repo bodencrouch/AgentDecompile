@@ -31,7 +31,8 @@ The Edit Function Signature editor for one function on one explicit build. It co
 4. **Parameter grid.** One row per logical parameter, keyed by identity, not by ordinal alone: ordinal, name (camelCase hint), type (the draft), and one storage column per build, with the target column framed.
    - The last row gives each build's convention and purge.
    - Storage that differs from the target carries ± and a variance class: compile variance, entropy variance, source variance or unknown.
-   - A solid frame names a recorded witness ("build-d compiler spec is x86-64"). A dashed frame reads "hypothesis" and names its basis.
+   - A variance class is solid only when source, toolchain and flag identity are recorded for both builds, and then it names that record. Otherwise it is a dashed "hypothesis (heuristic)" that names its basis and what was not checked.
+   - A build where the function is unresolved (build-d in the example) reads "◌ unresolved" in every cell. Nothing is read, guessed or carried over from another build's address.
    - Example of a hypothesis: an LTCG custom convention on build-c, where the basis reads "LTCG objects in build-c's rich header; parameters arrive in EAX and EDX". A removed dead parameter on an LTCG build is compile variance by hypothesis, never source variance by default.
    - Add, remove and reorder parameters with Alt+Shift+↑ and Alt+Shift+↓.
    - With Custom storage on, each parameter's storage cell opens StorageEditor. Without it, storage reads "auto" from the convention.
@@ -60,7 +61,7 @@ The Edit Function Signature editor for one function on one explicit build. It co
 **States**
 
 - editing;
-- invalid ("`2nd` is not a C identifier", "EAX is not a register in build-d's spec", "Purge must be a byte count or unknown");
+- invalid ("`2nd` is not a C identifier", "R8D is not a register in build-a's spec", "Purge must be a byte count or unknown");
 - no change to submit;
 - awaiting ConfirmDialog;
 - pending, admitted, running, then finished or failed, shown as an OutcomeCell on the signature line with its job link, for example `a3f9`;
@@ -68,7 +69,8 @@ The Edit Function Signature editor for one function on one explicit build. It co
 - conflict (⇄);
 - convention unknown ("Convention unknown on build-c", with Custom storage offered, never a guessed convention);
 - waiting at gate (another writer, named as reported);
-- not loaded, for a comparison build.
+- not loaded, for a comparison build;
+- unresolved, for a build with no located counterpart ("◌ unresolved"; that build is blocked in the Propose step).
 
 After the terminal result, BeforeAfterBand shows old → new under the signature line. Callers carry "◷ predates job ‹id›" until each is decompiled with Enter.
 
@@ -84,7 +86,7 @@ After the terminal result, BeforeAfterBand shows old → new under the signature
   - the job → the dock Jobs record.
   - The spec source is words, not a link.
 - **Peek source:** Alt+↓ on a counterpart reads its stored prototype and storage, "as read ‹time›". On the thunk target it reads the cached listing at the target. Nothing is decompiled.
-- **Absent copy:** "not loaded" · "absent" · "callers not indexed" · "No signature change to submit" · "Convention unknown on build-c" · "blocked: ‹why›" · "not previewed".
+- **Absent copy:** "not loaded" · "absent" · "◌ unresolved" · "callers not indexed" · "No signature change to submit" · "Convention unknown on build-c" · "blocked: ‹why›" · "not previewed".
 - **Target-size exception:** none. Controls are 24px or more (checkbox targets are 24px), and 44px below 700px.
 
 **Keyboard**

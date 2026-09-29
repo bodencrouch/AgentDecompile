@@ -15,7 +15,9 @@ The per-viewer field formatter for the Listing: which fields each row kind shows
    - **off**: keeps its space, draws nothing (Ghidra's Disable Field); the name is struck and the word "off" is visible. Off is never dashed, because dashed means hypothesis;
    - **added**: added in this viewer's diff (2px `ink-strong` frame and the word "added");
    - **needs a read**: an optional column whose catalog read has not run for the loaded range ("not read").
-4. **Available fields.** Every field not in the current row kind, each with **Add**. Spacer fields take optional static text ("Set text…").
+4. **Available fields and rows.** Every field not in the current row kind, each with **Add**. Spacer fields take optional static text ("Set text…"). **Insert row** adds an empty format row below the focused one, and **Remove row** removes the focused row, and any fields on it move to Available fields ("Removed row 2 · 2 fields moved to Available fields"). These are Ghidra's Insert Row and Remove Row.
+   - **Quick toggles**: the **P-code** item in the Listing header's View menu shows or hides the P-code field without opening the band (Ghidra's Quick Toggle Actions). It is the same per-viewer diff.
+   - **Custom formats**: **New custom format…** on a structure type adds a Custom tab for it; **Delete custom format** removes the tab and returns that type to the Open data format. Both are per-viewer.
 5. **Field settings.** The focused field's options, grouped as in Ghidra's options:
    - **Address**: pad to full width; prefix the block name.
    - **Bytes**: group size; reverse order; maximum bytes shown, then "+3 more" (the full bytes are in the row name and the HexStrip).

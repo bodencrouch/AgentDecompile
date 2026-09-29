@@ -325,10 +325,10 @@
    "id": "layout.preset",
    "label": "Layout preset 1–5",
    "keys": [
-    "g then 1…5"
+    "g then 1…7"
    ],
    "scope": "composite",
-   "note": "Read, Compare, Review, Triage, Verify rebuild; also in the View menu, the palette and the NavigationBar layout menu. Ctrl/Cmd+Alt+digit was rejected because it types characters on AltGr keyboards. A switch pushes history only when it changes the workspace."
+   "note": "Read, Compare, Review, Triage, Verify rebuild, Explain build difference, Walk pointers; also in the View menu, the palette and the NavigationBar layout menu. Ctrl/Cmd+Alt+digit was rejected because it types characters on AltGr keyboards. A switch pushes history only when it changes the workspace."
   },
   {
    "id": "help.keys",

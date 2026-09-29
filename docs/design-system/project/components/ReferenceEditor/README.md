@@ -18,7 +18,7 @@ The editor for references from one code unit on one explicit build: add and edit
 
 1. **Header.** The source address and code unit text, and the catalog action label marked "(catalog)".
 2. **Source bar**, bound when opened: the framed target build chip, the containing function link, the Operand picker (mnemonic, or operand N with its text) and the writer line.
-3. **Reference list.** A grid of every reference from this code unit with these columns: operand, kind, destination (an address link that always carries its build), ref-type, primary, source, and a Delete button per row. Deleting one reference is a single-target edit that confirms in place.
+3. **Reference list.** A grid of every reference from this code unit with these columns: operand, kind, destination (an address link that always carries its build), ref-type, primary, source, and a Delete button per row. Deleting one reference is a single-target edit that confirms in place. The reference being added appears as a draft row ("new in draft", with a 3px `ink-strong` bar) with Discard instead of Delete, so the list and the review block always agree.
 4. **Kind tabs** (APG Tabs, manual activation): Memory, External, Stack and Register.
    - **Memory:** To address, which is an address on this build and is never re-resolved into another build. It also has an offset reference (base + signed 64-bit offset), ref-type (data or flow kinds from this build's list) and Primary. The rule is stated: "Only memory references may share an operand; stack, register and external references are one per operand."
    - **External:** the external program name, the external label or address, and the ref-type.
@@ -26,7 +26,7 @@ The editor for references from one code unit on one explicit build: add and edit
    - **Register:** the register, from this build's language only, and the variable or parameter it binds ("binds parameter `name` (custom storage EAX:4)").
 5. **Flow and fallthrough, this build only.**
    - Flow override: none, branch, call, call-return or return (E02).
-   - Instruction length override, with the decoded length beside it (E02).
+   - Instruction length override, with the decoded length beside it (E02). As in Ghidra, an override may only shorten the instruction, for overlapping instructions.
    - Fallthrough address, with Auto override and Clear override (E03).
    Each states its effect in words: "changes how build-a's decompile reads this instruction".
 6. **Review block.** The catalog action, source → destination, ref-type and primary, the build, the stale-decompile note and "Other builds are unchanged".
@@ -62,7 +62,8 @@ The editor for references from one code unit on one explicit build: add and edit
 - conflict (⇄);
 - waiting at gate;
 - an empty reference list ("No references from this code unit on build-a");
-- counterpart not anchored.
+- counterpart not anchored;
+- counterpart unresolved ("ResourceRef::Resolve is unresolved on build-d"; no counterpart code unit is shown or guessed).
 
 **Linking**
 

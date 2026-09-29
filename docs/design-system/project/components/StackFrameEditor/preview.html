@@ -20,13 +20,13 @@
  <table class="ad-table" role="grid" aria-label="Stack frame of ResourceRef::Resolve by logical slot, draft on build-a, offset per build, higher addresses first" aria-describedby="sf-key">
   <thead><tr><th scope="col">Slot</th><th scope="col">Type (draft)</th><th scope="col" class="b target">build-a</th><th scope="col" class="b">build-b</th><th scope="col" class="b">build-c</th><th scope="col" class="b">build-d</th></tr></thead>
   <tbody>
-   <tr><th scope="row"><span class="adx-slot">arg</span> <code translate="no">size</code></th><td class="mono">uint</td><td class="b target">+0xc : 4</td><td class="b">+0xc : 4</td><td class="b"><span class="ade-m diff"><b aria-hidden="true">±</b>register EDX</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
-   <tr><th scope="row"><span class="adx-slot">arg</span> <code translate="no">name</code></th><td class="mono">char *</td><td class="b target">+0x8 : 4</td><td class="b">+0x8 : 4</td><td class="b"><span class="ade-m diff"><b aria-hidden="true">±</b>register EAX</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
-   <tr><th scope="row"><span class="adx-slot">return</span> return address</th><td></td><td class="b target">+0x4</td><td class="b">+0x4</td><td class="b">entry ESP +0x0</td><td class="b"><span class="muted">not loaded</span></td></tr>
-   <tr class="sep"><th scope="row"><span class="adx-slot">saved</span> ebp</th><td></td><td class="b target">+0x0</td><td class="b">+0x0</td><td class="b"><span class="ad-absent">none (FPO)</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
-   <tr><th scope="row"><span class="adx-slot">local</span> <code translate="no">entry</code></th><td class="mono">CacheEntry *</td><td class="b target">−0x4 : 4</td><td class="b">−0x4 : 4</td><td class="b">entry ESP −0x8<span class="w">raw [esp+0x4] after push esi</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
-   <tr aria-selected="true"><th scope="row"><span class="adx-slot">local</span> <code translate="no">slotIndex</code></th><td class="mono">int → uint</td><td class="b target">−0x8 : 4</td><td class="b">−0x8 : 4</td><td class="b">entry ESP −0x8<span class="w"><span class="ad-evd hyp"><b class="cls">compile variance</b> hypothesis · <span class="basis">basis: shares a slot with entry; lifetimes do not overlap</span></span></span></td><td class="b"><span class="muted">not loaded</span></td></tr>
-   <tr class="ad-draft"><th scope="row"><span class="adx-slot">local</span> <code translate="no">bucketIndex</code> <span class="small muted">new in draft</span></th><td class="mono">uint</td><td class="b target">−0xc : 4</td><td class="b"><span class="ad-absent">absent</span></td><td class="b"><span class="ad-absent">absent</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
+   <tr><th scope="row"><span class="adx-slot">arg</span> <code translate="no">size</code></th><td class="mono">uint</td><td class="b target">+0xc : 4</td><td class="b">+0xc : 4</td><td class="b"><span class="ade-m diff"><b aria-hidden="true">±</b>register EDX</span></td><td class="b"><span class="ad-absent">◌ unresolved</span></td></tr>
+   <tr><th scope="row"><span class="adx-slot">arg</span> <code translate="no">name</code></th><td class="mono">char *</td><td class="b target">+0x8 : 4</td><td class="b">+0x8 : 4</td><td class="b"><span class="ade-m diff"><b aria-hidden="true">±</b>register EAX</span></td><td class="b"><span class="ad-absent">◌ unresolved</span></td></tr>
+   <tr><th scope="row"><span class="adx-slot">return</span> return address</th><td></td><td class="b target">+0x4</td><td class="b">+0x4</td><td class="b">entry ESP +0x0</td><td class="b"><span class="ad-absent">◌ unresolved</span></td></tr>
+   <tr class="sep"><th scope="row"><span class="adx-slot">saved</span> ebp</th><td></td><td class="b target">+0x0</td><td class="b">+0x0</td><td class="b"><span class="ad-absent">none (FPO)</span></td><td class="b"><span class="ad-absent">◌ unresolved</span></td></tr>
+   <tr><th scope="row"><span class="adx-slot">local</span> <code translate="no">entry</code></th><td class="mono">CacheEntry *</td><td class="b target">−0x4 : 4</td><td class="b">−0x4 : 4</td><td class="b">entry ESP −0x8<span class="w">raw [esp+0x4] after push esi; sub esp, 8</span></td><td class="b"><span class="ad-absent">◌ unresolved</span></td></tr>
+   <tr aria-selected="true"><th scope="row"><span class="adx-slot">local</span> <code translate="no">slotIndex</code></th><td class="mono">int → uint</td><td class="b target">−0x8 : 4</td><td class="b">−0x8 : 4</td><td class="b">entry ESP −0x8<span class="w"><span class="ade-m diff"><b aria-hidden="true">±</b>shares entry's slot</span><span class="ad-evd hyp"><span class="lv">hypothesis (heuristic)</span><span class="v">≈ compile variance</span><span class="basis">basis: shares a slot with entry; lifetimes do not overlap. Not checked: source identity of build-c.</span></span></span></td><td class="b"><span class="ad-absent">◌ unresolved</span></td></tr>
+   <tr class="ad-draft"><th scope="row"><span class="adx-slot">local</span> <code translate="no">bucketIndex</code> <span class="small muted">new in draft</span></th><td class="mono">uint</td><td class="b target">−0xc : 4</td><td class="b"><span class="ad-absent">absent</span></td><td class="b"><span class="ad-absent">absent</span></td><td class="b"><span class="ad-absent">◌ unresolved</span></td></tr>
   </tbody>
  </table>
  </div>
@@ -38,7 +38,7 @@
  <div class="ade-prop" role="group" aria-labelledby="sf-prop-t">
   <h5 id="sf-prop-t">Propose names and types to build-b, build-c · by slot mapping, never by offset</h5>
   <div class="ade-grid ad-scroll"><table class="ad-table"><caption class="sr-only">Recipients for the frame edits</caption><thead><tr><th scope="col">Recipient</th><th scope="col">Slot mapping</th><th scope="col">Preview</th><th scope="col">Result</th></tr></thead><tbody>
-   <tr><th scope="row">build-b</th><td>bijective · 4 of 4 slots paired</td><td class="mono">slotIndex : uint at −0x8 · bucketIndex not proposed (absent)</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>eligible for the retype</span></td></tr>
+   <tr><th scope="row">build-b</th><td>bijective · 4 of 4 variables paired</td><td class="mono">slotIndex : uint at −0x8 · bucketIndex not proposed (absent)</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>eligible for the retype</span></td></tr>
    <tr><th scope="row">build-c</th><td>non-bijective · slotIndex shares a slot</td><td class="mono">not previewed</td><td><span class="ade-m bad"><b aria-hidden="true">✕</b>blocked: insufficient alignment to pair slots</span></td></tr>
   </tbody></table></div>
   <div class="ade-foot"><button class="ad-btn" type="button">Propose to build-b…</button><span class="note">Offsets, local size and parameter size are never proposed; each build keeps its own frame.</span></div>
@@ -55,12 +55,12 @@
  <div class="ade" role="group" aria-labelledby="sf-v-t">
   <header><h4 id="sf-v-t">Create array at −0x10</h4></header>
   <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="sf-ac">Elements</label><div class="val"><input class="adc-in num" id="sf-ac" value="16" aria-invalid="true" aria-describedby="sf-ac-e"></div><div class="adc-err" id="sf-ac-e"><b aria-hidden="true">✕</b><span>A char[16] at −0x10 would overwrite bucketIndex, slotIndex and entry. Use 4 or fewer, or clear those slots first.</span></div></div></div>
-  <footer><button class="ad-btn primary" type="button">Create array</button><button class="ad-btn" type="button">Cancel</button><span class="note" role="status">Nothing was posted.</span></footer>
+  <footer><button class="ad-btn primary" type="button">Create array</button><button class="ad-btn" type="button">Cancel</button><span class="note">Nothing was posted.</span></footer>
  </div>
 </div>
 <div>
- <span class="kicker">Register-resident local and an unread build</span>
- <div class="ad-notice info"><b aria-hidden="true">○</b><div><h4>build-d: not loaded. Open to read it.</h4><p>Its frame is not shown and not guessed. Opening reuses existing analysis and never analyzes.</p></div><span></span></div>
+ <span class="kicker">Register parameter and an unresolved build</span>
+ <div class="ad-notice info"><b aria-hidden="true">◌</b><div><h4>ResourceRef::Resolve is unresolved on build-d</h4><p>No counterpart is located on build-d, so there is no frame to show. Nothing is guessed from build-a's offsets, and build-d is not a recipient.</p></div><span></span></div>
  <div class="ad-notice unknown"><b aria-hidden="true">?</b><div><h4>size lives in EDX on build-c</h4><p>A register parameter has no frame slot, so the stack frame editor cannot move it. Change its storage in the signature (StorageEditor) on build-c.</p></div><span></span></div>
 </div>
 </div>

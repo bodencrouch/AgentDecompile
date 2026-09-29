@@ -32,7 +32,7 @@ Profiles: **default**; **ida** adds focus-scoped n (rename), y (set type), ; (op
 | Alt+PageDown / Alt+PageUp | next or previous build with a counterpart | switching build tabs to compare |
 | F7 / Shift+F7 | next or previous difference | scrolling diffs by hand |
 | . | rebind the armed action to the focused row and focus Run; it never posts | reopening the palette for the same verb |
-| g then 1…5 | layout presets (Read, Compare, Review, Triage, Verify rebuild) | dragging splitters for each task |
+| g then 1…7 | layout presets (Read, Compare, Review, Triage, Verify rebuild, Explain build difference, Walk pointers) | dragging splitters for each task |
 | Ctrl/Cmd+Z · Ctrl/Cmd+Shift+Z (Ctrl+Y on Windows and Linux) | undo or redo the build's top program transaction through the catalog (EditHistory). Never in text fields or edit mode. A single-target undo confirms in place; a batch, cross-build or multi-step undo arms ConfirmDialog; nothing posts silently | opening the edit history to take back one edit |
 | p · c · a / Shift+A | walk the pointer expression at the cursor · compiler layer on or off · next or previous compiler annotation (code scope; view state only) | reading offsets and optimizer idioms by hand in each build |
 
@@ -46,7 +46,7 @@ Profiles: **default**; **ida** adds focus-scoped n (rename), y (set type), ; (op
 
 ## Leader and conflicts
 
-`g` inside a list, grid, tree or code well shows which-key hints: regions (g n navigator, g m main, g e evidence, g w work view, g j dock at the row of the last announced transition), views (g l, g d, g h, g r), panels (g o outline, g x references, g c counterparts, g ' marks), compiler-aware panes (g t transformation timeline, g i match explanation, g f stack frame, g v vtable slots), g a the AnalyzerPanel, g p the dock's Problems tab, g b the build menu, g g go to address, and layouts (g 1…5). Leader chords work only in the composite and code scopes, never globally or in text fields. Two commands on one key in one scope do nothing until resolved, and the status line says why; shadowing by an inner scope is not a conflict. Ctrl+Alt remaps warn about AltGr keyboards. The punctuation keys `]`, `[`, `{`, `}` and `'` match the typed character, not the physical key, and accept AltGr and dead-key input.
+`g` inside a list, grid, tree or code well shows which-key hints: regions (g n navigator, g m main, g e evidence, g w work view, g j dock at the row of the last announced transition), views (g l, g d, g h, g r), panels (g o outline, g x references, g c counterparts, g ' marks), compiler-aware panes (g t transformation timeline, g i match explanation, g f stack frame, g v vtable slots), g a the AnalyzerPanel, g p the dock's Problems tab, g b the build menu, g g go to address, and layouts (g 1…7). Leader chords work only in the composite and code scopes, never globally or in text fields. Two commands on one key in one scope do nothing until resolved, and the status line says why; shadowing by an inner scope is not a conflict. Ctrl+Alt remaps warn about AltGr keyboards. The punctuation keys `]`, `[`, `{`, `}` and `'` match the typed character, not the physical key, and accept AltGr and dead-key input.
 
 ## Esc order
 

@@ -11,7 +11,7 @@ The stack frame editor for one function on one explicit build. It is the editing
 - dashed hypothesis cells with a named basis;
 - register-resident locals as the words "register ‹reg›".
 
-The editor adds these on top: the explicit target, editable cells on the target column, the frame fields, the review block, the Save tier and the Propose step. Its `.ade-slot` tag mirrors FrameLayout's slot tag; the two should become one class at integration. After Save reaches its terminal result, FrameLayout re-reads the frame and the edited rows carry "✎ job ‹id›".
+The editor adds these on top: the explicit target, editable cells on the target column, the frame fields, the review block, the Save tier and the Propose step. It uses FrameLayout's own slot tag class (`.adx-slot`). After Save reaches its terminal result, FrameLayout re-reads the frame and the edited rows carry "✎ job ‹id›".
 
 **Consumer provides**
 
@@ -63,7 +63,8 @@ The editor adds these on top: the explicit target, editable cells on the target 
 - conflict (⇄);
 - waiting at gate;
 - "Not decompiled in this session · Enter to decompile", for a comparison build without stack references. The editor never decompiles on its own;
-- not loaded.
+- not loaded;
+- unresolved: the function has no located counterpart on that build ("◌ unresolved" in its column; no frame is shown or guessed, and the build is not a recipient).
 
 **Linking**
 
@@ -76,7 +77,7 @@ The editor adds these on top: the explicit target, editable cells on the target 
   - the job → the dock Jobs record;
   - FrameLayout → the read-only frame of the same function (Reveal in).
 - **Peek source:** the stored stack-reference analysis for that slot and build (FrameLayout's Peek source).
-- **Absent copy:** "absent" · "none (FPO)" · "register ‹reg›" · "not loaded" · "Not decompiled in this session · Enter to decompile" · "insufficient alignment to pair slots" · "references not indexed" · "No frame change to submit".
+- **Absent copy:** "absent" · "◌ unresolved" · "none (FPO)" · "register ‹reg›" · "not loaded" · "Not decompiled in this session · Enter to decompile" · "insufficient alignment to pair slots" · "references not indexed" · "No frame change to submit".
 - **Target-size exception:** none. Rows are 28px, controls 24px or more, and 44px below 700px.
 
 **Keyboard**

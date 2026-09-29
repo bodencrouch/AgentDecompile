@@ -39,13 +39,13 @@
    </div>
   </div>
  </div>
- <div class="ade-rev"><span class="kicker">Consequence · stated before Save</span>Set DF = 0x1 over 0041b210–0041b24f on build-a. This changes how build-a disassembles and decompiles that range the next time it is disassembled; existing instructions are not re-disassembled, and re-disassembly requires admission as a job. Other builds are unchanged.</div>
+ <div class="ade-rev"><span class="kicker">Consequence · stated before Save</span>Set DF = 0x1 over 0041b210–0041b24f (64 bytes) on build-a. DF is a flag, not a context register: the next decompile of that range on build-a treats it as the constant 1, and disassembly is unchanged. A context register would also change how the range disassembles; existing instructions are never re-disassembled here, and re-disassembly requires admission as a job. Other builds are unchanged.</div>
  <footer><button class="ad-btn primary" type="button">Save on build-a…</button><button class="ad-btn" type="button">Set over selection…</button><button class="ad-btn" type="button">Clear values in selection…</button><button class="ad-btn" type="button">Cancel</button><span class="note">Each of these opens ConfirmDialog.</span></footer>
  <div class="ade-prop" role="group" aria-labelledby="rv-cmp-t">
   <h5 id="rv-cmp-t">DF across builds · program-local, compared side by side</h5>
   <div class="ade-grid ad-scroll"><table class="ad-table"><caption class="sr-only">DF ranges per build, anchor-mapped</caption><thead><tr><th scope="col">Range on build-a</th><th scope="col" class="b target">build-a</th><th scope="col" class="b">build-b</th><th scope="col" class="b">build-c</th><th scope="col" class="b">build-d</th></tr></thead><tbody>
-   <tr><th scope="row" class="mono">0041b210–0041b24f</th><td class="b target">0x0</td><td class="b">0x0 <span class="w">via anchor 0041b2c0</span></td><td class="b"><span class="muted">no value</span><span class="w">via anchor 00082f40</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
-   <tr><th scope="row" class="mono">context</th><td class="b target"><code translate="no">addrsize</code>, <code translate="no">opsize</code></td><td class="b">same</td><td class="b">same</td><td class="b"><span class="ad-evd solid"><b class="cls">compile variance</b> <span class="basis">witness: x86-64 language adds longMode</span></span></td></tr>
+   <tr><th scope="row" class="mono">0041b210–0041b24f</th><td class="b target">0x0</td><td class="b">0x0 <span class="w">via anchor 0041b2c0</span></td><td class="b"><span class="muted">no value</span><span class="w">via anchor 00082f40</span></td><td class="b"><span class="ad-absent">◌ unresolved</span><span class="w">no anchor on build-d: ResourceRef::Resolve is unresolved there</span></td></tr>
+   <tr><th scope="row" class="mono">context</th><td class="b target"><code translate="no">addrsize</code>, <code translate="no">opsize</code></td><td class="b">≡ same</td><td class="b">≡ same</td><td class="b"><code translate="no">addrsize</code>, <code translate="no">opsize</code>, <code translate="no">longMode</code> <span class="ade-m diff"><b aria-hidden="true">±</b>differs</span><span class="w"><span class="ad-evd solid"><span class="lv">record</span><span class="v">build-d language is x86 64-bit</span><span class="basis">basis: build-d's program language record</span></span></span><span class="w"><span class="ad-evd hyp"><span class="lv">hypothesis (heuristic)</span><span class="v">≈ compile variance</span><span class="basis">basis: a 64-bit target of the same code. Not checked: source identity of build-d.</span></span></span></td></tr>
   </tbody></table></div>
   <p>Register values are never proposed to other builds. Ranges are compared only through recorded anchors; between anchors the row names the anchor it used.</p>
  </div>
@@ -54,11 +54,11 @@
 <div class="adc-states">
 <div>
  <span class="kicker">Set over a range · ConfirmDialog</span>
- <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="rv-cd-t" aria-describedby="rv-cd-d"><h3 id="rv-cd-t">Set DF over <span translate="no">0041b210–0041b24f</span> on build-a</h3><p id="rv-cd-d">DF becomes 0x1 for 64 bytes on build-a, which changes future disassembly there; nothing is re-disassembled now, and other builds are unchanged.</p><footer><button class="ad-btn is-focus">Cancel</button><button class="ad-btn primary">Set value</button></footer></div>
+ <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="rv-cd-t" aria-describedby="rv-cd-d"><h3 id="rv-cd-t">Set DF over <span translate="no">0041b210–0041b24f</span> on build-a</h3><p id="rv-cd-d">DF becomes 0x1 for 64 bytes on build-a, which changes the next decompile of that range there; nothing is decompiled or re-disassembled now, and other builds are unchanged.</p><footer><button class="ad-btn is-focus">Cancel</button><button class="ad-btn primary">Set value</button></footer></div>
 </div>
 <div>
- <span class="kicker">Context register · re-disassembly waits for admission</span>
- <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Range predates job a3f9</h4><p>DF changed on build-a at 14:06 (job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, set register values, finished">a3f9</a>). Instructions in 0041b210–0041b24f were decoded with the old value. Re-disassemble range (catalog) is armed in the ActionStrip, not run.</p></div><span></span></div>
+ <span class="kicker">After Save · stale range, re-disassembly waits for admission</span>
+ <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Range predates job a3f9</h4><p>DF changed on build-a at 14:06 (job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, set register values, finished">a3f9</a>). The cached decompile of 0041b210–0041b24f used the old value. Decompiling it again is Enter in DecompileView; for a context register, Re-disassemble range (catalog) would be armed in the ActionStrip, never run.</p></div><span></span></div>
 </div>
 <div>
  <span class="kicker">Invalid value · nothing posts</span>

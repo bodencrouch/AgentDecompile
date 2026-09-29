@@ -8,7 +8,7 @@
     { "name": "build",    "carries": "inspected build", "grammar": "build-id", "history": "push", "example": "build-b" },
     { "name": "addr",     "carries": "address or cursor in the inspected build", "grammar": "hex without 0x", "history": "replace", "requires": "build; without it the builds containing the address are listed", "example": "0041b210" },
     { "name": "ws",       "carries": "workspace", "values": ["code", "compare", "recovery", "evidence"], "history": "push; consecutive switches with no Go collapse" },
-    { "name": "panel",    "carries": "full corpus view inside a workspace; target of every Show all", "values": ["report", "atlas", "review", "builds", "pipeline", "readiness", "names", "reuse", "runtime", "outputs", "toolchain", "variants"], "history": "push",
+    { "name": "panel",    "carries": "full corpus view inside a workspace; target of every Show all", "values": ["report", "atlas", "review", "builds", "pipeline", "readiness", "names", "reuse", "runtime", "outputs", "toolchain", "variants", "analysis", "scripts", "versions", "history"], "history": "push", "withBuild": ["analysis", "scripts", "versions", "history"],
       "describes": {
         "report": "the recovery report: VariantLedger, rebuild comparisons, readiness and divergence reports",
         "atlas": "project intelligence (F19): function discovery and index, dependency and neighborhood exploration, prioritization",
@@ -21,7 +21,11 @@
         "runtime": "runtime capabilities of a build, one row per entity (RuntimeCapabilities)",
         "outputs": "every export, output and result by artifact × build, with status, claim tier, basis and the 8080 observation (OutputsCatalog; ws=evidence); artifact= opens its ArtifactCard",
         "toolchain": "compiler, linker and flag facts × builds, each value with its evidence level, plus the pinned rebuild toolchain (ToolchainEvidence; ws=evidence)",
-        "variants": "how each pair of builds relates: toolchain differences and entity counts by variance class, with a drill-down (VariantRelation; ws=compare, cmp selects the pair)"
+        "variants": "how each pair of builds relates: toolchain differences and entity counts by variance class, with a drill-down (VariantRelation; ws=compare, cmp selects the pair)",
+        "analysis": "each build's analyzer configuration and one-shot analyzers, read-only until Run in the ActionStrip (AnalyzerPanel); with build",
+        "scripts": "the script manager, transcript, interpreter and bundles, shown only when Advanced is on in View settings (ScriptConsole); with build for the bound session",
+        "versions": "Ghidra Server version control per build: version, checkout state, history (VersionControlPanel); with build",
+        "history": "one build's program transactions with Undo, Redo and Undo to here as confirmed catalog verbs (EditHistory); with build"
       } },
     { "name": "views",    "carries": "co-visible code views", "grammar": "comma list", "values": ["listing", "decompile", "hex", "graph"], "history": "replace; never rewritten at narrow widths" },
     { "name": "layers",   "carries": "annotation layers over the code wells (view state in the URL, like views)", "grammar": "comma list", "values": ["compiler"], "history": "replace; never rewritten at narrow widths", "example": "compiler" },

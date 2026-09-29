@@ -702,7 +702,7 @@
     "g"
    ],
    "scope": "composite",
-   "note": "Shows which-key hints, only in the composite and code scopes. Regions: g n navigator, g m main, g e evidence, g w work view, g j dock at the row of the last announced transition (dock.lastAnnouncement). Views: g l listing, g d decompile, g h hex, g r graph. Panels: g o outline, g x references, g c counterparts, g ' marks. Compiler-aware panes: g t transformation timeline, g i match explanation, g f stack frame, g s vtable slots. Dock: g p Problems tab. g b build menu. g g go to address. Layouts: g 1…5. Sequences go in aria-describedby text, not aria-keyshortcuts. g v is unassigned: it is proposed by more than one pending component and stays free until one is chosen."
+   "note": "Shows which-key hints, only in the composite and code scopes. Regions: g n navigator, g m main, g e evidence, g w work view, g j dock at the row of the last announced transition (dock.lastAnnouncement). Views: g l listing, g d decompile, g h hex, g r graph. Panels: g o outline, g x references, g c counterparts, g ' marks. Compiler-aware panes: g t transformation timeline, g i match explanation, g f stack frame, g v vtable slots. Dock: g p Problems tab. g b build menu. g g go to address. Layouts: g 1…5. Sequences go in aria-describedby text, not aria-keyshortcuts. Analysis: g a the AnalyzerPanel."
   },
   {
    "id": "code.outline",
@@ -783,10 +783,207 @@
    "id": "code.vtables",
    "label": "Virtual table slots",
    "keys": [
-    "g then s"
+    "g then v"
    ],
    "scope": "code",
-   "note": "Moves focus to VTableBrowser for the class of the selected method or type. Proposed as g then v in the VTableBrowser README; g v is also proposed by OverviewBar and VersionControlPanel, so vtables take s (slots) and g v stays unassigned. Also the palette ('Virtual table slots') and Reveal in from PointerWalk."
+   "note": "Moves focus to VTableBrowser for the class of the selected method or type. g then v was also proposed for version control (vcs.open, now palette and menu only) and for OverviewBar (overview.focus, not registered here; it needs another key or stays on its Show key button and the palette). Also the palette ('Virtual table slots') and Reveal in from PointerWalk."
+  },
+  {
+   "id": "analysis.open",
+   "label": "Analysis",
+   "keys": [
+    "g then a"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, trees and code wells (leader)",
+   "note": "Opens AnalyzerPanel (panel=analysis with build) and focuses it. It reads each build's analyzer configuration; no key runs analysis. Run in the ActionStrip posts, with ConfirmDialog for cross-build and forced runs. Also the Analysis menu, a build's row menu and the palette ('Analysis', 'Analyzers', 'One-shot')."
+  },
+  {
+   "id": "vcs.open",
+   "label": "Version control",
+   "keys": [],
+   "scope": "region",
+   "where": "Project menu, a build's row menu, palette",
+   "note": "Menu and palette only ('Version control', 'Check in…', 'Update…'); opens VersionControlPanel (panel=versions with build). Its proposed g then v went to the vtable browser (code.vtables), which had the stronger code-well use; version control is a project-level action reached from menus. No key checks in, updates or checks out."
+  },
+  {
+   "id": "edit.undo",
+   "label": "Undo",
+   "keys": [
+    "Ctrl/Cmd+Z"
+   ],
+   "scope": "global",
+   "note": "Undo of the build's top program transaction through the catalog (EditHistory, panel=history). Never active in text fields or edit mode, where the browser's own undo applies, and shadowed by inner-scope draft undo (typeEditor.draftUndo). A single top undo of a single-target edit confirms in place, naming the transaction and build; a batch, cross-build or multi-step undo (Undo to here…) arms ConfirmDialog. Never posts silently. Also the Edit menu and the palette ('Undo')."
+  },
+  {
+   "id": "edit.redo",
+   "label": "Redo",
+   "keys": [
+    "Ctrl/Cmd+Shift+Z",
+    "Ctrl+Y (Windows, Linux)"
+   ],
+   "scope": "global",
+   "note": "Redo of the build's next undone transaction through the catalog. Same rules as edit.undo: never in text fields or edit mode; a single-target redo confirms in place, anything wider arms ConfirmDialog; never posts silently. Also the Edit menu and the palette ('Redo')."
+  },
+  {
+   "id": "scripts.open",
+   "label": "Scripts",
+   "keys": [],
+   "scope": "region",
+   "where": "Tools menu, palette",
+   "note": "Menu and palette only ('Scripts', 'Run script…', 'Interpreter'); opens ScriptConsole (panel=scripts), shown only when Advanced is on in View settings. No key runs a script."
+  },
+  {
+   "id": "scripts.runLast",
+   "label": "Run last script",
+   "keys": [],
+   "scope": "region",
+   "where": "ScriptConsole, palette",
+   "note": "Menu and palette only. Arms the last script's run for its named build; the ConfirmDialog still opens and nothing posts from a key."
+  },
+  {
+   "id": "export.open",
+   "label": "Export",
+   "keys": [],
+   "scope": "region",
+   "where": "File menu, link menu, Build menu, palette",
+   "note": "Menu and palette only; opens ExportDialog. Ctrl/Cmd+E is browser-reserved. Exports land as artifacts in OutputsCatalog."
+  },
+  {
+   "id": "options.open",
+   "label": "Tool options",
+   "keys": [],
+   "scope": "region",
+   "where": "View menu, pane-header menus, palette",
+   "note": "Menu and palette only ('Options', 'Tool options'); opens OptionsPanel. Cmd+, is taken by the browser on macOS."
+  },
+  {
+   "id": "hex.selectCount",
+   "label": "Select bytes by count",
+   "keys": [],
+   "scope": "region",
+   "where": "HexStrip menu, palette",
+   "note": "Menu and palette only. Sets a transient byte range from the cursor; view state only."
+  },
+  {
+   "id": "hex.checksums",
+   "label": "Checksums of selection",
+   "keys": [],
+   "scope": "region",
+   "where": "HexStrip menu, palette",
+   "note": "Menu and palette only. Reads checksums of the selected bytes; nothing is written."
+  },
+  {
+   "id": "code.nextInstruction",
+   "label": "Next instruction",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the next instruction in the inspected build, stops at the end and says so, never wraps. Palette ('Next instruction') and the Listing's navigation menu."
+  },
+  {
+   "id": "code.prevInstruction",
+   "label": "Previous instruction",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the previous instruction in the inspected build, stops at the end and says so, never wraps. Palette ('Previous instruction') and the Listing's navigation menu."
+  },
+  {
+   "id": "code.nextData",
+   "label": "Next data",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the next data in the inspected build, stops at the end and says so, never wraps. Palette ('Next data') and the Listing's navigation menu."
+  },
+  {
+   "id": "code.prevData",
+   "label": "Previous data",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the previous data in the inspected build, stops at the end and says so, never wraps. Palette ('Previous data') and the Listing's navigation menu."
+  },
+  {
+   "id": "code.nextUndefined",
+   "label": "Next undefined bytes",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the next undefined bytes in the inspected build, stops at the end and says so, never wraps. Palette ('Next undefined bytes') and the Listing's navigation menu."
+  },
+  {
+   "id": "code.prevUndefined",
+   "label": "Previous undefined bytes",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the previous undefined bytes in the inspected build, stops at the end and says so, never wraps. Palette ('Previous undefined bytes') and the Listing's navigation menu."
+  },
+  {
+   "id": "code.nextLabel",
+   "label": "Next label",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the next label in the inspected build, stops at the end and says so, never wraps. Palette ('Next label') and the Listing's navigation menu."
+  },
+  {
+   "id": "code.prevLabel",
+   "label": "Previous label",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the previous label in the inspected build, stops at the end and says so, never wraps. Palette ('Previous label') and the Listing's navigation menu."
+  },
+  {
+   "id": "code.nextFunction",
+   "label": "Next function",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the next function in the inspected build, stops at the end and says so, never wraps. Palette ('Next function') and the Listing's navigation menu."
+  },
+  {
+   "id": "code.prevFunction",
+   "label": "Previous function",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the previous function in the inspected build, stops at the end and says so, never wraps. Palette ('Previous function') and the Listing's navigation menu."
+  },
+  {
+   "id": "code.nextNonFunction",
+   "label": "Next non-function code",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the next non-function code in the inspected build, stops at the end and says so, never wraps. Palette ('Next non-function code') and the Listing's navigation menu."
+  },
+  {
+   "id": "code.prevNonFunction",
+   "label": "Previous non-function code",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the previous non-function code in the inspected build, stops at the end and says so, never wraps. Palette ('Previous non-function code') and the Listing's navigation menu."
+  },
+  {
+   "id": "code.nextBookmark",
+   "label": "Next program bookmark",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the next program bookmark in the inspected build, stops at the end and says so, never wraps. Palette ('Next program bookmark') and the Listing's navigation menu."
+  },
+  {
+   "id": "code.prevBookmark",
+   "label": "Previous program bookmark",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the previous program bookmark in the inspected build, stops at the end and says so, never wraps. Palette ('Previous program bookmark') and the Listing's navigation menu."
+  },
+  {
+   "id": "code.nextBrace",
+   "label": "Next matching brace (DecompileView)",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the next matching brace (DecompileView) in the inspected build, stops at the end and says so, never wraps. Palette ('Next matching brace (DecompileView)') and the Listing's navigation menu."
+  },
+  {
+   "id": "code.prevBrace",
+   "label": "Previous matching brace (DecompileView)",
+   "keys": [],
+   "scope": "code",
+   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the previous matching brace (DecompileView) in the inspected build, stops at the end and says so, never wraps. Palette ('Previous matching brace (DecompileView)') and the Listing's navigation menu."
   },
   {
    "id": "pane.hold",

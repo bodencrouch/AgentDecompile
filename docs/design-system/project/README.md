@@ -101,7 +101,7 @@ Previews use one shared set of example data so that components agree with each o
 - **Toolchains (as ToolchainEvidence shows them):**
   - build-a: x86-32, VC 7.1 (build 3077), no LTCG, no PDB.
   - build-b: as build-a, plus LTCG and /Oy (hypothesis).
-  - build-c: x86-32, VC 8.0 (build 50727), LTCG, no PDB, image base 0x00010000. Its pinned rebuild toolchain (cl 19.51) cannot byte-match it.
+  - build-c: x86-32, VC 8.0 (build 50727), LTCG, no PDB, image base 0x00010000. Its rebuild toolchain from the registry (cl 19.51) cannot byte-match it.
   - build-d: x86-64, VC 14.38 (build 33128), PDB with source and flags recorded, /INCREMENTAL, /FUNCTIONPADMIN, FH4, no RTTI.
 
   Only build-d has recorded source identity, so no variance class in corpus-alpha is solid yet.

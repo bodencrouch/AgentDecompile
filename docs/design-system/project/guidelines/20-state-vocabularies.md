@@ -283,7 +283,7 @@ Prepared bundle: preparing → verified → launchable. Incomplete closure is ne
 | State | Glyph | Variant |
 |---|---|---|
 | loading | … | info |
-| not loaded | ○ | info ("Not loaded. Open to read it."; never auto-fetched from hover or peek) |
+| not loaded | ○ | info (panes and panels: "Not loaded · Enter to load"; Peeks and cards with an Open button: "Not loaded. Open to read it."; never auto-fetched from hover or peek) |
 | empty | ∅ | info |
 | disconnected | ⌁ | fault |
 | unavailable | ⊡ | unknown |
@@ -312,9 +312,9 @@ Merge result per binary, name, type, comment and relationship: **added · reused
 
 ## Version control, history and read-back (VersionControlPanel, EditHistory, PatchEditor, OptionsPanel)
 
-- **Version control:** ● latest · ↓ update available · ● checked out (an exclusive checkout is the writer lock) · ⇄ hijacked (conflict). "Stay checked out" and "Save a private copy" are the action words; "Keep" and "Kept" stay reserved for cards.
+- **Version control:** ✓ latest · ↓ update available · ● checked out (an exclusive checkout is the writer lock) · ⇄ hijacked (conflict) · ✎ ‹n› transactions not checked in (never ◷, which means stale). "Stay checked out" and "Save a private copy" are the action words; "Keep" and "Kept" stay reserved for cards.
 - **Edit history:** ↶ undoable · ↷ redo available · ⊘ cannot be undone here. An executed job's side effects are always ⊘, even when the byte journal can roll bytes back.
-- **Read-back:** ✓ "read back · matches preview" after a write is re-read; ✗ "read back · differs from preview" when it is not. "Restored to defaults" is a word, never ↺, which means recovered.
+- **Read-back:** ✓ "read back · matches preview" after a write is re-read; ✕ "read back · differs from preview" when it is not. "Restored to defaults" is a word, never ↺, which means recovered.
 - **Option state:** "not default" as a word beside a changed option. ≠ is never used for this, because it means source variance.
 
 ## Validator results (ProgramValidation)
@@ -325,10 +325,10 @@ Each build shows one of these per validator, always as the word, with the glyph 
 |---|---|---|
 | no findings | ✓ | The validator ran on this build's current receipt and reported nothing. |
 | warnings | △ | Advisory findings. They are never unmet predicates, and reach a worklist only when collected. |
-| errors | ✗ | Findings the validator marks as errors. They are still not recovery claims. |
+| errors | ✕ | Findings the validator marks as errors. They are still not recovery claims. |
 | not run | ○ | No validation receipt exists for this build. |
 | stale | ◷ | The receipt predates the build's current basis. |
-| not applicable | — | The validator does not apply to this build's language or format. |
+| not applicable | ⊘ | The validator does not apply to this build's language or format. |
 
 △ is used for validator warnings only.
 

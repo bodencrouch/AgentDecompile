@@ -33,7 +33,7 @@ Each link's accessible name carries type, target and state, for example "Job a3f
 
 - **Uncertain targets.** "absent" and "unresolved" are plain words (`.ad-absent`), never an anchor and never a link to a guess. "ambiguous" and "contested" are the word plus a link to the ladder evidence. A contested target also lists both evidenced members as candidate links, marked "no winner". Merges say "conflicting".
 - **Cross-build.** A counterpart link shows its identity-edge word (accepted or candidate), both visibly and in its accessible name. No counterpart link exists without a recorded edge. An address link always carries its build and is never re-resolved into another build. A build link only reveals its program row; switching the inspected build stays an explicit action there, and it states any checked-set clearing first.
-- **Cross-project.** Opening a project admits its eligible missing work (U105). So a link or new tab that names a project other than the open one never opens it. It lands on a StateNotice that names both projects, with "Open ‹project›" armed and confirm-gated, never run.
+- **Cross-project.** Opening a project admits its eligible missing work (U105). So a link or new tab that names a project other than the open one never opens it. It lands on a StateNotice that names both projects, with "Switch to ‹project›" armed and confirm-gated, never run, beside "Stay".
 
 ## One activation grammar
 
@@ -44,7 +44,7 @@ The same keys and gestures on every link, on both surfaces:
 | Go | Enter, click | Goes to the target per the table above. One history stop is pushed. |
 | Open beside | Shift+Enter, Shift+click | Creates a Held pane (below). The primary location does not change and no stop is pushed. On 8080 without split panes, the same link opens in a new window and the menu item reads "Open beside (new window)". Below 700px it is the second segment of the split toggle (U191). |
 | Peek | Alt+↓; 400ms pointer rest; 800ms focus rest | Opens a read-only Peek card in place, following the 1.4.13 rules in 90. Focus-rest opening is off by default at 400% zoom and below 700px, and the sheet never covers its trigger (2.4.11). `aria-expanded` and `aria-controls` are present only while the Peek is open. Alt+Enter and Ctrl/Cmd+I are rejected: many tools use them for properties, and Firefox uses Ctrl+I for Page Info. |
-| Keep | the Keep button (aria-pressed) in a Peek or evidence card; Shift+K while focus is inside that Peek or card | The card stays in the evidence rail, labelled "Kept", carried as `keep=`. The letter never works in lists where j/k move. From a trigger, the path is Tab then K, or the menu. The binding lives in `keymap.json` and is remappable. |
+| Keep | the Keep button (aria-pressed) in a Peek or evidence card; Shift+K while focus is inside that Peek or card | The card stays in the evidence rail, labelled "Kept", carried as `keep=`. The letter never works in lists where j/k move. From a trigger, the path is Tab, then Shift+K, or the menu. The binding lives in `keymap.json` and is remappable. |
 | Link menu | Shift+F10, the context-menu key, right-click | Opens the one link menu (below). Shift+right-click passes through to the browser's native menu. |
 | New browser tab | Ctrl/Cmd+Enter, Ctrl/Cmd+click, middle-click | Native behaviour; it works because every target is a real URL. |
 
@@ -54,7 +54,7 @@ The same keys and gestures on every link, on both surfaces:
 
 1. Open · Open beside · Peek · Keep (Keep appears only inside a Peek or card).
 2. **Edit**: only on editable tokens (locals, parameters, fields, callees, labels, operands, data), and only for actions present in `GET /api/v1/actions`, such as Rename…, Retype…, Comment… or Edit callee signature…. An item that does not apply stays listed, `aria-disabled`, with its reason. Choosing one opens its inline editor or arms the ActionStrip; nothing posts from the menu.
-3. **Reveal in**: only the destinations this target type resolves to, drawn from Code Browser, Compare, Recovery, Evidence, Navigator, Dock and Pipeline map. A guessed destination is never listed.
+3. **Reveal in**: only the destinations this target type resolves to, drawn from Code Browser, Compare, Recovery, Corpus, Evidence rail, Navigator, Dock and Pipeline map. A guessed destination is never listed.
 4. Copy link · Copy ‹typed value›, e.g. "Copy address 0041b210". Copy announces "Copied address 0041b210, build-b".
 
 With a coarse pointer, every row exposes one 44px row-menu button carrying the same menu, and inline links fall back to Go.
@@ -71,23 +71,24 @@ The document title updates on push and popstate only. Nothing relies on title ch
 
 ## Follow and hold
 
-There is exactly one selection owner: the primary location (project, logical entity, inspected build and address). Every other pane is one of two things.
+There is exactly one selection owner: the primary location (project, logical entity, inspected build and address). Every other pane is one of three things. Each shows its kind in one set of words: "Follows · as I move", "Follows · on Enter", "Held · ‹entity› @ ‹build› · ‹age›" or "Counterpart of ‹entity› · derived".
 
 - **Following** (default): a pure function of the primary location.
   - When the selection moves with arrows or j/k, focus moves at once. Following panes redraw in place after a 200ms settle.
   - A pane that is redrawing keeps its previous content dimmed, with its address and an inline "Loading ‹name›" notice. It drops late responses for superseded selections. It sets `aria-busy` on itself, never on the pane that holds focus.
   - Cached panes (Listing, Decompile, Evidence) follow by default. Expensive panes (Graph, Matching, corpus sections) and matrices commit on Enter; in a matrix, arrows move focus only. A commit-on-Enter pane whose selection has moved stays dimmed and says "Shows ResourceRef::Resolve; selection is now Actor::LoadFromTemplate · Enter to load".
-  - An **Update panes** control in the NavigationBar (a two-option radio group: "As I move" / "On Enter") switches every following pane to commit-on-Enter. Every following pane's header shows its mode in words ("Follows · on Enter").
-  - A following pane never decompiles, fetches expensive evidence or starts work on a cache miss. It says "Not decompiled in this session · Enter to decompile" and waits for an explicit Go. Following never crosses a project and never opens a program ("Not loaded. Open to read it.").
+  - An **Update panes** control in the NavigationBar (a two-option radio group: "As I move" / "On Enter") switches every following pane to commit-on-Enter. Every following pane's header shows its mode in words ("Follows · as I move" or "Follows · on Enter").
+  - A following pane never decompiles, fetches expensive evidence or starts work on a cache miss. It says "Not decompiled in this session · Enter to decompile" and waits for an explicit Go. Following never crosses a project and never opens a program ("Not loaded · Enter to load").
   - The Graph follows by marking the current node. It keeps its root, zoom and scroll while the selection stays inside the drawn graph. When the selection leaves it, it says "Selection is outside this graph · Re-root here" and re-roots only on that action. Moving within the graph moves focus; Enter on a node is Go, and focus lands on the Listing row.
 - **Held**: frozen to one entity × build × address, with an optional basis token.
   - Only center and secondary panes are held. Evidence sections and Peeks are kept as cards instead.
-  - The pane's toolbar has a toggle with the constant name **Hold this pane** (aria-pressed). The visible state words beside it read "Following · sync A" or "Held · ‹entity› @ ‹build› · ‹age›".
+  - The pane's toolbar has a toggle with the constant name **Hold this pane** (aria-pressed). The visible state words beside it read "Follows · as I move" (or "Follows · on Enter") or "Held · ‹entity› @ ‹build› · ‹age›".
   - A held pane has a 2px `ink-strong` frame. It shows current data labelled "Held · read ‹time›".
   - A different basis reads "◷ Basis changed since held · Refresh". A hold without a basis token reads "Basis at hold time not recorded". Old data is never replayed, and a pane is never marked unchanged by assumption.
   - A held pane has its own Back/Forward buttons, which never touch browser history. Inside it, Enter moves that pane. On a kept card, Enter on a link goes. Each container's footer says which.
   - **Make primary** (Enter on its Held chip) is the only way a held pane changes the primary selection. It moves the one selection to the held location, pushes a stop and releases the hold; the pane stays open and becomes Following. A held pane never closes by itself.
   - Held panes and kept cards are read-only. The ActionStrip always binds the primary selection.
+- **Derived**: follows the selection's counterpart on one other build ("Counterpart of ‹entity› · derived", a dotted frame in layout schematics). Compare's counterpart pane and the split opened with Ctrl/Cmd+\ are derived. It moves only through recorded anchors, never by offset or order; Enter in it is Go; Hold this pane freezes it like any pane, and Follow again returns a held pane to derived.
   - When the selection moves other than by a history step (which rebinds without arming, below), an armed ActionStrip keeps its bound target and says "Bound to ResourceRef::Resolve · selection is now Actor::LoadFromTemplate · Rebind". It never retargets silently. Rebind binds it to the current selection without arming it; Esc with focus in the strip disarms it. Either way the entered fields stay as a draft.
 
 The Code Browser has at most two center panes (plus the HexStrip). Turning on a third view replaces a named one, never "the pane beside it": Graph replaces Decompile, Decompile replaces Graph, and Listing replaces Graph; the toggle says which before activation. The Compare workspace may show a three-way split as its one secondary area. A further hold becomes a kept card, with the notice "Two center panes in use; kept as a card in Evidence". At most three cards are kept; a fourth Keep is refused with "Three cards kept; release one", and nothing is evicted. A kept card whose basis changed reads "◷ Basis changed since kept · Refresh". In a derived pane, Alt+PageDown/PageUp move to the next or previous build with a counterpart.
@@ -185,7 +186,7 @@ Both surfaces load one machine-readable schema, [`location-schema.json`](../loca
 
 ### Project and session
 
-A URL or history stop that names a project other than the active one never switches projects. It shows a StateNotice that names both projects, with **Switch** armed and **Stay**. The notice says that opening a project admits its eligible missing work and reuses its receipts. A landing with no active project offers "Open ‹project›" the same way. History never crosses session tabs silently. An explicit URL wins over a restored session tab only within the active project.
+A URL or history stop that names a project other than the active one never switches projects. It shows a StateNotice that names both projects, with **Switch to ‹project›** armed and **Stay**. The notice says that opening a project admits its eligible missing work and reuses its receipts. A landing with no active project offers "Open ‹project›" the same way. History never crosses session tabs silently. An explicit URL wins over a restored session tab only within the active project.
 
 ### History
 
@@ -216,7 +217,7 @@ A URL or history stop that names a project other than the active one never switc
   - No action or submission is ever replayed.
 - **Restore reads now.** "Restore the place; data is read now."
   - On restore or landing, cached panes (Listing, Decompile, Evidence) render from stored evidence.
-  - Expensive panes (Graph, Matching, corpus panels, a build whose program is not open) show "Not loaded. Open to read it." until Enter.
+  - Expensive panes (Graph, Matching, corpus panels, a build whose program is not open) show "Not loaded · Enter to load" until Enter.
   - Reads are keyed by location token and selection generation, and superseded reads are aborted.
 - **Non-authoritative state.** `history.state` (per browser tab, per viewer) and Recent (stored in the durable workspace, F23) are client state. They are never evidence, and never a basis for a claim.
 

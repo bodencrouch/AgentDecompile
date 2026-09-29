@@ -7,7 +7,7 @@
     { "name": "entity",   "carries": "logical entity", "grammar": "logical-id or symbol", "history": "push", "example": "ResourceRef::Resolve" },
     { "name": "build",    "carries": "inspected build", "grammar": "build-id", "history": "push", "example": "build-b" },
     { "name": "addr",     "carries": "address or cursor in the inspected build", "grammar": "hex without 0x, or ‹space›::hex for a non-default address space (e.g. OV1::00001000, EXTERNAL::0000000c)", "history": "replace", "requires": "build; without it the builds containing the address are listed", "example": "0041b210" },
-    { "name": "ws",       "carries": "workspace", "values": ["code", "compare", "recovery", "evidence"], "history": "push; consecutive switches with no Go collapse" },
+    { "name": "ws",       "carries": "workspace (tab labels: Code Browser, Compare, Recovery, Corpus; the value evidence is labelled Corpus)", "values": ["code", "compare", "recovery", "evidence"], "history": "push; consecutive switches with no Go collapse" },
     { "name": "panel",    "carries": "full corpus view inside a workspace; target of every Show all", "values": ["report", "atlas", "review", "builds", "pipeline", "readiness", "names", "reuse", "runtime", "outputs", "toolchain", "variants", "analysis", "scripts", "versions", "history", "types", "search", "validation", "program", "debuginfo", "fid", "patterns", "project"], "history": "push", "withBuild": ["analysis", "scripts", "versions", "history", "validation", "program", "debuginfo", "fid", "patterns"],
       "describes": {
         "validation": "ProgramValidation: validator results per build",
@@ -26,7 +26,7 @@
         "reuse": "existing recovered analysis and receipts found for a build, before any new work",
         "runtime": "runtime capabilities of a build, one row per entity (RuntimeCapabilities)",
         "outputs": "every export, output and result by artifact × build, with status, claim tier, basis and the 8080 observation (OutputsCatalog; ws=evidence); artifact= opens its ArtifactCard",
-        "toolchain": "compiler, linker and flag facts × builds, each value with its evidence level, plus the pinned rebuild toolchain (ToolchainEvidence; ws=evidence)",
+        "toolchain": "compiler, linker and flag facts × builds, each value with its evidence level, plus the rebuild toolchain from the registry (ToolchainEvidence; ws=evidence)",
         "variants": "how each pair of builds relates: toolchain differences and entity counts by variance class, with a drill-down (VariantRelation; ws=compare, cmp selects the pair)",
         "analysis": "each build's analyzer configuration and one-shot analyzers, read-only until Run in the ActionStrip (AnalyzerPanel); with build",
         "scripts": "the script manager, transcript, interpreter and bundles, shown only when Advanced is on in View settings (ScriptConsole); with build for the bound session",
@@ -42,7 +42,7 @@
     { "name": "cmp",      "carries": "split pair", "grammar": "build-id..build-id", "history": "push on open and close", "example": "build-a..build-c", "resolution": "recorded edges and locators only" },
     { "name": "hold",     "carries": "held center panes", "grammar": "kind:id@build[:addr][~basis]", "kinds": "see kinds", "max": 2, "overflow": "extra entries become keep entries, with a notice", "history": "replace; Back/Forward never open, close or re-point holds", "example": "symbol:ResourceRef::Resolve@build-c:00082f40~b7e2" },
     { "name": "keep",     "carries": "Kept cards in the evidence rail", "grammar": "kind:id[@build][~basis]", "kinds": "see kinds", "requires": "build, except for the build-independent kinds entity and node", "repeatable": true, "max": 3, "overflow": "refused with 'Three cards kept; release one'; nothing is evicted", "history": "replace", "example": "receipt:r-5521@build-b" },
-    { "name": "dock",     "carries": "dock tab (the five tabs of guideline 30)", "values": ["activity", "recovery", "logs", "jobs", "problems"], "history": "replace" },
+    { "name": "dock",     "carries": "dock tab (the five tabs of guideline 30: Events, Objectives, Logs, Jobs, Problems)", "values": ["events", "objectives", "logs", "jobs", "problems"], "history": "replace" },
     { "name": "job",      "carries": "focused job", "grammar": "job-id", "history": "push", "example": "a3f9" },
     { "name": "receipt",  "carries": "focused receipt", "grammar": "receipt-id", "history": "push" },
     { "name": "type",     "carries": "type or field path", "grammar": "Type[.field]", "history": "push", "example": "CacheEntry.name_len" },
@@ -114,7 +114,7 @@
       { "axis": "type.find",       "carries": "type or category name text in the Types view", "example": "type.find:CacheEntry" },
       { "axis": "type.use",        "carries": "uses of one type on the inspected build", "example": "type.use:CacheEntry" },
       { "axis": "search.mode",     "carries": "the SearchWorkbench mode (with panel=search): memory, text, decompiled, instructions, scalars, strings, directrefs, addrtables, replace", "example": "search.mode:memory" },
-      { "axis": "search.scope",    "carries": "the SearchWorkbench scope: build (the inspected build), all, selection (one build) or view (the ProgramTreeView restriction); nothing is searched outside it", "example": "search.scope:all" },
+      { "axis": "search.scope",    "carries": "the SearchWorkbench scope: build (the inspected build), all, addrsel (the address selection, one build) or view (the ProgramTreeView restriction); nothing is searched outside it", "example": "search.scope:all" },
       { "axis": "ptree.view",      "carries": "the Listing view restriction from ProgramTreeView, as ‹tree›/‹path› on the inspected build; repeatable for several nodes; view state, never program data", "example": "ptree.view:Program Tree/.text" },
       { "axis": "results.build",   "carries": "ResultsTable rows on one build", "example": "results.build:build-c" },
       { "axis": "results.kind",    "carries": "ResultsTable rows by the row's own kind column (reference type, comment kind, symbol type)", "example": "results.kind:call" },
@@ -136,6 +136,11 @@
     "tab": "views",
     "pin": "keep",
     "focus": "addr"
+  },
+  "valueAliases": {
+    "note": "Earlier values that still parse; each is rewritten to its canonical value with replaceState, like a parameter alias.",
+    "dock": { "activity": "events", "recovery": "objectives" },
+    "f": { "search.scope:selection": "search.scope:addrsel" }
   },
   "aliasRules": [
     "A canonical name wins over its alias; an ignored alias is named in a notice.",

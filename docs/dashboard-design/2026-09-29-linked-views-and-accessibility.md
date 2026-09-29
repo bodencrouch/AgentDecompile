@@ -86,8 +86,8 @@ Same columns and counting rules as the table above: view switches only, keystrok
 
 | Journey | Task | Before | After | Main units |
 |---|---|---:|---:|---|
-| J40 | Walk a pointer chain through three structs (`this->cache->entries[i].name_len`) and compare each hop's offset on two builds | 8 | 0 | U195 PointerWalk: `p` opens the walk as a rail section; per-build offset cells, the layout strip and the step Peek read all three structs at 0 (Before: a type view per struct per build, one program switch, the return; +4 per further build). Enter on a step's type is 1. The Walk pointers preset (`g then 7`, proposed) adds one pick per session |
-| J41 | Find why a function differs between two builds: compiler (flags, toolchain, link) or source | 6 | 1 | U194 VariantRelation: the pair drill row names the class, its level word, the deciding evidence and each tool's opinion (Before: program switch, each build's header and PDB info, the diff report, the source record in the docs, the return). 0 when CompilerLayer's cross-build note already classes the range (U196, not credited again). The Explain build difference preset (`g then 6`, proposed) adds one pick per session |
+| J40 | Walk a pointer chain through three structs (`this->cache->entries[i].name_len`) and compare each hop's offset on two builds | 8 | 0 | U195 PointerWalk: `p` opens the walk as a rail section; per-build offset cells, the layout strip and the step Peek read all three structs at 0 (Before: a type view per struct per build, one program switch, the return; +4 per further build). Enter on a step's type is 1. The Walk pointers preset (`g then 7`) adds one pick per session |
+| J41 | Find why a function differs between two builds: compiler (flags, toolchain, link) or source | 6 | 1 | U194 VariantRelation: the pair drill row names the class, its level word, the deciding evidence and each tool's opinion (Before: program switch, each build's header and PDB info, the diff report, the source record in the docs, the return). 0 when CompilerLayer's cross-build note already classes the range (U196, not credited again). The Explain build difference preset (`g then 6`) adds one pick per session |
 | J42 | Explain a non-matching rebuild: which differences are register choice, order, stack slots, inlining, flags or source, and what to try next | 5 | 1 | U197 MatchExplain beside ObjectDiff: class table with counts and a next step; FrameLayout arrives as a kept card at 0; the 1 is the Go to ToolchainEvidence when the class is a toolchain or flags mismatch (0 otherwise). Before: the diff read row by row, the stack editor, the recipe in the docs, the receipt, the return |
 | J43 | Check which compiler, linker and flags built each of four builds, and whether the rebuild toolchain can byte-match each | 8 | 1 | U193 ToolchainEvidence: one facts × builds grid with level words and the pinned-toolchain row (Before: per build, a program switch and its header, PDB or detector output) |
 | J44 | Find one vtable slot's target on every build | 7 | 0 | U198 VTableBrowser: `g then v` is a region move; each cell names the slot's target per build by logical method, with its edge word. Opening one target is Enter, 1 (J14, credited to U177, covers opening a counterpart beside). Before: the vftable on build-a, then a program switch and a vftable lookup on each of three builds |
@@ -127,7 +127,7 @@ In checkable grids, Ctrl/Cmd-click and Shift-click belong to the checked set; th
 - Focus never changes workspace, build, dock tab or history.
 - Absent and unresolved are words. Ambiguous and contested are the word plus the ladder link, and contested lists both candidates with "no winner".
 - Counterpart links show their edge word and exist only for recorded edges. Address links carry their build.
-- A link naming another project lands on a StateNotice with "Open ‹project›" armed and confirm-gated, because opening admits work (U105).
+- A link naming another project lands on a StateNotice with "Switch to ‹project›" armed and confirm-gated beside "Stay", because opening admits work (U105).
 - Dead ends arm at most one action from `GET /api/v1/actions`, reuse first (binding or resume when recovered analysis or receipts exist), nothing while discovery is not loaded, and never run it.
 - Interception is a contract: only same-origin anchors that parse fully under the schema; no server GET for intercepted links; no speculative prefetch; the URL is the only navigation state. Whether the static surface intercepts today is **not verified from docs**.
 
@@ -371,7 +371,7 @@ Already in the design system: ReviewDetail (detail in place or beside by width, 
 *Acceptance (future):* a refused batch of three rows keeps page, anchor and focus and unchecks only the changed rows.
 
 ### U187 · Persistent, token-driven layout (P2; UX-17)
-Already in the design system: LayoutPresets (five presets, View menu, palette, `g` then 1…5), the pane-header size menu and the rail toggles. Still missing:
+Already in the design system: LayoutPresets (seven presets, View menu, palette, `g` then 1…7), the pane-header size menu and the rail toggles. Still missing:
 - **Token-driven grid**: the Workstation grid in bundle.css hardcodes 200px and 220px (WDG-38). It reads `--navigator-w`, `--evidence-w` and `--dock-h`, written by splitter keys, drag, the size menu and presets, and stored per viewer in durable workspace state (F23) as a diff. localStorage is at most a non-authoritative try/catch cache.
 - **Collapse strips**: each rail and the dock gets a 24px disclosure button with a stable name ("Navigator", "Evidence", "Activity"), aria-expanded and aria-keyshortcuts. Collapsing the region that holds focus moves focus to its strip. The strips are hidden below 700px, where NarrowFlow applies.
 - **Splitters per APG**: arrows 16px, Shift+arrows 64px, Home/End to the minimum and maximum, Enter collapses and restores. Reset lives in the size menu, superseding "Home resets" in 30, 90 and LayoutPresets.
@@ -546,6 +546,16 @@ Components: ListingFieldLayout, OverviewBar, SymbolTree, ProgramTreeView, Memory
 - **Artifact keep kind is build-independent.** An artifact may be corpus-scoped (the export bundle), so `keep=artifact:‹id›` needs no build.
 - **`vrel` and `variance`.** `vrel` filters the entities of one `cmp` pair in VariantRelation; `variance` filters annotations, steps, slots or items in the code views. Both take compile, entropy, source and unknown; identical is not a value.
 
+### Usability audit, round 4 (2026-09-29)
+
+A first-time, keyboard-only and screen-reader walk-through of the whole design system found 40 issues (11 high). All were fixed; the decisions are:
+
+- **One typeahead rule:** in every list, grid, tree and treegrid, typeahead starts with `/`; text fields and comboboxes take plain typing.
+- **Keys:** presets are `g then 1…7` everywhere; a **Ghidra key profile** (l, ;, t, d, c, f, all arming only) sits beside IDA; next and previous function are Ctrl/Cmd+↓/↑; F2 renames a function from its name in Listing and DecompileView; `a` is always the build-scope key; OutputsCatalog copies with Ctrl/Cmd+C; reorders are Alt+Shift+↑/↓; every leader chord is a remappable command; `=` and `file:` go-to prefixes; `?` is literal; Ctrl/Cmd+F8 marks handled and steps; more punctuation keys are layout-safe; closed session tabs can be reopened.
+- **One name per thing:** the Corpus workspace (`ws=evidence`), the Evidence rail, the Dock with Events and Objectives tabs, Recovery facts in the rail; a Location and history landmark with its own skip link and F6 stop; an APG Menubar (File, Edit, View, Select, Search, Analysis, Tools, Project, Help); "Builds ▾" is the only build menu.
+- **Copy:** "Not available on this server yet. ‹what still works› · What this server offers" replaces every "catalog action needed"; visible labels say "Prepare", "Undo…", "Redo…", "Pause new work", "Restore" and "Check ‹name›", never "Arm", "(catalog)", admission or a tool id; one set of follow words ("Follows · as I move", "Follows · on Enter", "Held · …", "Counterpart of … · derived"); panes say "Not loaded · Enter to load"; "address selection" for Ghidra's selection; "Stay at this address on rebase"; "rebuild toolchain" instead of "pinned".
+- **States:** derived panes are the third pane kind; the Functions list has empty, no-match and loading states; build-column grids have one narrow form (NarrowFlow); the rail lists its Ladder section; validator and version-control glyphs follow guideline 20 (✕, ⊘, ✓ latest, ✎ not checked in).
+
 ## Accessibility baseline already applied to the design system
 
 Selection shown by fill plus a 3px bar; muted text and state words promoted on the fill; accent removed from statuses; links underlined; 24px targets; real tabs, grids, combobox, alert dialog and separator semantics in previews; spoken words for glyph-only cells; progress roles; diff words; prefers-contrast and forced-colors support (their bundle.css defects are listed in U190); color-scheme; tabular numerals; log tails keep the newest text; guideline sections Linked views and Accessibility. See the design system for the rules.
@@ -586,7 +596,7 @@ Selection shown by fill plus a 3px bar; muted text and state words promoted on t
 | One job line for what it targeted and what it changed | Separate "Targets" (asked to act on) and "Changed" (recorded by its receipts) lines (U180). |
 | A fixed pause-scope sentence; Explain from the outline markdown | Scope composed from the backend's report; Explain from the served model with its revision, labelled design text (U181). |
 | Dock at 23dvh below 700px; Open beside into Inspect (NarrowFlow) | Activity is a rail pane plus a one-line status; Open beside is the Held second segment of the split tablist (U191). |
-| Ctrl/Cmd+Alt+digit layout presets (ReviewDetail, SplitCompare) | `g` then 1…5, which is AltGr-safe (U186, U187). |
+| Ctrl/Cmd+Alt+digit layout presets (ReviewDetail, SplitCompare) | `g` then 1…7, which is AltGr-safe (U186, U187). |
 
 ## Open questions
 

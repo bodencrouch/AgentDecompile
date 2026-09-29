@@ -9,8 +9,8 @@
   "edit": "Active in edit mode inside an editable well or inline editor; other single keys are off."
  },
  "precedence": "edit > code > composite > region > global. A key bound in an inner active scope shadows the outer binding and is not a conflict. Inside a code well x focuses References; in a grid x checks the row. Code wells have no checked set.",
- "typeahead": "In composites that bind single-letter commands (the Functions grid, ProblemsList, the MarksList grids, OutputsCatalog, TypeManager, TypeEditor, StackFrameEditor, SymbolTree, ProgramTreeView, MemoryMapTable and ResultsTable), typeahead starts with / into a visible filter field and plain letters are commands. Elsewhere typeahead needs no prefix.",
- "punctuationKeys": "], [, {, } and ' match the typed character (the key value), not the physical key, and accept AltGr and dead-key input. KeymapSettings shows the layout hint.",
+ "typeahead": "In every list, grid, tree and treegrid, typeahead starts with / into a visible filter field, and plain letters are commands (j, k, x, g, m, w, . and the component's own letters). Text fields and comboboxes (the go-to field, ProgramSettings' language list) take plain typing.",
+ "punctuationKeys": "], [, {, }, ', /, ., *, +, - and \\ match the typed character (the key value), not the physical key, and accept AltGr and dead-key input. KeymapSettings shows the layout hint.",
  "browserReserved": [
   "Ctrl/Cmd+W",
   "Ctrl/Cmd+T",
@@ -43,10 +43,11 @@
  ],
  "profiles": {
   "default": "Modifier globals plus focus-scoped single keys below.",
+  "ghidra": "Adds focus-scoped Ghidra letters in code wells, all arming only (nothing posts from a key): l rename (InlineRename), ; comment editor, t set data type, d disassemble, c clear code (the compiler layer then stays on the Views toolbar and palette), f create function. Go to address is g then g and Ctrl/Cmd+G, as in every profile.",
   "ida": "Adds focus-scoped n (rename), y (set type), ; (opens the comment editor) and d (disassemble; arms only) in code wells. Go to address is g then g from the leader, as in every profile.",
   "off": "Turns every single-character key off; modifier globals and menus remain."
  },
- "profilesNote": "Ghidra-style and VS Code-style profiles are deferred until each is specified against this file. F12 stays browser-reserved, and Esc never goes Back in any profile.",
+ "profilesNote": "A VS Code-style profile is deferred until it is specified against this file. F12 stays browser-reserved, and Esc never goes Back in any profile. Commands with a profile field are active only in that profile; a profile key shadows the default binding of the same key in the same scope (ghidra c over code.compilerLayer).",
  "commands": [
   {
    "id": "link.go",
@@ -88,7 +89,7 @@
    ],
    "scope": "region",
    "where": "inside a Peek or evidence card",
-   "note": "The Keep button (aria-pressed) is the primary control. The letter works only while focus is inside a Peek or on a kept card, never on list rows (where k moves); from a trigger, Tab then K, or the link menu. Carried as keep=…"
+   "note": "The Keep button (aria-pressed) is the primary control. The letter works only while focus is inside a Peek or on a kept card, never on list rows (where k moves); from a trigger, Tab, then Shift+K, or the link menu. Carried as keep=…"
   },
   {
    "id": "link.revealIn",
@@ -129,16 +130,17 @@
     "Ctrl/Cmd+P"
    ],
    "scope": "global",
-   "note": "Focuses the NavigationBar go-to combobox. Below 1100px, where the field is collapsed, it opens the same engine in the palette dialog. A prefix counts only as the first character: @ or :: symbol, : address, # logical id, ! job, % receipt or basis digest, ~ node, > command, $ string, ' marks and program bookmarks. ? is not a prefix, because decorated names start with it; help is Ctrl/Cmd+/ and the Help menu. The empty query lists Recent locations, Marks, Recent actions and Recent jobs."
+   "note": "Focuses the NavigationBar go-to combobox. Below 1100px, where the field is collapsed, it opens the same engine in the palette dialog. A prefix counts only as the first character: @ or :: symbol, : address, # logical id, ! job, % receipt or basis digest, ~ node, > command, $ string, ' marks and program bookmarks, = address expression, file: file offset. * is the only name wildcard; ? is always literal and never a prefix, because decorated names contain it; help is Ctrl/Cmd+/ and the Help menu. The empty query lists Recent locations, Marks, Recent actions and Recent jobs."
   },
   {
    "id": "goto.address",
    "label": "Go to address",
    "keys": [
-    "Ctrl/Cmd+G"
+    "Ctrl/Cmd+G",
+    "g then g"
    ],
    "scope": "global",
-   "note": "Focuses the go-to field with : typed. Its first, highlighted row is the last address jump ('Last: build-b:0041b2c0'), so Enter repeats it visibly. Also g then g inside a list, grid, tree or code well."
+   "note": "Focuses the go-to field with : typed. Its first, highlighted row is the last address jump ('Last: build-b:0041b2c0'), so Enter repeats it visibly. g then g works inside a list, grid, tree or code well."
   },
   {
    "id": "history.back",
@@ -178,7 +180,7 @@
     "F6"
    ],
    "scope": "global",
-   "note": "Cycles header, navigator, center, evidence, work view and dock in visual order and restores each region's last focus. Where the browser or a screen reader takes F6, use g then the region letter (platformCautions)."
+   "note": "Cycles header, location and history, navigator, center, evidence, work view and dock in visual order and restores each region's last focus. Where the browser or a screen reader takes F6, use g then the region letter (platformCautions)."
   },
   {
    "id": "region.prev",
@@ -222,7 +224,7 @@
     "g then j"
    ],
    "scope": "composite",
-   "note": "Opens the dock if it is collapsed and focuses the row of the last announced transition. Also the palette."
+   "note": "Opens the dock if it is collapsed and focuses the row of the last announced transition. Also the palette ('Go to last announcement'), which is how announcements name it when focus is on a button."
   },
   {
    "id": "split.open",
@@ -230,7 +232,8 @@
    "keys": [
     "Ctrl/Cmd+\\"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "Also the Views toolbar's Split button and the palette ('Open split'). Ctrl/Cmd+\\ needs AltGr on some layouts (altGrCaution)."
   },
   {
    "id": "split.swap",
@@ -238,7 +241,8 @@
    "keys": [
     "Ctrl/Cmd+Shift+\\"
    ],
-   "scope": "global"
+   "scope": "global",
+   "note": "Also the palette ('Swap panes'). Ctrl/Cmd+Shift+\\ needs AltGr on some layouts (altGrCaution)."
   },
   {
    "id": "build.next",
@@ -284,7 +288,16 @@
    "keys": [],
    "scope": "composite",
    "where": "worklist stepper and item grid",
-   "note": "No default key. A per-viewer checklist toggle described 'your checklist · not a review decision · starts no work'. The item grid is not checkable, so Space and x do not toggle it."
+   "note": "No default key; see worklist.handledNext. A per-viewer checklist toggle described 'your checklist · not a review decision · starts no work'. The item grid is not checkable, so Space and x do not toggle it."
+  },
+  {
+   "id": "worklist.handledNext",
+   "label": "Mark handled and go to next",
+   "keys": [
+    "Ctrl/Cmd+F8"
+   ],
+   "scope": "global",
+   "note": "Marks the current worklist item handled (your checklist; starts no work) and steps to the next, like F8. Not inside an edit field. On some Mac keyboards the function keys need Fn (platformCautions); the stepper's Handled button names this command."
   },
   {
    "id": "diff.next",
@@ -325,7 +338,7 @@
   },
   {
    "id": "layout.preset",
-   "label": "Layout preset 1–5",
+   "label": "Layout preset 1–7",
    "keys": [
     "g then 1…7"
    ],
@@ -587,8 +600,8 @@
     "F2"
    ],
    "scope": "code",
-   "where": "locals, parameters and labels in code wells",
-   "note": "Opens InlineRename under the line, never over it; it confirms in place."
+   "where": "locals, parameters, labels and function names (name or header row) in code wells",
+   "note": "Opens InlineRename under the line, never over it; it confirms in place. On a function it shows the function's identity and counterparts, as in the Functions grid."
   },
   {
    "id": "tabs.close",
@@ -606,6 +619,13 @@
    "scope": "composite",
    "where": "Sessions tablist",
    "note": "Menu-only: the tab's context menu and the palette ('Move tab left', 'Move tab right'). Ctrl+Shift+PageUp/PageDown are browser-taken."
+  },
+  {
+   "id": "tabs.reopen",
+   "label": "Reopen closed session tab",
+   "keys": [],
+   "scope": "global",
+   "note": "No default key; the palette and the status line's 'Closed ‹title› · Reopen'. Reopens the last closed session tabs (up to 10, from durable workspace state)."
   },
   {
    "id": "code.reflect",
@@ -677,6 +697,7 @@
     "n"
    ],
    "scope": "code",
+   "profile": "ida",
    "note": "profile ida; opens InlineRename under the line"
   },
   {
@@ -686,6 +707,7 @@
     "y"
    ],
    "scope": "code",
+   "profile": "ida",
    "note": "profile ida; opens the type editor under the line"
   },
   {
@@ -695,7 +717,68 @@
     ";"
    ],
    "scope": "code",
+   "profile": "ida",
    "note": "profile ida; opens the comment editor (InlineRename Comment mode) under the line"
+  },
+  {
+   "id": "ghidra.rename",
+   "label": "Rename (Ghidra profile)",
+   "keys": [
+    "l"
+   ],
+   "scope": "code",
+   "profile": "ghidra",
+   "note": "profile ghidra; opens InlineRename under the line (functions, labels, locals and parameters)"
+  },
+  {
+   "id": "ghidra.comment",
+   "label": "Comment (Ghidra profile)",
+   "keys": [
+    ";"
+   ],
+   "scope": "code",
+   "profile": "ghidra",
+   "note": "profile ghidra; opens the comment editor (InlineRename Comment mode) under the line"
+  },
+  {
+   "id": "ghidra.type",
+   "label": "Set data type (Ghidra profile)",
+   "keys": [
+    "t"
+   ],
+   "scope": "code",
+   "profile": "ghidra",
+   "note": "profile ghidra; opens the type chooser under the line; arms only"
+  },
+  {
+   "id": "ghidra.disassemble",
+   "label": "Disassemble (Ghidra profile)",
+   "keys": [
+    "d"
+   ],
+   "scope": "code",
+   "profile": "ghidra",
+   "note": "profile ghidra; arms the catalog's disassemble action on this build; never posts"
+  },
+  {
+   "id": "ghidra.clear",
+   "label": "Clear code (Ghidra profile)",
+   "keys": [
+    "c"
+   ],
+   "scope": "code",
+   "profile": "ghidra",
+   "note": "profile ghidra; arms the catalog's clear action on this build; never posts. Replaces code.compilerLayer's c in this profile; the compiler layer stays on the Views toolbar and palette"
+  },
+  {
+   "id": "ghidra.createFunction",
+   "label": "Create function (Ghidra profile)",
+   "keys": [
+    "f"
+   ],
+   "scope": "code",
+   "profile": "ghidra",
+   "note": "profile ghidra; arms function creation at the cursor on this build; never posts"
   },
   {
    "id": "leader",
@@ -704,7 +787,137 @@
     "g"
    ],
    "scope": "composite",
-   "note": "Shows which-key hints, only in the composite and code scopes. Regions: g n navigator, g m main, g e evidence, g w work view, g j dock at the row of the last announced transition (dock.lastAnnouncement). Views: g l listing, g d decompile, g h hex, g r graph. Panels: g o outline, g x references, g c counterparts, g ' marks. Compiler-aware panes: g t transformation timeline, g i match explanation, g f stack frame, g v vtable slots. Dock: g p Problems tab. g b build menu. g g go to address. Layouts: g 1…5. Sequences go in aria-describedby text, not aria-keyshortcuts. Analysis: g a the AnalyzerPanel."
+   "note": "Shows which-key hints, only in the composite and code scopes. Every chord is its own command, so it can be found in the shortcut sheet, turned off or remapped: regions g n, g m, g e, g w, g j; views g l, g d, g h, g r; panels g o, g x, g c, g '; compiler-aware panes g t, g i, g f, g v; dock g p; g b Builds menu; g g go to address; g a Analysis; layouts g 1…7. Sequences go in aria-describedby text, not aria-keyshortcuts."
+  },
+  {
+   "id": "region.navigator",
+   "label": "Go to navigator",
+   "keys": [
+    "g then n"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, trees and code wells (leader)",
+   "note": "Moves focus to the navigator region and restores its last focus. F6 cycles regions too."
+  },
+  {
+   "id": "region.main",
+   "label": "Go to main pane",
+   "keys": [
+    "g then m"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, trees and code wells (leader)",
+   "note": "Moves focus to the center (main) region."
+  },
+  {
+   "id": "region.evidence",
+   "label": "Go to evidence rail",
+   "keys": [
+    "g then e"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, trees and code wells (leader)",
+   "note": "Moves focus to the evidence rail, showing it if collapsed."
+  },
+  {
+   "id": "region.workView",
+   "label": "Go to work view",
+   "keys": [
+    "g then w"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, trees and code wells (leader)",
+   "note": "Moves focus to the work view, showing it if collapsed."
+  },
+  {
+   "id": "view.listing",
+   "label": "Show Listing",
+   "keys": [
+    "g then l"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, trees and code wells (leader)",
+   "note": "Shows the Listing in the center and focuses it; the selection is unchanged."
+  },
+  {
+   "id": "view.decompile",
+   "label": "Show Decompile",
+   "keys": [
+    "g then d"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, trees and code wells (leader)",
+   "note": "Shows DecompileView in the center and focuses it; an expensive pane waits for Enter ('Not loaded · Enter to load')."
+  },
+  {
+   "id": "view.hex",
+   "label": "Show bytes",
+   "keys": [
+    "g then h"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, trees and code wells (leader)",
+   "note": "Shows HexStrip and focuses it."
+  },
+  {
+   "id": "view.graph",
+   "label": "Show graph",
+   "keys": [
+    "g then r"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, trees and code wells (leader)",
+   "note": "Shows GraphPane and focuses it; it waits for Enter like every expensive pane."
+  },
+  {
+   "id": "rail.references",
+   "label": "References section",
+   "keys": [
+    "g then x"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, trees and code wells (leader)",
+   "note": "Moves focus to the rail's References section (XrefPanel)."
+  },
+  {
+   "id": "rail.counterparts",
+   "label": "Counterparts section",
+   "keys": [
+    "g then c"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, trees and code wells (leader)",
+   "note": "Moves focus to the rail's Counterparts section (CounterpartStrip)."
+  },
+  {
+   "id": "marks.open",
+   "label": "Marks",
+   "keys": [
+    "g then '"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, trees and code wells (leader)",
+   "note": "Opens MarksList and focuses it. The ' key matches the typed character (punctuationKeys)."
+  },
+  {
+   "id": "dock.problems",
+   "label": "Problems tab",
+   "keys": [
+    "g then p"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, trees and code wells (leader)",
+   "note": "Opens the dock at its Problems tab and focuses the first problem."
+  },
+  {
+   "id": "build.menu",
+   "label": "Builds menu",
+   "keys": [
+    "g then b"
+   ],
+   "scope": "composite",
+   "where": "lists, grids, trees and code wells (leader)",
+   "note": "Opens the Builds ▾ menu on the NavigationBar's build crumb (one item per build)."
   },
   {
    "id": "code.outline",
@@ -949,11 +1162,11 @@
    "id": "symbols.scope",
    "label": "Logical or one build",
    "keys": [
-    "s"
+    "a"
    ],
    "scope": "composite",
    "where": "the SymbolTree treegrid only",
-   "note": "Switches between Logical · all builds and one-build scope and announces it. s is composite inside this treegrid; s in the ProgramTreeView (ptree.select) and ResultsTable (results.makeSelection) grids is a different composite. Typeahead starts with /."
+   "note": "Switches between Logical · all builds and one-build scope and announces it. a is the build-scope key in every tree and grid (types.scope, mmap.align); s always makes an address selection. Typeahead starts with /."
   },
   {
    "id": "ptree.restrict",
@@ -1164,7 +1377,7 @@
    "label": "Export",
    "keys": [],
    "scope": "region",
-   "where": "File menu, link menu, Build menu, palette",
+   "where": "File menu, link menu, palette",
    "note": "Menu and palette only; opens ExportDialog. Ctrl/Cmd+E is browser-reserved. Exports land as artifacts in OutputsCatalog."
   },
   {
@@ -1250,16 +1463,20 @@
   {
    "id": "code.nextFunction",
    "label": "Next function",
-   "keys": [],
+   "keys": [
+    "Ctrl/Cmd+ArrowDown"
+   ],
    "scope": "code",
-   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the next function in the inspected build, stops at the end and says so, never wraps. Palette ('Next function') and the Listing's navigation menu."
+   "note": "Moves the cursor to the next function in the inspected build, stops at the end and says so, never wraps. Code scope; the same chord is search.next only inside SearchWorkbench, and scope precedence keeps them apart. Also the palette and the Listing's navigation menu."
   },
   {
    "id": "code.prevFunction",
    "label": "Previous function",
-   "keys": [],
+   "keys": [
+    "Ctrl/Cmd+ArrowUp"
+   ],
    "scope": "code",
-   "note": "No default key; remappable in KeymapSettings. Moves the cursor to the previous function in the inspected build, stops at the end and says so, never wraps. Palette ('Previous function') and the Listing's navigation menu."
+   "note": "Moves the cursor to the previous function in the inspected build, stops at the end and says so, never wraps. Code scope; the same chord is search.prev only inside SearchWorkbench, and scope precedence keeps them apart. Also the palette and the Listing's navigation menu."
   },
   {
    "id": "code.nextNonFunction",
@@ -1307,11 +1524,11 @@
    "id": "outputs.copyPath",
    "label": "Copy artifact path",
    "keys": [
-    "c"
+    "Ctrl/Cmd+C"
    ],
    "scope": "composite",
    "where": "the OutputsCatalog grid only",
-   "note": "Copies the focused row's stored path and announces it ('Copied path out/hookpack-v1.json'). With no stored file it does nothing and says why ('No stored path: ‹reason›'). Read-only. Composite scope inside the grid; code-scope c (code.compilerLayer) applies only in code wells. Also the row's Copy path button, the link menu and the palette."
+   "note": "Copies the focused row's stored path and announces it ('Copied path out/hookpack-v1.json'). With no stored file it does nothing and says why ('No stored path: ‹reason›'). Read-only. Composite scope inside the grid, like results.copy. Also the row's Copy path button, the link menu and the palette."
   },
   {
    "id": "types.favourite",
@@ -1462,6 +1679,46 @@
    "scope": "edit",
    "where": "the TypeEditor grid and its edit mode",
    "note": "Redoes a draft change; never a program transaction. Shadows edit.redo inside the editor."
+  },
+  {
+   "id": "storage.pieceUp",
+   "label": "Move storage piece up",
+   "keys": [
+    "Alt+Shift+ArrowUp"
+   ],
+   "scope": "composite",
+   "where": "the StorageEditor pieces grid only",
+   "note": "Moves the piece in the draft; plain Alt+↓ stays Peek. Keys only move within a draft; Save confirms."
+  },
+  {
+   "id": "storage.pieceDown",
+   "label": "Move storage piece down",
+   "keys": [
+    "Alt+Shift+ArrowDown"
+   ],
+   "scope": "composite",
+   "where": "the StorageEditor pieces grid only",
+   "note": "Moves the piece in the draft; plain Alt+↓ stays Peek."
+  },
+  {
+   "id": "debuginfo.locationUp",
+   "label": "Move search location up",
+   "keys": [
+    "Alt+Shift+ArrowUp"
+   ],
+   "scope": "composite",
+   "where": "the DebugInfoImport search-location list only",
+   "note": "Reorders the PDB search locations in the draft; plain Alt+↓ stays Peek."
+  },
+  {
+   "id": "debuginfo.locationDown",
+   "label": "Move search location down",
+   "keys": [
+    "Alt+Shift+ArrowDown"
+   ],
+   "scope": "composite",
+   "where": "the DebugInfoImport search-location list only",
+   "note": "Reorders the PDB search locations in the draft; plain Alt+↓ stays Peek."
   },
   {
    "id": "signature.paramUp",

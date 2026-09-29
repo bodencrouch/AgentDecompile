@@ -12,7 +12,8 @@ Calm engineer. Plain, operational English from the operator's side. Say what hap
 - "Provider paused for this input revision" · "Checking whether the operation completed"
 - "diverged — counterpart structurally different, possibly inlined/split"
 - "root unresolved on this build; members tried: …" · "Refuse, never zero."
-- Match review confirm: "Move 3 rows to verification? This cannot be undone here."
+- Match review confirm: "Move 3 rows to verification? This cannot be undone here." Single row: "Accept split for match 18421? This cannot be undone here."
+- Held and kept: "Held · build-c · 4 min ago", "Current differs · Refresh", "Kept", "Make primary", "Follow again", "Release". Refused decision: "What changed since you looked".
 - Operator mantra: "Selection is intent. Strip is command. Dock is truth. Palette is jump. Save is metadata. Finished ≠ match."
 
 ## Claim boundaries use ≠

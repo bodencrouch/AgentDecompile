@@ -67,6 +67,10 @@ Divergence classes: **1↔1** structural match · **1↔N** split-or-inlined can
 
 ◇ (the gate diamond) plus "waiting at gate: ‹gate text›" in `gate` amber marks work held at a stage gate. It is distinct from ◷ stale (changed dependencies) and never shares its glyph.
 
+## Alignment markers (SplitCompare, diffs)
+
+Row markers in aligned views, always with a word for assistive tech: ↔ anchor (matched anchor), ± differs, − only on the left, + only on the right, and a hatched filler for "no line". Aligned is not equivalent: every split header shows the divergence class (1↔1, 1↔N, ≠) and the identity-edge state, and equal rows say "local; ≠ whole-image proof".
+
 ## Named non-success outcomes (OutcomeTag)
 
 absent · inlined_only · ambiguous · unsupported · insufficient_evidence · budget_exhausted · contested · unresolved · no_placement · unsupported_dynamic_code · missing_adapter. Each is a terminal reason, not a forced match and not a claim of exhaustive failure. Unresolved data roots "refuse, never zero".

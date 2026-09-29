@@ -1,0 +1,48 @@
+# DecompileView
+
+Decompiled C in a code well that shares one cursor with the Listing: the selected statement and the listing rows that produced it are both marked, every token is a typed link, and a local opens an in-place editor instead of going anywhere.
+
+**Use it** as the right half of CodeBrowser, beside the Listing, and on its own wherever only C is wanted: a held pane, a target opened to the side, the single-view layout below 700px. There is one decompile surface; it never becomes a separate page.
+
+**Consumer provides** the concrete build, function address and logical id; the decompiled lines from the decompile cache with their provenance (reused or fresh, generation, read time); each line's address mapping (the instructions that produced it, or none); each token's kind and target (callee → function address, global and string literal → data address, field → type and offset, type → type, local and parameter → variable with type, storage and name tier); the shared cursor (address, plus the token when the decompile drives); and the follow state (linked, loading, held, not loaded).
+
+- Well: `code-bg` with `shadow-inset`, `type-code`. The gutter holds the line number in `ink-muted`, then the first mapped address in `address` with the instruction count ("0041b217 ·3"). An unmapped line leaves the address gutter blank; when the cursor is on it the gutter says "○ none".
+- **One cursor, two marks.** The focused pane shows the cursor with the selection shape: `selection` fill plus the 3px `accent` bar. The other pane shows the reflection: every corresponding row or line on `raised` with a 3px `ink-muted` bar, the words "↔ line 7" on the first reflected listing row, and `▸` at the exact cursor address. When the Listing or HexStrip drives, the tokens produced by the cursor instruction carry a 2px `ink-strong` under-bar. Reflection is never color alone.
+- **No mapping is an answer.** Declarations, braces and lines the decompiler synthesized can have no address. Selecting one shows `fact-unknown` ○ "No address mapping for line N" with the reason (for a declaration, its storage), leaves the Listing unmarked and keeps the Listing cursor where it was. A mapping is never inferred from line order or the nearest address.
+- **Typed tokens.** callee → function (Code Browser at that address); global and string literal → data address; field → the type at that offset; type → the type; local and parameter → the variable. The kind is written in words in the status line, the token's accessible name, the menu header and the legend, never only in color. Only symbols take a hue: callees and globals use `lane-identity-ink`, as symbol operands do in the Listing. Keywords and type names are `ink-strong`, casts `ink-muted`, everything else `ink`.
+- Navigable tokens are `.ad-link`. Inside the well the dotted underline shows on the current, hovered and focused line, and the focused token is solid-underlined, so dense code stays readable while the line under the cursor or pointer always shows which tokens act.
+- **A local is not an address.** A local or parameter is a `button` with `aria-haspopup="dialog"` and a dashed underline on the current line. Activating it opens InlineRename bound to (program, build, function address, local storage), under the line, pushing the following lines down. It never goes to, opens to the side or copies an address.
+- The status line under the well names the token under the caret, its kind and target, and the mapping of the cursor line: "Callee Archive::OpenMember → function 0041d0a0 · line 7 ← 4 instructions 0041b222–0041b22e".
+- **Following.** A linked pane follows the primary selection after the 200ms settle. The previous function stays, dimmed to `ink-muted` (still 4.5:1), under an inline "… Loading ‹name› ‹address›" notice; a response for a superseded selection is dropped and never lands. Reading uses the decompile cache and the program that is already open. An unopened program shows `fact-unknown` ○ "Not loaded. Open to read it." with an explicit Open button. Following, hover, peek and prefetch never open a program, decompile on another build or start analysis.
+- Panes narrower than 640px soft-wrap long lines with a 4ch hanging indent. Below 460px the address gutter hides and the status line carries the mapping.
+- Nothing here mutates except InlineRename's Save, and its outcome lands on the token only after the terminal result.
+- Both surfaces render the same lines, mapping and token kinds from the same decompile projection. The static 8080 surface may draw the well as a table and open the editor as an anchored dialog; the words and states are identical.
+
+**Linking**
+
+- Publishes the shared cursor to the location `a`: replaceState while the caret moves inside one function, pushState on Go.
+- Follows the primary location (project, entity, build, address) unless the pane is Held.
+- Renders callee, global and string links to Code Browser addresses, type and field links to the type (`q=type:CacheEntry.name_len` until the location schema names a type parameter), and locals as editor buttons, not links.
+- Absent targets are words: "no mapping" for an unmapped line, "Not loaded. Open to read it." for an unopened program, and "unresolved import" for a call target with no symbol. None is linked to a guess.
+
+**Keyboard**
+
+- APG Grid with one tab stop. ↑/↓ move by line, ←/→ move token to token and wrap to the next line, Home/End go to the first and last token of the line, Ctrl+Home/Ctrl+End to the first and last line, PageUp/PageDown by a page.
+- **Enter** on a navigable token goes there and pushes one history stop. **Shift+Enter** opens it to the side as a read-only held pane; the selection does not change. Ctrl/Cmd+Enter keeps the browser's new-tab meaning.
+- **Enter** or **F2** on a local opens InlineRename with the name field focused. F2 on a label renames the label. F2 anywhere else does nothing and says why in the status line: "F2 renames locals and labels. Use Rename… in the menu for functions."
+- **Alt+↓** peeks the focused token inline under the line (Peek inline form). On a local the peek shows type, storage, tier and uses. Inside an open peek, K keeps it.
+- **Shift+F10** or the Menu key opens the token menu: Rename…, Retype…, Peek, Find references, Open to the side, Copy address, then Reveal in (Compare, Evidence, Navigator, Dock). Items that do not apply stay listed, `aria-disabled`, with the reason: "A local is not a place to open."; "Locals have storage, not an address: stack [ebp − 0x4]."
+- **Esc** closes the menu, peek or editor and returns focus to the token. A second Esc leaves the grid for its pane.
+- Letter commands work only while focus is in the grid and can be remapped or turned off (WCAG 2.1.4). The only default here is `O`, which opens the CodeBrowser Outline.
+
+**Accessibility**
+
+- `role="grid"` named "Decompiled C, ‹function›, ‹build›", with `aria-rowcount` for the whole function and `aria-readonly`. Each row reads its line and its mapping: "Line 7: pCVar1 = Archive::OpenMember(resourceArchive,local_8); from 4 instructions, 0041b222 to 0041b22e", or "…no address mapping". Line numbers and gutter glyphs are `aria-hidden`; the row name carries them.
+- A token's name carries kind, target and state: "Function Archive::OpenMember, 0041d0a0, build-a"; "Local local_8, char pointer, stack minus 0x4, placeholder name. Enter to rename or retype". Local buttons expose `aria-expanded` and `aria-controls` while their editor is open.
+- Caret moves announce only the focused token's name; there is no live-region chatter. A chord-opened peek is announced once, as in Peek, and a dropped late response announces nothing (WCAG 4.1.3).
+- WCAG 3.2.1 and 3.2.2: moving the caret never navigates or switches the build. Only Enter, Shift+Enter or a menu pick act; opening the menu or editor never changes the selection.
+- WCAG 2.4.11: `scroll-padding-block` keeps the focused line clear of the sticky pane header, and the inline editor never covers the line it edits.
+- Tokens are inline text inside the grid (the WCAG 2.5.8 inline exception). Menu items and editor controls are at least 24px, 44px below 700px.
+- Identifiers carry `translate="no"` and the well isolates direction. Under `forced-colors` the selection maps to Highlight, the reflection to a dashed CanvasText outline and the token under-bar to an underline.
+
+**Removes switching:** J10 relate an instruction row to its decompiled statement, 6 → 0 (the reflection is visible in both panes at once; no Disassembly ⇄ Decompiler flips). J11 rename or retype a local seen in the decompiler, 6 → 0 (Enter or F2 on the token replaces palette → ActionStrip → Fields… → confirm → Jobs dock → Decompiler). J13 inspect a variable's or field's type and retype it, 5 → 2 (Peek shows the type in place and Retype… edits in place; changing the structure itself still opens the type view). J15 diagnose a decompile artifact, 6 → 4 (callers and bytes are co-visible in CodeBrowser; data-flow analysis and the prototype edit remain their own verbs).

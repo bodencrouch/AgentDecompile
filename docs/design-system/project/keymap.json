@@ -31,7 +31,8 @@
  ],
  "boundOnPurpose": "Ctrl/Cmd+P (browser print) and Ctrl/Cmd+F inside a code well are bound on purpose. Browser print stays in the browser menu, and a second Ctrl/Cmd+F while the well's find field is focused passes to browser find.",
  "escapeOrder": [
-  "Esc acts on the innermost layer that holds focus; an open modal is always that layer, because everything under it is inert.",
+  "Esc acts on the innermost layer that holds focus; an open modal is that layer, because everything under it is inert, except that an open tip always closes first.",
+  "0. an open tip (floating or pinned): close it; focus stays and the key stops there, so a second Esc reaches the dialog",
   "1. the topmost modal (palette, go-to list, ConfirmDialog, a full-height sheet): close it and return focus to its invoker",
   "2. the which-key hint, open Peek, sheet or menu",
   "3. edit mode, restoring the text",

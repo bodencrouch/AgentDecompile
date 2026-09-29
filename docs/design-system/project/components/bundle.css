@@ -3463,6 +3463,94 @@ button.adv-w{background:transparent}
 /* Show, don't tell (batch 4): a plain-text tip trigger (a focusable span that is not a chip, glyph or button) keeps a 24px target */
 .ad .adv-tip>span[tabindex][aria-describedby]{display:inline-flex;align-items:center;min-height:24px}
 @media (forced-colors:active){.ad .adv-tip>span[tabindex][aria-describedby]:focus-visible{outline:2px solid CanvasText;outline-offset:1px}}
+/* ---- Guideline 25 revision: append after the .adv-key rules (bundle.css L3451), before the vocabulary forced-colors block ----
+   Supersedes: L3381 top offset and display, L3382 hover/focus display, L3406 per-multiple letters, L3407 outlier outline,
+   and L3418/L3425 hatch on stack slot p2. */
+
+/* Tips: static previews show a tip on hover, focus or .is-open with display (so hidden tips never widen the page).
+   The app's script owns the 400ms rest (peek-pointer-rest), 300ms grace (peek-grace), tip-warm (0ms within 600ms), one-at-a-time, pinning and Esc. */
+.adv-tip>[role="tooltip"]{top:calc(100% + 4px)}
+.adv-tip.is-dismissed>[role="tooltip"]{display:none}
+
+.adv-tip>[role="tooltip"]::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:5px}
+
+
+
+/* Pinned tip wears the held frame */
+.adv-tip.is-open>[role="tooltip"]{border:2px solid var(--ink-strong);padding:calc(var(--space-3) - 1px) calc(var(--space-4) - 1px)}
+.adv-tip>[role="tooltip"] .ad-kbd{margin-inline-end:var(--space-1)}
+
+/* Readout: the dense cell's tip text, under its graphic. aria-hidden in markup; each cell's description is the source. */
+.adv-readout{position:sticky;bottom:0;z-index:1;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1) var(--space-4);min-height:24px;margin:0;padding:var(--space-1) var(--space-3);background:var(--chassis);border-top:1px solid var(--line);font:400 11px/16px var(--font-mono);color:var(--ink)}
+.adv-readout>b{font:700 12px/16px var(--font-sans);color:var(--ink-strong)}
+@media (max-width:699px){.adv-readout{position:static}}
+
+/* Key: a disclosure, a docked one-line strip, and brushing of live instances */
+.ad .adv-q[aria-expanded="true"]{background:var(--raised);color:var(--ink-strong);border-color:var(--ink-muted)}
+.adv-key.strip{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3)}
+.adv-key.strip>dd{margin-inline-end:var(--space-4)}
+.adv-brush{outline:1px dotted var(--line-control);outline-offset:2px}
+
+/* Small multiples: build axis once in the column header; ± marks the differing build (the 2px frame means current or held) */
+.adv-sm>span::after{content:none}
+.adv-sm>span.out{outline:0}
+.adv-sm>span.out::after{content:"±";font-weight:700;color:var(--ink-strong)}
+.adv-sm>b.ref{position:absolute;left:0;right:0;bottom:calc(12px + 18px * var(--v,0) / 100);height:0;border-top:1px solid var(--line-control);pointer-events:none}
+.adv-sm-ax{display:inline-grid;grid-auto-flow:column;grid-auto-columns:12px;gap:var(--space-2);font:400 10px/12px var(--font-mono);color:var(--ink-muted);text-align:center;text-transform:none;letter-spacing:0}
+
+/* Measure states */
+.adv-frac>i::after{min-width:2px}
+.adv-frac.low>i::after{top:2px;bottom:2px}
+.adv-frac.cut>i::after{clip-path:polygon(0 0,100% 0,calc(100% - 3px) 50%,100% 100%,0 100%)}
+.adv-unk{display:inline-block;min-width:56px;font:400 12px/1 var(--font-sans);color:var(--ink)}
+
+/* Histogram: solid expectation rule (dashed means hypothesis), scrub cursor, and the one numeral a hypothesis rests on */
+.adv-hist{position:relative}
+.adv-hist>i{position:relative}
+.adv-hist>b.ref{position:absolute;left:0;right:0;bottom:calc(var(--v,0) * 1%);height:0;border-top:1px solid var(--line-control);pointer-events:none}
+.adv-hist>i.is-scrub::after{content:"";position:absolute;left:50%;bottom:0;height:40px;border-left:1px solid var(--ink-strong)}
+.adv-hist>i>b{position:absolute;left:50%;bottom:100%;transform:translateX(-50%);padding-bottom:1px;font:400 10px/12px var(--font-mono);color:var(--ink-strong);white-space:nowrap}
+.adv-hist.has-n{margin-top:12px}
+
+/* Stack slot p2 moves from the 135deg hatch (reserved for 'no data by design') to vertical rules */
+.adv-stack>i.p2,.adv-skey i.p2{background:repeating-linear-gradient(90deg,var(--ink) 0 1px,transparent 1px 4px)}
+
+/* New encodings */
+.adv-len{display:inline-flex;align-items:center;gap:1px;vertical-align:middle}
+.adv-len>i{width:3px;height:8px;background:var(--ink-muted)}
+.adv-win{display:inline-grid;grid-template-columns:repeat(7,6px);gap:1px;align-items:end;height:10px;vertical-align:middle}
+.adv-win>i{height:6px;border-bottom:1px solid var(--line-control)}
+.adv-win>i.on{background:var(--ink);border-bottom-color:var(--ink)}
+.adv-win>i.s{height:10px;box-shadow:inset 2px 0 0 var(--ink-strong)}
+.adv-mask{display:inline-grid;grid-auto-flow:column;grid-auto-columns:3px;gap:1px;align-items:end;height:6px;vertical-align:middle}
+.adv-mask>i{height:6px;background:var(--ink)}
+.adv-mask>i.w{height:1px;background:var(--ink-muted)}
+.adv-mask>i:nth-child(8n):not(:last-child){margin-inline-end:3px}
+.adv-scope{display:inline-grid;grid-auto-flow:column;grid-auto-columns:8px;gap:2px;vertical-align:middle}
+.adv-scope>i{height:8px;border:1px solid var(--line-control)}
+.adv-scope>i.on{background:var(--ink);border-color:var(--ink)}
+.adv-ghost{color:var(--ink-muted)}
+.adv-ghost .adv-frac>i::after,.adv-ghost .adv-sm>span::before,.adv-ghost .adv-hist>i{visibility:hidden}
+
+/* ---- Place after the existing vocabulary forced-colors block (L3452-3458) and before the selected-items block, which stays last.
+   Replaces the L3456 collapse, where p2, p3 and p4 were identical Canvas boxes. ---- */
+@media (forced-colors:active){
+ .adv-nc>i,.adv-sm>span.nc,.adv-sm>b.ref,.adv-hist>b.ref,.adv-len>i,.adv-win>i,.adv-mask>i,.adv-scope>i{forced-color-adjust:none}
+ .adv-nc>i,.adv-sm>span.nc{background:repeating-linear-gradient(135deg,CanvasText 0 1px,Canvas 1px 4px);border-color:CanvasText}
+ .adv-stack>i.p2,.adv-skey i.p2{background:repeating-linear-gradient(90deg,CanvasText 0 1px,Canvas 1px 4px);outline:1px solid CanvasText}
+ .adv-stack>i.p3,.adv-skey i.p3{background:radial-gradient(CanvasText 1px,Canvas 1.5px) 0 0/4px 4px;outline:1px solid CanvasText}
+ .adv-stack>i.p4,.adv-skey i.p4{background:Canvas;outline:1px solid CanvasText}
+ .adv-stack>i.on{box-shadow:0 0 0 2px CanvasText}
+ .adv-sm>span.out::after,.adv-hist>i>b{color:CanvasText}
+ .adv-sm>b.ref,.adv-hist>b.ref{border-top-color:CanvasText}
+ .adv-hist>i.is-scrub::after{border-left-color:CanvasText}
+ .adv-len>i,.adv-mask>i,.adv-win>i.on,.adv-scope>i.on{background:CanvasText}
+ .adv-win>i{border-bottom-color:CanvasText}
+ .adv-win>i.s{box-shadow:inset 2px 0 0 CanvasText}
+ .adv-scope>i{border-color:CanvasText}
+ .adv-tip.is-open>[role="tooltip"]{border:2px solid CanvasText}
+ .adv-brush{outline-color:CanvasText}
+}
 /* ---- Forced colors: selected and current items (keep this block last) ----
    Engines may paint a Canvas backplate behind every line of text when forced-color-adjust is auto, so HighlightText text on a Highlight block
    lands on Canvas and disappears (HighlightText equals Canvas in the usual high-contrast palettes). Selected and current items therefore opt out,

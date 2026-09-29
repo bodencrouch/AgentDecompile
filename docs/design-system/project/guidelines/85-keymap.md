@@ -51,8 +51,9 @@ Profiles: **default**; **ghidra** adds focus-scoped Ghidra letters in code wells
 
 ## Esc order
 
-Esc acts on the innermost layer that holds focus. An open modal is always that layer, because everything under it is inert. In order:
+Esc acts on the innermost layer that holds focus. An open modal is always that layer, because everything under it is inert, except that an open tip closes first. In order:
 
+0. an open tip, floating or pinned: it closes, focus stays, and the key stops there, so a second Esc reaches the dialog (Show, don't tell);
 1. the topmost modal (palette, go-to list, ConfirmDialog, a full-height sheet): it closes and focus returns to its invoker;
 2. the which-key hint, open Peek, sheet or menu;
 3. edit mode, restoring the text;

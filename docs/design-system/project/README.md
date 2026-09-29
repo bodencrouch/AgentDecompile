@@ -13,7 +13,8 @@ One theme ships: **Graphite**, dark and single-accent, taken directly from the r
 5. **Draw the work, not a status report.** Show the actual blocks under comparison, the actual source diff and the actual field moving from donor to recipient. Motion follows observed events only. A spinner beside the word "Running" is never acceptable.
 6. **Missing evidence blocks its claim. An unhealthy resource blocks its dependents. Ready independent work continues.** Failure is drawn at its real unmet dependency, never as a whole-app stop.
 7. **Color is semantics.** Color is reserved for the one accent (focus and selection), addresses, fact and lifecycle states, the six work families, and claim status. Everything else is graphite.
-8. **Never color alone.** Every state has a glyph and a word.
+8. **Never color alone.** Every state has a glyph, pattern or frame, and its word is always in the tip, the view's Key and the accessible name.
+9. **Show, don't tell.** Visible text is names, numbers, headers and labels of at most three words. Instructions, disclaimers, bases and consequences are drawn as bars, small multiples, frames, target maps and chips, and their sentences live in tips, the Key and accessible names ([Show, don't tell](guidelines/25-show-dont-tell.md)).
 
 ## Visual foundations
 

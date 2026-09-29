@@ -3374,6 +3374,88 @@ tr[aria-selected="true"] .ad-g3-st .m{color:var(--ink)}
 @media (pointer:coarse),(max-width:699px){.ad-g3-tree [role="option"]>span{min-height:var(--touch-h)}}
 @media (forced-colors:active){.ad-g3-tree [role="option"][aria-selected="true"]>span{background:Highlight;color:HighlightText;border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-4) - 3px)}}
 
+/* ---- Visual-first vocabulary (guideline 25, Show, don't tell) ----
+   Statements become shapes. Visible text is names, identifiers, numbers and one-to-three-word labels.
+   Every sentence lives in a tip (hover and focus), the view's Key, a Peek or the accessible name. Prefix adv-. */
+.adv-tip{position:relative;display:inline-flex;align-items:center;gap:var(--space-2);min-width:0}
+.adv-tip>[role="tooltip"]{position:absolute;left:0;top:calc(100% + 6px);z-index:var(--z-menu);width:max-content;max-width:280px;padding:var(--space-3) var(--space-4);background:var(--raised);border:1px solid var(--line-control);box-shadow:var(--shadow-popup);font:400 12px/16px var(--font-sans);font-style:normal;letter-spacing:0;text-transform:none;color:var(--ink);white-space:normal;text-align:left;display:none}
+.adv-tip:hover>[role="tooltip"],.adv-tip:focus-within>[role="tooltip"],.adv-tip.is-open>[role="tooltip"]{display:block}
+.adv-tip.end>[role="tooltip"]{left:auto;right:0}
+/* A focusable tip trigger with no other control: a 24px ? or glyph button */
+.ad .adv-q{display:inline-grid;place-items:center;width:24px;height:24px;padding:0;border:1px solid var(--line-control);border-radius:var(--radius-pill);background:transparent;font:700 12px/1 var(--font-sans);color:var(--ink-muted);cursor:help}
+/* Boundary chip: ≠ plus at most two words; the full claim boundary is its tip */
+.adv-bnd{display:inline-flex;align-items:center;gap:var(--space-2);min-height:24px;padding:0 var(--space-3);border:1px solid var(--line-control);border-radius:var(--radius-chip);background:transparent;font:400 12px/1 var(--font-sans);color:var(--ink);cursor:help}
+.adv-bnd>b{font:700 13px/1 var(--font-mono);color:var(--ink-strong)}
+/* Hypothesis chip: the dashed frame and the one word; the basis is the tip */
+.adv-h{display:inline-flex;align-items:center;gap:var(--space-2);min-height:24px;padding:0 var(--space-3);border:1px dashed var(--evidence-hypothesis-frame);border-radius:var(--radius-chip);background:transparent;font:400 12px/1 var(--font-sans);color:var(--ink);cursor:help}
+.adv-h>b{font:700 12px/1 var(--font-mono);color:var(--ink-strong)}
+.adv-w{display:inline-flex;align-items:center;gap:var(--space-2);min-height:24px;padding:0 var(--space-3);border:1px solid var(--evidence-solid-frame);border-radius:var(--radius-chip);font:400 12px/1 var(--font-sans);color:var(--ink);cursor:help}
+/* Fraction bar: one measure of one build; the bar is the share, the numeral the percent. Never a sum of facts. */
+.adv-frac{display:inline-grid;grid-template-columns:56px max-content;align-items:center;gap:var(--space-3);font:400 11px/1 var(--font-mono);color:var(--ink)}
+.adv-frac>i{position:relative;height:6px;background:var(--line)}
+.adv-frac>i::after{content:"";position:absolute;inset:0 auto 0 0;width:calc(var(--v,0) * 1%);background:var(--ink)}
+.adv-frac.zero>i::after{display:none}
+.adv-frac.zero{color:var(--ink-muted)}
+/* Not comparable (another language): a struck empty track and ⊘ */
+.adv-nc{display:inline-flex;align-items:center;gap:var(--space-2);min-height:24px;font:400 12px/1 var(--font-mono);color:var(--ink-muted);cursor:help}
+.adv-nc>i{width:56px;height:6px;border:1px solid var(--line-control);background:repeating-linear-gradient(135deg,var(--line-control) 0 1px,transparent 1px 4px)}
+/* Small multiples: one short column per build, same scale; the outlier carries a 2px ink-strong frame */
+.adv-sm{display:inline-grid;grid-auto-flow:column;grid-auto-columns:12px;gap:var(--space-2);align-items:end;height:30px;padding-bottom:12px;position:relative}
+.adv-sm>span{position:relative;height:18px;background:var(--line)}
+.adv-sm>span::before{content:"";position:absolute;inset:auto 0 0 0;height:calc(var(--v,0) * 1%);background:var(--ink)}
+.adv-sm>span::after{content:attr(data-b);position:absolute;left:0;right:0;top:calc(100% + 1px);font:400 10px/10px var(--font-mono);color:var(--ink-muted);text-align:center}
+.adv-sm>span.out{outline:2px solid var(--ink-strong);outline-offset:1px}
+.adv-sm>span.nc{background:repeating-linear-gradient(135deg,var(--line-control) 0 1px,transparent 1px 4px)}
+.adv-sm>span.nc::before{display:none}
+/* Histogram: bottom-aligned columns on one scale; the dominant column is ink-strong */
+.adv-hist{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(4px,1fr);gap:1px;align-items:end;height:40px;border-bottom:1px solid var(--line-control)}
+.adv-hist>i{height:calc(var(--v,0) * 1%);min-height:1px;background:var(--ink-muted)}
+.adv-hist>i.top{background:var(--ink-strong)}
+.adv-hist-ax{display:flex;justify-content:space-between;font:400 10px/14px var(--font-mono);color:var(--ink-muted)}
+/* Stacked bar: disjoint classes of one count, each with its own pattern, and a key with counts */
+.adv-stack{display:flex;height:12px;gap:2px;min-width:0}
+.adv-stack>i{flex:var(--v,1) 1 0;min-width:2px;background:var(--ink)}
+.adv-stack>i.p2{background:repeating-linear-gradient(135deg,var(--ink) 0 2px,transparent 2px 5px);outline:1px solid var(--ink);outline-offset:-1px}
+.adv-stack>i.p3{background:radial-gradient(var(--ink) 1px,transparent 1.5px) 0 0/4px 4px;outline:1px solid var(--ink-muted);outline-offset:-1px}
+.adv-stack>i.p4{background:transparent;outline:1px solid var(--ink-muted);outline-offset:-1px}
+.adv-stack>i.on{box-shadow:0 0 0 2px var(--ink-strong)}
+.adv-skey{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-6);margin:var(--space-3) 0 0;padding:0;list-style:none;font:400 12px/16px var(--font-sans);color:var(--ink)}
+.adv-skey>li{display:inline-flex;align-items:center;gap:var(--space-3)}
+.adv-skey i{display:inline-block;width:12px;height:12px;background:var(--ink)}
+.adv-skey i.p2{background:repeating-linear-gradient(135deg,var(--ink) 0 2px,transparent 2px 5px);outline:1px solid var(--ink);outline-offset:-1px}
+.adv-skey i.p3{background:radial-gradient(var(--ink) 1px,transparent 1.5px) 0 0/4px 4px;outline:1px solid var(--ink-muted);outline-offset:-1px}
+.adv-skey i.p4{background:transparent;outline:1px solid var(--ink-muted);outline-offset:-1px}
+.adv-skey b{font:700 12px/16px var(--font-mono);color:var(--ink-strong)}
+/* Share row (icicle): a tree node's share as a bar behind its label */
+.adv-share{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 40px;align-items:center;gap:var(--space-3);min-width:0;padding-bottom:4px}
+.adv-share::before{content:"";position:absolute;left:0;bottom:0;height:3px;width:calc(var(--v,0) * 1%);max-width:calc(100% - 44px);background:var(--ink-muted)}
+.adv-share>b{font:400 11px/1 var(--font-mono);color:var(--ink-muted);text-align:right}
+/* Target map: what a confirm will touch, one tile per build; untouched builds are dim and struck through */
+.adv-tmap{display:flex;flex-wrap:wrap;gap:var(--space-2);margin:0;padding:0;list-style:none}
+.adv-tmap>li{display:grid;grid-template-columns:auto auto;align-items:center;gap:0 var(--space-3);min-height:40px;padding:var(--space-2) var(--space-4);border:1px solid var(--line);font:400 12px/16px var(--font-sans);color:var(--ink-muted)}
+.adv-tmap>li>b{font:700 16px/1 var(--font-mono)}
+.adv-tmap>li.w{border:2px solid var(--ink-strong);color:var(--ink-strong)}
+.adv-tmap>li.x{text-decoration:line-through;text-decoration-color:var(--ink-muted)}
+/* Empty and unavailable: one glyph plus the one next action; the explanation is the glyph's tip */
+.adv-empty{display:flex;align-items:center;gap:var(--space-4);min-height:40px}
+.adv-empty>.adv-tip>b{display:inline-grid;place-items:center;width:28px;height:28px;border:1px solid var(--line-control);border-radius:var(--radius-pill);font:400 14px/1 var(--font-mono);color:var(--ink-muted);cursor:help}
+.adv-na{display:inline-flex;align-items:center;gap:var(--space-2)}
+.adv-na>b{font:400 13px/1 var(--font-mono);color:var(--fact-unknown)}
+/* Filter and parameter chips: key = value, never a sentence */
+.adv-chips{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2);margin:0;padding:0;list-style:none}
+.adv-chips>li{display:inline-flex;align-items:center;gap:var(--space-2);min-height:24px;padding:0 var(--space-3);border:1px solid var(--line);border-radius:var(--radius-chip);font:400 11px/1 var(--font-mono);color:var(--ink)}
+.adv-chips>li>span{font-family:var(--font-sans);color:var(--ink-muted)}
+/* The view's Key: one button per view header; its popover lists every glyph, pattern and frame with its word */
+.adv-key{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--space-2) var(--space-4);margin:0;font:400 12px/16px var(--font-sans);color:var(--ink)}
+.adv-key>dt{display:flex;align-items:center;justify-content:center;min-width:28px;font:700 13px/1 var(--font-mono);color:var(--ink-strong)}
+.adv-key>dd{margin:0}
+@media (forced-colors:active){
+ .adv-frac>i,.adv-sm>span,.adv-hist>i,.adv-stack>i,.adv-share,.adv-skey i{forced-color-adjust:none}
+ .adv-frac>i{background:Canvas;outline:1px solid CanvasText}
+ .adv-frac>i::after,.adv-sm>span::before,.adv-share::before,.adv-hist>i,.adv-stack>i,.adv-skey i{background-color:CanvasText}
+ .adv-stack>i.p2,.adv-stack>i.p3,.adv-stack>i.p4,.adv-skey i.p2,.adv-skey i.p3,.adv-skey i.p4{background:Canvas;outline:1px solid CanvasText}
+ .adv-tip>[role="tooltip"]{border-color:CanvasText}
+}
 /* ---- Forced colors: selected and current items (keep this block last) ----
    Engines may paint a Canvas backplate behind every line of text when forced-color-adjust is auto, so HighlightText text on a Highlight block
    lands on Canvas and disappears (HighlightText equals Canvas in the usual high-contrast palettes). Selected and current items therefore opt out,

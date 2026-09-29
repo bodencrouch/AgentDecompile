@@ -1,153 +1,166 @@
-<!-- @dsCard group="Project" height=2000 -->
+<!-- @dsCard group="Project" height=1420 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<span class="kicker">Selected builds · stored gathers and results only · nothing is gathered, mined or searched on open · a pattern is a hypothesis</span>
-<section class="ad-g3" aria-labelledby="fsp-t">
+<section class="ad-g3" aria-labelledby="fsp-t" aria-describedby="fsp-bnd-tip">
  <header class="ad-g3-head">
   <h3 id="fsp-t">Function start patterns <span class="sub">· corpus-alpha</span></h3>
-  <p class="ad-g3-note" role="note"><strong>A pattern is a hypothesis about code generation, not evidence that a function exists.</strong> Agreement with recorded starts is not accuracy: recorded starts are themselves analysis results.</p>
-  <fieldset class="ad-g3-sum" style="border:0;padding:0"><legend class="kicker">Builds</legend>
-   <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-a</span><span class="d">x86:LE:32</span></label>
-   <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-b</span><span class="d">x86:LE:32</span></label>
-   <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-c</span><span class="d">x86:LE:32</span></label>
-   <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-d</span><span class="d">x86:LE:64 · compared separately</span></label>
+  <div class="ad-tools" role="group" aria-label="View status" style="gap:8px">
+   <span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="fsp-bnd-tip"><b aria-hidden="true">≠</b>evidence</button><span role="tooltip" id="fsp-bnd-tip">A pattern is a hypothesis about code generation. It is not evidence that a function exists.</span></span>
+   <span class="adv-tip"><button type="button" class="ad-stamp" style="border:0;background:none;padding:0;min-height:24px" aria-describedby="fsp-reuse-tip"><b>reused</b></button><span role="tooltip" id="fsp-reuse-tip">Gathers g41c, g41d, g41e and g420, basis unchanged. Nothing is gathered, mined or searched on open.</span></span>
+   <span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="fsp-key-tip">?</button><span role="tooltip" id="fsp-key-tip">Bar: share of that build's recorded starts. Hatched track: another language, not compared. Dashed frame: hypothesis. Framed column: the build that differs.</span></span>
+  </div>
+  <fieldset class="adv-chips" style="border:0;padding:0;margin:0"><legend class="sr-only">Builds</legend>
+   <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-a</span></label>
+   <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-b</span></label>
+   <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-c</span></label>
+   <label class="ad-g3-choice"><input type="checkbox" checked aria-describedby="fsp-d-tip"><span class="nm">build-d</span><span class="adv-tip"><span class="adv-nc" aria-hidden="true"><b>⊘</b></span><span role="tooltip" id="fsp-d-tip">x86:LE:64 · compared with no other build</span></span></label>
   </fieldset>
   <div class="ad-tabs" role="tablist" aria-label="Function start pattern views">
-   <button class="ad-tab" role="tab" aria-selected="true" aria-controls="fsp-p1" id="fsp-tab1">Byte sequences</button>
-   <button class="ad-tab" role="tab" aria-selected="false" tabindex="-1" id="fsp-tab2">Instruction trees</button>
+   <button class="ad-tab" role="tab" aria-selected="true" aria-controls="fsp-p1" id="fsp-tab1">Bytes</button>
+   <button class="ad-tab" role="tab" aria-selected="false" tabindex="-1" id="fsp-tab2">Instructions</button>
    <button class="ad-tab" role="tab" aria-selected="false" tabindex="-1" id="fsp-tab3">Alignment</button>
-   <button class="ad-tab" role="tab" aria-selected="false" tabindex="-1" id="fsp-tab4">Context registers</button>
+   <button class="ad-tab" role="tab" aria-selected="false" tabindex="-1" id="fsp-tab4">Context</button>
    <button class="ad-tab" role="tab" aria-selected="false" tabindex="-1" id="fsp-tab5">Clipboard <span class="n mono">3</span></button>
   </div>
  </header>
 
  <div id="fsp-p1" role="tabpanel" aria-labelledby="fsp-tab1" class="ad-g3-sec">
-  <div class="ad-subtabs" role="tablist" aria-label="Byte sequence windows">
-   <span role="tab" aria-selected="true" tabindex="0">First bytes</span><span role="tab" aria-selected="false" tabindex="-1">Pre-bytes</span><span role="tab" aria-selected="false" tabindex="-1">Return bytes</span>
+  <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px">
+   <div class="ad-subtabs" role="tablist" aria-label="Byte windows" style="border:0">
+    <span role="tab" aria-selected="true" tabindex="0">First</span><span role="tab" aria-selected="false" tabindex="-1">Pre</span><span role="tab" aria-selected="false" tabindex="-1">Return</span>
+   </div>
+   <ul class="adv-chips" aria-label="Filters"><li><span>len</span>≥ 3</li><li><span>prefix</span>3</li><li><span>ctx</span>any</li></ul>
   </div>
-  <p class="ad-g3-sum"><span>Gathers: build-a g41c · build-b g41d · build-c g41e · build-d g420, <span class="ad-stamp"><b>reused</b>basis unchanged</span></span><span>Length filter: at least 3 bytes · prefix 3</span><span>Context register filter: none</span></p>
   <div class="ad-scroll" role="region" aria-label="First-byte sequences per build, scrolls sideways">
-  <table class="ad-table ad-g3-grid" role="grid" aria-label="First-byte sequences per build" aria-rowcount="5" aria-colcount="6" style="min-width:900px">
-   <thead><tr><th scope="col">Sequence</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th><th scope="col">Across builds (x86-32)</th></tr></thead>
+  <table class="ad-table ad-g3-grid" role="grid" aria-label="First-byte sequences per build" aria-rowcount="5" aria-colcount="6" style="min-width:780px">
+   <thead><tr><th scope="col">Sequence</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th><th scope="col">Across</th></tr></thead>
    <tbody>
     <tr aria-selected="true" class="is-focus" tabindex="0">
-     <th scope="row"><span class="nm mono" translate="no">55 8B EC</span><span class="d">push ebp · mov ebp, esp</span></th>
-     <td role="gridcell">812 of 1,144 · 71%</td>
-     <td role="gridcell">46 of 1,152 · 4%</td>
-     <td role="gridcell">790 of 1,197 · 66%</td>
-     <td role="gridcell" class="muted">not comparable · x86:LE:64</td>
-     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs: consistent pattern<span class="m">rare on build-b only</span></span><br><span class="ad-evd hyp"><b>hypothesis (heuristic)</b>≈ compile variance: /Oy on build-b (ToolchainEvidence hypothesis); no source identity recorded</span></td>
+     <th scope="row"><span class="nm mono" translate="no">55 8B EC</span><span class="d mono">push ebp · mov ebp, esp</span></th>
+     <td role="gridcell"><span class="adv-frac" role="img" aria-label="812 of 1,144 starts, 71 percent" style="--v:71"><i></i>71%</span></td>
+     <td role="gridcell"><span class="adv-frac" role="img" aria-label="46 of 1,152 starts, 4 percent" style="--v:4"><i></i>4%</span></td>
+     <td role="gridcell"><span class="adv-frac" role="img" aria-label="790 of 1,197 starts, 66 percent" style="--v:66"><i></i>66%</span></td>
+     <td role="gridcell"><span class="adv-nc" role="img" aria-label="not comparable, x86:LE:64"><i></i>⊘</span></td>
+     <td role="gridcell"><span style="display:inline-flex;align-items:center;gap:8px"><span class="adv-sm" role="img" aria-label="Differs, consistent pattern: build-b is the outlier"><span data-b="a" style="--v:71"></span><span class="out" data-b="b" style="--v:4"></span><span data-b="c" style="--v:66"></span><span class="nc" data-b="d"></span></span><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="fsp-h1"><b aria-hidden="true">≈</b>compile</button><span role="tooltip" id="fsp-h1">Hypothesis (heuristic): /Oy on build-b, from ToolchainEvidence. No source identity recorded.</span></span></span></td>
     </tr>
     <tr tabindex="-1">
-     <th scope="row"><span class="nm mono" translate="no">83 EC ..</span><span class="d">sub esp, imm8 · 1 byte ditted</span></th>
-     <td role="gridcell">61 of 1,144 · 5%</td>
-     <td role="gridcell">438 of 1,152 · 38%</td>
-     <td role="gridcell">72 of 1,197 · 6%</td>
-     <td role="gridcell" class="muted">not comparable · x86:LE:64</td>
-     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs: consistent pattern<span class="m">common on build-b only</span></span></td>
+     <th scope="row"><span class="nm mono" translate="no">83 EC ..</span><span class="d mono">sub esp, imm8</span></th>
+     <td role="gridcell"><span class="adv-frac" role="img" aria-label="61 of 1,144, 5 percent" style="--v:5"><i></i>5%</span></td>
+     <td role="gridcell"><span class="adv-frac" role="img" aria-label="438 of 1,152, 38 percent" style="--v:38"><i></i>38%</span></td>
+     <td role="gridcell"><span class="adv-frac" role="img" aria-label="72 of 1,197, 6 percent" style="--v:6"><i></i>6%</span></td>
+     <td role="gridcell"><span class="adv-nc" role="img" aria-label="not comparable, x86:LE:64"><i></i>⊘</span></td>
+     <td role="gridcell"><span class="adv-sm" role="img" aria-label="Differs, consistent pattern: build-b is the outlier"><span data-b="a" style="--v:5"></span><span class="out" data-b="b" style="--v:38"></span><span data-b="c" style="--v:6"></span><span class="nc" data-b="d"></span></span></td>
     </tr>
     <tr tabindex="-1">
-     <th scope="row"><span class="nm mono" translate="no">56 8B F1</span><span class="d">push esi · mov esi, ecx</span></th>
-     <td role="gridcell">97 of 1,144 · 8%</td>
-     <td role="gridcell">139 of 1,152 · 12%</td>
-     <td role="gridcell">104 of 1,197 · 8%</td>
-     <td role="gridcell" class="muted">not comparable · x86:LE:64</td>
-     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs<span class="m">8% to 12% · no variance class drawn</span></span></td>
+     <th scope="row"><span class="nm mono" translate="no">56 8B F1</span><span class="d mono">push esi · mov esi, ecx</span></th>
+     <td role="gridcell"><span class="adv-frac" role="img" aria-label="97 of 1,144, 8 percent" style="--v:8"><i></i>8%</span></td>
+     <td role="gridcell"><span class="adv-frac" role="img" aria-label="139 of 1,152, 12 percent" style="--v:12"><i></i>12%</span></td>
+     <td role="gridcell"><span class="adv-frac" role="img" aria-label="104 of 1,197, 8 percent" style="--v:8"><i></i>8%</span></td>
+     <td role="gridcell"><span class="adv-nc" role="img" aria-label="not comparable, x86:LE:64"><i></i>⊘</span></td>
+     <td role="gridcell"><span class="adv-sm" role="img" aria-label="Differs slightly, no variance class drawn"><span data-b="a" style="--v:8"></span><span data-b="b" style="--v:12"></span><span data-b="c" style="--v:8"></span><span class="nc" data-b="d"></span></span></td>
     </tr>
     <tr tabindex="-1">
-     <th scope="row"><span class="nm mono" translate="no">8B FF 55</span><span class="d">mov edi, edi · push ebp</span></th>
-     <td role="gridcell">0 of 1,144 · absent</td>
-     <td role="gridcell">0 of 1,152 · absent</td>
-     <td role="gridcell">31 of 1,197 · 3%</td>
-     <td role="gridcell" class="muted">not comparable · x86:LE:64</td>
-     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">−</b>absent in build-a, build-b</span></td>
+     <th scope="row"><span class="nm mono" translate="no">8B FF 55</span><span class="d mono">mov edi, edi · push ebp</span></th>
+     <td role="gridcell"><span class="adv-frac zero" role="img" aria-label="absent, 0 of 1,144" style="--v:0"><i></i>0</span></td>
+     <td role="gridcell"><span class="adv-frac zero" role="img" aria-label="absent, 0 of 1,152" style="--v:0"><i></i>0</span></td>
+     <td role="gridcell"><span class="adv-frac" role="img" aria-label="31 of 1,197, 3 percent" style="--v:3"><i></i>3%</span></td>
+     <td role="gridcell"><span class="adv-nc" role="img" aria-label="not comparable, x86:LE:64"><i></i>⊘</span></td>
+     <td role="gridcell"><span class="adv-sm" role="img" aria-label="Absent in build-a and build-b"><span class="out" data-b="a" style="--v:0"></span><span class="out" data-b="b" style="--v:0"></span><span data-b="c" style="--v:3"></span><span class="nc" data-b="d"></span></span></td>
     </tr>
    </tbody>
   </table>
   </div>
   <div class="ad-tools" role="group" aria-label="Sequence actions">
-   <button class="ad-btn" type="button">Analyze sequences</button>
-   <button class="ad-btn" type="button">Show all occurrences</button>
-   <button class="ad-btn" type="button" aria-haspopup="dialog">Gather windows…</button>
+   <button class="ad-btn" type="button">Analyze</button>
+   <button class="ad-btn" type="button">Occurrences</button>
+   <button class="ad-btn" type="button" aria-haspopup="dialog">Gather…</button>
   </div>
  </div>
 
  <div class="ad-g3-cols">
   <div class="ad-g3-sec">
-   <h4>Instruction tree · first instructions · build-a</h4>
+   <h4>First instructions · build-a</h4>
    <ul class="ad-g3-tree" role="tree" aria-label="First instructions, build-a">
-    <li role="treeitem" aria-expanded="true" aria-level="1" aria-setsize="2" aria-posinset="1" aria-selected="true" tabindex="0"><span>push ebp (1 byte) <span class="small muted">· 71% of 1,144 paths</span></span>
+    <li role="treeitem" aria-expanded="true" aria-level="1" aria-setsize="2" aria-posinset="1" aria-selected="true" tabindex="0" aria-label="push ebp, 1 byte, 71 percent of 1,144 paths"><span class="adv-share" style="--v:71"><span class="mono">push ebp <span class="small muted">1B</span></span><b>71%</b></span>
      <ul role="group">
-      <li role="treeitem" aria-level="2" aria-setsize="1" aria-posinset="1" aria-selected="false" tabindex="-1"><span>mov ebp, esp (2 bytes) <span class="small muted">· 71%</span></span></li>
+      <li role="treeitem" aria-level="2" aria-setsize="1" aria-posinset="1" aria-selected="false" tabindex="-1" aria-label="mov ebp, esp, 2 bytes, 71 percent"><span class="adv-share" style="--v:71"><span class="mono">mov ebp, esp <span class="small muted">2B</span></span><b>71%</b></span></li>
      </ul>
     </li>
-    <li role="treeitem" aria-expanded="false" aria-level="1" aria-setsize="2" aria-posinset="2" aria-selected="false" tabindex="-1"><span>push esi (1 byte) <span class="small muted">· 8%</span></span></li>
+    <li role="treeitem" aria-expanded="false" aria-level="1" aria-setsize="2" aria-posinset="2" aria-selected="false" tabindex="-1" aria-label="push esi, 1 byte, 8 percent"><span class="adv-share" style="--v:8"><span class="mono">push esi <span class="small muted">1B</span></span><b>8%</b></span></li>
    </ul>
-   <p class="small muted" style="margin:0">Percentage filter 5% · 12 nodes under 5% hidden</p>
+   <ul class="adv-chips" aria-label="Tree filter"><li><span>≥</span>5%</li><li><span>hidden</span>12</li></ul>
   </div>
   <div class="ad-g3-sec">
-   <h4>Alignment · modulus 16</h4>
-   <div class="ad-scroll" role="region" aria-label="Start residues per build">
-   <table class="ad-table ad-g3-grid" style="min-width:0" aria-label="Function start residues modulo 16">
-    <thead><tr><th scope="col">Residue</th><th scope="col">build-a</th><th scope="col">build-d</th></tr></thead>
-    <tbody>
-     <tr><th scope="row" class="mono">0</th><td>212</td><td><strong>1,391</strong></td></tr>
-     <tr><th scope="row" class="mono">other 15</th><td>932</td><td>11</td></tr>
-    </tbody>
-   </table>
+   <h4>Alignment · mod 16</h4>
+   <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">
+    <figure style="margin:0" aria-label="build-a start residues modulo 16, no dominant residue">
+     <div class="adv-hist" aria-hidden="true"><i class="top" style="--v:40"></i><i style="--v:18"></i><i style="--v:22"></i><i style="--v:15"></i><i style="--v:30"></i><i style="--v:12"></i><i style="--v:20"></i><i style="--v:16"></i><i style="--v:35"></i><i style="--v:14"></i><i style="--v:19"></i><i style="--v:13"></i><i style="--v:28"></i><i style="--v:15"></i><i style="--v:17"></i><i style="--v:21"></i></div>
+     <div class="adv-hist-ax" aria-hidden="true"><span>0</span><span>build-a</span><span>15</span></div>
+    </figure>
+    <figure style="margin:0" aria-label="build-d start residues modulo 16: 1,391 of 1,402 at residue 0, hypothesis 16-byte aligned">
+     <div class="adv-hist" aria-hidden="true"><i class="top" style="--v:100"></i><i style="--v:1"></i><i style="--v:1"></i><i style="--v:0"></i><i style="--v:1"></i><i style="--v:0"></i><i style="--v:1"></i><i style="--v:0"></i><i style="--v:1"></i><i style="--v:0"></i><i style="--v:0"></i><i style="--v:1"></i><i style="--v:0"></i><i style="--v:0"></i><i style="--v:1"></i><i style="--v:0"></i></div>
+     <div class="adv-hist-ax" aria-hidden="true"><span>0</span><span>build-d</span><span>15</span></div>
+    </figure>
    </div>
-   <p class="small" style="margin:0">build-a: no dominant residue. <span class="ad-evd hyp"><b>hypothesis (heuristic)</b>build-d: 16-byte aligned · 1,391 of 1,402 starts at residue 0</span></p>
+   <span class="adv-tip is-open"><button type="button" class="adv-h" aria-describedby="fsp-h2"><b aria-hidden="true">▮</b>16-byte · build-d</button><span role="tooltip" id="fsp-h2">Hypothesis (heuristic): 1,391 of 1,402 starts at residue 0.</span></span>
   </div>
  </div>
 
  <div class="ad-g3-sec">
-  <h4>Clipboard · evaluate on build-a</h4>
+  <h4>Clipboard <span class="n">· on build-a</span></h4>
   <div class="ad-scroll" role="region" aria-label="Pattern clipboard">
-  <table class="ad-table ad-g3-grid" role="grid" aria-label="Pattern clipboard" style="min-width:720px">
-   <thead><tr><th scope="col">Pattern</th><th scope="col">Kind</th><th scope="col">Bits</th><th scope="col">Alignment</th><th scope="col">Source</th></tr></thead>
+  <table class="ad-table ad-g3-grid" role="grid" aria-label="Pattern clipboard" style="min-width:560px">
+   <thead><tr><th scope="col">Pattern</th><th scope="col">Kind</th><th scope="col">Bits</th><th scope="col">Fixed</th><th scope="col">Align</th><th scope="col">From</th></tr></thead>
    <tbody>
-    <tr aria-selected="true" tabindex="0"><th scope="row"><span class="nm">P1</span></th><td>POST</td><td class="mono" translate="no">55 8B EC · 24 fixed</td><td>1</td><td class="small">merged on build-a · 3 sequences</td></tr>
-    <tr aria-selected="true" tabindex="-1"><th scope="row"><span class="nm">P2</span></th><td>PRE</td><td class="mono" translate="no">CC CC · 16 fixed</td><td>1</td><td class="small">pre-bytes, build-a</td></tr>
-    <tr aria-selected="false" tabindex="-1"><th scope="row"><span class="nm">P3</span></th><td>PRE</td><td class="mono" translate="no">C3 · 8 fixed</td><td>1</td><td class="small">return bytes, build-a</td></tr>
+    <tr aria-selected="true" tabindex="0"><th scope="row"><span class="nm">P1</span></th><td><span aria-label="POST, after the start">▶ POST</span></td><td class="mono" translate="no">55 8B EC</td><td class="mono">24</td><td class="mono">1</td><td class="small">build-a · merged</td></tr>
+    <tr aria-selected="true" tabindex="-1"><th scope="row"><span class="nm">P2</span></th><td><span aria-label="PRE, before the start">◀ PRE</span></td><td class="mono" translate="no">CC CC</td><td class="mono">16</td><td class="mono">1</td><td class="small">build-a · pre</td></tr>
+    <tr aria-selected="false" tabindex="-1"><th scope="row"><span class="nm">P3</span></th><td><span aria-label="PRE, before the start">◀ PRE</span></td><td class="mono" translate="no">C3</td><td class="mono">8</td><td class="mono">1</td><td class="small">build-a · return</td></tr>
    </tbody>
   </table>
   </div>
-  <p class="ad-g3-sum" role="status"><span><strong>1,204 matches on build-a</strong> for P1 with P2</span><span>802 at recorded starts (67% agreement with recorded starts, not accuracy)</span><span>311 in undefined bytes</span><span>58 inside functions</span><span>33 in data</span></p>
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+   <strong class="mono">1,204</strong><span class="small muted">P1 + P2</span>
+   <span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="fsp-bnd2"><b aria-hidden="true">≠</b>accuracy</button><span role="tooltip" id="fsp-bnd2">Agreement with recorded starts, not accuracy: recorded starts are themselves analysis results.</span></span>
+  </div>
+  <div class="adv-stack" role="img" aria-label="1,204 matches on build-a: 802 at recorded starts, 311 in undefined bytes, 58 inside functions, 33 in data"><i style="--v:802"></i><i class="p2 on" style="--v:311"></i><i class="p3" style="--v:58"></i><i class="p4" style="--v:33"></i></div>
+  <ul class="adv-skey" aria-hidden="true"><li><i></i>at start <b>802</b></li><li><i class="p2"></i>undefined <b>311</b></li><li><i class="p3"></i>in function <b>58</b></li><li><i class="p4"></i>data <b>33</b></li></ul>
   <div class="ad-tools" role="group" aria-label="Clipboard actions">
-   <button class="ad-btn" type="button">Evaluate on…</button>
+   <button class="ad-btn" type="button">Evaluate…</button>
    <button class="ad-btn" type="button" aria-haspopup="dialog">Create functions…</button>
-   <button class="ad-btn" type="button" aria-haspopup="dialog">Export pattern file…</button>
+   <button class="ad-btn" type="button" aria-haspopup="dialog">Export…</button>
    <button class="ad-btn" type="button">Use in analysis…</button>
-   <button class="ad-btn" type="button" aria-haspopup="dialog">Import pattern file…</button>
+   <button class="ad-btn" type="button" aria-haspopup="dialog">Import…</button>
   </div>
  </div>
 
  <div class="ad-g3-sec">
-  <h4>Confirm create functions</h4>
   <div class="ad-g3-dlg" role="alertdialog" aria-modal="true" aria-labelledby="fsp-cf-t" aria-describedby="fsp-cf-d">
-   <header><h3 id="fsp-cf-t">Create 311 functions on build-a</h3><span class="end">catalog: function creation · 311 transactions</span></header>
+   <header><h3 id="fsp-cf-t">Create 311 functions</h3></header>
    <div class="body">
-    <p class="ad-g3-note" id="fsp-cf-d">Writes build-a only. Each new start is recorded as "created from pattern P1 with P2 · hypothesis" and is undoable in Edit history. Nothing is created on build-b, build-c or build-d.</p>
-    <dl class="ad-dl">
-     <dt>Matches</dt><dd>311 in undefined bytes · 58 inside functions and 33 in data are not included</dd>
-     <dt>Writer</dt><dd>build-a's one writer; this job waits if another holds it</dd>
-    </dl>
+    <p class="sr-only" id="fsp-cf-d">Writes build-a only, 311 functions, one transaction each, undoable in Edit history. Each new start is recorded as created from pattern P1 with P2, a hypothesis. Nothing is created on build-b, build-c or build-d. A created function is not a recovery claim.</p>
+    <ul class="adv-tmap" aria-hidden="true">
+     <li class="w"><b>✎</b>build-a<span></span><span class="mono">311</span></li>
+     <li class="x"><b>—</b>build-b</li>
+     <li class="x"><b>—</b>build-c</li>
+     <li class="x"><b>—</b>build-d</li>
+    </ul>
+    <div class="adv-stack" aria-hidden="true" style="margin-top:12px"><i style="--v:802;opacity:.35"></i><i class="p2 on" style="--v:311"></i><i class="p3" style="--v:58;opacity:.35"></i><i class="p4" style="--v:33;opacity:.35"></i></div>
    </div>
-   <footer><span class="note">A created function is not a recovery claim.</span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Create · 311 functions</button></footer>
+   <footer>
+    <span class="adv-chips" aria-hidden="true" style="margin-right:auto"><span class="adv-h"><b>H</b>starts</span><span class="adv-w"><b>↶</b>undoable</span><span class="adv-bnd"><b>≠</b>recovery</span></span>
+    <button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Create · 311</button>
+   </footer>
   </div>
  </div>
 </section>
 
 <div class="adc-states">
  <div>
-  <span class="kicker">Never gathered · nothing analyzes</span>
-  <div class="ad-notice info"><b aria-hidden="true">○</b><div><h4>No gather on build-c for pre-bytes</h4><p>Gather windows… reads its recorded function starts. Nothing is analyzed.</p></div><span></span></div>
+  <span class="kicker">Never gathered</span>
+  <div class="adv-empty"><span class="adv-tip"><b tabindex="0" role="img" aria-label="No gather on build-c" aria-describedby="fsp-e-tip">○</b><span role="tooltip" id="fsp-e-tip">No gather on build-c. Gather reads its recorded function starts; nothing is analyzed.</span></span><button class="ad-btn primary" type="button">Gather build-c…</button></div>
  </div>
  <div>
-  <span class="kicker">No catalog action</span>
-  <div class="ad-tools" role="group" aria-label="Gather unavailable">
-   <button class="ad-btn" type="button" aria-disabled="true" aria-describedby="fsp-nocat">Gather windows…</button>
-   <span class="small muted"><span id="fsp-nocat">Not available on this server yet. Stored gathers still read.</span> · <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span>
-  </div>
+  <span class="kicker">Not on this server</span>
+  <div class="adv-empty"><span class="adv-tip"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="fsp-na-tip"><span class="adv-na"><b aria-hidden="true">⊘</b>Gather…</span></button><span role="tooltip" id="fsp-na-tip">Not available on this server yet. Stored gathers still read. <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span></span></div>
  </div>
 </div>
 </div>

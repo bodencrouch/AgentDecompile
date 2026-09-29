@@ -2,6 +2,8 @@
 
 Calm engineer. Plain, operational English from the operator's side. Say what happened and what it means, and nothing more.
 
+**Where copy lives.** The visible layout follows [Show, don't tell](25-show-dont-tell.md): names, numbers, headers and labels of at most three words. Every sentence below is the exact text of a tip, a Key entry, a Peek, a dialog description or an accessible name, never a line in the layout. Keep-verbatim strings keep their wording in those places.
+
 ## Keep verbatim
 
 - "A finished job is not a match."

@@ -1,0 +1,113 @@
+<!-- @dsCard group="Types" height=2100 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">Structure mode · rows keyed by logical field · one offset column per build · layout check per build before Save</span>
+<form class="ade" aria-labelledby="te-t">
+ <header><h4 id="te-t">Edit structure <code translate="no">CacheEntry</code></h4><span class="end"><span>Edit structure (catalog)</span><span>draft · undo 1 · redo 0</span></span></header>
+ <div class="ade-tgt">
+  <span class="kicker">Target · bound when opened</span>
+  <span class="ade-bld target">build-a</span><span>program types <code translate="no">/resource</code></span><span>basis gen 41</span>
+  <span class="ade-lock"><b aria-hidden="true">●</b>writer: this session</span>
+  <span class="muted">Other builds are read for comparison only; they change only through Propose below.</span>
+ </div>
+ <div class="ade-sec">
+  <div class="ade-flds">
+   <label class="lbl" for="te-name">Name</label><div class="val"><input class="adc-in" id="te-name" value="CacheEntry" translate="no" aria-describedby="te-name-h"></div>
+   <span class="hint" id="te-name-h">Types use PascalCase.</span>
+   <label class="lbl" for="te-desc">Description</label><div class="val"><input class="adc-in wide" id="te-desc" value="Resolver cache node"></div>
+   <span class="lbl" id="te-pack-l">Packing</span><div class="val"><div class="ad-seg" role="radiogroup" aria-labelledby="te-pack-l"><span role="radio" aria-checked="true" tabindex="0">None</span><span role="radio" aria-checked="false" tabindex="-1">Default</span><span role="radio" aria-checked="false" tabindex="-1">Explicit</span></div><span class="muted">non-packed: every byte is a component or filler</span></div>
+   <span class="lbl" id="te-align-l">Alignment</span><div class="val"><div class="ad-seg" role="radiogroup" aria-labelledby="te-align-l"><span role="radio" aria-checked="true" tabindex="0">Default</span><span role="radio" aria-checked="false" tabindex="-1">Machine</span><span role="radio" aria-checked="false" tabindex="-1">Explicit</span></div><span class="mono">computed 4 on build-a</span></div>
+   <label class="lbl" for="te-size">Size</label><div class="val"><input class="adc-in num" id="te-size" value="0x18" translate="no"><span class="muted">a size change resizes every use; it goes through ConfirmDialog</span></div>
+  </div>
+ </div>
+ <div class="ade-grid ad-scroll" tabindex="0" role="region" aria-label="Components of CacheEntry, scrollable">
+ <table class="ad-table" role="grid" aria-label="Components of CacheEntry, draft on build-a, offsets per build" aria-describedby="te-key">
+  <thead><tr><th scope="col">Field</th><th scope="col">Type (draft)</th><th scope="col" class="b target">build-a</th><th scope="col" class="b">build-b</th><th scope="col" class="b">build-c</th><th scope="col" class="b">build-d</th><th scope="col">Across builds</th><th scope="col">Comment</th></tr></thead>
+  <tbody>
+   <tr aria-selected="true"><th scope="row"><code translate="no">name_len</code></th><td><code translate="no">ushort</code> → <code translate="no">uint</code><span class="w">retype · overwrites filler +0x2..+0x3</span></td><td class="b target">+0x0 : 2 → 4</td><td class="b">+0x0 : 2</td><td class="b">+0x0 : 2</td><td class="b">+0x0 : 2</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>same</span></td><td>length without the terminator</td></tr>
+   <tr><th scope="row"><span class="muted">filler</span></th><td><span class="muted">undefined 2 → none</span></td><td class="b target">+0x2 : 2 → 0</td><td class="b">+0x2 : 2</td><td class="b">+0x2 : 2</td><td class="b">+0x2 : 2</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>same</span></td><td></td></tr>
+   <tr><th scope="row"><code translate="no">flags</code></th><td><a class="ad-link" href="?project=corpus-alpha&amp;type=CacheEntryFlags&amp;build=build-a" translate="no" aria-label="Type CacheEntryFlags, build-a">CacheEntryFlags</a></td><td class="b target">+0x4 : 4</td><td class="b">+0x4 : 4</td><td class="b">+0x4 : 4</td><td class="b">+0x4 : 4</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>same</span></td><td></td></tr>
+   <tr><th scope="row"><span class="muted">filler</span></th><td><span class="muted">undefined</span></td><td class="b target">+0x8 : 8</td><td class="b">+0x8 : 8</td><td class="b">+0x8 : 0xc</td><td class="b">+0x8 : 0x10</td><td><span class="ade-m diff"><b aria-hidden="true">±</b>resized</span></td><td></td></tr>
+   <tr><th scope="row"><code translate="no">next</code></th><td><code translate="no">CacheEntry *</code></td><td class="b target">+0x10 : 4</td><td class="b">+0x10 : 4</td><td class="b">+0x18 : 4</td><td class="b">+0x18 : 8</td><td><span class="ade-m diff"><b aria-hidden="true">±</b>shifted on build-c, build-d</span><span class="w"><span class="ade-var hyp"><b>compile variance</b> hypothesis · <span class="basis">basis: same fields in the same order</span></span></span></td><td>chain in the bucket</td></tr>
+   <tr><th scope="row"><span class="muted">filler</span></th><td><span class="muted">undefined</span></td><td class="b target">+0x14 : 4</td><td class="b">+0x14 : 4</td><td class="b">+0x1c : 0</td><td class="b">+0x20 : 0</td><td><span class="ade-m diff"><b aria-hidden="true">±</b>resized</span></td><td></td></tr>
+   <tr><th scope="row"><span class="muted">size · align</span></th><td></td><td class="b target">0x18 · 4</td><td class="b">0x18 · 4</td><td class="b">0x1c · 4</td><td class="b">0x20 · 8<span class="w">as read 13:40</span></td><td><span class="ade-var"><b>compile variance</b> <span class="basis">witness: build-d language is x86-64, pointer width 8</span></span></td><td></td></tr>
+  </tbody>
+ </table>
+ </div>
+ <p class="small muted" id="te-key" style="margin:0;padding:var(--space-3) var(--space-5)">Offsets are +offset : size in bytes. ↔ same across builds · ± differs (the correspondence word: same, shifted, resized, retyped, added, removed or reordered). Filler rows are shown, never hidden. The target column is framed.</p>
+ <div class="ade-sec">
+  <h5>Layout check per build · read before Save</h5>
+  <div class="ade-grid ad-scroll"><table class="ad-table"><caption class="sr-only">Layout check of the draft on each build</caption><thead><tr><th scope="col">Build</th><th scope="col">Size after</th><th scope="col">Moved fields</th><th scope="col">Result</th></tr></thead><tbody>
+   <tr><th scope="row">build-a <span class="small muted">target</span></th><td class="mono">0x18 → 0x18</td><td>none</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>fits: filler absorbs the growth</span></td></tr>
+   <tr><th scope="row">build-b</th><td class="mono">0x18 → 0x18</td><td>none</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>layout identical to build-a</span></td></tr>
+   <tr><th scope="row">build-c</th><td class="mono">0x1c → 0x1c</td><td>none</td><td><span class="ade-m diff"><b aria-hidden="true">±</b>layout differs from build-a (next +0x18)</span></td></tr>
+   <tr><th scope="row">build-d</th><td class="mono">0x20 → 0x20</td><td>none</td><td><span class="ade-m diff"><b aria-hidden="true">±</b>layout differs: pointer width 8</span></td></tr>
+  </tbody></table></div>
+ </div>
+ <div class="ade-rev"><span class="kicker">Save opens ConfirmDialog · a field retype changes every use</span>Retype <code translate="no">CacheEntry.name_len</code> on build-a: <code translate="no">ushort</code> → <code translate="no">uint</code>, size stays 0x18, 14 known uses on build-a. Other builds are unchanged by Save.</div>
+ <footer><button class="ad-btn primary" type="submit" aria-keyshortcuts="Control+S">Save on build-a <span class="ad-kbd">Ctrl+S</span></button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button><span class="note">Draft undo and redo change only this draft; program undo is per transaction in Edit history.</span></footer>
+ <div class="ade-prop" role="group" aria-labelledby="te-prop-t">
+  <h5 id="te-prop-t">Propose to build-b, build-c · a separate step after Save's terminal result</h5>
+  <p>Only builds with an accepted identity edge for <span translate="no">CacheEntry</span> are listed. A layout that differs blocks its recipient and says why.</p>
+  <div class="ade-grid ad-scroll"><table class="ad-table"><caption class="sr-only">Recipients for the name_len retype</caption><thead><tr><th scope="col">Recipient</th><th scope="col">Edge</th><th scope="col">Preview on that build</th><th scope="col">Layout check</th><th scope="col">Include</th></tr></thead><tbody>
+   <tr><th scope="row">build-b</th><td><span class="ad-edge" aria-hidden="true"></span> accepted</td><td class="mono">name_len +0x0 : 2 → 4 · size 0x18</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>identical</span></td><td><label class="ade-flag"><input type="checkbox" class="ade-cb" checked><span class="sr-only">Include build-b</span></label></td></tr>
+   <tr><th scope="row">build-c</th><td><span class="ad-edge" aria-hidden="true"></span> accepted</td><td class="mono">not previewed</td><td><span class="ade-m bad"><b aria-hidden="true">✕</b>blocked: layout differs (next +0x18 vs +0x10)</span></td><td><span class="muted">blocked</span></td></tr>
+  </tbody></table></div>
+  <div class="ade-foot"><button class="ad-btn" type="button">Propose to build-b…</button><span class="note">Opens ConfirmDialog naming build-b and its 14 uses. Each recipient gets its own outcome.</span></div>
+ </div>
+</form>
+
+<div class="adc-states">
+<div>
+ <span class="kicker">Field retype · cross-build ConfirmDialog</span>
+ <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="te-cd-t" aria-describedby="te-cd-d"><h3 id="te-cd-t">Retype <span translate="no">CacheEntry.name_len</span> on build-a</h3><p id="te-cd-d">Changes the field in every use of <span class="mono" translate="no">CacheEntry</span> on build-a (14 known uses), keeps the size at 0x18, and leaves build-b, build-c and build-d unchanged.</p><footer><button class="ad-btn is-focus">Cancel</button><button class="ad-btn primary">Retype field</button></footer></div>
+</div>
+<div>
+ <span class="kicker">Enum mode · value sets side by side per build</span>
+ <div class="ade" role="group" aria-labelledby="te-en-t">
+  <header><h4 id="te-en-t">Edit enum <code translate="no">CacheEntryFlags</code></h4><span class="end"><button class="ad-btn compact" type="button" aria-pressed="true">Hex</button></span></header>
+  <div class="ade-tgt"><span class="ade-bld target">build-a</span><span class="mono">size 4</span></div>
+  <div class="ade-grid ad-scroll"><table class="ad-table" role="grid" aria-label="Enum values of CacheEntryFlags per build"><thead><tr><th scope="col">Name</th><th scope="col" class="b target">build-a</th><th scope="col" class="b">build-b</th><th scope="col" class="b">build-c</th></tr></thead><tbody>
+   <tr><th scope="row"><code translate="no">CACHE_ENTRY_PINNED</code></th><td class="b target">0x1</td><td class="b">0x1</td><td class="b">0x1</td></tr>
+   <tr><th scope="row"><code translate="no">CACHE_ENTRY_DIRTY</code></th><td class="b target">0x2</td><td class="b">0x2</td><td class="b">0x2</td></tr>
+   <tr><th scope="row"><code translate="no">CACHE_ENTRY_EVICTED</code></th><td class="b target"><span class="ad-absent">absent</span></td><td class="b"><span class="ad-absent">absent</span></td><td class="b"><span class="ade-m diff"><b aria-hidden="true">+</b>0x4</span></td></tr>
+  </tbody></table></div>
+  <div class="ade-foot"><button class="ad-btn" type="button">Add value</button><span class="note">Constants use COBRA_CASE. Adding CACHE_ENTRY_EVICTED to build-a is an edit on build-a only.</span></div>
+ </div>
+</div>
+<div>
+ <span class="kicker">Bitfields · bit view of one storage unit; dotted cells are padding</span>
+ <div class="ade" role="group" aria-labelledby="te-bf-t">
+  <header><h4 id="te-bf-t">Bitfield <code translate="no">flags : 3</code> at +0x4</h4><span class="end">bit 0, width 3, base uint</span></header>
+  <div class="ade-sec"><div class="ade-bits" role="img" aria-label="Bits 0 to 15 of the storage unit at +0x4: bits 0 to 2 are flags, bits 3 to 15 are padding"><i class="f">0</i><i class="f">1</i><i class="f">2</i><i class="pad">3</i><i class="pad">4</i><i class="pad">5</i><i class="pad">6</i><i class="pad">7</i><i class="pad">8</i><i class="pad">9</i><i class="pad">10</i><i class="pad">11</i><i class="pad">12</i><i class="pad">13</i><i class="pad">14</i><i class="pad">15</i></div><p class="small muted">Bits 0–2 <code translate="no">flags</code> · bits 3–31 padding. Bit order follows each build's endianness; all four builds are little-endian.</p></div>
+ </div>
+</div>
+<div>
+ <span class="kicker">Pointer-typedef mode · Adjust Pointer Offset from the decompiler</span>
+ <div class="ade" role="group" aria-labelledby="te-pt-t">
+  <header><h4 id="te-pt-t">Pointer to <code translate="no">CacheEntry</code> with offset</h4><span class="end">Edit data type (catalog)</span></header>
+  <div class="ade-tgt"><span class="ade-bld target">build-a</span><span>pointer width 4 on build-a · 8 on build-d</span></div>
+  <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="te-po">Offset</label><div class="val"><input class="adc-in num" id="te-po" value="-0x4" translate="no"><span class="muted">points 4 bytes into <code translate="no">CacheEntry</code> (field <code translate="no">flags</code>)</span></div><label class="lbl" for="te-ps">Space</label><div class="val"><select class="adc-in" id="te-ps"><option>default</option><option>image-base relative</option></select></div></div></div>
+ </div>
+</div>
+<div>
+ <span class="kicker">Auto create structure · inferred fields are hypotheses (NP)</span>
+ <div class="ade-grid ad-scroll"><table class="ad-table"><caption class="sr-only">Structure inferred from variable usage in ResourceRef::Resolve on build-a</caption><thead><tr><th scope="col">Field</th><th scope="col">Type</th><th scope="col" class="b">build-a</th><th scope="col">Basis</th></tr></thead><tbody>
+  <tr class="hyp"><th scope="row"><code translate="no">field_0x0</code> <span class="small muted">hypothesis</span></th><td class="mono">ushort</td><td class="b">+0x0 : 2</td><td>2-byte read at 0041b210</td></tr>
+  <tr class="hyp"><th scope="row"><code translate="no">field_0x10</code> <span class="small muted">hypothesis</span></th><td class="mono">void *</td><td class="b">+0x10 : 4</td><td>dereferenced in a loop</td></tr>
+ </tbody></table></div>
+ <p class="small muted" style="margin:0">Inferred from usage on build-a only. Each field stays a hypothesis until it is named and each build's size check passes.</p>
+</div>
+<div>
+ <span class="kicker">Function-definition mode · created from a function on one build</span>
+ <div class="ade" role="group" aria-labelledby="te-fd-t">
+  <header><h4 id="te-fd-t">Function definition <code translate="no">ResolveFn</code></h4><span class="end">Create function definition (catalog)</span></header>
+  <div class="ade-tgt"><span class="ade-bld target">build-a</span><span>from <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a></span></div>
+  <div class="ade-sec"><code translate="no" class="small">int __thiscall ResolveFn(ResourceRef *this, char *name, uint size)</code><p class="small muted">The convention comes from build-a's compiler spec. On build-c the same function uses custom register storage, so this definition is not offered there.</p></div>
+ </div>
+</div>
+<div>
+ <span class="kicker">Modification conflict · resolved explicitly, never by arrival order</span>
+ <div class="ad-notice fault"><b aria-hidden="true">⇄</b><div><h4>CacheEntry changed on build-a while this draft was open</h4><p>Job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, edit structure, finished">a3f9</a> renamed <code translate="no">next</code> at gen 42; this draft was based on gen 41. Choose Save mine over gen 42, Keep the arrived layout, or Cancel. Nothing is posted until you choose.</p></div><span></span></div>
+</div>
+</div>
+</div>

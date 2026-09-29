@@ -1,0 +1,98 @@
+<!-- @dsCard group="Activity" height=1010 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<section class="ad-dock ad-prob" aria-label="Activity dock">
+ <div class="ad-subtabs" role="tablist" aria-label="Dock">
+  <button role="tab" aria-selected="false" tabindex="-1">Activity</button><button role="tab" aria-selected="false" tabindex="-1">Recovery</button><button role="tab" aria-selected="false" tabindex="-1">Logs</button><button role="tab" aria-selected="false" tabindex="-1">Jobs <span class="ad-prob-n">2</span></button><button role="tab" id="pb-tab" aria-selected="true" aria-controls="pb-panel">Problems <span class="ad-prob-n">5</span></button>
+ </div>
+ <div id="pb-panel" role="tabpanel" aria-labelledby="pb-tab">
+  <div class="ad-tools ad-prob-tools" role="group" aria-label="Problem filters">
+   <label class="ad-filt"><input type="checkbox">Selection only <span class="n">2</span></label>
+   <span role="group" aria-labelledby="pb-kind"><span class="lbl" id="pb-kind">Kind</span><label class="ad-filt"><input type="checkbox" checked>external action <span class="n">1</span></label><label class="ad-filt"><input type="checkbox" checked>failure <span class="n">2</span></label><label class="ad-filt"><input type="checkbox" checked>predicate <span class="n">2</span></label></span>
+   <span class="ad-prob-end"><button class="ad-btn compact" aria-haspopup="dialog">Save as worklist…</button><button class="ad-btn compact" aria-pressed="false">Freeze updates</button></span>
+  </div>
+  <div class="ad-prob-grid" role="treegrid" aria-label="Problems by objective, oldest first" aria-rowcount="10" data-scroll>
+   <div role="rowgroup">
+    <div role="row" class="ad-prob-row head" aria-rowindex="1"><span role="columnheader">Problem</span><span role="columnheader">Entity</span><span role="columnheader">Evidence · job</span><span role="columnheader" aria-sort="descending">Waiting</span></div>
+   </div>
+   <div role="rowgroup">
+    <!-- external actions: one deduplicated group -->
+    <div role="row" class="ad-prob-row grp" aria-level="1" aria-expanded="true" aria-posinset="1" aria-setsize="3" aria-rowindex="2" tabindex="-1">
+     <span role="gridcell" aria-colspan="4" class="ad-prob-c1"><span class="ad-prob-tw" aria-hidden="true">▾</span><span><span class="strong">External action required</span> <span class="small muted">· shown once across objectives · repeats only on material change</span></span></span></div>
+    <div role="row" class="ad-prob-row" aria-level="2" aria-expanded="false" aria-posinset="1" aria-setsize="1" aria-rowindex="3" tabindex="-1">
+     <span role="gridcell" class="ad-prob-c1"><span class="ad-prob-tw" aria-hidden="true">▸</span><span><span class="ad-prob-k ext"><b aria-hidden="true">⚑</b>External action</span> Decide whether to release the Wine prefix held by external process 50112 <span class="ad-prob-dup">14 reports, shown once · blocks 2 objectives</span></span></span>
+     <span role="gridcell"><a class="ad-link" href="?p=corpus-alpha&amp;node=lock-3" tabindex="-1" aria-label="Pipeline node lock-3, Wine prefix, owned externally">lock-3 · Wine prefix</a></span>
+     <span role="gridcell"><a class="ad-link mono" href="?p=corpus-alpha&amp;receipt=e2b4" tabindex="-1" aria-label="Receipt e2b4, access probe, current">%e2b4</a> <span class="muted">access probe</span><br><span class="muted">external · no job</span></span>
+     <span role="gridcell" class="ad-prob-age"><span class="mono">1h 12m</span></span></div>
+   </div>
+   <div role="rowgroup">
+    <div role="row" class="ad-prob-row grp" aria-level="1" aria-expanded="true" aria-posinset="2" aria-setsize="3" aria-rowindex="4" tabindex="-1">
+     <span role="gridcell" aria-colspan="4" class="ad-prob-c1"><span class="ad-prob-tw" aria-hidden="true">▾</span><span><span class="strong">Objective · build-b readable C</span> <span class="small muted">· 3 problems · next: verify recipients when <a class="ad-link mono" href="?p=corpus-alpha&amp;job=a3f9&amp;dock=jobs" tabindex="-1">a3f9</a> finishes · 38 independent tasks continue</span></span></span></div>
+    <div role="row" class="ad-prob-row" aria-level="2" aria-expanded="true" aria-selected="true" aria-posinset="1" aria-setsize="3" aria-rowindex="5" tabindex="0">
+     <span role="gridcell" class="ad-prob-c1 is-focus"><span class="ad-prob-tw" aria-hidden="true">▾</span><span><span class="ad-prob-k fail"><b aria-hidden="true">✕</b>Failure</span> Provider paused for this input revision <span class="ad-chip">mismatch</span></span></span>
+     <span role="gridcell"><a class="ad-link" href="?p=corpus-alpha&amp;e=88&amp;b=build-c" tabindex="-1" translate="no" aria-label="Counterpart ResourceRef::Resolve on build-c">ResourceRef::Resolve</a> <span class="muted b">@ build-c</span></span>
+     <span role="gridcell"><a class="ad-link mono" href="?p=corpus-alpha&amp;e=88&amp;b=build-c&amp;ws=recovery&amp;q=diag:C2440" tabindex="-1" aria-label="Compiler diagnostic C2440 at resource.c line 41">resource.c(41)</a> <span class="muted">C2440</span><br><a class="ad-link mono" href="?p=corpus-alpha&amp;job=0b17&amp;dock=jobs" tabindex="-1" aria-label="Job 0b17, source repair, waiting">0b17</a> <span class="muted">repair · waiting</span></span>
+     <span role="gridcell" class="ad-prob-age"><span class="mono">22m</span></span></div>
+    <div role="row" class="ad-prob-row detail" aria-level="3" aria-rowindex="6" id="pb-fr">
+     <div role="gridcell" aria-colspan="4">
+      <div class="ad-record" role="group" aria-label="Failure record: provider paused for this input revision"><header class="fault"><h4><span aria-hidden="true">✕</span> Provider paused for this input revision</h4><span class="ad-chip">mismatch</span></header>
+       <div class="body"><div class="ad-rail" role="img" aria-label="Failure lifecycle: observed, classified, contained done; recovery pending now; reconciling and eligible next"><span class="done">observed</span><span class="done">classified</span><span class="done">contained</span><span class="now">recovery_pending</span><span>reconciling</span><span>eligible</span></div>
+        <dl class="ad-dl"><dt>Scope</dt><dd>compile of ResourceRef.cpp for build-c</dd><dt>Evidence</dt><dd><a class="ad-link mono" href="?p=corpus-alpha&amp;e=88&amp;b=build-c&amp;ws=recovery&amp;q=diag:C2440" tabindex="-1">C2440 at resource.c(41)</a> · observed 13:57:10 · <span class="ad-stamp"><b class="fresh">fresh</b></span></dd><dt>Spent</dt><dd>2 of 3 attempts · 1 bounded LLM cleanup</dd><dt>Recovery</dt><dd>deterministic cast helper, then recompile (job <a class="ad-link mono" href="?p=corpus-alpha&amp;job=0b17&amp;dock=jobs" tabindex="-1">0b17</a>)</dd><dt>Wake</dt><dd>new candidate revision or changed helper policy</dd><dt>Continues</dt><dd>38 independent tasks on build-c, all of build-b</dd></dl></div></div>
+     </div></div>
+    <div role="row" class="ad-prob-row" aria-level="2" aria-posinset="2" aria-setsize="3" aria-rowindex="7" tabindex="-1">
+     <span role="gridcell" class="ad-prob-c1"><span class="ad-prob-tw" aria-hidden="true"></span><span><span class="ad-prob-k pred"><b class="g-stale" aria-hidden="true">◷</b>Predicate</span> Linked match stale for 12 recipients</span></span>
+     <span role="gridcell"><a class="ad-link" href="?p=corpus-alpha&amp;b=build-b&amp;q=fact.linked_match:stale" tabindex="-1" aria-label="12 recipients on build-b with Linked match stale">12 recipients</a> <span class="muted b">@ build-b</span></span>
+     <span role="gridcell"><a class="ad-link mono" href="?p=corpus-alpha&amp;b=build-b&amp;q=basis:9f3c" tabindex="-1" aria-label="Basis 9f3c…a1e0, changed at 13:20">basis 9f3c…a1e0</a><br><a class="ad-link mono" href="?p=corpus-alpha&amp;job=a3f9&amp;dock=jobs" tabindex="-1" aria-label="Job a3f9, corpus.cross-place, running">a3f9</a> <span class="muted">cross-place · running</span></span>
+     <span role="gridcell" class="ad-prob-age"><span class="mono">38m</span></span></div>
+    <div role="row" class="ad-prob-row ref" aria-level="2" aria-posinset="3" aria-setsize="3" aria-rowindex="8" tabindex="-1">
+     <span role="gridcell" aria-colspan="4" class="ad-prob-c1"><span class="ad-prob-tw" aria-hidden="true"></span><span class="small"><span class="ad-prob-k ext"><b aria-hidden="true">⚑</b>Also blocked by</span> the external action above: <a class="ad-link" href="?p=corpus-alpha&amp;node=lock-3&amp;dock=problems" tabindex="-1">release the Wine prefix</a> <span class="muted">(not repeated)</span></span></span></div>
+   </div>
+   <div role="rowgroup">
+    <div role="row" class="ad-prob-row grp" aria-level="1" aria-expanded="true" aria-posinset="3" aria-setsize="3" aria-rowindex="9" tabindex="-1">
+     <span role="gridcell" aria-colspan="4" class="ad-prob-c1"><span class="ad-prob-tw" aria-hidden="true">▾</span><span><span class="strong">Objective · build-d calibration</span> <span class="small muted">· 2 problems · no automatic action; needs a calibration profile</span></span></span></div>
+    <div role="row" class="ad-prob-row" aria-level="2" aria-posinset="1" aria-setsize="2" aria-rowindex="10" tabindex="-1">
+     <span role="gridcell" class="ad-prob-c1"><span class="ad-prob-tw" aria-hidden="true"></span><span><span class="ad-prob-k pred"><b class="g-unk" aria-hidden="true">○</b>Predicate</span> ABI checks not run: calibration profile missing</span></span>
+     <span role="gridcell"><a class="ad-link" href="?p=corpus-alpha&amp;b=build-d" tabindex="-1" aria-label="Build build-d">build-d</a> <span class="muted">· whole build</span></span>
+     <span role="gridcell"><a class="ad-link mono" href="?p=corpus-alpha&amp;node=stage-2" tabindex="-1" aria-label="Pipeline node stage-2, incremental calibration">~stage-2</a> <span class="muted">calibration</span><br><span class="muted">no job admitted</span></span>
+     <span role="gridcell" class="ad-prob-age"><span class="mono">3h 40m</span> <span class="small muted">oldest</span></span></div>
+    <div role="row" class="ad-prob-row" aria-level="2" aria-posinset="2" aria-setsize="2" aria-rowindex="11" tabindex="-1">
+     <span role="gridcell" class="ad-prob-c1"><span class="ad-prob-tw" aria-hidden="true">▸</span><span><span class="ad-prob-k fail"><b aria-hidden="true">✕</b>Failure</span> Past deadline; failover named: bulk import moves to worker-2 <span class="ad-chip">resource</span></span></span>
+     <span role="gridcell"><a class="ad-link" href="?p=corpus-alpha&amp;b=build-d" tabindex="-1" aria-label="Build build-d">build-d</a> <span class="muted">· import</span></span>
+     <span role="gridcell"><a class="ad-link mono" href="?p=corpus-alpha&amp;job=77c0&amp;dock=jobs" tabindex="-1" aria-label="Job 77c0, corpus.ghidra-bulk, past deadline">77c0</a> <span class="muted">external · pid 48211</span><br><span class="muted">deadline ≠ termination</span></span>
+     <span role="gridcell" class="ad-prob-age"><span class="ad-prob-over"><b aria-hidden="true">✕</b><span class="mono">+18m</span> past deadline</span></span></div>
+   </div>
+  </div>
+  <footer class="ad-prob-foot"><span>Snapshot 13:58:07 · projection r12 · the same rows drive 8080, /react/, the CLI and agents</span><span>↑↓ rows · → expand · ← collapse · Enter go · Shift+Enter open beside · Alt+↓ peek · Shift+F10 reveal in</span></footer>
+  <p class="sr-only" role="status">5 problems in 3 groups. Oldest: ABI checks not run on build-d, 3 hours 40 minutes.</p>
+ </div>
+</section>
+
+<div class="ad-prob-states">
+ <section class="ad-dock ad-prob" aria-label="Problems, selection only">
+  <div class="ad-tools ad-prob-tools" role="group" aria-label="Problem filters">
+   <label class="ad-filt"><input type="checkbox" checked>Selection only <span class="n">2</span></label>
+   <span class="ad-prob-scope"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Follows selection · <span translate="no">ResourceRef::Resolve</span> · all builds</span>
+  </div>
+  <div class="ad-prob-grid" role="treegrid" aria-label="Problems for ResourceRef::Resolve, 2 of 5" aria-rowcount="4">
+   <div role="rowgroup">
+    <div role="row" class="ad-prob-row grp" aria-level="1" aria-expanded="true" aria-rowindex="1" tabindex="-1"><span role="gridcell" aria-colspan="4" class="ad-prob-c1"><span class="ad-prob-tw" aria-hidden="true">▾</span><span class="strong">Objective · build-b readable C</span></span></div>
+    <div role="row" class="ad-prob-row" aria-level="2" aria-expanded="false" aria-rowindex="2" tabindex="0">
+     <span role="gridcell" class="ad-prob-c1"><span class="ad-prob-tw" aria-hidden="true">▸</span><span><span class="ad-prob-k fail"><b aria-hidden="true">✕</b>Failure</span> Provider paused for this input revision</span></span>
+     <span role="gridcell"><span class="muted b">@ build-c</span></span>
+     <span role="gridcell"><a class="ad-link mono" href="?p=corpus-alpha&amp;job=0b17&amp;dock=jobs" tabindex="-1">0b17</a></span>
+     <span role="gridcell" class="ad-prob-age"><span class="mono">22m</span></span></div>
+    <div role="row" class="ad-prob-row" aria-level="2" aria-rowindex="3" tabindex="-1">
+     <span role="gridcell" class="ad-prob-c1"><span class="ad-prob-tw" aria-hidden="true"></span><span><span class="ad-prob-k pred"><b class="g-stale" aria-hidden="true">◷</b>Predicate</span> Linked match stale on this entity</span></span>
+     <span role="gridcell"><span class="muted b">@ build-b</span></span>
+     <span role="gridcell"><a class="ad-link mono" href="?p=corpus-alpha&amp;job=a3f9&amp;dock=jobs" tabindex="-1">a3f9</a></span>
+     <span role="gridcell" class="ad-prob-age"><span class="mono">38m</span></span></div>
+   </div>
+  </div>
+  <footer class="ad-prob-foot"><span>Showing 2 of 5 · <a class="ad-link" href="?p=corpus-alpha&amp;dock=problems">Show all 5</a></span></footer>
+ </section>
+ <div class="stack" style="gap:12px">
+  <div class="ad-notice info"><b aria-hidden="true">∅</b><div><h4>No problems for FUN_0041c880 on build-a</h4><p>Selection only is on. 5 problems elsewhere in corpus-alpha.</p></div><a class="ad-link small ad-prob-all" href="?p=corpus-alpha&amp;dock=problems">Show all</a></div>
+  <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Frozen at 13:58</h4><p>Updates are held while you read. 1 new problem and 1 resolved since; nothing moved under the cursor.</p></div><button class="ad-btn compact" aria-pressed="true">Resume updates</button></div>
+  <div class="ad-notice info"><b aria-hidden="true">↻</b><div><h4>Reconnecting</h4><p>Showing problems from 13:58, read-only. Ages keep counting from that snapshot and say so.</p></div><span></span></div>
+ </div>
+</div>
+</div>

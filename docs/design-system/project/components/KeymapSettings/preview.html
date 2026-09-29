@@ -1,0 +1,99 @@
+<!-- @dsCard group="Shell" height=1300 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<section class="ad-keymap" aria-labelledby="km-h">
+ <header class="ad-keymap-head"><h4 id="km-h">Keyboard</h4><span class="small muted">One keymap for /dashboard and /react/ · saved for you · durable workspace state</span></header>
+ <div class="ad-keymap-why" role="note" aria-labelledby="km-why-h">
+  <div><h5 id="km-why-h">Character key shortcuts (WCAG 2.1.4)</h5>
+   <p>Single-key bindings act only while focus is inside a list, grid or listing. They never fire in text fields, on the page body or while a screen reader's browse mode is plausible. Each one can be turned off here or remapped to include Ctrl, Alt or Cmd. Global commands always use a modifier or a function key.</p></div>
+ </div>
+ <div class="ad-tools ad-keymap-tools" role="group" aria-label="Keyboard options">
+  <span><span class="lbl" id="km-l-sk">Single-key shortcuts</span><span class="ad-seg" role="group" aria-labelledby="km-l-sk"><button aria-pressed="true">On in lists</button><button aria-pressed="false">Off</button></span></span>
+  <span><span class="lbl" id="km-l-wk">Which-key hints</span><span class="ad-seg" role="group" aria-labelledby="km-l-wk"><button aria-pressed="false">Off</button><button aria-pressed="true">After 500 ms</button><button aria-pressed="false">At once</button></span></span>
+  <span><span class="lbl" id="km-l-pk">Peek on focus rest</span><span class="ad-seg" role="group" aria-labelledby="km-l-pk"><button aria-pressed="false">Off</button><button aria-pressed="true">800 ms</button><button aria-pressed="false">1500 ms</button></span></span>
+  <span class="ad-keymap-find"><input type="search" aria-label="Filter commands, or press keys to find their binding" placeholder="Filter commands or press keys" spellcheck="false"></span>
+  <button class="ad-btn compact">Reset all…</button>
+ </div>
+ <div class="ad-keymap-grid" role="grid" aria-label="Commands and bindings" aria-rowcount="24" data-scroll>
+  <div role="rowgroup"><div role="row" class="ad-keymap-row head"><span role="columnheader">Command</span><span role="columnheader">Binding</span><span role="columnheader">Scope</span><span role="columnheader">Status</span><span role="columnheader"><span class="sr-only">Change</span></span></div></div>
+  <div role="rowgroup" aria-labelledby="km-g1">
+   <div role="row" class="ad-keymap-row grp"><span role="gridcell" aria-colspan="5" id="km-g1">Any link <span class="muted">· one activation grammar on addresses, symbols, counterparts, facts, receipts, jobs and pipeline nodes</span></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">Go</span><span role="gridcell"><kbd class="ad-kbd">Enter</kbd><span class="or">or click</span></span><span role="gridcell">link</span><span role="gridcell" class="st muted">default · pushes one history stop</span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for Go">▾</button></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">Open beside</span><span role="gridcell"><kbd class="ad-kbd">Shift Enter</kbd><span class="or">or Shift+click</span></span><span role="gridcell">link</span><span role="gridcell" class="st muted">default · selection does not change</span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for Open beside">▾</button></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">Peek</span><span role="gridcell"><kbd class="ad-kbd">Alt ↓</kbd><span class="or">or hover</span></span><span role="gridcell">link</span><span role="gridcell" class="st muted">default · read-only</span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for Peek">▾</button></span></div>
+   <div role="row" class="ad-keymap-row" aria-selected="true"><span role="rowheader">Keep</span><span role="gridcell"><kbd class="ad-kbd">K</kbd></span><span role="gridcell">Peek, evidence card</span><span role="gridcell" class="st"><span class="ad-keymap-cf"><b aria-hidden="true">⇄</b>Conflict with Mark row (K, remapped) in evidence-rail lists</span></span><span role="gridcell"><button class="ad-keymap-ed is-focus" tabindex="0" aria-haspopup="menu" aria-expanded="true" aria-controls="km-menu" aria-label="Change binding for Keep">▾</button></span></div>
+   <div role="row" class="ad-keymap-row menu"><span role="gridcell" aria-colspan="5" class="ad-keymap-resolve">
+    <span class="ad-keymap-rtext"><strong>K means two things in evidence-rail lists.</strong> Keep acts in a Peek or an evidence card; Mark row (remapped by you from M) acts in any focused list, including the history and marks lists in the rail. Until you choose, K does nothing there and says why in the status line.</span>
+    <div class="ad-pop ad-keymap-pop" id="km-menu"><ul class="ad-menu" role="menu" aria-label="Change binding for Keep">
+     <li role="none"><div role="menuitem" class="is-active" tabindex="-1"><span class="t">Remap…</span><span class="m">press new keys</span></div></li>
+     <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Add another binding…</span></div></li>
+     <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Turn off</span><span class="m">Keep button stays</span></div></li>
+     <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Reset to default</span><span class="m">K</span></div></li>
+     <li role="separator"></li>
+     <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Reset Mark row instead</span><span class="m">M</span></div></li></ul></div></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">Reveal in…</span><span role="gridcell"><kbd class="ad-kbd">Shift F10</kbd><span class="or">or menu key</span></span><span role="gridcell">link</span><span role="gridcell" class="st muted">default · Code Browser, Compare, Evidence, Navigator, Dock</span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for Reveal in">▾</button></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">New browser tab</span><span role="gridcell"><kbd class="ad-kbd">Ctrl Enter</kbd><span class="or">or Ctrl+click</span></span><span role="gridcell">link</span><span role="gridcell" class="st muted">browser · not remappable; every link is a real URL</span><span role="gridcell"></span></div>
+  </div>
+  <div role="rowgroup" aria-labelledby="km-g2">
+   <div role="row" class="ad-keymap-row grp"><span role="gridcell" aria-colspan="5" id="km-g2">Global <span class="muted">· modifier or function key; works from anywhere except where a browser or system takes it</span></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">Command palette</span><span role="gridcell"><kbd class="ad-kbd">Ctrl K</kbd></span><span role="gridcell">global</span><span role="gridcell" class="st muted">default</span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for Command palette">▾</button></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">Go to anything</span><span role="gridcell"><kbd class="ad-kbd">Ctrl P</kbd></span><span role="gridcell">global</span><span role="gridcell" class="st muted">default</span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for Go to anything">▾</button></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">Back · Forward</span><span role="gridcell"><kbd class="ad-kbd">Alt ←</kbd><kbd class="ad-kbd">Alt →</kbd></span><span role="gridcell">global</span><span role="gridcell" class="st muted">default · same stack as browser Back</span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for Back and Forward">▾</button></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">Next · previous region</span><span role="gridcell"><kbd class="ad-kbd">F6</kbd><kbd class="ad-kbd">Shift F6</kbd></span><span role="gridcell">global</span><span role="gridcell" class="st muted">default</span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for regions">▾</button></span></div>
+   <div role="row" class="ad-keymap-row rec"><span role="rowheader">Toggle dock</span><span role="gridcell"><span class="ad-keymap-cap" role="textbox" aria-readonly="true" aria-label="New binding for Toggle dock" aria-describedby="km-cap-d" tabindex="-1"><kbd class="ad-kbd">Ctrl</kbd><kbd class="ad-kbd">Shift</kbd><kbd class="ad-kbd">D</kbd></span></span><span role="gridcell">global</span><span role="gridcell" class="st" id="km-cap-d"><span class="ad-fact passed"><b aria-hidden="true">✓</b><span>No conflict in this app</span></span> <span class="muted">· was Ctrl J</span></span><span role="gridcell"></span><span role="gridcell" class="ad-keymap-capacts"><span class="small muted">Recording. Press the new keys; Esc cancels.</span><button class="ad-btn compact" tabindex="-1">Save</button><button class="ad-btn compact quiet" tabindex="-1">Cancel</button></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">Mark selection</span><span role="gridcell"><kbd class="ad-kbd">Ctrl Shift M</kbd></span><span role="gridcell">global</span><span role="gridcell" class="st"><span class="ad-keymap-cf warn"><b aria-hidden="true">⇄</b>Some browsers take it (Firefox responsive design mode; Chrome profile menu on Windows and Linux)</span></span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for Mark selection">▾</button></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">Next · previous worklist item</span><span role="gridcell"><kbd class="ad-kbd">F8</kbd><kbd class="ad-kbd">Shift F8</kbd></span><span role="gridcell">global</span><span role="gridcell" class="st muted">default · on macOS may need Fn</span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for worklist stepping">▾</button></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">Layout preset 1–5</span><span role="gridcell"><kbd class="ad-kbd">Ctrl Alt 1…5</kbd></span><span role="gridcell">global, not in text fields</span><span role="gridcell" class="st"><span class="ad-keymap-cf warn"><b aria-hidden="true">⇄</b>On AltGr keyboards Ctrl+Alt types characters; ignored while typing</span></span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for layout presets">▾</button></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">Shortcuts help</span><span role="gridcell"><kbd class="ad-kbd">F1</kbd></span><span role="gridcell">global</span><span role="gridcell" class="st muted">default · also <kbd class="ad-kbd">?</kbd> in lists</span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for Shortcuts help">▾</button></span></div>
+  </div>
+  <div role="rowgroup" aria-labelledby="km-g3">
+   <div role="row" class="ad-keymap-row grp"><span role="gridcell" aria-colspan="5" id="km-g3">Focused list, grid or listing <span class="muted">· single keys; never in text fields</span></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">Next · previous row</span><span role="gridcell"><kbd class="ad-kbd">J</kbd><kbd class="ad-kbd">K</kbd><span class="or">and ↓ ↑</span></span><span role="gridcell">list</span><span role="gridcell" class="st"><span class="ad-keymap-cf"><b aria-hidden="true">⇄</b>Conflict: K is also Mark row</span></span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for next and previous row">▾</button></span></div>
+   <div role="row" class="ad-keymap-row off"><span role="rowheader">Check row</span><span role="gridcell"><kbd class="ad-kbd">X</kbd><span class="or">Space still checks</span></span><span role="gridcell">list</span><span role="gridcell" class="st"><span class="ad-keymap-off">Off</span> <span class="muted">turned off by you</span></span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for Check row">▾</button></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">Mark row</span><span role="gridcell"><kbd class="ad-kbd">K</kbd></span><span role="gridcell">list</span><span role="gridcell" class="st"><span class="ad-keymap-cf"><b aria-hidden="true">⇄</b>Conflict with Keep and Previous row</span> <span class="muted">· remapped by you, default M</span></span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for Mark row">▾</button></span></div>
+   <div role="row" class="ad-keymap-row"><span role="rowheader">Go to… (leader)</span><span role="gridcell"><kbd class="ad-kbd">G</kbd><span class="or">then D L X C</span></span><span role="gridcell">list</span><span role="gridcell" class="st muted">default · shows which-key hints</span><span role="gridcell"><button class="ad-keymap-ed" tabindex="-1" aria-haspopup="menu" aria-label="Change binding for Go to leader">▾</button></span></div>
+  </div>
+ </div>
+ <footer class="ad-keymap-foot"><span>22 commands · 1 conflict on K · 1 turned off · 2 browser or keyboard cautions</span><span>Menus, tooltips and aria-keyshortcuts show these bindings, not the defaults.</span></footer>
+ <p class="sr-only" role="status">Toggle dock: Control Shift D. No conflict found.</p>
+</section>
+
+<div class="ad-keymap-demo">
+ <div class="ad-keymap-wk-anchor">
+  <span class="kicker">Which-key · after G in a focused list</span>
+  <div class="ad-scroll"><table class="ad-table" role="grid" aria-label="Functions, build-a"><tbody>
+   <tr><td class="addr" style="width:84px">0041a3f0</td><td translate="no">Actor::LoadFromTemplate</td></tr>
+   <tr aria-selected="true"><td class="addr is-focus" tabindex="0">0041b210</td><td translate="no">ResourceRef::Resolve</td></tr>
+   <tr><td class="addr">0041c880</td><td class="muted" translate="no">FUN_0041c880</td></tr></tbody></table></div>
+  <div class="ad-whichkey" role="status" aria-label="Go to, next key">
+   <span class="ad-whichkey-lead"><kbd class="ad-kbd">G</kbd> then</span>
+   <ul>
+    <li><kbd class="ad-kbd">D</kbd> decompile</li><li><kbd class="ad-kbd">L</kbd> listing</li><li><kbd class="ad-kbd">X</kbd> xrefs</li><li><kbd class="ad-kbd">C</kbd> counterparts</li><li><kbd class="ad-kbd">Esc</kbd> cancel</li>
+   </ul>
+   <span class="ad-whichkey-note">for <span translate="no">ResourceRef::Resolve</span> · waits for your next key; no timeout</span>
+  </div>
+ </div>
+
+ <section class="ad-keyhelp" role="dialog" aria-modal="true" aria-labelledby="kh-h">
+  <header><h3 id="kh-h">Keyboard shortcuts</h3><button class="ad-keyhelp-x" aria-label="Close shortcuts" aria-keyshortcuts="Escape">✕</button></header>
+  <div class="ad-keyhelp-find"><input type="search" aria-label="Filter shortcuts" placeholder="Filter shortcuts" spellcheck="false"></div>
+  <div class="ad-keyhelp-cols">
+   <section aria-labelledby="kh-1"><h4 class="kicker" id="kh-1">Here · Functions list</h4><dl>
+    <dt><kbd class="ad-kbd">J</kbd> <kbd class="ad-kbd">K</kbd></dt><dd>next, previous row</dd>
+    <dt><kbd class="ad-kbd">Space</kbd></dt><dd>check row <span class="muted">(X is off)</span></dd>
+    <dt><kbd class="ad-kbd">K</kbd></dt><dd>mark row <span class="ad-keymap-cf"><b aria-hidden="true">⇄</b>conflict</span></dd>
+    <dt><kbd class="ad-kbd">G</kbd></dt><dd>go to… D L X C</dd></dl></section>
+   <section aria-labelledby="kh-2"><h4 class="kicker" id="kh-2">Any link</h4><dl>
+    <dt><kbd class="ad-kbd">Enter</kbd></dt><dd>go</dd>
+    <dt><kbd class="ad-kbd">Shift Enter</kbd></dt><dd>open beside</dd>
+    <dt><kbd class="ad-kbd">Alt ↓</kbd></dt><dd>peek</dd>
+    <dt><kbd class="ad-kbd">Shift F10</kbd></dt><dd>reveal in…</dd></dl></section>
+   <section aria-labelledby="kh-3"><h4 class="kicker" id="kh-3">Global</h4><dl>
+    <dt><kbd class="ad-kbd">Ctrl K</kbd></dt><dd>palette</dd>
+    <dt><kbd class="ad-kbd">Ctrl P</kbd></dt><dd>go to anything</dd>
+    <dt><kbd class="ad-kbd">F6</kbd></dt><dd>next region</dd>
+    <dt><kbd class="ad-kbd">F8</kbd></dt><dd>next worklist item</dd></dl></section>
+  </div>
+  <footer><span class="small muted">Opened with <kbd class="ad-kbd">?</kbd> in a list or <kbd class="ad-kbd">F1</kbd> anywhere. Shows your bindings.</span><button class="ad-btn compact">Edit in Keyboard settings</button></footer>
+ </section>
+</div>
+</div>

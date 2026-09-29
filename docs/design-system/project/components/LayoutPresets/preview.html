@@ -1,0 +1,71 @@
+<!-- @dsCard group="Shell" height=1000 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<div class="ad-preset-bar">
+ <span class="kicker">Header · View</span>
+ <button class="ad-btn" aria-haspopup="menu" aria-expanded="true" aria-controls="lp-menu">Layout: Review matches <span class="ad-preset-mod">modified</span> <span aria-hidden="true">▾</span></button>
+ <span class="small muted">Selection stays <span translate="no">ResourceRef::Resolve</span> · build-a <span class="addr">0041b213</span> · corpus-alpha</span>
+</div>
+<div class="ad-preset-top">
+ <div class="ad-pop ad-preset-menu" id="lp-menu">
+  <span class="kicker" id="lp-menu-h">Layouts · saved for you</span>
+  <ul class="ad-menu" role="menu" aria-labelledby="lp-menu-h">
+   <li role="none"><div role="menuitemradio" aria-checked="true" class="is-active" tabindex="-1" aria-keyshortcuts="Control+Alt+1 Meta+Alt+1"><span class="t">Review matches <span class="muted">· modified</span></span><span class="m">Ctrl Alt 1</span></div></li>
+   <li role="none"><div role="menuitemradio" aria-checked="false" tabindex="-1" aria-keyshortcuts="Control+Alt+2 Meta+Alt+2"><span class="t">Recover source</span><span class="m">Ctrl Alt 2</span></div></li>
+   <li role="none"><div role="menuitemradio" aria-checked="false" tabindex="-1" aria-keyshortcuts="Control+Alt+3 Meta+Alt+3"><span class="t">Verify rebuild</span><span class="m">Ctrl Alt 3</span></div></li>
+   <li role="none"><div role="menuitemradio" aria-checked="false" tabindex="-1" aria-keyshortcuts="Control+Alt+4 Meta+Alt+4"><span class="t">Runtime</span><span class="m">Ctrl Alt 4</span></div></li>
+   <li role="none"><div role="menuitemradio" aria-checked="false" tabindex="-1" aria-keyshortcuts="Control+Alt+5 Meta+Alt+5"><span class="t">Browse</span><span class="m">Ctrl Alt 5</span></div></li>
+   <li role="separator"></li>
+   <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Save changes to Review matches</span><span class="m">evidence 320 → 360</span></div></li>
+   <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Reset Review matches to default</span></div></li>
+   <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Panes and sizes…</span><span class="m">View menu</span></div></li>
+  </ul>
+  <footer><span>Changes panes only. Never the project, the selection or admission.</span></footer>
+ </div>
+ <div class="stack" style="gap:8px">
+  <div class="ad-preset-status"><span class="kicker">Status line after Ctrl Alt 3</span><span><strong>Layout: Verify rebuild.</strong> Selection unchanged: <span translate="no">ResourceRef::Resolve</span> · build-a <span class="addr">0041b213</span>. Project unchanged. No work started. Focus stays in the listing.</span></div>
+  <p class="sr-only" role="status">Layout: Verify rebuild. Selection unchanged.</p>
+  <div class="ad-preset-sizes" role="group" aria-labelledby="lp-sz-h">
+   <span class="kicker" id="lp-sz-h">Restored splitters · Review matches</span>
+   <div class="ad-preset-sz"><span class="ad-preset-grip" role="separator" aria-orientation="vertical" aria-label="Navigator width" aria-controls="lp-nav" aria-valuenow="240" aria-valuemin="180" aria-valuemax="480" aria-valuetext="240 pixels, default" tabindex="-1"></span><span>Navigator</span><span class="mono">240</span><span class="muted small">180–480 · default</span></div>
+   <div class="ad-preset-sz"><span class="ad-preset-grip is-focus" role="separator" aria-orientation="vertical" aria-label="Evidence width" aria-controls="lp-ev" aria-valuenow="360" aria-valuemin="200" aria-valuemax="480" aria-valuetext="360 pixels, changed from 320" tabindex="0"></span><span>Evidence</span><span class="mono">360</span><span class="muted small">200–480 · changed from 320</span></div>
+   <div class="ad-preset-sz"><span class="ad-preset-grip h" role="separator" aria-orientation="horizontal" aria-label="Dock height" aria-controls="lp-dock" aria-valuenow="170" aria-valuemin="100" aria-valuemax="420" aria-valuetext="170 pixels, default" tabindex="-1"></span><span>Dock</span><span class="mono">170</span><span class="muted small">100–420, max 46dvh · default</span></div>
+   <div class="ad-preset-sz"><span class="ad-preset-grip" role="separator" aria-orientation="vertical" aria-label="Center split" aria-valuenow="50" aria-valuemin="20" aria-valuemax="80" aria-valuetext="50 percent, listing and counterpart equal" tabindex="-1"></span><span>Center split</span><span class="mono">50%</span><span class="muted small">20–80% · default</span></div>
+   <span class="small muted">Arrows 16px, Shift 64px, Enter collapse, Home reset. The View menu sets the same sizes without dragging.</span>
+  </div>
+ </div>
+</div>
+
+<div class="ad-preset-cards" role="radiogroup" aria-label="Layout presets">
+ <div class="ad-preset" role="radio" aria-checked="true" tabindex="0" aria-describedby="lp1-d">
+  <header><span class="t">Review matches</span><kbd class="ad-kbd">Ctrl Alt 1</kbd></header>
+  <div class="ad-preset-mini" role="img" aria-label="Queue navigator 240, listing and counterpart listing side by side, both following, evidence 360, dock on Problems 170" style="--nav:60px;--ev:62px;--dock:28px">
+   <i class="nav" id="lp-nav">Queue</i><i class="c">Listing</i><i class="c">Counter­part</i><i class="ev" id="lp-ev">Match</i><i class="dock" id="lp-dock">Problems</i></div>
+  <dl class="ad-preset-dl" id="lp1-d"><dt>Panes</dt><dd>review queue · listing | counterpart listing · CandidateAlignment</dd><dt>Follows</dt><dd>both listings follow the review row</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>Problems · 170</dd></dl>
+ </div>
+ <div class="ad-preset" role="radio" aria-checked="false" tabindex="-1" aria-describedby="lp2-d">
+  <header><span class="t">Recover source</span><kbd class="ad-kbd">Ctrl Alt 2</kbd></header>
+  <div class="ad-preset-mini" role="img" aria-label="Functions navigator 240, decompile and source repair diff side by side, following, evidence 300, dock on Recovery 200" style="--nav:60px;--ev:58px;--dock:32px">
+   <i class="nav">Functions</i><i class="c">Decompile</i><i class="c">Repair diff</i><i class="ev">Pipeline</i><i class="dock">Recovery</i></div>
+  <dl class="ad-preset-dl" id="lp2-d"><dt>Panes</dt><dd>Functions · decompile | SourceRepairDiff · PipelineBreadcrumb, history</dd><dt>Follows</dt><dd>both center panes</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>Recovery · 200</dd></dl>
+ </div>
+ <div class="ad-preset" role="radio" aria-checked="false" tabindex="-1" aria-describedby="lp3-d">
+  <header><span class="t">Verify rebuild</span><kbd class="ad-kbd">Ctrl Alt 3</kbd></header>
+  <div class="ad-preset-mini" role="img" aria-label="Navigator collapsed, object diff following and one empty held slot, evidence 360, dock on Jobs 240" style="--nav:10px;--ev:62px;--dock:38px">
+   <i class="nav off">·</i><i class="c">ObjectDiff</i><i class="c held">Held slot</i><i class="ev">Ledger</i><i class="dock">Jobs</i></div>
+  <dl class="ad-preset-dl" id="lp3-d"><dt>Panes</dt><dd>ObjectDiff | held slot · VariantLedger, ImageDeltaMap</dd><dt>Follows</dt><dd>ObjectDiff</dd><dt>Held</dt><dd>1 slot, empty until you hold a pane</dd><dt>Dock</dt><dd>Jobs · 240</dd></dl>
+ </div>
+ <div class="ad-preset" role="radio" aria-checked="false" tabindex="-1" aria-describedby="lp4-d">
+  <header><span class="t">Runtime</span><kbd class="ad-kbd">Ctrl Alt 4</kbd></header>
+  <div class="ad-preset-mini" role="img" aria-label="Functions navigator 240, listing and runtime trace, following, evidence 300, dock on Activity 200" style="--nav:60px;--ev:58px;--dock:32px">
+   <i class="nav">Functions</i><i class="c">Listing</i><i class="c">Trace</i><i class="ev">Runtime</i><i class="dock">Activity</i></div>
+  <dl class="ad-preset-dl" id="lp4-d"><dt>Panes</dt><dd>Functions · listing | runtime trace · RuntimeCapabilities</dd><dt>Follows</dt><dd>both center panes</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>Activity · 200</dd></dl>
+ </div>
+ <div class="ad-preset" role="radio" aria-checked="false" tabindex="-1" aria-describedby="lp5-d">
+  <header><span class="t">Browse</span><kbd class="ad-kbd">Ctrl Alt 5</kbd></header>
+  <div class="ad-preset-mini" role="img" aria-label="Functions navigator 240, listing and decompile, following, evidence 260, dock collapsed on Jobs" style="--nav:60px;--ev:56px;--dock:8px">
+   <i class="nav">Functions</i><i class="c">Listing</i><i class="c">Decompile</i><i class="ev">Evidence</i><i class="dock off">collapsed</i></div>
+  <dl class="ad-preset-dl" id="lp5-d"><dt>Panes</dt><dd>Functions · listing | decompile · evidence</dd><dt>Follows</dt><dd>both center panes</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>collapsed · Jobs when opened</dd></dl>
+ </div>
+ <div class="ad-notice caution ad-preset-note"><b aria-hidden="true">◐</b><div><h4>On the static 8080 surface</h4><p>There are no split panes. Counterpart and Repair diff open as a new window at the same link; sizes, rails and the dock tab still apply.</p></div><span></span></div>
+</div>
+</div>

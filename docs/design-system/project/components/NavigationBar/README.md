@@ -21,7 +21,7 @@ The row that says where you are and gets you back: Back and Forward with a recen
 
 - A result that exists only on another build says so before it is chosen ("only on build-b · choosing it switches the inspected build"). Typing never navigates; only Enter or a click does. Ambiguous text, such as a hex string that is also a job id, lists both groups and never jumps. An address with no build prefix resolves in the inspected build only.
 - **Breadcrumbs**: project › build › section › function, then the current address in `address`. Each level is an `.ad-link` with a visible level kicker and a 24px ▾ sibling menu. The build menu lists every build with its LocatorGlyph for the current logical entity. Choosing a build keeps the entity where a counterpart exists; otherwise it opens that build with a StateNotice explaining the absence.
-- **Sync group**: a chain line icon plus words. "Linked · sync A" means the focused pane follows the selection; "Unlinked · pinned to ‹entity›" (broken chain in `fact-stale`) means it does not. It is a toggle button with `aria-pressed`.
+- **Sync group**: a chain line icon plus words. "Linked · sync A" means the focused pane follows the selection; "Unlinked · held on ‹entity›" (broken chain, word first) means it does not. It is a toggle button with `aria-pressed`.
 - **Reload** re-reads stored evidence for the view. It never reanalyzes.
 - **Copy link** copies the canonical URL and says "Link copied" in the polite region.
 - Surfaces: `pane` bar with 1px `line` rules, controls at `control-h-comfortable`, the field in a `well` framed by `line-control`, popups on `dialog-bg` with `shadow-popup`. Menu rows are 28px with a mono snippet line; the active row uses `row-selected-bg` plus the 3px `accent` bar.
@@ -37,8 +37,8 @@ Both `/dashboard` on 8080 and `/react/` parse and emit the same parameters, so a
 | `build` | inspected concrete build | `binary` |
 | `addr` | address in `build`; requires `build` | `addr` |
 | `ws` | workspace: `code`, `compare`, `recovery`, `evidence` | — |
-| `tab` | analysis tab | `tool` |
-| `pin` | repeatable: pinned side panes and kept peeks, as `kind:id@build` | — |
+| `views` | analysis tab | `tool` |
+| `hold` | repeatable: held side panes and kept peeks, as `kind:id@build` | `pin` |
 | `cmp` | compare pair, `build-a..build-b` | — |
 | `node` | any pipeline-model.json node id: `stage-0`…`stage-8`, `gate-0`…`gate-8` (no `gate-2`), `lane-A`…`lane-E`, `ladder-A`…`ladder-F`, `lock-1`…`lock-5`, `failover-rule`, `export-*`, and nested `lane-X-card-N`, `ladder-X-N` | — (`focus` still scrolls to a section) |
 | `job`, `receipt` | the job or receipt opened from go-to or a peek | — |
@@ -69,3 +69,5 @@ Both `/dashboard` on 8080 and `/react/` parse and emit the same parameters, so a
 - Every control is at least 24px and 44px below 700px. The bar wraps; nothing scrolls sideways. The sync state is an icon plus words, never the icon alone.
 
 **Removes switching:** opening the Functions list to find a symbol, the Compare workspace to reach a counterpart build, the Jobs dock or Evidence workspace to find a job or receipt by id, and repeated Back presses to return somewhere recent.
+
+**Location schema**: the canonical parameter and alias table is in the Linked views guideline; this component renders it and does not keep its own copy. `tab` and `pin` are read as aliases of `views` and `hold`.

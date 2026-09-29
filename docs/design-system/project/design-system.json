@@ -18,8 +18,8 @@
  },
  "lastChange": {
   "by": "Claude",
-  "at": "2026-09-28T22:41:52Z",
+  "at": "2026-09-29T02:54:05Z",
   "via": "Claude Code",
-  "note": "Rebuilt from VISION, STRATEGY, plans and all four diagrams: DejaVu fonts, 3-layer tokens, 7 guideline sections, 50 components"
+  "note": "Linked views and accessibility: typed links with one grammar and one link menu, follow/hold/keep, shared location-schema.json and history, one remappable keymap.json, Peek, reflection, View settings, forced-colors and coarse-pointer rules; 28 new components (78 total); 10 guideline sections; every component has a Linking block"
  }
 }

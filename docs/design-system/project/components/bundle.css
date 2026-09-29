@@ -12,12 +12,12 @@
 /* Inset focus (focus-inset-w): rows, cells, tabs, options, in-row inputs, and anything inside an overflow-clipped well, including token links in code wells */
 .ad-table tr:focus-visible,.ad-table td:focus-visible,.ad-table th:focus-visible,.ad-ln:focus-visible,.adc-l:focus-visible,.ad-tree div:focus-visible,.ad-tab-btn:focus-visible,.ad-palette [role="option"]:focus-visible,.ad-narrow-ln:focus-visible,.ad-narrow-li:focus-visible,
 .ad :is([role="row"],[role="gridcell"],[role="option"],[role="tab"],[role="treeitem"],[role="menuitem"],[role="menuitemradio"],[role="menuitemcheckbox"]):focus-visible,
-.ad :is(.ad-listing,.ad-diff,.adc-dc,.adc-hx,.ad-scmp-code,.ad-scmp-text,.ad-peek .code,.ad-narrow-code,.ad-narrow-well,.adl-heldcode,.adl-ws-dc,.adl-sig,.ad-baband-code) :is(a,button):is(:focus-visible,.is-focus){outline:var(--focus-inset-w,3px) solid var(--focus);outline-offset:calc(var(--focus-inset-w,3px) * -1)}
+.ad :is(.ad-listing,.ad-diff,.adc-dc,.adc-hx,.ad-scmp-code,.ad-scmp-text,.ad-peek .code,.ad-narrow-code,.ad-narrow-well,.adl-ws-dc,.adl-sig,.ad-baband-code) :is(a,button):is(:focus-visible,.is-focus){outline:var(--focus-inset-w,3px) solid var(--focus);outline-offset:calc(var(--focus-inset-w,3px) * -1)}
 .ad .stack{display:grid;gap:var(--space-5)}
 .ad .row{display:flex;gap:var(--space-4);align-items:center;flex-wrap:wrap}
 .ad .panel{background:var(--pane);border:1px solid var(--line)}
 .ad .well{background:var(--code-bg);box-shadow:var(--shadow-inset);border:1px solid var(--line)}
-.ad .g-pass{color:var(--fact-passed)}.ad .g-fail{color:var(--fact-failed)}.ad .g-stale{color:var(--fact-stale)}.ad .g-unk{color:var(--fact-unknown)}
+.ad .g-pass{color:var(--fact-passed)}.ad .g-fail{color:var(--fact-failed)}.ad .g-stale{color:var(--fact-stale)}.ad .g-unk{color:var(--fact-unknown)}.ad .g-gate{color:var(--gate)}
 .ad .g{font:700 12px/1 var(--font-mono)}
 
 /* Button */
@@ -228,7 +228,14 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-matrix td[role="gridcell"]{min-width:44px;height:28px}
 .ad-matrix td[role="gridcell"]:not(.cell){text-align:left}
 .ad-matrix td.cell>.adl-cell{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-2);min-height:24px;min-width:24px}
-.ad-matrix td.is-focus,.ad-matrix th.is-focus{outline:var(--focus-inset-w,3px) solid var(--focus);outline-offset:calc(var(--focus-inset-w,3px) * -1)}
+.ad-matrix td.cell[aria-selected="true"]{background:var(--selection);box-shadow:inset var(--sel-bar,3px) 0 0 var(--accent)}
+.ad .ad-matrix td.cell>button.adl-cell{padding:0 var(--space-2);background:transparent;border:1px dashed var(--line-control);color:var(--ink);cursor:pointer}
+.ad .ad-matrix td.cell>button.adl-cell:hover{background:var(--row-hover-bg)}
+.ad-matrix-list{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-1);max-width:480px}
+.ad-matrix-list>li{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1) var(--space-4);min-height:28px;padding:0 var(--space-3);border-bottom:1px solid var(--line);font-size:12px}
+.ad-matrix-list>li>span:first-child{min-width:7ch;font-weight:700;color:var(--ink-strong)}
+@media (max-width:699px),(pointer:coarse){.ad .ad-matrix td.cell>button.adl-cell{min-height:var(--touch-h);min-width:var(--touch-h)}.ad-matrix td[role="gridcell"]{height:var(--touch-h)}}
+.ad-matrix td.is-focus,.ad-matrix th.is-focus,.ad-matrix tr.is-focus{outline:var(--focus-inset-w,3px) solid var(--focus);outline-offset:calc(var(--focus-inset-w,3px) * -1)}
 .ad-matrix thead th .ad-link{text-transform:none;letter-spacing:0;font:700 12px/16px var(--font-sans);color:var(--ink-strong)}
 .ad-matrix thead th .can{display:block;font:400 11px/15px var(--font-sans);letter-spacing:0;text-transform:none;color:var(--ink-muted);white-space:normal;min-width:120px}
 
@@ -258,12 +265,13 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-imap{display:flex;height:34px;border:1px solid var(--line-control);font:400 11px/1 var(--font-mono)}
 .ad-imap span{display:grid;place-items:center;border-right:1px solid var(--line);color:var(--ink-muted);background:var(--pane);position:relative;overflow:hidden}
 .ad-imap span.equal{background:var(--chassis)}
-.adl-imap{list-style:none;margin:0;padding:0;height:auto;min-height:34px}
+.adl-imap{list-style:none;margin:0;padding:0;height:auto;min-height:34px;overflow-x:auto;overscroll-behavior-x:contain}
 .adl-imap>li{display:grid;place-items:center;min-width:0;border-right:2px solid var(--chassis);color:var(--ink-muted);background:var(--pane);overflow:hidden;white-space:nowrap}
 .adl-imap>li.equal{background:var(--chassis);border-right-color:var(--line)}
 .ad-imap span.delta,.adl-imap>li.delta{background:repeating-linear-gradient(135deg,var(--line-control) 0 1.5px,transparent 1.5px 5px) top/100% 8px no-repeat,repeating-linear-gradient(135deg,var(--line-control) 0 1.5px,transparent 1.5px 5px) bottom/100% 8px no-repeat,var(--lane-fault-fill);color:var(--ink-strong)}
+.adl-imap>li.delta{min-width:max-content}
 .ad-imap.adl-imap li span{display:inline;border:0;background:none;color:inherit;overflow:visible}
-.ad .adl-imap>li>a{display:grid;place-items:center;width:100%;min-height:32px;color:var(--ink-strong);text-decoration:underline dotted var(--ink-strong);text-underline-offset:3px;overflow:hidden}
+.ad .adl-imap>li>a{display:grid;place-items:center;width:100%;min-height:32px;padding:0 var(--space-3);color:var(--ink-strong);text-decoration:underline dotted var(--ink-strong);text-underline-offset:3px;overflow:hidden}
 .ad .adl-imap>li>a:hover{text-decoration-style:solid;background:var(--row-hover-bg)}
 .ad .adl-imap>li>a:focus-visible{outline:var(--focus-inset-w,3px) solid var(--focus);outline-offset:calc(var(--focus-inset-w,3px) * -1)}
 
@@ -306,7 +314,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-contract{background:var(--pane);border:1px solid var(--line-node);border-radius:var(--radius-contract);padding:var(--space-5) var(--space-7)}
 .ad-contract h4{margin:0 0 var(--space-3);font:700 16px/22px var(--font-sans)}
 .ad-contract p{margin:0;font:400 13px/20px var(--font-sans);color:var(--ink)}
-.r-step{color:var(--role-step)}.r-bytes{color:var(--role-bytes)}.r-operation{color:var(--role-operation)}.r-acceptance{color:var(--role-acceptance)}.r-gate{color:var(--role-gate)}.r-contain{color:var(--role-contain)}
+.r-step{color:var(--role-step)}.r-bytes{color:var(--role-bytes)}.r-gate{color:var(--role-gate)}.r-contain{color:var(--role-contain)}
 .ad-milestone{background:var(--pane);border:1px solid currentColor;border-radius:var(--radius-milestone);padding:var(--space-6) var(--space-7)}
 .ad-milestone h4{margin:0;font:400 18px/24px var(--font-sans);color:var(--ink-strong)}
 .ad-milestone .k{display:block;margin:var(--space-2) 0 var(--space-4);font:400 11px/15px var(--font-sans);letter-spacing:.02em;text-transform:uppercase}
@@ -333,28 +341,13 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-sw.f-unify{background:var(--lane-unify-fill);color:var(--lane-unify-ink)}.ad-sw.f-runtime{background:var(--lane-runtime-fill);color:var(--lane-runtime-ink)}
 .ad-sw.f-verify{background:var(--lane-verify-fill);color:var(--lane-verify-ink)}.ad-sw.f-intake{background:var(--lane-intake-fill);color:var(--lane-intake-ink)}
 
-/* Workstation page */
-.ad-ws{display:grid;grid-template-rows:auto auto auto minmax(0,1fr) var(--dock-h,auto) auto;height:560px;border:1px solid var(--line);overflow:hidden}
-.ad-ws-head{display:flex;align-items:center;gap:var(--space-5);padding:var(--space-3) var(--space-5);background:var(--pane);border-bottom:1px solid var(--line)}
-.ad-ws-head .brand{font:700 14px/1 var(--font-sans);color:var(--ink-strong);margin-right:var(--space-5)}
-.ad-ws-head .search{flex:1;max-width:360px;justify-content:flex-start;color:var(--ink-muted)}
-.ad-ws-body{display:grid;grid-template-columns:var(--navigator-w,200px) 1px minmax(0,1fr) 1px var(--evidence-w,220px);min-height:0}
-@media (max-width:1099px){.ad-ws-body{grid-template-columns:var(--navigator-min,180px) 1px minmax(0,1fr) 1px var(--evidence-min,200px)}}
-.ad-ws-body>.split{background:var(--splitter-rule)}
-.ad-ws-body>section{min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column}
-.ad-ws-status{display:flex;justify-content:space-between;gap:var(--space-5);padding:2px max(var(--space-5),env(safe-area-inset-right,0px)) max(2px,env(safe-area-inset-bottom,0px)) max(var(--space-5),env(safe-area-inset-left,0px));background:var(--pane);border-top:1px solid var(--line);font:400 11px/16px var(--font-sans);color:var(--ink-muted)}
+/* Pane headers */
 .ad-pane-h{display:flex;align-items:center;justify-content:space-between;padding:var(--space-3) var(--space-5);background:var(--pane);border-bottom:1px solid var(--line)}
-.ad-ws-head>span{white-space:nowrap}
-/* Below 700px the header keeps the project name and a wrapping scope sentence; only the search field moves into Go to */
-@media (max-width:699px){.ad-ws-head{flex-wrap:wrap}.ad-ws-head>span{white-space:normal}.ad-ws-head .search{display:none}}
 
 /* Reduced motion: the OS preference, or the in-app Reduce motion setting (.reduce-motion on .ad), which only adds to it and never switches it off.
    There is no separate landed style: arrival is focus plus the selection or cursor shape. */
 @media (prefers-reduced-motion:reduce){.ad,.ad *,.ad *::before,.ad *::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 .ad.reduce-motion,.ad.reduce-motion *,.ad.reduce-motion *::before,.ad.reduce-motion *::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}
-.ad-ws-body table{table-layout:fixed}
-.ad-ws-body td{overflow:hidden;text-overflow:ellipsis}
-.ad-ws-body td.addr{width:78px}
 
 /* ---------- Accessibility foundations (v3) ---------- */
 /* Selection: fill + inset bar (shape, not color alone). On the fill, ink-muted text is promoted to ink, control borders (line-control, 2.37:1 there)
@@ -363,7 +356,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad{--sel-line:var(--ink-muted);--sel-bar:3px}
 .ad [aria-selected="true"],.ad [aria-current="true"],.ad .is-selected{--ink-muted:var(--ink);--line-control:var(--sel-line)}
 .ad-table tr[aria-selected="true"] td:first-child,.ad-table tr.is-selected td:first-child,.ad-table tr[aria-selected="true"]>th[scope="row"]:first-child,.ad-tree [aria-selected="true"],.ad-palette [aria-selected="true"],.ad-ln[aria-current="true"]{box-shadow:inset var(--sel-bar,3px) 0 0 var(--accent)}
-.ad :is([aria-selected="true"],[aria-current="true"],.is-selected) :is(.g-fail,.g-stale,.g-pass,.g-unk):not([aria-hidden="true"]),.ad-table tr[aria-selected="true"]>:is(td,th):is(.g-fail,.g-stale,.g-pass,.g-unk){color:var(--ink-strong)}
+.ad :is([aria-selected="true"],[aria-current="true"],.is-selected) :is(.g-fail,.g-stale,.g-pass,.g-unk,.g-gate):not([aria-hidden="true"]),.ad-table tr[aria-selected="true"]>:is(td,th):is(.g-fail,.g-stale,.g-pass,.g-unk,.g-gate){color:var(--ink-strong)}
 .ad :is([aria-selected="true"],[aria-current="true"],.is-selected) :is(.g-fail[aria-hidden="true"],.ad-fact.failed b,.ad-facts .failed,.ad-oc.failed .st b,.ad-prob-k.fail>b,.ad-prob-over>b,.ad-loc.contested b){color:var(--fact-failed-on-selection,var(--fact-failed))}
 /* Links (UX-01): link styling applies only to a[href]; Peek-only triggers are buttons with a non-link style (.adl-factbtn, .adl-capbtn).
    Dotted underline at rest and solid on hover and focus, so affordance is never color alone. data-kind (all 12 kinds) routes and names a
@@ -376,10 +369,10 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad code,.ad .mono,.ad .addr,.ad-listing,.ad-diff{unicode-bidi:isolate}
 /* Code wells keep horizontal scrolling inside the well (no page back-swipe or scroll chaining), and are the containing block for their
    visually hidden words, so a .sr-only at the end of a long line never widens the page */
-.ad-listing,.ad-diff,.adc-dc,.adc-hx,.ad-scmp-code,.ad-peek .code,.ad-narrow-well,.adl-heldcode,.adl-ws-dc,.adl-sig,.ad-baband-code,.ad-gp-vp,.ad-gp-list{overscroll-behavior-x:contain}
-.ad-listing,.ad-diff,.adc-dc,.adc-hx,.ad-scmp-code,.ad-peek .code,.ad-narrow-well,.adl-heldcode,.adl-ws-dc,.adl-sig,.ad-baband-code{position:relative}
+.ad-listing,.ad-diff,.adc-dc,.adc-hx,.ad-scmp-code,.ad-peek .code,.ad-narrow-well,.adl-ws-dc,.adl-sig,.ad-baband-code,.ad-gp-vp,.ad-gp-list{overscroll-behavior-x:contain}
+.ad-listing,.ad-diff,.adc-dc,.adc-hx,.ad-scmp-code,.ad-peek .code,.ad-narrow-well,.adl-ws-dc,.adl-sig,.ad-baband-code{position:relative}
 /* Content handling */
-.ad .row>*,.ad-split>*,.ad-ws-body>section,.ad-record .body>*{min-width:0}
+.ad .row>*,.ad-split>*,.ad-record .body>*{min-width:0}
 /* Data graphics: 2px chassis separators so adjacent segments never rely on hue contrast */
 .ad-rep i+i{border-left:2px solid var(--chassis)}
 /* Checkbox cells are 24px targets */
@@ -418,9 +411,9 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 @media (max-width:699px),(pointer:coarse){
  .ad .ad-btn,.ad .ad-tab,.ad .ad-subtabs [role="tab"],.ad .ad-filt,.ad .ad-goto,.ad .ad-palette li,.ad .ad-palette input,.ad .ad-menu a,.ad .ad-menu [role="menuitem"],.ad .ad-menu [role="menuitemcheckbox"],.ad .ad-menu [role="menuitemradio"],.ad .ad-menu [role="option"]{min-height:var(--touch-h)}
  .ad .ad-tab{height:auto}
- .ad .ad-check,.ad .ad-seg>button{min-width:var(--touch-h);min-height:var(--touch-h)}
+ .ad .ad-check,.ad .ad-seg>button,.ad .ad-seg>[role="radio"]{min-width:var(--touch-h);min-height:var(--touch-h)}
  .ad .ad-tab-close,.ad .ad-peek-x,.ad .ad-sib{width:var(--touch-h);height:var(--touch-h)}
- .ad .ad-control button,.ad .adl-factbtn,.ad .adl-capbtn,.ad .adl-disc,.ad .adl-eqbtn,.ad .adl-hlchip,.ad .adl-cl,.ad .adl-t24,.ad a.ad-fact,.ad a.ad-outcome,.ad .ad-gp-more,.ad .ad-gp-chip,.ad .adc-olv{min-height:var(--touch-h)}
+ .ad .ad-control button,.ad .adl-strip,.ad .adc-hlchip,.ad .adl-factbtn,.ad .adl-capbtn,.ad .adl-disc,.ad .adl-eqbtn,.ad .adl-cl,.ad a.ad-fact,.ad a.ad-outcome,.ad .ad-gp-more,.ad .ad-gp-chip,.ad .adc-olv{min-height:var(--touch-h)}
  .ad .ad-goto input{height:auto;align-self:stretch}
 }
 /* Splitters are focusable separators: a 1px rule, a hit zone of splitter-hit (6px; WCAG 2.5.8 Equivalent exception: the splitter keys, the
@@ -429,8 +422,8 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-split-h{position:relative;z-index:1;background:var(--splitter-rule);cursor:col-resize}
 .ad-split-h::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:var(--splitter-hit,6px);transform:translateX(-50%)}
 .ad-split-h::after{content:"";position:absolute;left:50%;top:50%;width:5px;height:24px;transform:translate(-50%,-50%);background:var(--pane);border:1px solid var(--splitter-grip,var(--line-control))}
-.ad-split-h:is(:hover,:focus-visible,.is-focus,:active,.is-dragging){background:var(--splitter-active)}
-.ad-split-h:is(:hover,:focus-visible,.is-focus,:active,.is-dragging)::after{border-color:var(--splitter-active)}
+.ad-split-h:is(:hover,:focus-visible,.is-focus,:active){background:var(--splitter-active)}
+.ad-split-h:is(:hover,:focus-visible,.is-focus,:active)::after{border-color:var(--splitter-active)}
 /* Forced colors (high-contrast system themes): system colors carry selection, focus, frames and links.
    - Selected and current items use Highlight and HighlightText; everything inside them is HighlightText on a transparent fill, and the glyph
      shape and the word carry state. SelectedItem and SelectedItemText are an @supports enhancement only. Both are in the last block of this file.
@@ -442,15 +435,16 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
    Each component section below repeats this for its own selected items. */
 @media (forced-colors:active){
  .ad{--focus:CanvasText}
- .ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"]{background:Highlight;color:HighlightText}
+ .ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-matrix td.cell[aria-selected="true"]{background:Highlight;color:HighlightText}
  .ad :is([aria-selected="true"],[aria-current="true"],.is-selected):not(a:not([role])),.ad :is([aria-selected="true"],[aria-current="true"],.is-selected) *{--focus:HighlightText}
  .ad a:where([href]){color:LinkText;text-decoration-color:LinkText}
  .ad-table tr:is([aria-selected="true"],.is-selected)>:first-child{border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-4) - 3px)}
  .ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"]{border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-5) - 3px)}
- .ad-ln[aria-current="true"]{border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-4) - 3px)}
+ .ad-ln[aria-current="true"],.ad-matrix td.cell[aria-selected="true"]{border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-4) - 3px)}
+ .ad .ad-matrix td.cell>button.adl-cell{border-color:CanvasText}
  .ad-fact b,.ad-facts b,.ad-chip,.ad-tier,.ad-outcome,.ad-caps span,.ad-rail>span,.ad-rail>li,.ad-stamp b,.ad-edge{border-color:CanvasText}
  .ad-btn,.ad-tab{border:1px solid ButtonText}
- .ad-subtabs :is(span,[role="tab"]):not([aria-selected="true"]),.adc-switch [role="tab"]:not([aria-selected="true"]),.adl-railbar [role="tab"]:not([aria-selected="true"]),.ad-scmp-switch [role="tab"]:not([aria-selected="true"]),.ad-seg>button:not([aria-pressed="true"]){border-bottom-color:Canvas}
+ .ad-subtabs :is(span,[role="tab"]):not([aria-selected="true"]),.adc-switch [role="tab"]:not([aria-selected="true"]),.adl-railbar [role="tab"]:not([aria-selected="true"]),.ad-scmp-switch [role="tab"]:not([aria-selected="true"]),.ad-seg>button:not([aria-pressed="true"]),.ad-seg>[role="radio"]:not([aria-checked="true"]){border-bottom-color:Canvas}
  .ad-narrow-rail [role="tab"]:not([aria-selected="true"]){border-top-color:Canvas}
  .ad-btn:disabled,.ad-btn[aria-disabled="true"],.ad [aria-disabled="true"]{color:GrayText;border-color:GrayText}
  .ad-palette,.ad-dialog{border:1px solid CanvasText}
@@ -458,10 +452,10 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
  .ad-timeline .track i,.ad-timeline .track i.acc,.ad-timeline .track i.rej{background:CanvasText}
  .ad-split-h{border-inline-start:1px solid CanvasText}
  .ad-split-h::after{background:Canvas;border-color:CanvasText}
- .ad-split-h:is(:hover,:focus-visible,.is-focus,:active,.is-dragging)::after{border-color:Highlight}
+ .ad-split-h:is(:hover,:focus-visible,.is-focus,:active)::after{border-color:Highlight}
 }
 /* ---------- Navigation components (Peek, NavigationBar, PipelineBreadcrumb, PipelineMap, XrefPanel) ----------
-   Draft for merge into components/bundle.css. Consumes tokens only; no literal colors except transparent.
+   Consumes tokens only; no literal colors except transparent.
    Block links raise specificity above `.ad a` so their padding, borders and fonts survive. */
 
 /* Shared: preview focus mirror, line icons, popups, menus, segmented toggles, filter chips, mini glyphs */
@@ -484,11 +478,13 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-menu [role="menuitemcheckbox"]>b{font:700 12px/1 var(--font-mono);width:14px;height:14px;display:inline-grid;place-items:center;border:1px solid var(--line-control)}
 .ad-menu [aria-checked="true"]>b::before{content:"";width:8px;height:8px;background:var(--ink-strong)}
 .ad-menu [role="separator"]{height:1px;margin:var(--space-2) 0;background:var(--line)}
+.ad-menu [role="menuitem"][aria-disabled="true"],.ad-menu [role="option"][aria-disabled="true"]{color:var(--ink-disabled);cursor:default}
+.ad-menu [role="menuitem"][aria-disabled="true"] .note,.ad-menu [role="option"][aria-disabled="true"] .note{color:var(--ink-muted)}
 .ad-seg{display:inline-flex;border:1px solid var(--line-control);background:var(--chassis)}
-.ad-seg>button{display:inline-flex;align-items:center;gap:var(--space-2);height:24px;min-width:24px;padding:0 var(--space-4);border:0;border-bottom:2px solid transparent;background:transparent;color:var(--ink-muted);font:400 12px/1 var(--font-sans);white-space:nowrap;cursor:pointer}
-.ad-seg>button+button{border-left:1px solid var(--line-control)}
-.ad-seg>button:hover{background:var(--row-hover-bg);color:var(--ink)}
-.ad-seg>button[aria-pressed="true"]{background:var(--pane);color:var(--ink-strong);font-weight:700;border-bottom-color:var(--tab-active-rule)}
+.ad-seg>button,.ad-seg>[role="radio"]{display:inline-flex;align-items:center;gap:var(--space-2);height:24px;min-width:24px;padding:0 var(--space-4);border:0;border-bottom:2px solid transparent;background:transparent;color:var(--ink-muted);font:400 12px/1 var(--font-sans);white-space:nowrap;cursor:pointer}
+.ad-seg>button+button,.ad-seg>[role="radio"]+[role="radio"]{border-left:1px solid var(--line-control)}
+.ad-seg>button:hover,.ad-seg>[role="radio"]:hover{background:var(--row-hover-bg);color:var(--ink)}
+.ad-seg>button[aria-pressed="true"],.ad-seg>[role="radio"][aria-checked="true"]{background:var(--pane);color:var(--ink-strong);font-weight:700;border-bottom-color:var(--tab-active-rule)}
 .ad-seg .n{font:400 11px/1 var(--font-mono);color:inherit}
 .ad-filt{display:inline-flex;align-items:center;gap:var(--space-2);min-height:24px;padding:0 var(--space-4) 0 var(--space-1);border:1px dashed var(--line-control);color:var(--ink-muted);font:400 12px/1 var(--font-sans);white-space:nowrap;cursor:pointer}
 .ad-filt input{margin:0 0 0 var(--space-2);width:14px;height:14px;accent-color:var(--accent)}
@@ -521,7 +517,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-peek .note>b{font:700 13px/18px var(--font-mono)}
 .ad-peek .note p{margin:0}
 .ad-peek .note strong{color:var(--ink-strong)}
-.ad-peek .note.stale>b{color:var(--fact-stale)}.ad-peek .note.notloaded>b{color:var(--fact-unknown)}
+.ad-peek .note.stale>b{color:var(--fact-stale)}
 .ad-peek .none{display:grid;grid-template-columns:18px minmax(0,1fr);gap:var(--space-4);padding:var(--space-4) var(--space-5);align-items:start}
 .ad-peek .none>b{font:700 13px/18px var(--font-mono);color:var(--fact-unknown)}
 .ad-peek .none p{margin:0}.ad-peek .none p+p{color:var(--ink-muted);margin-top:var(--space-1)}
@@ -544,7 +540,6 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-navbar .ad-btn .g{font-size:13px}
 .ad-goto{flex:1 1 300px;display:flex;align-items:center;min-width:0;height:var(--control-h-comfortable);background:var(--well);border:1px solid var(--line-control)}
 .ad-goto:focus-within{outline:2px solid var(--focus);outline-offset:-2px}
-.ad-goto .pfx{display:inline-grid;place-items:center;min-width:26px;height:100%;padding:0 var(--space-2);font:700 12px/1 var(--font-mono);color:var(--ink-strong);border-right:1px solid var(--line);background:var(--raised)}
 .ad-goto input{flex:1;min-width:0;height:100%;padding:0 var(--space-4);background:transparent;border:0;color:var(--ink);font:400 12px/1 var(--font-mono)}
 .ad-goto input:focus-visible{outline:0}
 .ad-goto input::placeholder{color:var(--ink-muted)}
@@ -585,7 +580,8 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-pcrumb .wait em{font-style:normal;color:var(--gate)}
 .ad-pcrumb .ev{font:400 11px/15px var(--font-mono);color:var(--ink-muted);overflow-wrap:anywhere}
 .ad-pcrumb .na{font:italic 400 12px/16px var(--font-sans);color:var(--ink-muted)}
-.ad .ad-pcrumb a[aria-current="step"]{background:var(--selection);box-shadow:inset var(--sel-bar,3px) 0 0 var(--accent);--ink-muted:var(--ink)}
+/* The current step is where the selection waits, not a selection: a 2px ink-strong frame, never the accent */
+.ad .ad-pcrumb a[aria-current="step"]{background:var(--pane);box-shadow:inset 0 0 0 2px var(--ink-strong);--ink-muted:var(--ink)}
 .ad .ad-pcrumb a[aria-current="step"] .wait em{color:var(--ink-strong)}
 .ad-pcrumb .here{font:700 11px/15px var(--font-sans);color:var(--ink-strong)}
 .fam-intake{--fam:var(--lane-intake-fill)}.fam-identity{--fam:var(--lane-identity-fill)}.fam-recovery{--fam:var(--lane-recovery-fill)}
@@ -624,7 +620,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-pmap .gate .w{grid-column:2;display:block}
 .ad-pmap .gate .w b{font:700 12px/15px var(--font-mono);color:var(--gate)}
 .ad-pmap .gate.none{color:var(--ink-muted);font-style:italic}
-.ad .ad-pmap [aria-current="step"]{background:var(--selection);box-shadow:inset var(--sel-bar,3px) 0 0 var(--accent);--ink-muted:var(--ink)}
+.ad .ad-pmap [aria-current="step"]{background:var(--pane);box-shadow:inset 0 0 0 2px var(--ink-strong);--ink-muted:var(--ink)}
 .ad .ad-pmap [aria-current="step"] .gl,.ad .ad-pmap [aria-current="step"] .w{color:var(--ink-strong)}
 .ad-pmap .here{grid-column:1/-1;font:700 11px/15px var(--font-sans);color:var(--ink-strong)}
 .ad-pmap .here code{font-weight:700}
@@ -677,7 +673,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 @media (forced-colors:active){
  .ad-navbar,.ad-xref,.ad-seg,.ad-filt,.ad-goto,.ad .ad-pcrumb a,.ad .ad-pmap .node,.ad .ad-pmap .lane,.ad .ad-pmap .lock,.ad .ad-pmap .ladder,.ad .ad-pmap .export,.ad-gd{border-color:CanvasText}
  .ad-pop,.ad-peek:not(.inline){border:1px solid CanvasText}
- .ad-seg>button[aria-pressed="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"]{background:Highlight;color:HighlightText}
+ .ad-seg>button[aria-pressed="true"],.ad-seg>[role="radio"][aria-checked="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"]{background:Highlight;color:HighlightText}
  .ad-menu .is-active,.ad-menu [aria-selected="true"]{border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-5) - 3px);--focus:HighlightText}
  .ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"]:not(.lane){border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-4) - 3px)}
  .ad .ad-pmap .lane[aria-current="step"]{border-inline-start-color:HighlightText}
@@ -691,7 +687,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad.more-contrast .ad-filt{border-style:solid}
 .ad.more-contrast .ad-pmap .gate{border-top-style:solid}
 /* ---------- Compare components (SplitCompare, CounterpartStrip, ReviewDetail, HeldPane) ----------
-   Draft for merge into components/bundle.css. Consumes tokens only; no literal colors except transparent.
+   Consumes tokens only; no literal colors except transparent.
    Prefixes: .ad-scmp (SplitCompare), .ad-cstrip (CounterpartStrip), .ad-rvd (ReviewDetail), .ad-held (HeldPane).
    Block links raise specificity above `.ad a` so their padding, borders and fonts survive. */
 
@@ -705,6 +701,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 /* HeldPane: 2px ink-strong frame, "Held" word, what, age, basis; never presents historical as current */
 .ad-held{container:held/inline-size;display:grid;align-content:start;min-width:0;background:var(--pane);border:2px solid var(--ink-strong)}
 .ad-held-h{display:flex;flex-wrap:wrap;align-items:flex-start;gap:var(--space-2) var(--space-5);padding:var(--space-3) var(--space-3) var(--space-3) var(--space-4);border-bottom:1px solid var(--line);min-width:0}
+.ad-held>.ad-held-h{position:sticky;top:0;z-index:1;background:var(--pane)}
 .ad-held-h .id{flex:1 1 220px;display:grid;gap:var(--space-1);min-width:0}
 .ad-held-tag{display:inline-flex;align-items:center;gap:var(--space-2);font:700 11px/14px var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-strong);white-space:nowrap}
 .ad-held-tag .ad-ico{color:var(--ink-strong)}
@@ -951,7 +948,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad.more-contrast .ad-scmp-code .ln.fold button{border-style:solid}
 /* ---- css-code.css ---- */
 /* ---------- Code components (DecompileView, CodeBrowser, InlineRename, HexStrip) ----------
-   Draft for merge into components/bundle.css. Consumes tokens only; no literal colors except transparent.
+   Consumes tokens only; no literal colors except transparent.
    Prefix: adc- (AgentDecompile code). Reuses .ad-listing/.ad-ln, .ad-pop/.ad-menu, .ad-seg, .ad-sync,
    .ad-xref, .ad-stamp, .ad-split-h, .ad-btn and .ad-kbd. */
 
@@ -994,7 +991,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .adc-dc .adc-l:hover .adc-t.lv,.adc-dc [aria-selected="true"] .adc-t.lv,.adc-t.lv:focus-visible,.adc-t.lv.is-focus,.adc-t.lv[aria-expanded="true"]{text-decoration-color:var(--ink-muted)}
 .adc-t.lv[aria-expanded="true"]{background:var(--raised);color:var(--ink-strong);box-shadow:inset 0 -2px 0 var(--ink-strong)}
 /* Tokens produced by the cursor instruction when the Listing or Hex drives: a 2px bar under the token, not a hue */
-.adc-t.hit,.adc-hit{box-shadow:inset 0 -2px 0 var(--ink-strong);color:var(--ink-strong)}
+.adc-t.hit{box-shadow:inset 0 -2px 0 var(--ink-strong);color:var(--ink-strong)}
 /* Lines: selection (fill + accent bar) and reflection (raised fill + muted bar + the word) */
 .adc-l[aria-selected="true"]{background:var(--selection);box-shadow:inset var(--sel-bar,3px) 0 0 var(--accent)}
 .adc-l.refl{background:var(--raised);box-shadow:inset 3px 0 0 var(--ink-muted)}
@@ -1002,7 +999,6 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .adc-rt{font:400 11px/18px var(--font-sans);color:var(--ink-muted);white-space:nowrap}
 .adc-l.nomap .adc-map{color:var(--fact-unknown)}
 .adc-l.chg .adc-map{color:var(--ink)}
-.adc-l .adc-inline{grid-column:1/-1;white-space:normal}
 /* Following: previous content kept, dimmed to ink-muted (still 4.5:1), with an inline notice */
 .adc-dc.dim .adc-code,.adc-dc.dim .adc-code *,.adc-dc.dim .adc-map .addr{color:var(--ink-muted)}
 /* Inline notices inside a pane (no mapping, loading, not loaded, stale) */
@@ -1019,13 +1015,13 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .adc-legend code{font:400 12px/18px var(--font-mono);color:var(--ink);text-decoration:underline dotted var(--ink-muted);text-underline-offset:3px}
 .adc-legend code.fn,.adc-legend code.gl{color:var(--lane-identity-ink)}
 .adc-legend code.lv{text-decoration-style:dashed}
-/* Listing wells in these previews size the bytes column in ch so 6-byte instructions never collide with the mnemonic.
-   Remove once the .ad-ln bytes column is widened in bundle.css (coordinator fix pending). */
+/* Compact Listing well (DecompileView reflection listing): ch-sized address and mnemonic columns, and an operand
+   column that may shrink to zero so a narrow well never overflows. The base .ad-ln keeps its wider defaults. */
 .adc-lst .ad-ln{grid-template-columns:14px 8ch 17ch 5ch minmax(0,1fr) auto}
 /* Listing reflection rows (rows that produced the selected statement) */
-.ad-ln.adc-refl,.ad-ln.adl-refl{background:var(--raised);box-shadow:inset 3px 0 0 var(--reflect-bar,var(--ink-muted))}
-.ad-ln.adc-refl .bytes,.ad-ln.adc-refl .xref,.ad-ln.adl-refl .bytes,.ad-ln.adl-refl .xref{color:var(--ink)}
-.ad-ln.adc-refl[aria-current="true"],.ad-ln.adl-refl[aria-current="true"]{background:var(--row-selected-bg);box-shadow:inset var(--sel-bar,3px) 0 0 var(--accent)}
+.ad-ln.adc-refl{background:var(--raised);box-shadow:inset 3px 0 0 var(--reflect-bar,var(--ink-muted))}
+.ad-ln.adc-refl .bytes,.ad-ln.adc-refl .xref{color:var(--ink)}
+.ad-ln.adc-refl[aria-current="true"]{background:var(--row-selected-bg);box-shadow:inset var(--sel-bar,3px) 0 0 var(--accent)}
 .ad-ln .adc-rt{justify-self:start}
 /* Context menu: disabled items keep their reason visible */
 .adc-menu [aria-disabled="true"]{cursor:default}
@@ -1133,7 +1129,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .adc-hold{display:inline-flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-3);font:400 12px/16px var(--font-sans);color:var(--ink);min-width:0}
 .adc-hold .st{display:inline-flex;align-items:center;gap:var(--space-2);min-width:0}
 .adc-hold.held .st{color:var(--ink-strong);font-weight:700}
-.adc-hold.held .st .ad-ico{color:var(--fact-stale)}
+.adc-hold.held .st .ad-ico{color:var(--ink-strong)}
 .adc-cbbody{display:grid;grid-template-columns:minmax(0,1fr) 1px minmax(0,1.12fr);grid-template-areas:"lst s1 dc" "hex hex hex" "xr xr xr";gap:0;min-width:0}
 .adc-cbbody>.lst{grid-area:lst}.adc-cbbody>.dc{grid-area:dc}.adc-cbbody>.s1{grid-area:s1}
 .adc-cbbody>.hexw{grid-area:hex}.adc-cbbody>.xr{grid-area:xr}.adc-cbbody>.s2{display:none}
@@ -1220,16 +1216,16 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
  .adc-l[aria-selected="true"]{border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-2) - 3px)}
  .adc-xl>li[aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"]{border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-5) - 3px)}
  .adc-mini .c{border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-3) - 3px)}
- .adc-l.refl,.adc-hb .rf,.adc-ha .rf,.adc-mini .r,.ad-ln.adc-refl,.ad-ln.adl-refl,.adl-ws-dc .adl-refl2{outline:1px dashed CanvasText;outline-offset:-1px}
- .adc-hb .cu,.adc-ha .cu,.adc-t.hit,.adc-hit{text-decoration:underline 2px}
+ .adc-l.refl,.adc-hb .rf,.adc-ha .rf,.adc-mini .r,.ad-ln.adc-refl,.adl-ws-dc>.adl-ws-refl{outline:1px dashed CanvasText;outline-offset:-1px}
+ .adc-hb .cu,.adc-ha .cu,.adc-t.hit{text-decoration:underline 2px}
  .adc-in[aria-invalid="true"]{border-color:CanvasText;border-style:double}
  .adc-menu [aria-disabled="true"] .t{color:GrayText}
 }
 @media (prefers-contrast:more){
- .adc-l.refl,.ad-ln.adc-refl,.ad-ln.adl-refl,.adc-mini .r{box-shadow:inset 3px 0 0 var(--ink)}
+ .adc-l.refl,.ad-ln.adc-refl,.adc-mini .r{box-shadow:inset 3px 0 0 var(--ink)}
  .adc-life .s{border-color:var(--line-control)}
 }
-.ad.more-contrast .adc-l.refl,.ad.more-contrast .ad-ln.adc-refl,.ad.more-contrast .ad-ln.adl-refl,.ad.more-contrast .adc-mini .r{box-shadow:inset 3px 0 0 var(--ink)}
+.ad.more-contrast .adc-l.refl,.ad.more-contrast .ad-ln.adc-refl,.ad.more-contrast .adc-mini .r{box-shadow:inset 3px 0 0 var(--ink)}
 .ad.more-contrast .adc-life .s{border-color:var(--line-control)}
 .ad a[href].adc-nt{display:inline-flex;padding:3px 5px;border:1px dashed var(--line-control);border-radius:var(--radius-chip);font:400 11px/1 var(--font-mono);text-decoration:underline dotted var(--ink-muted);text-underline-offset:2px}
 .ad a[href].adc-nt:hover,.ad a[href].adc-nt:focus-visible{text-decoration:underline solid currentColor}
@@ -1237,7 +1233,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 
 /* ---- css-flow.css ---- */
 /* ---------- Flow components (ProblemsList, EntityTimeline, MarksList, KeymapSettings, LayoutPresets, NarrowFlow) ----------
-   Draft for merge into components/bundle.css. Consumes tokens only; no literal colors except transparent.
+   Consumes tokens only; no literal colors except transparent.
    Prefixes: ad-prob-, ad-etl-, ad-mark-, ad-keymap-/ad-whichkey/ad-keyhelp, ad-preset-, ad-narrow-. */
 
 /* ProblemsList: the dock's Problems tab as a treegrid grouped by objective */
@@ -1245,7 +1241,6 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-prob-n{font:400 11px/1 var(--font-mono);margin-left:var(--space-2)}
 .ad-prob-tools{padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--line);background:var(--pane)}
 .ad-prob-end{margin-left:auto}
-.ad-prob-scope{display:inline-flex;align-items:center;gap:var(--space-3);font-size:12px;color:var(--ink-muted)}
 .ad-prob-grid{container:prob/inline-size;display:grid;min-width:0;font:400 12px/16px var(--font-sans);scroll-padding-block:32px}
 .ad-prob-row{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.1fr) minmax(0,1.3fr) 112px;gap:var(--space-1) var(--space-5);align-items:start;min-height:28px;padding:var(--space-2) var(--space-5) var(--space-2) var(--space-2);border-bottom:1px solid var(--line);background:var(--chassis)}
 .ad-prob-row>[role="gridcell"],.ad-prob-row>[role="columnheader"]{min-width:0;overflow-wrap:anywhere;padding-top:4px}
@@ -1378,10 +1373,6 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-mark-sub{font-weight:400;letter-spacing:0;text-transform:none}
 .ad-mark-scope{display:inline-flex;gap:var(--space-2);align-items:baseline;padding:1px var(--space-3);border:1px solid var(--badge-frame);border-radius:var(--radius-chip);font:400 11px/15px var(--font-mono);color:var(--ink);white-space:nowrap}
 .ad-mark-act{font:700 10px/14px var(--font-sans);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-strong);border:2px solid var(--ink-strong);padding:0 4px;border-radius:var(--radius-chip);white-space:nowrap}
-.ad-mark-bar{display:inline-flex;gap:2px;flex:1 1 120px;max-width:220px}
-.ad-mark-bar i{flex:1;height:6px;background:var(--raised);border:1px solid var(--line)}
-.ad-mark-bar i.done{background:var(--progress-unit-done);border-color:var(--progress-unit-done)}
-.ad-mark-bar i.now{background:transparent;border:2px solid var(--ink-strong)}
 .ad-mark-row.it{grid-template-columns:24px 22px minmax(0,1fr);align-items:center}
 .ad-mark-row.it .i{color:var(--ink-muted);text-align:right}
 .ad-mark-row.done .n a{color:var(--ink-muted)}
@@ -1392,7 +1383,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-mark-form{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--space-3) var(--space-5);align-items:center;padding:0 var(--space-7) var(--space-5)}
 .ad-mark-in{height:var(--control-h-comfortable);min-width:0;padding:0 var(--space-4);background:var(--well);border:1px solid var(--line-control);color:var(--ink);font:400 12px/1 var(--font-sans)}
 @media (max-width:699px),(pointer:coarse){.ad-mark-row{min-height:var(--touch-h)}.ad-mark-step .ad-btn,.ad-mark-save .ad-btn,.ad-mark-in{min-height:var(--touch-h)}.ad-mark-row.it{grid-template-columns:44px 22px minmax(0,1fr)}.ad-mark-row .ad-check{min-width:44px;min-height:44px}}
-@media (forced-colors:active){.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover{background:Highlight;color:HighlightText;border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-5) - 3px)}.ad-mark-bar,.ad-mark-bar i{forced-color-adjust:none}.ad-mark-step,.ad-mark-scope,.ad-mark-act,.ad-mark-box{border-color:CanvasText}}
+@media (forced-colors:active){.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover{background:Highlight;color:HighlightText;border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-5) - 3px)}.ad-mark-step,.ad-mark-scope,.ad-mark-act,.ad-mark-box{border-color:CanvasText}}
 
 /* KeymapSettings: the one shared keymap, which-key hints and the shortcuts sheet */
 .ad-keymap{display:grid;min-width:0;background:var(--pane);border:1px solid var(--line)}
@@ -1437,8 +1428,6 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-keymap-id{display:block;font:400 11px/15px var(--font-mono);color:var(--ink-muted);overflow-wrap:anywhere}
 .ad-keymap-pfd{flex-basis:100%}
 .ad-keymap-row.more{grid-template-columns:minmax(0,1fr);min-height:0;padding-top:var(--space-1);padding-bottom:var(--space-1)}
-.ad-keymap-row.inactive [role="rowheader"],.ad-keymap-row.inactive .ad-kbd{color:var(--ink-muted)}
-.ad-keymap-row.inactive .ad-kbd{border:1px dashed var(--line-control);background:transparent}
 .ad-keymap-rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));gap:var(--space-5) var(--space-8);padding:var(--space-4) var(--space-5);border-top:1px solid var(--line);background:var(--pane)}
 .ad-keymap-rules h5{margin:0 0 var(--space-2)}
 .ad-keymap-rules ol{margin:0;padding-left:var(--space-7);font-size:12px;line-height:18px}
@@ -1505,8 +1494,8 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-preset-grip.h{cursor:row-resize}
 .ad-preset-grip.h::before{width:auto;height:1px;margin:auto 0}
 .ad-preset-grip.h::after{width:12px;height:5px}
-.ad-preset-grip:is(:hover,:focus-visible,.is-focus,:active,.is-dragging)::before{background:var(--splitter-active)}
-.ad-preset-grip:is(:hover,:focus-visible,.is-focus,:active,.is-dragging)::after{border-color:var(--splitter-active)}
+.ad-preset-grip:is(:hover,:focus-visible,.is-focus,:active)::before{background:var(--splitter-active)}
+.ad-preset-grip:is(:hover,:focus-visible,.is-focus,:active)::after{border-color:var(--splitter-active)}
 .ad-preset-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr));gap:var(--space-5);align-items:stretch}
 .ad-preset{display:grid;align-content:start;gap:var(--space-4);min-width:0;padding:var(--space-4) var(--space-5) var(--space-5);background:var(--pane);border:1px solid var(--line-control);cursor:pointer}
 .ad-preset:hover{background:var(--row-hover-bg)}
@@ -1541,13 +1530,13 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
  .ad-preset-grip::before{border-inline-start:1px solid CanvasText}
  .ad-preset-grip.h::before{border-inline-start:0;border-top:1px solid CanvasText}
  .ad-preset-grip::after{background:Canvas;border-color:CanvasText}
- .ad-preset-grip:is(:hover,:focus-visible,.is-focus,:active,.is-dragging)::after{border-color:Highlight}
+ .ad-preset-grip:is(:hover,:focus-visible,.is-focus,:active)::after{border-color:Highlight}
 }
 
 /* NarrowFlow: the <700px single-pane flow (acceptance size 598×912). Targets are touch-h everywhere inside it. */
 .ad-narrow-demo{display:grid;grid-template-columns:minmax(0,598px) minmax(0,1fr);gap:var(--space-5);align-items:start}
 @media (max-width:899px){.ad-narrow-demo{grid-template-columns:minmax(0,1fr)}}
-.ad-narrow{position:relative;display:grid;grid-template-rows:auto minmax(0,1fr) auto;width:100%;max-width:598px;height:912px;overflow:hidden;background:var(--chassis);border:1px solid var(--line-control)}
+.ad-narrow{position:relative;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto auto;width:100%;max-width:598px;height:912px;overflow:hidden;background:var(--chassis);border:1px solid var(--line-control)}
 .ad-narrow-nav{display:flex;gap:var(--space-2);align-items:stretch;padding:var(--space-2) var(--space-3);background:var(--pane);border-bottom:1px solid var(--line);min-width:0}
 .ad-narrow-btn{display:inline-flex;align-items:center;justify-content:center;gap:var(--space-3);min-height:var(--touch-h);min-width:var(--touch-h);padding:0 var(--space-5);background:var(--pane);border:1px solid var(--line-control);color:var(--ink);font:400 13px/1 var(--font-sans);white-space:nowrap;cursor:pointer}
 .ad-narrow-btn:hover{background:var(--row-hover-bg)}
@@ -1558,7 +1547,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-narrow-btn.crumb .lvl{grid-column:1;font:400 11px/14px var(--font-sans);color:var(--ink-muted)}
 .ad-narrow-btn.crumb .nm{grid-column:1;min-width:0;font:700 13px/17px var(--font-mono);color:var(--ink-strong);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ad-narrow-btn.crumb>[aria-hidden="true"]:last-child{grid-column:2;grid-row:1/span 2;align-self:center}
-.ad-narrow-pane{position:relative;display:grid;grid-template-rows:auto auto minmax(0,1fr);min-height:0;min-width:0}
+.ad-narrow-pane{position:relative;display:grid;grid-template-rows:auto auto auto minmax(0,1fr);min-height:0;min-width:0}
 .ad-narrow-ph{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-1) var(--space-4);padding:var(--space-3) var(--space-5) var(--space-2);background:var(--pane)}
 .ad-narrow-tabs [role="tab"]{min-height:var(--touch-h);padding:0 var(--space-6)}
 .ad-narrow-code{overflow:hidden;min-height:0;padding:var(--space-2) 0;border:0;font:400 12px/18px var(--font-mono)}
@@ -1763,7 +1752,6 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-gp>header h4 code{font-weight:700}
 .ad-gp>header .end{margin-left:auto;display:inline-flex;flex-wrap:wrap;gap:var(--space-2) var(--space-3);align-items:center}
 .ad-gp>header>p{flex-basis:100%;margin:0}
-.ad-gp>header .strong-k{color:var(--ink-strong)}
 .ad-gp>.ad-tools{padding:var(--space-3) var(--space-5);border-bottom:1px solid var(--line)}
 .ad-gp-zoom,.ad-gp-pan,.ad-gp-hist{display:inline-flex;align-items:center;gap:0}
 .ad-gp-zoom>.ad-btn+.ad-btn,.ad-gp-pan>.ad-btn+.ad-btn,.ad-gp-hist>.ad-btn+.ad-btn{margin-left:-1px}
@@ -1790,7 +1778,6 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad .ad-gp-node[aria-current="true"]{background:var(--selection);box-shadow:inset var(--sel-bar,3px) 0 0 var(--accent);--ink-muted:var(--ink)}
 .ad .ad-gp-node[aria-current="true"] .k{color:var(--ink-strong);font-weight:700}
 .ad .ad-gp-node:focus-visible,.ad .ad-gp-node.is-focus{outline:2px solid var(--focus);outline-offset:0}
-.ad-gp-vp.prev .ad-gp-node{border-style:dashed}
 .ad-gp-more{position:absolute;display:grid;align-content:center;justify-items:start;height:40px;padding:0 var(--space-4);background:var(--chassis);border:1px dashed var(--line-control);color:var(--ink);font:400 11px/15px var(--font-sans);text-align:left;cursor:pointer}
 .ad-gp-more span{color:var(--ink-muted)}
 .ad-gp-more:hover{background:var(--row-hover-bg)}
@@ -1861,14 +1848,13 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-baband .fld{display:grid;gap:var(--space-1);min-width:0}
 .ad-baband .fld.wide{grid-column:1/-1}
 .ad-baband dt{font:700 11px/15px var(--font-sans);color:var(--ink-muted)}
-.ad-baband dd{display:grid;grid-template-columns:52px minmax(0,1fr);gap:var(--space-4);align-items:baseline;margin:0}
+.ad-baband dd{display:grid;grid-template-columns:76px minmax(0,1fr);gap:var(--space-4);align-items:baseline;margin:0}
 .ad-baband dd code{font:400 12px/17px var(--font-mono);overflow-wrap:anywhere}
-.ad-baband .w{font:700 10px/15px var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted)}
+.ad-baband .w{font:700 10px/15px var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-muted);white-space:nowrap}
 .ad-baband dd.b code{color:var(--ink-muted)}
 .ad-baband dd.a code{color:var(--ink-strong)}
 .ad-baband mark{background:transparent;color:var(--ink-strong);font-weight:700;text-decoration:underline;text-decoration-color:var(--fact-stale);text-underline-offset:3px}
 .ad-baband .none{font-style:italic;color:var(--ink-muted)}
-.ad-baband dd.a.pending{grid-template-columns:52px minmax(0,1fr)}
 .ad-baband dd.a.pending .none{border:1px dashed var(--line-control);padding:0 var(--space-3);justify-self:start}
 .ad-baband .foot{margin:0;padding:var(--space-2) var(--space-5) var(--space-3);border-top:1px solid var(--line);font:400 11px/16px var(--font-sans);color:var(--ink-muted)}
 .ad-baband.fail{border-left-style:dashed}
@@ -1901,15 +1887,11 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 
 /* Shared: whole-cell links (WCAG 2.5.8: the whole address cell is the link), absent words */
 .ad .adl-cl{display:flex;align-items:center;min-height:24px}
-.ad .adl-t24{display:inline-flex;align-items:center;min-height:24px}
 
 .ad .adl-sep{color:var(--ink-muted);padding:0 var(--space-1)}
 .ad .adl-cap{font:400 11px/15px var(--font-sans);color:var(--ink-muted)}
-.ad .adl-demo{display:grid;gap:var(--space-4);min-width:0}
 
 .ad-table td.adl-occ{white-space:normal;min-width:150px}
-
-/* StageChip, FilterChip and OutcomeCell use the drafted components' classes (.ad-stg, .ad-fchip, .ad-oc, .ad-ocsum). */
 
 /* Link groups (ProvenanceStamp receipt · job · basis · witness) */
 .ad .ad-stamp.adl-lg{white-space:normal;flex-wrap:wrap;row-gap:var(--space-1)}
@@ -1986,11 +1968,6 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .adl-legendline b{font:700 13px/1 var(--font-mono);margin-right:var(--space-1)}
 .adl-backlink{display:inline-flex;align-items:center;gap:var(--space-2);font:400 11px/16px var(--font-sans);color:var(--ink-muted)}
 
-/* Contested pair: two HeldPane (.ad-held) panes side by side */
-.adl-held2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr));gap:var(--space-4)}
-.adl-heldcode{margin:0;padding:var(--space-2) var(--space-4);font:400 12px/18px var(--font-mono);background:var(--code-bg);white-space:pre;overflow-x:auto;unicode-bidi:isolate}
-.adl-heldcode .mn{color:var(--ink-strong)}
-
 /* EvidenceRail: the ladder as it ran, as an ordered list */
 .adl-ladrun{list-style:none;margin:0;padding:0}
 .adl-ladrun>li{display:grid;grid-template-columns:24px minmax(110px,max-content) minmax(0,1fr);gap:var(--space-1) var(--space-4);align-items:center;min-height:28px;padding:var(--space-1) var(--space-5);border-bottom:1px solid var(--line);font-size:12px}
@@ -2011,9 +1988,9 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .adl-own{font:400 11.5px/16px var(--font-sans);color:var(--ink-muted)}
 .adl-own .ad-link{color:var(--ink)}
 
-/* Diffs: differing rows carry ≠ and the word "differs"; equal runs collapse in place */
+/* Diffs: differing rows carry ± and the word "differs" (≠ stays the divergence class and claim-boundary sign); equal runs collapse in place */
 .ad-diff .adl-chg{background:var(--raised)}
-.ad-diff .adl-chg::before{content:"≠";color:var(--fact-stale);font-weight:700}
+.ad-diff .adl-chg::before{content:"±";color:var(--fact-stale);font-weight:700}
 .ad-diff .adl-eq{color:var(--ink-muted)}
 .ad .adl-eqbtn{display:inline-flex;align-items:center;min-height:24px;padding:0 var(--space-3);background:transparent;border:1px dashed var(--line-control);color:var(--ink-muted);font:400 11px/1 var(--font-sans);cursor:pointer}
 .ad .adl-eqbtn:hover{background:var(--row-hover-bg);color:var(--ink)}
@@ -2071,24 +2048,8 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .adl-rmcol{display:none}
 @media (pointer:coarse){.adl-rmcol{display:table-cell}}
 
-/* Listing: sticky function header, reflection (gutter + underline), highlight-all, changed-by mark */
-.adl-lst{display:grid;gap:0;background:var(--code-bg);border:1px solid var(--line);min-width:0}
-.adl-lst>.ad-listing{border:0;max-height:none}
-.adl-fnh{position:sticky;top:0;z-index:1;display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-4);padding:var(--space-2) var(--space-4);background:var(--pane);border-bottom:1px solid var(--line)}
-.adl-fnh h4{margin:0;font:700 13px/19px var(--font-mono);color:var(--ink-strong)}
-.adl-hlbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-2) var(--space-4);padding:var(--space-2) var(--space-4);background:var(--pane);border-bottom:1px solid var(--line)}
-.ad .adl-hlchip{display:inline-flex;align-items:center;gap:var(--space-2);min-height:24px;padding:0 var(--space-3);background:var(--chassis);border:1px solid var(--line-control);color:var(--ink);font:400 12px/1 var(--font-mono);cursor:pointer}
-.ad .adl-hlchip>b{display:inline-grid;place-items:center;width:16px;height:16px;border:1px solid var(--ink-strong);font:700 10px/1 var(--font-sans);color:var(--ink-strong)}
-/* Highlight all (h): a 1px highlight-box around each occurrence with its letter A–D; the outline style also tells the letters apart.
-   Never an underline, which means a link in code wells. The count in words is on the legend chip. Reflection (.adl-refl) is in the code section. */
-.adl-hlA,.adl-hlB,.adl-hlC,.adl-hlD{outline:1px solid var(--highlight-box,var(--ink-strong));outline-offset:0}
-.adl-hlB{outline-style:dashed}.adl-hlC{outline-style:dotted}
-.adl-hlA::after,.adl-hlB::after,.adl-hlC::after,.adl-hlD::after{margin-left:1px;font:700 10px/1 var(--font-sans);vertical-align:top;color:var(--highlight-badge,var(--ink-strong))}
-.adl-hlA::after{content:"A" / ""}.adl-hlB::after{content:"B" / ""}.adl-hlC::after{content:"C" / ""}.adl-hlD::after{content:"D" / ""}
-.ad-ln[role="row"]:focus-visible{outline:3px solid var(--focus);outline-offset:-3px}
-.ad-ln .adl-chgm{color:var(--ink);font-size:11px}
+/* Listing rows: links in the xref column take the row's ink (row focus is the shared inset rule; highlight all is in the group B section) */
 .ad-ln .xref .ad-link{color:inherit}
-.adl-nomap{margin:0;padding:var(--space-2) var(--space-4);border-top:1px solid var(--line);background:var(--pane)}
 
 /* CounterpartStrip line (strip variant of the CounterpartMatrix, as shown in host previews) */
 .adl-cps{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1) var(--space-4);margin:0;min-height:28px;padding:var(--space-1) var(--space-4);background:var(--pane);border:1px solid var(--line)}
@@ -2159,7 +2120,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .adl-ws-dc{font:400 12px/18px var(--font-mono);padding:var(--space-2) 0;overflow-x:auto}
 .adl-ws-dc>div{display:grid;grid-template-columns:28px minmax(0,1fr);gap:var(--space-4);padding:0 var(--space-4);white-space:pre}
 .adl-ws-dc .n{color:var(--ink-muted);text-align:right}
-.adl-ws-dc .adl-refl2{background:var(--raised);box-shadow:inset 3px 0 0 var(--reflect-bar,var(--ink-muted))}
+.adl-ws-dc>.adl-ws-refl{background:var(--raised);box-shadow:inset 3px 0 0 var(--reflect-bar,var(--ink-muted))}
 .adl-ws-ev{background:var(--pane)}
 .adl-ws-evb{display:grid;gap:var(--space-2);padding:var(--space-3) var(--space-4)}
 .adl-ws-evb h3{margin:var(--space-2) 0 0;font:700 12px/16px var(--font-sans);color:var(--ink-strong)}
@@ -2182,25 +2143,156 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
  .adl-ws-body>nav,.adl-ws-body>aside,.adl-ws-body>.ad-split-h{display:none}
  .adl-ws-ctl{margin-left:0}
 }
-@media (max-width:699px),(pointer:coarse){.adl-ws .ad-btn,.adl-ws [role="tab"],.adl-ws-crumb a{min-height:var(--touch-h)}}
+@media (max-width:699px),(pointer:coarse){.adl-ws .ad-btn,.adl-ws [role="tab"],.adl-ws [role="radio"],.adl-ws .adl-disc,.adl-ws .ad-fchip button,.adl-ws-crumb a{min-height:var(--touch-h)}}
 .adl-ws-other{display:none}
 @media (max-width:699px){.adl-ws .adl-ws-other{display:inline-flex;margin-bottom:var(--space-2)}.adl-ws-views2>section+section{display:none}}
 
 /* Forced colors and higher contrast for the adl- additions */
 @media (forced-colors:active){
- .adl-kept,.ad .adl-factbtn,.ad .adl-capbtn,.adl-sect,.adl-cps,.adl-origin,.ad .adl-hlchip,.ad .adl-rowmenu,.ad .adl-eqbtn,.adl-kept>header .tag,.adl-kepttag,.ad .adl-skip a:focus,.ad .adl-skip a.is-focus{border-color:CanvasText}
+ .adl-kept,.ad .adl-factbtn,.ad .adl-capbtn,.adl-sect,.adl-cps,.adl-origin,.ad .adl-rowmenu,.ad .adl-eqbtn,.adl-kept>header .tag,.adl-kepttag,.ad .adl-skip a:focus,.ad .adl-skip a.is-focus{border-color:CanvasText}
  .adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]{background:Highlight;color:HighlightText}
  .adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div{border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-5) - 3px)}
  .adl-ladrun>li[aria-current="step"]{outline-color:HighlightText}
  .adl-evlist>li[aria-current="true"]{border-color:CanvasText}
- .adl-hlA,.adl-hlB,.adl-hlC,.adl-hlD{outline-color:CanvasText}
 }
 @media (prefers-contrast:more){
  .adl-origin,.ad .adl-eqbtn{border-style:solid}
- .adl-ws-dc .adl-refl2{box-shadow:inset 3px 0 0 var(--ink)}
+ .adl-ws-dc>.adl-ws-refl{box-shadow:inset 3px 0 0 var(--ink)}
 }
 .ad.more-contrast .adl-origin,.ad.more-contrast .adl-eqbtn{border-style:solid}
-.ad.more-contrast .adl-ws-dc .adl-refl2{box-shadow:inset 3px 0 0 var(--ink)}
+.ad.more-contrast .adl-ws-dc>.adl-ws-refl{box-shadow:inset 3px 0 0 var(--ink)}
+
+/* ---- css-int-A.css ---- */
+/* ---------- Group A integration: NavigationBar, PipelineBreadcrumb, PipelineMap, Workstation, EntityRow, MarksList, NarrowFlow, AccessibleView, WorkflowControl ----------
+   Folded into earlier sections: the gate glyph class, radio segments (.ad-seg), disabled menu items, the PipelineBreadcrumb and PipelineMap
+   current step, the NarrowFlow frame and pane rows, the Workstation reflected row and coarse targets. */
+
+/* NavigationBar: Update panes label + radio group, and the prefix chips under the go-to field. New; sits in bundle .ad-navbar .bar. */
+.adl-nb-upd{display:inline-flex;flex-wrap:wrap;align-items:center;gap:var(--space-2)}
+.adl-nb-upd>.lbl{font:400 11px/1 var(--font-sans);color:var(--ink-muted)}
+.adl-nb-chips{display:flex;flex-wrap:wrap;gap:var(--space-2);padding:var(--space-3) var(--space-5);border-top:1px solid var(--line)}
+@media (max-width:699px),(pointer:coarse){.adl-nb-upd [role="radio"],.adl-nb-chips .ad-btn{min-height:var(--touch-h)}}
+
+/* PipelineBreadcrumb: a stage that does not apply is plain words, not a link. Mirrors bundle .ad .ad-pcrumb a without link styling. */
+.ad-pcrumb .adl-pc-na{display:grid;align-content:start;gap:var(--space-2);padding:var(--space-3) var(--space-4) var(--space-4);background:var(--chassis);border-top:3px solid var(--line);font:400 12px/16px var(--font-sans);color:var(--ink-muted)}
+.ad-pcrumb .adl-pc-na .st{color:var(--ink)}
+/* PipelineMap: coarse-pointer row-menu demo (reuses .adl-rowmenu from the linking roll-out). New. */
+.adl-pm-coarse{display:grid;gap:var(--space-3);min-width:0}
+.adl-pm-demo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-4);padding:var(--space-2) var(--space-4);background:var(--pane);border:1px solid var(--line)}
+.adl-pm-demo>.ad-link{display:inline-flex;align-items:center;min-height:var(--touch-h)}
+
+/* Workstation: pane-header size menu button, collapse strips, dock FilterChip row. New; extends the .adl-ws-* rules. */
+.adl-ws .ad-pane-h .adl-ws-sz{margin-left:auto;min-width:24px}
+.adl-ws-strips{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+.ad .adl-strip{display:inline-flex;align-items:center;justify-content:center;min-width:24px;min-height:24px;padding:0 var(--space-3);background:var(--pane);border:1px solid var(--line-control);color:var(--ink);font:400 11px/1 var(--font-sans);cursor:pointer}
+.ad .adl-strip:hover{background:var(--row-hover-bg)}
+.adl-ws-fchips{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-4);padding:var(--space-2) var(--space-5);background:var(--pane);border-bottom:1px solid var(--line)}
+.adl-ws-evb h3{display:flex}
+@media (max-width:699px){.adl-ws-strips{display:none}}
+@media (forced-colors:active){.ad .adl-strip{border-color:CanvasText}}
+/* Workstation: the words of the reflected row (its raised fill and reflect-bar are in the linking roll-out) */
+.adl-ws-rw{font:400 11px/1 var(--font-sans);color:var(--ink-muted);white-space:nowrap}
+.adl-ws .ad-pane-h{gap:var(--space-3)}
+/* Peek and XrefPanel: the Kept tag sits at its content width inside grid headers. Extends .adl-kepttag. */
+.ad-peek header .adl-kepttag,.ad-xref .adl-kepttag{justify-self:start;align-self:center}
+
+/* EntityRow: at navigator width the OutcomeCell is a wrapped second line under the name, never truncated. Extends the .adl-er rules. */
+.adl-er-narrow{max-width:240px}
+.adl-er-narrow .adl-er th[scope="row"]{white-space:normal;height:auto;padding-top:var(--space-1);padding-bottom:var(--space-1)}
+.adl-er-oc{display:block;margin-top:var(--space-1);white-space:normal}
+.adl-er-oc .ad-oc{flex-wrap:wrap}
+@media (max-width:699px),(pointer:coarse){.adl-er td,.adl-er th[scope="row"]{height:var(--touch-h)}}
+
+/* MarksList: a mark's note is labelled with the word "note" and has no claim-tier frame (marks, notes and worklists carry no tier).
+   New; sits in bundle .ad-mark-row .note. */
+.adl-mk-note{display:inline-flex;flex-wrap:wrap;align-items:baseline;gap:var(--space-2);color:var(--ink)}
+.adl-mk-note>.w{font:700 10px/1 var(--font-sans);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-muted)}
+
+/* NarrowFlow: forced Update panes words, the Code views cursor line, and the one-line Activity status above the rail bar.
+   New; sits inside bundle .ad-narrow. The status line takes the side safe-area insets; the rail bar below it takes the bottom one. */
+.adl-nf-upd,.adl-nf-cur{margin:0;padding:var(--space-2) var(--space-4);background:var(--pane);border-bottom:1px solid var(--line);color:var(--ink-muted)}
+.adl-nf-status{margin:0;padding:var(--space-2) max(var(--space-4),env(safe-area-inset-right,0px)) var(--space-2) max(var(--space-4),env(safe-area-inset-left,0px));background:var(--pane);border-top:1px solid var(--line);color:var(--ink)}
+.adl-nf-status .ad-link{display:inline-flex;align-items:center;min-height:var(--touch-h)}
+
+/* AccessibleView: the verbosity line shows the global View settings value; soft wrap. Extends the small-components .ad-av rules. */
+.adl-av-verb{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-4)}
+.ad-av-text[wrap="soft"]{white-space:pre-wrap;overflow-wrap:anywhere;overflow-x:hidden}
+.adl-av-note p{margin:0}
+
+/* WorkflowControl: the toolbar and its "What this pauses" disclosure sit side by side and wrap; the disclosure is outside the roving set.
+   Extends the .adl-wfc rules. */
+.adl-wfc-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-4);min-width:0}
+
+/* ---- css-int-B.css ---- */
+/* ---------- Group B integration: link menu, highlight all, coarse row menu, SplitCompare candidates, CounterpartStrip disclosure, ReviewDetail basis delta, ObjectDiff, SourceRepairDiff ----------
+   Folded into earlier sections: the held icon and sticky HELD header, the BeforeAfterBand word column, the ± diff sign, ImageDeltaMap
+   region widths, and the matrix primary cell, menu-button cells, list form and row focus. */
+
+/* DecompileView, CodeBrowser, Listing: one flat link menu with labelled groups (APG Menu, no submenu).
+   Extends bundle `.ad-menu` / `.adc-menu .grp`. */
+.adc-lm [role="group"]>ul{list-style:none;margin:0;padding:0}
+.adc-lm [role="group"]>.grp{display:block;padding:var(--space-3) var(--space-5) var(--space-1)}
+.adc-lm .ad-menu{padding-bottom:var(--space-2)}
+
+/* DecompileView, Listing, CodeBrowser: highlight all (35 Reflection) — a 1px highlight-box box and a
+   highlight-badge letter per occurrence, never an underline; the count is words on the legend chip.
+   Replaces the earlier underline styles. */
+.ad .adc-hl{outline:1px solid var(--highlight-box);outline-offset:0}
+.adc-hlb{position:relative;top:-.45em;margin-left:1px;font:700 11px/0 var(--font-sans);color:var(--highlight-badge)}
+.adc-hlbar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-2) var(--space-4);padding:var(--space-2) var(--space-4);background:var(--pane);border-bottom:1px solid var(--line);font:400 11px/16px var(--font-sans);color:var(--ink-muted)}
+.ad .adc-hlchip{display:inline-flex;align-items:center;gap:var(--space-2);min-height:24px;padding:0 var(--space-3);background:var(--chassis);border:1px solid var(--line-control);color:var(--ink);font:400 11px/1 var(--font-mono);cursor:pointer}
+.ad .adc-hlchip>b{display:inline-grid;place-items:center;width:16px;height:16px;border:1px solid var(--highlight-box);font:700 11px/1 var(--font-sans);color:var(--highlight-badge)}
+.ad .adc-hlchip:hover{background:var(--row-hover-bg)}
+@media (forced-colors:active){.ad .adc-hl{outline-color:CanvasText}.ad .adc-hlchip,.ad .adc-hlchip>b{border-color:CanvasText}}
+
+/* Listing (and every code well): the coarse-pointer row-menu button, one 44px button per row carrying
+   the one link menu (35). Same shape as `.adl-rowmenu` (linking roll-out); adds the row wrapper. */
+.adc-coarse{display:flex;align-items:center;gap:var(--space-3);min-width:0}
+.adc-coarse>.ad-listing{flex:1 1 auto;min-width:0}
+.ad .adc-rowmenu{flex:none;display:inline-grid;place-items:center;width:var(--touch-h);height:var(--touch-h);background:transparent;border:1px solid var(--line-control);color:var(--ink);font:700 14px/1 var(--font-mono);cursor:pointer}
+.ad .adc-rowmenu:hover{background:var(--row-hover-bg)}
+@media (forced-colors:active){.ad .adc-rowmenu{border-color:CanvasText}}
+
+/* SplitCompare: the contested secondary pane lists both candidates; the review-pair header form.
+   Extends `.ad-scmp-none` and `.ad-scmp-pane` (SplitCompare block of bundle.css). */
+.ad-scmp-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(320px,100%),1fr));gap:var(--space-5);align-items:start}
+.ad-scmp-cols>.ad-scmp-pane{grid-row:auto;grid-template-rows:auto}
+.ad-scmp-cands{list-style:none;margin:var(--space-2) 0;padding:0;display:grid;gap:var(--space-1)}
+.ad-scmp-cands>li{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1) var(--space-3);min-height:24px}
+.ad-scmp-none .ad-scmp-cands .muted{color:var(--ink-muted)}
+.ad-scmp-none>b.contested{color:var(--fact-failed)}
+
+/* CounterpartStrip below 700px: the 44px "Counterparts (3) ▾" disclosure shown when the wrapped strip
+   exceeds two lines (UX-21 item 5). Extends `.ad-cstrip` (CounterpartStrip block of bundle.css). */
+.ad .ad-cstrip-disc{display:inline-flex;align-items:center;gap:var(--space-2);min-height:var(--touch-h);padding:0 var(--space-4);background:transparent;border:1px solid var(--line-control);color:var(--ink);font:400 12px/1 var(--font-sans);cursor:pointer}
+.ad .ad-cstrip-disc:hover{background:var(--row-hover-bg)}
+@media (forced-colors:active){.ad .ad-cstrip-disc{border-color:CanvasText}}
+
+/* ReviewDetail BasisDelta: the page-level refusal summary with its two buttons, and the separate
+   collapsed group of rows that left the page (historical, not checkable). Extends `.ad-rvd .ad-notice`
+   and `.ad-rvd` (ReviewDetail block of bundle.css). */
+.ad-notice.ad-rvd-delta{background:var(--chassis)}
+.ad-notice.ad-rvd-delta .acts{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center}
+.ad-rvd-left{padding:var(--space-3) var(--space-5);border-top:1px solid var(--line);font-size:12px}
+.ad-rvd-left>ul{list-style:none;margin:var(--space-2) 0 0;padding:0}
+.ad-rvd-life.wrap{white-space:normal}
+.ad-rvd .ad-table td:has(>.ad-rvd-life.wrap){white-space:normal}
+.ad-rvd-left .ad-btn{height:auto;padding-top:var(--space-1);padding-bottom:var(--space-1);line-height:16px;white-space:normal;text-align:left}
+
+/* ObjectDiff: one read-only grid of row header, target, candidate and state (UX-19 item 1).
+   Replaces the two-well `.ad-diff` rendering in ObjectDiff; differing tokens use SplitCompare's wavy mark. */
+.ad-odiff td,.ad-odiff th[scope="row"]{font:400 12px/18px var(--font-mono);white-space:pre}
+.ad-odiff td.st{font-family:var(--font-sans);white-space:nowrap}
+.ad-odiff tr.dif>td,.ad-odiff tr.dif>th{background:var(--raised)}
+.ad-odiff mark{background:transparent;color:var(--ink-strong);font-weight:700;text-decoration:underline wavy var(--fact-stale);text-underline-offset:3px}
+
+/* SourceRepairDiff: the diff well as a read-only grid of line, change word and text (UX-19 item 1).
+   Extends bundle `.ad-diff` (the glyph column now carries a visible word). */
+.ad-diff.ad-srd>div{grid-template-columns:3ch 8ch minmax(0,1fr);gap:0 var(--space-3)}
+.ad-diff.ad-srd>div::before{content:none}
+.ad-srd .ln{color:var(--ink-muted);text-align:right}
+.ad-srd .cw{font-family:var(--font-sans);font-size:11px;color:var(--ink-muted)}
+.ad-srd .del .cw,.ad-srd .add .cw{color:var(--ink-strong)}
 
 /* ---- css-int-C.css ---- */
 /* ---------- Group C integration: Explain as design text, ActivityRecord log tail, WorkTimeline header chip ----------
@@ -2236,17 +2328,17 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 @media (max-width:699px),(pointer:coarse){.ad .adl-wtchip>.ad-link{min-height:var(--touch-h)}}
 
 /* ---- Forced colors: selected and current items (keep this block last) ----
-   Chromium paints a Canvas backplate behind every line of text when forced-color-adjust is auto, so HighlightText text on a Highlight block
+   Engines may paint a Canvas backplate behind every line of text when forced-color-adjust is auto, so HighlightText text on a Highlight block
    lands on Canvas and disappears (HighlightText equals Canvas in the usual high-contrast palettes). Selected and current items therefore opt out,
    and everything inside them is set to HighlightText on a transparent fill, so no author color survives and descendants read as the system
    selection. Data graphics keep their own colors because their text key carries the values. Where supported, SelectedItem and SelectedItemText
    replace Highlight and HighlightText. The selector list repeats every Highlight rule above with the same specificity. */
 @media (forced-colors:active){
- .ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-seg>button[aria-pressed="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]{forced-color-adjust:none;box-shadow:none}
- :is(.ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-seg>button[aria-pressed="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]) :not(.ad-rep,.ad-rep *,.ad-units,.ad-units *,.ad-meter .bar,.ad-meter .bar *,.ad-mark-bar,.ad-mark-bar *,.ad-imap,.ad-imap *,.ad-scmp-key i){color:HighlightText!important;background-color:transparent!important;border-color:HighlightText!important;text-decoration-color:HighlightText!important}
- :is(.ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-seg>button[aria-pressed="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]) :is(input,select,textarea){forced-color-adjust:auto}
+ .ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-matrix td.cell[aria-selected="true"],.ad-seg>button[aria-pressed="true"],.ad-seg>[role="radio"][aria-checked="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]{forced-color-adjust:none;box-shadow:none}
+ :is(.ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-matrix td.cell[aria-selected="true"],.ad-seg>button[aria-pressed="true"],.ad-seg>[role="radio"][aria-checked="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]) :not(.ad-rep,.ad-rep *,.ad-units,.ad-units *,.ad-meter .bar,.ad-meter .bar *,.ad-imap,.ad-imap *,.ad-scmp-key i){color:HighlightText!important;background-color:transparent!important;border-color:HighlightText!important;text-decoration-color:HighlightText!important}
+ :is(.ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-matrix td.cell[aria-selected="true"],.ad-seg>button[aria-pressed="true"],.ad-seg>[role="radio"][aria-checked="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]) :is(input,select,textarea){forced-color-adjust:auto}
  @supports (color:SelectedItem){
-  .ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-seg>button[aria-pressed="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]{background:SelectedItem;color:SelectedItemText;border-inline-start-color:SelectedItemText}
-  :is(.ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-seg>button[aria-pressed="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]) :not(.ad-rep,.ad-rep *,.ad-units,.ad-units *,.ad-meter .bar,.ad-meter .bar *,.ad-mark-bar,.ad-mark-bar *,.ad-imap,.ad-imap *,.ad-scmp-key i){color:SelectedItemText!important;border-color:SelectedItemText!important;text-decoration-color:SelectedItemText!important}
+  .ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-matrix td.cell[aria-selected="true"],.ad-seg>button[aria-pressed="true"],.ad-seg>[role="radio"][aria-checked="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]{background:SelectedItem;color:SelectedItemText;border-inline-start-color:SelectedItemText}
+  :is(.ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-matrix td.cell[aria-selected="true"],.ad-seg>button[aria-pressed="true"],.ad-seg>[role="radio"][aria-checked="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]) :not(.ad-rep,.ad-rep *,.ad-units,.ad-units *,.ad-meter .bar,.ad-meter .bar *,.ad-imap,.ad-imap *,.ad-scmp-key i){color:SelectedItemText!important;border-color:SelectedItemText!important;text-decoration-color:SelectedItemText!important}
  }
 }

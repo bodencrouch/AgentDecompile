@@ -43,3 +43,6 @@ PYTHONPATH=src timeout 600 /home/brunner56/agentdecompile-nvme/.venv/bin/python 
 cp $W/fixture.canonical.sqlite $W/export.sqlite
 PYTHONPATH=src timeout 600 /home/brunner56/agentdecompile-nvme/.venv/bin/python -m agentdecompile_recovery.corpus.cli backfill --db $W/export.sqlite --pass analyzer_identity --receipts $W/receipts
 PYTHONPATH=src timeout 600 /home/brunner56/agentdecompile-nvme/.venv/bin/python -m agentdecompile_recovery.corpus.cli verify-determinism --db $W/export.sqlite
+# Synthetic tie-break fixture shipped by the source (built to expose the rowid tie seed 7 hides), every SHUFFLE_SEED.
+rm -f $W/synthetic*.sqlite
+PYTHONPATH=src timeout 600 /home/brunner56/agentdecompile-nvme/.venv/bin/python -m agentdecompile_recovery.corpus.determinism_harness $W/synthetic.sqlite --build-fixture --json > $W/synthetic.json

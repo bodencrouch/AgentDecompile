@@ -92,6 +92,7 @@
   }
 
   function loadSummary() {
+    if (!st.summary) showEmpty("Reading the corpus… the first read of a large corpus can take a minute.");
     return getJSON(API + "/summary").then(function (s) {
       st.summary = s;
       renderActivity(s.activity || [], true);

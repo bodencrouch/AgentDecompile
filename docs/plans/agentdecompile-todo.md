@@ -11,7 +11,7 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 ## Integration deliverables
 
 - [ ] U1. Scope, truth and evidence authority — prerequisites: none; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
-- [ ] U2. Determinism, schema and generic data seams — prerequisites: U1; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors. Evidence 2026-09-29: E-0929-2 (fixture V3 pass at git `2c5d989f`; not installed).
+- [ ] U2. Determinism, schema and generic data seams — prerequisites: U1; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors. Evidence 2026-09-29: E-0929-2 (D1–D6, D8, D9 present in git and fixture-validated; D7 and 19 other children unassessed; not installed).
 - [ ] U3. Identity, field fusion and compatible cross-build reuse — prerequisites: U1, U2; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U4. Recover, calibrate, reconstruct and compare — prerequisites: U1, U2; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U5. Portable entities, signatures, roots and layouts — prerequisites: U2, U3; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.

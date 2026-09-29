@@ -1,0 +1,47 @@
+<!-- @dsCard group="Code" height=910 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">The stack frame of one function, per build · higher addresses at the top · rows keyed by logical slot, offsets per build</span>
+<section class="adc-pane" aria-labelledby="fl-h">
+ <header><span class="kicker" id="fl-h">Frame layout</span><h4 translate="no">Actor::LoadFromTemplate</h4><span class="small muted">offsets from EBP after the prologue</span><span class="end small muted">Follows · as I move</span></header>
+ <div class="adx-claim"><span>build-a r12 · build-b r14 · build-c r14 modified · build-d r14, other toolchain</span><span>An ESP frame is shown normalised to entry ESP and says so.</span></div>
+ <div class="adx-body">
+  <div class="ad-scroll" data-scroll><table class="ad-table adx-frame" aria-label="Stack frame of Actor::LoadFromTemplate by logical slot, offset per build, higher addresses first">
+   <thead><tr><th scope="col">Slot</th><th scope="col">build-a</th><th scope="col">build-b <span class="sr-only">inspected</span></th><th scope="col">build-c</th><th scope="col">build-d</th></tr></thead>
+   <tbody>
+    <tr><th scope="row"><span class="adx-slot">arg</span> <a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;build=build-b&amp;addr=0041a4c8&amp;views=decompile" translate="no" aria-label="Parameter flags, decompile, build-b">flags</a></th><td class="o">+0xC</td><td class="o">+0xC</td><td class="o">+0xC</td><td class="o">+0xC</td></tr>
+    <tr><th scope="row"><span class="adx-slot">arg</span> <a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;build=build-b&amp;addr=0041a4c0&amp;views=decompile" translate="no" aria-label="Parameter templateId, decompile, build-b">templateId</a></th><td class="o">+0x8</td><td class="o">+0x8</td><td class="o">+0x8</td><td class="o">+0x8</td></tr>
+    <tr><th scope="row"><span class="adx-slot">return</span> return address</th><td class="o">+0x4</td><td class="o">+0x4</td><td class="o">+0x4</td><td class="o">+0x4</td></tr>
+    <tr class="sep"><th scope="row"><span class="adx-slot">saved</span> ebp</th><td class="o">+0x0</td><td class="o">+0x0</td><td class="o">+0x0</td><td class="o">+0x0</td></tr>
+    <tr><th scope="row"><span class="adx-slot">EH node</span> state</th><td class="o">−0x4</td><td class="o">−0x4</td><td class="o">−0x4</td><td class="o">−0x4</td></tr>
+    <tr><th scope="row"><span class="adx-slot">EH node</span> handler · next</th><td class="o">−0x8 · −0xC</td><td class="o">−0x8 · −0xC</td><td class="o">−0x8 · −0xC</td><td class="o">−0x8 · −0xC</td></tr>
+    <tr class="gs"><th scope="row"><span class="adx-slot">cookie</span> /GS cookie</th><td class="absent">absent in build-a</td><td class="o"><b>−0x10</b></td><td class="o"><b>−0x10</b></td><td class="o"><b>−0x10</b></td></tr>
+    <tr class="gs"><th scope="row"><span class="adx-slot">buffer</span> <a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;build=build-b&amp;addr=0041a4ec&amp;views=decompile" translate="no" aria-label="Local nameBuf, 64 bytes, decompile, build-b">nameBuf[64]</a></th><td class="o">−0x54</td><td class="o"><b>−0x50</b> · next to the cookie</td><td class="o"><b>−0x50</b></td><td class="o"><b>−0x50</b></td></tr>
+    <tr><th scope="row"><span class="adx-slot">local</span> <a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;build=build-b&amp;addr=0041a4d2&amp;views=decompile" translate="no" aria-label="Local slotIndex, decompile, build-b">slotIndex</a></th><td class="o">−0x10</td><td class="o">−0x54</td><td class="o hyp">−0x54 · shared with entry</td><td class="ad-absent">register esi</td></tr>
+    <tr><th scope="row"><span class="adx-slot">local</span> <a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;build=build-b&amp;addr=0041a4d9&amp;views=decompile" translate="no" aria-label="Local entry, decompile, build-b">entry</a></th><td class="o">−0x14</td><td class="o">−0x58</td><td class="o hyp">−0x54 · shared with slotIndex</td><td class="o">−0x54</td></tr>
+    <tr><th scope="row"><span class="adx-slot">spill</span> this</th><td class="absent">none</td><td class="o">−0x5C</td><td class="o">−0x58</td><td class="absent">none (kept in esi)</td></tr>
+    <tr><th scope="row"><span class="adx-slot">saved</span> esi · edi</th><td class="o">−0x5C · −0x60</td><td class="o">−0x60 · −0x64</td><td class="o">−0x5C · −0x60</td><td class="o">−0x58 · −0x5C</td></tr>
+    <tr><th scope="row"><span class="adx-slot">align</span> frame size</th><td class="o">0x5C</td><td class="o">0x64</td><td class="o">0x60</td><td class="o">0x5C</td></tr>
+   </tbody></table></div>
+  <div class="adx-flags">
+   <span class="adx-var"><b>/GS buffer ordering</b> · build-b, build-c, build-d place <code>nameBuf</code> directly under the cookie, above the scalars; build-a keeps declaration order · solid: cookie bytes; <a class="ad-link" href="/docs/research/2026-09-29-msvc-optimization-for-decomp.md#t8-gs-security-cookies">research T8</a></span>
+   <span class="adx-var hyp"><b>Slot reuse</b> · build-c: <code>slotIndex</code> and <code>entry</code> share −0x54 · hypothesis, basis: lifetimes do not overlap in build-c; <a class="ad-link" href="/docs/research/2026-09-29-msvc-optimization-for-decomp.md#i6-register-allocation-order-stack-slot-reuse-local-ordering">research I6</a></span>
+   <span class="adx-var hyp"><b>Same source, compiled differently</b> · build-d keeps <code>slotIndex</code> in esi · hypothesis, basis: equal source digest with build-b, LTCG recorded</span>
+   <span class="adx-var hyp"><b>FPO</b> · not applied in any build: the C++ EH frame keeps EBP · hypothesis; <a class="ad-link" href="/docs/research/2026-09-29-msvc-optimization-for-decomp.md#t2-oy-frame-pointer-omission-ebp-versus-esp-frames-fpo-data">research T2</a></span>
+  </div>
+ </div>
+ <div class="adc-status"><span><span class="k">↑ ↓</span> slot</span><span><span class="k">← →</span> build column</span><span><span class="k">Enter</span> on a local goes to its decompiler variable</span><span><span class="k">r</span> reflected row in the Listing</span></div>
+</section>
+
+<section class="adc-pane" aria-labelledby="fl2-h">
+ <header><span class="kicker" id="fl2-h">Frame layout · FPO</span><h4 translate="no">ResourceRef::Resolve</h4><span class="small muted">no EH, so /Oy can drop EBP</span></header>
+ <div class="adx-body">
+  <div class="ad-scroll"><table class="ad-table adx-frame" aria-label="Frame of ResourceRef::Resolve per build">
+   <thead><tr><th scope="col">Slot</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th></tr></thead>
+   <tbody>
+    <tr><th scope="row"><span class="adx-slot">frame</span> base</th><td class="o">EBP frame</td><td class="o"><b>ESP frame (FPO)</b></td><td class="o"><b>ESP frame (FPO)</b></td><td class="absent">unknown · not decompiled</td></tr>
+    <tr><th scope="row"><span class="adx-slot">arg</span> i</th><td class="o">[ebp+0x8]</td><td class="o">entry ESP+0x4 <span class="muted">(raw [esp+0x8] after push esi)</span></td><td class="o">entry ESP+0x4</td><td class="absent">unknown</td></tr>
+   </tbody></table></div>
+  <span class="adx-var unk"><b>Unknown</b> · build-a EBP frame against build-b ESP frame: source (r12, r14) and flags both differ, so the cause is not separated. Frame shapes themselves are solid: prologue bytes.</span>
+ </div>
+</section>
+</div>

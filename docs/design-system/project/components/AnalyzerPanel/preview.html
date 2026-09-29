@@ -1,0 +1,119 @@
+<!-- @dsCard group="Project" height=2280 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">All builds · configuration read from each program · nothing runs on open · every change and run is an admitted catalog job</span>
+<section class="ad-g3" aria-labelledby="anz-t">
+ <header class="ad-g3-head">
+  <h3 id="anz-t">Analysis <span class="sub">· corpus-alpha · 4 builds</span></h3>
+  <div class="ad-tools" role="group" aria-label="Analysis scope">
+   <span><span class="lbl" id="anz-l-sc">Scope</span><span class="ad-seg" role="group" aria-labelledby="anz-l-sc"><button aria-pressed="false">build-a</button><button aria-pressed="true">All builds</button></span></span>
+   <span><span class="lbl" id="anz-l-sh">Show</span><span class="ad-seg" role="group" aria-labelledby="anz-l-sh"><button aria-pressed="false">All analyzers</button><button aria-pressed="true" aria-describedby="anz-dn">Differs or not default <span class="n">4</span></button></span></span>
+   <span class="sr-only" id="anz-dn">Shows analyzers whose enablement or options differ between builds, or differ from the standard defaults.</span>
+  </div>
+ </header>
+
+ <div class="ad-g3-sec">
+  <h4>Analysis state per build</h4>
+  <ul class="ad-anz-state" aria-label="Analysis state per build">
+   <li aria-current="true"><span class="b">build-a</span><span class="ad-g3-st ok"><b aria-hidden="true">●</b>analyzed · receipt valid for this basis</span><span class="ad-stamp"><b>reused</b><a class="ad-link" href="?project=corpus-alpha&amp;receipt=5c1e" aria-label="Receipt 5c1e, analysis of build-a, reused">receipt 5c1e</a> basis 9f3c · 3 d</span></li>
+   <li><span class="b">build-b</span><span class="ad-g3-st lock"><b aria-hidden="true">●</b>writer owned · analysis waits</span><span class="small muted">owner <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=77c0" aria-label="Job 77c0, external owner of build-b">job 77c0</a> · external · pid 48211 · started 13:02</span></li>
+   <li><span class="b">build-c</span><span class="ad-g3-st stale"><b aria-hidden="true">◷</b>stale · program changed since receipt b7e2</span><span class="small muted">3 transactions after the receipt · nothing re-runs by itself</span></li>
+   <li><span class="b">build-d</span><span class="ad-g3-st na"><b aria-hidden="true">○</b>never analyzed · no receipt</span><span class="small muted">imported 14:02 · analysis runs only when admitted</span></li>
+  </ul>
+ </div>
+
+ <div class="ad-g3-sec">
+  <h4>Analyzers <span class="n">· 4 of 41 shown</span></h4>
+  <p>Read from each program's stored analysis options at 14:02. Values that differ from the standard defaults say "≠ default"; rows whose builds disagree say "differs across builds".</p>
+  <div class="ad-scroll" role="region" aria-label="Analyzers grid, scrolls sideways">
+  <table class="ad-table ad-g3-grid" role="grid" aria-label="Analyzer enablement per build" aria-rowcount="42" aria-colcount="6">
+   <thead><tr><th scope="col">Analyzer</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th><th scope="col">Across builds</th></tr></thead>
+   <tbody>
+    <tr aria-selected="true" class="is-focus" tabindex="0">
+     <th scope="row"><span class="nm">Demangler Microsoft</span><span class="d">Applies demangled names and signatures to mangled symbols. Started by: new symbols.</span><button class="ad-btn compact" type="button" aria-expanded="true" aria-controls="anz-opt1" tabindex="-1">Options · 3</button></th>
+     <td class="b" role="gridcell"><span class="ad-g3-st on"><b aria-hidden="true">✓</b>on</span></td>
+     <td class="b" role="gridcell"><span class="ad-g3-st on"><b aria-hidden="true">✓</b>on</span></td>
+     <td class="b" role="gridcell"><span class="ad-g3-st off col"><b aria-hidden="true">○</b>off<span class="m">≠ default</span></span></td>
+     <td class="b" role="gridcell"><span class="ad-g3-st na col"><b aria-hidden="true">⊘</b>not applicable<span class="m">build-d's compiler spec is gcc; this analyzer does not apply</span></span></td>
+     <td role="gridcell"><span class="ad-g3-st diff"><b aria-hidden="true">±</b>differs across builds</span></td>
+    </tr>
+    <tr tabindex="-1">
+     <th scope="row"><span class="nm">Aggressive Instruction Finder <span class="ad-anz-proto">prototype</span></span><span class="d">Disassembles undefined bytes that look like code. Its results are analysis-tier candidates.</span><button class="ad-btn compact" type="button" aria-expanded="false" tabindex="-1">Options · 2</button></th>
+     <td class="b" role="gridcell"><span class="ad-g3-st off"><b aria-hidden="true">○</b>off</span></td>
+     <td class="b" role="gridcell"><span class="ad-g3-st off"><b aria-hidden="true">○</b>off</span></td>
+     <td class="b" role="gridcell"><span class="ad-g3-st on col"><b aria-hidden="true">✓</b>on<span class="m">≠ default</span></span></td>
+     <td class="b" role="gridcell"><span class="ad-g3-st off"><b aria-hidden="true">○</b>off</span></td>
+     <td role="gridcell"><span class="ad-g3-st diff"><b aria-hidden="true">±</b>differs across builds</span></td>
+    </tr>
+    <tr tabindex="-1">
+     <th scope="row"><span class="nm">Decompiler Parameter ID</span><span class="d">Uses the decompiler to recover parameters. Changes signatures, so it is off by default.</span><button class="ad-btn compact" type="button" aria-expanded="false" tabindex="-1">Options · 4</button></th>
+     <td class="b" role="gridcell"><span class="ad-g3-st on col"><b aria-hidden="true">✓</b>on<span class="m">≠ default</span></span></td>
+     <td class="b" role="gridcell"><span class="ad-g3-st on col"><b aria-hidden="true">✓</b>on<span class="m">≠ default</span></span></td>
+     <td class="b" role="gridcell"><span class="ad-g3-st on col"><b aria-hidden="true">✓</b>on<span class="m">≠ default</span></span></td>
+     <td class="b" role="gridcell"><span class="ad-g3-st unk col"><b aria-hidden="true">?</b>not read<span class="m">Not loaded. Open to read it.</span></span></td>
+     <td role="gridcell"><span class="ad-g3-st unk"><b aria-hidden="true">?</b>unknown for build-d</span></td>
+    </tr>
+    <tr tabindex="-1">
+     <th scope="row"><span class="nm">Stack</span><span class="d">Creates stack variables from stack references.</span><button class="ad-btn compact" type="button" aria-expanded="false" tabindex="-1">Options · 2</button></th>
+     <td class="b" role="gridcell"><span class="ad-g3-st on"><b aria-hidden="true">✓</b>on</span></td>
+     <td class="b" role="gridcell"><span class="ad-g3-st on"><b aria-hidden="true">✓</b>on</span></td>
+     <td class="b" role="gridcell"><span class="ad-g3-st on"><b aria-hidden="true">✓</b>on</span></td>
+     <td class="b" role="gridcell"><span class="ad-g3-draft"><span class="ad-g3-st on"><b aria-hidden="true">✓</b>on (was off)</span></span></td>
+     <td role="gridcell"><span class="ad-g3-st ok"><b aria-hidden="true">=</b>same on every build once the draft posts</span></td>
+    </tr>
+   </tbody>
+  </table>
+  </div>
+  <div class="ad-scroll" role="region" id="anz-opt1" aria-label="Options of Demangler Microsoft per build">
+  <table class="ad-table ad-g3-grid"><caption class="sr-only">Demangler Microsoft options per build</caption>
+   <thead><tr><th scope="col">Option</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th></tr></thead>
+   <tbody>
+    <tr><th scope="row"><span class="nm">Apply function signatures</span></th><td class="b">on</td><td class="b">on</td><td class="b">on</td><td class="b muted">not applicable</td></tr>
+    <tr><th scope="row"><span class="nm">Demangle only known mangled symbols</span></th><td class="b">on</td><td class="b">off <span class="muted">≠ default</span></td><td class="b">on</td><td class="b muted">not applicable</td></tr>
+    <tr><th scope="row"><span class="nm">Apply calling conventions</span></th><td class="b">on</td><td class="b">on</td><td class="b">on</td><td class="b muted">not applicable</td></tr>
+   </tbody>
+  </table>
+  </div>
+  <div class="ad-tools" role="group" aria-label="Configuration">
+   <span><label class="lbl" for="anz-cfg">Configuration</label><select id="anz-cfg"><option>Current program options · build-a</option><option>Standard defaults</option><option>Saved: corpus-alpha-baseline</option></select></span>
+   <button class="ad-btn" type="button">Set analysis options on build-d (catalog)…</button>
+   <button class="ad-btn" type="button" aria-describedby="anz-prop-d">Propose build-a's options to build-b, build-c…</button>
+   <span class="sr-only" id="anz-prop-d">Opens a per-build preview and a ConfirmDialog. build-d is excluded because its compiler spec differs.</span>
+  </div>
+  <p class="ad-g3-note">The Stack draft on build-d is yours and is not posted. Options change only through the catalog; a draft never runs analysis. Multi-user merge does not merge analysis options, so a check-in can replace them: VersionControlPanel says so before check-in.</p>
+ </div>
+
+ <div class="ad-g3-sec">
+  <h4>Run</h4>
+  <div class="ad-strip" role="toolbar" aria-label="Armed action: Analyze build-c"><div class="what"><span class="strong">Analyze build-c (catalog)</span><span class="small">Receipt b7e2 is stale: 3 transactions since. Reuses nothing that changed; the job reads build-c's stored options.</span></div><button class="ad-btn">Fields…</button><button class="ad-btn primary">Run</button><button class="ad-btn quiet" aria-label="Disarm action strip" aria-keyshortcuts="Escape">✕</button></div>
+  <div class="ad-strip" role="toolbar" aria-label="Armed action: One-shot Aggressive Instruction Finder on a selection"><div class="what"><span class="strong">One-shot · Aggressive Instruction Finder (catalog)</span><span class="small">Bound to the Listing selection <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041b210" aria-label="Selection start 0041b210, build-a" translate="no">0041b210</a>–<span class="mono">0041b2ff</span> · 240 bytes · build-a · frozen when armed. Analysis can change code outside the selection.</span></div><button class="ad-btn primary">Run</button><button class="ad-btn quiet" aria-label="Disarm action strip" aria-keyshortcuts="Escape">✕</button></div>
+ </div>
+
+ <div class="ad-g3-sec">
+  <h4>Analysis log · build-c</h4>
+  <div class="well"><pre class="ad-g3-tx" aria-label="Analysis log tail, job a3f9, build-c, read-only"><span class="j">a3f9 14:06:10</span> Stack · 212 functions
+<span class="j">a3f9 14:06:12</span> Demangler Microsoft · skipped (off on build-c)
+<span class="j">a3f9 14:06:19</span> Function Start Search · created function at <a class="ad-link" href="?project=corpus-alpha&amp;build=build-c&amp;addr=0041b210" aria-label="Address 0041b210, build-c" translate="no">0041b210</a>
+<span class="j">a3f9 14:06:20</span> Progress unknown · last event 14:06:20</pre></div>
+  <p class="ad-g3-note">The dock holds the full record: <a class="ad-link" href="?project=corpus-alpha&amp;dock=logs&amp;job=a3f9" aria-label="Logs for job a3f9, analyze build-c, running">logs of job a3f9</a> · <a class="ad-link" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, analyze build-c, running">job a3f9 · running</a>. A finished analysis job is not recovery.</p>
+ </div>
+</section>
+
+<div class="adc-states">
+ <div>
+  <span class="kicker">Never analyzed · the empty view is not permission to analyze</span>
+  <div class="ad-notice unknown"><b aria-hidden="true">○</b><div><h4>build-d has no analysis</h4><p>No receipt and no analysis job for build-d. Opening it did not start analysis. Analyze build-d (catalog)… arms the action; Run admits it under the one-writer rule.</p></div><span></span></div>
+ </div>
+ <div>
+  <span class="kicker">Valid receipt · reanalysis needs Force and confirms</span>
+  <div class="ad-notice info"><b aria-hidden="true">↺</b><div><h4>Receipt 5c1e is valid for build-a</h4><p>The stored analysis matches basis 9f3c and is reused. Reanalyzing needs the catalog's force field and a ConfirmDialog that names build-a and what it rewrites.</p></div><span></span></div>
+ </div>
+ <div>
+  <span class="kicker">Writer owned · run waits, never a second writer</span>
+  <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Waiting: build-b has a writer</h4><p>Job 77c0 (external, pid 48211, started 13:02) owns build-b. Run stays disabled; nothing is killed or restarted to make room.</p></div><span></span></div>
+ </div>
+ <div>
+  <span class="kicker">No catalog action · configuration is read-only</span>
+  <div class="ad-notice unknown"><b aria-hidden="true">⊘</b><div><h4>Options are read-only here</h4><p><code>GET /api/v1/actions</code> lists no action that sets analyzer options. The grid still reads them; set buttons say why they are unavailable.</p></div><span></span></div>
+ </div>
+</div>
+</div>

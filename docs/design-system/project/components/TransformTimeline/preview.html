@@ -1,0 +1,45 @@
+<!-- @dsCard group="Code" height=880 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">One function, one build pair · from the inferred source to the observed bytes · a reconstructed explanation, not observed compiler passes</span>
+<section class="adc-pane" aria-labelledby="tt-h">
+ <header><span class="kicker" id="tt-h">Transform timeline</span><h4 translate="no">Actor::LoadFromTemplate</h4><span class="small muted">build-b ↔ build-d</span><span class="end small muted">Follows · on Enter</span></header>
+ <div class="adx-claim"><strong>Reconstructed explanation, not observed compiler passes.</strong><span>Order is the conventional stage order (front end → optimizer → code generation → link), not an observed sequence. The legacy toolchains here emit no optimization remarks.</span></div>
+ <div class="adx-layerbar">
+  <div class="ad-fchips" role="toolbar" aria-label="Filters on the timeline" aria-describedby="tt-n">
+   <span class="ad-fchip"><button type="button" class="w" aria-haspopup="menu" aria-expanded="false">Show <span class="v">changed anything between b and d</span></button><button type="button" class="x" aria-label="Remove filter: changed anything between b and d"><span aria-hidden="true">✕</span></button></span>
+   <span class="n" id="tt-n">5 of 8 transformations · 3 the same in both builds are hidden</span>
+  </div>
+ </div>
+ <ol class="adx-tt" aria-label="Transformations, build-b and build-d, in conventional stage order">
+  <li class="endpoint"><span class="k">From</span><div class="m">
+   <div class="what"><strong>Inferred source</strong><span class="small">candidate <a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;ws=recovery&amp;f=src.line:actor.c:88" aria-label="Candidate source r15, actor.c line 88">r15 · actor.c:88</a></span><span class="adx-ev hyp"><b>hypothesis</b>candidate source, not the original</span></div>
+   <span class="small muted">Recorded source: build-b r14 · build-d r14 (same digest); toolchain and flags differ, so differences here are compile variance unless a step says otherwise. For build-a ↔ build-b (r12 ↔ r14) most steps read Unknown.</span></div></li>
+    <li aria-current="step" tabindex="0"><span class="k">Optimizer</span><div class="m">
+   <div class="what"><strong>Inlined ResourceRef::Resolve</strong><span class="adx-ev hyp"><b>hypothesis</b>clone similarity 0.94; no inline-site record</span></div>
+   <div class="same"><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span><span>b: inlined at 3 instructions · d: call</span></div>
+   <span class="adx-var hyp"><b>Same source, compiled differently</b> · /Ob2 or LTCG · hypothesis, basis: equal source digest; recorded /Ob differs</span>
+   <div class="ranges"><button type="button" class="ad-btn compact" aria-pressed="true" aria-label="Highlight range in build-b, pressed">b 0041a4c1–0041a4c6</button><button type="button" class="ad-btn compact" aria-pressed="true" aria-label="Highlight range in build-d, pressed">d 0041a7f8 (call)</button><a class="ad-link small" href="/docs/research/2026-09-29-msvc-optimization-for-decomp.md#t3-inlining-ob0ob3-and-__forceinline">research T3</a></div></div></li>
+    <li><span class="k">Optimizer</span><div class="m">
+   <div class="what"><strong>Loop rotated, index strength-reduced</strong><span class="adx-ev hyp"><b>hypothesis</b>guard test then bottom test; pointer walk replaces index</span></div>
+   <div class="same"><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span><span>b: pointer walk in edi · d: index kept in esi</span></div>
+   <div class="ranges"><button type="button" class="ad-btn compact" aria-pressed="false" aria-label="Highlight loop range in build-b">b 0041a500–0041a51c</button></div></div></li>
+  <li><span class="k">Codegen</span><div class="m">
+   <div class="what"><strong>Calling convention changed</strong><span class="adx-ev hyp"><b>hypothesis</b>callers set ESI; ECX never read in d</span></div>
+   <div class="same"><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span><span>b: __thiscall, this in ecx · d: LTCG custom, this in esi</span></div>
+   <span class="adx-var"><b>Same source, compiled differently</b> · LTCG · solid: LTC entries in the build-d Rich header</span></div></li>
+  <li><span class="k">Codegen</span><div class="m">
+   <div class="what"><strong>Register allocation</strong><span class="small">this → esi in b; loop pointer edi in b, esi in d</span><span class="adx-ev"><b>solid</b>bytes</span></div>
+   <div class="same"><span class="adx-cmp"><b aria-hidden="true">≈</b>differs: consistent pattern (esi ↔ edi)</span></div></div></li>
+  <li><span class="k">Codegen</span><div class="m">
+   <div class="what"><strong>Hotpatch prologue</strong><span class="adx-ev"><b>solid</b>8B FF and 5-byte pad</span></div>
+   <div class="same"><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span><span>b: present · d: absent</span></div>
+   <span class="adx-var"><b>Same source, compiled differently</b> · /hotpatch · solid: recorded link flags for build-b</span></div></li>
+    <li class="endpoint"><span class="k">To</span><div class="m">
+   <div class="what"><strong>Observed bytes</strong><span class="small"><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=90&amp;build=build-d&amp;addr=0041a7d0" aria-label="Address 0041a7d0, build-d">d 0041a7d0</a> · <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=90&amp;build=build-b&amp;addr=0041a4a0" aria-label="Address 0041a4a0, build-b">b 0041a4a0</a></span><span class="adx-ev"><b>solid</b>bytes</span></div></div></li>
+ </ol>
+ <div class="adx-hidden">3 hidden, the same in both builds: EH states assigned (front end) · ÷ 10 (optimizer) · callee folded with 3 functions (link) · <a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;cmp=build-b..build-d">Show all</a></div>
+ <div class="adc-status"><span><span class="k">↑ ↓</span> step</span><span><span class="k">Enter</span> highlight its ranges and move the cursor to the first</span><span><span class="k">Alt+↓</span> peek the evidence</span></div>
+</section>
+<span class="kicker">When nothing supports a reconstruction</span>
+<div class="ad-notice unknown"><b aria-hidden="true">?</b><div><h4>No transformations reconstructed for build-c</h4><p>No stored detector output for build-c. The timeline is not drawn from guesses; the other build pairs are unaffected.</p></div><span></span></div>
+</div>

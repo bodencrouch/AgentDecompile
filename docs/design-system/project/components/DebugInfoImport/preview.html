@@ -1,4 +1,4 @@
-<!-- @dsCard group="Project" height=1800 -->
+<!-- @dsCard group="Project" height=1950 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">All builds · stored debug records only · nothing is searched, downloaded or applied on open · each load is one admitted job on one build</span>
 <section class="ad-g3" aria-labelledby="di-t">
@@ -60,7 +60,7 @@
   <div class="ad-g3-dlg" role="alertdialog" aria-modal="true" aria-labelledby="di-cf-t" aria-describedby="di-cf-d">
    <header><h3 id="di-cf-t">Load build-d.pdb into build-d</h3><span class="end">catalog: Import debug info · 1 job</span></header>
    <div class="body">
-    <p class="ad-g3-note" id="di-cf-d">Adds names, types and source map entries to build-d at the debug-info tier. Values a stronger tier already holds are kept, and the PDB value is recorded as a rejected alternative. Counts are from the dry run at 14:04.</p>
+    <p class="ad-g3-note" id="di-cf-d">Adds names, types and source map entries to build-d at the debug-info tier. Values a stronger tier already holds stay, and the PDB value is recorded as a rejected alternative. Counts are from the dry run at 14:04.</p>
     <dl class="ad-dl">
      <dt>PDB file</dt><dd><span class="mono" translate="no">~/symbols/build-d.pdb/3F2A9C41…1/build-d.pdb</span> · GUID and age match (record)</dd>
     </dl>
@@ -70,7 +70,7 @@
     </fieldset>
     <fieldset><legend>Parser and control</legend>
      <label class="ad-g3-choice"><input type="radio" name="di-p" checked><span class="nm">Universal</span></label>
-     <label class="ad-g3-choice dis"><input type="radio" name="di-p" aria-disabled="true" aria-describedby="di-msdia"><span class="nm">MSDIA</span><span class="d" id="di-msdia">unavailable on this server, as it reports</span></label>
+     <label class="ad-g3-choice dis"><input type="radio" name="di-p" aria-disabled="true" aria-describedby="di-psdk"><span class="nm">Platform debug SDK</span><span class="d" id="di-psdk">unavailable on this server, as it reports</span></label>
      <label class="ad-g3-choice"><input type="radio" name="di-c" checked><span class="nm">Process all</span><span class="d">data types, public, global and module symbols</span></label>
      <label class="ad-g3-choice"><input type="radio" name="di-c"><span class="nm">Data types only</span></label>
      <label class="ad-g3-choice"><input type="radio" name="di-c"><span class="nm">Public symbols only</span></label>
@@ -82,7 +82,7 @@
       <tr><th scope="row"><span class="nm">Names</span></th><td class="mono">5,812</td><td><span class="ad-evd solid"><b>record</b>debug info · GUID and age match</span></td></tr>
       <tr><th scope="row"><span class="nm">Types</span></th><td class="mono">1,930</td><td>each checked by build-d's own layout check · <span translate="no">CacheEntry</span> 0x20 · 8 in the PDB, the same as build-d</td></tr>
       <tr><th scope="row"><span class="nm">Source files · map entries</span></th><td class="mono">38 · 12,406</td><td>source files table of build-d</td></tr>
-      <tr><th scope="row"><span class="nm">Stronger value kept</span></th><td class="mono">2</td><td>human annotation on build-d; the PDB value becomes a rejected alternative; after the job, Why this name lists them</td></tr>
+      <tr><th scope="row"><span class="nm">Stronger value stays</span></th><td class="mono">2</td><td>human annotation on build-d; the PDB value becomes a rejected alternative; after the job, Why this name lists them</td></tr>
      </tbody>
     </table>
     </div>
@@ -114,7 +114,7 @@
   <ul class="ad-g3-tree" role="listbox" aria-label="Symbol search locations, in search order" aria-activedescendant="di-l3" tabindex="0">
    <li role="option" id="di-l1" aria-selected="false"><span>1 · Local symbol storage · <span class="mono" translate="no">~/symbols</span> · level 1 · ok</span></li>
    <li role="option" id="di-l2" aria-selected="false"><span>2 · Program's import location · ok</span></li>
-   <li role="option" id="di-l3" aria-selected="true"><span>3 · <span class="mono" translate="no">https://symbols.example.internal/</span> · ⚑ needs approval before use</span></li>
+   <li role="option" id="di-l3" aria-selected="true"><span>3 · <span class="mono" translate="no">https://symbols.example.internal/</span> · ⚑ needs approval before use · not checked</span></li>
   </ul>
   <div class="ad-tools" role="group" aria-label="Search location actions" style="margin-top:8px">
    <button class="ad-btn" type="button">Refresh status</button>

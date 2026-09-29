@@ -28,7 +28,7 @@ Function ID across the project. It covers the FidDb databases the server knows a
 2. **Databases.** A table with columns Database, Origin, Access, Active, Language and Libraries.
    - Shipped databases are read-only and cannot be detached, as in Ghidra; they can only be made inactive.
    - Row actions (catalog):
-     - **Choose active…** confirms in place for one database. It names the consequence: "affects every later Function ID run on every build; runs already recorded keep their receipts".
+     - **Choose active…** confirms in place for one database. It names the consequence: "affects every later Function ID run on every build; runs already recorded retain their receipts".
      - **Attach existing…** and **Create new empty…** name the file. A database is never placed under the server's install tree.
      - **Detach…** uses ConfirmDialog and names the databases it forgets. The file itself is not deleted.
      - **Populate…** opens the Populate tab.

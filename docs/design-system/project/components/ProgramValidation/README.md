@@ -27,7 +27,7 @@ Ghidra's post-analysis validators for every build in one panel: which validators
    - A standing note (`role="note"`): "Validators read the program and change nothing. Running them is one admitted job per build. No findings is not proof the analysis is right."
 2. **Run state per build.** One card per build, glyph plus word:
    - "✓ validated 13:40 · job ‹id› · current basis", with the ProvenanceStamp (fresh or reused).
-   - "◷ stale · validated 11:02 · 3 transactions since", which keeps the old findings on screen, labelled stale.
+   - "◷ stale · validated 11:02 · 3 transactions since", which leaves the old findings on screen, labelled stale.
    - "● writer owned · validation waits", with the owner exactly as reported.
    - "○ not run · no analysis receipt". Validation is post-analysis, so an unanalyzed build is not offered it. The card links AnalyzerPanel; it never offers to analyze from here.
    - The inspected build's card has the `ink-strong` frame.
@@ -61,7 +61,7 @@ Ghidra's post-analysis validators for every build in one panel: which validators
 - **No analysis:** on a build with no analysis receipt the Validate button is `aria-disabled`, with "Validators check analysis results; build-d has no analysis receipt." It links AnalyzerPanel.
 - **Stale:** the findings stay, labelled "stale · 3 transactions since job ‹id›". Nothing re-runs by itself.
 - **Writer owned:** the run waits in admission with the owner as reported. Nothing is killed or restarted, and an external owner is never offered either.
-- **Running, checking, finished, failed, cancelled:** the Job outcome words appear on the build's card and in the dock. A running validator shows measured units, or "Progress unknown · last event ‹time›". A cancelled run keeps the validators that already finished and names them.
+- **Running, checking, finished, failed, cancelled:** the Job outcome words appear on the build's card and in the dock. A running validator shows measured units, or "Progress unknown · last event ‹time›". A cancelled run names the validators that already finished; their results stay.
 - **Not loaded:** "Not loaded. Open to read it." in that build's column. Reading stored findings is a read.
 - **No catalog action:** "Validation is read-only here · catalog action needed · not offered yet". Stored findings still read, and the Validate buttons are `aria-disabled` with that reason.
 
@@ -109,7 +109,7 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 
 - **P11** Validate Program covers:
   - the list of validators, each turned on or off before a run;
-  - Run Validators as an admitted job per build, with each validator's progress, and cancellation of the job that keeps the finished validators;
+  - Run Validators as an admitted job per build, with each validator's progress, and cancellation of the job, after which the finished validators' results stay;
   - the OK, warnings or errors result per validator;
   - the text of each finding, as linked rows instead of a text area.
 - **Related, not planned: X08 Function Bit Patterns Explorer.** It mines function-start byte patterns to author new pattern files for Ghidra's analyzers. Those patterns are a tool-level change to how every build is disassembled, so using them would mean re-analysing, not reusing valid receipts. Mined patterns would also be heuristic evidence that no recovery fact consumes. Function discovery here relies on the stored analysis, identity evidence and Function ID (FunctionIdManager). The row stays "needed (not planned)".

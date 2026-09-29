@@ -1,4 +1,4 @@
-<!-- @dsCard group="Project" height=1600 -->
+<!-- @dsCard group="Project" height=1700 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">Active project · stored inventory only · opening this never opens a program, switches project or analyzes</span>
 <section class="ad-g3" aria-labelledby="pw-t">
@@ -60,7 +60,7 @@
    <button class="ad-btn" type="button" aria-haspopup="dialog">Save As… (catalog)</button>
    <button class="ad-btn" type="button" aria-haspopup="dialog">Save All… (catalog)</button>
   </div>
-  <p class="ad-g3-note" id="pw-sv">Save writes transactions to the project file and keeps the undo stack. Check-in sends a version to the server and clears it (<a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;panel=versions" aria-label="Version control, build-a">Version control</a>). Ctrl/Cmd+S outside an editor arms this Save; Enter posts.</p>
+  <p class="ad-g3-note" id="pw-sv">Save writes transactions to the project file and never clears the undo stack. Check-in sends a version to the server and clears it (<a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;panel=versions" aria-label="Version control, build-a">Version control</a>). Ctrl/Cmd+S outside an editor arms this Save; Enter posts.</p>
  </div>
 
  <div class="ad-g3-sec">
@@ -68,7 +68,7 @@
   <div class="ad-g3-dlg" role="alertdialog" aria-modal="true" aria-labelledby="pw-cf-t" aria-describedby="pw-cf-d">
    <header><h3 id="pw-cf-t">Save 2 builds</h3><span class="end">catalog: Save program · 2 jobs</span></header>
    <div class="body">
-    <p class="ad-g3-note" id="pw-cf-d">Saves each build where this session is the writer. Undo stacks are kept; nothing is checked in.</p>
+    <p class="ad-g3-note" id="pw-cf-d">Saves each build where this session is the writer. Undo stacks stay; nothing is checked in.</p>
     <div class="ad-scroll" role="region" aria-label="Builds in this save">
     <table class="ad-table ad-g3-grid" style="min-width:0"><caption class="sr-only">Builds in this save</caption>
      <thead><tr><th scope="col">Build</th><th scope="col">Saves</th></tr></thead>

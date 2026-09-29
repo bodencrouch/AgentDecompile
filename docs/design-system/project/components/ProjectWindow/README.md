@@ -3,7 +3,7 @@
 The project and its program files in one panel. It covers:
 
 - the program files tree with each member's kind, language, saved state, version and writer;
-- explicit **Save**, **Save As** and **Save All** per program, kept distinct from check-in;
+- explicit **Save**, **Save As** and **Save All** per program, separate from check-in;
 - the known projects: create one, view another read-only, open one through the cross-project notice, or delete one;
 - archive and restore of a whole project as jobs with receipts.
 
@@ -52,7 +52,7 @@ The project and its program files in one panel. It covers:
    - **Save build-a (catalog)** confirms in place: Enter on the armed button posts. Ctrl/Cmd+S outside an editor arms it and never posts on its own.
    - **Save As… (catalog)** opens a small dialog (folder and name). Its consequence sentence says "build-a's own file stays at its last save (14:06); this session then writes to the copy until you reopen build-a."
    - **Save All… (catalog)** is a ConfirmDialog listing each build where this session is the writer, with its count. It also lists the builds it leaves out with the reason, for example "build-b · writer job 77c0 · external · only its owner can save".
-   - One sentence separates Save from check-in: "Save writes transactions to the project file and keeps the undo stack. Check-in sends a version to the server and clears it (Version control)."
+   - One sentence separates Save from check-in: "Save writes transactions to the project file and never clears the undo stack. Check-in sends a version to the server and clears it (Version control)."
 4. **Projects.**
    - A table of known projects: name, kind, location, builds, last opened, and owners as reported.
    - **New project…** asks for the name, kind and location (a Ghidra Server repository takes a host and port; it is RMI over SSL). The result says "Created corpus-gamma. Opening it is a separate step." Creating never switches project.

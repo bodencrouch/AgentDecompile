@@ -290,3 +290,10 @@ Merge result per binary, name, type, comment and relationship: **added · reused
 ## Project kinds
 
 `kind-gpr` local .gpr · `kind-shared-fs` shared folder · `kind-shared-http` Ghidra Server · `kind-bin` raw binary · `kind-draft` draft.
+
+## Version control, history and read-back (VersionControlPanel, EditHistory, PatchEditor, OptionsPanel)
+
+- **Version control:** ● latest · ↓ update available · ● checked out (an exclusive checkout is the writer lock) · ⇄ hijacked (conflict). "Stay checked out" and "Save a private copy" are the action words; "Keep" and "Kept" stay reserved for cards.
+- **Edit history:** ↶ undoable · ↷ redo available · ⊘ cannot be undone here. An executed job's side effects are always ⊘, even when the byte journal can roll bytes back.
+- **Read-back:** ✓ "read back · matches preview" after a write is re-read; ✗ "read back · differs from preview" when it is not. "Restored to defaults" is a word, never ↺, which means recovered.
+- **Option state:** "not default" as a word beside a changed option. ≠ is never used for this, because it means source variance.

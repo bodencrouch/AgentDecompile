@@ -6,7 +6,7 @@
     { "name": "session",  "carries": "session tab", "grammar": "slug", "history": "push" },
     { "name": "entity",   "carries": "logical entity", "grammar": "logical-id or symbol", "history": "push", "example": "ResourceRef::Resolve" },
     { "name": "build",    "carries": "inspected build", "grammar": "build-id", "history": "push", "example": "build-b" },
-    { "name": "addr",     "carries": "address or cursor in the inspected build", "grammar": "hex without 0x", "history": "replace", "requires": "build; without it the builds containing the address are listed", "example": "0041b210" },
+    { "name": "addr",     "carries": "address or cursor in the inspected build", "grammar": "hex without 0x, or ‹space›::hex for a non-default address space (e.g. OV1::00001000, EXTERNAL::0000000c)", "history": "replace", "requires": "build; without it the builds containing the address are listed", "example": "0041b210" },
     { "name": "ws",       "carries": "workspace", "values": ["code", "compare", "recovery", "evidence"], "history": "push; consecutive switches with no Go collapse" },
     { "name": "panel",    "carries": "full corpus view inside a workspace; target of every Show all", "values": ["report", "atlas", "review", "builds", "pipeline", "readiness", "names", "reuse", "runtime", "outputs", "toolchain", "variants", "analysis", "scripts", "versions", "history", "types", "search"], "history": "push", "withBuild": ["analysis", "scripts", "versions", "history"],
       "describes": {
@@ -65,6 +65,7 @@
   "filterAxes": {
     "$comment": "The shared f= axis vocabulary. A component that needs a new axis adds it here first. An unknown axis stays verbatim in the URL and gets a StateNotice.",
     "axes": [
+      { "axis": "analyzer", "carries": "AnalyzerPanel filter: analyzers whose options differ across builds", "values": ["differs"], "example": "analyzer:differs" },
       { "axis": "src.line",        "carries": "a source file and line", "example": "src.line:resource.c:41" },
       { "axis": "log.line",        "carries": "a line of the focused job's log", "example": "log.line:211" },
       { "axis": "changed",         "carries": "rows a job's receipts recorded as changed; never changed_by", "example": "changed:a3f9" },

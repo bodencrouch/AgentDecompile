@@ -2,6 +2,25 @@
 
 Every closed set below is drawn on its own axis, with its own glyph and word. Two axes are never folded into one badge. Glyphs are DejaVu Sans Mono characters; color touches only the glyph.
 
+## Line styles (every component)
+
+A line style is a second cue after a word, never the only one. Each style has one meaning in the app, so a reader who learns it once can trust it everywhere.
+
+| Style | Means in the app | Examples |
+|---|---|---|
+| solid | recorded, or a plain frame with no claim | witness and record frames, accepted edges, chips, buttons, absent panes, "off", "unmapped", "modified", separately owned lanes |
+| solid 2px `ink-strong` | the current or held thing | cursor frame, Held pane and held slot, "now" in a lifecycle, fresh stamp |
+| dashed | **unproven**: hypothesis (heuristic), Advisory claim tier, candidate identity edge, unclassified representation, historical evidence, an inferred name tier | `dash-hypothesis`, `.ad-tier.advisory`, `.ad-edge.candidate`, `.ad-stamp b.historical`, `.adc-nt.weak` |
+| dotted | context, not a claim: Context hint tier, an unresolved edge or segment, an estimate, a derived pane, padding, a disabled control, a link underline | `.ad-tier.hint`, `.ad-edge.unresolved`, `.ad-stamp b.estimate`, `.ad-preset-mini .der`, `a[href]` |
+| double | Byte authoritative claim tier; the rule of a separately owned lane | `claim-bytes`, `.ad-pmap .lane.sep` |
+| none | unknown, not run, unsupported: the word alone | FactBadge unknown, capability unknown, evidence level unknown |
+
+- **Unknown is a word, not a frame.** A cell whose value is unknown draws no frame; a frame would claim more than is known. A relation that exists but is unresolved is a dotted line, because the line itself is the finding.
+- **State is never dashed.** Pending, waiting, off, unmapped, absent, live ("so far"), modified, disabled, failed and separately owned are solid (or dotted for disabled), and their words carry them. A failed job is ✕ plus the word, never a dashed rule.
+- **Diagrams are the one exception** (guidelines 10 and 60): pipeline and print diagrams use dashed `dash-feedback`, `dash-failover`, `dash-outputs` and `dash-ladder` lines and ladder branches, and every dashed type has a legend entry on the same diagram. An app view that renders the pipeline (PipelineMap, LaneBand, ResolutionLadder, OwnershipPanel) is a diagram for this rule and carries the legend.
+- **Forced colors** keep solid, dashed, dotted, double and none as border styles in `CanvasText`. The reflection outline is solid 1px; only a hypothesis is dashed there too.
+- **Underlines**: dotted = a link; solid on the current line = an editable local or parameter (a button, not a place); none = plain text.
+
 ## Independent facts (FactBadge, FactStrip)
 
 Facts: Compilation · ABI checks · Tested behavior · Local match · Linked match · Replacement contribution · Whole-file equality.

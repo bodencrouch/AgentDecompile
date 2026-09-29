@@ -82,7 +82,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 - An annotated instruction row appends the tag word to its name ("…, inlined ResourceRef::Resolve"). The bracket glyphs are `aria-hidden`.
 - The legend is a `<dl>` tied to the well with `aria-describedby`. Counts are text.
 - Screen-reader verbosity "off" drops bands to the tag word only; Accessible View lists every annotation as text.
-- Forced colors: band frames stay solid or dashed in `CanvasText`, and highlighted ranges use the dashed reflection outline.
+- Forced colors: band frames stay solid or dashed in `CanvasText` (dashed only for a hypothesis), and highlighted ranges use the solid 1px reflection outline.
 
 **Research:** [MSVC transformations §2–§5, §9.2](../../../../research/2026-09-29-msvc-optimization-for-decomp.md#9-ui-implications); [reference UI patterns B1, B2, B6, B7, C8](../../../../research/2026-09-29-reference-re-ui-patterns.md).
 

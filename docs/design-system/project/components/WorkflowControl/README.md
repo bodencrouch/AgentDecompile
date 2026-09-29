@@ -8,7 +8,7 @@ The one pipeline control: pause or resume write admission for the active project
 - **Pause** stops new write admission and drains what was already admitted. It is not cancel and never reports "safe-paused" until the drain is confirmed ("Pausing · draining 1 admitted job").
 - **What this pauses** is an APG Disclosure beside the toolbar, outside its roving set. It holds one sentence composed from the backend's reported scope, never hand-written and never from a fixed stage range, for example: "Pausing stops new write admission ([gate 0]) for corpus-alpha; work already admitted drains; lanes [C] and [E] are separately owned and keep running." When no scope is reported it says "Scope not reported". Below the sentence: the admitted jobs that would drain (job links), what is not controlled here, and the external jobs that stay visible. Node links in the sentence are links, never controls.
 - The Pause button's `aria-describedby` carries a one-line summary of that sentence.
-- The control disclaims runtime reuse, distributed workers and read-only indexing; they show beside it as dashed chips with liveness words, without start or stop verbs.
+- The control disclaims runtime reuse, distributed workers and read-only indexing; they show beside it as plain chips with liveness words, without start or stop verbs.
 - A pre-existing external job stays visible and blocks duplicate admission. No per-stage Run buttons anywhere; pipeline nodes are links, never Run buttons.
 - **Narrow.** Below 700px the control wraps and collapses to its state glyph and word ("❙❙ Admitting"); its disclosure keeps the scope sentence, the drain state and the disclaimed lanes as dashed chips. The header keeps the project name and a wrapping scope sentence. Never a Start.
 

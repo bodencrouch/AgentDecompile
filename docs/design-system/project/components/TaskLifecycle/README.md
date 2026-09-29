@@ -5,7 +5,7 @@ A task's position in its lifecycle rail, with terminal and side states. Its comp
 **Consumer provides** the current backend state, the prior states and, for terminals and side states, the reason; for the Explain disclosure, the served `pipeline-model.json` revision and its `crosswalks` entry for the current state, if any; for the compact variant, what OutcomeCell lists (job id, Job outcome word, measured units, submitter, and the facts whose receipts that job wrote).
 
 - **Rail: backend states only.** proposed → waiting → ready → admitted → running → awaiting_acceptance → accepted, as an `<ol>` with `aria-current="step"`. Done steps on `pane`. The current step is the 2px `ink-strong` now-frame plus bold words, never the accent (90: the accent is not a status). Rail steps are words, not links.
-- Terminals: ✕ negative, ⊘ unsupported, ⊗ cancelled. Side states (dashed): ↻ retry_wait, ∅ budget_exhausted.
+- Terminals: ✕ negative, ⊘ unsupported, ⊗ cancelled. Side states (drawn off the main path, with their words): ↻ retry_wait, ∅ budget_exhausted.
 - **Explain (design text, not evidence).** An APG disclosure beside the rail. It reads the crosswalked node from the backend-served `pipeline-model.json`, never the outline markdown. It is headed "From the pipeline design · model rev ‹8 hex›" with the sentence "Design description ≠ this item's evidence", in the context-hint claim tier (dotted frame, ClaimTier). Its crosswalk line ends "(interpretation)", for example "running → exec-step-3 Compute outside commit (interpretation)". The model's crosswalks are interpretations, never recorded facts:
   - ready and admitted → `exec-step-2` Admit one eligible attempt;
   - running → `exec-step-3` Compute outside commit;

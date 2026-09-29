@@ -42,7 +42,7 @@ The continuous instruction listing: flow, address, label, bytes, mnemonic, opera
 - **The row name is the template**, read under the one per-viewer **Screen-reader verbosity** value in View settings (address full, last 4 or off; bytes off by default but reachable with →). Operand text is spoken exactly as the Listing renders it; a plain-words form, where one exists, goes in `aria-description` with an `aria-describedby` fallback.
 - Labels are their own rows ("label ResourceRef::Resolve, 12 xrefs"). Flow glyphs are `aria-hidden` and restated as words ("jump target from 0041b230"). Reflection is silent on cursor moves and announced only on `r` ("Decompiled C, line 7, from 3 instructions" or "No mapping; focus stays").
 - **Accessible View** (Alt+F2, or the palette, the Help menu and the pane-header button, because GNOME and KDE take Alt+F2) opens the exact text of the function or range as read, following the verbosity value, with the caret on the focused row.
-- The highlight is a box plus a letter and the reflection is a bar plus words, so neither relies on color. In forced colors the reflection is a dashed CanvasText outline and the highlight a CanvasText box.
+- The highlight is a box plus a letter and the reflection is a bar plus words, so neither relies on color. In forced colors the reflection is a solid 1px CanvasText outline and the highlight a CanvasText box.
 
 **Removes switching** (counts from the plan ledger):
 

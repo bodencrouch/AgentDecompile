@@ -4,7 +4,7 @@ One named proof fact with its state, glyph and word; in rows, the compact seven-
 
 **Consumer provides** the fact (Compilation, ABI checks, Tested behavior, Local match, Linked match, Replacement contribution, Whole-file equality), its state (`passed`, `failed`, `stale`, `unknown`, `unsupported`, `not_run`) and, when one exists, the deciding receipt with its producing job and stage.
 
-- Glyphs: ✓ passed · ✕ failed · ◷ stale · ? unknown · ⊘ unsupported · ○ not run. Unknown, unsupported and not run use a dashed frame in `fact-unknown`.
+- Glyphs: ✓ passed · ✕ failed · ◷ stale · ? unknown · ⊘ unsupported · ○ not run. Unknown, unsupported and not run have no frame: the glyph and word in `fact-unknown` carry them (a frame would claim more than is known; dashed is reserved for hypotheses).
 - Color touches only the glyph (`fact-passed`, `fact-failed`, `fact-stale`, `fact-unknown`); the word is `ink`, the fact name `ink-muted`.
 - The strip (`.ad-facts`) keeps the fixed order above. There is no tooltip: the whole strip is **one button that opens a Peek** (WCAG 2.5.8: seven 14px glyphs join one target at least 24px tall). The button's accessible name carries every fact and state in words; the Peek lists each fact with its receipt link, producing job and StageChip.
 - A full badge with a deciding receipt is a link to that receipt; the fact name is underlined, the glyph is not. A fact without a receipt is plain text and says "no receipt".

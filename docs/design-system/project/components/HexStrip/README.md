@@ -39,7 +39,7 @@ A compact hex and ASCII strip for the current region, synchronized with the shar
 - **Accessible View** (Alt+F2, or the palette, the Help menu and the pane-header button, because GNOME and KDE take Alt+F2) opens the region's rows as exact text, one row per line, following the verbosity value.
 - A selection change announces its mapping once in the polite region ("3 bytes selected, maps to 0041b21f"); find announces "2 of 5 matches"; moving the cursor by following announces nothing (WCAG 4.1.3).
 - WCAG 3.2.1: focusing the strip or moving within it never navigates; only Enter goes.
-- WCAG 1.4.1: every mark has a shape (under-bar, frame) and a key with words. Under `forced-colors` selected bytes map to Highlight, the reflection to a dashed CanvasText outline, and the cursor bar to an underline.
+- WCAG 1.4.1: every mark has a shape (under-bar, frame) and a key with words. Under `forced-colors` selected bytes map to Highlight, the reflection to a solid 1px CanvasText outline, and the cursor bar to an underline.
 - The well carries `translate="no"` and isolates direction.
 
 **Removes switching** (the plan ledger is authoritative; this strip contributes to journeys credited elsewhere):

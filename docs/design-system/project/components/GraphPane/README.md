@@ -43,7 +43,7 @@ The function graph beside the code: basic blocks of the current function, or the
 - The canvas is `role="group"` named "Control-flow graph of ResourceRef::Resolve, build-a, 5 blocks, 7 edges" and described by the legend. Each node's name starts with its visible address or function and adds its role, size, terminator and edges in words: "0041b240, 3 instructions, ends jne 0041b216. Successors: 0041b216 taken, loop back edge; 0041b246 fall-through." The SVG is `aria-hidden`.
 - The list form is the structural equivalent and is always available by toggle; a screen-reader user can stay in it. Toggling keeps the focused node.
 - `aria-current="true"` marks the cursor block, the selection node, or a held pane's own cursor, with the word visible too ("cursor", "selection", "this pane's cursor"). A Go from the graph announces once: "Selection: Archive::OpenMember, build-a. The graph keeps its root." Moving focus announces nothing beyond the node name (WCAG 3.2.1).
-- Truncation is text in the node, the footer and the tree, never only a dashed frame. Node text truncated by the node width is complete in the accessible name, the list form and the Peek.
+- Truncation is text in the node, the footer and the tree, never only a frame. Node text truncated by the node width is complete in the accessible name, the list form and the Peek.
 - Targets: nodes are at least 40×120px; toolbar buttons 24px; 44px below 700px, where the pane opens in the list form by default.
 - Forced colors: frames, edges, heads and labels map to `CanvasText`; the cursor node maps to `Highlight`/`HighlightText`.
 

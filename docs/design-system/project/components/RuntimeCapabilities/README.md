@@ -5,7 +5,7 @@ Runtime binding evidence for one entity on one build: the three predicates (byte
 **Consumer provides** presence, identity and operation predicate states with their receipts; each capability's state (on, unknown, refused with reason); the readiness chain position.
 
 - Predicates are three rows, never a confidence score. Accepted binding = presence AND identity AND current dependencies. Each predicate names its receipt as a link, or says "no receipt".
-- Capability chips L R C D W (located, readable, callable, detourable, writable) are independent: on (`lane-runtime-fill` with ink), dashed unknown, struck refused. Readable does not imply writable; callable does not imply detourable.
+- Capability chips L R C D W (located, readable, callable, detourable, writable) are independent: on (`lane-runtime-fill` with ink), unknown as the word with no frame, struck refused. Readable does not imply writable; callable does not imply detourable.
 - There is no tooltip and no `title`. **The capability row is one button** (WCAG 2.5.8: five 20px chips join one target) whose accessible name lists every capability in words; it opens a Peek with each capability's state, each refusal's reason and the ladder member that refused it.
 - Readiness chain states stay separate: discovered → identity-supported → resolved → installable/installed → call-observed → behavior-observed. The chain is an `<ol>` with `aria-current="step"`.
 - Runtime calls never count as recovered source.

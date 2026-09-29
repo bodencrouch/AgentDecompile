@@ -18,7 +18,7 @@ Diagrams carry no product, game, binary or company names.
 
 ## Recovery overview
 
-Rules: left → right is dependency order; vertical stacking is concurrency; every stage card answers **Trying to · How · In → out · Gate**; locks mark shared-state serialization; dashed means failover; numbered ladders are fallback stacks.
+Rules: left → right is dependency order; vertical stacking is concurrency; every stage card answers **Trying to · How · In → out · Gate**; locks mark shared-state serialization; dashed means failover, feedback or an outputs box, each named in the legend (the diagram exception in guideline 20, Line styles); numbered ladders are fallback stacks.
 
 - **Canvas** `chassis`. Title `dia-title` in `ink-strong`; subtitle `dia-subtitle` in `ink-muted`; the design-target line in `gate` amber. The prefixes "Design target:" and "Note:" carry the meaning. Italic is decoration and never the only carrier. A "HOW TO READ THIS IN 20 SECONDS" panel (pane fill, amber stroke, `radius-card`) sits top right.
 - **Stage card** (StageCard): `pane` body, `node-stroke` at `stroke-card`, `radius-card`. A `dia-band-h` 30px header band in the family `-fill` with the stage number and `dia-card-title` in `ink-strong`; its lower corners are square. Section labels (`dia-card-label`) in the family `-ink`. Try lines `dia-card-try` in `ink`; How bullets `dia-card-how` with "• "; In → out lines `dia-card-how` in `ink-muted`; "Gate: " label and text in `gate`. Optional tag top right in `dia-tag` and the family ink.

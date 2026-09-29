@@ -22,7 +22,7 @@ Per-viewer marks on any address or entity, the program's own bookmarks (read-onl
 - **Stepping** moves the one primary selection and focus to the target row, like Go, and pushes one history stop; the workspace, views, split, held panes, dock and layout stay as they are. Pressed from the stepper toolbar, focus stays on the stepper. F8 does nothing while an inline editor is open or the ActionStrip holds unsent edited fields ("Finish or cancel the edit first (Esc)").
 - **Program boundaries.** When the next item is on another program, the stepper names it first ("Next: build-c · clears 4 checked rows on build-b"), and F8 stops once at that boundary with one polite message; a second F8 continues. The checked set is never cleared silently (Linked views, History).
 - Items decided elsewhere (for example moved to verification by another view) stay in the list, marked "decided elsewhere · skipped by F8". At either end F8 and Shift+F8 stop and say so ("End of worklist · 12 of 12 · 9 visited. F8 stops here and never wraps."). Nothing wraps or reorders silently.
-- Rows are 28px, 44px below 700px and with a coarse pointer; the item grid's Handled column is a 24px checkbox (44px below 700px).
+- Rows are 28px, 44px below 700px and with a coarse pointer; the item grid's Handled column is a 24px checkbox (44px below 700px). With a coarse pointer each row has one 44px row-menu button carrying the one link menu; there is no long-press.
 - Both surfaces read and write the same workspace records. The static 8080 surface may render the stepper in the status line; it keeps F8, the position words and the stop at the ends.
 
 **Linking**

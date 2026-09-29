@@ -21,7 +21,7 @@ Per-entity history in the evidence rail: receipts, jobs, facts changing state, n
 
 **Linking**
 
-- **Publishes:** nothing on focus or on moving between events. Enter on an event link goes to the thing that changed (the fact's receipt card, the edited name or type in the Code Browser, the job record), pushing one history stop; `receipt` or `job` with `entity` and `build` carry it, and a work-view event link carries `t=`. Keep publishes `keep=` (replaceState).
+- **Publishes:** nothing on focus or on moving between events. Enter on an event link goes to the thing that changed (the fact's receipt card, the edited name or type in the Code Browser, the job record), pushing one history stop; `receipt` or `job` with `entity` and `build` carry it, and a work-view event link carries `t=`. Keep publishes `keep=history:‹entity›@‹build›` (replaceState).
 - **Follows:** the primary selection (entity and inspected build) after the settle, unless kept. It is a rail section, so it is kept as a card, never held.
 - **Targets rendered:** fact → its receipt card · receipt id · job id → the dock Jobs record · pipeline node → the PipelineMap node · basis digest → the ProvenanceStamp detail · counterpart (entity @ build, with its edge word) · work-view event → the WorkTimeline at `t=` · the job's Changed list → the Functions list filtered by `f=changed:‹job›`.
 - **Peek source:** Alt+↓ on a chain link reads the stored receipt, the stored job record as of the dock's last read, the node's model text or the counterpart Peek. "Read older" reads stored events only.

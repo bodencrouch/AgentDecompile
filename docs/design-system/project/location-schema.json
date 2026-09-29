@@ -37,7 +37,7 @@
   ],
   "kinds": {
     "$comment": "One kind list shared by hold and keep. A component that needs a new kind adds it here first.",
-    "values": ["symbol", "fn", "addr", "entity", "entitybuild", "receipt", "fact", "job", "ladder", "xref", "calls", "graph", "peek", "names", "runtime", "objective", "failure", "node"],
+    "values": ["symbol", "fn", "addr", "entity", "entitybuild", "receipt", "fact", "job", "ladder", "xref", "history", "calls", "graph", "peek", "names", "runtime", "objective", "failure", "node"],
     "buildIndependent": ["entity", "node"]
   },
   "filterAxes": {

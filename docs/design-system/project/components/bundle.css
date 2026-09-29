@@ -241,16 +241,17 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 
 /* Timeline controls (WorkTimeline): accepted is a tall tick with its ✓ above, rejected a short tick with its ✕ above (never a diamond, which is
    the gate glyph), observed a plain tick. The glyph is a <span> in the tick; the words are in the event list, which is the accessible form.
-   The cursor is a 2px ink-strong frame, not the accent. */
+   The cursor is a 2px ink-strong frame around the tick and its glyph, with clearance so it never covers the glyph; not the accent.
+   The track is 32px tall so the glyphs and the frame sit inside the slider. */
 .ad-timeline{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-5);background:var(--pane);border:1px solid var(--line)}
-.ad-timeline .track{flex:1;min-width:120px;height:18px;position:relative;border-bottom:1px solid var(--line-control)}
+.ad-timeline .track{flex:1;min-width:120px;height:32px;position:relative;border-bottom:1px solid var(--line-control)}
 .ad-timeline .track i{position:absolute;bottom:-4px;width:2px;height:10px;background:var(--ink-muted)}
 .ad-timeline .track i.acc{bottom:-6px;height:16px;background:var(--fact-passed)}
 .ad-timeline .track i.rej{bottom:-2px;height:6px;background:var(--fact-failed)}
 .ad-timeline .track i>span{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);padding-bottom:1px;font:700 11px/1 var(--font-mono);font-style:normal}
 .ad-timeline .track i.acc>span{color:var(--fact-passed)}
 .ad-timeline .track i.rej>span{color:var(--fact-failed)}
-.ad-timeline .track b{position:absolute;top:-6px;bottom:-8px;width:10px;margin-left:-4px;border:2px solid var(--ink-strong);background:transparent}
+.ad-timeline .track b{position:absolute;top:2px;bottom:-7px;width:16px;margin-left:-7px;border:2px solid var(--ink-strong);background:transparent}
 
 /* Image delta map: differing regions are hatched (top and bottom bands, so the label sits on a solid fill) and labelled "✕ ‹n› bytes",
    equal regions "="; labels are ≥11px and a text key with values sits beside the map. Differing regions are links in the list markup. */
@@ -1994,7 +1995,8 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .adl-ladrun{list-style:none;margin:0;padding:0}
 .adl-ladrun>li{display:grid;grid-template-columns:24px minmax(110px,max-content) minmax(0,1fr);gap:var(--space-1) var(--space-4);align-items:center;min-height:28px;padding:var(--space-1) var(--space-5);border-bottom:1px solid var(--line);font-size:12px}
 .adl-ladrun>li .n{font:700 11px/1 var(--font-mono);color:var(--ink-muted)}
-.adl-ladrun>li[aria-current="step"]{background:var(--row-selected-bg);box-shadow:inset var(--sel-bar,3px) 0 0 var(--accent);color:var(--ink-strong);--ink-muted:var(--ink)}
+/* "Member used" is a status: the 2px ink-strong now-frame, never the accent; the words carry the meaning */
+.adl-ladrun>li[aria-current="step"]{background:var(--pane);outline:2px solid var(--ink-strong);outline-offset:-2px;color:var(--ink-strong);--ink-muted:var(--ink)}
 @media (max-width:520px){.adl-ladrun>li{grid-template-columns:24px minmax(0,1fr)}.adl-ladrun>li>span:last-child{grid-column:2}}
 .adl-kept{border:2px solid var(--ink-strong)}
 .adl-kept>header .tag{font:700 10px/1 var(--font-sans);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-strong);border:1px solid var(--ink-strong);padding:2px 4px;align-self:center}
@@ -2019,11 +2021,13 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 
 /* WorkTimeline: the track is a slider; events are links */
 .adl-tl{flex-wrap:wrap}
-.adl-tl .track{min-height:24px;cursor:pointer}
+.adl-tl .track{cursor:pointer}
 .adl-tl .track:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
 .adl-evlist{list-style:none;margin:0;padding:0;display:grid;gap:var(--space-1)}
-.adl-evlist>li{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1) var(--space-4);min-height:24px;font-size:12px}
+.adl-evlist>li{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1) var(--space-4);min-height:24px;padding:2px calc(var(--space-2) + 2px);font-size:12px}
+.adl-evlist>li[aria-current="true"]{padding:0 var(--space-2);border:2px solid var(--ink-strong)}
 .adl-evlist .g{width:12px;text-align:center}
+.adl-evlist .w{font:700 11px/16px var(--font-mono);color:var(--ink-strong)}
 
 /* Activity dock: tabs plus Selection only / Freeze updates; ActivityRecord provenance lines */
 .adl-dockbar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--space-2) var(--space-4);background:var(--pane);border-bottom:1px solid var(--line)}
@@ -2187,6 +2191,8 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
  .adl-kept,.ad .adl-factbtn,.ad .adl-capbtn,.adl-sect,.adl-cps,.adl-origin,.ad .adl-hlchip,.ad .adl-rowmenu,.ad .adl-eqbtn,.adl-kept>header .tag,.adl-kepttag,.ad .adl-skip a:focus,.ad .adl-skip a.is-focus{border-color:CanvasText}
  .adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]{background:Highlight;color:HighlightText}
  .adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div{border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-5) - 3px)}
+ .adl-ladrun>li[aria-current="step"]{outline-color:HighlightText}
+ .adl-evlist>li[aria-current="true"]{border-color:CanvasText}
  .adl-hlA,.adl-hlB,.adl-hlC,.adl-hlD{outline-color:CanvasText}
 }
 @media (prefers-contrast:more){
@@ -2195,6 +2201,39 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 }
 .ad.more-contrast .adl-origin,.ad.more-contrast .adl-eqbtn{border-style:solid}
 .ad.more-contrast .adl-ws-dc .adl-refl2{box-shadow:inset 3px 0 0 var(--ink)}
+
+/* ---- css-int-C.css ---- */
+/* ---------- Group C integration: Explain as design text, ActivityRecord log tail, WorkTimeline header chip ----------
+   Folded into earlier sections: the WorkTimeline track height (Timeline controls), the event-list cursor row and the EvidenceRail
+   "member used" frame (linking roll-out). The running-unit override was dropped: progress-unit-now now points at ink-strong. */
+
+/* Explain as design text (TaskLifecycle, FailureRecord, StageCard, EvidenceRail). New block; extends
+   bundle.css `.adl-explain` (kept for the Trying to / How / In → out / Gate grid). The served
+   pipeline-model.json text sits in the context-hint claim tier: the dotted claim-hint frame of ClaimTier,
+   a header "From the pipeline design · model rev ‹8 hex›" and "Design description ≠ this item's evidence". */
+.adl-design{display:grid;gap:var(--space-2);margin:var(--space-2) 0 0;padding:var(--space-3) var(--space-4);border:1px dotted var(--claim-hint);background:var(--chassis);min-width:0}
+.adl-design>header{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1) var(--space-3);font:400 11px/16px var(--font-sans);color:var(--ink-muted)}
+.adl-design>header .rev{font:400 11px/16px var(--font-mono);color:var(--ink)}
+.adl-design>.ne{margin:0;font:400 11px/16px var(--font-sans);color:var(--ink)}
+.adl-design .adl-explain{padding:0;border:0;background:transparent}
+.adl-design .cw{margin:0;font:400 12px/16px var(--font-sans);color:var(--ink);overflow-wrap:anywhere}
+.adl-design .cw em{font-style:normal;color:var(--ink-muted)}
+.adl-design .cw .ad-link{display:inline-flex;align-items:center;min-height:24px}
+@media (forced-colors:active){.adl-design{border-color:CanvasText}}
+
+/* ActivityRecord log tail. Extends bundle.css `.ad-job .tail` (nowrap + ellipsis + rtl) for the linked
+   record: a line that carries links and the "from log text" label wraps instead of truncating (1.4.10, 1.4.12),
+   and a plain-text line gets its 24px Copy button on the same row. */
+.adl-job .tail{white-space:normal;overflow:visible;overflow-wrap:anywhere;direction:ltr;text-align:start}
+.adl-job .tail.adl-tailrow{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1) var(--space-4)}
+.adl-job .tail.adl-tailrow>span{flex:1 1 16em;min-width:0}
+
+/* WorkTimeline header chip "Job a3f9 is at build-b · … · Go" (new). */
+.adl-wtchip{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1) var(--space-3);padding:var(--space-2) var(--space-5);background:var(--pane);border:1px solid var(--line);font-size:12px}
+.adl-wtchip>.ad-link{display:inline-flex;align-items:center;min-height:24px;min-width:24px}
+
+.adl-sect>.body>.adl-disc+.adl-design{margin-top:0}
+@media (max-width:699px),(pointer:coarse){.ad .adl-wtchip>.ad-link{min-height:var(--touch-h)}}
 
 /* ---- Forced colors: selected and current items (keep this block last) ----
    Chromium paints a Canvas backplate behind every line of text when forced-color-adjust is auto, so HighlightText text on a Highlight block

@@ -44,7 +44,7 @@ One strip per composite that shows the current logical entity's counterpart on e
 **Accessibility**
 
 - `role="toolbar"` labelled "Counterparts" and described by a hidden sentence naming the keys and the checked-set clearing. Each cell's accessible name is a full sentence with type, target and state: "Counterpart on build-c, address 0041c7a2, pinned, module_rva, non-portable; diverged; identity edge candidate". Glyphs and the edge line are `aria-hidden`, and their words are visible.
-- The inspected cell carries `aria-current="location"`. Absent and multi-candidate cells are buttons with `aria-haspopup` and `aria-expanded`.
+- The inspected cell carries `aria-current="location"`. An absent cell is a button that opens a Peek; it carries `aria-expanded` and `aria-controls` only while that Peek is open. Multi-candidate cells are APG Menu Buttons with `aria-haspopup="menu"` and `aria-expanded`.
 - WCAG 3.2.2: Enter, Alt+PageDown and the build menu state the switch and any checked-set clearing in `aria-describedby` before activation.
 - WCAG 4.1.3: one polite message per switch, naming its mapping basis; "Loading counterparts of ‹name›" is sent once. A refresh of the same entity announces nothing.
 - WCAG 1.4.10: the strip reflows to 320px by wrapping cells; below 700px the disclosure keeps it to two lines.

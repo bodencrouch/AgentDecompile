@@ -8,7 +8,7 @@ A bounded resolution ladder: methods tried in order, joined by dashed failover c
 - Terminal outcomes ("then: …") in bold `fact-failed`. An annotation step is a claim, never resolved.
 - The app's EvidenceRail shows the same ladder as it actually ran, with the same letters and step numbers.
 
-**Linking:** none (print diagram). Its nodes keep their pipeline-model ids (`ladder-A`…`ladder-F`, steps `ladder-C-3`): where the app renders the same node (EvidenceRail rows, Explain on a ladder row, go to `~ladder-C`), that rendering links it to `?node=` with that id, and in docs the name links to the outline anchor (`agentdecompile-recovery-pipeline.outline.md#…`). The print canvas itself carries no links and no live data.
+**Linking:** none (print diagram). Its nodes keep their pipeline-model ids (`ladder-A`…`ladder-F`, steps `ladder-C-3`). Where the app renders the same design step (Explain on a ladder row, the PipelineMap, go to `~ladder-C`), it links to `?node=` with that id, and in docs the name links to the outline anchor (`agentdecompile-recovery-pipeline.outline.md#…`). A concrete run of a ladder for one entity × build (EvidenceRail, EntityBuildCard, OutcomeTag) is evidence and links by its run receipt (`receipt=‹id›` with `project`, `entity` and `build`), never by `node`. The print canvas itself carries no links and no live data.
 
 **Accessibility**
 

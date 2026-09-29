@@ -51,3 +51,13 @@ The function graph beside the code: basic blocks of the current function, or the
 
 - J16 explore the call graph and read code of nodes along the way: 3 → 0 when Graph and Decompile are the two panes (2 per node below 700px), credited to U173. The graph sits beside the code and keeps its root while each Enter shows the node's code.
 - J15 diagnose a decompile artifact: 6 → 4 with the Code Browser composite (U173); the graph removes its graph-tab round trips.
+
+**Parity extensions (2026-09-29)** ([spec](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): D07, G02, G08, G09, G10, P10)
+
+- A data-flow mode (D07).
+- Vertex grouping, path highlight from/to, and selection from paths and blocks (G02).
+- Bounded program-scope graphs: block flow, code flow, calls and data references (G08). "Reuse or append" is per-viewer state.
+- A data-reference graph from a data item (G09).
+- A block-model selector: basic, isolated entry, multiple entry, partitioned and overlapped (P10).
+- "Export graph…" opens ExportDialog (G10).
+- Everything is read-only and per build.

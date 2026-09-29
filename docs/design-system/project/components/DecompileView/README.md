@@ -64,3 +64,16 @@ Decompiled C in a code well that shares one cursor with the Listing: the selecte
 - J11 rename or retype a local seen in the decompiler: 6 → 0 (F2, type, Enter; U185).
 - J13 inspect a variable's or field's type and retype it: 5 → 2 (Peek type and Retype in place; changing the structure still opens the type view).
 - J15 diagnose a decompile artifact: 6 → 4 (callers and bytes are co-visible in CodeBrowser; data flow and the prototype edit stay their own verbs).
+
+**Parity extensions (2026-09-29)** ([spec](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): D05, D15, D16, D19–D21, D24–D27, D32)
+
+- Decompiler options are set in OptionsPanel (D05). A view decompiled under other options says "decompiled with ‹option› ‹value› · Enter to decompile".
+- Slice highlights (def-use, forward, backward, and forward and backward operator slices) are drawn as highlight sets A–D (D25, D26). Each is labelled with its basis and has next and previous highlight.
+- Next and previous brace are keymap ids (D27).
+- The token-kind word says "committed" or "decompiler-only" (D32).
+- Edit group items, all catalog actions with ConfirmDialog where cross-build:
+  - Commit Params/Return and Commit Local Names (D15, D16);
+  - Split Out As New Variable (D19);
+  - Force Field and Adjust Pointer Offset (D20);
+  - Auto Create/Fill Structure, whose result opens TypeEditor (D21);
+  - Convert/Set Equate (D24).

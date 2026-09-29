@@ -64,3 +64,9 @@ Two panes side by side inside the Code Browser, or up to three in the Compare wo
 - J01 inspect a function on build A, see its counterparts on B–D, and return: 5 → 1 at ≥700px (2 below), credited to U175 with the CounterpartStrip; Ctrl/Cmd+\\ shows B beside A and Alt+PageDown in the derived pane walks C and D.
 - J26 switch the inspected build and keep the entity: 3 → 1 (U175); the position is kept where anchors exist, otherwise the function start is stated.
 - J39 iterate on a source repair: 4 → 1, credited to typed links (U171); target vs rebuilt with F7 is one of its steps.
+
+**Parity extensions (2026-09-29)** ([spec](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): X02, X04)
+
+- A program-level range diff mode (X02). It is aligned by anchors, never raw addresses. Categories: bytes, code units, references, comments, symbols, functions, bookmarks, properties and context. It needs a catalog read action.
+- A difference-detail Peek at a location (X04).
+- Apply or ignore stays PropagationTransfer's job (X03).

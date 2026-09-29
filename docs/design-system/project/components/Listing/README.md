@@ -49,3 +49,15 @@ The continuous instruction listing: flow, address, label, bytes, mnemonic, opera
 - J10 relate an instruction row to its decompiled statement: 6 → 0 at ≥700px, 2 below (U173).
 - J09 follow a cross-reference from code and return: 4 → 0 (U177; one region move and one Alt+← back, not view switches).
 - J15 diagnose a decompile artifact: 6 → 4 (U173).
+
+**Parity extensions (2026-09-29)** ([spec](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): L04, L06–L09, L13, L15, L21, L22, N03, N04)
+
+- Operand and EOL display options are read from OptionsPanel's Listing display section.
+- Function header rows show signature source, call-fixup, purge, tags, repeatable comment and register values at entry.
+- Variable rows are collapsible. Composite data and arrays expand inline, with a Field name column.
+- There is one row kind per comment type: EOL, pre, post, plate and repeatable.
+- The flow-arrow margin offers "Go to source" and "Go to target" from an arrow's link menu. It can be turned off per viewer.
+- Address-set selection has next and previous selected range, and Esc collapses it (Esc order step 5). It stays separate from the checked set.
+- Select by flow (forward, reverse, subroutine, function, dead code) sets the extent on one build.
+- Next and previous instruction, data, undefined, label, function, non-function and bookmark are keymap ids with no default keys. Next and previous function keep their keys.
+- All of this is read-only and per build. Nothing re-disassembles.

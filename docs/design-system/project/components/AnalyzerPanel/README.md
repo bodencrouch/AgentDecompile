@@ -6,7 +6,7 @@ The analyzers of every build in one grid: each build's enablement and per-analyz
 
 **Consumer provides** the project and its builds. Per build: its language and compiler spec, its analysis state (never analyzed, analyzed with a receipt, stale since a receipt, running, waiting on a writer, failed, or not read), the receipt id with its basis, provenance (fresh, reused, historical) and read time, the writer lock as reported (owner kind, job, PID and start time), and the stored analysis options, as the program holds them, read at a stated time. Per analyzer: name, description, "started by" trigger, whether it is a prototype, whether it supports one-shot use on this build's language, whether it applies to this build's language at all, its default enablement, and its options with defaults. Also the named configurations (Standard defaults, Current program options for a build, saved configurations), the catalog actions that set options, run analysis and run one analyzer (read from `GET /api/v1/actions`; no action id is named here), the viewer's drafts, and the log tail of the current analysis job.
 
-## Anatomy
+**Anatomy**
 
 - **Header.** "Analysis · ‹project› · N builds", a Scope segment (inspected build or All builds) and a Show segment (All analyzers, or "Differs or not default" with its count). With one build in scope the grid has one build column; All builds adds a column per build and an Across builds column. It never assumes one binary.
 - **Analysis state per build.** One card per build, glyph plus word: "● analyzed · receipt valid for this basis" with the ProvenanceStamp; "◷ stale · program changed since receipt ‹id›" with the transaction count; "○ never analyzed · no receipt"; "● writer owned · analysis waits" with the owner exactly as reported; "running" with measured units or "Progress unknown · last event ‹time›"; "✕ failed" linking its FailureRecord; "? not read". The inspected build's card has the `ink-strong` frame.
@@ -17,7 +17,7 @@ The analyzers of every build in one grid: each build's enablement and per-analyz
 - **Run.** Two ActionStrip forms. **Analyze ‹build› (catalog)** names the build, the receipt it would reuse or why it is stale, and that the job reads that build's stored options. **One-shot · ‹analyzer› (catalog)** is bound to the Listing selection as an address set on one build, frozen when armed, and says "Analysis can change code outside the selection" (Ghidra: areas outside the selection may be changed). Only analyzers that support one-shot use on that build's language are listed.
 - **Analysis log.** The current job's log tail in a `well`, read-only, lines prefixed by job id and time, addresses as typed links for that build. It links to the dock's Logs and Jobs records, which own the full record (ActivityRecord). "A finished analysis job is not recovery."
 
-## States
+**States**
 
 - **Never analyzed:** StateNotice "‹build› has no analysis. Opening it did not start analysis." with Analyze ‹build› (catalog)… armed-not-run. An empty Listing or Functions list is not permission to analyze again.
 - **Valid receipt:** "Receipt ‹id› is valid for ‹build›." The stored analysis is reused and labelled reused. Reanalysis needs the catalog's force field and a ConfirmDialog that names the build and what it rewrites.
@@ -28,7 +28,7 @@ The analyzers of every build in one grid: each build's enablement and per-analyz
 - **No catalog action:** "Options are read-only here" names the missing action class. The grid still reads; set and propose buttons are `aria-disabled` with that reason.
 - **Analyze All Open:** not a button here. Corpus-wide analysis is WorkflowControl admission (Z03); this panel links to it.
 
-## Multi-variant rules
+**Multi-variant rules**
 
 - Keyed by project and analyzer, with build as a column. Each mutation names one build.
 - Analyzer options are program-level: across builds they are compared, never merged. Different options on builds that are later compared are flagged in the ProvenanceStamp basis of the comparison.
@@ -38,7 +38,7 @@ The analyzers of every build in one grid: each build's enablement and per-analyz
 **Linking**
 
 - **Publishes:** `panel=analysis` (proposed) with `build` for the inspected build and `f=analyzer:differs` for the Show filter. Scope and the options disclosure are durable workspace state, not location. Arming or running never changes the selection.
-- **Follows:** the inspected build, settle; the one-shot strip is bound to the Listing selection and does not follow once armed ("Bound to 0041b210–0041b2ff · selection is now …· Rebind"). Not holdable.
+- **Follows:** the inspected build, settle; the one-shot strip is bound to the Listing selection and does not follow once armed ("Bound to 0041c880–0041c97f · selection is now …· Rebind"). Not holdable.
 - **Targets rendered:** receipts → the receipt card · jobs → the dock Jobs and Logs records · owners → OwnershipPanel for that lock · addresses in the log → the Code Browser at that build · a failed run → its FailureRecord.
 - **Peek source:** Alt+↓ on a receipt or job reads the stored record; on an analyzer name, its stored description and options. Nothing is fetched.
 - **Absent copy:** "not read" · "Not loaded. Open to read it." · "not applicable · ‹reason›" · "no receipt" · "unknown for ‹build›" · "Options are read-only here".
@@ -55,13 +55,15 @@ The analyzers of every build in one grid: each build's enablement and per-analyz
 - The options table is a plain table with a caption; the disclosure button has `aria-expanded` and `aria-controls`.
 - The log is a `pre` with an accessible name; it is not a live region. Job transitions are announced once by the dock, not here.
 
-## Parity rows covered
+**Parity rows covered**
+
+Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md), section "New components needed".
 
 - **Z02** analyzer list and options: enable, disable, per-analyzer options, saved configurations (Select All, Deselect All, Reset and Save map to drafts plus the Configuration select; Delete configuration is a catalog action).
 - **Z04** one-shot analysis on a selection, as an ActionStrip bound to the frozen address set.
 - **Z08** Demangler, Aggressive Instruction Finder and other prototype analyzers: the prototype chip, per-build enablement, and results labelled as candidates.
 - Supporting, owned elsewhere: Z01 (no auto-analysis; ImportAdmission and WorkflowControl), Z03 (Analyze All Open is workflow scope), Z05 (the analysis log's full record is ActivityRecord in the dock).
 
-## Prior art
+**Prior art**
 
 Ghidra Auto Analysis, Program Options › Analysis, One Shot analyzers, Ask To Analyze and saved options configurations (`AutoAnalysisPlugin/AutoAnalysis.htm`); the Show Log and task monitor topics. The per-build columns follow the project's multi-variant rule; the draft frame follows the dashed hypothesis convention of the design system README.

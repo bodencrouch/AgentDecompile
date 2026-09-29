@@ -86,3 +86,13 @@ The row that says where you are and gets you back: Back and Forward with the Rec
 - Every control is at least 24px, and 44px below 700px and with a coarse pointer. The bar wraps; nothing scrolls sideways.
 
 **Removes switching:** J05 (from a diagram concept to the live items at it) goes from 5 switches to 1 with `~gate-4`, credited to U178. The Build menu carries J26's position-keeping build switch, credited to U175. Opening the Functions list to find a symbol, or the dock to find a job or receipt by id, becomes one field.
+
+**Parity extensions (2026-09-29)**
+
+Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): N01, N02, I04.
+
+- **Wildcards and repeat (N01).** The go-to field accepts `*` and `?` in names ("Resource*::Resolve") and lists every match with its per-build locator words; it never picks one. **Repeat last go-to** is the first entry of the empty `:` list.
+- **Expressions (N02).** An `=` prefix evaluates an address expression on the inspected build: arithmetic, logic and bit operators over numbers and symbol names ("= FUN_0041c880 + 0x10"). The result is one go-to row: "0041c890 on build-a · from FUN_0041c880 + 0x10". A symbol that is ambiguous on the build lists the candidates. Until a catalog read action evaluates expressions, the row reads "Expressions are not evaluated yet; catalog action needed".
+- **File offset (N02).** A `file:` prefix ("file:0x1c880") maps a file offset to an address through the build's memory map, one row per build that has the offset, or "offset 0x1c880 is outside every block on build-d".
+- **Evaluator (I04).** The `=` result row also shows the value in hex, decimal, signed and char forms; Alt+↓ on it opens the Peek scalar conversions. Evaluating is a read and never moves anything until Enter.
+- Proposed keymap id: none new; `=` and `file:` are prefixes of `goto.anything` (Ctrl/Cmd+P) and `goto.address` (Ctrl/Cmd+G). The preview is unchanged; the prefixes appear in the field's existing result list.

@@ -53,6 +53,8 @@ Ghidra Server version control for every build of the project in one grid: each b
 
 **Parity rows covered**
 
+Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md), section "New components needed".
+
 - **V04** multi-user repository: connect, add to version control, check out, check in, undo checkout, update, version history, view and find checkouts, undo hijack, server connection.
 - Also: **V05** merge on check-in and update (the summary here; conflict choices in MergeReview), **V02** modification conflicts on these verbs, and the "Keep checked out" and private-copy options of Ghidra's check-in.
 

@@ -702,7 +702,7 @@
     "g"
    ],
    "scope": "composite",
-   "note": "Shows which-key hints, only in the composite and code scopes. Regions: g n navigator, g m main, g e evidence, g w work view, g j dock at the row of the last announced transition (dock.lastAnnouncement). Views: g l listing, g d decompile, g h hex, g r graph. Panels: g o outline, g x references, g c counterparts, g ' marks. Dock: g p Problems tab. g b build menu. g g go to address. Layouts: g 1…5. Sequences go in aria-describedby text, not aria-keyshortcuts."
+   "note": "Shows which-key hints, only in the composite and code scopes. Regions: g n navigator, g m main, g e evidence, g w work view, g j dock at the row of the last announced transition (dock.lastAnnouncement). Views: g l listing, g d decompile, g h hex, g r graph. Panels: g o outline, g x references, g c counterparts, g ' marks. Compiler-aware panes: g t transformation timeline, g i match explanation, g f stack frame, g s vtable slots. Dock: g p Problems tab. g b build menu. g g go to address. Layouts: g 1…5. Sequences go in aria-describedby text, not aria-keyshortcuts. g v is unassigned: it is proposed by more than one pending component and stays free until one is chosen."
   },
   {
    "id": "code.outline",
@@ -712,6 +712,81 @@
    ],
    "scope": "code",
    "note": "Blocks, locals, calls and strings of the current function; the same projection as the rail's Outline section. Also the Views toolbar's Outline button and the palette ('Outline of this function'). Ctrl/Cmd+Shift+O is not bound."
+  },
+  {
+   "id": "code.walk",
+   "label": "Walk pointer at cursor",
+   "keys": [
+    "p"
+   ],
+   "scope": "code",
+   "where": "Listing, DecompileView and SplitCompare wells, on an operand or expression",
+   "note": "Opens PointerWalk for the cursor's expression and focuses the current step; only view state (walk=), nothing posts. Checked against precedence and profiles: no other code or composite binding uses p in code wells (g then p is a leader chord, not a conflict), and the ida profile adds only n, y and ;. IDA users know p as a mutating command; here it only reads. Also the link menu (Reveal in: PointerWalk) and the palette ('Walk pointer at cursor')."
+  },
+  {
+   "id": "code.compilerLayer",
+   "label": "Compiler layer on or off",
+   "keys": [
+    "c"
+   ],
+   "scope": "code",
+   "note": "Toggles CompilerLayer (layers=compiler) over every visible code well of the Code Browser and SplitCompare; only view state, nothing posts. Checked against precedence and profiles: no other code-scope binding uses c; c in the OutputsCatalog, TypeEditor and StackFrameEditor grids is composite scope inside those grids, never in a code well; g then c (counterparts) is a leader chord; m then c and ' then c are mark letters. IDA users know c as a mutating command; here it only changes the view. Also the Views toolbar's Compiler layer toggle (aria-pressed) and the palette ('Compiler layer')."
+  },
+  {
+   "id": "code.annotationNext",
+   "label": "Next compiler annotation",
+   "keys": [
+    "a"
+   ],
+   "scope": "code",
+   "where": "code wells while the compiler layer is on",
+   "note": "Moves the cursor to the next annotation of the visible kinds and announces it ('Annotation 3 of 9: inlined ResourceRef::Resolve, hypothesis'). Stops at the end and says so; never wraps. Proposed as } in the CompilerLayer README; } and { are proposed in code scope for arrow source and target (ListingFieldLayout), so annotation stepping uses a and Shift+A to keep one binding per key per scope. a is otherwise unbound in code wells (a in the TypeManager grid is composite scope inside that grid; g then a is a leader chord); the ida profile does not bind it. With the layer off it says 'Compiler layer is off'. Also the layer bar's next button and the palette ('Next compiler annotation')."
+  },
+  {
+   "id": "code.annotationPrev",
+   "label": "Previous compiler annotation",
+   "keys": [
+    "Shift+A"
+   ],
+   "scope": "code",
+   "where": "code wells while the compiler layer is on",
+   "note": "The reverse of code.annotationNext, with the same stops and announcement. Also the layer bar's previous button and the palette ('Previous compiler annotation')."
+  },
+  {
+   "id": "code.timeline",
+   "label": "Transformation timeline",
+   "keys": [
+    "g then t"
+   ],
+   "scope": "code",
+   "note": "Moves focus to TransformTimeline for the entity and cmp pair (secondary pane or rail section), showing it if hidden. Also the palette ('Transformation timeline') and Reveal in from CompilerLayer."
+  },
+  {
+   "id": "code.explain",
+   "label": "Explain match",
+   "keys": [
+    "g then i"
+   ],
+   "scope": "code",
+   "note": "Moves focus to MatchExplain for the entity's stored comparison receipt. Nothing is compiled or compared. Also the palette ('Explain match') and Reveal in from ObjectDiff."
+  },
+  {
+   "id": "code.frame",
+   "label": "Stack frame",
+   "keys": [
+    "g then f"
+   ],
+   "scope": "code",
+   "note": "Moves focus to FrameLayout for the selected function. Also the palette ('Stack frame') and Reveal in from MatchExplain and PointerWalk."
+  },
+  {
+   "id": "code.vtables",
+   "label": "Virtual table slots",
+   "keys": [
+    "g then s"
+   ],
+   "scope": "code",
+   "note": "Moves focus to VTableBrowser for the class of the selected method or type. Proposed as g then v in the VTableBrowser README; g v is also proposed by OverviewBar and VersionControlPanel, so vtables take s (slots) and g v stays unassigned. Also the palette ('Virtual table slots') and Reveal in from PointerWalk."
   },
   {
    "id": "pane.hold",

@@ -47,3 +47,11 @@ Who calls this function and what it calls, as an APG treegrid read from the stor
 - J09 follow a cross-reference and return: 4 → 0, credited to References in place (U177); the call-tree dialog goes.
 - J16 explore the call graph and read code of nodes: 3 → 0, credited to U173 (the Graph beside the code); this tree is the list form of the same walk.
 - J15 diagnose a decompile artifact: 6 → 4 (U173); callers are read beside the decompile.
+
+**Parity extensions (2026-09-29)**
+
+Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): G07, G13.
+
+- **Filters (G07).** A filter row above the tree: a name filter (matches as the tree's typeahead does, but hides non-matching branches and says "12 hidden"), **Hide thunks** (a thunk collapses into its target with "via thunk"), **Collapse duplicates** (a callee reached twice under one parent shows once with "2 call sites"), and the depth selector (1, 2 or 3, the existing limit). Filters are per viewer and apply to every build column alike; recursion and "not indexed here" markers are never hidden.
+- **Common callers (G13).** A multi-root mode: with several functions in the checked set or the active worklist, **Common callers of N functions** reads `get-call-graph` in `common_callers` mode on the inspected build and lists functions that call every root, with the call sites per root. A root absent on that build is named ("Archive::OpenMember is absent on build-d; common callers of the other 2"). The roots are frozen when the mode opens, and the header lists them as links.
+- Both are read-only and per build. The preview is unchanged; the additions are a filter row and a mode in the Calls header.

@@ -49,3 +49,12 @@ Per-viewer marks on any address or entity, the program's own bookmarks (read-onl
 - Stepping changes the selection only on the key or button press (WCAG 3.2.1). The collect dialog is a labelled modal dialog; focus returns to the invoking result set.
 
 **Removes switching:** J17 ("walk every member of a logical identity") goes from 6 switches to 1: collect the members once, then F8, credited to U179. J36 goes from 3 to 1 through the read-only Bookmarks navigator scope and typed links, credited to U171. J22 is credited to U184.
+
+**Parity extensions (2026-09-29)**
+
+Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): A05.
+
+- **Edit program bookmarks (A05).** Program bookmarks stop being read-only. A bookmark row's link menu has **Edit bookmark (catalog)…** (category and description) and **Remove bookmark (catalog)…**. Each arms the ActionStrip with that one bookmark on its build; saving one bookmark posts on Run, as ConfirmDialog's tiering already states. Removing several (a checked set, or `manage-bookmarks` with `removeAll` for a category) confirms through ConfirmDialog with the count and build.
+- **Filter and select.** Program bookmarks filter by type and category with FilterChips; **Select addresses** makes the filtered bookmarks' addresses the Listing selection on that build, and **Collect into worklist** (w) works as for any result set.
+- Bookmarks stay per build: edits need that build's writer, may return a modification conflict and are never propagated by this list (propagation of bookmarks is PropagationTransfer's `propagateBookmarks` step). Per-viewer marks are unchanged and remain separate from program bookmarks.
+- The preview is unchanged; the verbs are link-menu items on the existing bookmark rows.

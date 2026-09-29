@@ -1,0 +1,69 @@
+<!-- @dsCard group="Code" height=1420 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">Register manager · register and context values over address ranges · one build's language · other builds compared, never merged</span>
+<section class="ade" aria-labelledby="rv-t">
+ <header><h4 id="rv-t">Register values</h4><span class="end">Set register values (catalog)</span></header>
+ <div class="ade-tgt">
+  <span class="ade-bld target">build-a</span><span>registers from build-a's language · x86 32-bit</span>
+  <span class="ade-lock"><b aria-hidden="true">●</b>writer: this session</span>
+ </div>
+ <div class="ade-2col">
+  <div>
+   <div class="ade-sec"><label class="kicker" for="rv-f">Filter registers</label><input class="adc-in" id="rv-f" value="" placeholder="register name"></div>
+   <div class="ad-tree" role="tree" aria-label="Registers of build-a">
+    <div role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span>▾ Flags</span><span class="meta"></span></div>
+    <div role="treeitem" aria-level="2" aria-selected="true" tabindex="0"><span translate="no">    DF</span><span class="meta">2 ranges</span></div>
+    <div role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span>▾ General</span><span class="meta"></span></div>
+    <div role="treeitem" aria-level="2" aria-expanded="false" tabindex="-1"><span translate="no">  ▸ EAX</span><span class="meta">AX · AL · AH</span></div>
+    <div role="treeitem" aria-level="2" tabindex="-1"><span translate="no">    ECX</span><span class="meta">none</span></div>
+    <div role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><span>▾ Context</span><span class="meta"></span></div>
+    <div role="treeitem" aria-level="2" tabindex="-1"><span translate="no">    addrsize</span><span class="meta">default</span></div>
+    <div role="treeitem" aria-level="2" tabindex="-1"><span translate="no">    opsize</span><span class="meta">default</span></div>
+   </div>
+  </div>
+  <div>
+   <div class="ade-sec">
+    <h5>DF on build-a · explicit values</h5>
+    <label class="ade-flag"><input type="checkbox" class="ade-cb">Show language defaults</label>
+   </div>
+   <div class="ade-grid ad-scroll"><table class="ad-table" role="grid" aria-label="Value ranges of DF on build-a"><thead><tr><th scope="col">Start</th><th scope="col">End</th><th scope="col">Value</th><th scope="col">Source</th><th scope="col">Action</th></tr></thead><tbody>
+    <tr><td><a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" translate="no" aria-label="Address 0041c880, build-a">0041c880</a></td><td class="mono">0041c8ff</td><td class="mono">0x0</td><td>user</td><td><button class="ad-btn compact" type="button" aria-label="Delete range 0041c880 to 0041c8ff">Delete…</button></td></tr>
+    <tr aria-selected="true"><td><a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Address 0041b210, build-a">0041b210</a></td><td class="mono">0041b24f</td><td class="mono">0x0 → 0x1</td><td>user · draft</td><td><button class="ad-btn compact" type="button" aria-label="Delete range 0041b210 to 0041b24f">Delete…</button></td></tr>
+   </tbody></table></div>
+   <div class="ade-sec">
+    <div class="ade-flds">
+     <label class="lbl" for="rv-s">Start</label><div class="val"><input class="adc-in num" id="rv-s" value="0041b210" translate="no"></div>
+     <label class="lbl" for="rv-e">End</label><div class="val"><input class="adc-in num" id="rv-e" value="0041b24f" translate="no"></div>
+     <label class="lbl" for="rv-v">Value</label><div class="val"><input class="adc-in num" id="rv-v" value="0x1" translate="no"><span class="muted">DF is 1 bit</span></div>
+    </div>
+   </div>
+  </div>
+ </div>
+ <div class="ade-rev"><span class="kicker">Consequence · stated before Save</span>Set DF = 0x1 over 0041b210–0041b24f on build-a. This changes how build-a disassembles and decompiles that range the next time it is disassembled; existing instructions are not re-disassembled, and re-disassembly requires admission as a job. Other builds are unchanged.</div>
+ <footer><button class="ad-btn primary" type="button">Save on build-a…</button><button class="ad-btn" type="button">Set over selection…</button><button class="ad-btn" type="button">Clear values in selection…</button><button class="ad-btn" type="button">Cancel</button><span class="note">Each of these opens ConfirmDialog.</span></footer>
+ <div class="ade-prop" role="group" aria-labelledby="rv-cmp-t">
+  <h5 id="rv-cmp-t">DF across builds · program-local, compared side by side</h5>
+  <div class="ade-grid ad-scroll"><table class="ad-table"><caption class="sr-only">DF ranges per build, anchor-mapped</caption><thead><tr><th scope="col">Range on build-a</th><th scope="col" class="b target">build-a</th><th scope="col" class="b">build-b</th><th scope="col" class="b">build-c</th><th scope="col" class="b">build-d</th></tr></thead><tbody>
+   <tr><th scope="row" class="mono">0041c880–0041c8ff</th><td class="b target">0x0</td><td class="b">0x0 <span class="w">via anchor 0041c880</span></td><td class="b"><span class="muted">no value</span><span class="w">via anchor 0041b210</span></td><td class="b"><span class="muted">not loaded</span></td></tr>
+   <tr><th scope="row" class="mono">context</th><td class="b target"><code translate="no">addrsize</code>, <code translate="no">opsize</code></td><td class="b">same</td><td class="b">same</td><td class="b"><span class="ade-var"><b>compile variance</b> <span class="basis">witness: x86-64 language adds longMode</span></span></td></tr>
+  </tbody></table></div>
+  <p>Register values are never proposed to other builds. Ranges are compared only through recorded anchors; between anchors the row names the anchor it used.</p>
+ </div>
+</section>
+
+<div class="adc-states">
+<div>
+ <span class="kicker">Set over a range · ConfirmDialog</span>
+ <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="rv-cd-t" aria-describedby="rv-cd-d"><h3 id="rv-cd-t">Set DF over <span translate="no">0041b210–0041b24f</span> on build-a</h3><p id="rv-cd-d">DF becomes 0x1 for 64 bytes on build-a, which changes future disassembly there; nothing is re-disassembled now, and other builds are unchanged.</p><footer><button class="ad-btn is-focus">Cancel</button><button class="ad-btn primary">Set value</button></footer></div>
+</div>
+<div>
+ <span class="kicker">Context register · re-disassembly waits for admission</span>
+ <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Range predates job a3f9</h4><p>DF changed on build-a at 14:06 (job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, set register values, finished">a3f9</a>). Instructions in 0041b210–0041b24f were decoded with the old value. Re-disassemble range (catalog) is armed in the ActionStrip, not run.</p></div><span></span></div>
+</div>
+<div>
+ <span class="kicker">Invalid value · nothing posts</span>
+ <div class="ade" role="group" aria-labelledby="rv-iv-t"><header><h4 id="rv-iv-t">Edit range · <code translate="no">addrsize</code></h4></header>
+  <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="rv-iv">Value</label><div class="val"><input class="adc-in num" id="rv-iv" value="0x3" aria-invalid="true" aria-describedby="rv-iv-e"></div><div class="adc-err" id="rv-iv-e"><b aria-hidden="true">✕</b><span>addrsize on build-a is 2 bits wide in its language, but 0x3 is not one of its defined values. Use 0x0, 0x1 or 0x2.</span></div></div></div></div>
+</div>
+</div>
+</div>

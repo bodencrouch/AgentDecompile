@@ -47,3 +47,13 @@ A compact hex and ASCII strip for the current region, synchronized with the shar
 - J15 diagnose a decompile artifact: 6 → 4, credited to the Code Browser composite (U173); the strip supplies the bytes.
 - J36 from strings, imports or sections to use sites and bytes: 3 → 1, credited to typed links (U171); the strip removes the Hex-tab step.
 - J34 from an image delta region to its bytes: a partial contribution only (the strip shows the differing bytes under the Listing at the range start); the journey's 4 → 1 is credited to typed links.
+
+**Parity extensions (2026-09-29)**
+
+Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): N10, N11, L23, I03.
+
+- **Formats (N10).** Beside hex and ASCII, the strip can show hex short, int, long and long long, signed and unsigned integer, octal, binary, chars, address and disassembled columns. The pane-header menu lists the formats; which ones appear is a per-viewer choice in OptionsPanel's Byte viewer section. Each extra format is one more column group with its own column header, and the row name reads the enabled formats in order. Formats are presentation only; the bytes and their build do not change.
+- **Byte viewer options (N11).** Bytes per line, group size, alignment offset, charset and char width come from OptionsPanel (per viewer, stored as a diff, never in the URL). The pane-header menu has **Byte viewer options…**, which opens that section; the strip has no private option controls.
+- **Select Bytes (L23).** The link menu on a byte has **Select bytes…** with a count field ("Select 240 bytes from 0041c880 on build-a"). The result is the same transient extent as a drag, mapped back to Listing rows, and Esc collapses it (Esc order step 5). A count that runs past the region or section end is clipped and says so.
+- **Checksums (I03).** On a byte selection, the link menu's **Checksums** opens a Peek with checksum-8, -16 and -32, Adler-32, CRC-16 and CRC-32, MD5 and the SHA family over the selection, each value in mono with its algorithm, the range and the build. It is read-only and computes nothing until a catalog read action exists; until then it says "Checksums need a catalog read action; not computed". **On every build** hashes the anchor-mapped range on each build, one row per build naming the anchor used; an absent anchor reads "no anchor on build-d". Differing checksums are divergence evidence whose class is unknown unless a record states it.
+- Proposed keymap ids: `hex.selectCount` (no keys; link menu and palette), `hex.checksums` (no keys). The preview is unchanged: every addition is in the pane-header or link menu.

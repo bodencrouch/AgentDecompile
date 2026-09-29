@@ -1,0 +1,55 @@
+<!-- @dsCard group="Activity" height=1960 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">Transactions of one program · Undo and Redo are catalog verbs, confirmed · what cannot be undone says so</span>
+<section class="ad-g3" aria-labelledby="eh-t">
+ <header class="ad-g3-head">
+  <h3 id="eh-t">Edit history <span class="sub">· build-a</span></h3>
+  <p class="ad-g3-sum"><span>undo stack 5 of 20 (Ghidra keeps the last 20)</span><span>1 redo available</span><span>version 7 checked in · 4 transactions since</span><span>writer: this session</span><span>read 14:08</span></p>
+  <div class="ad-tools" role="group" aria-label="Edit history scope">
+   <span><span class="lbl" id="eh-l-sc">Program</span><span class="ad-seg" role="group" aria-labelledby="eh-l-sc"><button aria-pressed="true">build-a</button><button aria-pressed="false">build-b</button><button aria-pressed="false">build-c</button><button aria-pressed="false">build-d</button></span></span>
+   <button class="ad-btn" type="button" aria-haspopup="dialog" aria-describedby="eh-u-d">Undo (catalog)…</button>
+   <button class="ad-btn" type="button" aria-haspopup="dialog">Redo (catalog)…</button>
+   <span class="sr-only" id="eh-u-d">Undo Set comment at 0041c880 on build-a. Confirms first.</span>
+  </div>
+ </header>
+
+ <ol class="ad-edh-list" aria-label="Transactions of build-a, newest first">
+  <li class="sep">Redo · undone, can be redone until the next edit</li>
+  <li class="redo"><span class="pos">↷</span><span class="t">Retype parameter 2 of ResourceRef::Resolve: uint → size_t</span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↷</b>redo available</span></span><span class="meta"><span>by you · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=b7e2" aria-label="Job b7e2, retype, undone">b7e2</a></span><span>undone 14:07</span></span></li>
+  <li class="sep">Undo stack · newest first</li>
+  <li aria-current="true"><span class="pos">5</span><span class="t">Set comment at <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" aria-label="Address 0041c880, build-a" translate="no">0041c880</a></span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↶</b>undoable</span></span><span class="meta"><span>by you · inline edit</span><span>14:06</span></span></li>
+  <li><span class="pos">4</span><span class="t">ApplyCacheEntryLayout.py · 12 changes</span><span class="end"><span class="ad-g3-st on col"><b aria-hidden="true">↶</b>program changes undoable<span class="m">side effects are not</span></span></span><span class="meta"><span>script · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, ApplyCacheEntryLayout.py, finished">a3f9</a> finished</span><span>14:02</span><span class="ad-g3-cant"><b aria-hidden="true">⊘</b>its log, receipt and transcript cannot be undone</span><button class="ad-btn compact" type="button" aria-haspopup="dialog" aria-label="Undo to here, 2 transactions on build-a (catalog)">Undo to here…</button></span></li>
+  <li><span class="pos">3</span><span class="t">Propagated name from build-c: FUN_0041c880 → ResourceRef::Resolve</span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↶</b>undoable on build-a only</span></span><span class="meta"><span>propagation from build-c · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=d07a" aria-label="Job d07a, propagate names, finished">d07a</a></span><span>13:55</span><span>build-b keeps its value; build-c is the donor and is unchanged</span></span></li>
+  <li><span class="pos">2</span><span class="t">Rename local_8 → itemCount in Actor::LoadFromTemplate</span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↶</b>undoable</span></span><span class="meta"><span>by agent · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=c4e1" aria-label="Job c4e1, rename, finished">c4e1</a></span><span>13:40</span></span></li>
+  <li><span class="pos">1</span><span class="t">Analyze build-a · 3,184 changes</span><span class="end"><span class="ad-g3-st on col"><b aria-hidden="true">↶</b>undoable<span class="m">would make receipt 5c1e stale</span></span></span><span class="meta"><span>analysis · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=5c1e" aria-label="Job 5c1e, analyze build-a">5c1e</a></span><span>12:10</span></span></li>
+  <li class="sep">Before the undo stack · cannot be undone here</li>
+  <li><span class="pos">—</span><span class="t">Checked in as version 7 · 18 transactions</span><span class="end"><span class="ad-g3-cant"><b aria-hidden="true">⊘</b>cannot be undone here</span></span><span class="meta"><span>the server holds version 7; VersionControlPanel shows its history</span><span>2026-09-28 17:40</span></span></li>
+ </ol>
+ <p class="ad-g3-note">Undo reverts the program's changes on build-a. It does not delete jobs, logs, receipts, artifacts or files a job wrote: byte journal rollback ≠ undo of executed side effects. Undone work leaves its receipts marked ◷ stale.</p>
+
+ <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="eh-cf-t" aria-describedby="eh-cf-d" style="max-width:560px">
+  <h3 id="eh-cf-t">Undo 2 transactions on build-a</h3>
+  <p id="eh-cf-d">Undoes "Set comment at 0041c880" and "ApplyCacheEntryLayout.py · 12 changes" on build-a. Job a3f9's log, receipt and transcript stay; its 12 program changes are reverted. Other builds are unchanged. Both can be redone until the next edit on build-a.</p>
+  <footer><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Undo 2</button></footer>
+ </div>
+</section>
+
+<div class="adc-states">
+ <div>
+  <span class="kicker">A propagated edit · undone per recipient</span>
+  <div class="ad-notice info"><b aria-hidden="true">↶</b><div><h4>Undo applies to build-a only</h4><p>The name reached build-a and build-b from build-c in propagation job d07a. Undoing on build-a leaves build-b's copy and build-c's original. Undo on build-b is its own step in build-b's history.</p></div><span></span></div>
+ </div>
+ <div>
+  <span class="kicker">Writer owned · Undo waits</span>
+  <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>build-b has a writer</h4><p>Job 77c0 (external, pid 48211, started 13:02) owns build-b. Undo on build-b waits; nothing is killed or restarted.</p></div><span></span></div>
+ </div>
+ <div>
+  <span class="kicker">Program changed since armed · modification conflict</span>
+  <div class="ad-notice fault"><b aria-hidden="true">⇄</b><div><h4>Undo refused: build-a changed since you armed it</h4><p>Transaction 6 "Rename CacheEntry.flags" arrived at 14:09. Nothing was undone. Resolve the conflict or arm Undo again on the new top.</p></div><span></span></div>
+ </div>
+ <div>
+  <span class="kicker">Stack cleared · program closed and reopened</span>
+  <div class="ad-notice unknown"><b aria-hidden="true">⊘</b><div><h4>No undo stack for build-c</h4><p>build-c was closed at 13:30; Ghidra clears the undo stack on close. Its 7 earlier transactions are listed from the event store and cannot be undone here.</p></div><span></span></div>
+ </div>
+</div>
+</div>

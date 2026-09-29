@@ -1,0 +1,96 @@
+<!-- @dsCard group="Shell" height=2000 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">Tool options · per viewer, stored as a diff · program options per build, read-only, change only through the catalog</span>
+<section class="ad-g3" aria-labelledby="op-t">
+ <header class="ad-g3-head">
+  <h3 id="op-t">Tool options</h3>
+  <p class="ad-g3-sum"><span>6 overrides by you, stored beside View settings and keys</span><span>never in a link or browser storage</span></p>
+  <p class="ad-opt-rel">Kept in their own homes, not repeated here: <button class="ad-btn compact" type="button" aria-describedby="op-vs">View settings…</button><button class="ad-btn compact" type="button">Keyboard…</button><button class="ad-btn compact" type="button" aria-describedby="op-lf">Listing fields…</button><span class="sr-only" id="op-vs">Density, Increase contrast, Reduce motion, Screen-reader verbosity, Advanced and the pointer options.</span><span class="sr-only" id="op-lf">Listing columns and field layout, in ListingFieldLayout.</span></p>
+  <div class="ad-tools" role="search" aria-label="Find an option"><span><label class="lbl" for="op-f">Find</label><input id="op-f" type="text" value=""></span></div>
+ </header>
+ <div class="ad-g3-cols">
+  <ul class="ad-g3-tree" role="tree" aria-label="Option sections">
+   <li role="treeitem" aria-expanded="true" aria-selected="false" tabindex="-1"><span><span class="chev" aria-hidden="true">▾</span>Viewers · per viewer</span>
+    <ul role="group">
+     <li role="treeitem" aria-selected="false" tabindex="-1"><span>Listing display<span class="n">1</span></span></li>
+     <li role="treeitem" aria-selected="false" tabindex="-1"><span>Cross-reference hints<span class="n">2</span></span></li>
+     <li role="treeitem" aria-selected="true" tabindex="0"><span>Decompiler<span class="n">2</span></span></li>
+     <li role="treeitem" aria-selected="false" tabindex="-1"><span>Byte viewer<span class="n">1</span></span></li>
+     <li role="treeitem" aria-selected="false" tabindex="-1"><span>Structure editor<span class="n">0</span></span></li>
+     <li role="treeitem" aria-selected="false" tabindex="-1"><span>Search<span class="n">0</span></span></li>
+    </ul>
+   </li>
+   <li role="treeitem" aria-expanded="true" aria-selected="false" tabindex="-1"><span><span class="chev" aria-hidden="true">▾</span>Program · per build</span>
+    <ul role="group">
+     <li role="treeitem" aria-selected="false" tabindex="-1"><span>Decompiler analysis</span></li>
+     <li role="treeitem" aria-selected="false" tabindex="-1"><span>Specification extensions</span></li>
+    </ul>
+   </li>
+  </ul>
+
+  <div class="ad-g3-sec">
+   <h4>Decompiler · per viewer</h4>
+   <p>Changes apply to your decompile views at once. Request options are part of the decompile basis: views decompiled with other options say so and are not re-decompiled.</p>
+   <ul class="ad-g3-opts" aria-label="Decompiler options">
+    <li><span><span class="nm" id="op-o1">Show unreachable code</span><span class="d">request option · part of the basis · changed by you, default off</span></span><span class="ctl"><span class="ad-seg" role="group" aria-labelledby="op-o1"><button aria-pressed="true">On</button><button aria-pressed="false">Off</button></span><button class="ad-btn quiet compact" type="button" aria-label="Reset Show unreachable code to default, off">Reset</button></span></li>
+    <li><span><span class="nm" id="op-o2">Respect read-only flags</span><span class="d">request option · part of the basis · default on</span></span><span class="ctl"><span class="ad-seg" role="group" aria-labelledby="op-o2"><button aria-pressed="true">On</button><button aria-pressed="false">Off</button></span></span></li>
+    <li><span><span class="nm"><label for="op-o3">Maximum line width</label></span><span class="d">display · changed by you, default 100</span></span><span class="ctl"><input id="op-o3" class="mono" type="text" value="120" size="4"><button class="ad-btn quiet compact" type="button" aria-label="Reset Maximum line width to default, 100">Reset</button></span></li>
+    <li><span><span class="nm" id="op-o4">Comments shown</span><span class="d">display · EOL, pre, post, plate</span></span><span class="ctl"><span class="ad-seg" role="group" aria-labelledby="op-o4"><button aria-pressed="true">All kinds</button><button aria-pressed="false">EOL only</button><button aria-pressed="false">None</button></span></span></li>
+   </ul>
+   <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>2 views were decompiled with other options</h4><p>ResourceRef::Resolve on build-a and build-c show "decompiled with Show unreachable code off · Enter to decompile". Nothing re-decompiles by itself.</p></div><span></span></div>
+
+   <h4>Decompiler analysis · per build, read-only</h4>
+   <p>Program options stored in each build. They shape every decompile of that build and are recorded in its basis. They change only through a catalog action, per build, confirmed.</p>
+   <div class="ad-scroll" role="region" aria-label="Decompiler program options per build, scrolls sideways">
+   <table class="ad-table ad-g3-grid" aria-label="Decompiler program options per build">
+    <thead><tr><th scope="col">Program option</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th></tr></thead>
+    <tbody>
+     <tr><th scope="row"><span class="nm">Eliminate unreachable code</span></th><td class="b">on</td><td class="b">on</td><td class="b"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>off<span class="m">differs</span></span></td><td class="b muted">not read</td></tr>
+     <tr><th scope="row"><span class="nm">Simplify predication</span></th><td class="b">on</td><td class="b">on</td><td class="b">on</td><td class="b muted">not read</td></tr>
+     <tr><th scope="row"><span class="nm">Alias blocking</span></th><td class="b">structures</td><td class="b">structures</td><td class="b">structures</td><td class="b muted">not read</td></tr>
+    </tbody>
+   </table>
+   </div>
+   <div class="ad-tools" role="group" aria-label="Program option actions"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="op-nc">Set on build-c (catalog)…</button><span class="small muted" id="op-nc">catalog action needed · not offered yet</span></div>
+  </div>
+ </div>
+</section>
+
+<div class="adc-states">
+ <div>
+  <span class="kicker">Specification extensions · per build · confirm-gated</span>
+  <section class="ad-g3" aria-labelledby="op-sx-t">
+   <h4 id="op-sx-t" style="margin:0">Specification extensions · build-a</h4>
+   <div class="ad-scroll" role="region" aria-label="Specification extensions of build-a">
+   <table class="ad-table ad-g3-grid" style="min-width:0"><caption class="sr-only">Prototype and call-fixup extensions of build-a</caption>
+    <thead><tr><th scope="col">Extension</th><th scope="col">Kind</th><th scope="col">Applies to</th></tr></thead>
+    <tbody>
+     <tr><th scope="row"><span class="nm mono" translate="no">__resolvecall</span></th><td>prototype</td><td>build-a, build-b · same compiler spec</td></tr>
+     <tr><th scope="row"><span class="nm mono" translate="no">fixup_cacheentry</span></th><td>call-fixup</td><td>build-a only</td></tr>
+    </tbody>
+   </table>
+   </div>
+   <div class="ad-tools" role="group" aria-label="Extension actions"><button class="ad-btn" type="button" aria-haspopup="dialog">Import extension (catalog)…</button><button class="ad-btn" type="button" aria-haspopup="dialog">Remove…</button></div>
+   <p class="ad-g3-note">Import and Remove confirm through ConfirmDialog and need build-a's writer. build-d's compiler spec differs, so an extension from build-a never applies there.</p>
+  </section>
+ </div>
+ <div>
+  <span class="kicker">Byte viewer and structure editor · per viewer</span>
+  <ul class="ad-g3-opts" aria-label="Byte viewer options">
+   <li><span><span class="nm"><label for="op-b1">Bytes per line</label></span><span class="d">changed by you, default 16</span></span><span class="ctl"><select id="op-b1"><option>8</option><option>16</option><option selected>32</option></select></span></li>
+   <li><span><span class="nm"><label for="op-b2">Group size</label></span><span class="d">default 1</span></span><span class="ctl"><select id="op-b2"><option selected>1</option><option>2</option><option>4</option><option>8</option></select></span></li>
+   <li><span><span class="nm"><label for="op-b3">Alignment offset</label></span><span class="d">default 0</span></span><span class="ctl"><input id="op-b3" class="mono" type="text" value="0" size="3"></span></li>
+   <li><span><span class="nm"><label for="op-b4">Charset</label></span><span class="d">default US-ASCII</span></span><span class="ctl"><select id="op-b4"><option selected>US-ASCII</option><option>UTF-8</option><option>UTF-16LE</option></select></span></li>
+   <li><span><span class="nm" id="op-s1">Structure editor offsets and sizes</span><span class="d">default hex</span></span><span class="ctl"><span class="ad-seg" role="group" aria-labelledby="op-s1"><button aria-pressed="true">Hex</button><button aria-pressed="false">Decimal</button></span></span></li>
+  </ul>
+ </div>
+ <div>
+  <span class="kicker">Restore defaults · per section, inline Undo, no dialog</span>
+  <div class="ad-notice info"><b aria-hidden="true">↺</b><div><h4>Decompiler options restored to defaults</h4><p>2 of your overrides were removed. Other sections keep theirs.</p></div><button class="ad-btn" type="button">Undo</button></div>
+ </div>
+ <div>
+  <span class="kicker">Server settings · not a viewer option</span>
+  <div class="ad-notice unknown"><b aria-hidden="true">⊘</b><div><h4>Program caching is a server setting</h4><p>Tool and program caching are configured on the server, not here. This panel reads nothing from them.</p></div><span></span></div>
+ </div>
+</div>
+</div>

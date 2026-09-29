@@ -8,7 +8,7 @@
     { "name": "build",    "carries": "inspected build", "grammar": "build-id", "history": "push", "example": "build-b" },
     { "name": "addr",     "carries": "address or cursor in the inspected build", "grammar": "hex without 0x", "history": "replace", "requires": "build; without it the builds containing the address are listed", "example": "0041b210" },
     { "name": "ws",       "carries": "workspace", "values": ["code", "compare", "recovery", "evidence"], "history": "push; consecutive switches with no Go collapse" },
-    { "name": "panel",    "carries": "full corpus view inside a workspace; target of every Show all", "values": ["report", "atlas", "review", "builds", "pipeline", "readiness", "names", "reuse", "runtime"], "history": "push",
+    { "name": "panel",    "carries": "full corpus view inside a workspace; target of every Show all", "values": ["report", "atlas", "review", "builds", "pipeline", "readiness", "names", "reuse", "runtime", "outputs", "toolchain", "variants"], "history": "push",
       "describes": {
         "report": "the recovery report: VariantLedger, rebuild comparisons, readiness and divergence reports",
         "atlas": "project intelligence (F19): function discovery and index, dependency and neighborhood exploration, prioritization",
@@ -18,9 +18,15 @@
         "readiness": "the readiness × coverage matrix of entities × builds (ReadinessMatrix)",
         "names": "name and type provenance for every field of the selection, across builds (NameProvenance)",
         "reuse": "existing recovered analysis and receipts found for a build, before any new work",
-        "runtime": "runtime capabilities of a build, one row per entity (RuntimeCapabilities)"
+        "runtime": "runtime capabilities of a build, one row per entity (RuntimeCapabilities)",
+        "outputs": "every export, output and result by artifact × build, with status, claim tier, basis and the 8080 observation (OutputsCatalog; ws=evidence); artifact= opens its ArtifactCard",
+        "toolchain": "compiler, linker and flag facts × builds, each value with its evidence level, plus the pinned rebuild toolchain (ToolchainEvidence; ws=evidence)",
+        "variants": "how each pair of builds relates: toolchain differences and entity counts by variance class, with a drill-down (VariantRelation; ws=compare, cmp selects the pair)"
       } },
     { "name": "views",    "carries": "co-visible code views", "grammar": "comma list", "values": ["listing", "decompile", "hex", "graph"], "history": "replace; never rewritten at narrow widths" },
+    { "name": "layers",   "carries": "annotation layers over the code wells (view state in the URL, like views)", "grammar": "comma list", "values": ["compiler"], "history": "replace; never rewritten at narrow widths", "example": "compiler" },
+    { "name": "walk",     "carries": "PointerWalk chain and current step", "grammar": "chain[:step]", "history": "replace", "requires": "entity, build and addr", "example": "this.cache.entries[i].name_len:4" },
+    { "name": "artifact", "carries": "the open ArtifactCard in OutputsCatalog", "grammar": "artifact-id from the served outputs inventory", "history": "push", "unresolved": "Artifact ‹id› is not in this project's outputs inventory", "example": "hookpack-v1" },
     { "name": "cmp",      "carries": "split pair", "grammar": "build-id..build-id", "history": "push on open and close", "example": "build-a..build-c", "resolution": "recorded edges and locators only" },
     { "name": "hold",     "carries": "held center panes", "grammar": "kind:id@build[:addr][~basis]", "kinds": "see kinds", "max": 2, "overflow": "extra entries become keep entries, with a notice", "history": "replace; Back/Forward never open, close or re-point holds", "example": "symbol:ResourceRef::Resolve@build-c:0041c880~b7e2" },
     { "name": "keep",     "carries": "Kept cards in the evidence rail", "grammar": "kind:id[@build][~basis]", "kinds": "see kinds", "requires": "build, except for the build-independent kinds entity and node", "repeatable": true, "max": 3, "overflow": "refused with 'Three cards kept; release one'; nothing is evicted", "history": "replace", "example": "receipt:r-5521@build-b" },
@@ -37,8 +43,16 @@
   ],
   "kinds": {
     "$comment": "One kind list shared by hold and keep. A component that needs a new kind adds it here first.",
-    "values": ["symbol", "fn", "addr", "entity", "entitybuild", "receipt", "fact", "job", "ladder", "xref", "history", "calls", "graph", "peek", "names", "runtime", "objective", "failure", "node"],
-    "buildIndependent": ["entity", "node"]
+    "values": ["symbol", "fn", "addr", "entity", "entitybuild", "receipt", "fact", "job", "ladder", "xref", "history", "calls", "graph", "peek", "names", "runtime", "objective", "failure", "node", "artifact", "type", "walk", "frame", "vtable", "xform"],
+    "buildIndependent": ["entity", "node", "artifact"],
+    "describes": {
+      "artifact": "an ArtifactCard (keep=artifact:‹id›[~basis]); corpus-scoped, so the build is optional",
+      "type": "a type or field layout at one build (keep=type:CacheEntry.name_len@build-b)",
+      "walk": "a PointerWalk chain at one build (hold or keep)",
+      "frame": "a FrameLayout for one entity at one build (keep=frame:‹entity›@‹build›)",
+      "vtable": "a VTableBrowser class at one build (hold)",
+      "xform": "a TransformTimeline for one entity and cmp pair (hold)"
+    }
   },
   "filterAxes": {
     "$comment": "The shared f= axis vocabulary. A component that needs a new axis adds it here first. An unknown axis stays verbatim in the URL and gets a StateNotice.",
@@ -66,7 +80,18 @@
       { "axis": "relation",        "carries": "match relation kind", "example": "relation:split" },
       { "axis": "objective",       "carries": "problems under one objective scope", "example": "objective:build-b" },
       { "axis": "basis",           "carries": "records under one basis digest", "example": "basis:9f3c" },
-      { "axis": "variant",         "carries": "the recovery variant", "example": "variant:max-c" }
+      { "axis": "variant",         "carries": "the recovery variant", "example": "variant:max-c" },
+      { "axis": "artifact.status", "carries": "artifacts by artifact status: delivered, partial, stale, future, never-run, no-report, reference", "example": "artifact.status:partial" },
+      { "axis": "artifact.group",  "carries": "artifacts by outputs-inventory group A–H", "example": "artifact.group:B" },
+      { "axis": "artifact.build",  "carries": "artifact cells for one build", "example": "artifact.build:build-c" },
+      { "axis": "artifact.file",   "carries": "whether a stored file with its hash is recorded: yes or no", "example": "artifact.file:yes" },
+      { "axis": "tier",            "carries": "claim tier: verified, advisory, hint, bytes; a never-produced artifact has no tier", "example": "tier:advisory" },
+      { "axis": "observed",        "carries": "observed on 8080: yes or no; a separate axis from artifact status", "example": "observed:no" },
+      { "axis": "vrel",            "carries": "entities of the cmp pair whose stored comparison result has this variance class (VariantRelation drill; requires cmp): compile, entropy, source, unknown", "example": "vrel:source" },
+      { "axis": "xform",           "carries": "compiler annotations by kind (CompilerLayer, TransformTimeline): inline, icf, gs, eh, seh, div, tail, switch, fpo, ilt, hotpatch, strpool, loop, intrinsic, cc; a comma list selects several", "example": "xform:inline,eh" },
+      { "axis": "variance",        "carries": "annotations, steps, slots or items by difference class: compile, entropy, source, unknown; identical is not a value", "example": "variance:compile" },
+      { "axis": "diffclass",       "carries": "MatchExplain rows by class: regalloc, schedule, stack, reloc, constant, branch, inline, toolchain, source", "example": "diffclass:regalloc" },
+      { "axis": "presence",        "carries": "annotations whose presence varies across builds", "example": "presence:varies" }
     ]
   },
   "aliases": {
@@ -104,7 +129,7 @@
   "neverInUrl": ["checked set", "drafts", "credentials"],
   "history": {
     "push": ["Go (link, row Enter or click, go-to pick, Make primary, job or receipt link, Show all)", "filter applied from a link", "workspace switch", "build switch", "cmp open or close"],
-    "replace": ["list and grid focus moves", "cursor moves", "typed or edited filters", "removed filter chips", "views", "dock", "hold", "keep", "alias rewrites"],
+    "replace": ["list and grid focus moves", "cursor moves", "typed or edited filters", "removed filter chips", "views", "layers", "walk", "dock", "hold", "keep", "alias rewrites"],
     "replaceThrottle": "after the 200ms settle",
     "stopStores": ["viewport as anchor address plus caret", "focus as region + component + row key"],
     "nonAuthoritative": ["history.state", "Recent"]

@@ -54,6 +54,8 @@ An advanced panel that holds the script manager, a read-only console transcript,
 
 **Parity rows covered**
 
+Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md), section "New components needed".
+
 - **C01** Script Manager: category tree, table, filter, run, run last, quick launcher (the palette's "Run script…" lists recent scripts first), create, rename, delete, key binding and directories (read-only until catalog actions exist).
 - **C03** interpreter: interactive session, interrupt and reset, bound to one build.
 - Also: **C02** console output, scroll lock, clear, find and navigation from addresses (the transcript; the full record stays ActivityRecord's); **C04** Bundle Manager as a read-only list; **C05** script key bindings stay unbound because scripts are not catalog entries (the row stays missing until they are).

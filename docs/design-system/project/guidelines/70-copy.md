@@ -25,7 +25,23 @@ Calm engineer. Plain, operational English from the operator's side. Say what hap
 
 ## Claim boundaries use ≠
 
-candidate ≠ acceptance · compile admits candidate, not replacement · floor ≠ recovered C · local zero ≠ full-image or behavior proof · exported plan ≠ live detour permission · result exists ≠ independently accepted claim · deadline ≠ termination · byte journal rollback ≠ undo of executed side effects · liveness ≠ execution progress ≠ goal progress.
+candidate ≠ acceptance · compile admits candidate, not replacement · floor ≠ recovered C · local zero ≠ full-image or behavior proof · exported plan ≠ live detour permission · result exists ≠ independently accepted claim · deadline ≠ termination · byte journal rollback ≠ undo of executed side effects · liveness ≠ execution progress ≠ goal progress · Accuracy ≠ acceptance · Compiling C ≠ verified recovery · effective ≠ byte match · aligned ≠ equivalent.
+
+## Outputs, reports and compiler-aware views
+
+Keep verbatim:
+
+- "Accuracy ≠ acceptance." An accuracy or parity report's numbers never appear as acceptance: "This report is accuracy. 1,142 matched functions on build-a are not accepted."
+- "Compiling C ≠ verified recovery."
+- "no report": a run is recorded but its report file is missing ("∅ no report · run a61f recorded; its report file is missing").
+- "previous report not found · changes not available". Never "no changes" for a missing or stale previous report; a stale one reads "not computed · the report is stale".
+- "varies across builds · not averaged", with the best and worst build named. Builds are never averaged, and reports from different source revisions are never merged ("Merge refused for build-d: different source revision").
+- "provider differed": "⇄ build-c: requested ‹profile›, served ‹compiler› · provider differed".
+- "done" only at exactly 100%: "1,188 of 1,188". Fractions are exact ("1,142 of 1,188"), and percentages are truncated, never rounded up (96.1%, not 96.2% and never 100%).
+- "Scores from different tools are never compared or averaged." Each score names its own tool ("0.81 BSim similarity", "38 bytes differ objdiff").
+- "Reconstructed explanation, not observed compiler passes." This is the first line of every transformation timeline, followed by "Order is the conventional stage order, not an observed sequence".
+- Evidence words: "witness", "record", "hypothesis (heuristic)" with "basis: …", and "unknown". "absence is not proof". A hypothesis never reads as a witness.
+- "Delivered means a receipt records bounded evidence for that scope; it does not mean the artifact is live, current or accepted." · "not observed on 8080".
 
 ## Coverage phrasing
 
@@ -41,7 +57,7 @@ Name the field from the catalog and where to fix it: "`kb` is required. Enter it
 
 ## Forbidden
 
-"Success!", "All done!", "Matched!", "Completed with flying colors" · "decompile updated" after an edit (the terminal message names the change and its job) · green celebration or confetti · "≥90% recovered" · "100% confidence" · "40–60% instantly" · "works on all builds" · invented percentages, ETAs or "unmeasured" where a measurement could exist · "Project data combined." · an application-wide "Working…" · a lease countdown presented as a release time · toast spam on poll · "contested" outside the locator set · product, game, binary or company names in design artifacts.
+"Success!", "All done!", "Matched!", "Completed with flying colors" · "decompile updated" after an edit (the terminal message names the change and its job) · green celebration or confetti · "≥90% recovered" · "100% confidence" · "40–60% instantly" · "works on all builds" · invented percentages, ETAs or "unmeasured" where a measurement could exist · "Project data combined." · an application-wide "Working…" · a lease countdown presented as a release time · toast spam on poll · "contested" outside the locator set · "no changes" when the previous report is missing · a percentage rounded up, or "done" below exactly 100% · an average across builds or across tools' scores · "observed" or "live" for an artifact with only a receipt · product, game, binary or company names in design artifacts.
 
 ## Terms
 

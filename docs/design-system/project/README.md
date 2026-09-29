@@ -37,6 +37,16 @@ One theme ships: **Graphite**, dark and single-accent, taken directly from the r
 
 Every mention is a typed link with one activation grammar (Enter goes, Shift+Enter opens beside, Alt+↓ peeks, the Keep button or Shift+K inside a Peek or card keeps it, Shift+F10 opens the link menu). Every pane follows the one selection or is explicitly **Held**. Detail opens in place, outcomes land on the row that invoked them, and the location lives in the URL (`location-schema.json`, shared by both surfaces), so Back, Forward and shared links restore the place; data is read now. See the Linked views section. Keyboard-only, screen-reader, low-vision and motor access are part of the same contract: see the Accessibility section.
 
+## Compiler-aware views
+
+The builds in a project are **variants of one application**: the same code compiled differently, or built from older or newer source. So the compiler-aware views are keyed by the logical entity (a function, field, slot or transformation), with the builds as columns, never by one binary's address. Each difference between builds is classified by **variance class** (compile ≈, entropy ∼, source ≠, unknown ?; ≡ identical is not a class) and shown with its **evidence level** (witness or record solid, hypothesis (heuristic) dashed with its basis, unknown as a word). A class is solid only when source, toolchain and flag identity are recorded for both builds.
+
+- In the Code Browser and Compare: **PointerWalk** (walking a pointer expression step by step), **CompilerLayer** (what the compiler and linker did, as gutter tags), **TransformTimeline** (a reconstructed, ordered explanation, not observed passes), **MatchExplain** (why a candidate is not a byte match; effective ≠ byte match), **FrameLayout** (the stack frame) and **VTableBrowser** (vftable slots).
+- As corpus panels: **ToolchainEvidence** (`panel=toolchain`) and **VariantRelation** (`panel=variants`).
+- Project outputs: **OutputsCatalog** (`panel=outputs`) and **ArtifactCard** show every export and result with its status, claim tier and what it is not. "Delivered" means only that a bounded receipt exists; nothing is observed on 8080 until it is.
+
+All of them are read-only: they read stored detector output, records and receipts, and never compile, compare, detect or export to draw themselves. See State vocabularies (Evidence level, Variance class, Cross-build comparison, Artifact status, compiler annotation tags, match explanation classes) and the Workstation layout section.
+
 ## The six work families
 
 The overview diagram and the app share one family palette. Each family has a deep `-fill` for headers and bands and a bright `-ink` for titles, tags, section labels and edges. Family color says *which work*; it never says whether the work passed.

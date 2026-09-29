@@ -70,3 +70,14 @@ A read-only look at any linked target without leaving the current view: a card b
 - Identifiers carry `translate="no"`; glyphs are `aria-hidden` beside their words.
 
 **Removes switching:** J35 (a stale fact) goes from 3 switches to 0 through the stale Peek, or to 1 when the dependency change is not recorded or not cached. The ledger credits it to U174. The Peek also supplies the reads for J01, J02, J06, J09, J13, J18 and J33, which the ledger credits to their own units.
+
+**Parity extensions (2026-09-29)**
+
+Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): L27, L28, T16, I03, P12.
+
+- **Instruction info (L27).** Alt+↓ on a mnemonic in the Listing opens an instruction card: the build's language id, the instruction prototype, operand objects with their kinds, inputs and outputs (registers and memory), and the raw bytes. It is cache-only like every Peek; until a catalog read action returns instruction info, it reads "Instruction info not loaded. Open to read it." It never re-disassembles.
+- **Speculative disassembly (L28).** On a data or undefined cursor, **Disassemble here (preview)** in the link menu opens an inline Peek of instructions decoded at that address with the build's language, drawn in a dashed frame, labelled "hypothesis", with its basis ("decoded at 0041b210 with build-c's language · not committed"). It never commits code. Committing is **Disassemble (catalog)…** through the ActionStrip, which admits a job.
+- **Type at address (T16).** **Preview type here…** in the link menu takes a type (CacheEntry) and shows its fields laid over the bytes at the address (name_len, flags, next with values), dashed and labelled "hypothesis · not applied". **On every build** repeats the preview at each counterpart address reached through anchors, one block per build; a size or alignment that does not fit reads "does not fit on build-d: 12 of 16 bytes defined". Applying the type is TypeEditor or the ActionStrip, never the Peek.
+- **Checksums (I03).** The checksum card that HexStrip's selection opens is a Peek kind: algorithm rows, range, build, and the per-build rows when requested. It is read-only and keepable.
+- **Program properties (P12).** On an address, **Properties** lists the program's property maps that hold a value there (name, value, build). It is cache-only; "no properties at 0041b210 on build-c" when empty; "Property maps not loaded" until read.
+- The preview is unchanged; these are new content kinds in the existing card and inline forms, with the same Keep, Open beside and cache rules.

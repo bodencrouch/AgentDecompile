@@ -52,3 +52,13 @@ The References section: incoming and outgoing references for the token under the
 - `scroll-padding-block` keeps the focused row clear of the sticky header (2.4.11). Truncated snippets are complete in the row's Peek.
 
 **Removes switching:** J09 (follow a cross-reference and return) goes from 4 view switches to 0, leaving 1 region move and 1 Alt+← back; below 700px, 2 per reference by tab or 0 with `]`/`[`. J14 (a vtable across builds) goes from 6 to 2 through Slots. The ledger credits both to U177.
+
+**Parity extensions (2026-09-29)**
+
+Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): L09, L30, S07.
+
+- **Display options (L09).** Group by function, the ref-type letter (READ, WRITE, CALL, JUMP, DATA as a word or its first letter), sort order, namespace prefix and the maximum shown in the Listing's XREF hint are per-viewer options in OptionsPanel's Cross-reference hints section. The panel and the Listing hint read the same values; the panel's header menu links **Cross-reference options…**.
+- **Thunk references (L30).** A **Show thunk references** filter chip adds references that arrive through thunks, each row marked "via thunk ‹name›" (`resolve-thunk`).
+- **Instructions from and data from (S07).** Beside incoming and outgoing references, the Outgoing direction splits into "instructions from" and "data from", as Ghidra's Symbol References panel does.
+- **Delete reference (L30, S07).** A reference row's link menu has **Delete reference (catalog)…**. It arms the ActionStrip with that one reference on that build (from, to, kind, operand) and confirms through ConfirmDialog because it is destructive; a checked set of references is one batch dialog with the count. It needs the build's writer, may return a modification conflict, and is never propagated to counterparts. Until a catalog action exists the item says "catalog action needed".
+- In All builds mode, deletion stays per build: the per-build columns never offer a cross-build delete. The preview is unchanged; the additions are a chip, a direction split and a link-menu item.

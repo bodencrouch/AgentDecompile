@@ -23,6 +23,9 @@ Every mention of a navigable object is an `<a class="ad-link" href="?…">` over
 | matrix cell (entity × build) | selects that entity and build in place; the EntityBuildCard in the evidence rail follows | yes: entity and build, one stop | the cell (focus stays) |
 | xref hint (XREF[n]) | References at that build and address, Line scope, incoming | no; if the row is not the cursor, the cursor moves with replaceState | the References grid |
 | build | the Navigator program row for that build | no | the program row |
+| artifact | the ArtifactCard (`ws=evidence&panel=outputs&artifact=‹id›`) | no | the card heading |
+| toolchain fact witness | Code Browser at that build and address (Rich header, debug directory, FuncInfo, a cookie check, an ILT start, a padding run) | yes | the Listing row at the address |
+| type or field | the type layout at `type=` for the inspected build; `entity`, `build` and `addr` are kept | no | the field row |
 
 Every "Reveal in" destination follows the same two columns.
 
@@ -136,8 +139,11 @@ Both surfaces load one machine-readable schema, [`location-schema.json`](../loca
 | `entity` | logical entity |
 | `build` · `addr` | inspected build, and address or cursor |
 | `ws` | workspace: `code`, `compare`, `recovery`, `evidence` (four values only) |
-| `panel` | a full corpus view inside a workspace, such as `report` or `atlas`; the target of every "Show all" |
+| `panel` | a full corpus view inside a workspace, such as `report`, `atlas`, `outputs`, `toolchain` or `variants`; the target of every "Show all" |
 | `views` | co-visible code views: listing, decompile, hex, graph |
+| `layers` | annotation layers over the code wells: `compiler` (CompilerLayer). View state, like `views` |
+| `walk` | the PointerWalk chain and current step, `chain[:step]`, e.g. `this.cache.entries[i].name_len:4`; requires `entity`, `build` and `addr` |
+| `artifact` | the open ArtifactCard in OutputsCatalog |
 | `cmp` | split pair, e.g. `build-a..build-c` |
 | `hold` | held center panes only: `kind:id@build[:addr][~basis]`, at most two |
 | `keep` | Kept cards: `kind:id[@build][~basis]`, repeatable, at most three; `hold` and `keep` share one kind list in the schema |
@@ -180,9 +186,9 @@ A URL or history stop that names a project other than the active one never switc
   - list and grid focus moves (arrows, j/k);
   - cursor moves;
   - typing or editing a filter, and removing a filter chip;
-  - `views`, `dock`, `hold` and `keep` changes;
+  - `views`, `layers`, `walk`, `dock`, `hold` and `keep` changes;
   - alias rewrites.
-  At narrow widths `views` and `hold` are never rewritten.
+  At narrow widths `views`, `layers` and `hold` are never rewritten.
 - **Back and Forward.** Browser Back, Alt+←/→ and mouse buttons 4/5 (natively, through popstate) are the app's Back and Forward, and always act on the primary history.
   - Alt+←/→ are not intercepted in text fields or edit mode, and are remappable in `keymap.json`.
   - A stop stores the viewport as an anchor address plus caret, and focus as a stable region + component + row key. It restores workspace, views, split, viewport and focus.

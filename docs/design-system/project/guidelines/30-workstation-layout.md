@@ -55,6 +55,22 @@ Selection-scoped sections, each an APG disclosure (an h3 holding a button), in t
 
 Each corpus section is headed "For ResourceRef::Resolve · build-b" and ends with Show all, which opens the full corpus view (`panel=`) at the same entity and build. Collapsed state is per viewer, in durable workspace state. Expand all and Collapse all are in the rail header menu and the palette. Sections are kept as cards, never held.
 
+## Compiler-aware views and project outputs
+
+Builds are variants of one application, so these views are keyed by logical entity with builds as columns, and every difference carries a variance class and an evidence level (State vocabularies). All of them are read-only.
+
+- **Corpus panels** (`panel=`, each with a rail section and Show all):
+  - **OutputsCatalog** (`ws=evidence&panel=outputs`): every export, output and result by artifact × build, with status, claim tier and its ≠ sentence, basis and the 8080 observation. An artifact opens as an **ArtifactCard** beside it or in the rail (`artifact=`).
+  - **ToolchainEvidence** (`ws=evidence&panel=toolchain`): compiler, linker and flag facts × builds, each value with its evidence level, and the pinned rebuild toolchain with its mismatch notice.
+  - **VariantRelation** (`ws=compare&panel=variants`, with `cmp`): how each pair of builds relates, entity counts by variance class, and a drill-down to the entities.
+- **In the Code Browser and Compare** (secondary pane, rail section, or a layer over the wells; never a new workspace):
+  - **CompilerLayer**: an annotation layer over Listing, DecompileView and SplitCompare (`layers=compiler`), toggled from the Views toolbar.
+  - **PointerWalk** (`walk=`): the expression at the cursor as a chain of typed steps, one offset cell per build.
+  - **TransformTimeline**: one function across a `cmp` pair as an ordered, reconstructed list of transformations.
+  - **MatchExplain**: why a candidate does not byte-match its target, by class, beside ObjectDiff in Recovery and Compare.
+  - **FrameLayout**: the stack frame per build by logical slot.
+  - **VTableBrowser**: the class hierarchy and vftable slots per build by logical method.
+
 ## Breakpoints
 
 - **≥1280px** (`bp-side-dock`): the dock may move to a side rail.

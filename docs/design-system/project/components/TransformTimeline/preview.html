@@ -12,30 +12,30 @@
  </div>
  <ol class="adx-tt" aria-label="Transformations, build-b and build-d, in conventional stage order">
   <li class="endpoint"><span class="k">From</span><div class="m">
-   <div class="what"><strong>Inferred source</strong><span class="small">candidate <a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;ws=recovery&amp;f=src.line:actor.c:88" aria-label="Candidate source r15, actor.c line 88">r15 · actor.c:88</a></span><span class="adx-ev hyp"><b>hypothesis (heuristic)</b>candidate source, not the original</span></div>
+   <div class="what"><strong>Inferred source</strong><span class="small">candidate <a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;ws=recovery&amp;f=src.line:actor.c:88" aria-label="Candidate source r15, actor.c line 88">r15 · actor.c:88</a></span><span class="ad-evd hyp"><b>hypothesis (heuristic)</b>candidate source, not the original</span></div>
    <span class="small muted">Recorded source: build-b r14 · build-d r14 (same digest); toolchain and flags differ, so differences here are compile variance unless a step says otherwise. For build-a ↔ build-b (r12 ↔ r14) most steps read Unknown.</span></div></li>
     <li aria-current="step" tabindex="0"><span class="k">Optimizer</span><div class="m">
-   <div class="what"><strong>Inlined ResourceRef::Resolve</strong><span class="adx-ev hyp"><b>hypothesis (heuristic)</b>clone similarity 0.94; no inline-site record</span></div>
+   <div class="what"><strong>Inlined ResourceRef::Resolve</strong><span class="ad-evd hyp"><b>hypothesis (heuristic)</b>clone similarity 0.94; no inline-site record</span></div>
    <div class="same"><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span><span>b: inlined at 3 instructions · d: call</span></div>
    <span class="adx-var hyp"><b><span aria-hidden="true">≈ </span>Same source, compiled differently</b> · /Ob2 or LTCG · hypothesis (heuristic), basis: equal source digest; recorded /Ob differs</span>
    <div class="ranges"><button type="button" class="ad-btn compact" aria-pressed="true" aria-label="Highlight range in build-b, pressed">b 0041a4c1–0041a4c6</button><button type="button" class="ad-btn compact" aria-pressed="true" aria-label="Highlight range in build-d, pressed">d 0041a7f8 (call)</button><a class="ad-link small" href="/docs/research/2026-09-29-msvc-optimization-for-decomp.md#t3-inlining-ob0ob3-and-__forceinline">research T3</a></div></div></li>
     <li><span class="k">Optimizer</span><div class="m">
-   <div class="what"><strong>Loop rotated, index strength-reduced</strong><span class="adx-ev hyp"><b>hypothesis (heuristic)</b>guard test then bottom test; pointer walk replaces index</span></div>
+   <div class="what"><strong>Loop rotated, index strength-reduced</strong><span class="ad-evd hyp"><b>hypothesis (heuristic)</b>guard test then bottom test; pointer walk replaces index</span></div>
    <div class="same"><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span><span>b: pointer walk in edi · d: index kept in esi</span></div>
    <div class="ranges"><button type="button" class="ad-btn compact" aria-pressed="false" aria-label="Highlight loop range in build-b">b 0041a500–0041a51c</button></div></div></li>
   <li><span class="k">Codegen</span><div class="m">
-   <div class="what"><strong>Calling convention changed</strong><span class="adx-ev hyp"><b>hypothesis (heuristic)</b>callers set ESI; ECX never read in d</span></div>
+   <div class="what"><strong>Calling convention changed</strong><span class="ad-evd hyp"><b>hypothesis (heuristic)</b>callers set ESI; ECX never read in d</span></div>
    <div class="same"><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span><span>b: __thiscall, this in ecx · d: LTCG custom, this in esi</span></div>
    <span class="adx-var"><b><span aria-hidden="true">≈ </span>Same source, compiled differently</b> · LTCG · witness: LTC entries in the build-d Rich header</span> <a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=toolchain&amp;build=build-d" aria-label="Toolchain evidence, build-d">flags in ToolchainEvidence</a></div></li>
   <li><span class="k">Codegen</span><div class="m">
-   <div class="what"><strong>Register allocation</strong><span class="small">this → esi in b; loop pointer edi in b, esi in d</span><span class="adx-ev"><b>witness</b>bytes</span></div>
+   <div class="what"><strong>Register allocation</strong><span class="small">this → esi in b; loop pointer edi in b, esi in d</span><span class="ad-evd solid"><b>witness</b>bytes</span></div>
    <div class="same"><span class="adx-cmp"><b aria-hidden="true">±</b>differs: consistent pattern (esi ↔ edi)</span></div></div></li>
   <li><span class="k">Codegen</span><div class="m">
-   <div class="what"><strong>Hotpatch prologue</strong><span class="adx-ev"><b>witness</b>8B FF and 5-byte pad</span></div>
+   <div class="what"><strong>Hotpatch prologue</strong><span class="ad-evd solid"><b>witness</b>8B FF and 5-byte pad</span></div>
    <div class="same"><span class="adx-cmp"><b aria-hidden="true">±</b>differs</span><span>b: present · d: absent</span></div>
    <span class="adx-var"><b><span aria-hidden="true">≈ </span>Same source, compiled differently</b> · /hotpatch · record: link flags for build-b</span> <a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=toolchain&amp;build=build-b" aria-label="Toolchain evidence, build-b">flags in ToolchainEvidence</a></div></li>
     <li class="endpoint"><span class="k">To</span><div class="m">
-   <div class="what"><strong>Observed bytes</strong><span class="small"><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=90&amp;build=build-d&amp;addr=0041a7d0" aria-label="Address 0041a7d0, build-d">d 0041a7d0</a> · <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=90&amp;build=build-b&amp;addr=0041a4a0" aria-label="Address 0041a4a0, build-b">b 0041a4a0</a></span><span class="adx-ev"><b>witness</b>bytes</span></div></div></li>
+   <div class="what"><strong>Observed bytes</strong><span class="small"><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=90&amp;build=build-d&amp;addr=0041a7d0" aria-label="Address 0041a7d0, build-d">d 0041a7d0</a> · <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=90&amp;build=build-b&amp;addr=0041a4a0" aria-label="Address 0041a4a0, build-b">b 0041a4a0</a></span><span class="ad-evd solid"><b>witness</b>bytes</span></div></div></li>
  </ol>
  <div class="adx-hidden">3 hidden, the same in both builds: EH states assigned (front end) · ÷ 10 (optimizer) · callee folded with 3 functions (link) · <a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;cmp=build-b..build-d">Show all</a></div>
  <div class="adc-status"><span><span class="k">↑ ↓</span> step</span><span><span class="k">Enter</span> highlight its ranges and move the cursor to the first</span><span><span class="k">Alt+↓</span> peek the evidence</span></div>

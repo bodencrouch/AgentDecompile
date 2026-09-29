@@ -42,3 +42,11 @@ Per-entity history in the evidence rail: receipts, jobs, facts changing state, n
 - Filtering or reading older events never moves focus or the selection (WCAG 3.2.2). `scroll-padding-block` keeps the focused event clear of the header (2.4.11). Chain links are 24px tall, 44px below 700px (2.5.8).
 
 **Removes switching:** the ledger's counts, with their credits: J02 "fact → receipt → job" 5 → 1, J19 "which entities did this job change" 4 → 1 through the Changed link, and J03 "which stage produced this receipt" 4 → 0 where the verb is mapped, all credited to U180. J35 "why is this fact stale" 3 → 0 (1 when the basis evidence is not cached) is credited to U174; the event's reason supports it. Add 1 below 700px wherever the dock is involved.
+
+**Parity extensions (2026-09-29)**
+
+Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): A07, S10.
+
+- **Comment history (A07).** Comment edits become events of kind "comment": the comment type (EOL, pre, post, plate, repeatable), the address, before and after text, who made it (you, agent, external) and the job or inline edit. Read from the program's comment history through a catalog read action; until one exists, older comment edits read "comment history not recorded before ‹time›" and only edits made through this workbench appear.
+- **Label history (S10).** Label adds, renames and removals become events of kind "label", with before and after names, the symbol source (user, analysis, imported, default) and the job. NameProvenance keeps the tier; the timeline keeps the order.
+- Both kinds are per build: an entity's timeline shows the build on each event, and a propagated rename shows one event per recipient. The existing filter gains "Comments" and "Labels". The preview is unchanged.

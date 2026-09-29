@@ -17,9 +17,9 @@ The symbol hierarchy of the project as an APG treegrid: Imports, Exports, Functi
 1. **Header.** "Symbols · corpus-alpha" and a **Scope** segmented control: **Logical · all builds** or **build-a only** (one concrete build).
    - The logical scope is keyed by entity, with one presence column per build.
    - The build scope is exactly that program's own symbol tree (Ghidra parity), with one address column.
-   - Beside the control sits the writer line per build: "build-b · lock held by another session (agent) · edits wait". It is never a kill or restart control.
-2. **Filter.** `/` opens the tree filter: strategy (contains, starts with, exact, glob, regular expression), multi-term (all terms or any term), and "match on name only" or "name and namespace". Filtered-out ancestors stay shown dimmed, so the path is never lost. The count reads "38 of 4,112 symbols".
-3. **Categories** (fixed, not editable): Imports · Exports · Functions · Labels · Classes · Namespaces.
+   - Beside the control sits the writer line per build: "build-b · lock owned by another session (agent) · edits wait". It is never a kill or restart control.
+2. **Filter.** `/` opens the tree filter: strategy (contains, starts with, exact, glob, regular expression), multi-term (all terms or any term), case sensitive, invert (show what does not match), and "match on name only" or "name and namespace" (Ghidra's Use path). Filtered-out ancestors stay shown dimmed, so the path is never lost. The count reads "38 of 4,112 symbols".
+3. **Categories** (fixed, not editable): Imports · Exports · Functions · Labels · Classes · Namespaces. **Hide category** and **Show category** (Ghidra's Disable and Enable Category) are per-viewer view state; a hidden category is listed in the header ("Labels hidden · Show").
    - Large categories show **group nodes** by common prefix ("FUN_0041… · 312"), as Ghidra does, with their counts.
    - Group nodes are organizational only and cannot be renamed or dropped onto.
 4. **Nodes.** A disclosure button (24px), the kind word (namespace, class, function, label, parameter, library, external location, external function), and the name as a typed link.
@@ -45,7 +45,8 @@ The symbol hierarchy of the project as an APG treegrid: Imports, Exports, Functi
    - Convert namespace to class;
    - Move to… (a namespace picker), and Cut and Paste for the same move;
    - Delete…;
-   - Imports only: Create library…, Set external program…, Create external location… and Edit external location… (with Restore original label when the importer recorded one), and Create external function.
+   - Imports only: Create library…, Set external program…, Clear external program…, Move library up and Move library down (the library search order), Create external location… and Edit external location… (with Restore original label when the importer recorded one), and Create external function.
+   - Reads, in the Open and Reveal groups: Show references to (XrefPanel), Make selection (the node's addresses on one build, client state) and Create table from selection (a ResultsTable of the checked nodes, symbols kind, on one build).
 
 ## Edits and the multi-build rules
 
@@ -63,7 +64,7 @@ The symbol hierarchy of the project as an APG treegrid: Imports, Exports, Functi
 
   Each recipient gets its own outcome. Nothing is applied automatically.
 - **External locations are program-local.** A library's external program and an external location belong to one build and are never proposed to counterparts. Set external program lists only programs already in this project, and choosing one opens nothing.
-- **One writer.** When the build's lock is held, Edit items stay listed with "build-b has a writer: another session (agent) · your edit waits for it". Run is refused with that reason. Admission never offers to stop the other owner.
+- **One writer.** When the build's lock is owned elsewhere, Edit items stay listed with "build-b has a writer: another session (agent) · your edit waits for it". Run is refused with that reason. Admission never offers to stop the other owner.
 - **Undo is honest.** After a terminal result, the status line offers Undo only when the catalog exposes undo for that program's transaction. It states the scope ("Undo on build-a only; build-c's proposed copy has its own outcome"). A deleted symbol's references stay unnamed if undo is not available, and the dialog says so before Delete.
 
 ## States
@@ -105,17 +106,18 @@ The symbol hierarchy of the project as an APG treegrid: Imports, Exports, Functi
 - `role="treegrid"` named "Symbols, corpus-alpha, logical, 4 builds", with `aria-level`, `aria-expanded`, `aria-setsize` and `aria-posinset` on rows. The name cell is the row header. Presence cells are grid cells named in words ("build-c: resolved, 00082f40, accepted").
 - LocatorGlyph glyphs are `aria-hidden`; the word is always visible. "absent" is never an empty cell.
 - Rows with a pending or finished edit carry their OutcomeCell words. Transitions are announced once in the polite region ("Rename on build-a finished, job a3f9").
-- The writer line is text, not color: "lock held by another session".
+- The writer line is text, not color: "lock owned by another session".
 
 ## Parity rows covered
 
 - **S01**: the hierarchy of Imports, Exports, Functions, Labels, Classes and Namespaces, with group nodes and parameters under functions, and per-build presence.
 - **S02**: create namespace or class, convert namespace to class, move by cut and paste, Move to… or drag, delete, and rename. Each is per-build, then proposed to counterparts.
-- **S03**: external locations and libraries: create library, set external program, create and edit external location, restore the original label, create external function. All are program-local.
+- **S03**: external locations and libraries: create library, set and clear the external program, library order, create and edit external location, restore the original label, create external function. All are program-local.
 - **S12**: namespaces and classes for functions and labels, through Move to… and the class and namespace nodes. SignatureEditor's namespace field uses the same picker.
 - **F05**: external functions under Imports, with a logical row per import across builds.
 - **S04** (navigation mode and snapshot) stays with Following and HeldPane. This tree adds "Reveal current".
-- **I10**: the tree-filter part: strategies, multi-term and globbing.
+- **I10**: the tree-filter part: strategies, multi-term, globbing, case sensitivity, invert and use path.
+- Also from `SymbolTree.htm`: show references to, make selection, create table from selection, and disable or enable a category (as per-viewer hide and show).
 
 ## Prior art
 

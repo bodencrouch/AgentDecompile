@@ -13,10 +13,11 @@ The one generic results table behind every Ghidra-style list: search hits, refer
 
 ## Anatomy
 
-1. **Header.** Kind and title ("Search memory · hex `8b 46 04 ?? 85 c0`"), the scope words ("All builds · build-a, build-b, build-c · build-d not loaded"), the snapshot ("as of 14:02"), per-build counts, and a **Refresh** that re-runs the same read. Refresh never widens the scope.
+1. **Header.** Kind and title ("Search memory · hex `8b 46 04 ?? 85 c0`"), the scope words ("All builds · build-a, build-b, build-c · build-d not loaded"), the snapshot ("as of 14:02"), per-build counts, a **Refresh** that re-runs the same read (Refresh never widens the scope), and **Rename table…**, which sets this table's title for the viewer (Ghidra's Renaming Windows; per viewer, never program data).
 2. **Truncation line**, only when a limit was hit: "Stopped at 500 hits on build-a; more may exist. Raise the limit in the search's fields and run again." A count is never rounded or projected. An unsearched build reads "build-d not loaded · not searched", never "0".
 3. **Toolbar** (APG Toolbar):
-   - **Filter** field with strategy (contains, starts with, exact, glob, regular expression), multi-term (all or any), and "match on" (visible columns, or the chosen column);
+   - **Filter** field with strategy (contains, starts with, exact, glob, regular expression), multi-term (all or any), case sensitive, invert, and "match on" (visible columns, or the chosen column);
+   - **Navigate on focus** (`aria-pressed`, on by default): Ghidra's Selection Navigation and single-click navigation. Off, row focus moves nothing and only Enter goes;
    - **Column filters** as FilterChips carried as the registered `f=` axes `results.build`, `results.kind`, `results.defined`, `results.refs` and `results.source`, for example "Build is build-c ×" (`f=results.build:build-c`), "Kind is call ×" (`f=results.kind:call`), "Defined is not defined ×" (`f=results.defined:not-defined`), "Refs ≥ 3 ×" (`f=results.refs:≥3`), "Source is user ×" (`f=results.source:user`);
    - **Columns…** (choose, reorder, reset; Fit to content and Default width per column, so nothing needs dragging);
    - **Copy** (the focused cell, the row, or the checked rows; columns chosen);
@@ -45,11 +46,11 @@ The one generic results table behind every Ghidra-style list: search hits, refer
 |---|---|---|
 | Search hits (memory, text, instruction, scalar, decompiled text) | Location, Match bytes or text, Match value, Label, Code unit, Function | Make selection, Collect, Make string or data where offered |
 | Symbols (S05) | Name, Location, Type, Namespace, Source, Refs, Offcut refs | Rename…, Delete…, Set primary…, Keep at address on rebase… (Ghidra "pin symbol"), Delete references… |
-| Defined strings (A01) | Location, String, Type, Length, Charset, Referencing functions | Translate… (A03), Make selection |
+| Defined strings (A01) | Location, String, Type, Length, Charset, Referencing functions | Translate… (A03), Settings… (charset and rendering of the string data; catalog, ConfirmDialog for more than one row), Make selection |
 | Found strings (Q06) | Defined state, Location, Label, Preview, String, Type, Length, Is word | Make string…, Make char array… (offset, auto label) |
 | Defined data (A02) | Location, Data type, Value, Label, Size | Make selection; a type filter chip |
 | Comments (A08) | Location, Kind (EOL, pre, post, plate, repeatable), Text, Function | Comment… (InlineRename comment mode, one target) |
-| Equates (P06) | Name, Value, Refs, Enum-backed, Display | Rename…, Remove…, Apply enum…, Convert display… (signed or unsigned decimal, hex, octal, char, binary, float, double) |
+| Equates (P06) | Name, Value, Refs, Enum-backed, Display | Rename…, Remove…, Apply enum…, Show enum (TypeManager at that enum), Edit enum… (TypeEditor enum mode), Convert display… (signed or unsigned decimal, hex, octal, char, binary, float, double) |
 | Relocations (P05) | Address, Type, Values, Original bytes, Symbol | none; read-only, feeds ObjectDiff's relocation-aware equality |
 | Function tags (F14) | Tag, Comment, Use count per build | Create…, Edit…, Delete…, Add to checked functions…, Remove from checked functions…, Load tags… |
 | Types (T17) | Name, Category, Size, Kind, Uses per build | open in TypeManager (Go); program types only filter |
@@ -72,7 +73,7 @@ The one generic results table behind every Ghidra-style list: search hits, refer
 - Batch, destructive or cross-build actions use ConfirmDialog. This covers delete, a batch rename, Make table, Disassemble targets, Make string on several rows, Apply enum, and a batch display conversion. The dialog names the build, the count and the known references ("Delete 12 symbols on build-b · 31 references become unnamed").
 - **Disassemble targets** (E11) is an admitted analysis job on one build (NA). It never runs from a row activation, and the dialog says it starts disassembly.
 - Tags and names can be proposed to counterparts afterwards through PropagationTransfer, only along accepted identity edges. Equate names are offered only at anchor-aligned operands. Relocations, memory hits and address tables are program-local.
-- One writer: with the build's lock held, actions stay listed with the reason, and Run is refused.
+- One writer: with the build's lock owned elsewhere, actions stay listed with the reason, and Run is refused.
 - Each affected row gets its OutcomeCell after the terminal result. Nothing is optimistic.
 
 ## States
@@ -128,11 +129,11 @@ The one generic results table behind every Ghidra-style list: search hits, refer
 - **S05** and **S06**: the Symbol Table, with its columns, filters, rename, delete symbols or references, set primary, pin (as "keep at address on rebase"), make selection and temporary tables.
 - **T17**: data types as a flat table with a program-types filter.
 - **P05**: the relocation table. **P06**: the equates table with rename, remove, apply enum and convert display.
-- **A01**: defined strings. **A02**: defined data. **A03**: translate as a row action. **A08**: the comment window.
+- **A01**: defined strings, with refresh and settings. **A02**: defined data. **A03**: translate as a row action. **A08**: the comment window.
 - **F14**: the function tag window.
 - **E11**: make address tables and disassemble their targets.
-- **Q09**: the search results window: navigation, rename, make selection, remove items, and selection navigation through worklists.
-- **I10**: sort (including multi-column), choose columns, column settings and filters, copy, CSV export, and filter strategies.
+- **Q09**: the search results window: navigation (Navigate on focus), renaming the window (Rename table…), make selection, remove items, and stepping through worklists. Its marker-margin part is the OverviewBar hits lane and the Listing marker margin.
+- **I10**: sort (including multi-column), choose columns, column settings and filters, copy, CSV export, select all (the check-all cell), and filter strategies with case sensitivity and invert.
 - The result side of **Q01–Q08**, **Q10** and **Q12**.
 
 ## Prior art

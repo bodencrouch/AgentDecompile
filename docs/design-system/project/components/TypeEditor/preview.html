@@ -1,4 +1,4 @@
-<!-- @dsCard group="Code" height=2100 -->
+<!-- @dsCard group="Code" height=2590 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">Structure mode · rows keyed by logical field · one offset column per build · layout check per build before Save</span>
 <form class="ade" aria-labelledby="te-t">
@@ -26,10 +26,10 @@
    <tr aria-selected="true"><th scope="row"><code translate="no">name_len</code></th><td><code translate="no">ushort</code> → <code translate="no">uint</code><span class="w">retype · overwrites filler +0x2..+0x3</span></td><td class="b target">+0x0 : 2 → 4</td><td class="b">+0x0 : 2</td><td class="b">+0x0 : 2</td><td class="b">+0x0 : 2</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>same</span></td><td>length without the terminator</td></tr>
    <tr><th scope="row"><span class="muted">filler</span></th><td><span class="muted">undefined 2 → none</span></td><td class="b target">+0x2 : 2 → 0</td><td class="b">+0x2 : 2</td><td class="b">+0x2 : 2</td><td class="b">+0x2 : 2</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>same</span></td><td></td></tr>
    <tr><th scope="row"><code translate="no">flags</code></th><td><a class="ad-link" href="?project=corpus-alpha&amp;type=CacheEntryFlags&amp;build=build-a" translate="no" aria-label="Type CacheEntryFlags, build-a">CacheEntryFlags</a></td><td class="b target">+0x4 : 4</td><td class="b">+0x4 : 4</td><td class="b">+0x4 : 4</td><td class="b">+0x4 : 4</td><td><span class="ade-m ok"><b aria-hidden="true">↔</b>same</span></td><td></td></tr>
-   <tr><th scope="row"><span class="muted">filler</span></th><td><span class="muted">undefined</span></td><td class="b target">+0x8 : 8</td><td class="b">+0x8 : 8</td><td class="b">+0x8 : 0xc</td><td class="b">+0x8 : 0x10</td><td><span class="ade-m diff"><b aria-hidden="true">±</b>resized</span></td><td></td></tr>
-   <tr><th scope="row"><code translate="no">next</code></th><td><code translate="no">CacheEntry *</code></td><td class="b target">+0x10 : 4</td><td class="b">+0x10 : 4</td><td class="b">+0x18 : 4</td><td class="b">+0x18 : 8</td><td><span class="ade-m diff"><b aria-hidden="true">±</b>shifted on build-c, build-d</span><span class="w"><span class="ad-evd hyp"><b class="cls">compile variance</b> hypothesis · <span class="basis">basis: same fields in the same order</span></span></span></td><td>chain in the bucket</td></tr>
+   <tr><th scope="row"><span class="muted">filler</span></th><td><span class="muted">undefined</span></td><td class="b target">+0x8 : 8</td><td class="b">+0x8 : 8</td><td class="b">+0x8 : 0x10</td><td class="b">+0x8 : 0x10</td><td><span class="ade-m diff"><b aria-hidden="true">±</b>resized</span></td><td></td></tr>
+   <tr><th scope="row"><code translate="no">next</code></th><td><code translate="no">CacheEntry *</code></td><td class="b target">+0x10 : 4</td><td class="b">+0x10 : 4</td><td class="b">+0x18 : 4</td><td class="b">+0x18 : 8</td><td><span class="ade-m diff"><b aria-hidden="true">±</b>shifted on build-c, build-d</span><span class="w"><span class="ad-evd hyp"><b class="cls"><span aria-hidden="true">≈ </span>compile variance</b> hypothesis (heuristic) on build-c · <span class="basis">basis: same fields in the same order; only filler differs; flags and source identity not recorded for build-c</span></span></span></td><td>chain in the bucket</td></tr>
    <tr><th scope="row"><span class="muted">filler</span></th><td><span class="muted">undefined</span></td><td class="b target">+0x14 : 4</td><td class="b">+0x14 : 4</td><td class="b">+0x1c : 0</td><td class="b">+0x20 : 0</td><td><span class="ade-m diff"><b aria-hidden="true">±</b>resized</span></td><td></td></tr>
-   <tr><th scope="row"><span class="muted">size · align</span></th><td></td><td class="b target">0x18 · 4</td><td class="b">0x18 · 4</td><td class="b">0x1c · 4</td><td class="b">0x20 · 8<span class="w">as read 13:40</span></td><td><span class="ad-evd solid"><b class="cls">compile variance</b> <span class="basis">witness: build-d language is x86-64, pointer width 8</span></span></td><td></td></tr>
+   <tr><th scope="row"><span class="muted">size · align</span></th><td></td><td class="b target">0x18 · 4</td><td class="b">0x18 · 4</td><td class="b">0x1c · 4</td><td class="b">0x20 · 8<span class="w">as read 13:40</span></td><td><span class="ad-evd solid"><b class="cls"><span aria-hidden="true">≈ </span>compile variance</b> on build-d · <span class="basis">witness: build-d language is x86-64, pointer width 8</span></span></td><td></td></tr>
   </tbody>
  </table>
  </div>
@@ -77,8 +77,8 @@
 <div>
  <span class="kicker">Bitfields · bit view of one storage unit; dotted cells are padding</span>
  <div class="ade" role="group" aria-labelledby="te-bf-t">
-  <header><h4 id="te-bf-t">Bitfield <code translate="no">flags : 3</code> at +0x4</h4><span class="end">bit 0, width 3, base uint</span></header>
-  <div class="ade-sec"><div class="ade-bits" role="img" aria-label="Bits 0 to 15 of the storage unit at +0x4: bits 0 to 2 are flags, bits 3 to 15 are padding"><i class="f">0</i><i class="f">1</i><i class="f">2</i><i class="pad">3</i><i class="pad">4</i><i class="pad">5</i><i class="pad">6</i><i class="pad">7</i><i class="pad">8</i><i class="pad">9</i><i class="pad">10</i><i class="pad">11</i><i class="pad">12</i><i class="pad">13</i><i class="pad">14</i><i class="pad">15</i></div><p class="small muted">Bits 0–2 <code translate="no">flags</code> · bits 3–31 padding. Bit order follows each build's endianness; all four builds are little-endian.</p></div>
+  <header><h4 id="te-bf-t">Bitfield <code translate="no">state : 3</code> in a 2-byte storage unit</h4><span class="end">bit 0, width 3, base ushort · draft example</span></header>
+  <div class="ade-sec"><div class="ade-bits" role="img" aria-label="Bits 0 to 15 of a 2-byte storage unit: bits 0 to 2 are state, bits 3 to 15 are padding"><i class="f">0</i><i class="f">1</i><i class="f">2</i><i class="pad">3</i><i class="pad">4</i><i class="pad">5</i><i class="pad">6</i><i class="pad">7</i><i class="pad">8</i><i class="pad">9</i><i class="pad">10</i><i class="pad">11</i><i class="pad">12</i><i class="pad">13</i><i class="pad">14</i><i class="pad">15</i></div><p class="small muted">Bits 0–2 <code translate="no">state</code> · bits 3–15 padding. Bit order follows each build's endianness; all four builds are little-endian.</p></div>
  </div>
 </div>
 <div>
@@ -86,7 +86,7 @@
  <div class="ade" role="group" aria-labelledby="te-pt-t">
   <header><h4 id="te-pt-t">Pointer to <code translate="no">CacheEntry</code> with offset</h4><span class="end">Edit data type (catalog)</span></header>
   <div class="ade-tgt"><span class="ade-bld target">build-a</span><span>pointer width 4 on build-a · 8 on build-d</span></div>
-  <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="te-po">Offset</label><div class="val"><input class="adc-in num" id="te-po" value="-0x4" translate="no"><span class="muted">points 4 bytes into <code translate="no">CacheEntry</code> (field <code translate="no">flags</code>)</span></div><label class="lbl" for="te-ps">Space</label><div class="val"><select class="adc-in" id="te-ps"><option>default</option><option>image-base relative</option></select></div></div></div>
+  <div class="ade-sec"><div class="ade-flds"><label class="lbl" for="te-po">Offset</label><div class="val"><input class="adc-in num" id="te-po" value="0x4" translate="no"><span class="muted">the pointer holds the base plus 0x4: it points at field <code translate="no">flags</code> of <code translate="no">CacheEntry</code></span></div><label class="lbl" for="te-ps">Address space</label><div class="val"><select class="adc-in" id="te-ps"><option>default</option></select></div><label class="lbl" for="te-pty">Pointer type</label><div class="val"><select class="adc-in" id="te-pty"><option>default</option><option>image-base relative</option><option>relative</option><option>file offset</option></select></div><label class="lbl" for="te-pm">Offset mask</label><div class="val"><input class="adc-in num" id="te-pm" value="none" translate="no"></div><label class="lbl" for="te-psh">Offset shift</label><div class="val"><input class="adc-in num" id="te-psh" value="0" translate="no"><span class="muted">bits; left is negative</span></div></div></div>
  </div>
 </div>
 <div>
@@ -104,6 +104,27 @@
   <div class="ade-tgt"><span class="ade-bld target">build-a</span><span>from <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a></span></div>
   <div class="ade-sec"><code translate="no" class="small">int __thiscall ResolveFn(ResourceRef *this, char *name, uint size)</code><p class="small muted">The convention comes from build-a's compiler spec. On build-c the same function uses custom register storage, so this definition is not offered there.</p></div>
  </div>
+</div>
+<div>
+ <span class="kicker">Read-only following form · Walk pointers preset · follows PointerWalk's current step · no draft, Save or Propose</span>
+ <section class="ade" role="region" aria-labelledby="te-ro-t">
+  <header><h4 id="te-ro-t">Type at the walk's current step · <code translate="no">CacheEntry</code> · read-only</h4><span class="end">Following PointerWalk · step 3 of 3 · <code translate="no">next</code> · inspected build-a</span></header>
+  <div class="ade-grid ad-scroll" tabindex="0" role="region" aria-label="Components at the current step, scrollable">
+  <table class="ad-table" role="grid" aria-readonly="true" aria-label="Components of CacheEntry, read-only, offsets per build">
+   <thead><tr><th scope="col">Field</th><th scope="col">Type</th><th scope="col" class="b">build-a</th><th scope="col" class="b">build-b</th><th scope="col" class="b">build-c</th><th scope="col" class="b">build-d</th></tr></thead>
+   <tbody>
+    <tr><th scope="row"><code translate="no">name_len</code></th><td class="mono" translate="no">ushort</td><td class="b">+0x0 : 2</td><td class="b">+0x0 : 2</td><td class="b">+0x0 : 2</td><td class="b">+0x0 : 2</td></tr>
+    <tr><th scope="row"><span class="muted">filler</span></th><td class="muted">undefined</td><td class="b">+0x2 : 2</td><td class="b">+0x2 : 2</td><td class="b">+0x2 : 2</td><td class="b">+0x2 : 2</td></tr>
+    <tr><th scope="row"><code translate="no">flags</code></th><td class="mono" translate="no">CacheEntryFlags</td><td class="b">+0x4 : 4</td><td class="b">+0x4 : 4</td><td class="b">+0x4 : 4</td><td class="b">+0x4 : 4</td></tr>
+    <tr><th scope="row"><span class="muted">filler</span></th><td class="muted">undefined</td><td class="b">+0x8 : 8</td><td class="b">+0x8 : 8</td><td class="b">+0x8 : 0x10</td><td class="b">+0x8 : 0x10</td></tr>
+    <tr aria-current="true" class="ade-cur"><th scope="row"><code translate="no">next</code> <span class="small">current step</span></th><td class="mono" translate="no">CacheEntry *</td><td class="b">+0x10 : 4</td><td class="b">+0x10 : 4</td><td class="b">+0x18 : 4</td><td class="b">+0x18 : 8</td></tr>
+    <tr><th scope="row"><span class="muted">filler</span></th><td class="muted">undefined</td><td class="b">+0x14 : 4</td><td class="b">+0x14 : 4</td><td class="muted b">none</td><td class="muted b">none</td></tr>
+    <tr><th scope="row"><span class="muted">size</span></th><td></td><td class="b">0x18</td><td class="b">0x18</td><td class="b">0x1c</td><td class="b">0x20</td></tr>
+   </tbody>
+  </table>
+  </div>
+  <div class="ade-foot"><button class="ad-btn" type="button" aria-haspopup="menu" aria-expanded="false">Edit on build-a…</button><span class="note">Opens the editor in the center, bound to build-a; the menu lists build-b and build-c by name, never all builds. Reads stored layouts only; nothing is decompiled or analyzed.</span></div>
+ </section>
 </div>
 <div>
  <span class="kicker">Modification conflict · resolved explicitly, never by arrival order</span>

@@ -4,7 +4,7 @@
 <section class="ad-g3" aria-labelledby="sc-t">
  <header class="ad-g3-head">
   <h3 id="sc-t">Scripts <span class="sub">· corpus-alpha · advanced</span></h3>
-  <div class="ad-notice caution" role="note"><b aria-hidden="true">!</b><div><h4>A script can change anything in a program</h4><p>Each run is one catalog job against one named build and confirms first. Its writes are not limited to what the script's description says. Scripts are not catalog entries and have no keys of their own.</p></div><span></span></div>
+  <div class="ad-notice caution" role="note"><b aria-hidden="true">⚑</b><div><h4>A script can change anything in a program</h4><p>Each run is one catalog job against one named build and confirms first. Its writes are not limited to what the script's description says. Scripts are not catalog entries and have no keys of their own.</p></div><span></span></div>
   <div class="ad-tabs" role="tablist" aria-label="Scripts views">
    <button class="ad-tab" role="tab" aria-selected="true" aria-controls="sc-p1" id="sc-tab1">Manager</button>
    <button class="ad-tab" role="tab" aria-selected="false" tabindex="-1" id="sc-tab2">Interpreter</button>
@@ -15,11 +15,11 @@
  <div id="sc-p1" role="tabpanel" aria-labelledby="sc-tab1" class="ad-g3-sec">
   <div class="ad-tools" role="group" aria-label="Script filter">
    <span><label class="lbl" for="sc-f">Filter</label><input class="adc-in sans auto" id="sc-f" type="text" value="cache" aria-describedby="sc-fn"></span>
-   <span class="small muted" id="sc-fn" role="status">2 of 148 scripts match "cache" in name or description</span>
+   <span class="small muted" id="sc-fn">2 of 148 scripts match "cache" in name or description</span>
   </div>
   <div class="ad-g3-cols">
    <ul class="ad-g3-tree" role="tree" aria-label="Script categories">
-    <li role="treeitem" aria-expanded="true" aria-selected="false" tabindex="-1"><span><span class="chev" aria-hidden="true">▾</span>Scripts<span class="n">148</span></span>
+    <li role="treeitem" aria-expanded="true" aria-selected="false" tabindex="-1"><span><span class="chev" aria-hidden="true">▾</span>Scripts<span class="n">2 of 148</span></span>
      <ul role="group">
       <li role="treeitem" aria-selected="true" tabindex="0"><span>Data types<span class="n">2</span></span></li>
       <li role="treeitem" aria-selected="false" tabindex="-1"><span>Functions<span class="n">0</span></span></li>
@@ -75,8 +75,9 @@
     <table class="ad-table ad-g3-grid"><caption class="sr-only">Per-build preview of the script run</caption>
      <thead><tr><th scope="col">Build</th><th scope="col">Script state passed</th><th scope="col">Writer</th></tr></thead>
      <tbody>
-      <tr><th scope="row" class="nw"><span class="nm">build-b</span></th><td>current address: counterpart of ResourceRef::Resolve through an accepted edge · no selection</td><td><span class="ad-g3-st lock col"><b aria-hidden="true">●</b>owned by job 77c0 · external<span class="m">this job waits in admission</span></span></td></tr>
-      <tr><th scope="row" class="nw"><span class="nm">build-c</span></th><td>current address <span class="mono">00082f40</span> · no selection</td><td><span class="ad-g3-st on"><b aria-hidden="true">○</b>free</span></td></tr>
+      <tr><th scope="row" class="nw"><span class="nm">build-b</span></th><td>current address <span class="mono">0041b2c0</span> (ResourceRef::Resolve through an accepted edge) · no selection</td><td><span class="ad-g3-st lock col"><b aria-hidden="true">●</b>owned by job 77c0 · external<span class="m">this job waits in admission</span></span></td></tr>
+      <tr><th scope="row" class="nw"><span class="nm">build-c</span></th><td>current address <span class="mono">00082f40</span> (accepted edge) · no selection</td><td><span class="ad-g3-st on"><b aria-hidden="true">○</b>free</span></td></tr>
+      <tr><th scope="row" class="nw"><span class="nm">build-d</span></th><td><span class="ad-absent">◌ unresolved</span> · no counterpart on build-d · not runnable there, not included</td><td class="muted">not checked</td></tr>
      </tbody>
     </table>
     </div>
@@ -88,13 +89,13 @@
  <div class="ad-g3-sec">
   <h4>Transcript · job a3f9 · build-a</h4>
   <div class="ad-tools" role="toolbar" aria-label="Transcript view">
-   <button class="ad-btn" type="button" aria-pressed="true">Scroll lock</button>
+   <button class="ad-btn" type="button" aria-pressed="true">Pause scrolling</button>
    <button class="ad-btn" type="button" aria-describedby="sc-clr">Clear view</button>
    <button class="ad-btn" type="button" aria-keyshortcuts="Control+F">Find</button>
    <span class="small muted" id="sc-clr">Clear view hides lines here only; the job's log is kept.</span>
   </div>
   <div class="well"><pre class="ad-g3-tx" aria-label="Console transcript, job a3f9, build-a, read-only"><span class="j">a3f9 14:02:01</span> ApplyCacheEntryLayout.py on build-a · current address <a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041b210" aria-label="Address 0041b210, build-a" translate="no">0041b210</a>
-<span class="j">a3f9 14:02:03</span> applied CacheEntry at 12 addresses in <a class="ad-link" href="?project=corpus-alpha&amp;entity=ResourceRef::Resolve&amp;build=build-a&amp;addr=0041b210" aria-label="Function ResourceRef::Resolve, 0041b210, build-a" translate="no">ResourceRef::Resolve</a>
+<span class="j">a3f9 14:02:03</span> applied CacheEntry at 12 addresses in <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" aria-label="Function ResourceRef::Resolve, 0041b210, build-a" translate="no">ResourceRef::Resolve</a>
 <span class="j">a3f9 14:02:03</span> transaction "ApplyCacheEntryLayout.py" committed · 12 changes
 <span class="err"><span class="j">c4e1 13:40:17</span> <b aria-hidden="true">✕</b> ListCacheEntryUses.java:41: cannot find symbol next_entry</span></pre></div>
   <p class="ad-g3-note">Job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, finished">a3f9</a> finished. Its transaction is in <a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;panel=history" aria-label="Edit history, build-a">EditHistory for build-a</a>. A finished job is not a match.</p>
@@ -106,7 +107,7 @@
   <span class="kicker">Interpreter · one confirmed session per build · each line is a job</span>
   <section class="ad-g3" aria-label="Interpreter session, build-a" style="padding:0;gap:0">
    <div class="ad-scon-bind"><span>Session on <strong>build-a</strong></span><span>confirmed 14:10 · 3 lines run</span><span>switching build ends the session</span></div>
-   <div class="well" style="border:0"><pre class="ad-g3-tx" aria-label="Interpreter transcript, build-a"><span class="in">&gt;&gt;&gt; getFunctionAt(toAddr(0x0041b210)).getName()</span>
+   <div class="well" style="border:0"><pre class="ad-g3-tx" aria-label="Interpreter transcript, build-a"><span class="in">&gt;&gt;&gt; getFunctionAt(toAddr(0x0041b210)).getName(True)</span>
 <span class="j">b7e2</span> 'ResourceRef::Resolve'
 <span class="in">&gt;&gt;&gt; len(getReferencesTo(toAddr(0x0041b210)))</span>
 <span class="j">b7e3</span> Progress unknown · last event 14:11:02</pre></div>
@@ -130,7 +131,7 @@
  </div>
  <div>
   <span class="kicker">Advanced off · the panel is hidden, not disabled</span>
-  <div class="ad-notice info"><b aria-hidden="true">i</b><div><h4>Scripts are an advanced tool</h4><p>Turn on Advanced in View settings to show Scripts. Reading past transcripts in the dock does not need it.</p></div><span></span></div>
+  <div class="ad-notice unknown"><b aria-hidden="true">⊡</b><div><h4>Scripts are an advanced tool</h4><p>Turn on Advanced in View settings to show Scripts. Reading past transcripts in the dock does not need it.</p></div><span></span></div>
  </div>
 </div>
 </div>

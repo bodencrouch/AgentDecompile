@@ -22,7 +22,7 @@
    </li>
    <li role="treeitem" aria-expanded="true" aria-selected="false" tabindex="-1"><span><span class="chev" aria-hidden="true">▾</span>Program · per build</span>
     <ul role="group">
-     <li role="treeitem" aria-selected="false" tabindex="-1"><span>Decompiler analysis</span></li>
+     <li role="treeitem" aria-selected="false" tabindex="-1"><span>Decompiler program options</span></li>
      <li role="treeitem" aria-selected="false" tabindex="-1"><span>Specification extensions</span></li>
     </ul>
    </li>
@@ -30,24 +30,22 @@
 
   <div class="ad-g3-sec">
    <h4>Decompiler · per viewer</h4>
-   <p>Changes apply to your decompile views at once. Request options are part of the decompile basis: views decompiled with other options say so and are not re-decompiled.</p>
+   <p>Changes apply to your decompile views at once. Ghidra keeps the decompiler's analysis options as tool options, so here they are per-viewer request options and part of the decompile basis: views decompiled with other options say so and are not re-decompiled.</p>
    <ul class="ad-g3-opts" aria-label="Decompiler options">
-    <li><span><span class="nm" id="op-o1">Show unreachable code</span><span class="d">request option · part of the basis · changed by you, default off</span></span><span class="ctl"><span class="ad-seg" role="group" aria-labelledby="op-o1"><button aria-pressed="true">On</button><button aria-pressed="false">Off</button></span><button class="ad-btn quiet compact" type="button" aria-label="Reset Show unreachable code to default, off">Reset</button></span></li>
-    <li><span><span class="nm" id="op-o2">Respect read-only flags</span><span class="d">request option · part of the basis · default on</span></span><span class="ctl"><span class="ad-seg" role="group" aria-labelledby="op-o2"><button aria-pressed="true">On</button><button aria-pressed="false">Off</button></span></span></li>
+    <li><span><span class="nm" id="op-o1">Eliminate unreachable code</span><span class="d">analysis · request option · part of the basis · changed by you, default on</span></span><span class="ctl"><span class="ad-seg" role="group" aria-labelledby="op-o1"><button aria-pressed="false">On</button><button aria-pressed="true">Off</button></span><button class="ad-btn quiet compact" type="button" aria-label="Reset Eliminate unreachable code to default, on">Reset</button></span></li>
+    <li><span><span class="nm" id="op-o2">Respect read-only flags</span><span class="d">analysis · request option · part of the basis · default on</span></span><span class="ctl"><span class="ad-seg" role="group" aria-labelledby="op-o2"><button aria-pressed="true">On</button><button aria-pressed="false">Off</button></span></span></li>
     <li><span><span class="nm"><label for="op-o3">Maximum line width</label></span><span class="d">display · changed by you, default 100</span></span><span class="ctl"><input id="op-o3" class="adc-in auto" type="text" value="120" size="4"><button class="ad-btn quiet compact" type="button" aria-label="Reset Maximum line width to default, 100">Reset</button></span></li>
     <li><span><span class="nm" id="op-o4">Comments shown</span><span class="d">display · EOL, pre, post, plate</span></span><span class="ctl"><span class="ad-seg" role="group" aria-labelledby="op-o4"><button aria-pressed="true">All kinds</button><button aria-pressed="false">EOL only</button><button aria-pressed="false">None</button></span></span></li>
    </ul>
-   <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>2 views were decompiled with other options</h4><p>ResourceRef::Resolve on build-a and build-c show "decompiled with Show unreachable code off · Enter to decompile". Nothing re-decompiles by itself.</p></div><span></span></div>
+   <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>2 views were decompiled with other options</h4><p>ResourceRef::Resolve on build-a and build-c show "decompiled with Eliminate unreachable code on · Enter to decompile". Nothing re-decompiles by itself.</p></div><span></span></div>
 
-   <h4>Decompiler analysis · per build, read-only</h4>
-   <p>Program options stored in each build. They shape every decompile of that build and are recorded in its basis. They change only through a catalog action, per build, confirmed.</p>
+   <h4>Decompiler program options · per build, read-only</h4>
+   <p>Options for program stored in each build (Ghidra's Edit › Options for ‹program› › Decompiler). They shape every decompile of that build and are recorded in its basis. They change only through a catalog action, per build, confirmed.</p>
    <div class="ad-scroll" role="region" aria-label="Decompiler program options per build, scrolls sideways">
    <table class="ad-table ad-g3-grid" aria-label="Decompiler program options per build">
     <thead><tr><th scope="col">Program option</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th></tr></thead>
     <tbody>
-     <tr><th scope="row"><span class="nm">Eliminate unreachable code</span></th><td class="b">on</td><td class="b">on</td><td class="b"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>off<span class="m">differs</span></span></td><td class="b muted">not read</td></tr>
-     <tr><th scope="row"><span class="nm">Simplify predication</span></th><td class="b">on</td><td class="b">on</td><td class="b">on</td><td class="b muted">not read</td></tr>
-     <tr><th scope="row"><span class="nm">Alias blocking</span></th><td class="b">structures</td><td class="b">structures</td><td class="b">structures</td><td class="b muted">not read</td></tr>
+     <tr><th scope="row"><span class="nm">Prototype evaluation</span><span class="d">the convention used where a function's convention is unknown; from that build's own compiler spec</span></th><td class="b mono">__stdcall</td><td class="b mono">__stdcall</td><td class="b"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b><span class="mono">__fastcall</span><span class="m">differs</span></span></td><td class="b muted">not read</td></tr>
     </tbody>
    </table>
    </div>
@@ -63,15 +61,15 @@
    <h4 id="op-sx-t" style="margin:0">Specification extensions · build-a</h4>
    <div class="ad-scroll" role="region" aria-label="Specification extensions of build-a">
    <table class="ad-table ad-g3-grid" style="min-width:0"><caption class="sr-only">Prototype and call-fixup extensions of build-a</caption>
-    <thead><tr><th scope="col">Extension</th><th scope="col">Kind</th><th scope="col">Applies to</th></tr></thead>
+    <thead><tr><th scope="col">Extension</th><th scope="col">Kind</th><th scope="col">Also present in</th></tr></thead>
     <tbody>
-     <tr><th scope="row"><span class="nm mono" translate="no">__resolvecall</span></th><td>prototype</td><td>build-a, build-b · same compiler spec</td></tr>
+     <tr><th scope="row"><span class="nm mono" translate="no">__resolvecall</span></th><td>prototype</td><td>build-b · compared, not shared; same compiler spec</td></tr>
      <tr><th scope="row"><span class="nm mono" translate="no">fixup_cacheentry</span></th><td>call-fixup</td><td>build-a only</td></tr>
     </tbody>
    </table>
    </div>
-   <div class="ad-tools" role="group" aria-label="Extension actions"><button class="ad-btn" type="button" aria-haspopup="dialog">Import extension (catalog)…</button><button class="ad-btn" type="button" aria-haspopup="dialog">Remove…</button></div>
-   <p class="ad-g3-note">Import and Remove confirm through ConfirmDialog and need build-a's writer. build-d's compiler spec differs, so an extension from build-a never applies there.</p>
+   <div class="ad-tools" role="group" aria-label="Extension actions"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="op-sx-n">Import extension (catalog)…</button><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="op-sx-n">Remove…</button><span class="small muted" id="op-sx-n">catalog action needed · not offered yet</span></div>
+   <p class="ad-g3-note">When the catalog offers them, Import and Remove confirm through ConfirmDialog and need build-a's writer. build-d's compiler spec differs, so an extension from build-a never applies there.</p>
   </section>
  </div>
  <div>

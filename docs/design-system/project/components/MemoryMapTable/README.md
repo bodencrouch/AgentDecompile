@@ -64,7 +64,7 @@ The memory map of one build as a table: blocks with their range, length, permiss
   - **Set image base**: names the anchors it affects. Anchors recorded as `module_rva` stay valid. Anchors and pinned locators recorded as absolute addresses on this build become degraded until re-resolved, and the dialog lists how many ("3 absolute anchors on build-b will read degraded"). Overlay blocks do not move with the image base, and the dialog says so.
   - **Rename overlay space**: states Ghidra's note that open comparisons may misbehave until the program is reopened.
 - **No analysis on Save.** Memory edits never trigger analysis or re-disassembly. The OutcomeCell's terminal words and the "◷ predates job ‹id›" marks on cached Listing and decompile views say what may now be stale.
-- **One writer.** With the build's lock held, or a versioned program without this session's exclusive checkout, the operations stay listed with the reason, and Run is refused ("build-b is checked out exclusively by another session").
+- **One writer.** With the build's lock owned elsewhere, or a versioned program without this session's exclusive checkout, the operations stay listed with the reason, and Run is refused ("build-b is checked out exclusively by another session").
 - **Undo is per transaction**, only when the catalog exposes it. A memory restructure that Ghidra cannot undo cleanly says so in its dialog.
 
 ## States

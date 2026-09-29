@@ -18,20 +18,21 @@ One build's program trees (named organizations of folders and fragments over its
 
 1. **Header.** "Program trees · build-b". It has:
    - a **Build** menu button: switching the inspected build is an explicit action, and it states that the checked set will be cleared;
-   - the writer line ("build-b · no writer" or "lock held by another session");
+   - the writer line ("build-b · no writer" or "lock owned by another session");
    - **Compare with…**.
-2. **Tree tabs.** One manual-activation tab per tree view in the program ("Program Tree", "Subroutines · Isolated entry"), plus **Open tree…** for trees not shown. **New default tree** is a catalog action that creates one fragment per memory block on this build.
+2. **Tree tabs.** One manual-activation tab per tree view in the program ("Program Tree", "Subroutines · Isolated entry"), plus **Open tree…** for trees not shown. **New default tree** is a catalog action that creates one fragment per memory block on this build. Each tab has a menu: **Close tree** (view only; the tree stays in the program), **Rename tree…** (inline, catalog) and **Delete tree…** (ConfirmDialog, catalog; the last tree cannot be deleted and says so).
 3. **Treegrid columns:** Name (folder or fragment, with its kind word and "empty" when it holds no code units) · Ranges (the first range as an address link, then "+2 ranges") · Size · Code units · Also in (the other parent paths).
    - The Also in column matters because a shared fragment is one object. Renaming or moving code units in it changes every place it appears, and the rename editor says so ("also in /Modules/io").
 4. **View restriction band.** It appears when the Listing is restricted: "Listing view: build-b · /Program Tree/.text, /Modules/io · 2 fragments · 0x41e00 bytes", with **Clear view**.
    - The restriction is per-viewer view state, read-only and never program data.
    - The OverviewBar and the SearchWorkbench's "View" scope use the same restriction. Searches say "within the view".
 5. **Row menu** (Edit items listed only when the catalog exposes them, otherwise `aria-disabled` with the reason):
-   - Go · Restrict view to this · Add to view · Select in Listing (makes the Listing's address-set selection on this build; read-only);
+   - Go · Restrict view to this · Add to view · Remove from view · Select in Listing (makes the Listing's address-set selection on this build; read-only);
    - Expand all · Collapse all;
    - Create folder… · Create fragment… · Rename… (inline, confirms in place);
    - Delete…, allowed only when the node is empty or has another parent, otherwise disabled with "Not empty and has no other parent";
    - Merge with parent… · Sort by name or address… · Move Listing selection here… (moves the code units of the Listing's selection on this build into this fragment);
+   - Move to… (a folder picker; cut and paste arm the same move) · Copy to… (adds another parent, so the node becomes shared and says "also in …") · Move up and Move down (reorder within the folder);
    - Organize ▸ By subroutine (block model…) · Dominance · Complexity depth.
 6. **Compare** (optional): the same tree name on two builds side by side, aligned by folder or fragment name. The header says "aligned by name ≠ same contents". Rows present on one side only read "absent" on the other. Ranges and sizes are that build's own. Nothing is merged or copied.
 
@@ -44,12 +45,13 @@ One build's program trees (named organizations of folders and fragments over its
   - merge with parent (names the children that move);
   - sort (reorders the folder for everyone who opens this program);
   - moving code units (names the range, byte count, source fragment and destination);
+  - moving or copying a folder or fragment to another folder, or reordering it (names the node, the old and new parent, and whether it becomes shared);
   - any organization.
 - **Organizations are admitted jobs.** By subroutine, Dominance and Complexity depth run as jobs on this build with an OutcomeCell on the invoking node. They never run on open and never run automatically after an analysis.
   - The dialog states that cancelling keeps the folders already created, as Ghidra does.
   - The dialog states that undo is one transaction on this build, and only if the catalog exposes undo for it.
 - **Never propagated.** A tree edit or organization on build-b is not offered to other builds. To organize build-c the same way, run the organization on build-c; the Compare view then shows both.
-- **One writer.** With the lock held, edits stay listed with the reason, and Run is refused.
+- **One writer.** With the lock owned elsewhere, edits stay listed with the reason, and Run is refused.
 
 ## States
 
@@ -92,8 +94,8 @@ One build's program trees (named organizations of folders and fragments over its
 
 ## Parity rows covered
 
-- **P01**: folders and fragments. Create, delete (with Ghidra's empty-or-shared rule), rename, move code units, merge with parent, sort, select, expand and collapse all, and restrict the view.
-- **P02**: tree views and organizations. Create the default tree, open other trees, and organize by subroutine (with a block model), dominance and complexity depth. Each organization is an admitted, per-build job.
+- **P01**: folders and fragments. Create, delete (with Ghidra's empty-or-shared rule), rename, move code units, move, copy (another parent) and reorder nodes, merge with parent, sort, select, expand and collapse all, and restrict, add to and remove from the view.
+- **P02**: tree views and organizations. Create the default tree, open, close, rename and delete trees, and organize by subroutine (with a block model), dominance and complexity depth. Each organization is an admitted, per-build job.
 
 ## Prior art
 

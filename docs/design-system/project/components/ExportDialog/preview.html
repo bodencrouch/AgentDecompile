@@ -4,7 +4,7 @@
 <div class="ad-g3-dlg" role="dialog" aria-modal="true" aria-labelledby="xp-t" aria-describedby="xp-d">
  <header><h3 id="xp-t">Export ResourceRef::Resolve</h3><span class="end">catalog: Export · formats from <code>GET /api/v1/actions</code></span></header>
  <div class="body">
-  <p class="ad-g3-note" id="xp-d">Invoked from the link menu on <a class="ad-link" href="?project=corpus-alpha&amp;entity=ResourceRef::Resolve&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a>. Exporting reads the program as it is; it never analyzes or decompiles a function that has no cached decompile unless you choose so below.</p>
+  <p class="ad-g3-note" id="xp-d">Invoked from the link menu on <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a>. Exporting reads the program as it is; it never analyzes or decompiles a function that has no cached decompile unless you choose so below.</p>
 
   <fieldset>
    <legend>What</legend>
@@ -20,7 +20,7 @@
    <label class="ad-g3-choice"><input type="radio" name="xp-f"><span class="nm">XML</span><span class="end small muted">catalog</span><span class="d">Program facts in Ghidra's XML schema.</span></label>
    <label class="ad-g3-choice"><input type="radio" name="xp-f"><span class="nm">ASCII · HTML</span><span class="end small muted">catalog</span><span class="d">The listing as text or hypertext, with the fields chosen in options.</span></label>
    <label class="ad-g3-choice dis"><input type="radio" name="xp-f" disabled aria-describedby="xp-gzf"><span class="nm">GZF</span><span class="end small muted">catalog · whole program only</span><span class="d" id="xp-gzf">A packed copy of the whole program database; a function or selection is not supported.</span></label>
-   <label class="ad-g3-choice dis"><input type="radio" name="xp-f" disabled aria-describedby="xp-raw"><span class="nm">Raw bytes · Original file · Intel Hex</span><span class="end small muted">not in the catalog</span><span class="d" id="xp-raw">No catalog action exports these formats yet.</span></label>
+   <label class="ad-g3-choice dis"><input type="radio" name="xp-f" disabled aria-describedby="xp-raw"><span class="nm">Raw bytes · Original file · Intel Hex</span><span class="end small muted">not in the catalog</span><span class="d" id="xp-raw">No catalog action exports these formats yet. Original file can include byte patches (PatchEditor); patched bytes are not recovery evidence.</span></label>
   </fieldset>
 
   <fieldset>
@@ -29,6 +29,7 @@
    <label class="ad-flag"><input type="checkbox" checked>Create header file (.h)</label>
    <label class="ad-flag"><input type="checkbox" checked>Emit data type definitions <span class="m">· CacheEntry (name_len, flags, next) and its uses</span></label>
    <label class="ad-flag"><input type="checkbox">Use C++ style comments (//)</label>
+   <label class="ad-flag"><input type="checkbox">Emit referenced globals</label>
    <label class="ad-flag"><input type="checkbox">Decompile functions that have no cached decompile <span class="m">· part of the job; off by default</span></label>
    <p class="ad-g3-note">Decompiler options in the basis: each build's program options, read-only (OptionsPanel). Builds exported with different options are flagged in the artifact's basis.</p>
   </fieldset>
@@ -37,33 +38,33 @@
    <legend>Builds · one job each</legend>
    <div class="ad-xpd-builds">
     <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-a</span><span class="end small mono muted">0041b210</span><span class="d">analyzed · receipt 5c1e reused · decompile cached 14:02 · writer free</span></label>
-    <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-c</span><span class="end small mono muted">00082f40</span><span class="d">analyzed · decompile cached 13:40 · an export with this basis and these options exists: artifact from job 5c1e, 3 d, reused unless you export again</span></label>
-    <label class="ad-g3-choice"><input type="checkbox"><span class="nm">build-b</span><span class="end small muted">counterpart candidate</span><span class="d">identity edge is a candidate, not accepted · not exported by default</span></label>
-    <label class="ad-g3-choice dis"><input type="checkbox" disabled aria-describedby="xp-d-d"><span class="nm">build-d</span><span class="end small muted">absent</span><span class="d" id="xp-d-d">No counterpart of ResourceRef::Resolve on build-d.</span></label>
+    <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-c</span><span class="end small mono muted">00082f40</span><span class="d">analyzed · decompile cached 13:40 · writer free · an export with this basis and these options exists: artifact from job 6e21, 3 d, reused unless you export again</span></label>
+    <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-b</span><span class="end small mono muted">0041b2c0</span><span class="d">analyzed · decompile cached 13:52 · program has a writer (job 77c0, external); the export reads the last saved state</span></label>
+    <label class="ad-g3-choice dis"><input type="checkbox" disabled aria-describedby="xp-d-d"><span class="nm">build-d</span><span class="end small muted">◌ unresolved</span><span class="d" id="xp-d-d">ResourceRef::Resolve is unresolved on build-d; there is no function to export there.</span></label>
    </div>
   </fieldset>
 
   <div class="ad-xpd-out" aria-label="Where outputs land">
    <span class="kicker">Lands as artifacts</span>
-   <span>2 artifacts in Outputs › Exports, one per build: <span class="mono" translate="no">export/build-a/ResourceRef_Resolve.c</span> and <span class="mono" translate="no">.h</span>; <span class="mono" translate="no">export/build-c/…</span></span>
-   <span class="muted">Each ArtifactCard records the build, program version, format, options and decompiler options. <span class="ad-tier advisory">advisory</span> Exported C ≠ recovered source.</span>
+   <span>One .c and one .h per build, 6 files for 3 builds, in Outputs › Exports: <span class="mono" translate="no">export/build-a/ResourceRef_Resolve.c</span> and <span class="mono" translate="no">.h</span>; <span class="mono" translate="no">export/build-b/…</span>; <span class="mono" translate="no">export/build-c/…</span></span>
+   <span class="muted">Each ArtifactCard records the build, program version, format, options and decompiler options. <span class="ad-tier advisory">advisory</span> Exported C ≠ recovered source. <span class="ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed on 8080</span></span>
   </div>
  </div>
- <footer><span class="note">2 builds → confirms before posting</span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button" aria-haspopup="dialog">Export 2 builds…</button></footer>
+ <footer><span class="note">3 builds → confirms before posting</span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button" aria-haspopup="dialog">Export 3 builds…</button></footer>
 </div>
 
 <div class="adc-states">
  <div>
   <span class="kicker">Several builds · ConfirmDialog names each job</span>
   <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="xp-c-t" aria-describedby="xp-c-d">
-   <h3 id="xp-c-t">Export ResourceRef::Resolve from 2 builds</h3>
-   <p id="xp-c-d">Two export jobs as C/C++: build-a at 0041b210 and build-c at 00082f40. build-c already has an export with this basis; exporting again makes a second artifact and keeps the first.</p>
-   <footer><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Export 2 builds</button></footer>
+   <h3 id="xp-c-t">Export ResourceRef::Resolve from 3 builds</h3>
+   <p id="xp-c-d">Three export jobs as C/C++: build-a at 0041b210, build-b at 0041b2c0 and build-c at 00082f40. build-b has a writer, so its export reads the last saved state. build-c already has an export with this basis; exporting again makes a second artifact and keeps the first. build-d is not included: unresolved.</p>
+   <footer><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Export 3 builds</button></footer>
   </div>
  </div>
  <div>
   <span class="kicker">After posting · outcomes per build, never one summary word</span>
-  <div class="ad-notice info"><b aria-hidden="true">↺</b><div><h4>2 exports: 1 running · 1 finished</h4><p>build-a: job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, export build-a, running">a3f9</a> running. build-c: finished; <a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=export-build-c" aria-label="Artifact export of ResourceRef::Resolve, build-c, C">artifact in Outputs</a>. Nothing here says the C compiles or matches.</p></div><span></span></div>
+  <div class="ad-notice info"><b aria-hidden="true">…</b><div><h4>3 exports: 2 running · 1 finished</h4><p>build-a: job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, export build-a, running">a3f9</a> running. build-b: running, reading the last saved state. build-c: finished; <a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=export-build-c" aria-label="Artifact export of ResourceRef::Resolve, build-c, C">artifact in Outputs</a>. Nothing here says the C compiles or matches, and nothing is observed on 8080 yet.</p></div><span></span></div>
  </div>
  <div>
   <span class="kicker">Graph export · from GraphPane</span>

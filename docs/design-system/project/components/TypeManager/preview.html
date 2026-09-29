@@ -5,13 +5,13 @@
  <header>
   <h4 id="tm-h">Types</h4>
   <div class="ad-seg" role="radiogroup" aria-label="Types scope"><span role="radio" aria-checked="false" tabindex="-1">This build · build-a</span><span role="radio" aria-checked="true" tabindex="0">All builds · 4</span></div>
-  <span class="end"><span class="ad-writer" aria-label="Program writers: build-a to build-d owned by this session; archive corpus-alpha.gdt free"><b aria-hidden="true">●</b>writer: this session · 4 programs</span><span class="ad-writer free"><b aria-hidden="true">○</b>corpus-alpha.gdt free</span></span>
+  <span class="end"><span class="ad-writer" aria-label="Program writers: build-a to build-c owned by this session; archive corpus-alpha.gdt free"><b aria-hidden="true">●</b>writer: this session · 3 programs</span><span class="ad-writer free"><b aria-hidden="true">○</b>corpus-alpha.gdt free</span></span>
  </header>
  <div class="ade-sec">
   <div class="ade-flds">
    <label class="lbl" for="tm-find">Find types</label>
-   <div class="val"><input class="adc-in" id="tm-find" value="0x18" translate="no" aria-describedby="tm-find-n"><div class="ad-seg" role="radiogroup" aria-label="Find by"><span role="radio" aria-checked="false" tabindex="-1">Name</span><span role="radio" aria-checked="true" tabindex="0">Size</span><span role="radio" aria-checked="false" tabindex="-1">Enum value</span><span role="radio" aria-checked="false" tabindex="-1">Struct offset</span></div></div>
-   <span class="hint" id="tm-find-n">Size 0x18 matches on build-a and build-b; build-c and build-d size <code translate="no">CacheEntry</code> differently. Hits per build are columns, never merged.</span>
+   <div class="val"><input class="adc-in" id="tm-find" value="0x18" translate="no" aria-describedby="tm-find-n"><div class="ad-seg" role="radiogroup" aria-label="Find by"><span role="radio" aria-checked="false" tabindex="-1">Name</span><span role="radio" aria-checked="true" tabindex="0">Size</span><span role="radio" aria-checked="false" tabindex="-1">Enum value</span><span role="radio" aria-checked="false" tabindex="-1">Struct size</span><span role="radio" aria-checked="false" tabindex="-1">Struct offset</span></div></div>
+   <span class="hint" id="tm-find-n">Size 0x18 matches on build-a and build-b; build-c sizes <code translate="no">CacheEntry</code> 0x1c; build-d is not loaded and was not searched. Hits per build are columns, never merged.</span>
   </div>
  </div>
  <div class="ade-grid ad-scroll" tabindex="0" role="region" aria-label="Types treegrid, scrollable">
@@ -27,12 +27,12 @@
     <td class="b"><span class="ad-loc resolved"><b aria-hidden="true">●</b>0x18</span><span class="w">↔ layout same · in sync</span></td>
     <td class="b"><span class="ade-m diff"><b aria-hidden="true">±</b>0x1c</span><span class="w">± next at +0x18 · changes to commit</span></td>
     <td class="b"><span class="muted">not loaded</span><span class="w">Open build-d to read it.</span></td>
-    <td><span class="ad-evd hyp"><b class="cls">compile variance</b> hypothesis · <span class="basis">basis: same fields in the same order; only padding differs</span></span></td></tr>
+    <td><span class="ad-evd hyp"><b class="cls"><span aria-hidden="true">≈ </span>compile variance</b> hypothesis (heuristic) · <span class="basis">basis: same fields in the same order; only filler differs; build-c flags not recorded</span></span></td></tr>
    <tr aria-level="3"><th scope="row" class="lvl3"><a class="ad-link" href="?project=corpus-alpha&amp;type=CacheEntryFlags" translate="no" aria-label="Type CacheEntryFlags, enum, open in the type editor">CacheEntryFlags</a></th><td>enum</td>
     <td class="b"><span class="ad-loc resolved"><b aria-hidden="true">●</b>4</span><span class="w">2 values</span></td><td class="b"><span class="ad-loc resolved"><b aria-hidden="true">●</b>4</span><span class="w">2 values</span></td><td class="b"><span class="ade-m diff"><b aria-hidden="true">±</b>4</span><span class="w">3 values · + <span translate="no">CACHE_ENTRY_EVICTED</span></span></td><td class="b"><span class="muted">not loaded</span></td>
-    <td><span class="ad-evd hyp"><b class="cls">source variance</b> hypothesis · <span class="basis">basis: a value exists only on build-c; its source revision is not recorded</span></span></td></tr>
+    <td><span class="ad-evd hyp"><b class="cls"><span aria-hidden="true">≠ </span>source variance</b> hypothesis (heuristic) · <span class="basis">basis: a value exists only on build-c; its source revision is not recorded</span></span></td></tr>
    <tr aria-level="3"><th scope="row" class="lvl3"><a class="ad-link" href="?project=corpus-alpha&amp;type=ResourceRef" translate="no" aria-label="Type ResourceRef, structure, open in the type editor">ResourceRef</a></th><td>structure</td>
-    <td class="b"><span class="ad-loc resolved"><b aria-hidden="true">●</b>0x0c</span></td><td class="b"><span class="ad-loc resolved"><b aria-hidden="true">●</b>0x0c</span></td><td class="b"><span class="ad-loc resolved"><b aria-hidden="true">●</b>0x0c</span></td><td class="b"><span class="muted">not loaded</span></td><td><span class="ad-evd unk">no difference read</span></td></tr>
+    <td class="b"><span class="ad-loc resolved"><b aria-hidden="true">●</b>0x0c</span></td><td class="b"><span class="ad-loc resolved"><b aria-hidden="true">●</b>0x0c</span></td><td class="b"><span class="ad-loc resolved"><b aria-hidden="true">●</b>0x0c</span></td><td class="b"><span class="muted">not loaded</span></td><td><span class="small"><span aria-hidden="true">≡ </span>identical layout digest on build-a, build-b, build-c · not a variance class</span></td></tr>
    <tr aria-level="3"><th scope="row" class="lvl3"><a class="ad-link" href="?project=corpus-alpha&amp;type=ResolveFn" translate="no" aria-label="Type ResolveFn, function definition, open in the type editor">ResolveFn</a></th><td>function definition</td>
     <td class="b"><span class="ad-loc resolved"><b aria-hidden="true">●</b>__thiscall</span></td><td class="b"><span class="ad-absent">absent</span></td><td class="b"><span class="ad-absent">absent</span></td><td class="b"><span class="muted">not loaded</span></td><td><span class="ad-evd unk">unknown</span></td></tr>
    <tr aria-level="1" aria-expanded="true"><th scope="row"><span class="ade-tw"><span class="tw" aria-hidden="true">▾</span>File archives</span></th><td></td><td class="b"></td><td class="b"></td><td class="b"></td><td class="b"></td><td></td></tr>
@@ -71,7 +71,7 @@
  <span class="kicker">Replace · cross-build ConfirmDialog with per-build use counts and the conflict mode</span>
  <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="tm-cd-t" aria-describedby="tm-cd-d">
   <h3 id="tm-cd-t">Replace <span translate="no">CacheEntry</span> with <span translate="no">corpus-alpha.gdt/CacheEntry</span> on build-c</h3>
-  <p id="tm-cd-d">Every use of <span class="mono" translate="no">CacheEntry</span> on build-c changes (11 known uses), and fields after +0x10 move because the archive layout is 0x18 and build-c's is 0x1c; build-a, build-b and build-d are unchanged, and this cannot be undone here.</p>
+  <p id="tm-cd-d">Every use of <span class="mono" translate="no">CacheEntry</span> on build-c changes (11 known uses), and <span class="mono" translate="no">next</span> moves from +0x18 to +0x10 because the archive layout is 0x18 and build-c's is 0x1c; build-a, build-b and build-d are unchanged, and this cannot be undone here.</p>
   <p><label for="tm-cd-mode" class="muted">If a name conflicts</label><br><select class="adc-in" id="tm-cd-mode" style="width:100%"><option>Rename the new type</option><option>Use the existing type</option><option>Replace the existing type</option><option>Replace only empty placeholders</option></select></p>
   <footer><button class="ad-btn is-focus">Cancel</button><button class="ad-btn primary">Replace on build-c</button></footer>
  </div>
@@ -89,8 +89,8 @@
  </form>
 </div>
 <div>
- <span class="kicker">Archive writer held elsewhere · one archive writer; no second writer is started</span>
- <div class="ad-notice caution"><b aria-hidden="true">◇</b><div><h4>waiting at gate: corpus-alpha.gdt is open for writing elsewhere</h4><p>Owner as reported: external · no job · PID and start time recorded in the resource record. Commit, revert and archive save wait; reading and find stay available. The owner is never offered kill or restart.</p></div><span></span></div>
+ <span class="kicker">Archive writer owned elsewhere · one archive writer; no second writer is started</span>
+ <div class="ad-notice caution"><b aria-hidden="true">●</b><div><h4>corpus-alpha.gdt writer owned elsewhere · archive writes wait</h4><p>Owner as reported: external · no job · PID and start time recorded in the resource record. Commit, revert and archive save wait; reading and find stay available. The owner is never offered kill or restart.</p></div><span></span></div>
  <div class="ad-notice info"><b aria-hidden="true">○</b><div><h4>Not loaded. Open to read it.</h4><p>build-d's program is not open, so its type presence, size and sync state are not shown. Opening reuses its existing analysis; it never analyzes.</p></div><span></span></div>
  <div class="ad-notice info"><b aria-hidden="true">∅</b><div><h4>No structure has a field at +0x40 on build-a</h4><p>Find by struct offset searched build-a only. Switch the scope to all builds for one hit column per build.</p></div><span></span></div>
 </div>

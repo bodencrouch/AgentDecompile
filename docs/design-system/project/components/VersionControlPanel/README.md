@@ -9,20 +9,21 @@ Ghidra Server version control for every build of the project in one grid: each b
 **Anatomy**
 
 - **Connection line.** "connected · Ghidra Server repository ‹name› (RMI over SSL) · as you · checkout state read 14:02", and a link to the one-writer lock node. The repository is a Ghidra Server repository; the word "repository" is reserved for it (Copy, Terms).
-- **Builds grid.** One row per build: Version ("7 of 7 · = latest", "5 of 6 · ↓ update available · version 6 checked in by another user 13:58", "not versioned"); Checkout ("● checked out · exclusive · by you · this checkout is the writer lock for build-a", "checked out · not exclusive · by you", "● checked out · exclusive · by another user · as reported: ‹user› · since 11:20", "not under version control"); Local changes and writer ("◷ 4 transactions not checked in · saved 14:06 · writer: this session", "writer: job 77c0 · external"); Verbs (catalog), only those that apply to that row's state.
-- **The one-writer rule.** An exclusive checkout is drawn with the lock glyph and the word, and is that build's writer lock. A non-exclusive checkout does not make a second writer: admission still checks the real owner of the program, and a verb that needs the writer waits with the owner named. Another user's exclusive checkout makes the build read-only here ("Open version 3 read-only").
-- **Check in (ConfirmDialog).** Title "Check in ‹build› as version N"; the consequence names the transaction count, the server's current version and whether a merge will run ("The server is at version 7, the same version you checked out, so nothing needs merging"), and "After check-in these transactions cannot be undone here". Fields: Comment; Keep ‹build› checked out ("the writer lock stays yours"); Keep a private copy of this version (.keep file). The footer says "Other builds are unchanged." Checking in several builds is one batch dialog naming each build, its version and whether it merges.
+- **Builds grid.** One row per build: Version ("7 of 7 · ● latest", "5 of 6 · ↓ update available · version 6 checked in by another user 13:58", "not versioned"); Checkout ("● checked out · exclusive · by you · this checkout is the writer lock for build-a", "checked out · not exclusive · by you", "● checked out · exclusive · by another user · as reported: ‹user› · since 11:20", "not under version control"); Local changes and writer ("◷ 5 transactions not checked in · saved 14:06 · writer: this session", "writer: job 77c0 · external"); Verbs (catalog), only those that apply to that row's state.
+- **The one-writer rule.** An exclusive checkout is drawn with the lock glyph and the word, and is that build's writer lock. A non-exclusive checkout does not make a second writer: admission still checks the real owner of the program, and a verb that needs the writer waits with the owner named. Another user's exclusive checkout makes the build read-only here ("Open version 3 read-only"). Memory map changes need an exclusive checkout (Ghidra's rule), so MemoryMapTable's edits are unavailable on a non-exclusive checkout and say why.
+- **Check in (ConfirmDialog).** Title "Check in ‹build› as version N"; the consequence names the transaction count, the server's current version and whether a merge will run ("The server is at version 7, the same version you checked out, so nothing needs merging"), and "After check-in these transactions cannot be undone here". Fields: Comment; Stay checked out on ‹build› ("the writer lock stays yours"; Ghidra's Keep checked out, renamed because "Kept" is reserved for evidence cards); Save a private copy of this version (.keep file). The footer says "Other builds are unchanged." Checking in several builds is one batch dialog naming each build, its version and whether it merges.
 - **Update and merge.** Update merges the latest version into the checkout as a job. The panel shows per-category counts; non-conflicting changes merge automatically. Each conflict opens in MergeReview (adapted to check-in conflicts) with three values, latest, checked out and original; nothing is picked for you. A choice is a catalog action on that build; "use for all in this category" confirms through ConfirmDialog. The same summary appears when a check-in needs a merge.
 - **Program options are not merged.** A standing note: analysis and other program options are not merged on check-in or update, so the latest checked-in values can replace yours; it links AnalyzerPanel's per-build comparison.
-- **History.** Per build: version, checked-in time, submitter (you, agent with job, or another user as reported), comment. **Open read-only** reads that version; it never checks out, merges or analyzes. **Delete version N…** is offered only for the oldest or latest version and never while it is checked out; it confirms through ConfirmDialog.
-- **Other verbs.** Check out… (choose exclusive; exclusive is the default when the operator will write), Undo checkout… (ConfirmDialog: "discards N transactions not checked in; keep a private copy" option), Add to version control…, Undo hijack… (keeps the private file as a copy), and View checkouts (read-only list; ending another user's checkout needs a repository administrator and is not offered here).
+- **History.** Per build: version, checked-in time, submitter (you, agent with job, or another user as reported), comment. **Open read-only** reads that version; it never checks out, merges or analyzes. **Delete version N…** is offered only for the oldest or latest version, only to its owner or a repository administrator, and never while it is checked out; it confirms through ConfirmDialog.
+- **Other verbs.** Check out… (choose exclusive; exclusive is the default when the operator will write), Undo checkout… (ConfirmDialog: "discards N transactions not checked in; save a private copy" option), Add to version control…, Undo hijack… (keeps the private file as a copy), and View checkouts (read-only list; ending another user's checkout needs a repository administrator and is not offered here).
 
 **States**
 
-- **Disconnected:** "Reconnecting. Showing data from 14:02." Server verbs are unavailable; local edits on checked-out builds continue.
+- **Disconnected:** ↻ "Reconnecting. Showing data from 14:02." Server verbs are unavailable; local edits on checked-out builds continue.
 - **Not a shared project:** "‹project› is not under version control." with Add to version control (catalog)….
 - **Update available, checked out by another user, hijacked, private file, writer owned:** as in the grid, each with glyph and word.
 - **Merge pending:** "3 conflicts wait for your choice" with the job link; the build's writer lock stays with the merge until the conflicts are resolved or the update is cancelled.
+- **Nothing to check in:** Ghidra refuses to check in an unchanged file; Check in… is `aria-disabled` with "No changes to check in on ‹build›".
 - **Modification conflict:** a verb refused because the program changed since it was armed shows the StateNotice conflict state and `resolve-modification-conflict`.
 - **Job outcomes:** pending, admitted, waiting, running, checking, finished, failed, cancelled on the invoking row. A finished check-in says which version it created; it never says "synced" or "saved to server" beyond what the receipt records.
 
@@ -47,7 +48,7 @@ Ghidra Server version control for every build of the project in one grid: each b
 
 **Accessibility**
 
-- Each row reads as one sentence: "build-a, version 7 of 7, latest, checked out exclusive by you, writer lock, 4 transactions not checked in." Glyphs are `aria-hidden`.
+- Each row reads as one sentence: "build-a, version 7 of 7, latest, checked out exclusive by you, writer lock, 5 transactions not checked in." Glyphs are `aria-hidden`.
 - Disabled verbs use `aria-disabled` with the reason in `aria-describedby` ("Update waits: build-b has a writer, job 77c0, external").
 - Merge counts are a list; each non-zero count is a link naming its build and category.
 
@@ -56,7 +57,7 @@ Ghidra Server version control for every build of the project in one grid: each b
 Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md), section "New components needed".
 
 - **V04** multi-user repository: connect, add to version control, check out, check in, undo checkout, update, version history, view and find checkouts, undo hijack, server connection.
-- Also: **V05** merge on check-in and update (the summary here; conflict choices in MergeReview), **V02** modification conflicts on these verbs, and the "Keep checked out" and private-copy options of Ghidra's check-in.
+- Also: **V05** merge on check-in and update (the summary here; conflict choices in MergeReview), **V02** modification conflicts on these verbs, and the "Keep checked out" (here Stay checked out) and private-copy options of Ghidra's check-in.
 
 **Prior art**
 

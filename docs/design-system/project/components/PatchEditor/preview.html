@@ -28,7 +28,7 @@
  <footer><button class="ad-btn primary" type="submit">Patch build-a…</button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button><span class="note">Never proposed to counterparts.</span></footer>
  <div class="ade-prop" role="group" aria-labelledby="pe-cp-t">
   <h5 id="pe-cp-t">Counterparts · shown for comparison, never patched from here</h5>
-  <p>build-c at <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=00082f40" translate="no" aria-label="Counterpart ResourceRef::Resolve on build-c, 00082f40, accepted">00082f40</a> (accepted) has <code translate="no">74 0C</code> at the anchor-mapped address 00082f72, via anchor 0041b242 ↔ 00082f72. To patch build-c, open PatchEditor on build-c.</p>
+  <p>build-d: ResourceRef::Resolve is unresolved, so there is nothing to compare. build-c at <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=00082f40" translate="no" aria-label="Counterpart ResourceRef::Resolve on build-c, 00082f40, accepted">00082f40</a> (accepted) has <code translate="no">74 0C</code> at the anchor-mapped address 00082f72, via anchor 0041b242 ↔ 00082f72. To patch build-c, open PatchEditor on build-c.</p>
  </div>
 </form>
 
@@ -53,7 +53,7 @@
 <div>
  <span class="kicker">Clear with options · destructive, one build</span>
  <div class="ade" role="group" aria-labelledby="pe-cl-t">
-  <header><h4 id="pe-cl-t">Clear <code translate="no">0041c2a8–0041c2bf</code></h4><span class="end">Clear code units (catalog)</span></header>
+  <header><h4 id="pe-cl-t">Clear <code translate="no">0041c900–0041c917</code></h4><span class="end">Clear code units (catalog)</span></header>
   <div class="ade-tgt"><span class="ade-bld target">build-a</span><span>24 bytes · 5 instructions</span></div>
   <div class="ade-sec"><div class="ade-flags" role="group" aria-label="What to clear"><label class="ad-flag"><input type="checkbox" checked>Instructions</label><label class="ad-flag"><input type="checkbox" checked>Data</label><label class="ad-flag"><input type="checkbox">Symbols</label><label class="ad-flag"><input type="checkbox">Comments</label><label class="ad-flag"><input type="checkbox">User references</label><label class="ad-flag"><input type="checkbox">Functions</label><label class="ad-flag"><input type="checkbox">Registers</label><label class="ad-flag"><input type="checkbox">Equates</label><label class="ad-flag"><input type="checkbox">Bookmarks</label></div><p class="small muted">Bytes are kept; only the listed markup is removed. Clear flow and repair is a separate verb.</p></div>
   <footer><button class="ad-btn primary" type="button">Clear on build-a…</button><button class="ad-btn" type="button">Cancel</button></footer>
@@ -63,22 +63,22 @@
  <span class="kicker">Disassemble · decodes only this range; follow-on analysis only if admitted</span>
  <div class="ade" role="group" aria-labelledby="pe-ds-t">
   <header><h4 id="pe-ds-t">Disassemble at <code translate="no">0041c2a8</code></h4><span class="end">Disassemble (catalog)</span></header>
-  <div class="ade-tgt"><span class="ade-bld target">build-a</span><span id="pe-ds-l">Mode</span><div class="ad-seg" role="radiogroup" aria-labelledby="pe-ds-l"><span role="radio" aria-checked="false" tabindex="-1">Follow flow</span><span role="radio" aria-checked="true" tabindex="0">Restricted to selection</span><span role="radio" aria-checked="false" tabindex="-1">Static</span></div></div>
-  <div class="ade-sec"><p class="small">Preview from build-a's language: 4 instructions, 0041c2a8–0041c2b7, ending at <code translate="no">RET</code>. The preview decodes bytes only; it is a hypothesis until posted.</p></div>
+  <div class="ade-tgt"><span class="ade-bld target">build-a</span><span id="pe-ds-l">Mode</span><div class="ad-seg" role="radiogroup" aria-labelledby="pe-ds-l"><span role="radio" aria-checked="true" tabindex="0">Follow flow</span><span role="radio" aria-checked="false" tabindex="-1">Restricted to selection</span><span role="radio" aria-checked="false" tabindex="-1">Static</span></div></div>
+  <div class="ade-sec"><p class="small">Preview from build-a's language: 4 instructions, 0041c2a8–0041c2b7, ending at <code translate="no">RET</code>. The preview decodes bytes only and is not program state; nothing is in build-a's listing until posted. Restricted to selection over a range is a batch and opens ConfirmDialog.</p></div>
   <footer><button class="ad-btn primary" type="button">Disassemble on build-a</button><span class="note">Single target: Run posts once. No function is created and nothing is analyzed.</span></footer>
  </div>
 </div>
 <div>
  <span class="kicker">Create data · array, pointer or string with its settings</span>
  <div class="ade" role="group" aria-labelledby="pe-cd2-t">
-  <header><h4 id="pe-cd2-t">Create data at <code translate="no">0041f020</code></h4><span class="end">Apply data type (catalog)</span></header>
+  <header><h4 id="pe-cd2-t">Create data at <code translate="no">0041f060</code></h4><span class="end">Apply data type (catalog)</span></header>
   <div class="ade-tgt"><span class="ade-bld target">build-a</span></div>
   <div class="ade-sec"><div class="ade-flds">
    <label class="lbl" for="pe-dt">Type</label><div class="val"><input class="adc-in" id="pe-dt" value="CacheEntry *[4]" translate="no"></div>
-   <span class="hint">An array of 4 pointers, 16 bytes on build-a. Counts are never copied to other builds; pointer width is 8 on build-d.</span>
+   <span class="hint">An array of 4 pointers, 16 bytes on build-a (pointer width 4 in build-a's language). Counts and widths are never copied to other builds; each build's own data layout applies there.</span>
    <label class="lbl" for="pe-en">Endianness</label><div class="val"><select class="adc-in" id="pe-en"><option>program default (little)</option><option>big</option></select></div>
   </div></div>
-  <dl class="ade-bytes" aria-label="Bytes at 0041f020 on build-a"><dt>bytes</dt><dd>0041f020  10 C2 41 00 A8 C2 41 00</dd><dt>as data</dt><dd class="after">[0] 0041c210  [1] 0041c2a8  …</dd></dl>
+  <dl class="ade-bytes" aria-label="Bytes at 0041f060 on build-a"><dt>bytes</dt><dd>0041f060  10 5A 42 00 30 5A 42 00</dd><dt>as data</dt><dd class="after">[0] 00425a10  [1] 00425a30  …</dd></dl>
  </div>
 </div>
 </div>

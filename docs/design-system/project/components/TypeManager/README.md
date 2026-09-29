@@ -8,7 +8,7 @@ The Types navigator scope: one tree of archives, categories and data types, keye
 
 **Anatomy**
 
-1. **Header.** The scope switch is an APG radio group: "This build · build-a" or "All builds · 4". Next to it are the writer lines in ResourceState words: "● writer: this session · 4 programs" and "○ corpus-alpha.gdt free", or "◇ waiting at gate" with the external owner as reported.
+1. **Header.** The scope switch is an APG radio group: "This build · build-a" or "All builds · 4". Next to it are the writer lines in ResourceState words: "● writer: this session · 4 programs" and "○ corpus-alpha.gdt free", or "● corpus-alpha.gdt writer owned elsewhere" with the external owner as reported.
 2. **Find.** One field with a find-by radio group: Name, Size, Enum value, Struct size and Struct offset. The hint under the field states the scope and how many builds hit ("Size 0x18 matches on build-a and build-b"). All builds shows one hit column per build. Hits are never merged, and the same logical type may match on one build only.
 3. **Tree.** The top-level groups are Favourites (per viewer), Recently used (per viewer), Program types (one type manager per build), File archives, Project archives and Built-in (read-only). Categories nest under each group. Each type row carries:
    - the logical type name (a link that opens TypeEditor) and a ★ favourite mark, which is also said in the row's name;
@@ -18,7 +18,7 @@ The Types navigator scope: one tree of archives, categories and data types, keye
 4. **Sync state** (per build, per associated type): in sync · changes to commit · archive newer (update available) · conflicting (both changed) · archive not open (sync state unknown) · not associated. Refresh sync indicators is a read.
 5. **Archive rows.** Each archive row shows its kind, path, writable or read-only, architecture, "2 unsaved changes" and "archive undo 2". Archive undo and redo act on the archive's own transactions. They never touch a program.
 6. **Status line.** The focused type's use counts per build ("build-a 14 · build-b 14 · build-c 11 · build-d uses not indexed"), and the keys.
-7. **Link menu** (one menu, per Linked views). The Open group has Open in type editor, Peek layout per build and Keep. The Edit group lists only catalog actions, marked "(catalog)": New structure, union, enum, typedef, pointer or function definition; Rename; Move; Copy; Delete; Replace; Merge; Associate with archive; Update from archive; Commit to archive; Revert; Disassociate; Create labels from enum; Apply function data types; Capture function data types; Import C header; and, for archives, Open, Create, Close, Save, Set architecture, Archive undo, Archive redo and Delete archive. An item that does not apply stays listed, `aria-disabled`, with its reason. Reveal in has uses on ‹build› (ResultsTable or XrefPanel), Show base type and Display as graph (GraphPane, read-only). Copy has Copy link and Copy type name.
+7. **Link menu** (one menu, per Linked views). The Open group has Open in type editor, Peek layout per build and Keep. The Edit group lists only catalog actions, marked "(catalog)": New structure, union, enum, typedef, pointer or function definition; New category; New enum from selected enums; Rename; Move; Copy; Cut and Paste (a move); Delete (types and categories); Replace; Merge; Associate with archive; Update from archive; Commit to archive; Revert; Disassociate; Create labels from enum; Apply function data types; Capture function data types; Import C header; and, for archives, Open, Create (file or project archive), Open for editing, Close for editing, Close, Save, Save as…, Set architecture, Clear architecture, Archive undo, Archive redo, Delete archive and Remove invalid archive. **Archive paths…** (where file archives are looked up) is a per-viewer setting (PV), not a program write. Expand all and Collapse all are view state. An item that does not apply stays listed, `aria-disabled`, with its reason. Reveal in has uses on ‹build› (ResultsTable or XrefPanel), Show in tree, Show base type, Compare with… (two types side by side, read-only, each with its build or archive) and Display as graph (GraphPane, read-only). Copy has Copy link and Copy type name.
 
 **Verbs and their confirm tier** (Doctrine; 35 Confirming edits)
 
@@ -39,7 +39,7 @@ The Types navigator scope: one tree of archives, categories and data types, keye
 - **Header import (C-parser).** The destination is one archive or one build's program types, never all builds. Parsed types appear as dashed "hypothesis · parsed" rows with a size check for each build. A parse is not layout proof (NP). Applying a parsed type to a build whose size check fails is blocked, and the block says why ("0x18 vs 0x1c").
 - **Every mutation names its exact target.** The target is a build's program types or one archive, and "all builds" is never a write target. A shared archive is how a type reaches several builds. It gets there through an explicit, per-build commit or update, each layout-gated and each with its own outcome.
 - **Propagation** is TypeEditor's "Propose to build-b, build-c" step. TypeManager's per-build columns show where a type is absent or differs, and Update from archive on each build is the confirm-gated path.
-- **One writer.** Program writes need the build's program writer. Archive writes need that archive's writer. While another owner holds it, the verb waits at the gate and names the owner as reported. It never starts a second writer, and it never offers kill or restart. Ownership is never inferred from job labels.
+- **One writer.** Program writes need the build's program writer. Archive writes need that archive's writer. While another owner holds it, the verb waits and names the owner as reported. It never starts a second writer, and it never offers kill or restart. Ownership is never inferred from job labels.
 - **Undo** is per program or per archive, and per transaction (EditHistory). A replace or merge that rewrote uses on build-c is undone on build-c only. The dialog says "cannot be undone here" when the catalog reports that the verb has no inverse.
 - **Outcomes land on the row.** After the terminal result the type row gets an OutcomeCell with its job link (for example `a3f9`). Nothing is shown optimistically.
 
@@ -51,7 +51,7 @@ The Types navigator scope: one tree of archives, categories and data types, keye
 - partial (◐), when some builds were read and others were not, with the missing builds named;
 - stale (◷ "Type manager changed since read · Refresh");
 - conflict (⇄), for a sync conflict, with both definitions side by side and neither pre-picked;
-- waiting at gate (◇), when an archive or program writer is held elsewhere;
+- writer owned elsewhere (●, ResourceState words), when an archive or program writer is owned by another session or process; writes wait and name the owner as reported;
 - ambiguous outcome ("Checking whether the operation completed"), during which that verb on that type is disabled;
 - read-only, for built-in and read-only archives, whose Edit items are `aria-disabled` with the reason.
 

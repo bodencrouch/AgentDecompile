@@ -2,7 +2,7 @@
 
 The editor for one data type on one explicit build target: structure, union, enum, typedef/pointer and function-definition modes. Rows are keyed by logical field or value, with one offset or value column per build and a layout check per build before Save. Any propagation to counterparts is a separate "Propose to build-b, build-c" step, gated by confirmation.
 
-**Use it** from a type link: a `type=` link, the TypeManager row (Enter), or the DecompileView type token's link menu (Edit data type…, D22). Retype Field on a field token opens it focused on that field row (D14). Adjust Pointer Offset and Force Field open pointer-typedef mode (D20). Auto Create Structure and Auto Fill in Structure open it with their inferred rows (D21). The Listing's Create structure from selection and the quick Edit Field open it too (E06), as does TypeManager's New… verbs (T05). It replaces Ghidra's Structure, Union and Enum editors and the pointer-typedef settings dialog.
+**Use it** from a type link: a `type=` link, the TypeManager row (Enter), or the DecompileView type token's link menu (Edit data type…, D22). Retype Field on a field token opens it focused on that field row (D14). Adjust Pointer Offset and Force Field open pointer-typedef mode (D20). Auto Create Structure and Auto Fill in Structure open it with their inferred rows (D21). The Listing's Create structure from selection and the quick Edit Field open it too (E06), as does TypeManager's New… verbs (T05). In the Walk pointers layout preset, a read-only following form of it sits in the evidence rail and shows the type at PointerWalk's current step (see Modes). It replaces Ghidra's Structure, Union and Enum editors and the pointer-typedef settings dialog.
 
 **Consumer provides**
 
@@ -119,6 +119,7 @@ The editor for one data type on one explicit build target: structure, union, enu
   - `typeEditor.hex` (Shift+H);
   - `typeEditor.draftUndo` and `typeEditor.draftRedo` (Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z, edit scope and grid only; they never undo a program transaction).
 - Every action is also in the link menu (Shift+F10) and the palette.
+- In the read-only following form, the grid is an APG Grid with cell focus and no edit mode: Enter and F2 do nothing on cells, Alt+↓ peeks a build cell, and Tab reaches **Edit on ‹build›…**. None of the edit ids above are active there.
 
 **Accessibility**
 
@@ -127,6 +128,7 @@ The editor for one data type on one explicit build target: structure, union, enu
 - The bit view is `role="img"` with the bit ranges in its name.
 - The review block is plain text before Save (WCAG 3.3.4). ConfirmDialog follows the APG Alert dialog pattern.
 - A conflict is `role="alert"`. Validation errors are polite. Nothing is announced on pending, and the outcome is announced once.
+- The read-only following form is a `region` named "Type at the pointer walk's current step, read-only". Its grid is named "Components of CacheEntry, read-only, offsets per build", and the current field row carries `aria-current="true"` and the word "current step". A step change is not announced (it follows the operator's own movement in PointerWalk); the form's heading and the row's word carry it.
 
 **Parity rows covered**
 
@@ -134,6 +136,8 @@ The editor for one data type on one explicit build target: structure, union, enu
 - T05 create and edit types; T10 the structure and union editor, with every listed action; T11 the enum editor; T12 typedefs, pointers and arrays; T13 function definitions.
 - E06 create an array or structure from a selection, and the quick Edit Field.
 - Also T19: the hex display here is a per-viewer toggle; the rest of the editor options live in OptionsPanel.
+- The cycle-group part of T18, as the draft Cycle action on a component. Favourites and recently used types are TypeManager's.
+- The read-only following form serves the Walk pointers layout preset; it adds no parity row.
 
 **Prior art**
 

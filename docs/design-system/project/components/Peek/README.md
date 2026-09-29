@@ -25,7 +25,7 @@ A read-only look at any linked entity without leaving the current view: a hover 
 - While a chord-opened peek is showing, moving focus within the same list or grid retargets it after the focus-rest delay, until Esc.
 - **Tab** from the trigger moves into the peek's first action. Shift+Tab returns to the trigger. Tab past the last action continues to the element after the trigger.
 - **Esc** closes and leaves focus on the trigger, or returns it there. A second Esc goes to the surface underneath.
-- **Enter** on Open (or on the trigger) opens. **Ctrl+Enter** inside the peek promotes it to the side. On a trigger that is a real link, Ctrl+Enter keeps the browser's open-in-new-tab meaning; the deep link makes that equivalent.
+- **Enter** on Open (or on the trigger) opens. **Shift+Enter** opens the target to the side, from the trigger or from inside the peek. Ctrl/Cmd+Enter on a trigger keeps the browser's own new-tab behavior.
 - Shift+F10 or the context menu on any trigger lists Peek, Open, Open to the side, Keep and Copy link.
 
 **Accessibility**

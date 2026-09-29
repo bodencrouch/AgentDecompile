@@ -43,6 +43,7 @@ Accessibility is part of the operating model, not a later pass. A keyboard-only,
 ## Keyboard and shortcuts (WCAG 2.1.4)
 
 - **Global commands use a modifier**: Ctrl/Cmd+K palette, Ctrl/Cmd+P go to anything, Ctrl/Cmd+G go to address, Alt+← / Alt+→ back and forward, F6 / Shift+F6 cycle regions (header, navigator, center, evidence, dock), Ctrl/Cmd+J toggle dock.
+- **Links share one grammar** (see Linked views): Enter goes, Shift+Enter opens beside, Alt+↓ peeks, K keeps, Shift+F10 reveals in, Ctrl/Cmd+Enter opens a browser tab.
 - **Single-character keys are focus-scoped**: j/k, x, Space, typeahead and the letter commands work only while focus is inside a list, grid or listing, and never in text fields.
 - **Every shortcut can be turned off or remapped** in Keyboard settings. Menus and tooltips show the current binding, and controls expose it with `aria-keyshortcuts`.
 - Screen-reader browse modes are respected: letter commands never fire while a virtual cursor mode is plausible (focus on the document body).

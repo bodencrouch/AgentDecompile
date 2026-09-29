@@ -20,7 +20,7 @@ Cross-references for the current selection, always visible: incoming and outgoin
 
 - APG Grid with one tab stop: ↑/↓ rows, ←/→ cells, Home/End row start and end, Ctrl+Home/Ctrl+End first and last row, PageUp/PageDown.
 - Enter on a row follows it: the selection moves to the from address, history is pushed and focus goes to the Listing at that line. The panel then follows the new selection unless it is kept.
-- Alt+↓ peeks the row's target; Ctrl+Enter inside that peek opens it to the side.
+- Alt+↓ peeks the row's target; Shift+Enter opens it to the side.
 - Shift+F10 opens the row menu: Open, Open to the side, Peek, Keep panel, Copy link, Copy address.
 - While focus is inside the grid only, `i` and `o` switch direction and `t` toggles token and line. These can be remapped or turned off (WCAG 2.1.4).
 - The toolbar comes before the grid in Tab order. Toggles are buttons with `aria-pressed`; Space toggles a kind chip.

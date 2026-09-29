@@ -27,60 +27,62 @@ Most of the documented switching comes from four habits:
 - **Losing the place**: pages and windows that do not carry their location, so Back, reload, links and surface switches re-navigate by hand.
 - **Finding the next item by hand**: returning to a list after each item, and reading outcomes in a separate dock instead of on the row.
 
-The units answer each habit: information comes to the selection (Peek, rail sections, XrefPanel, CounterpartStrip, outcomes on the row); comparison opens beside instead of replacing (SplitCompare, Hold); the location lives in the URL and history (location schema, NavigationBar); and result sets become worklists stepped with one key (F8).
+The units answer each habit: information comes to the selection (Peek, rail sections, XrefPanel, CounterpartStrip, outcomes on the row); comparison opens beside instead of replacing (SplitCompare, Hold); the location lives in the URL and history (location schema, NavigationBar); and result sets can be collected into worklists stepped with one key (F8).
 
 ## Per-journey ledger
 
-Before = documented or implied view switches. After = switches with the units in place (keystrokes inside one view are not counted as switches). Estimates, not observations.
+Before = documented or implied view switches. After = switches with the units in place (keystrokes inside one view are not counted as switches; region focus moves and history steps are named in the Main units cell but not counted). Estimates, not observations.
+
+Each journey is credited once, to the unit named first in its Main units cell. A unit that only helps names the journey in its own text without claiming the reduction again. This ledger is authoritative: component README estimates that differ are to be aligned to it.
 
 | Journey | Task | Before | After | Main units |
 |---|---|---:|---:|---|
-| J01 | Inspect a function in build A, then see its counterpart(s) in builds B-D (address, divergence class, identity-edge state), and return to build A | 5 | 1 | UX-05 (Peek reads them at 0) |
-| J02 | From a function's proof state (seven facts), open the receipt behind a fact and the job that produced it | 5 | 1 | UX-04 + UX-10: 0 workspace switches, 1 dock-tab change; 2–3 activations |
-| J03 | Find which pipeline stage / concurrent lane produced a given receipt or job | 4 | 0 | UX-10 StageChip on the row |
-| J04 | Understand why a stage/entity/objective is blocked and what continues | 5 | 1 | UX-12 diagnosis in place |
-| J05 | Go from a diagram concept (stage gate, lock, lane, ladder step) to the live entities/jobs currently at it | 5 | 1 | UX-08 go to anything |
-| J06 | From a readiness x coverage matrix cell (entity x build) open the resolution-ladder evidence and any contested pair | 4 | 1 | UX-13 (Peek reads the ladder at 0) |
-| J07 | Review a candidate match and check the bytes/blocks of both endpoints before deciding | 8 | 2 | UX-16 + UX-05 |
-| J08 | Recover from a refused (stale/missing basis) review decision | 4 | 1 | UX-16 master-detail review |
-| J09 | Follow a cross-reference from code and return to where you were | 4 | 1 | UX-04 read at 0 · UX-07 follow, Alt+← back |
-| J10 | Relate an instruction row to its decompiled statement and vice versa | 6 | 0 | UX-03 reflected cursor |
-| J11 | Rename or retype a local variable seen in the decompiler | 6 | 2 | UX-15 edit where you read |
-| J12 | Edit a function signature / calling convention / custom storage and verify that dependent views updated | 5 | 2 | UX-15 edit where you read |
-| J13 | From a decompiler variable/field inspect its structure type, offsets and uses, then apply/refine the type | 5 | 2 | UX-03 Code Browser composite |
-| J14 | Investigate a vtable: slots, targets, callers, class layout, and the same slots on other builds | 6 | 2 | UX-07 Slots mode + UX-13 |
-| J15 | Diagnose a decompile artifact (extraout/unaff/wrong return) before changing a prototype | 6 | 2 | UX-03 Code Browser composite |
-| J16 | Explore the call graph and read code of nodes along the way | 3 | 0 | UX-03 graph beside code + UX-06 held graph |
-| J17 | Walk every member of a logical identity across builds | 6 | 1 | UX-05 + UX-02 |
-| J18 | Find out why a function has its name: winning tier, donor build, rejected alternatives, conflicts | 4 | 0 | UX-06 rail section |
-| J19 | From a job in the dock, see which entities/builds it changed | 4 | 1 | UX-01 typed links |
-| J20 | From an actual-work event (propagation, repair, verify), inspect the underlying diff/evidence and step through history | 4 | 1 | UX-01 typed links |
-| J21 | Inner loop: run a catalog verb on the selected function and read its outcome | 5 | 2 | UX-14 outcomes on the row |
-| J22 | Run one verb on a checked set and verify each function's result | 7 | 2 | UX-10 walkable provenance |
+| J01 | Inspect a function in build A, then see its counterpart(s) in builds B-D (address, divergence class, identity-edge state), and return to build A | 5 | 1 | UX-05 strip and derived split (≥700px; 2 below 700px; reading by Peek alone: 0 where cached) |
+| J02 | From a function's proof state (seven facts), open the receipt behind a fact and the job that produced it | 5 | 1 | UX-10 fact → receipt → job links, read by Peek at 0; the 1 is the dock-tab change to open the job (+1 below 700px) |
+| J03 | Find which pipeline stage / concurrent lane produced a given receipt or job | 4 | 0 | UX-10 StageChip on the row where plan §2.1 maps the verb; otherwise "stage: unmapped" |
+| J04 | Understand why a stage/entity/objective is blocked and what continues | 5 | 1 | UX-12 FailureRecord expands in place |
+| J05 | Go from a diagram concept (stage gate, lock, lane, ladder step) to the live entities/jobs currently at it | 5 | 1 | UX-08 go to anything (`~gate-4`) |
+| J06 | From a readiness x coverage matrix cell (entity x build) open the resolution-ladder evidence and any contested pair | 4 | 1 | UX-13 (Peek reads the ladder at 0; Enter selects in place) |
+| J07 | Review a candidate match and check the bytes/blocks of both endpoints before deciding | 8 | 0 | UX-16 master-detail and held pair; +1 modal confirm per decision, +1 per session for the Review preset |
+| J08 | Recover from a refused (stale/missing basis) review decision | 4 | 1 | UX-16 batch refusal recovery (the new confirm; only changed rows re-read) |
+| J09 | Follow a cross-reference from code and return to where you were | 4 | 0 | UX-07 in place: 1 region move and 1 Alt+← back, not view switches; 0 per further reference; below 700px 2 per reference by tab, 0 with `]`/`[` |
+| J10 | Relate an instruction row to its decompiled statement and vice versa | 6 | 0 | UX-03 reflected cursor (≥700px; 2 below 700px) |
+| J11 | Rename or retype a local variable seen in the decompiler | 6 | 0 | UX-15 edit in place (F2, type, Enter) |
+| J12 | Edit a function signature / calling convention / custom storage and verify that dependent views updated | 5 | 1 | UX-15 edit in place; +1 per caller verified (Enter decompiles it) |
+| J13 | From a decompiler variable/field inspect its structure type, offsets and uses, then apply/refine the type | 5 | 2 | UX-15 Peek type and Retype in place; changing the structure still opens the type view |
+| J14 | Investigate a vtable: slots, targets, callers, class layout, and the same slots on other builds | 6 | 2 | UX-07 Slots tab (rows from the UX-13 slots mode, aligned by ladder E); the 2 open a slot's counterpart beside |
+| J15 | Diagnose a decompile artifact (extraout/unaff/wrong return) before changing a prototype | 6 | 4 | UX-03 callers and bytes co-visible; data flow and the prototype edit stay their own verbs |
+| J16 | Explore the call graph and read code of nodes along the way | 3 | 0 | UX-03 following graph beside code (when Graph and Decompile are the two panes; 2 per node below 700px) |
+| J17 | Walk every member of a logical identity across builds | 6 | 1 | UX-09 worklist: collect the members once, then F8 (0 per member after the first) |
+| J18 | Find out why a function has its name: winning tier, donor build, rejected alternatives, conflicts | 4 | 0 | UX-06 "Why this name" rail section |
+| J19 | From a job in the dock, see which entities/builds it changed | 4 | 1 | UX-10 ActivityRecord Changed line → filtered Functions |
+| J20 | From an actual-work event (propagation, repair, verify), inspect the underlying diff/evidence and step through history | 4 | 1 | UX-10 work-view event opens its evidence beside |
+| J21 | Inner loop: run a catalog verb on the selected function and read its outcome | 5 | 2 | UX-14 `.` then Run; outcome read on the row (+ConfirmDialog only for batch, destructive or cross-build verbs) |
+| J22 | Run one verb on a checked set and verify each function's result | 7 | 2 | UX-14 outcome cell per row, independent of batch size when the job reports per-target units |
 | J23 | Consult a corpus panel (Cross-match, Recovery, STABS, Knowledge, Review) for the current function and come back | 3 | 0 | UX-06 rail sections (via Show all: 2) |
 | J24 | Use Atlas similarity map / report / explorer page and return to the same function | 3 | 2 | UX-02 `panel=` views; 0 re-selection |
 | J25 | Follow a link between the static workbench and the React app without losing the destination | 3 | 1 | UX-02 shared schema (U172); +1 confirm when the link names another project |
-| J26 | Switch the inspected build while keeping the same logical entity | 3 | 1 | UX-05 counterparts in place |
-| J27 | Open a Ghidra program whose corpus inventory/binding is missing and get to its functions | 4 | 2 | UX-01 dead-end rule, plus the kept ConfirmDialog |
-| J28 | Detect and act on starvation: oldest unreviewed row, oldest waiting lane, job past deadline | 4 | 1 | UX-11 diagram ↔ live |
-| J29 | Pause/resume admission and understand exactly what it drains and which lanes it does not own | 4 | 0 | UX-11 scope sentence beside the control |
-| J30 | Import binaries, watch the admitted work, then start working on the new build | 4 | 1 | UX-10 walkable provenance |
-| J31 | After a project merge, inspect a conflicting name/type in its build | 4 | 1 | UX-01 typed links |
+| J26 | Switch the inspected build while keeping the same logical entity | 3 | 1 | UX-05 position-keeping build switch (anchor partner where anchors exist; otherwise the function start, stated) |
+| J27 | Open a Ghidra program whose corpus inventory/binding is missing and get to its functions | 4 | 2 | UX-12 empty state under the UX-01 dead-end rule (notice → armed strip → confirm) |
+| J28 | Detect and act on starvation: oldest unreviewed row, oldest waiting lane, job past deadline | 4 | 1 | UX-11 PipelineMap Peek: the oldest wait is a link |
+| J29 | Pause/resume admission and understand exactly what it drains and which lanes it does not own | 4 | 1 | UX-11 "What this pauses" beside Pause (one activation, no view switch) |
+| J30 | Import binaries, watch the admitted work, then start working on the new build | 4 | 1 | UX-10 walkable provenance (+1 below 700px) |
+| J31 | After a project merge, inspect a conflicting name/type in its build | 4 | 1 | UX-01 typed links (2 when the item is only in the other project and a switch is chosen) |
 | J32 | Check where context pieces were placed and resolve proposed-label conflicts | 3 | 1 | UX-01 typed links (≥1100px; 2 below 700px) |
-| J33 | See why an entity is not runtime-usable (e.g. not_detourable) on a build and whether other builds are | 4 | 1 | UX-13 (Peek reads the refusal at 0) |
+| J33 | See why an entity is not runtime-usable (e.g. not_detourable) on a build and whether other builds are | 4 | 1 | UX-13 (Peek reads the refusal at 0; +1 region jump to read the card with a screen reader) |
 | J34 | From a whole-image delta, get to the offending function/data region and its object diff | 4 | 1 | UX-01 typed links |
-| J35 | Understand a stale fact: what dependency changed and when revalidation runs | 3 | 0 | UX-01 typed links (1 if the basis evidence is not cached) |
+| J35 | Understand a stale fact: what dependency changed and when revalidation runs | 3 | 0 | UX-04 stale Peek (1 when the dependency change is not recorded or not cached) |
 | J36 | From strings/imports/exports/sections/bookmarks get to use sites and bytes | 3 | 1 | UX-01 typed links |
-| J37 | Do any cross-view journey on a narrow viewport (<700px, 598x912) | 6 | 3 | UX-21 narrow continuity |
-| J38 | Keyboard / screen-reader user: go from a job-transition announcement to the result and back to the entity | 4 | 1 | UX-18 regions and keymap |
+| J37 | Do any cross-view journey on a narrow viewport (<700px, 598x912) | 6 | 2 | UX-21 NarrowFlow (1 if the counterpart is only peeked; 3 if a job record must be opened; +1 below 480px tall) |
+| J38 | Keyboard / screen-reader user: go from a job-transition announcement to the result and back to the entity | 4 | 2 | UX-18 "Go to last announcement" (`g j`) to the job row; Go 1; Back 1 |
 | J39 | Iterate on candidate source repair: diagnostic -> changed line -> compile -> objdiff | 4 | 1 | UX-01 typed links |
-| **Total** | 39 journeys | **174** | **44** | about 75% fewer switches (estimates) |
+| **Total** | 39 journeys | **174** | **41** | about 76% fewer switches (estimates) |
 
-The largest single gains are the inner code loop (J09 + J10: about 10 switches per function down to about 1), match review (J07: 8 → 2 per decision) and batch verification (J22: 7 → 2, independent of batch size).
+The largest single gains are the inner code loop (J09 + J10: 10 view switches per function down to 0 at ≥700px, leaving one region move and one Back; about 4 below 700px), match review (J07: 8 → 0 per decision, plus one modal confirm), local edits (J11: 6 → 0) and batch verification (J22: 7 → 2, independent of batch size when the job reports per-target units).
 
 ## Units
 
-Each unit lists what changes, why it removes switching, its accessibility contract and its doctrine safeguards. P0 units are the foundation the others assume.
+Each unit lists what changes, why it removes switching, its accessibility contract and its doctrine safeguards. P0 units are the foundation the others assume. "Already in the design system" means specified in the design-system docs, not implemented. Each unit claims only the journeys the ledger credits to it and names the ones it supports.
 
 ### U171 · Typed links and one activation grammar (P0; UX-01)
 Every mention of an address, symbol, counterpart, fact, receipt, job, logical id, basis digest, diagnostic, delta region, conflict, work-view event or pipeline node is an `<a class="ad-link">` over the location schema. Each resolves to exactly one place. The design-system Linked views table also says, per type, whether it moves the primary location and where focus lands.
@@ -134,84 +136,294 @@ In checkable grids, Ctrl/Cmd-click and Shift-click belong to the checked set; th
 - Reload, a shared link and a surface switch land on the same entity, build, address and focused element.
 - A read-only grep finds no alias names in design-system preview hrefs.
 
-### U173 · Code Browser composite (P0; UX-03)
-A Views toolbar (aria-pressed toggles, `views=` in the URL) replaces the analysis tablist: Listing and Decompile side by side at ≥1100px, stacked at 700–1099px, one view with "Show in other view" below 700px; a HexStrip under the listing; Graph beside when chosen. One reflected cursor: focusing a token marks the mapped rows in every visible view (gutter bar plus underline, never color alone); Enter moves the cursor for all views; missing mappings say "No instruction mapping for this statement". Focus-scoped `r` moves focus to the reflected row; `h` highlights all occurrences. Xrefs and Matching leave the center tablist (see U177, U175).
-*Removes:* J10 6 → 0 and most of J09, J13, J15, J16, J34, J36, J39.
-*Components:* DecompilePane, HexStrip, GraphPane, CodeBrowser, FunctionOutline.
+### U173 · Code Browser composite, finished (P0; UX-03)
+Already in the design system: the Views toolbar (`views=`), DecompileView and HexStrip with the reflection mark, and `r`, `h`, `x`, `]`, `[`. Still missing: "analysis tabs" left in 90, NavigationBar and the Workstation preview; a GraphPane README; Listing's reflection and Linking; a reflection section in 35.
+- **Views toolbar**: at most two center panes plus the HexStrip. A third view replaces a named one (Graph ↔ Decompile), said before and announced after; the last visible view is aria-disabled with its reason. Side by side when the Code Browser is at least 2 × `split-min-w` wide, stacked below; under 700px the NarrowFlow "Code views" tablist keeps the cursor. Turning a view on never analyzes.
+- **Reflection** (35): one cursor; every visible view marks the mapped set with the existing mark (raised fill, 3px ink-muted bar, "↔ line 7", ▸). A missing mapping is a sentence, never inferred. Pointer brushing is an optional dotted outline that moves nothing. `r` moves focus to the reflected row by a fixed target table.
+- **Highlight all** (`h`): up to four, lettered A–D, a box, never an underline; "text match" unless keyed by variable identity; other builds only through recorded anchors.
+- **One composite header** replaces per-well headers and joins `sticky-offset`.
+- **Graph** follows by marking the current node and re-roots only on an explicit Re-root; there is no held graph.
+- **Proof wells**: diagnostic → SourceRepairDiff line → rebuilt rows (line table) → target rows (ObjectDiff receipt, "aligned ≠ equivalent"); a mapping from an older compile is marked stale.
+
+*Removes:* J10 6 → 0 at ≥700px (2 below); J16 3 → 0 per node when Graph and Decompile are the two panes; J15 6 → 4. J34, J36 and J39 are credited to U171.
+*Components:* CodeBrowser, DecompileView, HexStrip, Listing, GraphPane (new README), Workstation.
+*Accessibility:* the Views bar is an APG Toolbar and Workspaces a separate tablist; wells are h3 regions reached by Tab and the `g` leader (F6 stays region cycling); cursor, reflection, brushing and highlight differ in shape, also in forced colors.
+*Safeguards:* read-only; mappings only from the decompile projection, line tables and receipts, each labelled. The React CodeBrowser was reported unmounted (N2, 2026-09-21); not verified from docs.
+*Acceptance (future):* no "analysis tab" wording and one selected tab per tablist; GraphPane and Listing carry Linking blocks; at 320×256 one well shows with its cursor line.
 
 ### U174 · Peek everywhere (P0; UX-04)
-A content table by target type (code lines in the host view's own form; facts with their receipt, job and StageChip; stale basis old → new; gate waits with age; ladder runs; counterparts; jobs' three readouts; name provenance). One Esc order (close peek → close menu → clear transient filter; Esc never clears the checked set). Keep is carried as `keep=`. Below 700px Peek is a bottom sheet.
-*Safeguards:* cache-only by construction; "Not loaded. Open to read it." is an answer, not a fetch; stale stays labelled.
-*Accessibility:* WCAG 1.4.13 dismissable, hoverable, persistent; opens on focus too; never steals focus.
+Already in the design system: the Peek README (forms, Alt+↓, rest delays, cached, not-loaded and stale states), NarrowFlow's sheet, and "no tooltip" in the fact, capability, locator and name components. Still missing:
+- **A content table by target type**, cache-only: code (6 lines in the card, 12 inline); XREF[n] (first 20, then "n more · Open"); fact (word, stamp, receipt, job, StageChip); ◷ stale (old → new basis, the dependency that changed, the revalidation job or "Revalidation: none recorded"); ◇ gate wait with age; ladder run with observed_status on its own line; counterpart (edge word, divergence, lines around an evidenced anchor only, "aligned ≠ equivalent"); job ("as of 14:02", no poll); name, type, slot and capability refusal.
+- **Footer**: Open · Open beside (a Held pane) · Keep (button, or Shift+K inside the Peek; `keep=`) · Copy link. A nested peek replaces the content with "‹ back".
+- **One focus-relative Esc order** in keymap.json, 85 and 90: peek, sheet, menu or hint → edit mode → the topmost modal → an armed ActionStrip holding focus (fields kept) → a transient extent → a transient filter → from a secondary or held pane to the primary. Esc never clears the checked set, holds, kept cards or drafts. The count chip's × leaves "Checked set cleared (4) · Undo" beside the chip until the next check change.
+- **Triggers**: hover only on link tokens and whole-strip buttons, switchable off; focus rest off at 400% zoom and below 700px; Peek in the 44px row menu for coarse pointers; NarrowFlow's sheet (at most 64% of the pane), and the inline form below 480px viewport height.
+
+*Removes:* J35 3 → 0 (the stale Peek). It supplies the reads for J01, J02, J06, J09, J13, J18 and J33, credited to their owners.
+*Components:* Peek, NarrowFlow, EntityRow (tooltip → Peek), CounterpartMatrix, HeldPane, EvidenceRail, DecompileView.
+*Accessibility:* 1.4.13 (4px gap bridged, 300ms grace, no timeout); a non-modal dialog; aria-expanded only while open; aria-keyshortcuts once per well; never covers the trigger (2.4.11).
+*Safeguards:* cache-only ("Not loaded. Open to read it." is an answer, not a fetch); no prefetch; dated snapshots; only Open changes the selection.
+*Acceptance (future):* a Peek row for every link target; the same seven Esc steps in keymap.json, 85 and 90; no "K keeps" or `hold=card:` left.
 
 ### U175 · Counterparts in place (P0; UX-05)
-A CounterpartStrip above the Code Browser names every build's counterpart with locator glyph and word, divergence and edge state; Enter switches the inspected build **keeping the instruction position** through backend alignment ("No instruction mapping for build-c; showing function start"; "build-d: no counterpart (unresolved); staying on build-a"); Shift+Enter opens SplitCompare; Alt+PageDown/PageUp step builds. SplitCompare aligns on anchors with a linked scroll, F7 next difference and collapsed equal runs. Compare stays the N-way workspace.
-*Safeguards:* counterparts only from recorded identity edges and locators; contested has no winner; equal rows in a split say "local; ≠ whole-image proof".
+Already in the design system: CounterpartStrip, SplitCompare, Ctrl/Cmd+\ (split), Alt+PageDown/PageUp and F7. Still missing:
+- **One CounterpartStrip per composite** above the Code Browser, plus a compact form in the rail header, never one per well. Enter goes, Shift+Enter opens a Held pane, Alt+↓ peeks. Below 700px it folds into the breadcrumb Build menu ("4 builds: 2 resolved, 1 pinned, 1 absent").
+- **Position-keeping build switch**, one rule for the strip, build menu, go-to and Alt+PageDown. Keep the entity; map the cursor only through recorded anchor pairs (between anchors, the nearest preceding anchor's partner, said in words); never interpolate. No anchors: "No instruction mapping for build-c; showing function start". No counterpart: stay, with "Open build-d" carrying no address. Ambiguous and contested open the candidate menu; candidate edges go and say "candidate". Clearing the checked set is stated before and confirmed after, with no dialog.
+- **Split inside the Code Browser.** Ctrl/Cmd+\ opens a derived pane (the primary plus a build); Shift+Enter a Held pane; Follow again turns held into derived. Enter in a derived pane is Go; held panes follow HeldPane. A shared PaneHeader carries state words, build menu, Hold this pane, "Scroll lock · on anchors", Swap and Close. A contested locator is one contested pane; two held panes only in Compare. SplitCompare publishes `cmp`, `views` and `hold`, not `sp`, `v` or `ws=compare`.
+- **Differences**: F7 with SplitCompare's words (`±` differs, "▸ 9 unchanged lines", "local zero ≠ full-image or behavior proof").
 
-### U176 · Follow, Hold and Kept (P1; UX-06)
-Following panes update after a 200ms settle (`settle-delay`), keep prior content dimmed with "Loading ‹name›", cancel obsolete requests and set aria-busy; an **Update panes** control ("As I move" / "On Enter") switches to commit-on-Enter. The constant-named **Hold this pane** toggle (aria-pressed, state words "Following · sync A" / "Held · ‹entity› @ ‹build› · ‹age›") freezes a pane to entity × build × address, with a basis token, its own history, "◷ Basis changed since held · Refresh" and Make primary; at most two center panes, further holds become Kept cards. The evidence rail absorbs the corpus panels as selection-scoped sections ("For ResourceRef::Resolve · build-b") with "Show all".
-*Safeguards:* still one selection owner; held and kept are read-only and never silently refresh; the ActionStrip binds only the primary.
+*Removes:* J01 5 → 1 at ≥700px (2 below); J26 3 → 1. The strip is also the member list that U179 collects for J17.
+*Components:* CounterpartStrip, SplitCompare, PaneHeader (new, shared with U176), EvidenceRail, NavigationBar, NarrowFlow.
+*Accessibility:* the strip is an APG Toolbar with sentence names; arrowing never switches; one polite message per switch naming its basis; below 700px an APG tablist "build-a · follows | build-c · derived".
+*Safeguards:* counterparts only from recorded edges; no invented positions; the ActionStrip binds the primary. Whether both surfaces can read the anchor pairs today is not verified from docs.
+*Acceptance (future):* no `sp`, `v` or Code Browser `ws=compare` left; switching ResourceRef::Resolve from build-a to build-c lands on the anchor partner and says so.
 
-### U177 · XrefPanel, call hierarchy, vtable slots, outline (P1; UX-07)
-References live in the evidence rail (movable to the dock). XREF[n] hints are links; focus-scoped `x` focuses the panel from a code well; `]`/`[` step the code cursor through the panel's rows while focus stays in the code; `w` collects rows into a worklist. Modes: Calls (incoming/outgoing tree, depth 1–3, "depth limit reached"), Slots (vtable slots with per-build columns) and Outline.
-*Safeguards:* reads the stored xref index only ("not indexed here"); cross-build rows only through accepted edges and resolved locators.
+### U176 · Follow, Hold and Kept, finished (P1; UX-06)
+Already in the design system: following after `settle-delay`, Update panes, Hold this pane, `hold` and `keep`, and HeldPane. Still missing:
+- **Drift**: "Link panes" in CodeBrowser and NavigationBar; "Current differs" instead of "◷ Basis changed since held · Refresh"; the Held icon in the stale color; "held at a stage gate" in 20 (it becomes "waiting").
+- **Follow boundaries**: following never crosses a project, opens a program or decompiles on a miss; aria-busy only on panes without focus; each following pane states its mode. A commit-on-Enter pane says "Shows ResourceRef::Resolve; selection is now Actor::LoadFromTemplate · Enter to load".
+- **The armed ActionStrip never retargets**: "Bound to ResourceRef::Resolve · selection is now Actor::LoadFromTemplate · Rebind".
+- **Hold** only on center and secondary panes, through PaneHeader. The HELD tag stays visible while scrolling, because the 2px ink-strong frame also marks fresh evidence. A third center Hold becomes a Kept card and says so.
+- **Kept cards** (`keep=`): at most three; a fourth is refused ("Three cards kept; release one"), never evicted. Enter in a kept card goes; in a held pane it moves that pane; each footer says which.
+- **Selection-scoped rail sections** (disclosures, per-viewer collapsed state): Kept, Pipeline, Why this name, Facts, References, Counterparts, Cross-match summary, Recovery, Timeline. Corpus sections read "For ResourceRef::Resolve · build-b" with Show all (`panel=`). The list lives in 30 and Workstation; EvidenceRail is the ladder component. The Knowledge entry keeps its own claim tier, outside name precedence.
+
+*Removes:* J18 4 → 0; J23 3 → 0 (2 via Show all). J16 uses the following graph (U173) and J14 a Kept Slots card (U177), credited there.
+*Components:* PaneHeader (new), HeldPane, CodeBrowser, NavigationBar, NameProvenance, ActionStrip, Workstation, keymap.json (pane commands).
+*Accessibility:* arrows never change context; at most one polite message per settle, after load, only facts not in the row name, switchable off; 2.2.2 is met by Freeze, not by Hold.
+*Safeguards:* one selection owner; held and kept never refresh silently; no new store.
+*Acceptance (future):* no "Link panes", "Current differs" or "held at a stage gate" left; one rail section list; pane commands in keymap.json.
+
+### U177 · References in place (P1; UX-07)
+Already in the design system: XrefPanel's grid; `x`, `]`/`[` and `g o`; References out of the center in 30. Still missing:
+- **One placement** (the CodeBrowser rule): References (with Calls and Slots) and Outline in the evidence rail when it is open; otherwise beside the code at ≥880px Code Browser width, else under it; below 700px a "References" tab. No dock placement.
+- **XREF[n]** is a typed link (an "xref hint" row in 35): Enter focuses References at that build and address without moving the primary location; Alt+↓ peeks.
+- **Snapshot stepping**: `]`/`[` or Previous/Next buttons step the code cursor while focus stays. The first step snapshots the list ("Kept · stepping references to ResourceRef::Resolve · 3 of 12 · as listed 14:02", `keep=`) and pushes one stop; later steps replace it, so one Alt+← returns to the origin. Steps stop at the ends and never change build or touch the worklist.
+- **Modes** (manual-activation tabs, `f=xref.mode:`): Calls is a treegrid over the existing call-tree operations, following at depth 1 and expanding on request to 3, with "path found / no path in stored index" per build and "path in stored index ≠ runtime reachability". Slots shows U183's slot rows at rail width, aligned by stored ladder E results, never by index; off a vtable it is aria-disabled with the reason.
+- **Outline** is the one CodeBrowser Outline projection; no FunctionOutline and no Ctrl/Cmd+Shift+O.
+- **Scope precedence** edit > code > composite > region > global, so `x` in a code well means references; punctuation keys accept AltGr.
+
+*Removes:* J09 4 → 0 view switches (1 region move and 1 Alt+← back; below 700px 2 per reference by tab, 0 with `]`/`[`); J14 6 → 2.
+*Components:* XrefPanel, CallHierarchy (new README), CodeBrowser, Listing (Linking block), KeymapSettings.
+*Accessibility:* Calls has treegrid attributes and aria-busy; each step is announced once ("Reference 3 of 12"); buttons are the touch path; per-build columns collapse to "on 3 of 5 builds" at 320×256.
+*Safeguards:* stored indexes and ladder E results only ("not indexed here"); cross-build rows through recorded edges; stepping state is Kept and never refreshed silently.
+*Acceptance (future):* 35 has the xref-hint row; XrefPanel and CodeBrowser state one narrow placement; after three `]` steps one Alt+← returns to the origin.
 
 ### U178 · Go to anything (P1; UX-08)
-One engine behind Ctrl/Cmd+P (the NavigationBar field), Ctrl/Cmd+K (palette, `>` preselected) and Ctrl/Cmd+G (`:` typed). Prefixes `@` symbol, `:` address, `#` logical id, `!` job, `%` receipt or basis, `~` pipeline node, `>` command, `$` string, `'` marks and worklists, `?` help. Rows name type, target build, per-build locator state and where they open; actions show their binding or are aria-disabled with the reason. Repeat-last jump.
-*Safeguards:* read-only search; previews cache-only; actions only arm the ActionStrip.
+Already in the design system: NavigationBar go-to with prefixes, and a separate CommandPalette. This unit makes them one engine.
+- **Three keys.** Ctrl/Cmd+P focuses the NavigationBar go-to combobox; Ctrl/Cmd+G focuses it with `:` typed and the last address jump as the highlighted first row; Ctrl/Cmd+K opens the modal palette with `>`. Below 1100px, P and G open the same engine in the palette. The Functions filter stays a filter.
+- **Prefixes**, first character only: `@` symbol, `:` address, `#` logical id, `!` job, `%` receipt or basis, `~` node, `>` command, `$` string, `'` marks and worklists, `?` help. Program bookmarks are their own group. `?` plus an identifier also searches symbols (decorated names); `::` starts a symbol. The detected scope is a removable chip; prefix chips are the touch and dead-key path. Typing never opens a dialog.
+- **Rows** name type, target build, per-build locator words, destination, an action's binding and a job's StageChip. A row that switches builds says so first ("clears 4 checked rows on build-a"). Unavailable actions show the one fix from the dead-end rule.
+- **Honest search** over stored indexes of the active project, with coverage in words ("not searched: build-d, not loaded"). A bare address resolves in the inspected build first; the same number elsewhere is "a different place, not a counterpart". Results only in another project read "in ‹project› · not open" and land on the cross-project StateNotice.
+- **Corpus surfaces** focus their rail section; Shift+Enter or Show all opens `panel=`.
+- The empty query lists Recent locations, Marks, Recent actions and Recent jobs. The field is `goto`, not `q`. In grids with letter commands, typeahead starts with `/`.
 
-### U179 · Marks, recent locations and worklists (P1; UX-09)
-Focus-scoped `m`+letter marks an entity and address (resolves per build through the locator); `'`+letter jumps; marks carry notes and are context-hint tier. Recent locations gain "Edited only" and "Touched by jobs" filters. Any result set can become a worklist (`w`); F8 / Shift+F8 step it from anywhere; the active worklist is a NavigationBar chip with "4 of 12".
-*Safeguards:* marks are not evidence; a worklist is view state, never a job queue; worklists carry an as-of stamp.
+*Removes:* J05 5 → 1 (`~gate-4`). It also serves J03, J17, J23, J28 and J36 without credit; J18 belongs to U176.
+*Components:* NavigationBar, CommandPalette, KeymapSettings, StateNotice preview (bare "G" → Ctrl/Cmd+G), ProblemsList.
+*Accessibility:* an APG combobox with a grouped listbox; no change of context on input (3.2.2); scope announced once; rows wrap at 320×256.
+*Safeguards:* read-only; actions only arm; never switches projects; superseded queries dropped.
+*Acceptance (future):* NavigationBar, CommandPalette, 30 and keymap.json give P, G and K the same roles; no README says a typed character opens a dialog.
+
+### U179 · Marks, program bookmarks, recent locations and worklists (P1; UX-09)
+MarksList and ProblemsList exist and are amended; no new components.
+- **Marks** are per-viewer annotations: `m` + letter marks the concrete build and address; "Set logical mark…" marks the entity, resolved on other builds through the locator and backend alignment. `'` + letter jumps (physical key, dead-key safe). Marks, notes (labelled "note") and worklists carry no claim tier and never feed context fusion, propagation or agent bundles.
+- **Program bookmarks** (stored in the analysis program) are a separate, read-only Bookmarks navigator scope with category, comment and an address link. "Save as program bookmark" arms the catalog action for one build; the bookmark appears after a re-read.
+- **Recent** gains "Changed since visited", from jobs' recorded change units after the visit; jobs that only reused evidence do not qualify.
+- **Worklists** come only from Collect (`w`, toolbar, row menu): a snapshot "as of 14:02" with a source link. At ≥700px a stepper toolbar reads "position 4 of 12 · 7 visited · 3 handled"; below 700px a chip "Worklist 4 of 12" opens it as a sheet. Its height joins `sticky-offset`.
+- **F8 / Shift+F8** step the active worklist only (U182), move selection and focus like Go, never wrap, wait while an editor or unsent strip fields are open, and stop once at a program boundary ("Next: build-c · clears 4 checked rows on build-b"). No Alt+F8; the stepper buttons and palette serve keyboards without function keys.
+- **Words**: "visited" is automatic; "Handled" is an optional checklist toggle, "not a review decision · starts no work"; never "done" or "checked off". The item grid is not checkable. A vanished target "no longer resolves on build-b"; another viewer's `wl=` reads "Worklist not available here".
+
+*Removes:* J17 6 → 1 (collect the members once, then F8). F8 also serves J04, J14, J22, J28, J31 and J32, credited elsewhere.
+*Components:* MarksList, ProblemsList, NavigationBar, ClaimTier, Listing (gutter letter).
+*Accessibility:* one message per step ("Item 4 of 12: ResourceRef::Resolve, build-b, conflict"); boundary and end stops announced once; the stepper never obscures focus (2.4.11).
+*Safeguards:* marks are not evidence; a worklist is view state, never a job queue; bookmark writes go through the catalog; marks live in durable workspace state per viewer.
+*Acceptance (future):* no "done" or "checked off" in MarksList; ClaimTier no longer lists marks; 30 lists Bookmarks as a navigator scope.
 
 ### U180 · Walkable provenance (P1; UX-10)
-`pipeline-model.json` gains `catalog_verbs` per stage and lane; a StageChip ("5 Propagation · lane A") appears on every job, receipt, problem and go-to row and links to the PipelineMap node. ProvenanceStamp becomes a link group (receipt, job, basis, witness). ActivityRecord gains a "Changed" line that applies a removable FilterChip ("Changed by a3f9 ×"), build links, produced receipts and linkified log lines. EntityTimeline shows one entity's receipts, jobs, fact changes and edits in order.
-*Safeguards:* links only where a record names the target (no timing correlation); reused and historical labels carried through; unmapped verbs say "stage: unmapped".
+StageChip, EntityTimeline, FilterChip and ProvenanceStamp exist and are amended.
+- **catalog_verbs** is one verb-keyed map in pipeline-model.json, filled only from the consolidated plan §2.1 (stages 1–7). Stage 0, stage 8 and every lane read "stage: unmapped", with no lane guess, until a decision is recorded. A future check compares it with a GET /api/v1/actions snapshot.
+- **StageChip** reads "5 Propagation" (a lane part only when mapped) on jobs, receipts, problems and go-to rows, and links to the PipelineMap node.
+- **ActivityRecord** keeps two lines apart: "Targets" (what the job was asked to act on) and "Changed" (what its receipts recorded). "Changed: 3 (recorded units) · Show in Functions" applies the FilterChip "Changed by a3f9 ×"; with no units it reads "Changed entities: not recorded", with no filter. Build links land on the Navigator program row. Log lines link only structured fields; a free-text address links only when the job names one build, labelled "from log text".
+- **Filter history**: typing, editing or removing a filter replaces; applying one from a link (the Changed line, Show all) is a Go and pushes.
+- **Dock "Selection only"**: one toggle for Jobs, Problems and Logs, shown as a FilterChip; logs are filtered by job record, never by log text.
+- **EntityTimeline**: a human/agent filter only where the actor is recorded; moving between events writes no history.
+- **Work view**: events open their evidence beside. No pane follows active work; the header chip reads "Job a3f9 is at ‹node› · Go".
+- **ImportAdmission**: with the dock open at ≥700px, focus moves to the admitted batch row (a documented exception); otherwise it returns to the invoker.
+- **MergeReview and ContextPlacement** get Linking blocks; other-project items land on the cross-project StateNotice.
+
+*Removes:* J02 5 → 1 (read by Peek; 1 dock-tab change to the job); J03 4 → 0 where §2.1 maps the verb; J19, J20 and J30 4 → 1. Add 1 below 700px where the dock is involved. J22 is credited to U184.
+*Components:* StageChip, ActivityRecord, FilterChip, EntityTimeline, WorkTimeline, ImportAdmission, MergeReview, ContextPlacement.
+*Accessibility:* the dock history is an APG Feed; only the WorkTimeline track is a slider; filter changes are announced once.
+*Safeguards:* record-named links only, no timing correlation; targets ≠ changed; reused and historical labels carried through.
+*Acceptance (future):* catalog_verbs holds only §2.1 entries; FilterChip and location-schema.json agree on filter history; read-only diff, no generator run.
 
 ### U181 · Diagram ↔ live loop (P1; UX-11)
-Diagram outlines and draw.io nodes link to their in-app location (`?node=gate-4`), generated from the model. The PipelineMap peeks counts, oldest waiting age and lock owner; Enter on a lock opens the Jobs dock filtered by that resource with the OwnershipPanel expanded. WorkflowControl carries a scope sentence whose nouns are node links ("Pausing drains admission for stages 1–8; lanes C and E are separately owned"). An **Explain** disclosure on failures, gate waits, ladder rows and the live StageCard renders the node's Trying to / How / In → out / Gate text from the model.
-*Safeguards:* nodes are links, never Run buttons; counts per fact axis, never summed; external owners stay external.
+Already in the design system: pipeline-model.json, outlines, draw.io cells linking to outline anchors, PipelineMap peeks, the live StageCard, OwnershipPanel's expanded form and the "Design target:" prefix. Still missing:
+- **In-app node links**: the backend-served outline links each node to `?node=‹id›`; repo outlines write it as code text. No host, port or project is emitted; a node link resolves against the active project and never opens one. A draw.io cell keeps its single outline link.
+- **PipelineMap**: producers and consumers as a description and a static "Connects:" line, never live; a 44px row menu for coarse pointers; Enter on a lock pushes one stop to `dock=jobs&f=resource:‹key›` with OwnershipPanel expanded and the primary unchanged; external owners read "external · no job".
+- **What this pauses**: a disclosure beside Pause, outside the toolbar's roving set, holds a sentence composed from the backend's reported scope ("Pausing stops new write admission (gate 0) for corpus-alpha; work already admitted drains; lanes C and E are separately owned and keep running."), or "Scope not reported".
+- **Explain** on failures, gate waits, ladder rows and the live StageCard renders the node's text from the served model, headed "From the pipeline design · model rev ‹hash›" and "Design description ≠ this item's evidence".
+- **Companion edges**: only edges marked stated are drawn; interpretation edges wait for review. TaskLifecycle and FailureRecord crosswalks are recorded as interpretations and shown only inside Explain.
+- **60-diagrams**: the prefixes carry meaning and italic is decoration. Per-region overview views are an optional P2.
+
+*Removes:* J28 4 → 1 (the oldest wait is a link in the PipelineMap Peek); J29 4 → 1 (the disclosure beside the control; no view switch). J03, J04, J05 and J33 are credited to U180, U182, U178 and U183.
+*Components:* PipelineMap, WorkflowControl, StageCard, FailureRecord, TaskLifecycle, EvidenceRail, the pipeline-diagram generators.
+*Accessibility:* disclosures never move focus and reflow at 320×256; family, gate, lock and edge words are always written; counts are never live.
+*Safeguards:* nodes are links, never Run buttons; counts per fact axis; scope from the backend; design text is never evidence.
+*Acceptance (future):* no host, port or project in outlines; only stated edges drawn; Explain names the model revision. No generator run is claimed under the current mission.
 
 ### U182 · Diagnosis in place (P1; UX-12)
-FailureRecord and ObjectiveSummary fields become disclosures and links in a fixed order (reason, scope, evidence excerpt, owner and resource, freshness, spend, wake condition, what continues, Explain). The dock's ProblemsList is a grid grouped by pipeline node; F8 steps problems from anywhere; starvation bars link to the row, lane or job they measure; empty states arm (never run) the one fix; the dock has Freeze updates.
-*Safeguards:* failures drawn at their real unmet dependency; empty is not permission to analyze.
+ProblemsList already exists as a treegrid grouped by objective; this unit amends it with FailureRecord, ObjectiveSummary, StarvationMeter and StateNotice.
+- **FailureRecord in one order**: reason; lifecycle rail; classification; scope; evidence; owner and resource; freshness; attempts and budget; recovery action (fallback, retry owner, persistent budget); wake condition; what continues; escalation only when unavoidable; Explain. A `<dl>` with typed links and disclosures; expand state in durable workspace state. The evidence excerpt is read on expand only, never on focus, hover or prefetch. "What continues" links to the dock jobs filter, and to Functions only when the backend names function targets.
+- **ObjectiveSummary** keeps its five fields; the values become links.
+- **ProblemsList** gains a StageChip per row, a node filter (`f=node:gate-4`) from the PipelineMap and the coarse-pointer row menu; 90 calls it a treegrid.
+- **Stepping problems**: F8 steps only the active worklist. "Step problems" collects the current rows as a snapshot worklist in one activation; with none active, F8 says "No active worklist" and names both paths.
+- **StarvationMeter** bars stay role=img; the age words are links.
+- **Empty states** name program and cause, show reuse evidence and any pending admission first, and only then arm at most one catalog action for the primary selection: never run, never while discovery is not loaded, never an analysis action while reuse evidence exists, no fixed action ids.
+- **Dock**: Freeze per region ("Frozen at 14:02 · 7 events since"); `g p` opens Problems.
 
-### U183 · Matrices as 2-D grids (P1; UX-13)
-ReadinessMatrix and CounterpartMatrix are APG grids with cell focus: arrows, Home/End, Ctrl+Home/End, PageUp/PageDown. Alt+↓ peeks the ladder run; Enter writes entity + build and focuses the EntityBuildCard in the rail (with a back-link "from ReadinessMatrix · row 12 · build-c"); Shift+Enter opens SplitCompare; a contested cell opens two held panes "contested · no winner".
-*Safeguards:* locator status, observed status and identity-edge state stay separate; Enter on an unresolved cell opens the ladder, never picks an address.
+*Removes:* J04 5 → 1; J27 4 → 2 (notice → armed strip → confirm; the fix stays explicit). J35, J38 and J39 are credited to U174, U188 and U171.
+*Components:* FailureRecord, ObjectiveSummary, ProblemsList, StarvationMeter, StateNotice, MarksList, Workstation, 50.
+*Accessibility:* disclosures never move focus; headings relative to the host; one polite message per F8 landing; stepper buttons and 44px targets below 700px; empty states name cause and fix (3.3.1, 3.3.3).
+*Safeguards:* failures drawn at their real dependency; no Run, Start or per-stage buttons; duplicate admission refused; no kill or restart for external owners; 8080 renders `<details>` in the same order.
+*Acceptance (future):* one field order in FailureRecord, 50 and the preview; no action id in any empty state.
+
+### U183 · Matrices as keyboard grids (P1; UX-13)
+Already in the design system: ReadinessMatrix (cell grammar, keys, filters, `w`, slots mode, legend), EntityBuildCard, and the LocatorGlyph and EvidenceRail rules. The remaining defects are in those files.
+- **ReadinessMatrix** is an APG Grid with cell focus (arrows, Home/End, Ctrl+Home/End, PageUp/PageDown). Arrows move focus only; the matrix commits on Enter, a documented exception to Following.
+- **One cell grammar**: Alt+↓ peeks the stored ladder run. Enter on a resolved, pinned, degraded or unresolved cell selects entity + build in place (one stop, one message) and focus stays on the cell, whose description says the build will change. Shift+Enter opens the counterpart beside. Ambiguous and contested cells are menu buttons ("2 candidates, no winner") listing each candidate, "Compare candidates" (Compare with two holds, "candidate 1 of 2 · contested · no winner") and "Open ladder run". An unopened build says "Not loaded. Open build-c to read it."
+- **EntityBuildCard** follows in the rail. Its back-link reads "from ReadinessMatrix · ResourceRef::Resolve · build-c" through the history row key (no row index, no `focus=cell:`); Shift+K or Keep keeps it; "What you can do" comes from the shared readiness projection; at most one catalog action is armed, with the lane C lock owner shown.
+- **CounterpartMatrix** (rows = builds) is a row-focus grid; Enter switches build and keeps the entity.
+- **Build headers** link to `panel=builds&build=build-c` (see Open questions).
+- **Slots**: the ReadinessMatrix slots mode owns the slot × build rows; U177 shows them at rail width.
+- **Narrow**: under a 480px container, one entity's builds as a list; 44px cells below 700px; the primary cell carries the selection shape.
+
+*Removes:* J06 4 → 1 (Peek reads the ladder at 0); J33 4 → 1 for sighted users, plus 1 region jump (F6 or `g e`) with a screen reader. J01 and J26 are credited to U175, J14 to U177.
+*Components:* ReadinessMatrix, EntityBuildCard, CounterpartMatrix, HeldPane, LocatorGlyph, EvidenceRail, XrefPanel, 90.
+*Accessibility:* row and column headers; names in words; 90 separates row-selection grids from cell-focus matrices.
+*Safeguards:* locator, observed and edge state never merged; Enter never picks a candidate; entity-scoped verbs disabled on a contested binding; no score; the same grid on 8080.
+*Acceptance (future):* no "opens two held panes" or `focus=cell:` left; matrix rows equal the readiness JSON for corpus-alpha.
 
 ### U184 · Outcomes on the row; Enter always means Go (P0; UX-14)
-An OutcomeCell (compact TaskLifecycle) on every targeted row: "a3f9 · running · unit 3 of 6", then the terminal word and the facts whose receipts that job wrote. Checked-set runs get one cell per row and a summary chip whose words are filters; the run becomes a worklist. The ActionStrip stays armed after Run ("Submitted a3f9 · pending"), focus-scoped `.` repeats the armed action on the focused row, and prefill order is selection → last fields for this action on this program → catalog defaults, each labelled with its origin. Enter always means Go (the old "Enter opens the last action strip" is superseded).
-*Safeguards:* catalog path unchanged (keys only arm; mutations confirm); no optimistic outcomes; lifecycle is never merged into facts.
+Enter = Go and the prefill order are already recorded; this unit corrects the OutcomeCell and ActionStrip drafts.
+- **OutcomeCell** shows the latest job whose own record names the row's target, and who submitted it ("a3f9 · running · unit 3 of 6 · by you"), then a terminal word from 20-state-vocabularies. Terminal facts read as of the job (receipt and time, or "reused receipt") and turn historical when the FactStrip changes. HTTP 202 reads "pending · job a3f9"; an ambiguous submit reads "checking". No record binding, no cell: client memory is never the source. In the navigator the cell wraps.
+- **Batches**: one cell per row only when the record reports per-target units, else "in batch job a3f9 · per-row outcome not reported". A run-summary chip, separate from the checked-set count, reads "4 runs: 1 running · 2 finished · 1 failed"; each word filters. "Collect failed as worklist (w)" is explicit.
+- **ActionStrip** stays armed after Run: "Submitted a3f9 for 0041b210 · pending". Focus-scoped `.` rebinds the armed action to the focused row and focuses Run; it never posts. Run posts once and is aria-disabled while the same verb and target is in flight ("Already submitted a3f9 for this target") or checking. Target fields always bind from the selection; other fields prefill from the last run (labelled, durable workspace state), then catalog defaults; one Run plus "Reset to catalog defaults". Esc disarms only with focus in the strip.
+- **Changed lines**: after the terminal result, stored or cached reads mark "changed by job a3f9"; an uncached decompile says "Not decompiled in this session · Enter to decompile".
+- **Checked set** clears on a program change through Back's description and a polite confirmation; no dialog on navigation.
+
+*Removes:* J21 5 → 2 (`.` then Run; ConfirmDialog only for batch, destructive or cross-build verbs); J22 7 → 2, independent of batch size when per-target units are reported. J12, J19, J27 and J30 are credited to U185, U180, U182 and U180.
+*Components:* OutcomeCell, ActionStrip, TaskLifecycle, EntityRow, ConfirmDialog, 20, 70.
+*Accessibility:* one polite message per transition, batches coalesced; frozen cells say "Frozen at ‹time›"; the job link is the named 22px-in-24px exception.
+*Safeguards:* keys only arm and only Run posts; no optimistic outcomes; lifecycle never merged into facts; duplicates refused.
+*Acceptance (future):* keymap list.repeat never posts; for job a3f9 both surfaces draw the same cell on the same row.
 
 ### U185 · Edit where you read (P1; UX-15)
-A TokenContextMenu typed by token kind (local: rename, retype; parameter: signature, storage; field: apply type; call: callee signature; any: peek type, show uses, show data flow, copy), each mutating label naming its binding. F2 edits inline with the naming-convention hint; the IDA-style profile adds focus-scoped n, y and ;. After the terminal result, a BeforeAfterBand shows the re-read change in place.
-*Safeguards:* catalog only; after-state only from a re-read; edits scoped to one concrete build.
+Already in the design system: InlineRename and DecompileView's token menu for locals. This unit extends them; there is no separate TokenContextMenu.
+- **An Edit group in the one link menu** (Shift+F10, context-menu key, right-click, or the row menu with a coarse pointer): flat, with items from GET /api/v1/actions, and missing ones aria-disabled with the reason. Local: Rename…, Retype…, Comment…. Parameter: also Edit signature…, Edit storage…. Field: Peek type, Retype field…. Callee: Edit callee signature…. Listing label or data: Rename label…, Set data type…, Comment…. Any token: Peek type, Highlight uses, Find references, Trace data flow… (arms only), Copy. Mutating labels name their binding ("Rename parameter param_1 in ResourceRef::Resolve · build-b").
+- **Keys**: F2 on a local, parameter or label (and n, y and ; in the second keymap profile) opens InlineRename, with a new Comment mode, under the line, never over it. Enter or Save posts once; drafts persist in durable workspace state.
+- **Confirm tiers**: single-target edits confirm in place. Structure-layout changes that resize, overwrite or clear components, and callee-signature edits, use ConfirmDialog naming the type or callee, the build and the known use count ("uses not indexed").
+- **BeforeAfterBand** is its own component, inserted under the changed statements with neutral + − ± markers and words ("Before / after job a3f9 · read 14:03"). The after side comes only from the job record or a decompile cached after the terminal result; otherwise "Decompile predates job a3f9 · Enter to decompile". Dependents show "◷ predates job a3f9"; nothing re-decompiles automatically.
+- **StorageEditor** opens inline; Save stays enabled; an unchanged draft posts nothing ("No storage change to submit"). Its reported resubmission defect is from a source read, not observed live.
 
-### U186 · Master-detail review (P1; UX-16)
-MatchReview's focused row drives an inline or rail detail (CandidateAlignment, IdentityEdge, divergence components, alternatives with margin) that follows j/k after the settle. Focus-scoped `o` opens both endpoints as a held pair beside the queue; `d` arms Decide bound to the checked set. A refused decision (changed basis) shows a BasisDelta of only what changed ("changed since you looked", "new", "no longer on this page") and unchecks changed rows.
-*Safeguards:* review is an override, never a gate; decisions stay token-bound; stale decisions are never resubmitted automatically.
+*Removes:* J11 6 → 0 (F2, type, Enter); J12 5 → 1 plus one per caller verified; J13 5 → 2. J15 stays with U173.
+*Components:* DecompileView, Listing, InlineRename, BeforeAfterBand, StorageEditor, Peek, 35.
+*Accessibility:* labels start with the verb (2.5.3); editors never cover the edited line (2.4.11); nothing is announced on pending, and one terminal message follows ("Rename saved: param_1 is now itemCount on build-b, job a3f9."); focus returns to the token.
+*Safeguards:* catalog only; observed after-state only; one build per edit; naming conventions are hints; the same menu on 8080.
+*Acceptance (future):* 35's link menu has the Edit group; no TokenContextMenu or "SourceRepairDiff variant" left; an unchanged storage draft posts nothing.
 
-### U187 · Layout presets and persistent layout (P2; UX-17)
-Presets Read, Compare, Review, Triage and Verify rebuild set every splitter, collapse, view toggle and dock tab in one pick (palette, View menu, NavigationBar). Pane sizes come from tokens and persist per viewer; each pane header has a size menu; rails have 24px collapse strips; session tabs restore their own state.
-*Safeguards:* view preferences only, never selection, binding or action.
+### U186 · Review from the keyboard; re-read only what changed (P1; UX-16)
+Already in the design system: ReviewDetail (detail in place or beside by width, j/k, o, d, per-row refusal), OutcomeCell and the Review preset. Still missing:
+- **Master-detail**: the detail follows the focused row after `settle-delay` and reads cache only; Enter expands; F7 steps alignment anchors. It shows CandidateAlignment, IdentityEdge, the U17 fields in order ("unavailable" where missing) and alternatives with their margin. It is never mirrored into the rail.
+- **Controls**: a visible 24px button per key. `o` re-points the Review held-pair slot, never adding holds; its header reads "candidate ≠ acceptance · aligned ≠ equivalent" with the edge state as of the hold, and "◷ Basis changed since held · Refresh" after the decision. `d` arms Decide for the checked set; ConfirmDialog names count and target.
+- **Batch refusal recovery** keeps the page cursor, scroll anchor and focus on the invoker. In BasisDelta, a part of ReviewDetail, unchanged rows keep their check; changed rows are unchecked ("± changed since you looked"); new rows read "+ new since you looked"; rows that left the page sit in a dated, collapsed, non-checkable group. "Changed only" is session-local; after a reload it reads "Changes since the previous basis are not available; all rows need re-reading." "Step changed rows" makes them the worklist explicitly. Deciding again needs a new confirm.
+- **Starvation**: the oldest-unreviewed age links to that row.
+- MergeReview and ContextPlacement use the same master-detail; their journeys stay with U171. ReviewDetail and SplitCompare preset keys become `g` then 3 and `g` then 2.
 
-### U188 · Regions and one remappable keymap (P0; UX-18)
-`keymap.json` and guideline Keymap, read by both surfaces: scopes (global with a modifier, region, composite, code well, edit mode), browser-reserved list, profiles (default, IDA-style), Esc order. Landmarks, headings, skip links, F6 region cycling with focus memory, Ctrl/Cmd+B / Ctrl/Cmd+Alt+B / Ctrl/Cmd+J toggles, and a `g` leader with which-key hints where browsers take F6. KeymapEditor, ShortcutSheet (Ctrl/Cmd+/) and ChordHint.
-*Accessibility:* WCAG 2.1.4 (single keys focus-scoped, remappable, can be turned off), 2.4.1, 2.4.3, 3.2.6.
+*Removes:* J07 8 → 0 per decision, plus one modal confirm and one Review preset pick per session; J08 4 → 1, with only changed rows re-read.
+*Components:* MatchReview (U17 fields with thresholds_version, OutcomeCell, keys), ReviewDetail, SplitCompare, CandidateAlignment, StarvationMeter, MergeReview, ContextPlacement.
+*Accessibility:* an APG Grid; an alertdialog with focus on Cancel; a refusal is assertive while focus stays put; the change table reflows at 320×256 with del/ins and words.
+*Safeguards:* review is an override, never a gate; decisions are token-bound and never resubmitted; departed rows are never decidable; the checked set and snapshots never enter the URL.
+*Acceptance (future):* a refused batch of three rows keeps page, anchor and focus and unchecks only the changed rows.
+
+### U187 · Persistent, token-driven layout (P2; UX-17)
+Already in the design system: LayoutPresets (five presets, View menu, palette, `g` then 1…5), the pane-header size menu and the rail toggles. Still missing:
+- **Token-driven grid**: the Workstation grid in bundle.css hardcodes 200px and 220px (WDG-38). It reads `--navigator-w`, `--evidence-w` and `--dock-h`, written by splitter keys, drag, the size menu and presets, and stored per viewer in durable workspace state (F23) as a diff. localStorage is at most a non-authoritative try/catch cache.
+- **Collapse strips**: each rail and the dock gets a 24px disclosure button with a stable name ("Navigator", "Evidence", "Activity"), aria-expanded and aria-keyshortcuts. Collapsing the region that holds focus moves focus to its strip. The strips are hidden below 700px, where NarrowFlow applies.
+- **Splitters per APG**: arrows 16px, Shift+arrows 64px, Home/End to the minimum and maximum, Enter collapses and restores. Reset lives in the size menu, superseding "Home resets" in 30, 90 and LayoutPresets.
+- **Session tabs** restore their own workspace, views, selection, holds, scroll and focused element from durable workspace state and history.state; data is read now and nothing re-runs. They use manual activation; a tab of another project shows the Switch/Stay StateNotice.
+- The Workstation preview drops the superseded analysis tablist and names the 6px splitter's target-size exception (the size menu and strips are the equivalents).
+
+*Removes:* no ledger credit. Collapsing or restoring a region becomes one click or chord instead of a drag; preset counts stay with LayoutPresets.
+*Components:* bundle.css, Workstation, SessionTab, LayoutPresets, 30, 90.
+*Accessibility:* single-pointer alternatives to dragging (2.5.7); 24px strips; session tabs never switch projects on focus (3.2.1); strips hidden at 320×256; a CanvasText border and a state word in forced colors.
+*Safeguards:* view state only; sizes never in the URL; Back does not step through layouts; both surfaces read the same size state.
+*Acceptance (future):* `.ad-ws-body` reads the three custom properties; 30, 90 and LayoutPresets state Home/End per APG; SessionTab uses manual activation.
+
+### U188 · One remappable keymap, finished (P0; UX-18)
+Already in the design system: keymap.json, the Keymap guideline, KeymapSettings (editor, shortcut sheet, which-key) and 90's landmarks, skip links and F6. There are no new KeymapEditor, ShortcutSheet or ChordHint components. Still missing:
+- **Precedence and clicks**: code wins over composite inside code wells; `list.toggle` (Ctrl/Cmd-click) and one Shift-click meaning per 35's grid rule; `?` opens the sheet in composite scope; `link.revealIn` is labelled "Link menu".
+- **Leader**: the existing letters stay, plus `g p` (Problems), `g b` (build menu) and `g g` (go to address); the second profile's go to address becomes `g` then `g`. The which-key hint has no timeout (`chord-hint-delay` 500ms).
+- **Profiles**: default, the second profile and off. "Esc goes Back in a code well" is opt-in per viewer and off by default. F12 and Ctrl/Cmd+Enter are never rebound. Esc follows U174's order.
+- **Reserved and platform keys**: add Ctrl+Tab and Ctrl+PageUp/PageDown; Ctrl+Shift+PageUp/PageDown are browser-taken; `platformCautions` lists F6, F7, Alt+F1 and Alt+F2 on common Linux desktops, F8 behind Fn, and Ctrl+Alt as AltGr, each with its menu or palette path.
+- **Dock**: Ctrl/Cmd+J only shows or hides the dock; "Go to last announcement" (`g j`, palette) focuses the last announced job row.
+- **Focus rules** in 90 for user-initiated transitions. The one exception: when the focused row is removed, focus moves to the nearest row and is announced.
+- **Shell preview**: a banner with Help last, navigation "Project", main named by the workspace only, complementary "Evidence", regions "Work view", "Activity" and "Status"; h1/h2/h3; four skip links; tab roles; the Views toolbar.
+- **Keep** is written the same everywhere: the Keep button, or Shift+K inside a Peek or card.
+
+*Removes:* J38 4 → 2 (`g j` to the job row; Go 1; Back 1). For J22 it is error prevention, not fewer switches: a stray Esc no longer drops the checked set.
+*Components:* keymap.json, 85, 90, 30, KeymapSettings, Workstation, tokens.json, design-system README, FRONTEND_INTENT F29.
+*Accessibility:* 2.1.1, 2.1.2, 2.1.4, 2.4.1, 2.4.3, 3.2.6; sequences such as "g then 1" go in aria-describedby, not aria-keyshortcuts.
+*Safeguards:* keys only navigate or arm; no binding can post or admit work; overrides are a per-viewer diff in durable workspace state; both surfaces load one keymap.json.
+*Acceptance (future):* one binding per key per scope after precedence; `platformCautions` and `dock.lastAnnouncement` exist; no "K keep" or "Shift+Shift+K" left.
 
 ### U189 · Screen-reader reading of code and one live-region policy (P1; UX-19)
-Code wells are read-only grids with exact cell text, verbosity settings, labels as rows, flow restated as words, in-well find, and an Accessible View (Alt+F2) plain-text mirror. One live-region catalogue: transitions only, coalesced, logs `aria-live=off`, Freeze pauses announcements.
+Already in 90: exact operands, verbosity, labels as rows, logs with aria-live=off, Accessible View and Freeze; keymap.json has Alt+F2 and in-well find. Still missing:
+- **Per-well grids**. Listing: Address row header, Label, Bytes (absent while the HexStrip shows), Instruction, Operands, Xrefs/Comment, with aria-rowcount −1 unless known. DecompileView: line, code, mapping. HexStrip: offset, 16 bytes, ASCII. ObjectDiff: target, candidate, state word. SourceRepairDiff: line, change word, text.
+- **Focus model**: focus roves on rows; → enters cells and steps operand links token by token; F2-editable cells are aria-readonly=false. Operands read exactly as rendered; a plain-words form goes in aria-description with an aria-describedby fallback; flow glyphs become words ("jump target from 0041b210").
+- **Accessible View** gets a README: every row already read ("Not loaded" otherwise, never a decompile); a snapshot "as read ‹time›" with "◷ Basis changed since opened · Refresh"; Held, Kept and historical sources labelled. It soft-wraps, so it is the 1.4.10 path for code at 320px and the character-exact path.
+- **One live-region policy**: no settle announcements (focus is the cue; landings only in 35's cases). Polite: job transitions, decision outcomes, "Import durably accepted", result counts, stale notices once per transition, "N changes since you looked", "Cleared 4 checked rows on build-a". Assertive only for conflicts and refusals of the viewer's own action, never suppressed by Freeze. Coalesced within 1s; the opt-in "Announce new lines" at most once per second. This replaces "transitions only".
+- **OS-taken keys**: where the desktop takes Alt+F1 or Alt+F2, the palette, Help menu and pane-header button remain; a second Ctrl/Cmd+F passes to browser find.
+- **Verbosity** is a View setting (U190).
+
+*Removes:* no ledger credit; an off-screen range becomes one modal read for assistive-technology users.
+*Components:* AccessibleView (new README), Listing, DecompileView, HexStrip, ObjectDiff, SourceRepairDiff, 90, 30, 85.
+*Accessibility:* 1.3.1, 4.1.2, 4.1.3, 2.2.2, 2.1.1, 1.4.10.
+*Safeguards:* read-only; announcements never summarize facts or merge accepted and candidate counterparts; held and historical text labelled; the same templates on both surfaces.
+*Acceptance (future):* 90 lists five per-well column sets and no settle announcement; the AccessibleView README exists.
 
 ### U190 · Perceivable states in every mode (P1; UX-20)
-One focus rule (2px on bordered controls, 3px inset on rows, cells and tabs; never box-shadow); forced-colors rules rewritten (SelectedItem, CanvasText borders, LinkText, GrayText, splitters as borders); selected-row promotion extended (a lighter failed tone keeps glyph hue on selection); splitter grip ≥3:1 at rest; accent reserved for focus, the active tab and links; Increase contrast and Reduce motion toggles.
+Already in the design system: the 3px inset focus rule, ProvenanceStamp's Fresh frame, RepresentationBar cues, grouped fact and capability targets, and the Increase contrast and Reduce motion toggles in 90. Still missing, mostly in bundle.css and tokens.json:
+- **Focus everywhere**: 2px on bordered controls; 3px inset (`focus-inset-w`) on rows, cells, tabs, in-row inputs and links in clipped wells.
+- **Forced colors, all ten blocks**: selected items use Highlight/HighlightText (SelectedItem only under @supports) and descendants inherit; focus is CanvasText, 3px inset HighlightText on selected rows; only the selected row carries the 3px inline-start border; popups get a CanvasText border; data graphics opt out only where a text key carries the values.
+- **Selected rows**: line-control → ink-muted (3.78:1); words ink-strong; glyphs keep their hue (with an optional glyph-only `fact-failed-on-selection`).
+- **Splitter grip**: a bordered element in `splitter-grip` (≥3:1); the 6px hit zone names the 2.5.8 equivalent exception.
+- **Reserved accent and glyphs**: WorkTimeline uses ✓, ✕ and plain ticks with words and an ink-strong cursor (no accent, no ◇); ImageDeltaMap hatches differing regions with "✕ ‹n› bytes" and a key.
+- **Existing cues kept**: reflection's fill and bar; highlight-all as a box, never an underline; "Held · ‹entity› @ ‹build› · ‹age›"; arrival per 35 (focus, selection shape and the 120ms flash; a static outline under reduced motion). There is no separate landed style.
+- **View settings**: one per-viewer group in the View menu (density, Increase contrast, Reduce motion, screen-reader verbosity, auto-advance), in durable workspace state beside the keymap diff, never in the URL or browser storage. Increase contrast mirrors the whole prefers-contrast block; a new `.reduce-motion` class mirrors reduced motion; both only add to OS preferences. Density stays the only appearance choice.
+- **Coarse pointers**: 44px targets at any width.
+
+*Removes:* no ledger credit; it keeps J02, J06, J09, J10 and J33 usable in forced-colors, high-contrast, reduced-motion and touch use.
+*Components:* bundle.css, tokens.json, 90, WorkTimeline, ImageDeltaMap, CodeBrowser, Workstation, design-system README.
+*Accessibility:* 1.4.1, 1.4.3, 1.4.11, 2.4.7, 2.4.11, 2.5.8; 2.4.13 as a house rule.
+*Safeguards:* Graphite stays the only theme; the accent only for focus, the active tab, links and the hovered splitter; no behavior change; the same tokens on both surfaces.
+*Acceptance (future):* no forced-colors block sets forced-color-adjust:none on a selected item; no `.ad-landed`; WorkTimeline uses neither the accent nor ◇.
 
 ### U191 · Narrow-viewport continuity (P1; UX-21)
-The rail bar is a tablist with per-pane scroll and focus memory; Enter or tap (never focus) advances from Navigate to Analyze with a history stop; Inspect opens as a half-height bottom sheet; counterparts collapse into the breadcrumb Build menu and SplitCompare into a segmented toggle; the dock collapses to one status line defaulting to "Selection only"; acceptance at 598×912 and 320×256.
+Already in the design system: NarrowFlow, CodeBrowser's narrow tablist and SplitCompare's narrow switcher. NarrowFlow becomes the one narrow contract, reconciled with 35.
+- **Advance on a code pick**: Enter or tap on an entity, address, symbol, string or import use site selects it, pushes one stop and shows Analyze; focus lands on the Listing row with one polite message. Project items go through the Switch StateNotice. Below 700px "Update panes" is forced to "On Enter" and says so. Back restores the previous stop and its pane; the rail's Navigate tab returns without changing the selection. Advance can be turned off in View settings.
+- **Inspect sheet**: non-modal, at most 64% of the pane (`sheet-h`), with Full height and Close. It opens on Alt+↓, the row-menu Peek or the Inspect tab, never on focus rest; below 480px viewport height it opens as the full Inspect pane.
+- **Counterparts**: the strip stays one wrapping line with a 44px "Counterparts (n) ▾" disclosure; the Build menu shows address, divergence class and edge word per build. Open beside is the second segment of an APG tablist, "build-a · primary | Held · build-c · ‹age›", read-only, with the ActionStrip naming the primary; 8080 opens a new window.
+- **Dock**: Activity is a full rail pane; other panes show one status line with the latest transition and counts of other running and failed work, "Selection only" by default with Show all. This replaces the 23dvh dock.
+- **Header**: the project name and a wrapping scope sentence stay; only search moves into Go to; WorkflowControl keeps its scope in a disclosure. Below 480px tall, header and status line are not sticky. Code wells contain horizontal overscroll; any coarse pointer gets 44px.
+
+*Removes:* J37 6 → 2 (1 if the counterpart is only peeked; 3 if a job record must be opened; +1 below 480px tall).
+*Components:* NarrowFlow, NavigationBar, CounterpartStrip, SplitCompare, CodeBrowser, WorkflowControl, 30, 35, tokens.json (`sheet-h`, `bp-short-h`).
+*Accessibility:* 2.5.8 is met at 24px and 44px is the house rule (2.5.5); 1.4.10 at 320×256 with the short-height rule; focus never advances by itself (3.2.1).
+*Safeguards:* no narrow-only state; navigation never starts work; counterparts always carry edge word and divergence; the status line never hides other work.
+*Acceptance (future):* both surfaces at 1440×900, 598×912 and 320×256 CSS px and a coarse pointer at 768×1024, with the 1.4.12 overrides; on 8080 now, and on the Vite app only when separately authorized.
 
 ## Accessibility baseline already applied to the design system
 
-Selection shown by fill plus a 3px bar; muted text and state words promoted on the fill; accent removed from statuses; links underlined; 24px targets; real tabs, grids, combobox, alert dialog and separator semantics in previews; spoken words for glyph-only cells; progress roles; diff words; prefers-contrast and forced-colors support; color-scheme; tabular numerals; log tails keep the newest text; guideline sections Linked views and Accessibility. See the design system for the rules.
+Selection shown by fill plus a 3px bar; muted text and state words promoted on the fill; accent removed from statuses; links underlined; 24px targets; real tabs, grids, combobox, alert dialog and separator semantics in previews; spoken words for glyph-only cells; progress roles; diff words; prefers-contrast and forced-colors support (their bundle.css defects are listed in U190); color-scheme; tabular numerals; log tails keep the newest text; guideline sections Linked views and Accessibility. See the design system for the rules.
 
 ## Diagram changes already applied
 
@@ -221,19 +433,50 @@ Selection shown by fill plus a 3px bar; muted text and state words promoted on t
 
 | Earlier | Now |
 |---|---|
-| "Enter opens the action strip with the last action" (feel.md Essay AC) | Enter always means Go; `.` repeats the armed action (U184). |
-| Toolbar search filters functions only; Ctrl+P "search functions" | Ctrl/Cmd+P is go to anything; the Functions filter stays a plain grid typeahead (U178). |
-| Checks persist "until Esc" (decisions.md, Phase C) | Esc never clears the checked set; use the count chip × or Clear checked (U174, U188). |
-| Analysis tablist with a "More…" select | Views toolbar; Xrefs and Matching move to the rail and Compare (U173, U177). |
-| Single-letter global shortcuts (S, O, N, G) | Modifier globals; single letters focus-scoped and remappable (U188). |
+| "Enter opens the action strip with the last action" (feel.md Essay AC) | Enter always means Go; `.` rebinds the armed action to the focused row and focuses Run, and only Run posts (U184). |
+| Toolbar search filters functions only; Ctrl+P "search functions" | Ctrl/Cmd+P and Ctrl/Cmd+G focus the one go-to field and Ctrl/Cmd+K opens the palette; the Functions filter stays a filter, and in grids with letter commands typeahead starts with `/` (U178). |
+| Checks persist "until Esc" (decisions.md, Phase C) | Esc never clears the checked set; the count chip × or Clear checked does, with an inline Undo beside the chip (U174, U188). |
+| Analysis tablist with a "More…" select | Views toolbar with at most two center panes plus the HexStrip; References (Calls, Slots) and Outline in the rail; Matching becomes the CounterpartStrip and SplitCompare (U173, U175, U177). |
+| Single-letter global shortcuts (S, O, N, G) | Modifier globals; single letters focus-scoped and remappable; code scope wins over composite inside code wells (U177, U188). |
+| The second keymap profile's single `g` for go to address in code wells | `g` then `g`, so the leader keeps working in code wells (U188). |
 | `pin=` in links | `keep=` for Kept cards and `hold=` for held panes; "pinned" is reserved for the locator status (U172). |
 | Back button history menu | The Recent menu (right-click on Back); Back and Forward never change holds (U172). |
-| "Link panes" toggle | "Update panes: As I move / On Enter" (U176). |
+| "Link panes" toggle; "Linked/Unlinked" | "Update panes: As I move / On Enter" and the "Hold this pane" toggle (U176). |
 | "One page, minimal tabs" vs dense tabs | Co-visible views plus rail sections; tabs remain only for workspaces, sessions and the dock (U173, U176). |
+| Filters always replace history (location-schema `f`) | Typing, editing or removing a filter replaces; applying a filter from a link ("Changed by a3f9", Show all) is a Go and pushes (U172, U180). |
+| Splitter "Home resets" (30, 90, LayoutPresets) | Home/End go to the minimum and maximum (APG); Enter collapses and restores; reset is in the pane size menu or a double-click on the grip (U187, U188). |
+| Layout and other per-viewer choices in browser storage (localStorage) | Durable workspace state per viewer (F23), stored as a diff beside the keymap overrides; localStorage at most a non-authoritative try/catch cache (U187). |
+| "Density is the only user preference" (design-system README); accessibility toggles with no home | One per-viewer View settings group in the View menu (density, Increase contrast, Reduce motion, screen-reader verbosity, auto-advance) in durable workspace state, never in the URL or browser storage; density stays the only appearance choice (U189–U191). |
+| Session tabs with automatic activation | Manual activation; another project's tab shows the Switch/Stay StateNotice (U187). |
+| A separate TokenContextMenu on Shift+F10 | One flat link menu with an Edit group whose items come from GET /api/v1/actions (U185). |
+| Every mutation confirms through ConfirmDialog (ActionStrip draft) | Single-target inline edits confirm in place; ConfirmDialog for batch, destructive and cross-build changes, including structure-layout and callee-signature edits (U184, U185). |
+| BeforeAfterBand as a SourceRepairDiff variant | Its own component with neutral markers; after-state only from the job record or a post-terminal cache; stale dependents read "◷ predates job", with no automatic re-decompile (U185). |
+| A contested cell or locator opens two held panes | A candidate menu; "Compare candidates" opens Compare with two holds; in the Code Browser, one contested pane (U175, U183). |
+| A held graph as navigator; panes that follow active work | The graph follows and re-roots only on Re-root; no pane follows work, and the Work view chip reads "Job a3f9 is at ‹node› · Go" (U173, U180). |
+| F8 steps Problems when no worklist is active; runs and refusals become worklists by themselves | F8 steps only the active worklist; worklists come only from Collect (`w`) or an explicit "Step problems" / "Step changed rows" (U179, U182, U184, U186). |
+| One announcement per selection settle (90); "transitions only" (30) | No settle announcements; landings only in the cases 35 lists; one catalogue of transitions and settled results (U189). |
+| Ctrl/Cmd+J opens the dock at the last transition and "again returns" | Ctrl/Cmd+J only shows or hides the dock; "Go to last announcement" (`g j`) reaches the job row (U188). |
+| A landing style until the next navigation | No separate landed style: focus, the selection or cursor shape and the 120ms flash; a static outline under reduced motion (U190). |
+| Marks and notes at the context-hint tier; viewer marks standing in for program bookmarks | Marks and notes are per-viewer annotations with no claim tier, never an input to context fusion, propagation or agent bundles; program bookmarks are a separate read-only Bookmarks scope (U179). |
+| One job line for what it targeted and what it changed | Separate "Targets" (asked to act on) and "Changed" (recorded by its receipts) lines (U180). |
+| A fixed pause-scope sentence; Explain from the outline markdown | Scope composed from the backend's report; Explain from the served model with its revision, labelled design text (U181). |
+| Dock at 23dvh below 700px; Open beside into Inspect (NarrowFlow) | Activity is a rail pane plus a one-line status; Open beside is the Held second segment of the split tablist (U191). |
+| Ctrl/Cmd+Alt+digit layout presets (ReviewDetail, SplitCompare) | `g` then 1…5, which is AltGr-safe (U186, U187). |
 
 ## Open questions
 
 - Whether the static 8080 surface intercepts same-origin anchors inside server-rendered fragments for all corpus windows at once, or window by window.
-- Which catalog verbs map to which stage and lane (`catalog_verbs`); unmapped verbs show "stage: unmapped" until decided.
-- Whether "Increase contrast" persists per viewer only, or also per project.
-- 22 inferred diagram edges marked "interpretation" need review (listed in the pipeline-diagram README).
+- Which catalog verbs map to stage 0, stage 8 and the lanes. Plan §2.1 maps stages 1–7 only; everything else says "stage: unmapped", with no lane guess, until a decision is recorded.
+- 22 inferred diagram edges marked "interpretation" need review (listed in the pipeline-diagram README), together with the TaskLifecycle and FailureRecord crosswalks recorded as interpretations.
+- One word per terminal job outcome in 20-state-vocabularies; the OutcomeCell draft and the batch example in 90 use different words.
+- Whether the anchor pairs SplitCompare aligns on are exposed to both surfaces today (not verified from docs).
+- Whether the glyph-only `fact-failed-on-selection` token is adopted.
+- Whether Ctrl+M (Tab moves focus) gets a macOS variant, and whether `tabs.move` gets a non-conflicting key or stays menu-only.
+
+Decided during integration (2026-09-29):
+
+- F8 with no active worklist shows "No active worklist" and offers an explicit "Step problems" (UX-12). It never creates a snapshot by itself.
+- A checked set cleared by a program change is not restored on return, and there is no Undo around program changes. Back's description announces the clear before it happens (35 History). An explicit Clear checked keeps its inline Undo.
+- Highlight-all (h) is a 1px ink-strong box plus a gutter count ("5 occurrences"), never an underline and never a letter badge.
+- `panel` is registered for report, atlas, review, builds, pipeline, readiness, names, reuse and runtime (`location-schema.json`).
+- The static surface's current anchor interception, the anchor pairs SplitCompare needs, and the live catalog's verb list are **not verified from docs**. Each is a future check on 8080, only when authorized.

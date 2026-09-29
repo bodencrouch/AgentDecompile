@@ -213,7 +213,7 @@
     "Ctrl/Cmd+J"
    ],
    "scope": "global",
-   "note": "Only shows or hides the dock. Hiding the region that holds focus moves focus to its restore strip. F6 and Shift+F6 return with focus memory."
+   "note": "Only shows or hides the dock. Hiding the region that holds focus moves focus to its collapse strip. F6 and Shift+F6 return with focus memory."
   },
   {
    "id": "dock.lastAnnouncement",

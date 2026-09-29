@@ -2,7 +2,7 @@ AgentDecompile turns opaque compiled and packaged software into provenance-ancho
 
 It should feel like **an IDE fused with a flight deck**. You always know where you are in the corpus. Power is one gesture away. Async work stays in peripheral vision. Nothing celebrates an outcome the receipts do not support.
 
-One theme ships: **Graphite**, dark and single-accent, taken directly from the recovery diagrams. Density (comfortable or compact) is the only user preference. There are no decorative themes.
+One theme ships: **Graphite**, dark and single-accent, taken directly from the recovery diagrams. Density (comfortable or compact) is the only appearance choice. The accessibility adaptations (Increase contrast, Reduce motion, screen-reader verbosity) and the keymap are per-viewer settings, not themes. There are no decorative themes.
 
 ## Principles
 
@@ -21,7 +21,7 @@ One theme ships: **Graphite**, dark and single-accent, taken directly from the r
 
 **Text.** `ink` on every surface. `ink-strong` for titles, selected labels and all text on family header fills. `ink-muted` for secondary text on chassis, pane, raised and well; on `selection` it becomes `ink`. `ink-disabled` carries no information.
 
-**The accent.** `accent` (the diagrams' identity blue) is the only chrome accent: focus ring, active tab rule, links, hovered splitter. It never means good, running or done. Focus is a solid `focus` outline, 2px on bordered controls and 3px inset on rows, cells and tabs; it holds 3:1 on every surface and is never hidden under sticky chrome.
+**The accent.** `accent` (the diagrams' identity blue) is the only chrome accent: focus ring, active tab rule, links, hovered splitter. It never means good, running or done. Focus is a solid `focus` outline, 2px on bordered controls and 3px inset (`focus-inset-w`) on rows, cells and tabs; it holds 3:1 on every surface and is never hidden under sticky chrome.
 
 **Type.** DejaVu Sans for interface and diagrams, DejaVu Sans Mono for all evidence; both ship as font files. Weights are 400 and 700 only. App chrome runs `type-kicker` 11 · `type-ui` 12 · `type-body` 13 · `type-pane-title` 15 · `type-section` 20, and nothing in the app is larger. Diagram styles (`dia-*`) reproduce the generator sizes exactly. Addresses, digests, times, byte counts and job ids are always mono with tabular figures; addresses take `address`.
 
@@ -29,13 +29,13 @@ One theme ships: **Graphite**, dark and single-accent, taken directly from the r
 
 **Spacing.** `space-1`…`space-9` (2, 4, 6, 8, 12, 14, 16, 24, 34px). Rows are dense: `space-2` vertical, `space-4` horizontal. Pane bodies pad `space-5`.
 
-**Layout.** One `100dvh` shell. Navigator `navigator-w` 240px (180–480), evidence rail `evidence-w` 260px (200–480), activity dock `dock-h` 170px (100–420, max 46dvh). Splitters are a 1px `splitter-rule` with a 6px hit zone. Below `bp-compact` (1100px) rails shrink and keyboard hints hide. Below `bp-single-pane` (700px) one primary pane shows at a time, with 44px targets. See the Layout section.
+**Layout.** One `100dvh` shell. Navigator `navigator-w` 240px (180–480), evidence rail `evidence-w` 260px (200–480), activity dock `dock-h` 170px (100–420, max 46dvh). Sizes and collapse persist per viewer in durable workspace state. Splitters are a 1px `splitter-rule` with a bordered 3:1 grip (`splitter-grip`) and a 6px hit zone; Home and End move to the minimum and maximum, and Reset is in the pane-header size menu. The hit zone relies on the WCAG 2.5.8 Equivalent exception: the splitter keys, the size menu and the View menu reach every size. Below `bp-compact` (1100px) rails shrink and keyboard hints hide. Below `bp-single-pane` (700px) one primary pane shows at a time (NarrowFlow). Targets are 44px there and at any width with a coarse pointer. See the Layout section.
 
-**Motion.** 120ms surface flash after palette navigation and palette fade; 180ms dock open. Nothing else animates unless it replays an observed event. Freeze, step and history controls accompany every animated work view. Never auto-pan away from the operator. Under `prefers-reduced-motion` all motion is removed and the same change is shown as a static before/after.
+**Motion.** 120ms surface flash after palette navigation and palette fade; 180ms dock open. Nothing else animates unless it replays an observed event. Freeze, step and history controls accompany every animated work view. Never auto-pan away from the operator. Under `prefers-reduced-motion`, or the Reduce motion setting, all motion is removed and the same change is shown as a static before/after.
 
 ## Linked views and accessibility
 
-Every mention is a typed link with one activation grammar (Enter goes, Shift+Enter opens beside, Alt+↓ peeks, Keep keeps a Peek or card, Shift+F10 opens the link menu). Every pane follows the one selection or is explicitly **Held**. Detail opens in place, outcomes land on the row that invoked them, and the location lives in the URL (`location-schema.json`, shared by both surfaces), so Back, Forward and shared links restore the place; data is read now. See the Linked views section. Keyboard-only, screen-reader, low-vision and motor access are part of the same contract: see the Accessibility section.
+Every mention is a typed link with one activation grammar (Enter goes, Shift+Enter opens beside, Alt+↓ peeks, the Keep button or Shift+K inside a Peek or card keeps it, Shift+F10 opens the link menu). Every pane follows the one selection or is explicitly **Held**. Detail opens in place, outcomes land on the row that invoked them, and the location lives in the URL (`location-schema.json`, shared by both surfaces), so Back, Forward and shared links restore the place; data is read now. See the Linked views section. Keyboard-only, screen-reader, low-vision and motor access are part of the same contract: see the Accessibility section.
 
 ## The six work families
 

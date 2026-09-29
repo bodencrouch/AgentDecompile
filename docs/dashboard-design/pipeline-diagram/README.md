@@ -223,8 +223,8 @@ which maps verbs to stages 1–7: `corpus.extract-stabs` and `corpus.match-pair`
 `corpus.calibrate-global` (2), `corpus.workspace` (3), `corpus.ghidra-bulk` (4),
 `corpus.cross-place` (5), `corpus.genproject` (6, "leftovers") and `corpus.objdiff-check` (7).
 `quote` is the §2.1 table cell. Stage 0, stage 8 (§2.1 shows "—") and every lane stay unmapped
-until a recorded decision; a chip example therefore reads "5 Propagation" with no lane part.
-The per-node view is derived from this map: each stage and lane section of the overview outline
+until a recorded decision, so a stage chip for `corpus.cross-place` reads "5 Propagation", with
+no lane part. The per-node view is derived from this map: each stage and lane section of the overview outline
 has a "Catalog verbs" line ("unmapped" when the map gives it none), and `generate_outlines.py`
 refuses to write when a verb names an unknown stage or lane id or a section's line differs from
 the map. The live catalog (`GET /api/v1/actions`) is the verb authority. A future check, not run
@@ -357,6 +357,30 @@ companion (diagram strings, `desc` or the companion section above) says that com
 produces or feeds the binding proofs, and the proofs are independent evidence, so there is no
 quotable basis.
 
+### Verifier follow-up — 2026-09-29
+
+Applies verifier items UX-10 (2) and UX-11 (1–3). Every node id is unchanged, and the overview and
+capability SVGs and PNGs are byte-identical to the previous generation.
+
+- **Model.** New top-level `catalog_verbs` (8 verbs, stages 1–7 only), `lifecycle_states` and
+  `crosswalks` (11 entries, all interpretations); new `conventions` entries for both; the
+  `consumes` edge type says how it is drawn; six stated edges set `drawn: true` (above).
+- **Execution companion.** A receipts bus runs from BYTES, IDENTITY and OPERATION into box 4, and
+  a fork runs from box 4 to 5A and, below 5A, to 5B. The proof-flow note moves right (x 45 → 625)
+  so the bus can drop into box 4.
+- **Resilience companion.** An arrow runs from step 3 to step 4 (right to left, above the
+  acceptance note), and the note moves right (x 35 → 360) so the arrow can drop into step 4. The
+  step 6 → step 1 feedback is still not drawn.
+- **Outlines.** Every node gets its in-app location, stage and lane sections get catalog verbs,
+  drawn edges read from text show their basis, and the two companion outlines end with
+  "Crosswalks (interpretation)". The draw.io files change only in tooltips and, for the two
+  companions, in the new connector cells (their cell ids renumber).
+- **Scripts.** `Canvas.elbow` in `diagram_common.py` draws routed arrows as H/V paths, which
+  `svg_to_drawio.py` already converts to connectors with waypoints. `generate_outlines.py`
+  gains the in-app locations, `--app-base`/`--out-dir`, the verb and crosswalk sections and
+  their checks. The `svg_to_drawio.py` docstring now records the single-link rule; its output
+  logic is unchanged.
+
 ### Supersession — 2026-09-29
 
 The capability companion is now generated (`generate_capabilities_diagram.py`) with the
@@ -369,36 +393,37 @@ and candidates"; a key line, family words and two legend entries were added; dan
 "In → out:" labels on four lane cards without in/out lines were dropped. Everything else is
 unchanged text, and no product, game or binary names remain in these artifacts.
 
-New sha256 of every regenerated or new file (earlier hashes recorded in
+New sha256 of every regenerated or new file, as of the
+[verifier follow-up](#verifier-follow-up--2026-09-29) (earlier hashes recorded in
 `docs/verification/` receipts are historical and describe the pre-2026-09-29 artifacts;
 those receipts are not edited):
 
 | File | sha256 |
 |---|---|
-| `pipeline-model.json` | `759ea18d0ec2c9c56cbd8583d6acd967de26d6da4e16a72a57b7de363649e9b7` |
+| `pipeline-model.json` | `852f05816e51d875877b48174016f1575f1b9c458e602dc47073fd41b392ebbb` |
 | `agentdecompile-recovery-pipeline.svg` | `0792216c30656fe3c163bd10c8f969898603495b74aa200f1052fab1bf5fc13a` |
-| `execution-contracts.svg` | `128d69995f6185c8b012f6672f6a58f05b70586e511d3dc41e6a3c37401e8b9c` |
-| `resilience-contracts.svg` | `a4e5596db72863336e89b5c1ef89622028ea44e22c1e381e74a8548fb96ef8d8` |
+| `execution-contracts.svg` | `e471c402c0a6a38914a3199a109b962a2d256668ecf8a1a2fbeb311a01212ee6` |
+| `resilience-contracts.svg` | `752321eabe04c0a2466a20f5c4bd0a8533b4b2538569cbb683bbcd7e45f71178` |
 | `autonomous-capabilities.svg` | `faf124ee1f252b9abbb459e20982c4b20f1122b9f9a8bde50efce303f5cf0bf8` |
-| `agentdecompile-recovery-pipeline.drawio` | `8bf7f6d05ca184bdfef5438020910df5bab47cf033ecc7f694004901f22efead` |
-| `execution-contracts.drawio` | `25c1cd6285163a8e9e7557a75c91ae7608741261f04454b6658c4db04f32193f` |
-| `resilience-contracts.drawio` | `f25b71d65b7d776255dc6a6b2a42ccb8a0ce23c7f448776b74693681bf02ce14` |
-| `autonomous-capabilities.drawio` | `2316f91059bdd09ba144163f508250cf17c254b36713ba1b22e1a4c52ae48e7a` |
-| `agentdecompile-recovery-pipeline.outline.md` | `848f94cf61b78e41740318aa8a0448af5e0c5c078de1b7d98a467d7a3f454d4b` |
-| `execution-contracts.outline.md` | `ebb69bf3440542a4bf7eb87b8c729824b3d142aaaba8c70be437af500bfa2ff6` |
-| `resilience-contracts.outline.md` | `81a235538e9eabe17bdce3000603300f75bf058dd6d9a777af072f795a7a43fe` |
-| `autonomous-capabilities.outline.md` | `f8302a134bb061c95831bf43cbfaa05090180620cc751595bd39784673a37c35` |
+| `agentdecompile-recovery-pipeline.drawio` | `81285f194b1a9d02ad8162a43572ecd3263ca851444a84d8b9c0f929632d4910` |
+| `execution-contracts.drawio` | `58ac39985fd8ef21c62eeec5b350e7052cd99ed051b20042ea86c07a3e1c619c` |
+| `resilience-contracts.drawio` | `44f1340bb221c47dbb96931f858ee9bc742fc02d8c1a0c1d4ae9dc4957ae290d` |
+| `autonomous-capabilities.drawio` | `8d2d23aad05af003870b65e712df9eb59d5039b9c9912bb64eb9321e50b34758` |
+| `agentdecompile-recovery-pipeline.outline.md` | `db1d45b46ee7b37f929ce4cfa8a07c2f4f3036a68433336871a31806b6ccbd30` |
+| `execution-contracts.outline.md` | `54e3b9ebd7932baeac6d64c61d796dede4769e60db9f9471e269812f5d873fca` |
+| `resilience-contracts.outline.md` | `cbfe11560ea196ed855e9c794b16c2062da5cce036f9d33630a468058c8840a5` |
+| `autonomous-capabilities.outline.md` | `2c32f40e8573790cc22a60e9cc57f325a225cce5f74e552f22e239eb1c0c0274` |
 | `agentdecompile-recovery-pipeline.png` | `be3f164591c881c09bcc77595fc6a37850616fbdf3d1fe03f08a29970db4841e` |
-| `execution-contracts.png` | `61c1a1af831e492d25561fa1615ad5d48c17fb8aac6d39375a6f1e8321abdf57` |
-| `resilience-contracts.png` | `0c75b08bd7719d31924e6ae98f9c7229ad8b19d34adb40c8cf314b24cfdde496` |
+| `execution-contracts.png` | `0e482d9b638dbc85baa2946f46a0a054066b1b75d527b37d1b0e9f0fe5d18ea0` |
+| `resilience-contracts.png` | `a563875a6422f2620ae5d25cd2db365d5ed7ff407793d97eaf9af73891738835` |
 | `autonomous-capabilities.png` | `55d503491a6f639186dbec4e253f1feb9f09d03ca1f5217af0682e370af65de6` |
-| `diagram_common.py` | `119913dcf5c1b10b0885bad9a92cb56209ff5b9567911d92a23b9fcb189e00f6` |
+| `diagram_common.py` | `d0d82fc4b7912d57aab69d53056843a2702d53378dc199b98998cdc044afdc68` |
 | `generate_pipeline_diagram.py` | `99b0c1ad7831d92c05039fe697e11ef84840ddbbdbbf2f01db6d57afce3025ed` |
-| `generate_execution_diagram.py` | `29a9ca306d8200861ca089976da5cf99a8682835512ac1f9485528b28e5ef3b3` |
-| `generate_resilience_diagram.py` | `03c643e89d478ee7403318a5304bf32418b18cc4ddb40e5a74239527b6271761` |
+| `generate_execution_diagram.py` | `9ea582a025493afbd580fcddeb71df68049ec06914f198f0743d5e79361b0030` |
+| `generate_resilience_diagram.py` | `57cbec9d7ab2b19bb87875b78c91c3f13b0c13af55bd92a91c3470e518d64162` |
 | `generate_capabilities_diagram.py` | `ff4f0b0e8a6d9182e9dde03c6fafcacd73960310e4cd042228729b240687e41b` |
-| `generate_outlines.py` | `b4e5ac5bcd348d1559aa9b6ffe1e5d5f6df7a85d44252dce650c2f6a8a2c3be5` |
-| `svg_to_drawio.py` | `6838eace7469ffa88ae32fadf3844f261da9958820dfba3e0e77fec248e3c681` |
+| `generate_outlines.py` | `191b80fd441953d40a22163081b62bba0e897421865720566b7daccda98cdd90` |
+| `svg_to_drawio.py` | `859fbe8d9a6d3891681608a61f37ee5d64bf6ef24218506e8cf98a8dcfef3a4b` |
 | `render_pngs.py` | `889e5d9be489d2124a1215b01355b5b129195cc6e8de529f215e5277cdcc6a11` |
 
 The user-facing copy `/home/brunner56/Documents/agentdecompile-pipeline.svg` is outside
@@ -414,3 +439,17 @@ changes listed above; the updated converter reproduces the previous `.drawio` ce
 from the previous SVGs apart from font family and diagram name; each PNG matches its SVG
 canvas size. Not verified: draw.io rendering or UI behaviour of the tooltips/links, and
 screen-reader output.
+
+Verified for the [verifier follow-up](#verifier-follow-up--2026-09-29), with read-only checks
+and the generators in this directory only: two full regeneration runs produced byte-identical
+outputs; the built-in layout checks (estimate and measured DejaVu) report zero problems for all
+four SVGs; the model ↔ SVG ↔ outline agreement check passes with every node id unchanged; the new
+checks reject, on a scratch copy of the model, a verb mapped to an unknown lane, a crosswalk
+naming a step row that does not exist, an unknown lifecycle state and an edge marked both drawn
+and inferred; every crosswalk quote was matched verbatim against the task acceptance design;
+`--app-base` refuses a scheme/host/port, a query (so any project parameter) and a
+protocol-relative path, and refuses to write into this directory; the draw.io files keep one
+`link` per UserObject, all pointing at `<outline>#<node id>`; no outline, SVG, draw.io file or
+the model contains a host, port or project parameter. Not verified: draw.io rendering of the
+new connectors, a served rendering with an app base, a comparison of `catalog_verbs` with a live
+catalog snapshot, and screen-reader output.

@@ -18,7 +18,7 @@ How the project's builds relate, pair by pair: what differs in toolchain, flags 
 
 - **Evidence level of a class.** A class is **solid** only when source, toolchain and flag identity are recorded for both builds (source checksums, command lines, the toolchain record). In every other case it is a **dashed "hypothesis (heuristic)"** with its basis ("no checked transformation explains it: inlining, /Oy, LTCG, ICF, hotpatch"). This holds even when the bytes strongly suggest a class. Individual facts beside it (a Rich header entry, a differing constant) keep their own witness level, but they do not make the class solid. Where bodies were not compared, the word **unknown** is written and nothing is counted.
 - **The map** (top) is a small overview, not a claim. The four builds sit in the corners, and each pair's label sits on its connector; the two diagonal pairs are stacked in the centre.
-  - Each node says what is recorded for its build ("VC 8.0 · PDB: source and flags recorded", "source identity not recorded").
+  - Each node says what is recorded for its build ("x64 · VC 14.38 · PDB: source and flags recorded", "source identity not recorded").
   - Each label names its pair as a link, then the toolchain, flag and link difference as an evidence value, then the class counts.
   - The connectors are decorative `line-node` lines in an `aria-hidden` SVG. They carry no certainty; certainty lives on each value. Below a 520px container the map stacks into one column and the connectors are dropped.
 - **The pair table** carries the same information as a grid, one row per pair:
@@ -27,11 +27,11 @@ How the project's builds relate, pair by pair: what differs in toolchain, flags 
   - **Entities by variance class**: each count with its glyph, its class word as a link that drills in, and its level word. The ≡ identical count follows as plain text. For one pair the counts add up to the entities compared on that pair ("271 + 15 + 0 + 902 = 1,188 on build-a × build-b").
   - **Reading**: one or two plain sentences composed from the stored counts ("Mostly the compiler. Same source, compiled differently, is plausible; 15 bodies change in ways no checked transformation explains."). The reading's own level is shown when it goes beyond the counts.
 
-  A pair with no comparison reads "unknown · nothing is counted until the bodies are compared".
+  A pair with no comparison reads "unknown · nothing is counted until the bodies are compared". When no pair has source, toolchain and flag identity recorded on both builds (corpus-alpha today: only build-d has them), the view says so once under the legend, and every count is a hypothesis.
 - **Never merged, never averaged.** Counts are per pair. They are never summed across pairs or turned into a similarity score. A report is never merged across builds with different recorded source revisions. Where per-build results differ, the other views say "varies across builds".
 - **Drill-down.** Activating a class count is a Go that applies a FilterChip (`f=vrel:source` with the pair's `cmp`; `vrel` is a registered axis) and shows the entities behind it. Each row has the entity (a link that opens Compare with the pair), the address on each build (or "absent"), the evidence value that decided the class, and **Opinions**: each score with its own source ("0.81 BSim similarity", "38 bytes differ objdiff"). Scores from different tools are shown side by side and are never compared, ranked or averaged. The footer says "…and N more" and "opening one decides nothing".
 - **Rail form** (the Explain build difference preset, LayoutPresets 6). In the evidence rail the view shows only the current `cmp` pair, scoped to the selected entity, as a rail section headed "For ResourceRef::Resolve · build-a ↔ build-c":
-  - **This pair**: the toolchain, flag and link differences as evidence values, and whose source identity is recorded ("recorded on build-c only, so no class here can be solid"). A value links to ToolchainEvidence for that build.
+  - **This pair**: the toolchain, flag and link differences as evidence values, and whose source identity is recorded ("recorded on neither build, so no class here can be solid"). A value links to ToolchainEvidence for that build.
   - **This entity**: its stored class with glyph, word and evidence level, and the basis ("≠ Source changed · hypothesis (heuristic), basis: vftable slot 1 → 2 …"), then "One of 28 entities with source variance for this pair."
   - **Differences**: a list, one item per stored difference of the entity (frame shape, vftable slot, field offset, registers), each with its own class and level. A difference never inherits the entity's class.
   - **Opinions**: each tool's score with its tool, never combined.
@@ -54,7 +54,7 @@ How the project's builds relate, pair by pair: what differs in toolchain, flags 
   - its record → the receipt card;
   - rail form: Show all pairs → this view with `cmp` and `entity`; a toolchain value → ToolchainEvidence for that build.
 
-  Link names read "27 entities, source variance, build-c and build-d, record".
+  Link names read "27 entities, source variance, build-c and build-d, hypothesis (heuristic)".
 - **Peek source:** Alt+↓ on a count reads the stored comparison summary for that class (the basis and the first rows). On an entity, it reads the stored per-entity result and its opinions. Nothing is compared on peek.
 - **Absent copy:** "unknown · bodies not compared" · "absent" (no counterpart on that build, plain word) · "no opinion · nothing to compare" · "source identity not recorded" · "nothing is counted until the bodies are compared".
 - **Target-size exception:** none. Count links, pair links and entity links are at least 24px tall, and 44px below 700px or with a coarse pointer.

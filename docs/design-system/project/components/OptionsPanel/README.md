@@ -54,7 +54,7 @@ The per-viewer tool options for each code viewer (the decompiler, the byte viewe
 Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md), section "New components needed".
 
 - **I06** Tool Options dialog: restore defaults, per-section options; caching shown as a server setting.
-- **D30** decompiler options: display options per viewer; analysis and program options per build, read-only, catalog to change.
+- **D30** decompiler options: display and analysis options are per-viewer request options; the one program option (Prototype evaluation) is per build, read-only, catalog to change.
 - **D31** specification extensions: import and remove prototype and call-fixup extensions, per build, ConfirmDialog, one writer.
 - **D05** Eliminate Unreachable Code and Respect Read-only Flags as request options in the basis (DecompileView shows their state; this panel sets them).
 - **N11** Byte Viewer options: bytes per line, alignment offset, group size, charset, char width (HexStrip reads them).

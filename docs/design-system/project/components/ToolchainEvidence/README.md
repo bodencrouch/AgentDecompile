@@ -8,8 +8,8 @@ Which compiler, linker and flags produced each build, as a facts × builds grid 
 
 - **Columns are builds** (build-a … build-d). Each header links to the Navigator program row, and has a one-line summary composed only from solid values ("VC 7.1 · LTCG · /Oy (hypothesis)" names only what the cells show; a hypothesis in the summary keeps its word).
 - **Rows** are facts, grouped:
-  - **Compiler and linker identity**: Rich header (§7.1) · linker version (§7.2) · PDB / CodeView (§7.2) · CRT startup (§7.2).
-  - **Code generation**: /GS cookie (T8) · EH model, FH3/FH4 and handler3/4 (T9, T10) · LTCG (T5) · /Oy frame pointers (T2).
+  - **Compiler and linker identity**: Rich header (§7.1) · machine and pointer width (§4) · linker version (§7.2) · PDB / CodeView (§7.2) · CRT startup (§7.2).
+  - **Code generation**: /GS cookie (T8) · EH model, FH3/FH4 and handler3/4 (T9, T10) · LTCG (T5) · /Oy frame pointers (T2; "not applicable" on x64, witnessed by the machine type).
   - **Link-time layout**: incremental-link thunks (T12) · hotpatch padding (T13) · ICF folding (T6) · string pooling (T7).
   - **Rebuild**: the pinned toolchain.
 
@@ -24,7 +24,7 @@ Which compiler, linker and flags produced each build, as a facts × builds grid 
 - **Pinned toolchain for rebuild** is the last row, set off by a 2px `line-control` rule. Each cell is the registry record, with version and hash, and whether it matches the evidence. When it does not match, the cell adds a mismatch box, and a notice (StateNotice `caution`, ⇄) repeats it under the grid: "⇄ Mismatch: the evidence says VC 8.0 build 50727. A modern cl.exe cannot byte-match this build; its compiles are compile checks only." The notice links research §0 and §7.3. It arms at most one catalog action from `GET /api/v1/actions` for that build, and says so when there is none ("Not armed: the catalog offers no toolchain action for build-c"). Nothing runs from here. An unpinned build reads "unknown · not pinned".
 - **What the evidence suggests · by pair.** Under the grid, a short list per pair of builds, built only from the cells above:
   - "build-a ↔ build-b: same toolchain (witness) · differ in LTCG (witness) and /Oy (hypothesis) → compile variance (same source, compiled differently) is plausible · hypothesis (heuristic): no recorded source identity on either build".
-  - A pair whose source, toolchain and flag identity are recorded for both builds says so; only then can a variance class be solid ("build-c ↔ build-d: same compiler (record) · compile flags differ only in /hotpatch (record) · link differs: /INCREMENTAL, /FUNCTIONPADMIN (record)").
+  - A pair whose source, toolchain and flag identity are recorded for both builds says so; only then can a variance class be solid In corpus-alpha no pair qualifies yet: only build-d has recorded source identity, and the list ends by saying so.
 
   Each pair links to VariantRelation with `cmp`.
 - Alt+↓ on a hypothesis cell peeks the stored detector run: basis, what was not checked, what would make it solid, and one example address.

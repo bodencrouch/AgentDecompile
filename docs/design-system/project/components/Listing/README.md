@@ -52,7 +52,7 @@ The continuous instruction listing: flow, address, label, bytes, mnemonic, opera
 
 **Parity extensions (2026-09-29)** ([spec](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): L04, L06–L09, L13, L15, L21, L22, N03, N04)
 
-- Operand and EOL display options are read from OptionsPanel's Listing display section.
+- Operand, EOL and XREF display options are owned by ListingFieldLayout (OptionsPanel only links to it).
 - Function header rows show signature source, call-fixup, purge, tags, repeatable comment and register values at entry.
 - Variable rows are collapsible. Composite data and arrays expand inline, with a Field name column.
 - There is one row kind per comment type: EOL, pre, post, plate and repeatable.

@@ -1,10 +1,15 @@
-<!-- @dsCard group="Dock" height=1960 -->
+<!-- @dsCard group="Dock" height=1100 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<span class="kicker">Transactions of one program · Undo and Redo are catalog verbs, confirmed · what cannot be undone says so</span>
-<section class="ad-g3" aria-labelledby="eh-t">
+<span class="kicker">One program</span>
+<section class="ad-g3" aria-labelledby="eh-t" aria-describedby="eh-scope">
  <header class="ad-g3-head">
   <h3 id="eh-t">Edit history <span class="sub">· build-a</span></h3>
-  <p class="ad-g3-sum"><span>undo stack 5 of 20 (Ghidra keeps the last 20)</span><span>1 redo available</span><span>version 7 checked in · 5 transactions since</span><span>writer: this session</span><span>read 14:08</span></p>
+  <p class="sr-only" id="eh-scope">Transactions of one program · Undo and Redo are catalog verbs, confirmed · what cannot be undone says so</p>
+  <div class="ad-tools" role="group" aria-label="Edit history state" style="gap:8px">
+   <span class="adv-tip"><span class="adv-frac" tabindex="0" role="img" aria-label="undo stack 5 of 20" aria-describedby="eh-stk" style="--v:25"><i></i>5 / 20</span><span role="tooltip" id="eh-stk">undo stack 5 of 20 (Ghidra keeps the last 20)</span></span>
+   <ul class="adv-chips" aria-label="State"><li aria-label="1 redo available"><span aria-hidden="true">↷</span>1</li><li aria-label="version 7 checked in · 5 transactions since"><span>v7</span>+5</li><li><span>writer</span>this session</li><li><span>read</span>14:08</li></ul>
+   <span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="eh-key">?</button><span role="tooltip" id="eh-key">Bar: undo stack depth of 20. ↶ undoable. ↷ redo available. ⊘ cannot be undone here. ◷ would make that receipt stale. = keeps its value. ◆ donor, unchanged. Target map: the build an undo writes is framed; struck builds stay unchanged. ≠ chip: a claim boundary.</span></span>
+  </div>
   <div class="ad-tools" role="group" aria-label="Edit history scope">
    <span><span class="lbl" id="eh-l-sc">Program</span><span class="ad-seg" role="group" aria-labelledby="eh-l-sc"><button aria-pressed="true">build-a</button><button aria-pressed="false">build-b</button><button aria-pressed="false">build-c</button><button aria-pressed="false">build-d</button></span></span>
    <button class="ad-btn" type="button" aria-describedby="eh-u-d">Undo…</button>
@@ -14,42 +19,55 @@
  </header>
 
  <ol class="ad-edh-list" aria-label="Transactions of build-a, newest first">
-  <li class="sep">Redo · undone, can be redone until the next edit</li>
-  <li class="redo"><span class="pos">↷</span><span class="t">Retype parameter 2 of ResourceRef::Resolve: uint → size_t</span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↷</b>redo available</span></span><span class="meta"><span>by you · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=b7e2" aria-label="Job b7e2, retype, undone">b7e2</a></span><span>undone 14:07</span></span></li>
-  <li class="sep">Undo stack · newest first</li>
-  <li aria-current="true"><span class="pos">5</span><span class="t">Set comment at <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041b210" aria-label="Address 0041b210, build-a" translate="no">0041b210</a></span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↶</b>undoable</span></span><span class="meta"><span>by you · inline edit</span><span>14:06</span></span></li>
-  <li><span class="pos">4</span><span class="t">ApplyCacheEntryLayout.py · 12 changes</span><span class="end"><span class="ad-g3-st on col"><b aria-hidden="true">↶</b>program changes undoable<span class="m">side effects are not</span></span></span><span class="meta"><span>script · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, ApplyCacheEntryLayout.py, finished">a3f9</a> finished</span><span>14:02</span><span class="ad-g3-cant"><b aria-hidden="true">⊘</b>its log, receipt and transcript cannot be undone</span><button class="ad-btn compact" type="button" aria-haspopup="dialog" aria-label="Undo to here, 2 transactions on build-a">Undo to here…</button></span></li>
-  <li><span class="pos">3</span><span class="t">Propagated name from build-c: FUN_0041b210 → ResourceRef::Resolve</span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↶</b>undoable on build-a only</span></span><span class="meta"><span>propagation from build-c · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=d07a" aria-label="Job d07a, propagate names, finished">d07a</a></span><span>13:55</span><span>build-b keeps its value; build-c is the donor and is unchanged</span></span></li>
-  <li><span class="pos">2</span><span class="t">Rename local_8 → itemCount in Actor::LoadFromTemplate</span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↶</b>undoable</span></span><span class="meta"><span>by agent · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=c4e1" aria-label="Job c4e1, rename, finished">c4e1</a></span><span>13:40</span></span></li>
-  <li><span class="pos">1</span><span class="t">One-shot · Aggressive Instruction Finder over <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" aria-label="Address 0041c880, build-a" translate="no">0041c880</a>–0041c97f · 14 changes</span><span class="end"><span class="ad-g3-st on col"><b aria-hidden="true">↶</b>program changes undoable<span class="m">would make receipt e5a0 stale</span></span></span><span class="meta"><span>analysis · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=e5a0" aria-label="Job e5a0, one-shot analyzer on build-a, finished">e5a0</a> finished</span><span>12:10</span><span class="ad-g3-cant"><b aria-hidden="true">⊘</b>its log and receipt cannot be undone</span></span></li>
-  <li class="sep">Before the undo stack · cannot be undone here</li>
-  <li><span class="pos">—</span><span class="t">Checked in as version 7 · 18 transactions</span><span class="end"><span class="ad-g3-cant"><b aria-hidden="true">⊘</b>cannot be undone here</span></span><span class="meta"><span>the server holds version 7; VersionControlPanel shows its history</span><span>2026-09-28 17:40</span></span></li>
+  <li class="sep">Redo<span class="sr-only"> · undone, can be redone until the next edit</span></li>
+  <li class="redo"><span class="pos">↷</span><span class="t">Retype parameter 2 of ResourceRef::Resolve: uint → size_t</span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↷</b>redo available</span></span><span class="meta"><span>you · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=b7e2" aria-label="Job b7e2, retype, undone">b7e2</a></span><span>undone 14:07</span></span></li>
+  <li class="sep">Undo stack<span class="sr-only"> · newest first</span></li>
+  <li aria-current="true"><span class="pos">5</span><span class="t">Set comment at <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041b210" aria-label="Address 0041b210, build-a" translate="no">0041b210</a></span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↶</b>undoable</span></span><span class="meta"><span>you · inline edit</span><span>14:06</span></span></li>
+  <li><span class="pos">4</span><span class="t">ApplyCacheEntryLayout.py · 12 changes</span><span class="end"><span class="ad-g3-st on col" aria-label="program changes undoable; side effects are not"><b aria-hidden="true">↶</b>program<span class="m" aria-hidden="true">⊘ side effects</span></span></span><span class="meta"><span>script · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, ApplyCacheEntryLayout.py, finished">a3f9</a> finished</span><span>14:02</span><span class="ad-g3-cant"><b aria-hidden="true">⊘</b><span aria-hidden="true">log · receipt · transcript</span><span class="sr-only">its log, receipt and transcript cannot be undone</span></span><button class="ad-btn compact" type="button" aria-haspopup="dialog" aria-label="Undo to here, 2 transactions on build-a">Undo to here…</button></span></li>
+  <li><span class="pos">3</span><span class="t">Propagated name from build-c: FUN_0041b210 → ResourceRef::Resolve</span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↶</b>build-a only</span></span><span class="meta"><span>propagation · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=d07a" aria-label="Job d07a, propagate names, finished">d07a</a></span><span>13:55</span><span class="adv-tip end"><span tabindex="0" role="img" aria-label="build-b keeps its value; build-c is the donor and is unchanged" aria-describedby="eh-pr" style="display:inline-flex"><ul class="adv-chips" aria-hidden="true"><li>build-b =</li><li>build-c donor</li></ul></span><span role="tooltip" id="eh-pr">build-b keeps its value; build-c is the donor and is unchanged</span></span></span></li>
+  <li><span class="pos">2</span><span class="t">Rename local_8 → itemCount in Actor::LoadFromTemplate</span><span class="end"><span class="ad-g3-st on"><b aria-hidden="true">↶</b>undoable</span></span><span class="meta"><span>agent · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=c4e1" aria-label="Job c4e1, rename, finished">c4e1</a></span><span>13:40</span></span></li>
+  <li><span class="pos">1</span><span class="t">One-shot · Aggressive Instruction Finder · <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" aria-label="Address 0041c880, build-a" translate="no">0041c880</a>–0041c97f · 14 changes</span><span class="end"><span class="ad-g3-st on col" aria-label="program changes undoable; would make receipt e5a0 stale"><b aria-hidden="true">↶</b>program<span class="m" aria-hidden="true">◷ e5a0</span></span></span><span class="meta"><span>analysis · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=e5a0" aria-label="Job e5a0, one-shot analyzer on build-a, finished">e5a0</a> finished</span><span>12:10</span><span class="ad-g3-cant"><b aria-hidden="true">⊘</b><span aria-hidden="true">log · receipt</span><span class="sr-only">its log and receipt cannot be undone</span></span></span></li>
+  <li class="sep">Before the stack<span class="sr-only"> · cannot be undone here</span></li>
+  <li><span class="pos">—</span><span class="t">Checked in · version 7 · 18 transactions</span><span class="end"><span class="ad-g3-cant"><b aria-hidden="true">⊘</b>not here</span></span><span class="meta"><span aria-label="the server holds version 7; VersionControlPanel shows its history">server v7 → VersionControlPanel</span><span>2026-09-28 17:40</span></span></li>
  </ol>
- <p class="ad-g3-note">Undo reverts the program's changes on build-a. It does not delete jobs, logs, receipts, artifacts or files a job wrote: byte journal rollback ≠ undo of executed side effects. Undone work leaves its receipts marked ◷ stale.</p>
+ <div class="row" style="gap:8px">
+  <span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="eh-se"><b aria-hidden="true">≠</b>side effects</button><span role="tooltip" id="eh-se">Undo reverts the program's changes on build-a. It does not delete jobs, logs, receipts, artifacts or files a job wrote: byte journal rollback ≠ undo of executed side effects.</span></span>
+  <span class="adv-tip"><span class="ad-stamp" tabindex="0" aria-describedby="eh-st"><b>◷ stale</b></span><span role="tooltip" id="eh-st">Undone work leaves its receipts marked ◷ stale.</span></span>
+ </div>
 
  <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="eh-cf-t" aria-describedby="eh-cf-d" style="max-width:560px">
   <h3 id="eh-cf-t">Undo 2 transactions on build-a</h3>
-  <p id="eh-cf-d">Undoes "Set comment at 0041b210" and "ApplyCacheEntryLayout.py · 12 changes" on build-a. Job a3f9's log, receipt and transcript stay; its 12 program changes are reverted. Other builds are unchanged. Both can be redone until the next edit on build-a.</p>
-  <footer><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Undo 2</button></footer>
+  <p id="eh-cf-d" class="sr-only">Undoes "Set comment at 0041b210" and "ApplyCacheEntryLayout.py · 12 changes" on build-a. Job a3f9's log, receipt and transcript stay; its 12 program changes are reverted. Other builds are unchanged. Both can be redone until the next edit on build-a.</p>
+  <ul class="adv-tmap" aria-hidden="true">
+   <li class="w"><b>↶</b>build-a<span></span><span class="mono">5 · 4</span></li>
+   <li class="x"><b>—</b>build-b</li>
+   <li class="x"><b>—</b>build-c</li>
+   <li class="x"><b>—</b>build-d</li>
+  </ul>
+  <footer><span class="adv-chips" aria-hidden="true" style="margin-right:auto"><span class="adv-bnd"><b>=</b>a3f9 log</span><span class="adv-w"><b>↷</b>redoable</span></span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Undo 2</button></footer>
  </div>
 </section>
 
 <div class="adc-states">
  <div>
-  <span class="kicker">A propagated edit · undone per recipient</span>
-  <div class="ad-notice info"><b aria-hidden="true">↶</b><div><h4>Undo applies to build-a only</h4><p>The name reached build-a and build-b from build-c in propagation job d07a. Undoing on build-a leaves build-b's copy and build-c's original. Undo on build-b is its own step in build-b's history.</p></div><span></span></div>
+  <span class="kicker">Per recipient</span>
+  <div class="ad-notice info" role="group" aria-labelledby="eh-s1" aria-describedby="eh-s1d"><b aria-hidden="true">↶</b><div><h4 id="eh-s1">Undo · build-a only</h4><p class="sr-only" id="eh-s1d">A propagated edit · undone per recipient. The name reached build-a and build-b from build-c in propagation job d07a. Undoing on build-a leaves build-b's copy and build-c's original. Undo on build-b is its own step in build-b's history.</p>
+   <ul class="adv-tmap" aria-hidden="true" style="margin-top:8px"><li class="w"><b>↶</b>build-a</li><li><b>=</b>build-b</li><li><b>◆</b>build-c</li></ul><p class="mono small" style="margin-top:6px">d07a</p></div><span></span></div>
  </div>
  <div>
-  <span class="kicker">Writer owned · Undo waits</span>
-  <div class="ad-notice caution"><b aria-hidden="true">●</b><div><h4>build-b has a writer</h4><p>Job 77c0 (external, pid 48211, started 13:02) owns build-b. Undo on build-b waits; nothing is killed or restarted.</p></div><span></span></div>
+  <span class="kicker">Undo waits</span>
+  <div class="ad-notice caution" role="group" aria-labelledby="eh-s2" aria-describedby="eh-s2d"><b aria-hidden="true">●</b><div><h4 id="eh-s2">Writer · build-b</h4><p class="sr-only" id="eh-s2d">Writer owned · Undo waits. Job 77c0 (external, pid 48211, started 13:02) owns build-b. Undo on build-b waits; nothing is killed or restarted.</p>
+   <div class="row" style="gap:8px;margin-top:6px"><ul class="adv-chips" aria-hidden="true"><li><span>job</span>77c0</li><li>external</li><li><span>pid</span>48211</li><li><span>since</span>13:02</li></ul><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="eh-kill"><b aria-hidden="true">≠</b>kill</button><span role="tooltip" id="eh-kill">Undo on build-b waits; nothing is killed or restarted.</span></span></div></div><span></span></div>
  </div>
  <div>
-  <span class="kicker">Program changed since armed · modification conflict</span>
-  <div class="ad-notice fault"><b aria-hidden="true">⇄</b><div><h4>Undo refused: build-a changed since you armed it</h4><p>Transaction 6 "Rename CacheEntry.flags" arrived at 14:09. Nothing was undone. Review the new change, then Undo again on the new top.</p></div><span></span></div>
+  <span class="kicker">Modification conflict</span>
+  <div class="ad-notice fault" role="group" aria-labelledby="eh-s3" aria-describedby="eh-s3d"><b aria-hidden="true">⇄</b><div><h4 id="eh-s3"><span class="adv-tip is-open"><span tabindex="0" aria-describedby="eh-s3t">Refused: build-a changed</span><span role="tooltip" id="eh-s3t">Undo refused: build-a changed since you armed it. Nothing was undone. Review the new change, then Undo again on the new top.</span></span></h4><p class="sr-only" id="eh-s3d">Program changed since armed · modification conflict. Transaction 6 "Rename CacheEntry.flags" arrived at 14:09. Nothing was undone. Review the new change, then Undo again on the new top.</p>
+   <ul class="adv-chips" aria-hidden="true" style="margin-top:6px"><li><span>tx</span>6</li><li translate="no">Rename CacheEntry.flags</li><li>14:09</li></ul></div><span></span></div>
  </div>
  <div>
-  <span class="kicker">Stack cleared · program closed and reopened</span>
-  <div class="ad-notice unknown"><b aria-hidden="true">⊘</b><div><h4>No undo stack for build-c</h4><p>build-c was closed at 13:30; Ghidra clears the undo stack on close. Its 7 earlier transactions are listed from the event store and cannot be undone here.</p></div><span></span></div>
+  <span class="kicker">Stack cleared</span>
+  <div class="ad-notice unknown" role="group" aria-labelledby="eh-s4" aria-describedby="eh-s4d"><b aria-hidden="true">⊘</b><div><h4 id="eh-s4">No undo stack · build-c</h4><p class="sr-only" id="eh-s4d">Stack cleared · program closed and reopened. build-c was closed at 13:30; Ghidra clears the undo stack on close. Its 7 earlier transactions are listed from the event store and cannot be undone here.</p>
+   <ul class="adv-chips" aria-hidden="true" style="margin-top:6px"><li><span>closed</span>13:30</li><li><span>events</span>7</li><li>⊘ undo</li></ul></div><span></span></div>
  </div>
 </div>
 </div>

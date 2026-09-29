@@ -1,4 +1,4 @@
-<!-- @dsCard group="Evidence" height=1440 -->
+<!-- @dsCard group="Evidence" height=1390 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <div class="ad-etl-demo">
 <section class="ad-etl" aria-labelledby="etl-h">
@@ -6,81 +6,82 @@
   <span class="kicker">History</span>
   <h4 id="etl-h" translate="no">ResourceRef::Resolve</h4>
   <span class="small muted">logical #88 · build-a <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no">0041b210</a></span>
-  <span class="ad-sync small"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Follows · as I move</span>
+  <span class="adv-tip" style="margin-left:auto"><span class="ad-sync small adv-w" tabindex="0" aria-describedby="etl-fol"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Follows</span><span role="tooltip" id="etl-fol">Follows · as I move</span></span>
   <button class="ad-btn compact" aria-pressed="false" aria-keyshortcuts="Shift+K">Keep</button>
+  <span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="etl-key">?</button><span role="tooltip" id="etl-key">NEW: since you looked. ✓ passed · ◷ stale · ✕ failed or blocked · ○ not loaded · ✎ your edit · ← propagation in · → propagation out · › won over · FRESH, REUSED, dashed HISTORICAL provenance · bar: a share of one count · ≠: a claim boundary. Links chain fact → receipt → job → stage → changed entities.</span></span>
  </header>
  <section class="ad-etl-since" aria-labelledby="etl-since-h">
-  <h5 id="etl-since-h"><span class="ad-etl-newmark" aria-hidden="true"></span>4 changes since you looked <span class="muted">· 13:02, 56 min ago</span></h5>
+  <h5 id="etl-since-h"><span class="ad-etl-newmark" aria-hidden="true"></span><span aria-hidden="true">4 new</span><span class="sr-only">4 changes since you looked</span> <span class="muted">· 13:02 · 56 min</span></h5>
   <ul>
    <li><span class="ad-fact stale"><b aria-hidden="true">◷</b><span><span class="label">Linked match</span> passed → stale</span></span></li>
-   <li>Name arrived from build-b <span class="muted">(debug info)</span></li>
+   <li>Name <span aria-hidden="true">←</span><span class="sr-only">arrived from</span> build-b <span class="muted">(debug info)</span></li>
    <li>Compile receipt bound <span class="muted">(reused, r14)</span></li>
    <li>Job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, corpus.cross-place, running">a3f9</a> admitted <span class="muted">· running</span></li>
   </ul>
-  <div class="ad-etl-acts"><button class="ad-btn compact">Go to first change</button><button class="ad-btn compact">Mark as seen</button></div>
+  <div class="ad-etl-acts"><button class="ad-btn compact" aria-label="Go to first change">First change</button><button class="ad-btn compact">Mark as seen</button></div>
  </section>
  <div class="ad-tools ad-etl-tools" role="group" aria-label="History filters">
   <span class="ad-seg" role="group" aria-label="Builds"><button aria-pressed="true">This build</button><button aria-pressed="false">All builds</button></span>
   <span class="ad-seg" role="group" aria-label="Provenance"><button aria-pressed="true">All</button><button aria-pressed="false">Fresh</button><button aria-pressed="false">Reused</button><button aria-pressed="false">Historical</button></span>
-  <span class="small muted">Actor filter: actor not recorded for 3 of 8 events</span>
+  <span class="row small" style="gap:8px"><span class="muted">actor ∅</span><span class="adv-frac" role="img" aria-label="Actor filter: actor not recorded for 3 of 8 events" style="--v:38"><i></i>3/8</span></span>
  </div>
  <div class="ad-etl-list" role="grid" aria-label="History of ResourceRef::Resolve on build-a, newest first" aria-rowcount="31" data-scroll>
   <div role="row" class="ad-etl-ev new" aria-rowindex="1" aria-selected="true">
    <span role="rowheader" class="ad-etl-t"><time datetime="13:58:07">13:58</time></span>
    <div role="gridcell" class="ad-etl-what is-focus" tabindex="0"><span class="ad-etl-k">Fact <span class="ad-etl-new">new</span></span>
     <span class="ad-etl-s"><span class="ad-fact passed"><b aria-hidden="true">✓</b></span><span class="label">Linked match</span> passed <span aria-hidden="true">→</span> <span class="ad-fact stale"><b aria-hidden="true">◷</b></span>stale</span>
-    <span class="ad-etl-why">because its basis changed: build-b relinked, <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-b&amp;f=basis:3be0" tabindex="-1" aria-label="Basis 3be0…77d2, current">3be0…77d2</a></span>
+    <span class="ad-etl-why"><span aria-hidden="true">Δ basis · build-b relinked · </span><span class="sr-only">because its basis changed: build-b relinked, </span><a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-b&amp;f=basis:3be0" tabindex="-1" aria-label="Basis 3be0…77d2, current">3be0…77d2</a></span>
     <span class="ad-stamp"><b class="fresh">fresh</b>object diff · 13:58:07</span></div>
    <div role="gridcell" class="ad-etl-chain"><a class="ad-link mono" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;receipt=d41a" tabindex="-1" aria-label="Receipt d41a, object diff, fresh">%d41a</a><span aria-hidden="true">→</span><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=e5b0" tabindex="-1" aria-label="Job e5b0, corpus.objdiff-check, finished">e5b0</a><span aria-hidden="true">→</span><a class="ad-link mono" href="?project=corpus-alpha&amp;node=stage-7" tabindex="-1" aria-label="Pipeline node stage-7, continuous parity">stage-7</a><span aria-hidden="true">→</span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;f=changed:e5b0" tabindex="-1" aria-label="Changed list of job e5b0: 14 entities on build-a, show in Functions">14 entities</a></div></div>
   <div role="row" class="ad-etl-ev new" aria-rowindex="2">
    <span role="rowheader" class="ad-etl-t"><time datetime="13:57:40">13:57</time></span>
    <div role="gridcell" class="ad-etl-what"><span class="ad-etl-k"><span aria-hidden="true">←</span> Propagation in <span class="ad-etl-new">new</span></span>
     <span class="ad-etl-s">Name from <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b" tabindex="-1" aria-label="Counterpart ResourceRef::Resolve on build-b">build-b</a>: <code translate="no">FUN_0041b210</code> <span aria-hidden="true">→</span><span class="sr-only">to</span> <code translate="no">ResourceRef::Resolve</code></span>
-    <span class="ad-etl-why">tier debug info · won over placeholder</span>
+    <span class="ad-etl-why"><span aria-hidden="true">debug info › placeholder</span><span class="sr-only">tier debug info · won over placeholder</span></span>
     <span class="ad-stamp"><b class="fresh">fresh</b>transfer accepted 13:57:40</span></div>
    <div role="gridcell" class="ad-etl-chain"><a class="ad-link mono" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;t=ev-5512" tabindex="-1" aria-label="Work-view event: name transfer at 13:57:40">transfer</a><span aria-hidden="true">→</span><a class="ad-link mono" href="?project=corpus-alpha&amp;receipt=c07e" tabindex="-1">%c07e</a><span aria-hidden="true">→</span><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" tabindex="-1">a3f9</a><span aria-hidden="true">→</span><a class="ad-link mono" href="?project=corpus-alpha&amp;node=stage-5" tabindex="-1">stage-5</a><span aria-hidden="true">→</span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;f=changed:a3f9" tabindex="-1" aria-label="Changed list of job a3f9: 13 more recipients on build-a, show in Functions">13 more recipients</a></div></div>
   <div role="row" class="ad-etl-ev new" aria-rowindex="3">
    <span role="rowheader" class="ad-etl-t"><time datetime="13:41:02">13:41</time></span>
    <div role="gridcell" class="ad-etl-what"><span class="ad-etl-k">Job <span class="ad-etl-new">new</span></span>
-    <span class="ad-etl-s"><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" tabindex="-1">a3f9</a> corpus.cross-place admitted · build-a → build-b</span>
-    <span class="ad-etl-why">running · recipient 14 of 31 compiled · A finished job is not a match.</span></div>
+    <span class="ad-etl-s"><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" tabindex="-1">a3f9</a> <span class="mono">corpus.cross-place</span> <span>admitted · build-a → build-b</span></span>
+    <span class="ad-etl-why row" style="gap:8px">running <span class="adv-frac" role="img" aria-label="recipient 14 of 31 compiled" style="--v:45"><i></i>14/31</span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="etl-nm"><b aria-hidden="true">≠</b>match</button><span role="tooltip" id="etl-nm">A finished job is not a match.</span></span></span></div>
    <div role="gridcell" class="ad-etl-chain"><a class="ad-link mono" href="?project=corpus-alpha&amp;node=stage-5" tabindex="-1">stage-5</a></div></div>
   <div role="row" class="ad-etl-ev new" aria-rowindex="4">
    <span role="rowheader" class="ad-etl-t"><time datetime="13:30:15">13:30</time></span>
    <div role="gridcell" class="ad-etl-what"><span class="ad-etl-k">Receipt <span class="ad-etl-new">new</span></span>
     <span class="ad-etl-s"><span class="ad-fact passed"><b aria-hidden="true">✓</b></span><span class="label">Compilation</span> passed at r14</span>
-    <span class="ad-etl-why">bound again; dependencies unchanged since it was made</span>
-    <span class="ad-stamp"><b>reused</b>compile receipt · 2 days old</span></div>
+    <span class="ad-etl-why"><span aria-hidden="true">↺ bound · deps unchanged</span><span class="sr-only">bound again; dependencies unchanged since it was made</span></span>
+    <span class="ad-stamp"><b>reused</b><span aria-hidden="true">compile · 2 d</span><span class="sr-only">compile receipt · 2 days old</span></span></div>
    <div role="gridcell" class="ad-etl-chain"><a class="ad-link mono" href="?project=corpus-alpha&amp;receipt=7c21" tabindex="-1">%7c21</a><span aria-hidden="true">→</span><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=5f10" tabindex="-1">5f10</a><span aria-hidden="true">→</span><a class="ad-link mono" href="?project=corpus-alpha&amp;node=stage-4" tabindex="-1">stage-4</a></div></div>
-  <div role="row" class="ad-etl-seen" aria-rowindex="5"><span role="gridcell" aria-colspan="3">You looked at 13:02 · older events were seen</span></div>
+  <div role="row" class="ad-etl-seen" aria-rowindex="5"><span role="gridcell" aria-colspan="3"><span aria-hidden="true">seen ▴ 13:02</span><span class="sr-only">You looked at 13:02 · older events were seen</span></span></div>
   <div role="row" class="ad-etl-ev" aria-rowindex="6">
    <span role="rowheader" class="ad-etl-t"><time datetime="12:10">12:10</time></span>
    <div role="gridcell" class="ad-etl-what"><span class="ad-etl-k"><span aria-hidden="true">✎</span> Type edit</span>
     <span class="ad-etl-s">param 1 <code translate="no">void *</code> <span aria-hidden="true">→</span><span class="sr-only">to</span> <code translate="no">ResourceRef *</code> <span class="muted">by you</span></span>
-    <span class="ad-etl-why">saved to project metadata · no job</span></div>
+    <span class="ad-etl-why"><span aria-hidden="true">metadata · no job</span><span class="sr-only">saved to project metadata · no job</span></span></div>
    <div role="gridcell" class="ad-etl-chain"><a class="ad-link mono" href="?project=corpus-alpha&amp;receipt=a90c" tabindex="-1">%a90c</a></div></div>
   <div role="row" class="ad-etl-ev" aria-rowindex="7">
    <span role="rowheader" class="ad-etl-t"><time datetime="11:52">11:52</time></span>
    <div role="gridcell" class="ad-etl-what"><span class="ad-etl-k"><span aria-hidden="true">→</span> Propagation out</span>
     <span class="ad-etl-s">Name to <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c" tabindex="-1" aria-label="Counterpart ResourceRef::Resolve on build-c">build-c</a> <span class="ad-fact failed"><b aria-hidden="true">✕</b><span>blocked</span></span></span>
-    <span class="ad-etl-why">conflicting field: build-c keeps <code translate="no">ResRef_Resolve</code> (human)</span></div>
+    <span class="ad-etl-why"><span class="sr-only">conflicting field: </span>build-c keeps <code translate="no">ResRef_Resolve</code> (human)</span></div>
    <div role="gridcell" class="ad-etl-chain"><a class="ad-link mono" href="?project=corpus-alpha&amp;receipt=b311" tabindex="-1">%b311</a><span aria-hidden="true">→</span><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=9e02" tabindex="-1">9e02</a><span aria-hidden="true">→</span><a class="ad-link mono" href="?project=corpus-alpha&amp;node=stage-5" tabindex="-1">stage-5</a></div></div>
   <div role="row" class="ad-etl-ev hist" aria-rowindex="8">
    <span role="rowheader" class="ad-etl-t"><time datetime="2026-09-28T17:20">Mon 17:20</time></span>
    <div role="gridcell" class="ad-etl-what"><span class="ad-etl-k">Basis</span>
     <span class="ad-etl-s">build-a generation 41 <span aria-hidden="true">→</span><span class="sr-only">to</span> 42</span>
-    <span class="ad-etl-why">2 receipts made under gen 41 are now historical</span>
-    <span class="ad-stamp"><b class="historical">historical</b>gen 41 · fenced; not current acceptance</span></div>
+    <span class="ad-etl-why"><span aria-hidden="true">2 receipts · gen 41</span><span class="sr-only">2 receipts made under gen 41 are now historical</span></span>
+    <span class="ad-stamp"><b class="historical">historical</b><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="etl-fence"><b aria-hidden="true">≠</b>current</button><span role="tooltip" id="etl-fence">gen 41 · fenced; not current acceptance</span></span></span></div>
    <div role="gridcell" class="ad-etl-chain"><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=3c77" tabindex="-1">3c77</a><span aria-hidden="true">→</span><span class="muted">stage: unmapped</span></div></div>
-  <div role="row" class="ad-etl-more" aria-rowindex="9"><div role="gridcell" aria-colspan="3"><span class="g g-unk" aria-hidden="true">○</span> <span><strong class="strong">Not loaded · Enter to load.</strong> 22 older events are stored; reading them starts no work.</span> <button class="ad-btn compact" tabindex="-1">Read older</button></div></div>
+  <div role="row" class="ad-etl-more" aria-rowindex="9"><div role="gridcell" aria-colspan="3" class="adv-empty" style="display:flex;padding:8px 16px"><span class="adv-tip"><b tabindex="0" role="img" aria-label="Not loaded" aria-describedby="etl-more">○</b><span role="tooltip" id="etl-more">Not loaded · Enter to load. 22 older events are stored; reading them starts no work.</span></span><strong class="strong">Not loaded</strong><button class="ad-btn compact" tabindex="-1" aria-describedby="etl-more">Read older · 22</button></div></div>
  </div>
- <footer class="ad-etl-foot"><span>Read from the event store · 13:58:07 · moving between events writes no history</span><span>↑↓ events · ←→ links · Enter go · Alt+↓ peek · Shift+F10 link menu</span></footer>
+ <footer class="ad-etl-foot"><ul class="adv-chips" aria-label="Keys: ↑↓ events · ←→ links · Enter go · Alt+↓ peek · Shift+F10 link menu"><li><span>↑↓</span>events</li><li><span>←→</span>links</li><li><span>Enter</span>go</li><li><span>Alt ↓</span>peek</li><li><span>Shift F10</span>link menu</li></ul><span class="adv-tip is-open"><span class="adv-w" tabindex="0" aria-describedby="etl-src"><b aria-hidden="true">◇</b>event store · 13:58:07</span><span role="tooltip" id="etl-src">Read from the event store · 13:58:07 · moving between events writes no history</span></span></footer>
  <p class="sr-only" role="status">4 changes since you looked at 13:02.</p>
 </section>
 
 <div class="stack">
  <div class="ad-etl-back">
-  <span class="kicker">Linked both ways · receipt card</span>
+  <span class="kicker">Linked both ways<span class="sr-only"> · receipt card</span></span>
   <section class="ad-record" aria-labelledby="etl-rc">
    <header><h4 id="etl-rc">Receipt <span class="mono">%d41a</span> <span class="muted">· object diff</span></h4><span class="ad-stamp"><b class="fresh">fresh</b>13:58:07</span></header>
    <div class="body"><dl class="ad-dl">
@@ -88,18 +89,18 @@
     <dt>Produced by</dt><dd>job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=e5b0" aria-label="Job e5b0, corpus.objdiff-check, finished">e5b0</a> corpus.objdiff-check</dd>
     <dt>At stage</dt><dd><a class="ad-link" href="?project=corpus-alpha&amp;node=stage-7">7 · Continuous parity</a></dd>
     <dt>Changed</dt><dd><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a" translate="no">ResourceRef::Resolve</a>, <a class="ad-link" href="?project=corpus-alpha&amp;entity=4127&amp;build=build-a&amp;addr=0041a3f0" translate="no">Actor::LoadFromTemplate</a> and <a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;f=changed:e5b0" aria-label="Changed list of job e5b0, 12 more on build-a, show in Functions">12 more</a></dd>
-    <dt>In history</dt><dd><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;receipt=d41a">13:58:07 event for this entity</a></dd>
+    <dt>In history</dt><dd><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;receipt=d41a" aria-label="13:58:07 event for this entity">13:58:07 event</a></dd>
    </dl></div>
   </section>
-  <p class="small muted" style="margin:0">Every hop has a way back: fact → receipt → job → stage node → changed entities, and each of those opens the history event that recorded it.</p>
+  <p class="sr-only" id="etl-hops">Every hop has a way back: fact → receipt → job → stage node → changed entities, and each of those opens the history event that recorded it.</p><ul class="adv-chips" aria-hidden="true"><li>fact</li><li><span>⇄</span>receipt</li><li><span>⇄</span>job</li><li><span>⇄</span>stage node</li><li><span>⇄</span>changed</li><li><span>⇄</span>event</li></ul>
  </div>
  <section class="ad-etl-kept" aria-labelledby="etl-k">
-  <header><span class="ad-etl-held">Kept</span><h4 id="etl-k"><span translate="no">Actor::LoadFromTemplate</span> <span class="muted">· history · build-a</span></h4><span class="small muted">kept 6 min ago · not following</span></header>
-  <div class="ad-etl-note"><b aria-hidden="true">◷</b><p><strong>Basis changed since kept · Refresh.</strong> 1 new event on this entity. Nothing refreshes by itself.</p></div>
+  <header><span class="ad-etl-held">Kept</span><h4 id="etl-k"><span translate="no">Actor::LoadFromTemplate</span> <span class="muted">· history · build-a</span></h4><span class="small muted"><span aria-hidden="true">6 min</span><span class="sr-only">kept 6 min ago · not following</span></span></header>
+  <div class="ad-etl-note"><b aria-hidden="true">◷</b><p class="row" style="gap:8px"><strong>Basis changed</strong><span class="mono">+1 event</span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="etl-kn"><b aria-hidden="true">≠</b>auto-refresh</button><span role="tooltip" id="etl-kn">Basis changed since kept · Refresh. 1 new event on this entity. Nothing refreshes by itself.</span></span></p></div>
   <div class="ad-etl-acts"><button class="ad-btn compact">Refresh</button><button class="ad-btn compact" aria-pressed="true" aria-keyshortcuts="Shift+K">Keep</button><button class="ad-btn compact">Release</button></div>
  </section>
- <div class="ad-notice info"><b aria-hidden="true">∅</b><div><h4>No recorded changes for FUN_0041c880 on build-a</h4><p>Existing analysis only. Nothing has changed it since import at generation 42.</p></div><span></span></div>
- <div aria-busy="true"><div class="ad-notice info"><b aria-hidden="true">…</b><div><h4>Loading history for Archive::OpenMember</h4><p>Still showing ResourceRef::Resolve, dimmed. A late answer for the old selection is dropped.</p></div><span></span></div></div>
+ <div class="ad-notice info"><b aria-hidden="true">∅</b><div><h4><span class="sr-only">No recorded changes for </span><span class="mono">FUN_0041c880</span> · build-a</h4><ul class="adv-chips" aria-hidden="true" style="margin-top:4px"><li><span>changes</span>0</li><li><span>import</span>gen 42</li></ul><p class="sr-only">Existing analysis only. Nothing has changed it since import at generation 42.</p></div><span></span></div>
+ <div aria-busy="true"><div class="ad-notice info"><b aria-hidden="true">…</b><div><h4><span class="sr-only">Loading history for </span><span aria-hidden="true">Loading · </span><span class="mono">Archive::OpenMember</span></h4><ul class="adv-chips" aria-hidden="true" style="margin-top:4px"><li><span>dimmed</span>ResourceRef::Resolve</li><li><span>late answer</span>dropped</li></ul><p class="sr-only">Still showing ResourceRef::Resolve, dimmed. A late answer for the old selection is dropped.</p></div><span></span></div></div>
 </div>
 </div>
 </div>

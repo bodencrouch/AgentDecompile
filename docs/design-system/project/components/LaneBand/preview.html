@@ -1,6 +1,16 @@
-<!-- @dsCard group="Diagram" height=220 -->
+<!-- @dsCard group="Diagram" height=224 -->
 <div class="ad ad-dia" style="padding:16px;display:grid;gap:12px">
-<div class="ad-laneband f-unify band"><strong>LANE A · Knowledge fusion — bidirectional, per field</strong><span class="ad-pill" style="color:var(--lane-unify-ink)">consumes stage 1 identity · feeds every sibling build</span></div>
-<div class="small" style="color:var(--lane-unify-ink)">cross-build unification &amp; export · labels · comments · structs/types · debug-info names flow between every build sharing a logical id; a build donates a FIELD, never everything</div>
-<div class="ad-outputs" style="border-color:var(--lane-unify-ink)"><h5 style="color:var(--lane-unify-ink)">OUTPUTS → who consumes them</h5><div>→ merged names / types / comments PER FIELD, each with origin and rejected alternatives</div><div>→ consumed by stage 5 placement (type-compatibility gate) and the ABI + struct blocks of the pack</div><div>→ never overwrites a stronger field; conflicts stay visible for review</div></div>
+<div class="ad-laneband f-unify band"><strong>LANE A · Knowledge fusion <span aria-hidden="true">⇄</span><span class="sr-only">bidirectional, per field</span></strong><span style="display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="adv-tip"><span class="ad-pill" style="color:var(--lane-unify-ink)" tabindex="0" aria-describedby="lb-io">← stage 1 · → siblings</span><span role="tooltip" id="lb-io">consumes stage 1 identity · feeds every sibling build</span></span><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="lb-key">?</button><span role="tooltip" id="lb-key">⇄ bidirectional, per field. Chip: one field kind that flows. Tiles: builds sharing a logical id. ≠ chip: what never flows or never happens. Dashed box: outputs and who consumes them.</span></span></span></div>
+<div class="row small" style="color:var(--lane-unify-ink)" role="img" aria-label="cross-build unification &amp; export · labels · comments · structs/types · debug-info names flow between every build sharing a logical id; a build donates a FIELD, never everything">
+ <ul class="adv-chips" aria-hidden="true"><li>labels</li><li>comments</li><li>structs/types</li><li>debug-info names</li></ul>
+ <ul class="adv-tmap" aria-hidden="true" style="flex-wrap:nowrap"><li style="min-height:24px">build-a</li><li style="min-height:24px;border:0;padding:0"><b>⇄</b></li><li style="min-height:24px">build-b</li><li style="min-height:24px;border:0;padding:0"><b>⇄</b></li><li style="min-height:24px">build-c</li></ul>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:8px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="lb-b1"><b aria-hidden="true">≠</b>everything</button><span role="tooltip" id="lb-b1">a build donates a FIELD, never everything</span></span></div>
+<div class="ad-outputs" style="border-color:var(--lane-unify-ink)"><h5 style="color:var(--lane-unify-ink)">OUTPUTS → consumers</h5>
+ <div class="row" style="gap:8px">
+  <span class="adv-tip"><button type="button" class="adv-w" style="background:transparent" aria-describedby="lb-o1"><b aria-hidden="true">⇄</b>per field</button><span role="tooltip" id="lb-o1">→ merged names / types / comments PER FIELD, each with origin and rejected alternatives</span></span>
+  <span class="adv-tip"><button type="button" class="adv-bnd" style="border-style:solid" aria-describedby="lb-o2"><b aria-hidden="true">→</b>stage 5 · pack</button><span role="tooltip" id="lb-o2">→ consumed by stage 5 placement (type-compatibility gate) and the ABI + struct blocks of the pack</span></span>
+  <span class="adv-tip end"><button type="button" class="adv-bnd" aria-describedby="lb-o3"><b aria-hidden="true">≠</b>overwrite</button><span role="tooltip" id="lb-o3">→ never overwrites a stronger field; conflicts stay visible for review</span></span>
+ </div>
+</div>
 </div>

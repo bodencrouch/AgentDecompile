@@ -1,10 +1,15 @@
-<!-- @dsCard group="Project" height=1950 -->
+<!-- @dsCard group="Project" height=1560 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<span class="kicker">All builds · stored debug records only · nothing is searched, downloaded or applied on open · each load is one admitted job on one build</span>
-<section class="ad-g3" aria-labelledby="di-t">
+<span class="kicker">All builds</span>
+<section class="ad-g3" aria-labelledby="di-t" aria-describedby="di-scope">
  <header class="ad-g3-head">
   <h3 id="di-t">Debug info <span class="sub">· corpus-alpha · 4 builds</span></h3>
-  <p class="ad-g3-note" role="note"><strong>Imported names and types enter at their own tier and never overwrite a stronger one.</strong> Loading is one admitted job per build.</p>
+  <div class="ad-tools" role="group" aria-label="View status" style="gap:8px">
+   <span class="adv-tip"><button type="button" class="adv-w" style="background:transparent" aria-describedby="di-scope"><b aria-hidden="true">▣</b>stored</button><span role="tooltip" id="di-scope">All builds · stored debug records only · nothing is searched, downloaded or applied on open · each load is one admitted job on one build</span></span>
+   <span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="di-tier"><b aria-hidden="true">≠</b>overwrite</button><span role="tooltip" id="di-tier">Imported names and types enter at their own tier and never overwrite a stronger one. Loading is one admitted job per build.</span></span>
+   <ul class="adv-chips" aria-label="One job per build"><li><span>job</span>1 / build</li></ul>
+   <span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="di-key">?</button><span role="tooltip" id="di-key">Solid frame: witness or record. Dashed chip: hypothesis. ○ no debug info or not applied. ⊘ not applicable or unavailable. ∅ absent. ✓ matches. ⚑ needs approval. Target map: the one build a load writes; struck builds stay unchanged.</span></span>
+  </div>
   <div class="ad-tabs" role="tablist" aria-label="Debug info views">
    <button class="ad-tab" role="tab" aria-selected="true" aria-controls="di-p1" id="di-tab1">Builds</button>
    <button class="ad-tab" role="tab" aria-selected="false" tabindex="-1" id="di-tab2">Search locations</button>
@@ -14,26 +19,26 @@
 
  <div id="di-p1" role="tabpanel" aria-labelledby="di-tab1" class="ad-g3-sec">
   <div class="ad-scroll" role="region" aria-label="Debug info per build, scrolls sideways">
-  <table class="ad-table ad-g3-grid" role="grid" aria-label="Debug info per build, read 14:02" aria-rowcount="5" style="min-width:820px">
+  <table class="ad-table ad-g3-grid" role="grid" aria-label="Debug info per build, read 14:02" aria-rowcount="5" style="min-width:720px">
    <thead><tr><th scope="col">Build</th><th scope="col">In the image</th><th scope="col">Found</th><th scope="col">Applied</th><th scope="col">DWARF</th></tr></thead>
    <tbody>
     <tr tabindex="-1">
      <th scope="row" class="nw"><span class="nm">build-a</span></th>
-     <td role="gridcell"><span class="ad-evd solid"><b>witness</b>no CodeView entry in the debug directory</span></td>
+     <td role="gridcell"><span class="adv-tip"><span class="ad-evd solid" tabindex="0" aria-describedby="di-cv-a"><b>witness</b>∅ CodeView</span><span role="tooltip" id="di-cv-a">no CodeView entry in the debug directory</span></span></td>
      <td role="gridcell" class="muted">not searched</td>
      <td role="gridcell"><span class="ad-g3-st na"><b aria-hidden="true">○</b>no debug info</span></td>
      <td role="gridcell"><span class="ad-g3-st na col"><b aria-hidden="true">⊘</b>not applicable<span class="m">PE image</span></span></td>
     </tr>
     <tr tabindex="-1">
      <th scope="row" class="nw"><span class="nm">build-b</span></th>
-     <td role="gridcell"><span class="ad-evd solid"><b>witness</b>no CodeView entry in the debug directory</span></td>
+     <td role="gridcell"><span class="adv-tip"><span class="ad-evd solid" tabindex="0" aria-describedby="di-cv-b"><b>witness</b>∅ CodeView</span><span role="tooltip" id="di-cv-b">no CodeView entry in the debug directory</span></span></td>
      <td role="gridcell" class="muted">not searched</td>
      <td role="gridcell"><span class="ad-g3-st na"><b aria-hidden="true">○</b>no debug info</span></td>
      <td role="gridcell"><span class="ad-g3-st na"><b aria-hidden="true">⊘</b>not applicable</span></td>
     </tr>
     <tr tabindex="-1">
      <th scope="row" class="nw"><span class="nm">build-c</span></th>
-     <td role="gridcell"><span class="ad-evd solid"><b>witness</b>no CodeView entry in the debug directory</span></td>
+     <td role="gridcell"><span class="adv-tip"><span class="ad-evd solid" tabindex="0" aria-describedby="di-cv-c"><b>witness</b>∅ CodeView</span><span role="tooltip" id="di-cv-c">no CodeView entry in the debug directory</span></span></td>
      <td role="gridcell" class="muted">not searched</td>
      <td role="gridcell"><span class="ad-g3-st na"><b aria-hidden="true">○</b>no debug info</span></td>
      <td role="gridcell"><span class="ad-g3-st na"><b aria-hidden="true">⊘</b>not applicable</span></td>
@@ -41,8 +46,8 @@
     <tr aria-selected="true" class="is-focus" tabindex="0">
      <th scope="row" class="nw"><span class="nm">build-d</span></th>
      <td role="gridcell"><span class="ad-evd solid"><b>witness</b><span class="mono" translate="no">build-d.pdb</span> · GUID 3f2a9c41… · age 1</span></td>
-     <td role="gridcell"><span class="ad-evd solid"><b>record</b>local symbol storage · GUID and age match</span></td>
-     <td role="gridcell"><span class="ad-g3-st off col"><b aria-hidden="true">○</b>not applied<span class="m">read for Toolchain facts only · no debug-info receipt</span></span></td>
+     <td role="gridcell"><span class="adv-tip"><span class="ad-evd solid" tabindex="0" aria-describedby="di-rec"><b>record</b><span class="mono">~/symbols</span> · GUID ✓ age ✓</span><span role="tooltip" id="di-rec">local symbol storage · GUID and age match</span></span></td>
+     <td role="gridcell"><span class="adv-tip end"><span class="ad-g3-st off col" tabindex="0" aria-describedby="di-na"><b aria-hidden="true">○</b>not applied<span class="m">Toolchain only · ∅ receipt</span></span><span role="tooltip" id="di-na">read for Toolchain facts only · no debug-info receipt</span></span></td>
      <td role="gridcell"><span class="ad-g3-st na"><b aria-hidden="true">⊘</b>not applicable</span></td>
     </tr>
    </tbody>
@@ -51,80 +56,86 @@
   <div class="ad-tools" role="group" aria-label="Load debug info on build-d">
    <button class="ad-btn primary" type="button" aria-haspopup="dialog">Load PDB on build-d…</button>
    <button class="ad-btn" type="button" aria-haspopup="dialog">Import SARIF…</button>
-   <span class="small muted">One build per load. A PDB belongs to one image.</span>
+   <span class="adv-tip"><button type="button" class="adv-w" style="background:transparent" aria-describedby="di-one"><b aria-hidden="true">1</b>build · image</button><span role="tooltip" id="di-one">One build per load. A PDB belongs to one image.</span></span>
   </div>
  </div>
 
  <div class="ad-g3-sec">
   <h4>Load PDB</h4>
   <div class="ad-g3-dlg" role="alertdialog" aria-modal="true" aria-labelledby="di-cf-t" aria-describedby="di-cf-d">
-   <header><h3 id="di-cf-t">Load build-d.pdb into build-d</h3><span class="end">catalog: Import debug info · 1 job</span></header>
+   <header><h3 id="di-cf-t">Load build-d.pdb into build-d</h3><ul class="adv-chips end" aria-label="catalog: Import debug info · 1 job"><li><span>catalog</span>Import debug info</li><li><span>jobs</span>1</li></ul></header>
    <div class="body">
-    <p class="ad-g3-note" id="di-cf-d">Adds names, types and source map entries to build-d at the debug-info tier. Values a stronger tier already holds stay, and the PDB value is recorded as a rejected alternative. Counts are from the dry run at 14:04.</p>
+    <p class="sr-only" id="di-cf-d">Adds names, types and source map entries to build-d at the debug-info tier. Values a stronger tier already holds stay, and the PDB value is recorded as a rejected alternative. Counts are from the dry run at 14:04. Other builds are unchanged. Offering a name to counterparts is a separate Propose step.</p>
+    <ul class="adv-tmap" aria-hidden="true">
+     <li class="w"><b>✎</b>build-d<span></span><span class="mono">debug-info tier</span></li>
+     <li class="x"><b>—</b>build-a</li>
+     <li class="x"><b>—</b>build-b</li>
+     <li class="x"><b>—</b>build-c</li>
+    </ul>
     <dl class="ad-dl">
-     <dt>PDB file</dt><dd><span class="mono" translate="no">~/symbols/build-d.pdb/3F2A9C41…1/build-d.pdb</span> · GUID and age match (record)</dd>
+     <dt>PDB file</dt><dd><span class="mono" translate="no">~/symbols/build-d.pdb/3F2A9C41…1/build-d.pdb</span> <span class="adv-tip"><button type="button" class="adv-w" style="background:transparent" aria-describedby="di-pm"><b aria-hidden="true">✓</b>GUID · age</button><span role="tooltip" id="di-pm">GUID and age match (record)</span></span></dd>
     </dl>
     <fieldset><legend>Search options</legend>
      <label class="ad-g3-choice"><input type="checkbox" aria-describedby="di-force"><span class="nm">Ignore age</span></label>
-     <label class="ad-g3-choice"><input type="checkbox" aria-describedby="di-force"><span class="nm">Ignore GUID</span><span class="d" id="di-force">A non-exact PDB is a hypothesis: its names enter with analysis names, not debug info, marked "GUID or age not matched".</span></label>
+     <label class="ad-g3-choice"><input type="checkbox" aria-describedby="di-force"><span class="nm">Ignore GUID</span><span class="adv-h" aria-hidden="true"><b>H</b>analysis tier</span><span class="sr-only" id="di-force">A non-exact PDB is a hypothesis: its names enter with analysis names, not debug info, marked "GUID or age not matched".</span></label>
     </fieldset>
     <fieldset><legend>Parser and control</legend>
      <label class="ad-g3-choice"><input type="radio" name="di-p" checked><span class="nm">Universal</span></label>
-     <label class="ad-g3-choice dis"><input type="radio" name="di-p" aria-disabled="true" aria-describedby="di-psdk"><span class="nm">Platform debug SDK</span><span class="d" id="di-psdk">unavailable on this server, as it reports</span></label>
-     <label class="ad-g3-choice"><input type="radio" name="di-c" checked><span class="nm">Process all</span><span class="d">data types, public, global and module symbols</span></label>
+     <label class="ad-g3-choice dis"><input type="radio" name="di-p" aria-disabled="true" aria-describedby="di-psdk"><span class="nm adv-na"><b aria-hidden="true">⊘</b>Platform debug SDK</span><span class="sr-only" id="di-psdk">unavailable on this server, as it reports</span></label>
+     <label class="ad-g3-choice"><input type="radio" name="di-c" checked aria-describedby="di-all"><span class="nm">Process all</span><span class="sr-only" id="di-all">data types, public, global and module symbols</span><span class="d" aria-hidden="true"><span>types</span> · <span>public</span> · <span>global</span> · <span>module</span></span></label>
      <label class="ad-g3-choice"><input type="radio" name="di-c"><span class="nm">Data types only</span></label>
      <label class="ad-g3-choice"><input type="radio" name="di-c"><span class="nm">Public symbols only</span></label>
     </fieldset>
     <div class="ad-scroll" role="region" aria-label="Dry run for build-d">
-    <table class="ad-table ad-g3-grid" style="min-width:0"><caption class="sr-only">Dry run of the PDB load on build-d</caption>
+    <table class="ad-table ad-g3-grid" style="min-width:0"><caption class="sr-only">Dry run of the PDB load on build-d, 14:04</caption>
      <thead><tr><th scope="col">What</th><th scope="col">Count</th><th scope="col">Tier and check</th></tr></thead>
      <tbody>
-      <tr><th scope="row"><span class="nm">Names</span></th><td class="mono">5,812</td><td><span class="ad-evd solid"><b>record</b>debug info · GUID and age match</span></td></tr>
-      <tr><th scope="row"><span class="nm">Types</span></th><td class="mono">1,930</td><td>each checked by build-d's own layout check · <span translate="no">CacheEntry</span> 0x20 · 8 in the PDB, the same as build-d</td></tr>
-      <tr><th scope="row"><span class="nm">Source files · map entries</span></th><td class="mono">38 · 12,406</td><td>source files table of build-d</td></tr>
-      <tr><th scope="row"><span class="nm">Stronger value stays</span></th><td class="mono">2</td><td>human annotation on build-d; the PDB value becomes a rejected alternative; after the job, Why this name lists them</td></tr>
+      <tr><th scope="row"><span class="nm">Names</span></th><td class="mono">5,812</td><td><span class="adv-tip"><span class="ad-evd solid" tabindex="0" aria-describedby="di-dn"><b>record</b>debug info · ✓</span><span role="tooltip" id="di-dn">debug info · GUID and age match</span></span></td></tr>
+      <tr><th scope="row"><span class="nm">Types</span></th><td class="mono">1,930</td><td><span class="row" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-w" style="background:transparent" aria-describedby="di-lay"><b aria-hidden="true">✓</b>layout · build-d</button><span role="tooltip" id="di-lay">each checked by build-d's own layout check · CacheEntry 0x20 · 8 in the PDB, the same as build-d</span></span><span class="mono small" translate="no" aria-hidden="true">CacheEntry 0x20 · 8 = build-d</span></span></td></tr>
+      <tr><th scope="row"><span class="nm">Source files · map entries</span></th><td class="mono">38 · 12,406</td><td aria-label="source files table of build-d">→ source files · build-d</td></tr>
+      <tr><th scope="row"><span class="nm">Stronger value stays</span></th><td class="mono">2</td><td><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="di-str"><b aria-hidden="true">1</b>human · build-d</button><span role="tooltip" id="di-str">human annotation on build-d; the PDB value becomes a rejected alternative; after the job, Why this name lists them</span></span></td></tr>
      </tbody>
     </table>
     </div>
    </div>
-   <footer><span class="note">Other builds are unchanged. Offering a name to counterparts is a separate Propose step.</span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Load into build-d · 1 job</button></footer>
+   <footer><span class="note adv-chips" aria-hidden="true" style="margin-right:auto"><span class="adv-bnd" style="cursor:default"><b>≠</b>Propose</span><span class="adv-w"><b>✎</b>build-d only</span></span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Load into build-d · 1 job</button></footer>
   </div>
  </div>
 </section>
 
 <div class="adc-states">
  <div>
-  <span class="kicker">Source files · build-d · after job a3f9 finished</span>
-  <section class="ad-g3" aria-label="Source files, build-d" style="gap:8px">
+  <span class="kicker">Source files · build-d</span>
+  <section class="ad-g3" aria-label="Source files, build-d, after job a3f9 finished" style="gap:8px">
    <div class="ad-scroll" role="region" aria-label="Source files table, build-d">
-   <table class="ad-table ad-g3-grid" style="min-width:0" aria-label="Source files, build-d, 38 files">
+   <table class="ad-table ad-g3-grid" style="min-width:0" aria-label="Source files, build-d, 38 files, after job a3f9 finished">
     <thead><tr><th scope="col">Path · ID</th><th scope="col">Entries</th></tr></thead>
     <tbody>
-     <tr aria-selected="true" class="is-focus" tabindex="0"><th scope="row"><span class="nm mono" translate="no">/src/actor/actor.cpp</span><span class="d">SHA256 · 9f3c…e1 · transformed: ~/checkouts/corpus-alpha/src/actor/actor.cpp (your transform)</span></th><td class="mono">412</td></tr>
+     <tr aria-selected="true" class="is-focus" tabindex="0"><th scope="row"><span class="nm mono" translate="no">/src/actor/actor.cpp</span><span class="d">SHA256 · 9f3c…e1 · ↦ ~/checkouts/corpus-alpha/src/actor/actor.cpp</span><span class="sr-only">transformed (your transform)</span></th><td class="mono">412</td></tr>
      <tr tabindex="-1"><th scope="row"><span class="nm mono" translate="no">/src/resource/resource.c</span><span class="d">SHA256 · b204…08 · no transform</span></th><td class="mono">288</td></tr>
     </tbody>
    </table>
    </div>
-   <p class="ad-g3-note"><strong>actor.cpp:112</strong> → <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-d&amp;addr=0041a7d0" aria-label="Address 0041a7d0, build-d" translate="no">0041a7d0</a> · length 0x6 · <a class="ad-link" href="?project=corpus-alpha&amp;entity=4127&amp;build=build-d" aria-label="Logical entity Actor::LoadFromTemplate, 4127" translate="no">Actor::LoadFromTemplate</a></p>
-   <p class="ad-g3-note"><strong>resource.c:41</strong> → <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-d&amp;addr=0041c0f0" aria-label="Address 0041c0f0, build-d" translate="no">0041c0f0</a> · length 0x4 · no entity at this address. A source line is not an identity edge.</p>
+   <p class="ad-g3-note"><strong>actor.cpp:112</strong> → <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-d&amp;addr=0041a7d0" aria-label="Address 0041a7d0, build-d" translate="no">0041a7d0</a> · 0x6 · <a class="ad-link" href="?project=corpus-alpha&amp;entity=4127&amp;build=build-d" aria-label="Logical entity Actor::LoadFromTemplate, 4127" translate="no">Actor::LoadFromTemplate</a></p>
+   <p class="ad-g3-note row" style="gap:8px"><span><strong>resource.c:41</strong> → <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-d&amp;addr=0041c0f0" aria-label="Address 0041c0f0, build-d" translate="no">0041c0f0</a> · 0x4 · <span aria-hidden="true">∅ entity</span><span class="sr-only">length 0x4 · no entity at this address.</span></span><span class="adv-tip end"><button type="button" class="adv-bnd" aria-describedby="di-idn"><b aria-hidden="true">≠</b>identity</button><span role="tooltip" id="di-idn">A source line is not an identity edge.</span></span></p>
   </section>
  </div>
  <div>
-  <span class="kicker">Search locations · the next job's fields</span>
-  <ul class="ad-g3-tree" role="listbox" aria-label="Symbol search locations, in search order" aria-activedescendant="di-l3" tabindex="0">
+  <span class="kicker">Search locations</span>
+  <ul class="ad-g3-tree" role="listbox" aria-label="Symbol search locations, in search order" aria-describedby="di-next" aria-activedescendant="di-l3" tabindex="0">
    <li role="option" id="di-l1" aria-selected="false"><span>1 · Local symbol storage · <span class="mono" translate="no">~/symbols</span> · level 1 · ok</span></li>
    <li role="option" id="di-l2" aria-selected="false"><span>2 · Program's import location · ok</span></li>
-   <li role="option" id="di-l3" aria-selected="true"><span>3 · <span class="mono" translate="no">https://symbols.example.internal/</span> · ⚑ needs approval before use · not checked</span></li>
+   <li role="option" id="di-l3" aria-selected="true"><span>3 · <span class="mono" translate="no">https://symbols.example.internal/</span> · <span aria-hidden="true">⚑ approval</span><span class="sr-only">⚑ needs approval before use</span> · not checked</span></li>
   </ul>
+  <span class="sr-only" id="di-next">Search locations · the next job's fields</span>
   <div class="ad-tools" role="group" aria-label="Search location actions" style="margin-top:8px">
    <button class="ad-btn" type="button">Refresh status</button>
-   <button class="ad-btn" type="button" aria-disabled="true" aria-describedby="di-srv">Save as server default</button>
-   <span class="small muted"><span id="di-srv">Not available on this server yet. The draft still applies to the next job.</span> · <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span>
+   <span class="adv-tip"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="di-srv"><span class="adv-na"><b aria-hidden="true">⊘</b>Save as default</span></button><span role="tooltip" id="di-srv">Save as server default: not available on this server yet. The draft still applies to the next job. <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span></span>
   </div>
  </div>
  <div>
-  <span class="kicker">No debug record · build-a</span>
-  <div class="ad-notice info"><b aria-hidden="true">∅</b><div><h4>build-a records no PDB</h4><p>The debug directory has no CodeView entry. A PDB chosen by hand stays a hypothesis until its GUID and age match.</p></div><span></span></div>
+  <span class="kicker">No debug record</span>
+  <div class="adv-empty"><span class="adv-tip"><b tabindex="0" role="img" aria-label="build-a records no PDB" aria-describedby="di-e-tip">∅</b><span role="tooltip" id="di-e-tip">build-a records no PDB. The debug directory has no CodeView entry.</span></span><span class="nm">build-a</span><span class="adv-tip is-open"><button type="button" class="adv-h" aria-describedby="di-e-h"><b aria-hidden="true">H</b>hand-picked</button><span role="tooltip" id="di-e-h">A PDB chosen by hand stays a hypothesis until its GUID and age match.</span></span></div>
  </div>
 </div>
 </div>

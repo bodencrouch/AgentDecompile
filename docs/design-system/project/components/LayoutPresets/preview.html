@@ -1,13 +1,14 @@
-<!-- @dsCard group="Shell" height=1564 -->
+<!-- @dsCard group="Shell" height=1200 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <div class="ad-preset-bar">
  <span class="kicker">NavigationBar · layout</span>
  <button class="ad-btn" aria-haspopup="menu" aria-expanded="true" aria-controls="lp-menu">Layout: Review <span class="ad-preset-mod">modified</span> <span aria-hidden="true">▾</span></button>
- <span class="small muted">Selection stays <span translate="no">ResourceRef::Resolve</span> · build-a <span class="addr">0041b213</span> · corpus-alpha</span>
+ <span class="small muted"><span aria-hidden="true">Selection =</span><span class="sr-only">Selection stays</span> <span translate="no">ResourceRef::Resolve</span> · build-a <span class="addr">0041b213</span> · corpus-alpha</span>
+ <span class="adv-tip end" style="margin-left:auto"><button type="button" class="adv-q" aria-label="Key" aria-describedby="lp-key">?</button><span role="tooltip" id="lp-key">Mini map: the panes a layout opens, placed as on screen. Dashed tile: derived pane. Framed tile: held pane. Dim tile: collapsed or left as it was. = unchanged. ∅ nothing started. ⊘ not on this surface. ↗ new window.</span></span>
 </div>
 <div class="ad-preset-top">
  <div class="ad-pop ad-preset-menu" id="lp-menu">
-  <span class="kicker" id="lp-menu-h">Layouts · saved for you</span>
+  <span class="kicker" id="lp-menu-h">Layouts · for you</span>
   <ul class="ad-menu" role="menu" aria-labelledby="lp-menu-h">
    <li role="none"><div role="menuitemradio" aria-checked="false" tabindex="-1" aria-describedby="lp-seq"><span class="t">Read</span><span class="m">g 1</span></div></li>
    <li role="none"><div role="menuitemradio" aria-checked="false" tabindex="-1" aria-describedby="lp-seq"><span class="t">Compare</span><span class="m">g 2</span></div></li>
@@ -17,22 +18,22 @@
    <li role="none"><div role="menuitemradio" aria-checked="false" tabindex="-1" aria-describedby="lp-seq"><span class="t">Explain build difference</span><span class="m">g 6</span></div></li>
    <li role="none"><div role="menuitemradio" aria-checked="false" tabindex="-1" aria-describedby="lp-seq"><span class="t">Walk pointers</span><span class="m">g 7</span></div></li>
    <li role="separator"></li>
-   <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Save changes to Review</span><span class="m">evidence 260 → 360</span></div></li>
-   <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Reset Review to default</span></div></li>
+   <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Save changes<span class="sr-only"> to Review</span></span><span class="m">Review · evidence 260 → 360</span></div></li>
+   <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Reset<span class="sr-only"> Review</span> to default</span></div></li>
    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Panes and sizes…</span><span class="m">View menu</span></div></li>
   </ul>
-  <footer><span id="lp-seq">g then 1…7 in any list, grid or tree. Changes panes only; never the project, the selection or admission.</span></footer>
+  <footer><span class="adv-tip"><span tabindex="0" aria-describedby="lp-seq" style="display:inline-flex;gap:6px;align-items:center"><kbd class="ad-kbd">g</kbd> 1…7 <span class="adv-bnd"><b aria-hidden="true">≠</b>selection</span></span><span role="tooltip" id="lp-seq">g then 1…7 in any list, grid or tree. Changes panes only; never the project, the selection or admission.</span></span></footer>
  </div>
  <div class="stack" style="gap:8px">
-  <div class="ad-preset-status"><span class="kicker">Status line after g 5</span><span><strong>Layout: Verify rebuild.</strong> Selection unchanged: <span translate="no">ResourceRef::Resolve</span> · build-a <span class="addr">0041b213</span>. Project unchanged. No work started. Focus stays in the list.</span></div>
+  <div class="ad-preset-status"><span class="kicker">After g 5</span><span><strong>Layout: Verify rebuild</strong><span class="sr-only">. Selection unchanged: ResourceRef::Resolve · build-a 0041b213. Project unchanged. No work started. Focus stays in the list.</span> <ul class="adv-chips" aria-hidden="true" style="display:inline-flex;margin-top:4px"><li><span>selection</span>=</li><li><span>project</span>=</li><li><span>work</span>∅</li><li><span>focus</span>list</li></ul></span></div>
   <p class="sr-only" role="status">Layout: Verify rebuild. Selection unchanged.</p>
   <div class="ad-preset-sizes" role="group" aria-labelledby="lp-sz-h">
    <span class="kicker" id="lp-sz-h">Restored splitters · Review</span>
    <div class="ad-preset-sz"><span class="ad-preset-grip" role="separator" aria-orientation="vertical" aria-label="Navigator width" aria-controls="lp-nav" aria-valuenow="240" aria-valuemin="180" aria-valuemax="480" aria-valuetext="240 pixels, default" tabindex="-1"></span><span>Navigator</span><span class="mono">240</span><span class="muted small">180–480 · default</span></div>
-   <div class="ad-preset-sz"><span class="ad-preset-grip is-focus" role="separator" aria-orientation="vertical" aria-label="Evidence width" aria-controls="lp-ev" aria-valuenow="360" aria-valuemin="200" aria-valuemax="480" aria-valuetext="360 pixels, changed from 260" tabindex="0"></span><span>Evidence</span><span class="mono">360</span><span class="muted small">200–480 · changed from 260</span></div>
+   <div class="ad-preset-sz"><span class="ad-preset-grip is-focus" role="separator" aria-orientation="vertical" aria-label="Evidence width" aria-controls="lp-ev" aria-valuenow="360" aria-valuemin="200" aria-valuemax="480" aria-valuetext="360 pixels, changed from 260" tabindex="0"></span><span>Evidence</span><span class="mono">360</span><span class="muted small">200–480 · <span aria-hidden="true">was 260</span><span class="sr-only">changed from 260</span></span></div>
    <div class="ad-preset-sz"><span class="ad-preset-grip h" role="separator" aria-orientation="horizontal" aria-label="Dock height" aria-controls="lp-dock" aria-valuenow="170" aria-valuemin="100" aria-valuemax="420" aria-valuetext="170 pixels, default" tabindex="-1"></span><span>Dock</span><span class="mono">170</span><span class="muted small">100–420, max 46dvh · default</span></div>
    <div class="ad-preset-sz"><span class="ad-preset-grip" role="separator" aria-orientation="vertical" aria-label="Center split between review detail and held endpoint pair" aria-valuenow="45" aria-valuemin="20" aria-valuemax="80" aria-valuetext="45 percent for the review detail" tabindex="-1"></span><span>Center split</span><span class="mono">45%</span><span class="muted small">20–80% · default</span></div>
-   <span class="small muted">Arrows 16px, Shift 64px, Home and End minimum and maximum, Enter collapse and restore. Reset is in each pane header's size menu; the View menu sets the same sizes without dragging.</span>
+   <span class="adv-tip is-open"><span tabindex="0" role="img" aria-label="Splitter keys" aria-describedby="lp-keys" style="display:inline-flex"><ul class="adv-chips" aria-hidden="true"><li><span>Arrows</span>16px</li><li><span>Shift</span>64px</li><li><span>Home/End</span>min/max</li><li><span>Enter</span>collapse</li></ul></span><span role="tooltip" id="lp-keys">Arrows 16px, Shift 64px, Home and End minimum and maximum, Enter collapse and restore. Reset is in each pane header's size menu; the View menu sets the same sizes without dragging.</span></span>
   </div>
  </div>
 </div>
@@ -42,44 +43,44 @@
   <header><span class="t">Read</span><kbd class="ad-kbd">g 1</kbd></header>
   <div class="ad-preset-mini" role="img" aria-label="Read: Functions navigator; listing and decompile side by side, both following; evidence rail on References and Why this name; dock collapsed" style="--preset-nav:60px;--preset-ev:66px;--preset-dock:8px">
    <i class="nav">Functions</i><i class="c1">Listing</i><i class="c2">Decompile</i><i class="ev">Refs · Why this name</i><i class="dock off"></i></div>
-  <dl class="ad-preset-dl" id="lp1-d"><dt>Panes</dt><dd>Functions · Listing | Decompile · References and “Why this name” in the rail</dd><dt>Follows</dt><dd>both center panes</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>collapsed</dd></dl>
+  <dl class="ad-preset-dl sr-only" id="lp1-d"><dt>Panes</dt><dd>Functions · Listing | Decompile · References and “Why this name” in the rail</dd><dt>Follows</dt><dd>both center panes</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>collapsed</dd></dl><ul class="adv-chips" aria-hidden="true"><li><span>follows</span>2 panes</li><li><span>held</span>—</li><li><span>dock</span>collapsed</li></ul>
  </div>
  <div class="ad-preset" role="radio" aria-checked="false" tabindex="-1" aria-describedby="lp2-d">
   <header><span class="t">Compare</span><kbd class="ad-kbd">g 2</kbd></header>
   <div class="ad-preset-mini band" role="img" aria-label="Compare: Functions navigator; expanded CounterpartStrip above a SplitCompare of the primary listing, following, and a derived counterpart pane; evidence at default width; dock collapsed" style="--preset-nav:60px;--preset-ev:58px;--preset-dock:8px">
    <i class="nav">Functions</i><i class="top">CounterpartStrip</i><i class="c1">Listing</i><i class="c2 der">Counter­part · derived</i><i class="ev">Evidence</i><i class="dock off"></i></div>
-  <dl class="ad-preset-dl" id="lp2-d"><dt>Panes</dt><dd>Functions · CounterpartStrip, expanded, above SplitCompare: primary listing | counterpart pane</dd><dt>Follows</dt><dd>primary listing; the counterpart pane is derived from it</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>collapsed</dd></dl>
+  <dl class="ad-preset-dl sr-only" id="lp2-d"><dt>Panes</dt><dd>Functions · CounterpartStrip, expanded, above SplitCompare: primary listing | counterpart pane</dd><dt>Follows</dt><dd>primary listing; the counterpart pane is derived from it</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>collapsed</dd></dl><ul class="adv-chips" aria-hidden="true"><li><span>follows</span>primary</li><li><span>derived</span>counterpart</li><li><span>held</span>—</li><li><span>dock</span>collapsed</li></ul>
  </div>
  <div class="ad-preset" role="radio" aria-checked="true" tabindex="0" aria-describedby="lp3-d">
   <header><span class="t">Review</span><kbd class="ad-kbd">g 3</kbd></header>
   <div class="ad-preset-mini" role="img" aria-label="Review: review queue in the navigator; MatchReview detail beside a held endpoint pair; CandidateAlignment in the evidence rail; dock on Problems" style="--preset-nav:60px;--preset-ev:66px;--preset-dock:28px">
    <i class="nav" id="lp-nav">Queue</i><i class="c1">Review­Detail</i><i class="c2 held">Held pair</i><i class="ev" id="lp-ev">Alignment</i><i class="dock" id="lp-dock">Problems</i></div>
-  <dl class="ad-preset-dl" id="lp3-d"><dt>Panes</dt><dd>review queue · MatchReview master-detail (ReviewDetail) | held endpoint pair · CandidateAlignment</dd><dt>Follows</dt><dd>ReviewDetail follows the queue row</dd><dt>Held</dt><dd>endpoint pair; empty until o or Open beside holds both endpoints</dd><dt>Dock</dt><dd>Problems</dd></dl>
+  <dl class="ad-preset-dl sr-only" id="lp3-d"><dt>Panes</dt><dd>review queue · MatchReview master-detail (ReviewDetail) | held endpoint pair · CandidateAlignment</dd><dt>Follows</dt><dd>ReviewDetail follows the queue row</dd><dt>Held</dt><dd>endpoint pair; empty until o or Open beside holds both endpoints</dd><dt>Dock</dt><dd>Problems</dd></dl><ul class="adv-chips" aria-hidden="true"><li><span>follows</span>queue row</li><li><span>held</span>pair · <span class="ad-kbd">o</span></li><li><span>dock</span>Problems</li></ul>
  </div>
  <div class="ad-preset" role="radio" aria-checked="false" tabindex="-1" aria-describedby="lp4-d">
   <header><span class="t">Triage</span><kbd class="ad-kbd">g 4</kbd></header>
   <div class="ad-preset-mini band" role="img" aria-label="Triage: PipelineMap band across the top of the center with the current view below; FailureRecord and ObjectiveSummary in the evidence rail; ProblemsList dock expanded; navigator left as it was" style="--preset-nav:60px;--preset-ev:66px;--preset-dock:44px">
    <i class="nav keep">as it was</i><i class="top">PipelineMap</i><i class="cw">current view</i><i class="ev">Failure · Objective</i><i class="dock">Problems · expanded</i></div>
-  <dl class="ad-preset-dl" id="lp4-d"><dt>Panes</dt><dd>PipelineMap band across the top of the center · FailureRecord and ObjectiveSummary in the rail</dd><dt>Follows</dt><dd>the rail shows the problem you open with Enter, never the one merely focused; the view below the band is left as it was</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>ProblemsList, expanded</dd></dl>
+  <dl class="ad-preset-dl sr-only" id="lp4-d"><dt>Panes</dt><dd>PipelineMap band across the top of the center · FailureRecord and ObjectiveSummary in the rail</dd><dt>Follows</dt><dd>the rail shows the problem you open with Enter, never the one merely focused; the view below the band is left as it was</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>ProblemsList, expanded</dd></dl><ul class="adv-chips" aria-hidden="true"><li><span>follows</span>Enter only</li><li><span>held</span>—</li><li><span>dock</span>expanded</li><li><span>center</span>= as was</li></ul>
  </div>
  <div class="ad-preset" role="radio" aria-checked="false" tabindex="-1" aria-describedby="lp5-d">
   <header><span class="t">Verify rebuild</span><kbd class="ad-kbd">g 5</kbd></header>
   <div class="ad-preset-mini below" role="img" aria-label="Verify rebuild: navigator collapsed; source repair diff and object diff side by side, both following; image delta map below them; VariantLedger in the evidence rail; dock on Jobs" style="--preset-nav:10px;--preset-ev:66px;--preset-dock:28px">
    <i class="nav off"></i><i class="c1">Repair diff</i><i class="c2">ObjectDiff</i><i class="bot">ImageDeltaMap</i><i class="ev">Variant­Ledger</i><i class="dock">Jobs</i></div>
-  <dl class="ad-preset-dl" id="lp5-d"><dt>Panes</dt><dd>SourceRepairDiff | ObjectDiff · ImageDeltaMap below · VariantLedger in the rail</dd><dt>Follows</dt><dd>SourceRepairDiff and ObjectDiff</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>Jobs · navigator collapsed</dd></dl>
+  <dl class="ad-preset-dl sr-only" id="lp5-d"><dt>Panes</dt><dd>SourceRepairDiff | ObjectDiff · ImageDeltaMap below · VariantLedger in the rail</dd><dt>Follows</dt><dd>SourceRepairDiff and ObjectDiff</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>Jobs · navigator collapsed</dd></dl><ul class="adv-chips" aria-hidden="true"><li><span>follows</span>2 diffs</li><li><span>held</span>—</li><li><span>dock</span>Jobs</li><li><span>nav</span>collapsed</li></ul>
  </div>
  <div class="ad-preset" role="radio" aria-checked="false" tabindex="-1" aria-describedby="lp6-d">
   <header><span class="t">Explain build difference</span><kbd class="ad-kbd">g 6</kbd></header>
   <div class="ad-preset-mini band" role="img" aria-label="Explain build difference: Functions navigator; expanded CounterpartStrip above a SplitCompare of the primary listing, following, and a derived counterpart pane, both with the Compiler layer on; VariantRelation for the current pair in the evidence rail; ToolchainEvidence available, not opened; dock collapsed" style="--preset-nav:60px;--preset-ev:66px;--preset-dock:8px">
    <i class="nav">Functions</i><i class="top">CounterpartStrip</i><i class="c1">Listing · compiler</i><i class="c2 der">Counter­part · derived · compiler</i><i class="ev">Variant­Relation · pair</i><i class="dock off"></i></div>
-  <dl class="ad-preset-dl" id="lp6-d"><dt>Panes</dt><dd>Functions · CounterpartStrip, expanded, above SplitCompare: primary listing | counterpart pane · Compiler layer on (<code>layers=compiler</code>) · VariantRelation for the pair in the rail</dd><dt>Follows</dt><dd>primary listing; the counterpart pane is derived from it; the rail follows the pair</dd><dt>Available</dt><dd>ToolchainEvidence, one Go from the rail's toolchain values; not opened by the preset</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>collapsed</dd><dt>Key</dt><dd>g then 6</dd></dl>
+  <dl class="ad-preset-dl sr-only" id="lp6-d"><dt>Panes</dt><dd>Functions · CounterpartStrip, expanded, above SplitCompare: primary listing | counterpart pane · Compiler layer on (<code>layers=compiler</code>) · VariantRelation for the pair in the rail</dd><dt>Follows</dt><dd>primary listing; the counterpart pane is derived from it; the rail follows the pair</dd><dt>Available</dt><dd>ToolchainEvidence, one Go from the rail's toolchain values; not opened by the preset</dd><dt>Held</dt><dd>none</dd><dt>Dock</dt><dd>collapsed</dd><dt>Key</dt><dd>g then 6</dd></dl><ul class="adv-chips" aria-hidden="true"><li><span>follows</span>primary · pair</li><li><span>layer</span>compiler</li><li><span>available</span>ToolchainEvidence</li><li><span>held</span>—</li><li><span>dock</span>collapsed</li></ul>
  </div>
  <div class="ad-preset" role="radio" aria-checked="false" tabindex="-1" aria-describedby="lp7-d">
   <header><span class="t">Walk pointers</span><kbd class="ad-kbd">g 7</kbd></header>
   <div class="ad-preset-mini" role="img" aria-label="Walk pointers: Functions navigator; decompile and PointerWalk side by side, both following; read-only TypeEditor for the walk's current step in the evidence rail; dock collapsed" style="--preset-nav:60px;--preset-ev:66px;--preset-dock:8px">
    <i class="nav">Functions</i><i class="c1">Decompile</i><i class="c2">Pointer­Walk</i><i class="ev">Type­Editor · read-only</i><i class="dock off"></i></div>
-  <dl class="ad-preset-dl" id="lp7-d"><dt>Panes</dt><dd>Functions · DecompileView | PointerWalk · TypeEditor, read-only, in the rail</dd><dt>Follows</dt><dd>both center panes; the rail follows the walk's current step</dd><dt>Held</dt><dd>none; Edit on ‹build›… opens a real editor bound to one build</dd><dt>Dock</dt><dd>collapsed</dd><dt>Key</dt><dd>g then 7</dd></dl>
+  <dl class="ad-preset-dl sr-only" id="lp7-d"><dt>Panes</dt><dd>Functions · DecompileView | PointerWalk · TypeEditor, read-only, in the rail</dd><dt>Follows</dt><dd>both center panes; the rail follows the walk's current step</dd><dt>Held</dt><dd>none; Edit on ‹build›… opens a real editor bound to one build</dd><dt>Dock</dt><dd>collapsed</dd><dt>Key</dt><dd>g then 7</dd></dl><ul class="adv-chips" aria-hidden="true"><li><span>follows</span>2 panes · step</li><li><span>rail</span>read-only</li><li><span>held</span>—</li><li><span>dock</span>collapsed</li></ul>
  </div>
- <div class="ad-notice caution ad-preset-note"><b aria-hidden="true">◐</b><div><h4>On the static 8080 surface</h4><p>There are no split panes. The counterpart pane and the held endpoint pair open as a new window at the same link (“Open beside (new window)”); Walk pointers shows PointerWalk as a rail section above the read-only TypeEditor; rails, sizes, layers and the dock tab still apply.</p></div><span></span></div>
+ <div class="ad-notice caution ad-preset-note" role="group" aria-labelledby="lp-st-h" aria-describedby="lp-st-d"><b aria-hidden="true">◐</b><div><h4 id="lp-st-h">Static 8080 surface</h4><p class="sr-only" id="lp-st-d">On the static 8080 surface there are no split panes. The counterpart pane and the held endpoint pair open as a new window at the same link (“Open beside (new window)”); Walk pointers shows PointerWalk as a rail section above the read-only TypeEditor; rails, sizes, layers and the dock tab still apply.</p><ul class="adv-chips" aria-hidden="true" style="margin-top:6px"><li><span>split panes</span>⊘</li><li><span>beside</span>↗ new window</li><li><span>PointerWalk</span>rail section</li><li><span>rails · sizes · layers · dock</span>=</li></ul></div><span></span></div>
 </div>
 </div>

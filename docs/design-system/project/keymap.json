@@ -9,7 +9,7 @@
   "edit": "Active in edit mode inside an editable well or inline editor; other single keys are off."
  },
  "precedence": "edit > code > composite > region > global. A key bound in an inner active scope shadows the outer binding and is not a conflict. Inside a code well x focuses References; in a grid x checks the row. Code wells have no checked set.",
- "typeahead": "In composites that bind single-letter commands (the Functions grid, ProblemsList, the MarksList grids), typeahead starts with / into a visible filter field and plain letters are commands. Elsewhere typeahead needs no prefix.",
+ "typeahead": "In composites that bind single-letter commands (the Functions grid, ProblemsList, the MarksList grids, OutputsCatalog, TypeManager, TypeEditor and StackFrameEditor), typeahead starts with / into a visible filter field and plain letters are commands. Elsewhere typeahead needs no prefix.",
  "punctuationKeys": "], [ and ' match the typed character (the key value), not the physical key, and accept AltGr and dead-key input. KeymapSettings shows the layout hint.",
  "browserReserved": [
   "Ctrl/Cmd+W",
@@ -43,7 +43,7 @@
  ],
  "profiles": {
   "default": "Modifier globals plus focus-scoped single keys below.",
-  "ida": "Adds focus-scoped n (rename), y (set type) and ; (opens the comment editor) in code wells. Go to address is g then g from the leader, as in every profile.",
+  "ida": "Adds focus-scoped n (rename), y (set type), ; (opens the comment editor) and d (disassemble; arms only) in code wells. Go to address is g then g from the leader, as in every profile.",
   "off": "Turns every single-character key off; modifier globals and menus remain."
  },
  "profilesNote": "Ghidra-style and VS Code-style profiles are deferred until each is specified against this file. F12 stays browser-reserved, and Esc never goes Back in any profile.",
@@ -984,6 +984,352 @@
    "keys": [],
    "scope": "code",
    "note": "No default key; remappable in KeymapSettings. Moves the cursor to the previous matching brace (DecompileView) in the inspected build, stops at the end and says so, never wraps. Palette ('Previous matching brace (DecompileView)') and the Listing's navigation menu."
+  },
+  {
+   "id": "outputs.copyPath",
+   "label": "Copy artifact path",
+   "keys": [
+    "c"
+   ],
+   "scope": "composite",
+   "where": "the OutputsCatalog grid only",
+   "note": "Copies the focused row's stored path and announces it ('Copied path out/hookpack-v1.json'). With no stored file it does nothing and says why ('No stored path: ‹reason›'). Read-only. Composite scope inside the grid; code-scope c (code.compilerLayer) applies only in code wells. Also the row's Copy path button, the link menu and the palette."
+  },
+  {
+   "id": "types.favourite",
+   "label": "Toggle favourite type",
+   "keys": [
+    "f"
+   ],
+   "scope": "composite",
+   "where": "the TypeManager tree and grid only",
+   "note": "Per-viewer state, not a mutation. Also the row menu and the palette."
+  },
+  {
+   "id": "types.scope",
+   "label": "This build or all builds",
+   "keys": [
+    "a"
+   ],
+   "scope": "composite",
+   "where": "the TypeManager tree and grid only",
+   "note": "Switches the Types scope between This build and All builds (f=type.scope). Composite scope inside TypeManager; code-scope a (code.annotationNext) applies only in code wells."
+  },
+  {
+   "id": "types.uses",
+   "label": "Reveal uses of type",
+   "keys": [
+    "u"
+   ],
+   "scope": "composite",
+   "where": "the TypeManager tree and grid only",
+   "note": "Reveals uses on the inspected build (f=type.use). Read-only."
+  },
+  {
+   "id": "types.find",
+   "label": "Find type",
+   "keys": [
+    "/"
+   ],
+   "scope": "composite",
+   "where": "the TypeManager tree and grid only",
+   "note": "Focuses the Types Find field (f=type.find); the same key and behavior as list.typeahead there, so it is an alias, not a conflict."
+  },
+  {
+   "id": "typeEditor.moveUp",
+   "label": "Move component up",
+   "keys": [
+    "Alt+Shift+ArrowUp"
+   ],
+   "scope": "composite",
+   "where": "the TypeEditor grid only",
+   "note": "Moves the component in the draft; plain Alt+↓ stays Peek. No single key ever writes: keys only open, arm or move within a draft, and Save or the confirm posts."
+  },
+  {
+   "id": "typeEditor.moveDown",
+   "label": "Move component down",
+   "keys": [
+    "Alt+Shift+ArrowDown"
+   ],
+   "scope": "composite",
+   "where": "the TypeEditor grid only",
+   "note": "Moves the component in the draft. No single key ever writes: keys only open, arm or move within a draft, and Save or the confirm posts."
+  },
+  {
+   "id": "typeEditor.insertUndefined",
+   "label": "Insert undefined",
+   "keys": [
+    "u"
+   ],
+   "scope": "composite",
+   "where": "the TypeEditor grid only",
+   "note": "Inserts an undefined byte in the draft. No single key ever writes: keys only open, arm or move within a draft, and Save or the confirm posts."
+  },
+  {
+   "id": "typeEditor.duplicate",
+   "label": "Duplicate component",
+   "keys": [
+    "d"
+   ],
+   "scope": "composite",
+   "where": "the TypeEditor grid only",
+   "note": "Duplicates the component in the draft. No single key ever writes: keys only open, arm or move within a draft, and Save or the confirm posts."
+  },
+  {
+   "id": "typeEditor.array",
+   "label": "Make array",
+   "keys": [
+    "["
+   ],
+   "scope": "composite",
+   "where": "the TypeEditor grid only",
+   "note": "Opens the array count field for the component in the draft. Matches the typed character. No single key ever writes: keys only open, arm or move within a draft, and Save or the confirm posts."
+  },
+  {
+   "id": "typeEditor.clear",
+   "label": "Clear component",
+   "keys": [
+    "c"
+   ],
+   "scope": "composite",
+   "where": "the TypeEditor grid only",
+   "note": "Clears the component in the draft; the layout change confirms through ConfirmDialog on Save. Composite scope inside the grid; code-scope c (code.compilerLayer) applies only in code wells. No single key ever writes: keys only open, arm or move within a draft, and Save or the confirm posts."
+  },
+  {
+   "id": "typeEditor.delete",
+   "label": "Delete component",
+   "keys": [
+    "Delete"
+   ],
+   "scope": "composite",
+   "where": "the TypeEditor grid only",
+   "note": "Deletes the component in the draft. No single key ever writes: keys only open, arm or move within a draft, and Save or the confirm posts."
+  },
+  {
+   "id": "typeEditor.gotoOffset",
+   "label": "Go to offset",
+   "keys": [
+    "o"
+   ],
+   "scope": "composite",
+   "where": "the TypeEditor grid only",
+   "note": "Moves focus to the component at an offset; navigation only."
+  },
+  {
+   "id": "typeEditor.hex",
+   "label": "Hex offsets",
+   "keys": [
+    "Shift+H"
+   ],
+   "scope": "composite",
+   "where": "the TypeEditor grid only",
+   "note": "Toggles hex or decimal offsets; view state only. Shared with frame.hex in its own grid."
+  },
+  {
+   "id": "typeEditor.draftUndo",
+   "label": "Undo draft change",
+   "keys": [
+    "Ctrl/Cmd+Z"
+   ],
+   "scope": "edit",
+   "where": "the TypeEditor grid and its edit mode",
+   "note": "Undoes a change in the unsaved draft; never undoes a program transaction. Shadows edit.undo inside the editor by scope precedence."
+  },
+  {
+   "id": "typeEditor.draftRedo",
+   "label": "Redo draft change",
+   "keys": [
+    "Ctrl/Cmd+Shift+Z"
+   ],
+   "scope": "edit",
+   "where": "the TypeEditor grid and its edit mode",
+   "note": "Redoes a draft change; never a program transaction. Shadows edit.redo inside the editor."
+  },
+  {
+   "id": "signature.paramUp",
+   "label": "Move parameter up",
+   "keys": [
+    "Alt+Shift+ArrowUp"
+   ],
+   "scope": "composite",
+   "where": "the SignatureEditor parameter grid only",
+   "note": "Moves the parameter in the draft; the callee-signature edit confirms through ConfirmDialog on Save. No single key ever writes: keys only open, arm or move within a draft, and Save or the confirm posts."
+  },
+  {
+   "id": "signature.paramDown",
+   "label": "Move parameter down",
+   "keys": [
+    "Alt+Shift+ArrowDown"
+   ],
+   "scope": "composite",
+   "where": "the SignatureEditor parameter grid only",
+   "note": "Moves the parameter in the draft. No single key ever writes: keys only open, arm or move within a draft, and Save or the confirm posts."
+  },
+  {
+   "id": "signature.editStorage",
+   "label": "Edit storage",
+   "keys": [],
+   "scope": "composite",
+   "where": "the SignatureEditor parameter grid only",
+   "note": "No default key (Alt+S, proposed in the SignatureEditor README, opens a browser menu on some platforms). Opens StorageEditor for the focused parameter. Palette and the parameter's row menu."
+  },
+  {
+   "id": "code.editSignature",
+   "label": "Edit signature",
+   "keys": [],
+   "scope": "code",
+   "where": "a function name or call site in a code well",
+   "note": "No default key in any profile: y on a function name is already set type in the ida profile. Opens SignatureEditor for an explicit target build; the path is Shift+F10 → Edit signature… or the palette."
+  },
+  {
+   "id": "frame.newVariable",
+   "label": "New stack variable",
+   "keys": [
+    "Insert"
+   ],
+   "scope": "composite",
+   "where": "the StackFrameEditor grid only",
+   "note": "Adds a variable in the draft. No single key ever writes: keys only open, arm or move within a draft, and Save or the confirm posts."
+  },
+  {
+   "id": "frame.clear",
+   "label": "Clear stack slot",
+   "keys": [
+    "c"
+   ],
+   "scope": "composite",
+   "where": "the StackFrameEditor grid only",
+   "note": "Clears the slot in the draft. Composite scope inside the grid; not code-scope c. No single key ever writes: keys only open, arm or move within a draft, and Save or the confirm posts."
+  },
+  {
+   "id": "frame.array",
+   "label": "Make array",
+   "keys": [
+    "["
+   ],
+   "scope": "composite",
+   "where": "the StackFrameEditor grid only",
+   "note": "Opens the array count field in the draft. No single key ever writes: keys only open, arm or move within a draft, and Save or the confirm posts."
+  },
+  {
+   "id": "frame.delete",
+   "label": "Delete stack variable",
+   "keys": [
+    "Delete"
+   ],
+   "scope": "composite",
+   "where": "the StackFrameEditor grid only",
+   "note": "Deletes the variable in the draft. No single key ever writes: keys only open, arm or move within a draft, and Save or the confirm posts."
+  },
+  {
+   "id": "frame.hex",
+   "label": "Hex offsets",
+   "keys": [
+    "Shift+H"
+   ],
+   "scope": "composite",
+   "where": "the StackFrameEditor grid only",
+   "note": "Toggles hex or decimal offsets; view state only. Shared with typeEditor.hex in its own grid."
+  },
+  {
+   "id": "frame.gotoOffset",
+   "label": "Go to offset",
+   "keys": [
+    "o"
+   ],
+   "scope": "composite",
+   "where": "the StackFrameEditor grid only",
+   "note": "Moves focus to the slot at an offset; navigation only."
+  },
+  {
+   "id": "code.references",
+   "label": "Edit references",
+   "keys": [],
+   "scope": "code",
+   "where": "an operand or instruction in a code well",
+   "note": "No default key: Ctrl+R reloads the page. Opens ReferenceEditor for the inspected build. Link menu and the palette ('Edit references')."
+  },
+  {
+   "id": "refs.flowOverride",
+   "label": "Flow override",
+   "keys": [],
+   "scope": "region",
+   "where": "ReferenceEditor",
+   "note": "Palette and menu only. Arms the flow override in the editor; Save posts."
+  },
+  {
+   "id": "refs.fallthrough",
+   "label": "Set fallthrough",
+   "keys": [],
+   "scope": "region",
+   "where": "ReferenceEditor",
+   "note": "Palette and menu only. Arms the fallthrough change in the editor; Save posts."
+  },
+  {
+   "id": "registers.open",
+   "label": "Register values",
+   "keys": [],
+   "scope": "region",
+   "where": "Code Browser",
+   "note": "No default key; palette ('Register values') and menu. Opens RegisterValuesEditor for the inspected build."
+  },
+  {
+   "id": "registers.setOverSelection",
+   "label": "Set register value over selection",
+   "keys": [],
+   "scope": "region",
+   "where": "RegisterValuesEditor and code wells with a selection",
+   "note": "Link menu and palette only; arms, never posts."
+  },
+  {
+   "id": "registers.clearInSelection",
+   "label": "Clear register value in selection",
+   "keys": [],
+   "scope": "region",
+   "where": "RegisterValuesEditor and code wells with a selection",
+   "note": "Link menu and palette only; arms, never posts."
+  },
+  {
+   "id": "code.patchInstruction",
+   "label": "Patch instruction",
+   "keys": [],
+   "scope": "code",
+   "where": "an instruction in a code well",
+   "note": "No default key. Opens PatchEditor for the inspected build; link menu and palette ('Patch instruction'). Patched bytes are not recovery evidence."
+  },
+  {
+   "id": "code.patchBytes",
+   "label": "Patch bytes",
+   "keys": [],
+   "scope": "code",
+   "where": "code wells and HexStrip",
+   "note": "No default key. Opens PatchEditor in byte mode; link menu and palette."
+  },
+  {
+   "id": "code.clear",
+   "label": "Clear code",
+   "keys": [],
+   "scope": "code",
+   "where": "code wells",
+   "note": "No default key; Delete is not bound because a single key never destroys. Arms the clear in PatchEditor's confirm path; link menu and palette."
+  },
+  {
+   "id": "code.createData",
+   "label": "Create data",
+   "keys": [],
+   "scope": "code",
+   "where": "code wells",
+   "note": "No default key. Arms the data type choice for the inspected build; link menu and palette."
+  },
+  {
+   "id": "code.disassemble",
+   "label": "Disassemble",
+   "keys": [
+    "d (ida profile only)"
+   ],
+   "scope": "code",
+   "where": "undefined bytes in a code well",
+   "note": "The ida profile binds d, matching its habit; the default profile has no key. Arms disassembly for the inspected build; nothing posts from the key. Also the link menu and the palette."
   },
   {
    "id": "pane.hold",

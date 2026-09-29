@@ -72,7 +72,7 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 ## Keyboard
 
 - `c` (proposed `code.compilerLayer`, code scope) toggles the layer. It only changes view state and posts nothing.
-- `}` / `{` (proposed `code.annotationNext` / `code.annotationPrev`) move the cursor to the next or previous annotation of the visible kinds and announce it ("Annotation 3 of 9: inlined ResourceRef::Resolve, hypothesis").
+- `a` / Shift+A (`code.annotationNext` / `code.annotationPrev`; `{`/`}` stay with ListingFieldLayout's flow arrows) move the cursor to the next or previous annotation of the visible kinds and announce it ("Annotation 3 of 9: inlined ResourceRef::Resolve, hypothesis").
 - Enter on a band's subject is Go; Enter on a tag highlights its range; Alt+↓ peeks the detector record; Shift+F10 opens the link menu (Reveal in: TransformTimeline, MatchExplain, Evidence).
 - The FilterChips follow FilterChip's keys. Esc follows `keymap.json` `escapeOrder`.
 

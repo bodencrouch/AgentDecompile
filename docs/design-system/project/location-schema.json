@@ -8,7 +8,7 @@
     { "name": "build",    "carries": "inspected build", "grammar": "build-id", "history": "push", "example": "build-b" },
     { "name": "addr",     "carries": "address or cursor in the inspected build", "grammar": "hex without 0x", "history": "replace", "requires": "build; without it the builds containing the address are listed", "example": "0041b210" },
     { "name": "ws",       "carries": "workspace", "values": ["code", "compare", "recovery", "evidence"], "history": "push; consecutive switches with no Go collapse" },
-    { "name": "panel",    "carries": "full corpus view inside a workspace; target of every Show all", "values": ["report", "atlas", "review", "builds", "pipeline", "readiness", "names", "reuse", "runtime", "outputs", "toolchain", "variants", "analysis", "scripts", "versions", "history"], "history": "push", "withBuild": ["analysis", "scripts", "versions", "history"],
+    { "name": "panel",    "carries": "full corpus view inside a workspace; target of every Show all", "values": ["report", "atlas", "review", "builds", "pipeline", "readiness", "names", "reuse", "runtime", "outputs", "toolchain", "variants", "analysis", "scripts", "versions", "history", "types"], "history": "push", "withBuild": ["analysis", "scripts", "versions", "history"],
       "describes": {
         "report": "the recovery report: VariantLedger, rebuild comparisons, readiness and divergence reports",
         "atlas": "project intelligence (F19): function discovery and index, dependency and neighborhood exploration, prioritization",
@@ -25,7 +25,8 @@
         "analysis": "each build's analyzer configuration and one-shot analyzers, read-only until Run in the ActionStrip (AnalyzerPanel); with build",
         "scripts": "the script manager, transcript, interpreter and bundles, shown only when Advanced is on in View settings (ScriptConsole); with build for the bound session",
         "versions": "Ghidra Server version control per build: version, checkout state, history (VersionControlPanel); with build",
-        "history": "one build's program transactions with Undo, Redo and Undo to here as confirmed catalog verbs (EditHistory); with build"
+        "history": "one build's program transactions with Undo, Redo and Undo to here as confirmed catalog verbs (EditHistory); with build",
+        "types": "the full Types view: archives, categories and types for this build or all builds, with uses (TypeManager; TypeEditor opens a type for one explicit build)"
       } },
     { "name": "views",    "carries": "co-visible code views", "grammar": "comma list", "values": ["listing", "decompile", "hex", "graph"], "history": "replace; never rewritten at narrow widths" },
     { "name": "layers",   "carries": "annotation layers over the code wells (view state in the URL, like views)", "grammar": "comma list", "values": ["compiler"], "history": "replace; never rewritten at narrow widths", "example": "compiler" },
@@ -47,7 +48,7 @@
   ],
   "kinds": {
     "$comment": "One kind list shared by hold and keep. A component that needs a new kind adds it here first.",
-    "values": ["symbol", "fn", "addr", "entity", "entitybuild", "receipt", "fact", "job", "ladder", "xref", "history", "calls", "graph", "peek", "names", "runtime", "objective", "failure", "node", "artifact", "type", "walk", "frame", "vtable", "xform"],
+    "values": ["symbol", "fn", "addr", "entity", "entitybuild", "receipt", "fact", "job", "ladder", "xref", "history", "calls", "graph", "peek", "names", "runtime", "objective", "failure", "node", "artifact", "type", "walk", "frame", "vtable", "xform", "registers"],
     "buildIndependent": ["entity", "node", "artifact"],
     "describes": {
       "artifact": "an ArtifactCard (keep=artifact:‹id›[~basis]); corpus-scoped, so the build is optional",
@@ -55,7 +56,8 @@
       "walk": "a PointerWalk chain at one build (hold or keep)",
       "frame": "a FrameLayout for one entity at one build (keep=frame:‹entity›@‹build›)",
       "vtable": "a VTableBrowser class at one build (hold)",
-      "xform": "a TransformTimeline for one entity and cmp pair (hold)"
+      "xform": "a TransformTimeline for one entity and cmp pair (hold)",
+      "registers": "register and context values of one build over a range (RegisterValuesEditor; hold or keep)"
     }
   },
   "filterAxes": {
@@ -95,7 +97,10 @@
       { "axis": "xform",           "carries": "compiler annotations by kind (CompilerLayer, TransformTimeline): inline, icf, gs, eh, seh, div, tail, switch, fpo, ilt, hotpatch, strpool, loop, intrinsic, cc; a comma list selects several", "example": "xform:inline,eh" },
       { "axis": "variance",        "carries": "annotations, steps, slots or items by difference class: compile, entropy, source, unknown; identical is not a value", "example": "variance:compile" },
       { "axis": "diffclass",       "carries": "MatchExplain rows by class: regalloc, schedule, stack, reloc, constant, branch, inline, toolchain, source", "example": "diffclass:regalloc" },
-      { "axis": "presence",        "carries": "annotations whose presence varies across builds", "example": "presence:varies" }
+      { "axis": "presence",        "carries": "annotations whose presence varies across builds", "example": "presence:varies" },
+      { "axis": "type.scope",      "carries": "the Types scope: this build or all builds", "example": "type.scope:all" },
+      { "axis": "type.find",       "carries": "type or category name text in the Types view", "example": "type.find:CacheEntry" },
+      { "axis": "type.use",        "carries": "uses of one type on the inspected build", "example": "type.use:CacheEntry" }
     ]
   },
   "aliases": {

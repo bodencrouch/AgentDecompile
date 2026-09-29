@@ -14,9 +14,9 @@ One keymap, `keymap.json` beside `tokens.json`, drives both surfaces. Menus, too
 
 **Precedence:** edit > code > composite > region > global. A key bound in an inner active scope shadows the outer binding and is not a conflict. Inside a code well `x` focuses References; in a grid `x` checks the row. Code wells have no checked set.
 
-**Typeahead.** In composites that bind single-letter commands (the Functions grid, ProblemsList, the MarksList grids), typeahead starts with `/` into a visible filter field, and plain letters are commands. Elsewhere typeahead needs no prefix.
+**Typeahead.** In composites that bind single-letter commands (the Functions grid, ProblemsList, the MarksList grids, OutputsCatalog, TypeManager, TypeEditor and StackFrameEditor), typeahead starts with `/` into a visible filter field, and plain letters are commands. Elsewhere typeahead needs no prefix.
 
-Profiles: **default**; **ida** adds focus-scoped n (rename), y (set type) and ; (opens the comment editor) in code wells; **off** turns every single-character key off while modifier globals and menus remain. Go to address is `g then g` from the leader in every profile. Ghidra-style and VS Code-style profiles are deferred until each is specified against `keymap.json`.
+Profiles: **default**; **ida** adds focus-scoped n (rename), y (set type), ; (opens the comment editor) and d (disassemble; arms only) in code wells; **off** turns every single-character key off while modifier globals and menus remain. Go to address is `g then g` from the leader in every profile. Ghidra-style and VS Code-style profiles are deferred until each is specified against `keymap.json`.
 
 ## The keys that remove the most clicks
 
@@ -35,6 +35,8 @@ Profiles: **default**; **ida** adds focus-scoped n (rename), y (set type) and ; 
 | g then 1…5 | layout presets (Read, Compare, Review, Triage, Verify rebuild) | dragging splitters for each task |
 | Ctrl/Cmd+Z · Ctrl/Cmd+Shift+Z (Ctrl+Y on Windows and Linux) | undo or redo the build's top program transaction through the catalog (EditHistory). Never in text fields or edit mode. A single-target undo confirms in place; a batch, cross-build or multi-step undo arms ConfirmDialog; nothing posts silently | opening the edit history to take back one edit |
 | p · c · a / Shift+A | walk the pointer expression at the cursor · compiler layer on or off · next or previous compiler annotation (code scope; view state only) | reading offsets and optimizer idioms by hand in each build |
+
+**Editor-scoped keys.** TypeManager (f favourite, a scope, u uses, / find), TypeEditor (Alt+Shift+↑/↓ move, u insert undefined, d duplicate, [ array, c clear, Delete, o go to offset, Shift+H hex; Ctrl/Cmd+Z and Ctrl/Cmd+Shift+Z undo the draft only), SignatureEditor (Alt+Shift+↑/↓ move a parameter) and StackFrameEditor (Insert, c, [, Delete, Shift+H, o) bind single keys only inside their own grid, under scope precedence; the same letter in two editors' grids, or `c` in a grid and in a code well, is not a conflict. No single key ever writes: keys open, arm or change a draft, and Save or the confirm posts. `code.editSignature`, `signature.editStorage`, `code.references` (Ctrl+R reloads the page), `refs.flowOverride`, `refs.fallthrough`, `registers.*`, `code.patchInstruction`, `code.patchBytes`, `code.clear` (a single key never destroys) and `code.createData` have no default key; `code.disassemble` is `d` in the ida profile only.
 
 **Menu and palette only.** Scripts (`scripts.open`, `scripts.runLast`), Export (`export.open`; Ctrl/Cmd+E is browser-reserved), Tool options (`options.open`; Cmd+, is the browser's on macOS), Version control (`vcs.open`), `hex.selectCount` and `hex.checksums` have no default key. Next and previous instruction, data, undefined, label, function, non-function, bookmark and brace (`code.next…` / `code.prev…`) have ids but no default keys; each is remappable.
 

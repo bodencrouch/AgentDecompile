@@ -43,6 +43,16 @@ Keep verbatim:
 - Evidence words: "witness", "record", "hypothesis (heuristic)" with "basis: …", and "unknown". "absence is not proof". A hypothesis never reads as a witness.
 - "Delivered means a receipt records bounded evidence for that scope; it does not mean the artifact is live, current or accepted." · "not observed on 8080".
 
+## Editing, undo and scripts
+
+Keep verbatim:
+
+- "cannot be undone here": the EditHistory state word for a transaction that was checked in, is beyond the undo limit, or was recorded before the program was last closed. A job's row adds "its log, receipt and transcript cannot be undone".
+- "byte journal rollback ≠ undo of executed side effects" under every undo list; "Undo applies to build-a only." for a propagated edit.
+- "Patched bytes are not recovery evidence."
+- "Propose to build-b, build-c": propagation is a separate step after the terminal result, never an "all builds" write.
+- "Scripts are an advanced tool. Turn on Advanced in View settings to show Scripts."
+
 ## Coverage phrasing
 
 "resolvable on {build-a, build-b, build-c}, ambiguous on build-d, absent on build-e". "entity X: resolved on {…}, member used; unresolved on {…}". Always name the scope: "byte-identical in build-b (max-C variant)", never "matched".

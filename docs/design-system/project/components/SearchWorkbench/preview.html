@@ -1,0 +1,62 @@
+<!-- @dsCard group="Navigation" height=1130 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">Instruction mode · all builds · a pattern built from a selection on build-a · masked bits shown before Search</span>
+<section class="ad-swb" role="region" aria-labelledby="sw-h">
+ <header><span class="kicker">Search</span><h4 id="sw-h">Instructions · all builds</h4><span class="small muted">read-only · never analyzes · results go to a ResultsTable</span>
+  <span class="end"><button class="ad-btn compact" aria-haspopup="menu" aria-expanded="false">Recent</button></span></header>
+ <div class="ad-subtabs" role="tablist" aria-label="Search modes">
+  <button role="tab" aria-selected="false" tabindex="-1">Memory</button><button role="tab" aria-selected="false" tabindex="-1">Text</button><button role="tab" aria-selected="false" tabindex="-1">Decompiled text</button><button role="tab" aria-selected="true" tabindex="0" id="sw-t-ins" aria-controls="sw-p-ins">Instructions</button><button role="tab" aria-selected="false" tabindex="-1">Scalars</button><button role="tab" aria-selected="false" tabindex="-1">Strings</button><button role="tab" aria-selected="false" tabindex="-1">Direct references</button><button role="tab" aria-selected="false" tabindex="-1" aria-disabled="true" aria-describedby="sw-at-d">Address tables</button><button role="tab" aria-selected="false" tabindex="-1">Replace</button>
+ </div>
+ <span class="sr-only" id="sw-at-d">Catalog action needed: no address-table search read on this server.</span>
+ <div id="sw-p-ins" role="tabpanel" aria-labelledby="sw-t-ins">
+  <div class="ad-swb-form">
+   <div class="ad-swb-line"><span class="ad-g1-field"><span class="lbl" id="sw-sc">Scope</span><span class="ad-seg" role="radiogroup" aria-labelledby="sw-sc"><span role="radio" aria-checked="false" tabindex="-1">This build · build-a</span><span role="radio" aria-checked="true" tabindex="0">All builds</span><span role="radio" aria-checked="false" tabindex="-1" aria-disabled="true" aria-describedby="sw-sel-d">Selection · build-a</span><span role="radio" aria-checked="false" tabindex="-1">View</span></span></span>
+    <span class="small" id="sw-sel-d">build-a, build-b, build-c · <span class="ad-absent">build-d not loaded · will be skipped</span> · A selection belongs to one build</span></div>
+   <div class="ad-swb-line"><span class="ad-g1-field"><span class="lbl">Source</span><span class="small">selection on build-a · <a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c8a0" translate="no">0041c8a0</a>–<span class="addr" translate="no">0041c8a6</span> · 3 code units</span></span><button class="ad-btn compact">Load selection</button><button class="ad-btn compact">Add selection</button><button class="ad-btn compact">Enter bytes manually…</button></div>
+   <div class="ad-swb-line" role="toolbar" aria-label="Quick masks"><span class="ad-g1-field"><span class="lbl">Masks</span></span><button class="ad-btn compact">Mask all operands</button><button class="ad-btn compact" aria-pressed="true">Mask scalars</button><button class="ad-btn compact" aria-pressed="true">Mask addresses</button><button class="ad-btn compact">Mask data</button><button class="ad-btn compact">Clear masks</button></div>
+   <div class="ad-scroll"><table class="ad-table" role="grid" aria-label="Pattern builder, 3 code units from build-a">
+    <thead><tr><th scope="col">Address</th><th scope="col">Bytes</th><th scope="col">Mnemonic</th><th scope="col">Operands · Space masks</th></tr></thead>
+    <tbody>
+     <tr><th scope="row" class="mono addr" translate="no">0041c8a0</th><td class="mono" translate="no">8b 46 04</td><td class="mono" translate="no">mov</td><td><span class="ad-swb-set"><button class="ad-swb-mask is-focus" aria-pressed="true" aria-label="Operand eax, masked" translate="no">eax</button><button class="ad-swb-mask" aria-pressed="false" aria-label="Operand esi, not masked" translate="no">[esi</button><button class="ad-swb-mask" aria-pressed="true" aria-label="Operand 0x4, scalar, masked" translate="no">+ 0x4]</button></span></td></tr>
+     <tr><th scope="row" class="mono addr" translate="no">0041c8a3</th><td class="mono" translate="no">85 c0</td><td class="mono" translate="no">test</td><td><span class="ad-swb-set"><button class="ad-swb-mask" aria-pressed="false" aria-label="Operand eax, not masked" translate="no">eax</button><button class="ad-swb-mask" aria-pressed="false" aria-label="Operand eax, not masked" translate="no">eax</button></span></td></tr>
+     <tr><th scope="row" class="mono addr" translate="no">0041c8a5</th><td class="mono" translate="no">74 10</td><td class="mono" translate="no">jz</td><td><span class="ad-swb-set"><button class="ad-swb-mask" aria-pressed="true" aria-label="Operand LAB_0041c8b7, address, masked" translate="no">LAB_0041c8b7</button></span></td></tr>
+    </tbody></table></div>
+   <dl class="ad-swb-bits" aria-label="Search pattern per build">
+    <dt>Binary</dt><dd>10001011 <span class="mb">01...110</span> <span class="m">........</span> 10000101 11000000 01110100 <span class="m">........</span></dd>
+    <dt>Hex</dt><dd>8b <span class="mb">[01...110]</span> <span class="m">[........]</span> 85 c0 74 <span class="m">[........]</span></dd>
+    <dt>Per build</dt><dd class="small">build-a, build-b, build-c: x86 32-bit · little endian · same encoding · alignment 1<br>build-d: <span class="ad-absent">not loaded · skipped</span></dd>
+   </dl>
+   <div class="ad-swb-line"><span class="ad-g1-field"><span class="lbl" id="sw-cmb">Results</span><span class="ad-seg" role="group" aria-labelledby="sw-cmb"><button aria-pressed="true">Replace</button><button aria-pressed="false">Add</button><button aria-pressed="false">Intersect</button><button aria-pressed="false">Remove</button><button aria-pressed="false">Either, not both</button></span></span>
+    <span class="ad-g1-field"><label for="sw-lim">Limit</label><input class="ad-g1-in" id="sw-lim" value="500" size="5" inputmode="numeric"></span>
+    <span class="ad-swb-set" style="margin-left:auto"><button class="ad-btn compact" aria-keyshortcuts="Control+ArrowUp">Previous</button><button class="ad-btn compact" aria-keyshortcuts="Control+ArrowDown">Next</button><button class="ad-btn primary">Search all builds</button></span></div>
+  </div>
+  <div class="ad-swb-prog" role="status" aria-label="Search progress"><span><strong>build-a</strong> <span class="u">7 of 7 blocks</span> · 38 hits</span><span><strong>build-b</strong> <span class="u">5 of 7 blocks</span></span><span><strong>build-c</strong> waiting</span><span><strong>build-d</strong> <span class="ad-absent">skipped · not loaded</span></span><button class="ad-btn compact">Cancel · keeps hits found</button></div>
+  <p class="note">Hits are candidates; a pattern match is not identity. Zero hits on a build is not absence: compile variance changes register encodings.</p>
+ </div>
+ <footer><span>Results → ResultsTable “Instruction hits · all builds” · OverviewBar hits lane</span><span>Enter search · Ctrl/Cmd+↓ ↑ next and previous on this build · Space masks an operand</span></footer>
+</section>
+
+<span class="kicker">Direct references · each build searched for its own counterpart address · never an address carried across builds</span>
+<section class="ad-swb" role="region" aria-labelledby="sw2-h">
+ <header><span class="kicker">Search</span><h4 id="sw2-h">Direct references to <span translate="no">ResourceRef::Resolve</span> · all builds</h4></header>
+ <dl class="ad-swb-bits" aria-label="Addresses searched per build" style="margin:12px 16px">
+  <dt>build-a</dt><dd><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041c880" translate="no">0041c880</a> · bytes <span translate="no">80 c8 41 00</span> · inspected</dd>
+  <dt>build-b</dt><dd><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041c9e0" translate="no" aria-label="Counterpart build-b, 0041c9e0, accepted">0041c9e0</a> · bytes <span translate="no">e0 c9 41 00</span> · accepted edge</dd>
+  <dt>build-c</dt><dd><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=0041b210" translate="no" aria-label="Counterpart build-c, 0041b210, accepted">0041b210</a> · bytes <span translate="no">10 b2 41 00</span> · accepted edge</dd>
+  <dt>build-d</dt><dd><span class="ad-absent">inlined only on build-d; not searched</span></dd>
+ </dl>
+</section>
+
+<span class="kicker">Replace · per-build preview · naming-convention check · Apply arms a batch that confirms in ConfirmDialog</span>
+<section class="ad-swb" role="region" aria-labelledby="sw3-h">
+ <header><span class="kicker">Search</span><h4 id="sw3-h">Replace <code translate="no">local_</code> → <code translate="no">cache</code> · build-a</h4><span class="small muted">regular expression off · whole word off · element kinds: locals</span></header>
+ <div class="ad-scroll"><table class="ad-table" role="grid" aria-label="Replace preview, build-a, 3 elements" aria-multiselectable="true">
+  <thead><tr><th scope="col" class="ck"><span class="sr-only">Checked</span></th><th scope="col">Element</th><th scope="col">In</th><th scope="col">Old</th><th scope="col">New</th><th scope="col">Convention</th></tr></thead>
+  <tbody>
+   <tr><td class="ck"><span class="ad-g1-ck" role="checkbox" aria-checked="true" aria-label="Check local_8"></span></td><td>local</td><td><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041c880" translate="no">ResourceRef::Resolve</a></td><td class="mono" translate="no">local_8</td><td class="mono" translate="no">cache8</td><td>camelCase · follows</td></tr>
+   <tr><td class="ck"><span class="ad-g1-ck" role="checkbox" aria-checked="false" aria-label="Check local_Entry"></span></td><td>local</td><td><a class="ad-link" href="?project=corpus-alpha&amp;entity=4129&amp;build=build-a&amp;addr=0041d030" translate="no">Archive::OpenMember</a></td><td class="mono" translate="no">local_Entry</td><td class="mono" translate="no">cacheEntry</td><td>camelCase · follows</td></tr>
+   <tr><td class="ck"><span class="ad-g1-ck" role="checkbox" aria-checked="false" aria-label="Check local_1c"></span></td><td>local</td><td><a class="ad-link" href="?project=corpus-alpha&amp;entity=4127&amp;build=build-a&amp;addr=0041a3f0" translate="no">Actor::LoadFromTemplate</a></td><td class="mono" translate="no">local_1C</td><td class="mono" translate="no">cache1C</td><td><strong>does not follow</strong> camelCase · not auto-fixed</td></tr>
+  </tbody></table></div>
+ <div class="ad-strip" role="toolbar" aria-label="Armed action: Replace, 1 checked row on build-a"><div class="what"><span class="strong">Replace text (catalog)</span><span class="small">1 checked · build-a only · Run opens ConfirmDialog “Rename 1 element on build-a” · other builds need their own preview</span></div><button class="ad-btn">Fields…</button><button class="ad-btn primary">Run on 1 checked</button><button class="ad-btn quiet" aria-label="Disarm action strip" aria-keyshortcuts="Escape">✕</button></div>
+</section>
+</div>

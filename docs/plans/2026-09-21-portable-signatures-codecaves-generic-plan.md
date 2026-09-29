@@ -1959,6 +1959,21 @@ is an override, so its starvation (H3) delays overrides and never coverage.
   emit the same href set, accessible names and absent words for one fixture entity
   (read-only text diff, richness fallbacks allowed), plus each unit's own acceptance in
   the design plan; live observation on 8080 only when authorized.
+- **U192–U198. Compiler-aware views and project outputs** (design only; detailed in the
+  same design plan, section "Compiler-aware views and project outputs (2026-09-29)";
+  requirements F36–F37). Builds are variants of one application, so views are keyed by
+  logical entity with builds as columns, and every difference carries a variance class and
+  an evidence level. OutputsCatalog and ArtifactCard (U192), ToolchainEvidence (U193),
+  VariantRelation (U194), PointerWalk (U195), CompilerLayer and TransformTimeline (U196),
+  MatchExplain (U197), FrameLayout and VTableBrowser (U198). Read-only; no guessed facts;
+  evidence levels always shown; effective ≠ byte match; accuracy ≠ acceptance; nothing
+  observed on 8080 until authorized. Acceptance: each unit's own future check in the design
+  plan.
+- **U199–U218. Ghidra Code Browser functional parity** (reserved; 20 components detailed
+  separately from
+  [`docs/dashboard-design/2026-09-29-ghidra-code-browser-parity.md`](../dashboard-design/2026-09-29-ghidra-code-browser-parity.md);
+  requirement F38). Functionality, not Ghidra's look or theme; every mutation keeps one
+  explicit target build and the catalog's confirm rules.
 
 ### Phase 15 — Distributed compute (`agentdecompile_grid`; design: docs/plans/2026-09-21-distributed-compute-design.md)
 Walking-skeleton order (charter §6c): a thin end-to-end path through every layer landed

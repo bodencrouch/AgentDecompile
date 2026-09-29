@@ -43,7 +43,7 @@ Undo and redo for one build's program as its list of recorded transactions, with
 **Keyboard**
 
 - The list is in reading order; ↑/↓ move the focused row when the list has focus (roving focus on rows); Enter on a row's **Undo to here…** opens the confirm. Links inside a row are reachable with Tab.
-- Proposed keymap ids: `edit.undo` (Ctrl/Cmd+Z) and `edit.redo` (Ctrl/Cmd+Shift+Z, and Ctrl+Y on Windows and Linux), global but never in text fields or edit mode, where the browser's own undo applies. They open this panel with the verb armed in ConfirmDialog; they never post.
+- Keymap ids: `edit.undo` (Ctrl/Cmd+Z) and `edit.redo` (Ctrl/Cmd+Shift+Z, and Ctrl+Y on Windows and Linux), global but never in text fields or edit mode, where the browser's own undo applies. A single top undo of a single-target edit confirms in place; a batch, cross-build or multi-step undo arms ConfirmDialog. They never post silently.
 
 **Accessibility**
 

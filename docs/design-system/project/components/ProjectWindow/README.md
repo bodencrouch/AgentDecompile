@@ -131,3 +131,9 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 **Prior art**
 
 Ghidra Project Window and project menus (`FrontEndPlugin/*`: Creating, Opening, Re-opening, Closing, Deleting, Saving, Archive and Restore Project; Project Info), Ghidra Projects (`Project/Ghidra_Projects.htm`) and Saving Program Files (`ProgramManagerPlugin/Saving_Program_Files.htm`). Unlike Ghidra, creating or restoring a project never switches to it, a viewed project admits nothing, and Save never happens by itself on archive.
+
+## Behavior
+
+- Opening the Project window reads stored inventory only; it never opens a program, switches project or analyzes.
+- Save writes transactions to the project file and never clears the undo stack. Check-in sends a version to the server and clears it (Version control).
+- Restore never replaces a project; the restored project's receipts read historical.

@@ -45,3 +45,14 @@ One entity on one concrete build, gathered as a single evidence-rail section tha
 
 - J33 why an entity is not runtime-usable on a build and whether other builds are: 4 → 1 (U183; Peek reads the refusal at 0, +1 region jump to read the card with a screen reader).
 - J06 from a readiness cell to its ladder evidence and any contested pair: 4 → 1 (U183); a contested pair is one Compare candidates away.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- Key (moved text): "Evidence rail · follows the selection written by Enter on a matrix cell · focus stayed on the cell; reached with F6 or g e."
+- ↵ Enter · once (chip removed): "Enter writes entity and build once; focus stays on the cell and the card follows. F6 or g e reaches the card."
+- ≠ arrows bind (chip removed): "Arrowing across cells binds nothing."
+- ≠ accept (chip removed): "The Compare workspace, two held panes, each labelled “candidate 1 of 2 · contested · no winner”. Opening one does not accept it."
+- order ≠ tie-break (chip removed): arrival order is not a tie-breaker.
+- Keycap Key rows (removed; keycaps are not drawn encodings): "Enter · bind cell"; "F6 · reach card".

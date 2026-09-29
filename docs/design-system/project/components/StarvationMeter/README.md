@@ -25,3 +25,10 @@ Starvation drawn beside the work: the age of the oldest unreviewed review row, t
 - Each bar is `role="img"` named with its age in words; the adjacent age link carries the target. Ages are never live regions; the dock announces transitions once.
 
 **Removes switching:** opening the review queue, the pipeline map and the Jobs dock to find what is starving (J28, credited to U181; counts in the plan ledger).
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- Key (moved text): "Bar: age, measured from the oldest item. The age words are the link."
+- ∅ lane E: "Oldest waiting lane, lane E: deadline not set, so no tick."

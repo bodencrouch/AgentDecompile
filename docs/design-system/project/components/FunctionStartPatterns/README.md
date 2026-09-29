@@ -117,3 +117,10 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 **Prior art**
 
 Ghidra's Function Bit Patterns Explorer (`FunctionBitPatternsExplorerPlugin.htm`) and the pattern-info script it reads. Unlike Ghidra, every build in scope is read side by side, a build of another language is never compared, a pattern is always a hypothesis, evaluation reports agreement with recorded starts rather than accuracy, and creating functions or using a pattern file in analysis is an explicit, confirmed change to one build.
+
+## Behavior
+
+- Opening the view reads stored gathers only: nothing is gathered, mined or searched on open.
+- Gather reads a build's recorded function starts; nothing is analyzed.
+- When the server offers no gather, stored gathers still read; "What this server offers" opens as a Peek from the unavailable state.
+- A build of another language is compared with no other build.

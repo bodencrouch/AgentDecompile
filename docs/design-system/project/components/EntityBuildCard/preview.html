@@ -2,7 +2,8 @@
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <div class="ad-ebc-cols">
 <div class="stack" style="gap:8px">
- <div style="display:flex;align-items:center;gap:8px"><span class="kicker">Evidence rail</span><span class="adv-tip"><button type="button" class="adv-q" aria-label="Key" aria-describedby="ebc-key">?</button><span role="tooltip" id="ebc-key">Evidence rail · follows the selection written by Enter on a matrix cell · focus stayed on the cell; reached with F6 or g e. L R C D W: located, readable, callable, detourable, writable; a filled letter is yes, a struck one refused, an outlined one unknown. ● resolved · ◎ pinned · ◌ unresolved · ⇉ contested. ≠: a claim boundary.</span></span></div>
+ <div style="display:flex;align-items:center;gap:8px"><span class="kicker">Evidence rail</span><button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="ebc-key">?</button></div>
+ <dl class="adv-key" id="ebc-key" aria-label="Key" hidden><dt><span class="ad-caps"><span class="on">L</span></span></dt><dd>capability yes</dd><dt><span class="ad-caps"><span class="refused">D</span></span></dt><dd>capability refused</dd><dt><span class="ad-caps"><span class="unknown">W</span></span></dt><dd>capability unknown</dd><dt aria-hidden="true">●</dt><dd>resolved</dd><dt aria-hidden="true">◎</dt><dd>pinned</dd><dt aria-hidden="true">◌</dt><dd>unresolved</dd><dt aria-hidden="true">⇉</dt><dd>contested</dd><dt aria-hidden="true">○</dt><dd>not run</dd><dt><span class="ad-stamp"><b>reused</b></span></dt><dd>reused</dd><dt aria-hidden="true">▤</dt><dd>projection</dd><dt aria-hidden="true">⊘</dt><dd>not available</dd><dt aria-hidden="true">≠</dt><dd>claim boundary</dd></dl>
  <section class="ad-ebc" aria-labelledby="ebc1-t" id="ebc1">
   <header>
    <a class="ad-link back" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=readiness&amp;entity=88&amp;build=build-c" aria-label="Back to ReadinessMatrix, ResourceRef::Resolve, build-c"><span aria-hidden="true">←</span> ReadinessMatrix</a>
@@ -70,7 +71,7 @@
    <td class="cell" aria-label="build-b: resolved, anchor_rel; observed: not run"><span class="ad-loc resolved"><b aria-hidden="true">●</b></span></td>
    <td class="cell is-focus" aria-selected="true" aria-label="build-c: pinned, module_rva, non-portable; observed: not run" tabindex="0"><span class="ad-loc pinned"><b aria-hidden="true">◎</b></span></td>
    <td class="cell" aria-label="build-d: unresolved; observed: not run" tabindex="-1"><span class="ad-loc unresolved"><b aria-hidden="true">◌</b></span></td></tr></tbody></table></div>
- <p class="small muted adv-chips" style="margin:0"><span class="sr-only">The cell it came from · ReadinessMatrix · focus stays here after Enter.</span><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="ebc-en"><b aria-hidden="true">↵</b>Enter · once</button><span role="tooltip" id="ebc-en">Enter writes entity and build once; focus stays on the cell and the card follows. F6 or g e reaches the card.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ebc-ar"><b aria-hidden="true">≠</b>arrows bind</button><span role="tooltip" id="ebc-ar">Arrowing across cells binds nothing.</span></span><span aria-hidden="true">● ◎ ◌</span><span class="sr-only">● resolved · ◎ pinned · ◌ unresolved.</span></p>
+ <p class="small muted adv-chips" style="margin:0"><span class="sr-only">The cell it came from · ReadinessMatrix.</span><span aria-hidden="true">● ◎ ◌</span><span class="sr-only">● resolved · ◎ pinned · ◌ unresolved.</span></p>
 
  <span class="kicker">Contested cell</span>
  <section class="ad-ebc" aria-labelledby="ebc2-t">
@@ -85,10 +86,10 @@
     <li><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=207&amp;build=build-d&amp;addr=00452c10" aria-label="Candidate address 00452c10, build-d, contested, no winner" translate="no">00452c10</a> via <code translate="no">xref_from_function</code> · verified · no winner</li>
     <li><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=207&amp;build=build-d&amp;addr=00452e40" aria-label="Candidate address 00452e40, build-d, contested, no winner" translate="no">00452e40</a> via <code translate="no">pointer_chain</code> · verified · no winner</li>
    </ul>
-   <div class="arm"><a class="ad-link" href="?project=corpus-alpha&amp;entity=207&amp;ws=compare&amp;hold=addr:00452c10@build-d&amp;hold=addr:00452e40@build-d">Compare candidates</a><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ebc-cc"><b aria-hidden="true">≠</b>accept</button><span role="tooltip" id="ebc-cc">The Compare workspace, two held panes, each labelled “candidate 1 of 2 · contested · no winner”. Opening one does not accept it.</span></span></div>
+   <div class="arm"><a class="ad-link" href="?project=corpus-alpha&amp;entity=207&amp;ws=compare&amp;hold=addr:00452c10@build-d&amp;hold=addr:00452e40@build-d">Compare candidates</a></div>
   </section>
   <section class="sec" aria-labelledby="ebc2-s2"><h4 id="ebc2-s2">Can do · build-d<span class="sr-only">: what you can do on build-d</span></h4>
-   <p class="sr-only">Nothing at runtime until one hit is accepted; capabilities are not evaluated without an accepted binding. Arrival order is not a tie-breaker. The readiness report ships this row as contested and refuses unsafe use. Nothing is armed: a contested root needs review, not another run.</p><ul class="adv-chips" aria-hidden="true"><li><span>runtime</span>0</li><li><span>capabilities</span>—</li><li><span>order</span>≠ tie-break</li><li><span>report</span>⇉ contested</li><li><span>armed</span>0</li><li>→ review</li></ul>
+   <p class="sr-only">Nothing at runtime until one hit is accepted; capabilities are not evaluated without an accepted binding. Arrival order is not a tie-breaker. The readiness report ships this row as contested and refuses unsafe use. Nothing is armed: a contested root needs review, not another run.</p><ul class="adv-chips" aria-hidden="true"><li><span>runtime</span>0</li><li><span>capabilities</span>—</li><li><span>report</span>⇉ contested</li><li><span>armed</span>0</li><li>→ review</li></ul>
   </section>
  </section>
 

@@ -34,3 +34,7 @@ A persistent project session tab with its project-kind chip. Each tab restores i
 - "Closed ‹title› · Reopen" is a polite status message, and its Reopen is a 24px button in the status line (44px below 700px).
 
 **Removes switching:** re-navigating to the same workspace, function and address after switching sessions. J25 (a link between the two surfaces) is credited to U172.
+
+## Behavior
+
+- Manual activation: arrows move focus, Enter or Space activates. The × is for pointers; Delete or the tab's menu ("Close ‹title›") closes from the keyboard. (Formerly the Key tooltip and the visible move / open / close key chips; the keys now end the Key.)

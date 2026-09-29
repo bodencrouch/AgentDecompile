@@ -92,3 +92,10 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 **Research:** [MSVC transformations §9.1, §6, T6, I7](../../../../research/2026-09-29-msvc-optimization-for-decomp.md#9-ui-implications); [reference UI patterns A1, A2, A4, A6, A7](../../../../research/2026-09-29-reference-re-ui-patterns.md).
 
 **Prior art:** ReClass.NET `ReClass.NET/ReClass.NET/Nodes/PointerNode.cs`, `Nodes/VirtualMethodTableNode.cs`, `Nodes/BaseWrapperArrayNode.cs`, `Nodes/UnionNode.cs`, `AddressParser/Parser.cs` (chain as an expression; inline expansion) · cheat-engine `Cheat Engine/StructuresFrm2.pas` (instances as columns, grouped comparison), `Cheat Engine/pointerscanworker.pas` (offset chains) · ghidra `Ghidra/Features/Base/src/main/help/help/topics/DataTypeEditors/StructureEditor.htm` (component rows, filler visible) · revng `share/doc/revng/user-manual/tutorial/editing-types-in-c.md` (fields pinned at offsets).
+
+## Behavior
+
+- "Offsets are keyed by logical field, never by position." (formerly in the Key tooltip and the `≠ position` chip)
+- "Read-only. Nothing is decompiled or typed from a Peek." (formerly the read-only chip; it no longer carries ◇, which is reserved for gates)
+- "Conflicting uses at one offset. Neither is picked; both stay listed until a witness decides." (formerly the `⇉ none picked` chip, which sat in the ≠ frame)
+- "the class stays hypothesis (heuristic) until source identity is recorded for build-b" (formerly the build-d compile-variance tip)

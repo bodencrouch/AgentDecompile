@@ -51,3 +51,9 @@ Saved task layouts — Read, Compare, Review, Triage, Verify rebuild, Explain bu
 - Held, derived, modified and current are words and frames, not color. Targets are 24px, 44px below 700px and with a coarse pointer (2.5.8).
 
 **Removes switching:** presets claim no journey of their own; they save the arrangement that other units' journeys use. J07 (review a candidate and check both endpoints) is 8 → 0 per decision, credited to U186, plus one Review preset pick per session and one modal confirm per decision. In the ledger, J01 is credited to U175, J04 to U182, J10 to U173, and J34 and J39 to U171. Explain build difference saves the arrangement for J41 (credited to U194) and J55 (U196); Walk pointers for J40 (U195); each adds one preset pick per session and claims nothing else.
+
+## Behavior
+
+- "g then 1…7 in any list, grid or tree. Changes panes only; never the project, the selection or admission." (formerly the "≠ selection" chip in the menu footer)
+- Splitter keys: "Arrows 16px, Shift 64px, Home and End minimum and maximum, Enter collapse and restore. Reset is in each pane header's size menu; the View menu sets the same sizes without dragging." (formerly a pinned tip and key chips under the splitters)
+- Mini map: the panes a layout opens, placed as on screen; a dim tile is collapsed or left as it was.

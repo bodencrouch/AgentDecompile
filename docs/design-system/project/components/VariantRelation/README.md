@@ -75,3 +75,11 @@ How the project's builds relate, pair by pair: what differs in toolchain, flags 
 - The announcement comes on the drill only, debounced: "Filter applied: source variance. 27 of 1,201 entities, build-c and build-d."
 
 **Removes switching:** telling compiler differences from source changes no longer means opening each pair's toolchain headers, diff report and entity list separately. One view gives the classes and their evidence, and a class opens its entities in place.
+
+## Behavior
+
+- The view reads stored toolchain evidence and body comparisons; nothing is compared from here.
+- A class is solid only when source, toolchain and flag identity are recorded for both builds. When only one build has them, every class is a dashed hypothesis (heuristic) with its basis, and no pair can show entropy variance yet.
+- Counts are never averaged across pairs, and a report is never merged across different source revisions.
+- Enter on an entity opens it in Compare with this pair (cmp=build-c..build-d); opening one decides nothing.
+- Scores from different tools are shown side by side and never combined.

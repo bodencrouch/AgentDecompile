@@ -23,3 +23,12 @@ Where one entity lands in one build: the closed locator status set, with observe
 **Accessibility**
 
 - Glyphs are `aria-hidden`; the status word is visible or, in dense cells, in `.sr-only` beside the glyph and in the cell's accessible name ("build-c: pinned, module_rva, non-portable; observed: not run").
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- tried 7: "root unresolved on this build; members tried: 7 · a plain word, never a link"
+- Keys (tip removed; Alt+↓ and Enter are Key rows): "Alt+↓ on any locator opens its ladder run in a Peek. Enter on an ambiguous or contested cell opens its candidate menu: each candidate, Compare candidates (two held panes, in the Compare workspace only) and Open ladder run. Opening one does not accept it."
+- ≠ accept (chip removed): "Opening one does not accept it."
+- Keycap Key rows (removed; keycaps are not drawn encodings): "Alt+↓ · ladder run"; "Enter · candidates".

@@ -5,8 +5,8 @@
  <header class="ad-g3-head">
   <h3 id="pw-t">Project <span class="sub">· corpus-alpha</span> <span class="ad-chip gpr">.gpr local</span> <span class="sub">· 4 builds · 6 files</span></h3>
   <div class="ad-tools" role="group" aria-label="View status" style="gap:8px">
-   <span class="adv-tip"><button type="button" class="adv-w" style="background:transparent" aria-describedby="pw-scope"><b aria-hidden="true">▣</b>stored</button><span role="tooltip" id="pw-scope">Active project · stored inventory only · opening this never opens a program, switches project or analyzes</span></span>
-   <span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="pw-key">?</button><span role="tooltip" id="pw-key">✎ transactions not saved. ● writer holds it. ○ free. ⚑ another project. = alias, same SHA-256. Target map: the builds a save writes are framed; left-out builds are struck, with the reason as their tip. ≠ chip: a claim boundary.</span></span>
+   <span class="adv-tip"><button type="button" class="adv-w" style="background:transparent" aria-describedby="pw-scope"><b aria-hidden="true">▣</b>stored</button><span role="tooltip" id="pw-scope"><b>Stored inventory</b> · corpus-alpha</span></span>
+   <button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="pw-key">?</button><dl class="adv-key" id="pw-key" hidden><dt>✎</dt><dd>Not saved</dd><dt>●</dt><dd>Writer</dd><dt>○</dt><dd>Free</dd><dt>⚑</dt><dd>Other project</dd><dt>=</dt><dd>Alias</dd><dt><span style="display:inline-block;width:24px;height:14px;border:2px solid var(--ink-strong)"></span></dt><dd>Written build</dd><dt><s>—</s></dt><dd>Untouched</dd><dt><span class="adv-w">▣</span></dt><dd>Stored inventory</dd><dt>↶</dt><dd>Undoable</dd><dt>≠</dt><dd>Claim boundary</dd><dt><kbd class="ad-kbd">Alt+↓</kbd></dt><dd>Peek</dd><dt><kbd class="ad-kbd">Enter</kbd></dt><dd>Go</dd><dt><kbd class="ad-kbd">Alt+F1</kbd></dt><dd>Help</dd></dl>
   </div>
   <div class="ad-tabs" role="tablist" aria-label="Project views">
    <button class="ad-tab" role="tab" aria-selected="true" aria-controls="pw-p1" id="pw-tab1">Program files</button>
@@ -64,7 +64,7 @@
    <button class="ad-btn" type="button" aria-haspopup="dialog">Save As…</button>
    <button class="ad-btn" type="button" aria-haspopup="dialog">Save All…</button>
   </div>
-  <div class="row" style="gap:8px"><span class="sr-only" id="pw-sv">Save writes transactions to the project file and never clears the undo stack. Check-in sends a version to the server and clears it. Ctrl/Cmd+S outside an editor arms this Save; Enter posts.</span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pw-sv2"><b aria-hidden="true">≠</b>clears undo</button><span role="tooltip" id="pw-sv2">Save writes transactions to the project file and never clears the undo stack. Check-in sends a version to the server and clears it (<a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;panel=versions" aria-label="Version control, build-a">Version control</a>).</span></span><ul class="adv-chips" aria-label="Save and check-in"><li><span>Save</span>undo =</li><li><span>Check-in</span>undo ✕</li><li><span class="ad-kbd">Ctrl/Cmd+S</span>arms</li><li><span class="ad-kbd">Enter</span>posts</li></ul></div>
+  <div class="row" style="gap:8px"><span class="sr-only" id="pw-sv">Save writes transactions to the project file and never clears the undo stack. Check-in sends a version to the server and clears it. Ctrl/Cmd+S outside an editor arms this Save; Enter posts.</span><ul class="adv-chips" aria-label="Save and check-in"><li><span>Save</span>undo =</li><li><span>Check-in</span>undo ✕</li><li><span class="ad-kbd">Ctrl/Cmd+S</span>arms</li><li><span class="ad-kbd">Enter</span>posts</li></ul></div>
  </div>
 
  <div class="ad-g3-sec">
@@ -91,7 +91,7 @@
     </table>
     </div>
    </div>
-   <footer><span class="adv-chips" aria-hidden="true" style="margin-right:auto"><span class="adv-w"><b>↶</b>undo stays</span><span class="adv-bnd"><b>≠</b>check-in</span></span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Save 2 builds</button></footer>
+   <footer><span class="adv-chips" style="margin-right:auto"><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="pw-un"><b aria-hidden="true">↶</b>undoable</button><span role="tooltip" id="pw-un"><b>Undoable</b> · build-a · build-d<br><span class="mono">3</span> transactions stay on the undo stack</span></span></span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Save 2 builds</button></footer>
   </div>
  </div>
 </section>
@@ -132,8 +132,9 @@
     <button class="ad-btn primary" type="button" aria-haspopup="dialog">Archive corpus-alpha…</button>
     <button class="ad-btn" type="button" aria-haspopup="dialog">Restore into a new project…</button>
    </div>
-   <p class="small muted" style="display:grid;gap:8px;justify-items:start;margin:0"><span>Last archive: <a class="ad-link mono" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=corpus-alpha-2026-09-28" aria-label="Artifact corpus-alpha-2026-09-28, project archive">corpus-alpha-2026-09-28.gar</a> · d07a · 8e41</span><span class="row" style="gap:8px"><span class="adv-tip is-open"><button type="button" class="adv-bnd" aria-describedby="pw-rs"><b aria-hidden="true">≠</b>replace</button><span role="tooltip" id="pw-rs">Restore never replaces a project; the restored project's receipts read historical.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pw-dl"><b aria-hidden="true">≠</b>delivered</button><span role="tooltip" id="pw-dl">job d07a · digest 8e41 · delivered means only that a bounded receipt exists.</span></span></span></p>
+   <p class="small muted" style="display:grid;gap:8px;justify-items:start;margin:0"><span>Last archive: <a class="ad-link mono" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=corpus-alpha-2026-09-28" aria-label="Artifact corpus-alpha-2026-09-28, project archive">corpus-alpha-2026-09-28.gar</a> · d07a · 8e41</span><span class="row" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pw-dl"><b aria-hidden="true">≠</b>delivered</button><span role="tooltip" id="pw-dl"><b>Claim boundary</b> · job d07a · digest 8e41<br>Delivered means only that a bounded receipt exists.</span></span></span></p>
   </section>
  </div>
 </div>
+<div><span class="kicker">Tip pinned</span><div><span class="adv-tip is-open"><button type="button" class="adv-bnd" aria-expanded="true" aria-describedby="pw-dl2"><b aria-hidden="true">≠</b>delivered</button><span role="tooltip" id="pw-dl2"><b>Claim boundary</b> · job d07a · digest 8e41<br>Delivered means only that a bounded receipt exists.</span></span></div><div style="height:48px" aria-hidden="true"></div></div>
 </div>

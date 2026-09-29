@@ -101,3 +101,9 @@ One build's program trees (named organizations of folders and fragments over its
 
 - Ghidra help `ProgramTreePlugin/program_tree.htm` (multiple parents, the delete rule, merge with parent, move code units), `view_manager.htm` (tree views, restricting the Listing view, select fragments at the location) and `Program_Organizations.htm` (subroutine, dominance and complexity-depth modularization; partial results on cancel).
 - Existing components: ContainerTree (APG tree house style), OverviewBar and SearchWorkbench (consumers of the view restriction), MemoryMapTable (the blocks behind the default tree).
+
+## Behavior
+
+- ⧉ shared: a fragment with several parents; edits apply everywhere it appears.
+- Keys (formerly visible footer chips): v restrict view · Shift+v add to view · s make address selection · F2 rename.
+- Organize: cancelling keeps the folders already created; undo is one transaction on build-b, if the catalog offers it.

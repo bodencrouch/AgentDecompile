@@ -34,3 +34,9 @@ A genuine editor for custom parameter and return storage: ordered register and s
 - The editor is a non-modal `role="dialog"` named "Edit storage · parameter 2"; the invoking token carries `aria-expanded` and `aria-controls`.
 
 **Removes switching:** J12 edit a signature, calling convention or custom storage and verify the dependent views, 5 → 1, plus one per caller verified (Enter decompiles it), from the plan ledger (U185).
+
+## Behavior
+
+- "↵ 1×: Enter or Save posts once, confirmed here." (formerly the `↵ 1×` chip in the review)
+- "Nothing is corrected automatically." (formerly the `≠ auto-fix` chip on Posted ≠ draft)
+- "⊸ bound: the target was bound when the editor opened."

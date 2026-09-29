@@ -77,3 +77,10 @@ Ghidra's Version Tracking offers Create Manual Match, Create And Accept Manual M
 - **Keyboard.** `review.manualMatch` (no default key) opens the form. Tab moves source, destination, relation, reason, Cancel, Propose. The function pickers are APG comboboxes with a listbox; typeahead filters by name or address.
 - **Accessibility.** The form is a `section` named "New manual match". The existing-edge line is a polite status message when it appears. The ConfirmDialog is an `alertdialog`. The new row is announced once, after the terminal result: "Manual match 18426 proposed, candidate, job b7e2."
 - **One writer.** The write is to the identity database, not to a program, so program locks do not block it; a refused basis follows BasisDelta as for every decision.
+
+## Behavior
+
+- A decision carries its basis; "The outcome lands on this row after the terminal result; 202 shows as pending. Nothing is shown before that."
+- Candidate alignment keys (formerly visible "F7 anchors · o held pair" chips): F7 steps the anchors and highlights; o re-points the Review held pair.
+- Refused batch: "Kept: the page cursor, the scroll on match 18425 and focus on Decide. Unchanged rows keep their check."
+- Manual match: "A manual match is a candidate. Accept it later from its row"; "nothing is applied to either program." (formerly the "≠ applied" chip)

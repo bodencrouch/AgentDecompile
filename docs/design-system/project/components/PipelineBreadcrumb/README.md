@@ -42,3 +42,12 @@ Where one entity stands on one concrete build: one crumb per stage 1–8, each s
 - Each crumb reflows to one column at 320px.
 
 **Removes switching:** opening the Recovery workspace, the Corpus workspace or the Jobs dock only to learn where one entity stands on one build. It supports J03 and J04, which the ledger credits to U180 and U182.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- 0 writes only (chip removed): "Stage 0 gates writes only; see the workflow control."
+- Key (moved text): "Each crumb is one node link, filtered to this entity and build; the primary selection does not move. Alt+↓ peeks the receipt that decides the stage."
+- Visible "Selection waits here" is shortened to "selection here"; the crumb's accessible name keeps "Selection waits here".
+- Keycap Key rows (removed; keycaps are not drawn encodings): "Alt+↓ · peek receipt".

@@ -99,3 +99,11 @@ Ghidra's Debug Function Decompilation performs a full decompile of the current f
 - **States.** Armed · pending (202) · running · finished with artifact · failed with its FailureRecord ("decompiler exited with an error · log line 211", linking `f=log.line:211`) · cancelled · already captured with this basis.
 - **Keyboard.** `code.debugDecompile` (code scope, no default key) arms the strip; Run posts. The palette has "Capture decompiler debug XML".
 - **Accessibility.** The menu item's description says "Runs a job that decompiles this function on build-a and saves the debug XML as an artifact. This view does not change." The terminal message is announced once in the polite region.
+
+## Behavior
+
+- Follows: the pane follows as the cursor moves ("Follows · as I move"); a following pane reads the decompile cache only.
+- Trace data flow… arms the ActionStrip bound to the target on its build; nothing runs (formerly the "≠ runs" menu note).
+- Rename… on a callee opens the editor bound to that function; F2 is for locals, parameters and labels (formerly "editor · F2 ≠ function").
+- Not decompiled (formerly the "≠ reanalyze" chip): "Following reads the decompile cache only. Enter here, or Go on Log::Warn, decompiles it from existing analysis without reanalyzing. Peek and hover never decompile."
+- Debug XML capture: "The decompile in this pane is unchanged."

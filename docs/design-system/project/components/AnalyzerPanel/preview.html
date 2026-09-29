@@ -3,10 +3,27 @@
 <span class="kicker">All builds<span class="sr-only"> · configuration read from each program · nothing runs on open · every change and run is an admitted catalog job</span></span>
 <section class="ad-g3" aria-labelledby="anz-t">
  <header class="ad-g3-head">
-  <h3 id="anz-t">Analysis <span class="sub">· corpus-alpha · 4 builds</span> <span class="adv-tip"><button type="button" class="adv-q" aria-label="Key" aria-describedby="anz-key">?</button><span role="tooltip" id="anz-key">● analyzed or writer owned · — running · ○ never analyzed or off · ✓ on · ⊘ not applicable or not on this server · ? unknown · ± differs across builds · dashed cell: your unposted draft · ◇ read from stored options · framed tile: the build a run writes · ≠ a claim boundary. Nothing runs on open; every change and run is an admitted catalog job.</span></span></h3>
+  <h3 id="anz-t">Analysis <span class="sub">· corpus-alpha · 4 builds</span> <button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="anz-key">?</button></h3>
+  <dl class="adv-key" id="anz-key" hidden>
+   <dt>●</dt><dd>Analyzed or owned</dd>
+   <dt>—</dt><dd>Running</dd>
+   <dt>○</dt><dd>Never analyzed, off</dd>
+   <dt>✓</dt><dd>On</dd>
+   <dt>⊘</dt><dd>Not applicable</dd>
+   <dt>?</dt><dd>Unknown</dd>
+   <dt>±</dt><dd>Differs</dd>
+   <dt><span class="ad-draft">&nbsp;&nbsp;&nbsp;</span></dt><dd>Unposted draft</dd>
+   <dt><span class="adv-w">&nbsp;</span></dt><dd>Stored options</dd>
+   <dt><span class="ad-stamp"><b>reused</b></span></dt><dd>Reused receipt</dd>
+   <dt><ul class="adv-tmap"><li class="w"><b>⚙</b></li></ul></dt><dd>Build written</dd>
+   <dt><ul class="adv-tmap"><li class="x"><b>—</b></li></ul></dt><dd>Untouched build</dd>
+   <dt>≠</dt><dd>Claim boundary</dd>
+   <dt><kbd class="ad-kbd">Alt+↓</kbd></dt><dd>Peek</dd>
+   <dt><kbd class="ad-kbd">Alt+F1</kbd></dt><dd>Help</dd>
+  </dl>
   <div class="ad-tools" role="group" aria-label="Analysis scope">
    <span><span class="lbl" id="anz-l-sc">Scope</span><span class="ad-seg" role="group" aria-labelledby="anz-l-sc"><button aria-pressed="false">build-a</button><button aria-pressed="true">All builds</button></span></span>
-   <span><span class="lbl" id="anz-l-sh">Show</span><span class="ad-seg" role="group" aria-labelledby="anz-l-sh"><button aria-pressed="false">All analyzers</button><button aria-pressed="true" aria-describedby="anz-dn">Differs <span class="sr-only">or </span>not default <span class="n">4</span></button></span></span>
+   <span><span class="lbl" id="anz-l-sh">Show</span><span class="ad-seg" role="group" aria-labelledby="anz-l-sh"><button aria-pressed="false">All analyzers</button><button aria-pressed="true" aria-describedby="anz-dn">Differs<span class="sr-only"> or not default</span> <span class="n">4</span></button></span></span>
    <span class="sr-only" id="anz-dn">Shows analyzers whose enablement or options differ between builds, or differ from the standard defaults.</span>
   </div>
  </header>
@@ -23,7 +40,7 @@
 
  <div class="ad-g3-sec">
   <h4>Analyzers <span class="n">· 4 of 41 shown</span></h4>
-  <p style="margin:0"><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="anz-src"><b aria-hidden="true">◇</b>stored options · 14:02</span><span role="tooltip" id="anz-src">Read from each program's stored analysis options at 14:02. Values that differ from the standard defaults say "not default"; rows whose builds disagree say "differs across builds".</span></span></p>
+  <p style="margin:0"><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="anz-src">stored options · 14:02</button><span role="tooltip" id="anz-src"><b>Stored options</b> · 4 builds<br>each program's analysis options · read <span class="mono">14:02</span></span></span></p>
   <div class="ad-scroll" style="position:relative" role="region" aria-label="Analyzers grid, scrolls sideways">
   <table class="ad-table ad-g3-grid" role="grid" aria-label="Analyzer enablement per build" aria-rowcount="42" aria-colcount="6">
    <thead><tr><th scope="col">Analyzer</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th><th scope="col">Across builds</th></tr></thead>
@@ -34,7 +51,7 @@
      <td class="b" role="gridcell"><span class="ad-g3-st on"><b aria-hidden="true">✓</b>on</span></td>
      <td class="b" role="gridcell"><span class="ad-g3-st off col"><b aria-hidden="true">○</b>off<span class="m">not default</span></span></td>
      <td class="b" role="gridcell"><span class="ad-g3-st na col"><b aria-hidden="true">⊘</b>not applicable<span class="m"><span aria-hidden="true">x86-64 ≠ x86-32</span><span class="sr-only">build-d's language is x86-64 (record); this analyzer applies to x86-32 only</span></span></span></td>
-     <td role="gridcell"><span class="ad-g3-st diff"><b aria-hidden="true">±</b>differs across builds</span></td>
+     <td role="gridcell"><span class="ad-g3-st diff"><b aria-hidden="true">±</b>differs<span class="sr-only"> across builds</span></span></td>
     </tr>
     <tr tabindex="-1">
      <th scope="row"><span class="nm">Aggressive Instruction Finder <span class="ad-anz-proto">prototype</span></span><span class="d sr-only">Disassembles undefined bytes that look like code. Its results are analysis-tier candidates.</span><button class="ad-btn compact" type="button" aria-expanded="false" tabindex="-1">Options · 2</button></th>
@@ -42,7 +59,7 @@
      <td class="b" role="gridcell"><span class="ad-g3-st off"><b aria-hidden="true">○</b>off</span></td>
      <td class="b" role="gridcell"><span class="ad-g3-st on col"><b aria-hidden="true">✓</b>on<span class="m">not default</span></span></td>
      <td class="b" role="gridcell"><span class="ad-g3-st off"><b aria-hidden="true">○</b>off</span></td>
-     <td role="gridcell"><span class="ad-g3-st diff"><b aria-hidden="true">±</b>differs across builds</span></td>
+     <td role="gridcell"><span class="ad-g3-st diff"><b aria-hidden="true">±</b>differs<span class="sr-only"> across builds</span></span></td>
     </tr>
     <tr tabindex="-1">
      <th scope="row"><span class="nm">Decompiler Parameter ID</span><span class="d sr-only">Uses the decompiler to recover parameters. Changes signatures, so it is off by default.</span><button class="ad-btn compact" type="button" aria-expanded="false" tabindex="-1">Options · 4</button></th>
@@ -50,7 +67,7 @@
      <td class="b" role="gridcell"><span class="ad-g3-st on col"><b aria-hidden="true">✓</b>on<span class="m">not default</span></span></td>
      <td class="b" role="gridcell"><span class="ad-g3-st on col"><b aria-hidden="true">✓</b>on<span class="m">not default</span></span></td>
      <td class="b" role="gridcell"><span class="ad-g3-st unk col"><b aria-hidden="true">?</b>unknown<span class="m"><span aria-hidden="true">not stored</span><span class="sr-only">not stored in build-d's options; never analyzed, so no value was recorded</span></span></span></td>
-     <td role="gridcell"><span class="ad-g3-st unk"><b aria-hidden="true">?</b>unknown for build-d</span></td>
+     <td role="gridcell"><span class="ad-g3-st unk"><b aria-hidden="true">?</b>unknown<span class="sr-only"> for build-d</span></span></td>
     </tr>
     <tr tabindex="-1">
      <th scope="row"><span class="nm">Stack</span><span class="d sr-only">Creates stack variables from stack references.</span><button class="ad-btn compact" type="button" aria-expanded="false" tabindex="-1">Options · 2</button></th>
@@ -58,7 +75,7 @@
      <td class="b" role="gridcell"><span class="ad-g3-st on"><b aria-hidden="true">✓</b>on</span></td>
      <td class="b" role="gridcell"><span class="ad-g3-st on"><b aria-hidden="true">✓</b>on</span></td>
      <td class="b" role="gridcell"><span class="ad-draft"><span class="ad-g3-st on"><b aria-hidden="true">✓</b>on (was off)</span></span></td>
-     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs across builds<span class="m"><span aria-hidden="true">draft → same</span><span class="sr-only">stored: off on build-d; the unposted draft would make it the same</span></span></span></td>
+     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs<span class="sr-only"> across builds</span><span class="m"><span aria-hidden="true">draft → same</span><span class="sr-only">stored: off on build-d; the unposted draft would make it the same</span></span></span></td>
     </tr>
    </tbody>
   </table>
@@ -79,13 +96,13 @@
    <button class="ad-btn" type="button" aria-describedby="anz-prop-d">Propose<span class="sr-only"> build-a's options to</span> → build-b, build-c…</button>
    <span class="sr-only" id="anz-prop-d">Opens a per-build preview and a ConfirmDialog. build-d is excluded because its compiler spec differs.</span>
   </div>
-  <div class="row" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="anz-n1"><b aria-hidden="true">✎</b>draft · build-d</button><span role="tooltip" id="anz-n1">The Stack draft on build-d is yours and is not posted; the grid counts stored values only.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="anz-n2"><b aria-hidden="true">≠</b>runs</button><span role="tooltip" id="anz-n2">Options change only through the catalog; a draft never runs analysis.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="anz-n3"><b aria-hidden="true">≠</b>merged</button><span role="tooltip" id="anz-n3">Multi-user merge does not merge analysis options, so a check-in can replace them: VersionControlPanel says so before check-in.</span></span></div>
+  <div class="row" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="anz-n1"><b aria-hidden="true">✎</b>draft · build-d</button><span role="tooltip" id="anz-n1"><b>Unposted draft</b> · build-d<br>Stack · on, stored off · not posted</span></span></div>
  </div>
 
  <div class="ad-g3-sec">
   <h4>Run</h4>
   <div class="ad-strip" role="toolbar" aria-label="Armed action: Analyze build-d"><div class="what"><span class="strong">Analyze build-d</span><span class="sr-only">build-d has no receipt, so nothing is reused. The job reads build-d's stored options; the unposted Stack draft is not included. Run admits it under the one-writer rule; build-d's writer is free.</span><span class="row" aria-hidden="true" style="gap:8px;margin-top:4px"><ul class="adv-tmap"><li class="x"><b>—</b>build-a</li><li class="x"><b>—</b>build-b</li><li class="x"><b>—</b>build-c</li><li class="w"><b>⚙</b>build-d<span></span><span class="mono">stored options</span></li></ul><span class="adv-kv"><span><i>reused</i>0</span><span><i>draft</i>excluded</span><span><i>writer</i>○ free</span></span></span></div><button class="ad-btn">Fields…</button><button class="ad-btn primary">Run</button><button class="ad-btn quiet" aria-label="Disarm action strip" aria-keyshortcuts="Escape">✕</button></div>
-  <div class="ad-strip" role="toolbar" aria-label="Armed action: One-shot Aggressive Instruction Finder on a selection"><div class="what"><span class="strong">One-shot · Aggressive Instruction Finder</span><span class="row small" style="gap:8px"><span class="sr-only">Bound to the address selection 0041c880–0041c97f · 256 bytes · build-a · frozen when armed.</span><span><a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" aria-label="Address selection start 0041c880, build-a" translate="no">0041c880</a>–<span class="mono">0041c97f</span></span><span class="adv-kv" aria-hidden="true"><span>256 B</span><span>build-a</span><span><i>armed</i>frozen</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="anz-out"><b aria-hidden="true">≠</b>contained</button><span role="tooltip" id="anz-out">Analysis can change code outside the selection.</span></span></span></div><button class="ad-btn primary">Run</button><button class="ad-btn quiet" aria-label="Disarm action strip" aria-keyshortcuts="Escape">✕</button></div>
+  <div class="ad-strip" role="toolbar" aria-label="Armed action: One-shot Aggressive Instruction Finder on a selection"><div class="what"><span class="strong">One-shot · Aggressive Instruction Finder</span><span class="row small" style="gap:8px"><span class="sr-only">Bound to the address selection 0041c880–0041c97f · 256 bytes · build-a · frozen when armed.</span><span><a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" aria-label="Address selection start 0041c880, build-a" translate="no">0041c880</a>–<span class="mono">0041c97f</span></span><span class="adv-kv" aria-hidden="true"><span>256 B</span><span>build-a</span><span><i>armed</i>frozen</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="anz-out"><b aria-hidden="true">≠</b>contained</button><span role="tooltip" id="anz-out"><b>Claim boundary</b> · build-a, 256 B<br>Analysis can change code outside the selection.</span></span></span></div><button class="ad-btn primary">Run</button><button class="ad-btn quiet" aria-label="Disarm action strip" aria-keyshortcuts="Escape">✕</button></div>
  </div>
 
  <div class="ad-g3-sec">
@@ -94,26 +111,29 @@
 <span class="j">a3f9 14:06:12</span> Demangler Microsoft · skipped (off on build-c)
 <span class="j">a3f9 14:06:19</span> Function Start Search · created function at <a class="ad-link" href="?project=corpus-alpha&amp;build=build-c&amp;addr=00083a10" aria-label="Address 00083a10, build-c" translate="no">00083a10</a>
 <span class="j">a3f9 14:06:20</span> Progress unknown · last event 14:06:20</pre></div>
-  <div class="row" style="gap:8px"><span class="sr-only">The dock holds the full record:</span><ul class="adv-chips"><li><span>logs</span><a class="ad-link" href="?project=corpus-alpha&amp;dock=logs&amp;job=a3f9" aria-label="Logs for job a3f9, analyze build-c, running">a3f9</a></li><li><span>job</span><a class="ad-link" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, analyze build-c, running">a3f9 · running</a></li></ul><span class="adv-tip is-open"><button type="button" class="adv-bnd" aria-describedby="anz-rec"><b aria-hidden="true">≠</b>recovery</button><span role="tooltip" id="anz-rec">A finished analysis job is not recovery.</span></span></div>
+  <div class="row" style="gap:8px"><span class="sr-only">The dock holds the full record:</span><ul class="adv-chips"><li><span>logs</span><a class="ad-link" href="?project=corpus-alpha&amp;dock=logs&amp;job=a3f9" aria-label="Logs for job a3f9, analyze build-c, running">a3f9</a></li><li><span>job</span><a class="ad-link" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, analyze build-c, running">a3f9 · running</a></li></ul><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="anz-rec"><b aria-hidden="true">≠</b>recovery</button><span role="tooltip" id="anz-rec"><b>Claim boundary</b> · job a3f9<br>A finished analysis job is not recovery.</span></span></div>
  </div>
 </section>
 
-<div class="adc-states" style="margin-top:28px">
+<div class="adc-states">
  <div>
   <span class="kicker">Never analyzed<span class="sr-only"> · the empty view is not permission to analyze</span></span>
-  <div class="adv-empty"><span class="adv-tip"><b tabindex="0" role="img" aria-label="build-d has no analysis" aria-describedby="anz-e1">○</b><span role="tooltip" id="anz-e1">build-d has no analysis. No receipt and no analysis job for build-d. Opening it did not start analysis. Analyze build-d… prepares it; Run admits it under the one-writer rule.</span></span><button class="ad-btn primary" type="button" aria-describedby="anz-e1">Analyze build-d…</button></div>
+  <ul class="ad-anz-state adv-ghost" aria-hidden="true"><li><span class="b">build-d</span><span class="ad-g3-st na">—</span></li></ul>
+  <div class="adv-empty"><span class="adv-tip"><button type="button" class="adv-q" aria-label="Never analyzed, build-d" aria-describedby="anz-e1">○</button><span role="tooltip" id="anz-e1"><span aria-hidden="true">○</span> <b>Never analyzed</b> · build-d<br><span class="mono">0</span> receipts · <span class="mono">0</span> analysis jobs</span></span><span aria-hidden="true">never analyzed</span><button class="ad-btn primary" type="button">Analyze build-d…</button></div>
  </div>
  <div>
   <span class="kicker">Valid receipt<span class="sr-only"> · reanalysis needs Force and confirms</span></span>
-  <div class="adv-empty"><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="anz-e2"><b aria-hidden="true">●</b>5c1e · build-a</span><span role="tooltip" id="anz-e2">Receipt 5c1e is valid for build-a. The stored analysis matches basis 9f3c and is reused.</span></span><span class="adv-kv" aria-label="Reanalyzing needs the catalog's force field and a ConfirmDialog that names build-a and what it rewrites."><span><i>reanalyze</i>force + confirm</span></span></div>
+  <div class="adv-empty"><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="anz-e2">5c1e · build-a</button><span role="tooltip" id="anz-e2"><b>Reused receipt</b> · build-a<br>5c1e · valid for basis 9f3c</span></span><span class="adv-kv" aria-label="Reanalyzing needs the catalog's force field and a ConfirmDialog that names build-a and what it rewrites."><span><i>reanalyze</i>force + confirm</span></span></div>
  </div>
  <div>
   <span class="kicker">Writer owned<span class="sr-only"> · run waits, never a second writer</span></span>
-  <div class="adv-empty"><span class="adv-tip"><b tabindex="0" role="img" aria-label="Waiting: build-b has a writer" aria-describedby="anz-e3">●</b><span role="tooltip" id="anz-e3">Waiting: build-b has a writer. Job 77c0 (external, pid 48211, started 13:02) owns build-b. Run stays disabled; nothing is killed or restarted to make room.</span></span><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="anz-e3"><span class="adv-na"><b aria-hidden="true">●</b>Run</span></button><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=77c0" aria-label="Job 77c0, external owner of build-b">77c0</a></div>
+  <div class="adv-empty"><span class="adv-tip"><button type="button" class="adv-q" aria-label="Writer owned, build-b, job 77c0" aria-describedby="anz-e3">●</button><span role="tooltip" id="anz-e3"><span aria-hidden="true">●</span> <b>Writer owned</b> · build-b<br>job 77c0 · external · pid 48211 · started 13:02</span></span><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="anz-e3"><span class="adv-na"><b aria-hidden="true">●</b>Run</span></button><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=77c0" aria-label="Job 77c0, external owner of build-b">77c0</a></div>
  </div>
  <div>
-  <span class="kicker">No catalog action<span class="sr-only"> · configuration is read-only</span></span>
-  <div class="adv-empty"><span class="adv-tip end"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="anz-e4"><span class="adv-na"><b aria-hidden="true">⊘</b>Set options…</span></button><span role="tooltip" id="anz-e4">Not available on this server yet. Options still read. GET /api/v1/actions lists no action that sets analyzer options. Set buttons say why they are unavailable. <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span></span></div>
+  <span class="kicker">Not on server<span class="sr-only"> · configuration is read-only</span></span>
+  <div class="adv-empty"><span class="adv-tip end"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="anz-e4"><span class="adv-na"><b aria-hidden="true">⊘</b>Set options…</span></button><span role="tooltip" id="anz-e4"><span aria-hidden="true">⊘</span> <b>Not applicable</b> · Set options…<br>no catalog action sets analyzer options<br><kbd class="ad-kbd">Alt+↓</kbd> Peek</span></span><button class="ad-btn compact" type="button" aria-haspopup="dialog" aria-keyshortcuts="Alt+ArrowDown">Peek offers</button></div>
  </div>
 </div>
+<span class="kicker">Tip pinned</span>
+<div class="row" style="padding-bottom:56px"><span class="adv-tip is-open"><button type="button" class="adv-bnd" aria-expanded="true" aria-describedby="anz-rec2"><b aria-hidden="true">≠</b>recovery</button><span role="tooltip" id="anz-rec2"><b>Claim boundary</b> · job a3f9<br>A finished analysis job is not recovery.</span></span></div>
 </div>

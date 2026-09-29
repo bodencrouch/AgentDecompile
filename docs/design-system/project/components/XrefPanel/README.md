@@ -62,3 +62,14 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 - **Instructions from and data from (S07).** Beside incoming and outgoing references, the Outgoing direction splits into "instructions from" and "data from", as Ghidra's Symbol References panel does.
 - **Delete reference (L30, S07).** A reference row's link menu has **Delete reference…** (a catalog action). It arms the ActionStrip with that one reference on that build (from, to, kind, operand) and confirms through ConfirmDialog because it is destructive; a checked set of references is one batch dialog with the count. It needs the build's writer, may return a modification conflict, and is never propagated to counterparts. Until the catalog offers it, the item is `aria-disabled` with "Not available on this server yet. References still read. · What this server offers".
 - In All builds mode, deletion stays per build: the per-build columns never offer a cross-build delete. The preview is unchanged; the additions are a chip, a direction split and a link-menu item.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- Key (moved text): "≠: what never happens. Keys: Enter go · Shift+Enter open beside · Alt+↓ peek · Shift+F10 link menu · ] [ step."
+- ○ not loaded: "Not loaded. Open build-c to read its references."
+- ≠ hover (chip removed): "Nothing is fetched on hover or when this panel follows the selection."
+- ◌ tried 7: "unresolved on build-d · nothing to list. Root unresolved on this build; members tried: 7."
+- +1 stop: "The first step pushed one stop; later steps replace it, so one Alt+← returns to the origin."
+- ≠ wrap, ≠ build (chips removed): "Stops at either end · never wraps · never changes build"

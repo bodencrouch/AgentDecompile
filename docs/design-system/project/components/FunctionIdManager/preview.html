@@ -1,11 +1,29 @@
-<!-- @dsCard group="Project" height=1540 -->
+<!-- @dsCard group="Project" height=1600 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">All builds</span>
 <section class="ad-g3" aria-labelledby="fid-t" aria-describedby="fid-d">
 <p class="sr-only" id="fid-d">All builds · stored hashes and database metadata only · nothing is hashed or matched on open · FID names are candidates</p>
  <header class="ad-g3-head">
   <h3 id="fid-t">Function ID <span class="sub">· corpus-alpha</span></h3>
-  <div class="ad-tools" role="group" aria-label="View status" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="fid-n1"><b aria-hidden="true">H</b>candidate</button><span role="tooltip" id="fid-n1">A Function ID name is a candidate from a hash match.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="fid-n2"><b aria-hidden="true">≠</b>identity</button><span role="tooltip" id="fid-n2">Equal hashes are not a byte match and not an identity edge.</span></span><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="fid-rd"><b aria-hidden="true">▤</b><span class="mono">14:02</span></button><span role="tooltip" id="fid-rd">Stored hashes, read 14:02. Hashes compare only between builds with the same language.</span></span><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="fid-key">?</button><span role="tooltip" id="fid-key">≡ same full hash · ± differs · ◷ stale · ◌ unresolved · ⊘ not comparable (another language). Dashed chip: hypothesis. Solid chip: witness. Framed tile: the one database written; struck tiles are only read. ≠: a claim boundary.</span></span></div>
+  <div class="ad-tools" role="group" aria-label="View status" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="fid-n1">candidate</button><span role="tooltip" id="fid-n1"><b>Hypothesis</b> · corpus-alpha<br>Function ID name · candidate from a hash match</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="fid-n2"><b aria-hidden="true">≠</b>identity</button><span role="tooltip" id="fid-n2"><b>Claim boundary</b> · corpus-alpha<br>Equal hashes are not a byte match and not an identity edge.</span></span><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="fid-rd"><b aria-hidden="true">▤</b><span class="mono">14:02</span></button><span role="tooltip" id="fid-rd"><span aria-hidden="true">▤</span> <b>Stored hashes</b> · 4 builds<br>read <span class="mono">14:02</span></span></span><button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="fid-key">?</button></div>
+  <dl class="adv-key" id="fid-key" hidden>
+   <dt>≡</dt><dd>Same full hash</dd>
+   <dt>±</dt><dd>Differs</dd>
+   <dt>◷</dt><dd>Stale</dd>
+   <dt>◌</dt><dd>Unresolved</dd>
+   <dt><span class="adv-nc"><i></i></span></dt><dd>Not comparable</dd>
+   <dt><span class="adv-h"><b>≈</b></span></dt><dd>Compile variance</dd>
+   <dt><span class="adv-h">&nbsp;</span></dt><dd>Hypothesis</dd>
+   <dt><span class="adv-w">&nbsp;</span></dt><dd>Witness</dd>
+   <dt>▤</dt><dd>Stored hashes</dd>
+   <dt><ul class="adv-tmap"><li class="w"><b>✎</b></li></ul></dt><dd>Database written</dd>
+   <dt><ul class="adv-tmap"><li class="x"><b>⇠</b></li></ul></dt><dd>Read only</dd>
+   <dt>⊘</dt><dd>Excluded</dd>
+   <dt>○</dt><dd>Not hashed</dd>
+   <dt>≠</dt><dd>Claim boundary</dd>
+   <dt><kbd class="ad-kbd">Alt+↓</kbd></dt><dd>Peek</dd>
+   <dt><kbd class="ad-kbd">Alt+F1</kbd></dt><dd>Help</dd>
+  </dl>
   <div class="ad-tabs" role="tablist" aria-label="Function ID views">
    <button class="ad-tab" role="tab" aria-selected="false" tabindex="-1" id="fid-tab1">Databases <span class="n mono">3</span></button>
    <button class="ad-tab" role="tab" aria-selected="true" aria-controls="fid-p2" id="fid-tab2">Hashes</button>
@@ -24,15 +42,15 @@
      <td role="gridcell"><span class="mono small" translate="no">FH 9a41c3e07d52b8e1<br>XH 6e03b17f28c9d4a2</span><br><span class="small muted"><span class="mono">0041b2c0</span> · <span>no match</span></span></td>
      <td role="gridcell"><span class="mono small" translate="no">FH 2d6f90b4e18a7c35<br>XH f1b82c07a64e9d13</span><br><span class="small muted"><span class="mono">00082f40</span> · <span>no match</span></span></td>
      <td role="gridcell"><span class="ad-absent">◌ unresolved</span><br><span class="small muted"><span class="sr-only">no function to hash</span><span aria-hidden="true">∅ hash</span></span></td>
-     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs<span class="sr-only">: no two builds share a full hash</span></span><br><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="fid-cv"><b aria-hidden="true">≈</b>compile</button><span role="tooltip" id="fid-cv">hypothesis (heuristic) · ≈ compile variance: /Oy and LTCG on build-b; VC 7.1 → 8.0 on build-c (Rich header witness); no source identity recorded</span></span></td>
+     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs<span class="sr-only">: no two builds share a full hash</span></span><br><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="fid-cv"><b aria-hidden="true">≈</b>compile</button><span role="tooltip" id="fid-cv"><b>Compile variance</b> · <span translate="no">ResourceRef::Resolve</span><br>/Oy, LTCG on build-b · VC 7.1 → 8.0 on build-c<br>hypothesis · heuristic, Rich header witness; no source identity</span></span></td>
     </tr>
     <tr aria-selected="true" class="is-focus" tabindex="0">
      <th scope="row"><span class="nm" translate="no">FUN_0041c880</span><span class="d"><span class="sr-only">build-a; folded counterpart FUN_0041c940 on build-b</span><span aria-hidden="true">⊕ <span translate="no">FUN_0041c940</span> · b</span></span></th>
      <td role="gridcell"><span class="mono small" translate="no">FH 7c19e05ad3b2f604<br>XH 31a8d6f0c42e7b95</span><br><span class="small"><span class="sr-only">memset · crt 7.1 release · single match</span><span aria-hidden="true"><span class="mono">memset</span> · <span>crt 7.1</span> · <span class="mono">×1</span></span></span></td>
      <td role="gridcell"><span class="mono small" translate="no">FH 7c19e05ad3b2f604<br>XH 31a8d6f0c42e7b95</span><br><span class="small"><span class="sr-only">0041c940 · memset · single match</span><span aria-hidden="true"><span class="mono">0041c940</span> · <span class="mono">memset</span> · <span class="mono">×1</span></span></span></td>
-     <td role="gridcell" class="muted">no counterpart recorded</td>
-     <td role="gridcell" class="muted">no counterpart recorded</td>
-     <td role="gridcell"><span class="ad-g3-st on col"><b aria-hidden="true">≡</b><span class="sr-only">same full hash on build-a and build-b</span><span aria-hidden="true"><span class="mono">a = b</span></span></span> <span class="adv-tip is-open end"><button type="button" class="adv-bnd" aria-describedby="fid-nb"><b aria-hidden="true">≠</b>bytes</button><span role="tooltip" id="fid-nb">not a byte match; constants are masked</span></span></td>
+     <td role="gridcell"><span class="ad-absent">absent</span><span class="sr-only"> · no counterpart recorded</span></td>
+     <td role="gridcell"><span class="ad-absent">absent</span><span class="sr-only"> · no counterpart recorded</span></td>
+     <td role="gridcell"><span class="ad-g3-st on col"><b aria-hidden="true">≡</b><span class="sr-only">same full hash on build-a and build-b</span><span aria-hidden="true"><span class="mono">a = b</span></span></span> <span class="adv-tip end"><button type="button" class="adv-bnd" aria-describedby="fid-nb"><b aria-hidden="true">≠</b>bytes</button><span role="tooltip" id="fid-nb"><b>Claim boundary</b> · build-a, build-b<br>not a byte match; constants are masked</span></span></td>
     </tr>
     <tr tabindex="-1">
      <th scope="row"><span class="nm" translate="no">Actor::LoadFromTemplate</span><span class="d">4127</span></th>
@@ -57,7 +75,7 @@
      <tr><th scope="row">human annotation</th><td class="muted">none</td></tr>
      <tr><th scope="row">debug info</th><td class="muted"><span class="sr-only">none · build-a records no PDB</span><span aria-hidden="true">none · ∅ PDB</span></td></tr>
      <tr><th scope="row">authentic symbols</th><td class="muted">none</td></tr>
-     <tr aria-selected="true"><th scope="row"><span class="nm">analysis · Function ID</span></th><td><span class="mono" translate="no">memset</span> · winner · candidate<br><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="fid-w">witness</button><span role="tooltip" id="fid-w">crt-x86-32.fidbf · crt 7.1 release · FH and XH match · job c4e1</span></span></td></tr>
+     <tr aria-selected="true"><th scope="row"><span class="nm">analysis · Function ID</span></th><td><span class="mono" translate="no">memset</span> · winner · candidate<br><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="fid-w">witness</button><span role="tooltip" id="fid-w"><b>Witness</b> · build-a<br>crt-x86-32.fidbf · crt 7.1 release · FH and XH match · job c4e1</span></span></td></tr>
      <tr><th scope="row">placeholder</th><td><span class="mono" translate="no">FUN_0041c880</span> · rejected</td></tr>
     </tbody>
    </table>
@@ -73,10 +91,9 @@
    <div class="ad-tools" role="group" aria-label="Database actions">
     <button class="ad-btn" type="button">Choose active…</button>
     <button class="ad-btn" type="button" aria-haspopup="dialog">Attach existing…</button>
-    <button class="ad-btn" type="button" aria-haspopup="dialog">Create new empty…</button>
+    <button class="ad-btn" type="button" aria-haspopup="dialog">Create empty…</button>
     <button class="ad-btn" type="button">Search records</button>
    </div>
-   <div class="adv-chips"><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="fid-ch"><b aria-hidden="true">⇉</b>later runs</button><span role="tooltip" id="fid-ch">Choosing active databases affects every later Function ID run on every build; recorded runs retain their receipts.</span></span></div>
   </div>
  </div>
 
@@ -100,7 +117,7 @@
      <label class="ad-g3-choice dis"><input type="checkbox" disabled><span class="nm">build-d</span><span class="d"><span class="sr-only">excluded: language x86:LE:64 does not match x86:LE:32</span><span aria-hidden="true">⊘ x86:LE:64</span></span></label>
     </fieldset>
    </div>
-   <footer><span class="note" style="margin-right:auto"><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="fid-pc"><b aria-hidden="true">H</b>candidate</button><span role="tooltip" id="fid-pc">A populated name is a candidate wherever it later matches.</span></span></span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Populate · 1 job</button></footer>
+   <footer><span class="note" style="margin-right:auto"><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="fid-pc">candidate</button><span role="tooltip" id="fid-pc"><b>Hypothesis</b> · corpus-alpha-libs.fidb<br>a populated name is a candidate wherever it matches</span></span></span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Populate · 1 job</button></footer>
   </div>
  </div>
 </section>
@@ -108,13 +125,16 @@
 <div class="adc-states">
  <div>
   <span class="kicker">Not hashed</span>
-  <div class="adv-empty"><span class="adv-tip"><b tabindex="0" role="img" aria-label="Archive::OpenMember is not hashed on any build" aria-describedby="fid-nh">○</b><span role="tooltip" id="fid-nh">Archive::OpenMember is not hashed on any build. Nothing hashes on open. Hashes are computed only by an admitted job: the Function ID analyzer in Analysis, or a hash-only run.</span></span><span translate="no">Archive::OpenMember</span><span class="mono muted">hash 0/4</span></div>
+  <div class="adv-ghost mono small" aria-hidden="true">FH ················ · XH ················</div>
+  <div class="adv-empty"><span class="adv-tip"><button type="button" class="adv-q" aria-label="Not hashed, Archive::OpenMember, 0 of 4 builds" aria-describedby="fid-nh">○</button><span role="tooltip" id="fid-nh"><span aria-hidden="true">○</span> <b>Not hashed</b> · <span translate="no">Archive::OpenMember</span><br><span class="mono">0 / 4</span> builds hashed</span></span><span aria-hidden="true">not hashed</span><span translate="no">Archive::OpenMember</span><span class="mono muted">hash 0/4</span><button class="ad-btn" type="button">Run hashing…</button></div>
  </div>
  <div>
-  <span class="kicker">No catalog action</span>
+  <span class="kicker">Not on server</span>
   <div class="ad-tools" role="group" aria-label="Populate unavailable">
-   <span class="adv-tip"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="fid-nocat"><span class="adv-na"><b aria-hidden="true">⊘</b>Populate…</span></button><span role="tooltip" id="fid-nocat">Not available on this server yet. Stored hashes still read. <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span></span>
+   <span class="adv-tip"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="fid-nocat"><span class="adv-na"><b aria-hidden="true">⊘</b>Populate…</span></button><span role="tooltip" id="fid-nocat"><span aria-hidden="true">⊘</span> <b>Unavailable</b> · Populate…<br>no catalog action · stored hashes still read<br><kbd class="ad-kbd">Alt+↓</kbd> Peek</span></span><button class="ad-btn compact" type="button" aria-haspopup="dialog" aria-keyshortcuts="Alt+ArrowDown">Peek offers</button>
   </div>
  </div>
 </div>
+<span class="kicker">Tip pinned</span>
+<div class="row" style="padding-bottom:56px"><span class="adv-tip is-open"><button type="button" class="adv-bnd" aria-expanded="true" aria-describedby="fid-nb2"><b aria-hidden="true">≠</b>bytes</button><span role="tooltip" id="fid-nb2"><b>Claim boundary</b> · build-a, build-b<br>not a byte match; constants are masked</span></span></div>
 </div>

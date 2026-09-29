@@ -15,3 +15,10 @@ A concurrent lane from the recovery overview: lane header on the family fill, a 
 
 - In the SVG each lane is a `<g id="lane-A">` in reading order; the text outline is the primary accessible form. The subtitle is plain text with a family-word prefix, never italic-only meaning.
 
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- Key (moved text): "≠ chip: what never flows or never happens."
+- ≠ everything (chip removed): "a build donates a FIELD, never everything"
+- ≠ overwrite (chip removed): "→ never overwrites a stronger field; conflicts stay visible for review"

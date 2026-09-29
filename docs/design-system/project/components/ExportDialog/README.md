@@ -61,3 +61,15 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 **Prior art**
 
 Ghidra Exporter and Export dialog (`ExporterPlugin/exporter.htm`), Decompiler Export to C and graph export. Outputs presentation follows the reference research on typed reports with honest filters (decomp.dev, reccmp) and the OutputsCatalog and ArtifactCard components.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- ≠ analyze (chip removed): "Exporting reads the program as it is; it never analyzes or decompiles a function that has no cached decompile unless you choose so below."
+- ⊘ not available (raw formats): "Not available on this server yet. The formats above still export." What this server offers is a Peek (Alt+↓), never a link inside the tip.
+- ◇ decompiler options: "Decompiler options in the basis: each build's program options, read-only (OptionsPanel). Builds exported with different options are flagged in the artifact's basis."
+- ↺ reused: "an export with this basis and these options exists: artifact from job 6e21, 3 d, reused unless you export again"
+- ◇ basis: "Each ArtifactCard records the build, program version, format, options and decompiler options."
+- ⊘ graph Export: "Not available on this server yet. The graph still reads." ⊘ GDT: "Not available on this server yet. C header export still works."
+- ✓ C header: "C header export with Emit data type definitions covers CacheEntry today."

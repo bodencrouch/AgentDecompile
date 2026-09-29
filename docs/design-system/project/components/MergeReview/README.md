@@ -29,3 +29,10 @@ A file-manager-like review of a project merge, then its outcome per binary, name
 - The category is the row header; each count link's name reads "Names conflicting, 4". Conflict is a word, not only `fact-failed` color. A link naming the other project says in its name that it lands on the project notice.
 
 **Removes switching:** opening each affected build and its names view after a merge to find what conflicted (J31, credited to UX-01; counts in the plan ledger).
+
+## Behavior
+
+- Each count links to its rows; counts are separate, never summed.
+- Nothing is auto-picked (formerly the "≠ auto-pick" chip: "nothing auto-picked · not applied"); a conflict stays not applied until chosen.
+- cache-only: a choice is an edit through InlineRename or the action strip.
+- ↗ local-analysis lands on the project notice with Switch armed; it never opens the project.

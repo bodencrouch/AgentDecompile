@@ -46,3 +46,9 @@ Entity × build readiness: locator status and observed status as separate glyph 
 - J06 from a matrix cell to its ladder evidence and any contested pair: 4 → 1 (U183; Peek reads the ladder at 0, Enter selects in place).
 - J33 why an entity is not runtime-usable on a build and whether other builds are: 4 → 1 (U183).
 - J14 the same vtable slots on other builds: 6 → 2, credited to References in place (U177), whose Slots tab shows these slot rows.
+
+## Behavior
+
+- "Opening a candidate does not accept it." (formerly in the Key tooltip and the `≠ accept` chip under the contested menu)
+- "From the shared readiness projection: locate only; reading and calling are not checked." (formerly the projection tip)
+- "Column head: what a mod can do on that build. Fill and accent bar: the primary selection." (formerly in the Key tooltip)

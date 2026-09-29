@@ -1,4 +1,4 @@
-<!-- @dsCard group="Project" height=1480 -->
+<!-- @dsCard group="Project" height=1560 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">All builds<span class="sr-only"> · stored findings only · validators read the program and change nothing · each run is one admitted job per build</span></span>
 <section class="ad-g3" aria-labelledby="pv-t">
@@ -7,7 +7,21 @@
   <div class="ad-tools" role="group" aria-label="Validation scope">
    <span><span class="lbl" id="pv-l-sc">Scope</span><span class="ad-seg" role="group" aria-labelledby="pv-l-sc"><button type="button" aria-pressed="false">build-c</button><button type="button" aria-pressed="true">All builds</button></span></span>
   </div>
-  <div class="row" role="note" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pv-n1"><b aria-hidden="true">≠</b>writes</button><span role="tooltip" id="pv-n1">Validators read the program and change nothing.</span></span><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="pv-n2"><b aria-hidden="true">1</b>job / build</span><span role="tooltip" id="pv-n2">Running them is one admitted job per build.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pv-n3"><b aria-hidden="true">≠</b>proof</button><span role="tooltip" id="pv-n3">No findings is not proof the analysis is right.</span></span><span class="adv-tip end" style="margin-left:auto"><button type="button" class="adv-q" aria-label="Key" aria-describedby="pv-key">?</button><span role="tooltip" id="pv-key">✓ validated or no findings · △ warning · ✕ error · ◷ stale, with what it was · ● writer owned · ○ not run or free · ⊡ no analysis receipt · ⊘ not on this server · bar: share of one build · framed tile: the build the job reads · ≠ a claim boundary. Each cell is that build’s own result; nothing is summed across builds.</span></span></div>
+  <div class="row" role="note" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pv-n3"><b aria-hidden="true">≠</b>proof</button><span role="tooltip" id="pv-n3"><b>Claim boundary</b> · corpus-alpha<br>No findings is not proof the analysis is right.</span></span><button type="button" class="adv-q" style="margin-left:auto" aria-label="Key" aria-expanded="false" aria-controls="pv-key">?</button></div>
+  <dl class="adv-key" id="pv-key" hidden>
+   <dt>✓</dt><dd>Validated</dd>
+   <dt>△</dt><dd>Warning</dd>
+   <dt>✕</dt><dd>Error</dd>
+   <dt>◷</dt><dd>Stale</dd>
+   <dt>●</dt><dd>Writer owned</dd>
+   <dt>○</dt><dd>Not run</dd>
+   <dt>⊡</dt><dd>No analysis receipt</dd>
+   <dt>⊘</dt><dd>Unavailable</dd>
+   <dt><span class="adv-frac" style="--v:40"><i></i></span></dt><dd>Share of build</dd>
+   <dt><ul class="adv-tmap"><li class="w"><b>⇠</b></li></ul></dt><dd>Build read</dd>
+   <dt>≠</dt><dd>Claim boundary</dd>
+   <dt><kbd class="ad-kbd">Alt+↓</kbd></dt><dd>Peek</dd>
+  </dl>
  </header>
 
  <div class="ad-g3-sec">
@@ -27,7 +41,7 @@
 
  <div class="ad-g3-sec">
   <h4>Results <span class="n">· 3 validators</span></h4>
-  <div class="row" style="gap:8px"><ul class="adv-chips" aria-label="As the server lists them."><li><span>order</span>server list</li></ul><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pv-sum"><b aria-hidden="true">≠</b>sum</button><span role="tooltip" id="pv-sum">Each cell is that build's own result; nothing is summed across builds.</span></span></div>
+  <div class="row" style="gap:8px"><ul class="adv-chips" aria-label="As the server lists them."><li><span>order</span>server list</li></ul></div>
   <div class="ad-scroll" style="position:relative" role="region" aria-label="Validator results, scrolls sideways">
   <table class="ad-table ad-g3-grid" role="grid" aria-label="Validator results per build" aria-rowcount="4" aria-colcount="5">
    <thead><tr><th scope="col">Validator</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th></tr></thead>
@@ -100,7 +114,7 @@
    </tbody>
   </table>
   </div>
-  <div class="row" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pv-adv"><b aria-hidden="true">≠</b>problems</button><span role="tooltip" id="pv-adv">Findings are advisory: they are not problems and block no objective.</span></span><a class="ad-link" href="?project=corpus-alpha&amp;dock=problems" aria-label="Problems tab in the dock" aria-describedby="pv-pt">Problems tab</a><span class="sr-only" id="pv-pt">Collect them into a worklist to work through them; the Problems tab lists only unmet predicates.</span></div>
+  <div class="row" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="pv-adv"><b aria-hidden="true">≠</b>problems</button><span role="tooltip" id="pv-adv"><b>Claim boundary</b> · findings<br>Findings are advisory: they are not problems and block no objective.</span></span><a class="ad-link" href="?project=corpus-alpha&amp;dock=problems" aria-label="Problems tab in the dock" aria-describedby="pv-pt">Problems tab</a><span class="sr-only" id="pv-pt">Collect them into a worklist to work through them; the Problems tab lists only unmet predicates.</span></div>
  </div>
 
  <div class="ad-g3-sec">
@@ -128,17 +142,20 @@
 <div class="adc-states">
  <div>
   <span class="kicker">Not run<span class="sr-only"> · nothing runs on open</span></span>
-  <div class="adv-empty"><span class="adv-tip"><b tabindex="0" role="img" aria-label="No validation recorded for build-b" aria-describedby="pv-e1">○</b><span role="tooltip" id="pv-e1">No validation recorded for build-b. Opening this panel did not run it. Validate waits while job 77c0 (external) owns build-b.</span></span><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="pv-e1"><span class="adv-na"><b aria-hidden="true">●</b>Validate build-b…</span></button><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=77c0" aria-label="Job 77c0, external owner of build-b">77c0</a></div>
+  <ul class="ad-anz-state adv-ghost" aria-hidden="true"><li><span class="b">build-b</span><span class="ad-g3-st na">—</span></li></ul>
+  <div class="adv-empty"><span class="adv-tip"><button type="button" class="adv-q" aria-label="Not run, build-b" aria-describedby="pv-e1">○</button><span role="tooltip" id="pv-e1"><span aria-hidden="true">○</span> <b>Not run</b> · build-b<br><span class="mono">0</span> validation records · writer job 77c0, external</span></span><span aria-hidden="true">not run</span><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="pv-e1"><span class="adv-na"><b aria-hidden="true">●</b>Validate build-b…</span></button><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=77c0" aria-label="Job 77c0, external owner of build-b">77c0</a></div>
  </div>
  <div>
   <span class="kicker">No analysis<span class="sr-only"> · not offered</span></span>
-  <div class="adv-empty"><span class="adv-tip is-open"><b tabindex="0" role="img" aria-label="Validators check analysis results" aria-describedby="pv-e2">⊡</b><span role="tooltip" id="pv-e2">Validators check analysis results. build-d has no analysis receipt. Validate is unavailable until analysis is admitted in Analysis.</span></span><a class="ad-btn primary" href="?project=corpus-alpha&amp;build=build-d&amp;panel=analysis" aria-describedby="pv-e2">Analysis for build-d</a></div>
+  <div class="adv-empty"><span class="adv-tip"><button type="button" class="adv-q" aria-label="No analysis receipt, build-d" aria-describedby="pv-e2">⊡</button><span role="tooltip" id="pv-e2"><span aria-hidden="true">⊡</span> <b>No analysis receipt</b> · build-d<br><span class="mono">0</span> analysis receipts</span></span><span aria-hidden="true">no analysis</span><a class="ad-btn primary" href="?project=corpus-alpha&amp;build=build-d&amp;panel=analysis" aria-describedby="pv-e2">Analysis for build-d</a></div>
  </div>
  <div>
-  <span class="kicker">No catalog action</span>
+  <span class="kicker">Not on server</span>
   <div class="ad-tools" role="group" aria-label="Validate actions">
-   <span class="adv-tip"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="pv-nocat"><span class="adv-na"><b aria-hidden="true">⊘</b>Validate build-a…</span></button><span role="tooltip" id="pv-nocat">Not available on this server yet. Stored findings still read. <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span></span>
+   <span class="adv-tip"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="pv-nocat"><span class="adv-na"><b aria-hidden="true">⊘</b>Validate build-a…</span></button><span role="tooltip" id="pv-nocat"><span aria-hidden="true">⊘</span> <b>Unavailable</b> · Validate build-a…<br>no catalog action · stored findings still read<br><kbd class="ad-kbd">Alt+↓</kbd> Peek</span></span><button class="ad-btn compact" type="button" aria-haspopup="dialog" aria-keyshortcuts="Alt+ArrowDown">Peek offers</button>
   </div>
  </div>
 </div>
+<span class="kicker">Tip pinned</span>
+<div class="row" style="padding-bottom:56px"><span class="adv-tip is-open"><button type="button" class="adv-q" aria-label="No analysis receipt, build-d" aria-expanded="true" aria-describedby="pv-e3">⊡</button><span role="tooltip" id="pv-e3"><span aria-hidden="true">⊡</span> <b>No analysis receipt</b> · build-d<br><span class="mono">0</span> analysis receipts</span></span></div>
 </div>

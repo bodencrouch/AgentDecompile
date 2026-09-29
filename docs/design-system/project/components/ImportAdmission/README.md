@@ -33,3 +33,8 @@ Nonblocking import: validate, durably accept, close the dialog, and show the adm
 - One polite message when the batch is accepted ("Import accepted: 3 inputs, batch b7. Go to last announcement (g then j, or the palette) shows it."). The table names each input as its row header. The focus move to the batch row is announced once and happens only while that row is visible.
 
 **Removes switching:** watching a blocking dialog, then hunting the dock for the admitted jobs, then the project tree for the new build (J30; counts in the plan ledger).
+
+## Behavior
+
+- Batch b7 in the dock: focus moves there after acceptance (≥700px, dock open). Below 700px or with the dock closed, focus returns to the invoker: "Import accepted: 3 inputs, batch b7. Go to last announcement (g then j, or the palette) shows it."
+- "3 inputs durably accepted at 14:05, batch b7. Work continues in the dock."

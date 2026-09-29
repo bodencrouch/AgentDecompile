@@ -176,3 +176,12 @@ Ghidra decorates a string with a translated value from a translation service, sh
   - `EquatePlugin`, `RelocationTablePlugin`, `DataWindowPlugin`, `CommentWindowPlugin` and `FunctionTagPlugin`.
 - Research: C3 (relocations by entity), D5 (honest client-side filters, no rounding up) and C9 (correlation tables) in `docs/research/2026-09-29-reference-re-ui-patterns.md`.
 - Existing components: XrefPanel (per-build row groups), FilterChip, MarksList (worklists), ActionStrip, OutcomeCell, ConfirmDialog.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- ≥500 · build-a: "Stopped at 500 hits on build-a; more may exist. Raise the limit in the search’s fields and run again."
+- ≠ bytes (chips removed from the Translate view and its confirm): "writes string settings, never bytes"
+- Translation hypothesis chips drop ≈ and the inner H (≈ is reserved for compile variance; the dashed frame alone means hypothesis).
+- Title (shortened): "Translate 12 strings on build-b · catalog job" is now "Translate 12 strings · build-b · catalog". Key term "cut at a limit" is now "cut at limit" (Key dd and tip term).

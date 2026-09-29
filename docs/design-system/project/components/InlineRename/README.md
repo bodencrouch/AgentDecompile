@@ -50,3 +50,9 @@ The in-place editor for a name, a type or a comment, used by DecompileView, List
 - J11 rename or retype a local seen in the decompiler: 6 → 0 (F2, type, Enter; U185).
 - J21 inner loop, a catalog verb on the selected row read on the row: 5 → 2, credited to U184; F2 on an EntityRow is its rename form.
 - J18 why a function has its name: 4 → 0, credited to the "Why this name" rail section (U176); the Now chip opens it in place.
+
+## Behavior
+
+- "Enter or Save posts once · confirmed here." (formerly the "Posts once" kicker over the review)
+- "Intent 7f1e · nothing changes until the job's terminal result" (formerly the `≠ optimistic` chip)
+- "Arrival order is not a tie-breaker." (formerly the `≠ tie-breaker` chip in the conflict state)

@@ -118,3 +118,10 @@ After the terminal result, BeforeAfterBand shows old → new under the signature
 - IDA's function prototype editing, including `__usercall` custom storage.
 - The research note [MSVC optimization for decomp](../../../../research/2026-09-29-msvc-optimization-for-decomp.md), T5: the LTCG custom calling convention, and why Ghidra shows `in_EAX`. Also T12 on incremental-link thunks.
 - What changes here: per-build conventions side by side with variance words, the explicit target, and proposals only through the ABI gate.
+
+## Behavior
+
+- "Purge: "unknown" is allowed." (formerly in the purge tip)
+- "Never borrow another build's spec." (formerly the `≠ borrow spec` chip under the storage grid)
+- "Following the thunk is a read: Enter on the target link." (formerly the `↵ read` chip on the thunk footer)
+- "Names and types can be proposed to build-c separately; its storage stays its own."

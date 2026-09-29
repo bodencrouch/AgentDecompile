@@ -137,3 +137,8 @@ Ghidra marks an address as an external entry point: an address where execution c
 - Ghidra help `SymbolTreePlugin/SymbolTree.htm`: categories, `<EXTERNAL>` and library namespaces, group nodes and their auto-close after bulk changes, the valid move rules per symbol kind, and the create, convert, delete and external-location dialogs. Also `Framework/Docking/.../Trees/GhidraTreeFilter.html` for the filter strategies.
 - Research: ICF folding ("one address, many symbols", T6) and inlining (T3) in `docs/research/2026-09-29-msvc-optimization-for-decomp.md`; entities, not addresses, as the key (Premise and D9 in `docs/research/2026-09-29-reference-re-ui-patterns.md`).
 - Existing components: ContainerTree (APG tree house style), LocatorGlyph, NameProvenance, InlineRename, PropagationTransfer, OwnershipPanel.
+
+## Behavior
+
+- A build whose lock another session owns: edits wait, and its row says so.
+- Setting an entry point starts no analysis and creates no function.

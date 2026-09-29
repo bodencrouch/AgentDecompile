@@ -12,3 +12,10 @@ The claim-status line and worked-example panel that every design diagram carries
 **Accessibility**
 
 - The status line is text, not a live region. The worked panel is a `section` named by its title.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- ⌂ local first: "Implement locally first using existing task/corpus contracts."
+- Expected chips are drawn as dashed (hypothesis) chips: the diagram is NOT RUN, so no expected outcome is witnessed. Original texts: "Expected: reject A's stale publication (fence)." · "Retain A's resource quarantine." · "Permit B only with complete independent inputs."

@@ -98,3 +98,13 @@ The function graph beside the code: basic blocks of the current function, or the
 - The link menu keeps no Edit group; this is a decision, not a gap.
 
 *Keyboard (round 3).* Keymap ids, composite scope, no default keys: `graph.layout`, `graph.satellite`, `graph.filter`. Space and `x` check a node (`list.check`). Everything else is in the link menu.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- ≠ auto relayout (chip removed): "Per-viewer view state · nothing relayouts or decompiles on its own"
+- ≠ other builds (chip removed): "This view is per viewer and never applies to another build."
+- read ∅ guess: "Kinds come from the read; none is guessed."
+- ≠ editor · r Listing (chip removed; the footer keeps the r keycap): "Edits happen in the Listing: r moves focus to 0041b240 there. Nodes are links, not editors."
+- Not loaded title (shortened): "Not loaded · Enter to load"; the render now shows "Not loaded · build-c" with one action, Load build-c.

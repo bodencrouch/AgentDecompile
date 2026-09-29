@@ -54,3 +54,9 @@ One strip per composite that shows the current logical entity's counterpart on e
 
 - J01 inspect a function on build A, then its counterparts on B–D, and return: 5 → 1 at ≥700px, 2 below, 0 when read by Peek alone where cached (U175, with SplitCompare's derived pane).
 - J26 switch the inspected build while keeping the entity: 3 → 1 (U175); the instruction position is kept where anchors exist, otherwise the function start is stated.
+
+## Behavior
+
+- "One strip per composite, above the Code Browser." (formerly in the Key tooltip)
+- "Opening one does not accept it." (formerly the `≠ accept` chip in the ambiguous menu)
+- "FUN_0041c880 has no identity. No counterpart is claimed on any build." (formerly the `≠ claimed` chip; the no-identity state is now ∅ with its word)

@@ -52,3 +52,9 @@ The recovery overview diagram as live navigation: stages 0–8 with their gates,
 - Forced colors map frames and the bracket to `CanvasText` and the current node to `Highlight`.
 
 **Removes switching:** J28 (act on starvation) goes from 4 switches to 1: the oldest wait is a link in a node's Peek, credited to U181. The map also serves J05 through `~gate-4` (credited to U178) and J03 (credited to U180).
+
+## Behavior
+
+- Main pipeline counts are per fact axis, never summed (formerly the visible "≠ sum" in the section header).
+- Ladder C refuses and never reports zero (formerly the visible "≠ zero").
+- Coarse pointer: Enter on a node's row menu target pushes one stop to the Jobs dock filtered to that resource (lock-3); the selection stays (formerly the visible "Enter +1 stop · Jobs · lock-3" chips).

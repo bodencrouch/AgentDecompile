@@ -57,3 +57,9 @@ The whole shell composed from the system: a banner header with the menubar and t
 - Sequences such as "g then 1" go in `aria-describedby` text, never in `aria-keyshortcuts`.
 
 **Removes switching:** the analysis tablist and its "More…" select, the separate Xrefs and Matching tabs, full-page corpus routes, and Tab travel between regions. The ledger credits each journey to the unit that owns its component (for example J09 to U177, J10 and J16 to U173, J23 to U176, J37 to U191, J38 to U188); the shell claims none itself.
+
+## Behavior
+
+- The ladder shows when the selected build's locator is not resolved.
+- No pane follows active work.
+- A collapse strip is drawn in place of a collapsed region and is hidden below 700px. Collapsing the region that holds focus moves focus to its strip.

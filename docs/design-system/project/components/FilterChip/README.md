@@ -45,3 +45,11 @@ A filter that a link applied to a list, grid or dock tab, shown above it in word
 - Forced colors map the frame and divider to `CanvasText`; the "so far" chip keeps its words.
 
 **Removes switching:** J19, from a job to the entities it changed, goes from 4 switches to 1: the Changed line filters the list in place (credited to U180). J22 goes from 7 to 2 together with OutcomeCell, where "1 failed" filters the batch to the failed row (credited to U184). In J06 and J33, "Only contested" and "Unresolved on build-c" replace scrolling the matrix (credited to U183), and the dock's "Selection only" replaces reading unrelated jobs to find the selection's.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- Key (moved text): "Chip words open the filter’s menu; ✕ removes the filter."
+- Selection only ? (removed): "One dock-level toggle and its chip are one filter; removing the chip releases the toggle. ProblemsList's checkbox reflects it. Logs narrow by job record, never by log text."
+- ∅ no rows: "No functions on build-a match. The record of job a3f9 names 3 changes, all on build-b. The inspected build does not switch by itself."

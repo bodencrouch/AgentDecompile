@@ -42,3 +42,7 @@ A failure drawn at its real unmet dependency, in guideline 50's fixed field orde
 - The reason is the record's heading; fields are a `<dl>` in the fixed order. Excerpts are `role="log"` with `aria-live="off"`. Unavailable actions are `aria-disabled` with the reason in `aria-describedby`. A failure is assertive only when it blocks the action in hand; otherwise its transition is announced once, politely. Disclosures never move focus (WCAG 3.2.1).
 
 **Removes switching:** opening the logs, the Jobs dock, the pipeline map and the resource list to learn why something is blocked and what still runs (J04; counts in the plan ledger).
+
+## Behavior
+
+- No escalation means no external change is required. The escalation field appears only when an external intervention is unavoidable.

@@ -3,8 +3,10 @@
 <div class="ad-claimline" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
  <b>DESIGN ONLY</b>
  <span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="cb-nr-tip"><b aria-hidden="true">≠</b>NOT RUN</button><span role="tooltip" id="cb-nr-tip">Future failure-injection checks NOT RUN.</span></span>
- <span class="adv-tip"><button type="button" class="adv-h" aria-describedby="cb-loc-tip"><b aria-hidden="true">⌂</b>local first</button><span role="tooltip" id="cb-loc-tip">Implement locally first using existing task/corpus contracts.</span></span>
+ <span class="adv-tip"><button type="button" class="adv-h" aria-describedby="cb-loc-tip"><b aria-hidden="true">⌂</b>local first</button><span role="tooltip" id="cb-loc-tip"><b>design scope</b> · local first<br>existing task / corpus contracts</span></span>
+ <button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="cb-key">?</button>
 </div>
+<dl class="adv-key" id="cb-key" aria-label="Key" hidden><dt aria-hidden="true">≠</dt><dd>claim boundary</dd><dt><span class="adv-h" aria-hidden="true">✓</span></dt><dd>expected outcome</dd><dt aria-hidden="true">⌂</dt><dd>design scope</dd><dt aria-hidden="true">━</dt><dd>attempt running</dd><dt aria-hidden="true">┆</dt><dd>lease lost</dd><dt aria-hidden="true">✕</dt><dd>publish fenced</dd><dt aria-hidden="true">▣</dt><dd>quarantine kept</dd></dl>
 <section class="ad-worked" aria-labelledby="cb-t" aria-describedby="cb-d">
  <h4 id="cb-t">Late worker</h4>
  <p class="sr-only" id="cb-d">Concrete design challenge, the late worker. Attempt A loses its lease while still writing. B runs on disjoint resources. A later submits a byte-perfect artifact. Expected: reject A's stale publication (fence); retain A's resource quarantine; permit B only with complete independent inputs.</p>
@@ -22,10 +24,11 @@
   <text x="170" y="74" font-size="10" fill="var(--ink-muted)" font-family="var(--font-sans)">disjoint resources</text>
  </svg>
  <div class="adv-chips" role="group" aria-label="Expected" style="margin-top:8px">
-  <span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="cb-e1"><b aria-hidden="true">✕</b>A publish</button><span role="tooltip" id="cb-e1">Expected: reject A's stale publication (fence).</span></span>
-  <span class="adv-tip"><button type="button" class="adv-w" aria-describedby="cb-e2"><b aria-hidden="true">▣</b>A quarantine</button><span role="tooltip" id="cb-e2">Retain A's resource quarantine.</span></span>
-  <span class="adv-tip is-open"><button type="button" class="adv-h" aria-describedby="cb-e3"><b aria-hidden="true">✓</b>B · inputs</button><span role="tooltip" id="cb-e3">Permit B only with complete independent inputs.</span></span>
+  <span class="adv-tip"><button type="button" class="adv-h" aria-describedby="cb-e1"><b aria-hidden="true">✕</b>A publish</button><span role="tooltip" id="cb-e1"><b>expected outcome</b> · A<br>stale publication rejected (fence)</span></span>
+  <span class="adv-tip"><button type="button" class="adv-h" aria-describedby="cb-e2"><b aria-hidden="true">▣</b>A quarantine</button><span role="tooltip" id="cb-e2"><b>expected outcome</b> · A<br>resource quarantine retained</span></span>
+  <span class="adv-tip"><button type="button" class="adv-h" aria-describedby="cb-e3"><b aria-hidden="true">✓</b>B · inputs</button><span role="tooltip" id="cb-e3"><b>expected outcome</b> · B<br>permitted only with complete independent inputs</span></span>
  </div>
  <div class="ad-claimline" style="margin-top:8px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="cb-nr2"><b aria-hidden="true">≠</b>NOT RUN</button><span role="tooltip" id="cb-nr2">NOT RUN. This diagram defines the acceptance mechanism; it does not claim a scheduler, binding or recovery result exists.</span></span></div>
 </section>
+<div class="stack" style="gap:8px;padding-bottom:56px"><span class="kicker">Tip pinned</span><span><span class="adv-tip is-open"><button type="button" class="adv-h" aria-expanded="true" aria-describedby="cb-e3p"><b aria-hidden="true">✓</b>B · inputs</button><span role="tooltip" id="cb-e3p"><b>expected outcome</b> · B<br>permitted only with complete independent inputs</span></span></span></div>
 </div>

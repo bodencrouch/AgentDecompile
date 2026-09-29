@@ -73,3 +73,12 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 **Research:** [MSVC transformations I6, §8.3, §9.4](../../../../research/2026-09-29-msvc-optimization-for-decomp.md#83-why-matching-is-not-the-same-as-functionally-equivalent); [reference UI patterns C1–C4, C9, C11](../../../../research/2026-09-29-reference-re-ui-patterns.md).
 
 **Prior art:** reccmp `reccmp/compare/report.py` (effective match as its own status), `reccmp/compare/asm/fixes.py` (register swaps and reorderings), `reccmp/compare/asm/parse.py` (consistent placeholders), `reccmp/tools/stackcmp.py` · objdiff `objdiff-core/src/diff/code.rs` (diff kinds; stable per-argument pairing), `objdiff-core/src/diff/display.rs` · decomp.me `frontend/src/components/Diff/Diff.tsx`, `backend/coreapp/flags.py` (recipe as typed flags) · ghidra `Ghidra/Features/VersionTracking/src/main/help/help/topics/VersionTrackingPlugin/providers/VT_Matches_Table.html` (opinions never compared across correlators).
+
+## Behavior
+
+- "Pairs are lettered and framed as well as colored: pair A is one consistent rename (esi in the target is edi in the candidate on every row)." (formerly in the Key tooltip)
+- "F7 Shift+F7 next and previous difference. Enter on a class filters the rows to it. Enter on an address goes to the Listing." (formerly in the Key tooltip)
+- "When only register allocation remains, the state reads “Effective match: yes (register allocation only)” beside “Local match ✕ failed”. It is listed between exact and partial, and never counted as byte-identical or as a whole-image result." (formerly the Effective match tip)
+- "objdiff fuzzy 97.8% · truncated, never rounded up · not a claim" (formerly the `≠ claim` chip; now the fuzzy bar's accessible name)
+- "effective-match class; not byte-identical, never counted as byte-identical" (formerly the `≠ byte-identical` chip on the register-allocation row; the header `≠ byte match` holds the boundary)
+- "Scores from different matchers are never compared or combined." (formerly the `≠ combined` chip under Identity opinions)

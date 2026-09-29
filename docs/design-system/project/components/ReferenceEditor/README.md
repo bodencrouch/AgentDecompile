@@ -105,3 +105,13 @@ The editor for references from one code unit on one explicit build: add and edit
 - Ghidra's References plugin: forward references, the Add/Edit Reference panels, and Create Offset References Table. Also Ghidra's Modify Instruction Flow and Override Fallthrough.
 - IDA's cross-reference and user-xref dialogs.
 - What changes here: one explicit build, destinations never re-resolved, counterparts reached only through anchors, and no analysis side effects.
+
+## Behavior
+
+- The draft row in the list above is what Save adds; Enter or Save posts once.
+- A flow or length override opens ConfirmDialog.
+- A destination is an address on build-a; it is never re-resolved into another build.
+- Instruction length: an override may only shorten it, for overlapping instructions.
+- Targets are not disassembled by batch creation.
+- Nothing is re-disassembled or re-analyzed unless that is admitted as a job.
+- References are program-local; nothing here is proposed to build-c unless both ends are anchor-mapped, and then only through ConfirmDialog.

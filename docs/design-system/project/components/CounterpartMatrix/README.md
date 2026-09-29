@@ -35,3 +35,8 @@ One logical entity across every build: counterparts, divergence class, identity 
 - `role="grid"` named "Counterparts of ‹entity›"; builds are row headers (`th scope="row"`). The inspected build's row has `aria-selected="true"`. A build switch is described in the row's `aria-describedby` before activation and announced once, politely, after ("Inspecting build-c, 00082f46, partner of anchor 0041b216 (callee order; identity edge candidate)"), never while arrowing.
 
 **Removes switching** (counts from the plan ledger): J01 counterparts of a function on other builds, 5 → 1, and J26 switching the inspected build while keeping the entity, 3 → 1, are credited to U175 (CounterpartStrip and the derived split); this matrix is the Compare workspace's full form of the same rows.
+
+## Behavior
+
+- After Enter on the build-c row, announced once: "Inspecting build-c, 00082f46, partner of anchor 0041b216 (callee order; identity edge candidate)."
+- Enter on the build-d row stays: "build-d: no counterpart (absent); staying on build-a."

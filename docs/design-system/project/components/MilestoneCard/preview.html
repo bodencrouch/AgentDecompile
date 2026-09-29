@@ -1,26 +1,36 @@
-<!-- @dsCard group="Diagram" height=340 -->
+<!-- @dsCard group="Diagram" height=420 -->
 <div class="ad ad-dia" style="padding:16px 16px 56px;display:grid;gap:12px">
-<div style="display:flex;align-items:center;gap:8px"><span class="kicker">Milestones</span><span class="adv-tip"><button type="button" class="adv-q" aria-label="Key" aria-describedby="mc-key">?</button><span role="tooltip" id="mc-key">Stroke color and kicker: delivery status. Plain chips: scope of the milestone. ✓ chips: acceptance. Solid chip: evidence on record. ≠ chip: what is not established. ⊘: refused.</span></span></div>
+<div style="display:flex;align-items:center;gap:8px"><span class="kicker">Milestones</span><button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="mc-key">?</button></div>
+<dl class="adv-key" id="mc-key" hidden>
+ <dt><span class="r-bytes" aria-hidden="true" style="display:inline-block;width:16px;height:12px;border:1px solid currentColor"></span></dt><dd>Delivery status</dd>
+ <dt><ul class="adv-chips"><li>resume</li></ul></dt><dd>Scope</dd>
+ <dt><ul class="adv-chips"><li><span>✓</span>ABI</li></ul></dt><dd>Acceptance</dd>
+ <dt><span class="adv-w">&nbsp;</span></dt><dd>Evidence on record</dd>
+ <dt>≠</dt><dd>Claim boundary</dd>
+ <dt>⊘</dt><dd>Refused</dd>
+</dl>
 <ul style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px">
 <li class="ad-milestone r-bytes"><h4>M0 Reliable continuation</h4><span class="k"><span>Implemented foundation</span> · <span>partially verified</span></span>
  <ul class="adv-chips" aria-label="Scope" aria-describedby="mc-0s"><li>resume</li><li>exhaustion</li><li>unknown</li><li>next action</li></ul>
  <span class="sr-only" id="mc-0s">Preserve attempts across resume. Explain exhaustion, unknown outcomes and the exact next action.</span>
  <div class="adv-chips" style="margin-top:8px">
-  <span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="mc-0e">software checks</span><span role="tooltip" id="mc-0e">Evidence: bounded coordinator and isolated worker software checks.</span></span>
-  <span class="adv-tip end"><span class="adv-bnd" tabindex="0" aria-describedby="mc-0b"><b>≠</b>live</span><span role="tooltip" id="mc-0b">Live delivery is unverified.</span></span>
+  <span class="adv-tip"><button type="button" class="adv-w" aria-describedby="mc-0e">software checks</button><span role="tooltip" id="mc-0e"><b>Evidence on record</b> · M0<br>bounded coordinator and isolated worker software checks</span></span>
+  <span class="adv-tip end"><button type="button" class="adv-bnd" aria-describedby="mc-0b"><b aria-hidden="true">≠</b>live</button><span role="tooltip" id="mc-0b"><b>Claim boundary</b> · M0<br>Live delivery is unverified.</span></span>
  </div></li>
 <li class="ad-milestone r-step"><h4>M2 Operation bundle</h4><span class="k">Future delivery</span>
  <ul class="adv-chips" aria-label="Generates" aria-describedby="mc-2s"><li>ABI</li><li>units</li><li>ID domains</li><li>lifetime</li><li>effect/restore</li></ul>
  <span class="sr-only" id="mc-2s">Generate ABI, units, ID domains, lifetime and effect/restore contract.</span>
  <div class="adv-chips" style="margin-top:8px">
-  <span class="adv-tip"><span class="adv-bnd" tabindex="0" aria-describedby="mc-2a"><b>✓</b>binding + oracle</span><span role="tooltip" id="mc-2a">Acceptance: consumed binding + independent state oracle.</span></span>
-  <span class="adv-tip end"><span class="adv-bnd" tabindex="0" aria-describedby="mc-2r"><b>⊘</b>unsupported</span><span role="tooltip" id="mc-2r">Unsupported builds refuse.</span></span>
+  <ul class="adv-chips" aria-label="Acceptance" aria-describedby="mc-2a"><li><span>✓</span>binding</li><li><span>✓</span>oracle</li></ul><span class="sr-only" id="mc-2a">Acceptance: consumed binding and independent state oracle.</span>
+  <span class="adv-tip end"><button type="button" class="adv-na" style="border:0;background:none;padding:0;min-height:24px;font:inherit;color:var(--ink);cursor:help" aria-describedby="mc-2r"><b aria-hidden="true">⊘</b>unsupported</button><span role="tooltip" id="mc-2r"><span aria-hidden="true">⊘</span> <b>Refused</b> · M2<br>unsupported builds</span></span>
  </div></li>
 <li class="ad-milestone r-gate"><h4>M6 Native host matrix</h4><span class="k">Future qualification</span>
  <ul class="adv-chips" aria-label="Qualify" aria-describedby="mc-6s"><li><span>per</span>build × arch</li><li><span>on</span>compatible workers</li></ul>
  <span class="sr-only" id="mc-6s">Qualify each build and architecture on compatible workers.</span>
  <div class="adv-chips" style="margin-top:8px">
   <ul class="adv-chips" aria-label="Acceptance" aria-describedby="mc-6a"><li><span>✓</span>ABI</li><li><span>✓</span>graphics</li><li><span>✓</span>input</li><li><span>✓</span>capture</li></ul><span class="sr-only" id="mc-6a">Acceptance: ABI, graphics, input and capture per build.</span>
-  <span class="adv-tip end is-open"><span class="adv-bnd" tabindex="0" aria-describedby="mc-6b"><b>≠</b>transfer</span><span role="tooltip" id="mc-6b">One platform's proof does not qualify another.</span></span>
+  <span class="adv-tip end"><button type="button" class="adv-bnd" aria-describedby="mc-6b"><b aria-hidden="true">≠</b>transfer</button><span role="tooltip" id="mc-6b"><b>Claim boundary</b> · M6<br>One platform's proof does not qualify another.</span></span>
  </div></li></ul>
+<span class="kicker">Tip pinned</span>
+<div class="row" style="padding-bottom:48px"><span class="adv-tip is-open"><button type="button" class="adv-bnd" aria-expanded="true" aria-describedby="mc-6c"><b aria-hidden="true">≠</b>transfer</button><span role="tooltip" id="mc-6c"><b>Claim boundary</b> · M6<br>One platform's proof does not qualify another.</span></span></div>
 </div>

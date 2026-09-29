@@ -1,6 +1,12 @@
 <!-- @dsCard group="Diagram" height=290 -->
 <div class="ad ad-dia" style="padding:16px;display:grid;gap:12px">
-<div style="display:flex;align-items:center;gap:8px"><strong class="small">Resolution ladders</strong><span class="adv-tip"><button type="button" class="adv-q" aria-label="Key" aria-describedby="rl-key">?</button><span role="tooltip" id="rl-key">Circle: step, tried in order. →: the step's chain. then: the named terminal outcome. ≠ zero: unresolved is never a silent zero. ↘: coverage may regress.</span></span></div>
+<div style="display:flex;align-items:center;gap:8px"><strong class="small">Resolution ladders</strong><button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="rl-key">?</button></div>
+<dl class="adv-key" id="rl-key" hidden>
+ <dt><span class="ad-ladder" style="display:inline-block"><ol style="margin:0;padding:0"><li style="margin:0"><b style="background:var(--lane-unify-fill)">1</b></li></ol></span></dt><dd>Step, in order</dd>
+ <dt>→</dt><dd>Step chain</dd>
+ <dt>then</dt><dd>Terminal outcome</dd>
+ <dt><span class="adv-h">&nbsp;</span></dt><dd>Hypothesis</dd>
+</dl>
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;align-items:start">
 <div class="ad-ladder f-unify"><header style="background:var(--lane-unify-fill)">C · Data root</header><ol style="color:var(--lane-unify-ink)">
 <li><b style="background:var(--lane-unify-fill)">1</b><span style="color:var(--ink)"><span aria-hidden="true"><code>known build</code> identity → RVA → live</span><span class="sr-only">known build: identity → RVA → live check</span></span></li>
@@ -8,10 +14,10 @@
 <li><b style="background:var(--lane-unify-fill)">3</b><span style="color:var(--ink)"><span aria-hidden="true"><code>xref_from_function</code></span><span class="sr-only">xref_from_function: xref from identified function</span></span></li>
 <li><b style="background:var(--lane-unify-fill)">4</b><span style="color:var(--ink)"><span aria-hidden="true"><code>pointer_chain</code> ← root</span><span class="sr-only">pointer_chain from a resolved root</span></span></li>
 <li><b style="background:var(--lane-unify-fill)">5</b><span style="color:var(--ink)"><span aria-hidden="true">value-shape + confirm</span><span class="sr-only">value-shape probe + independent confirmation</span></span></li></ol>
-<div class="then" style="display:flex;align-items:center;gap:8px">then: unresolved <span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="rl-z"><b aria-hidden="true">≠</b>zero</button><span role="tooltip" id="rl-z">then: unresolved — never a silent zero</span></span></div></div>
+<div class="then" style="display:flex;align-items:center;gap:8px">then: unresolved</div></div>
 <div class="ad-ladder f-runtime"><header style="background:var(--lane-runtime-fill)">F · Unknown build</header><ol style="color:var(--lane-runtime-ink)">
 <li><b style="background:var(--lane-runtime-fill)">1</b><span style="color:var(--ink)"><span aria-hidden="true">signature-only</span><span class="sr-only">admit in signature-only mode</span></span></li>
 <li><b style="background:var(--lane-runtime-fill)">2</b><span style="color:var(--ink)"><span aria-hidden="true">ladders ≤ budget</span><span class="sr-only">run applicable ladders within declared budget</span></span></li>
 <li><b style="background:var(--lane-runtime-fill)">3</b><span style="color:var(--ink)"><span aria-hidden="true"><code>runtime_claim</code> → <code>bind_identities</code> → KNOWN</span><span class="sr-only">ingest as runtime_claim → bind_identities confirms → KNOWN</span></span></li></ol>
-<div class="then" style="display:flex;align-items:center;gap:8px"><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="rl-cov"><b aria-hidden="true">↘</b>coverage</button><span role="tooltip" id="rl-cov">coverage may regress when collisions are found</span></span></div></div></div>
+<div class="then" style="display:flex;align-items:center;gap:8px"><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="rl-cov">coverage</button><span role="tooltip" id="rl-cov"><b>Hypothesis</b> · ladder F<br>coverage may regress when collisions are found</span></span></div></div></div>
 </div>

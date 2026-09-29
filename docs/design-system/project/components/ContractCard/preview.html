@@ -1,21 +1,24 @@
 <!-- @dsCard group="Diagram" height=230 -->
 <div class="ad ad-dia" style="padding:16px 16px 64px;display:grid;gap:12px">
-<div style="display:flex;align-items:center;gap:8px"><span class="kicker">Contracts</span><span class="adv-tip"><button type="button" class="adv-q" aria-label="Key" aria-describedby="cc-key">?</button><span role="tooltip" id="cc-key">Solid chip: backed by a witness or record. Dashed chip: hypothesis. ≠ chip: what the contract does not establish; its tip holds the full boundary. Heading tip: the contract's question.</span></span></div>
+<div style="display:flex;align-items:center;gap:8px"><span class="kicker">Contracts</span><button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="cc-key">?</button></div>
+<dl class="adv-key" id="cc-key" aria-label="Key" hidden><dt><span class="adv-w">abc</span></dt><dd>witness or record</dd><dt><span class="adv-h">abc</span></dt><dd>hypothesis</dd><dt aria-hidden="true">≠</dt><dd>claim boundary</dd><dt><b>BYTES</b></dt><dd>contract question</dd></dl>
 <ul style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px">
-<li class="ad-contract"><h4 class="r-bytes"><span class="adv-tip"><span tabindex="0" aria-describedby="cc-q1">BYTES</span><span role="tooltip" id="cc-q1">Are these bytes here?</span></span></h4>
+<li class="ad-contract"><h4 class="r-bytes"><span class="adv-tip"><span role="button" tabindex="0" aria-describedby="cc-q1">BYTES</span><span role="tooltip" id="cc-q1">Are these bytes here?</span></span></h4>
  <div class="adv-chips">
-  <span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="cc-b1">digest + map</span><span role="tooltip" id="cc-b1">Exact target digest + image/address mapping</span></span>
-  <span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="cc-b2">region · compare</span><span role="tooltip" id="cc-b2">Observed region and independent byte comparison</span></span>
-  <span class="adv-tip end"><span class="adv-bnd" tabindex="0" aria-describedby="cc-b3"><b>≠</b>name</span><span role="tooltip" id="cc-b3">Does not establish the selected function name</span></span>
+  <span class="adv-tip"><span class="adv-w" role="button" tabindex="0" aria-describedby="cc-b1">digest + map</span><span role="tooltip" id="cc-b1">Exact target digest + image/address mapping</span></span>
+  <span class="adv-tip"><span class="adv-w" role="button" tabindex="0" aria-describedby="cc-b2">region · compare</span><span role="tooltip" id="cc-b2">Observed region and independent byte comparison</span></span>
+  <span class="adv-tip end"><span class="adv-bnd" role="button" tabindex="0" aria-describedby="cc-b3"><b>≠</b>name</span><span role="tooltip" id="cc-b3">Does not establish the selected function name</span></span>
  </div></li>
-<li class="ad-contract"><h4 class="r-gate"><span class="adv-tip"><span tabindex="0" aria-describedby="cc-q2">IDENTITY</span><span role="tooltip" id="cc-q2">Is this the intended entity?</span></span></h4>
+<li class="ad-contract"><h4 class="r-gate"><span class="adv-tip"><span role="button" tabindex="0" aria-describedby="cc-q2">IDENTITY</span><span role="tooltip" id="cc-q2">Is this the intended entity?</span></span></h4>
  <div class="adv-chips">
-  <span class="adv-tip"><span class="adv-h" tabindex="0" aria-describedby="cc-i1"><b>H</b>donor label</span><span role="tooltip" id="cc-i1">Donor labels remain hypotheses until accepted</span></span>
-  <span class="adv-tip end"><span class="adv-bnd" tabindex="0" aria-describedby="cc-i2"><b>≠</b>label proof</span><span role="tooltip" id="cc-i2">Signature from selected RVA cannot prove its label</span></span>
+  <span class="adv-tip"><span class="adv-h" role="button" tabindex="0" aria-describedby="cc-i1">donor label</span><span role="tooltip" id="cc-i1"><b>hypothesis</b> · donor label<br>not accepted</span></span>
+  <span class="adv-tip end"><span class="adv-bnd" role="button" tabindex="0" aria-describedby="cc-i2"><b>≠</b>label proof</span><span role="tooltip" id="cc-i2">Signature from selected RVA cannot prove its label</span></span>
  </div></li>
-<li class="ad-contract"><h4 class="r-contain"><span class="adv-tip"><span tabindex="0" aria-describedby="cc-q3">QUARANTINE</span><span role="tooltip" id="cc-q3">Keep resources occupied</span></span></h4>
+<li class="ad-contract"><h4 class="r-contain"><span class="adv-tip"><span role="button" tabindex="0" aria-describedby="cc-q3">QUARANTINE</span><span role="tooltip" id="cc-q3">Keep resources occupied</span></span></h4>
  <div class="adv-chips">
-  <span class="adv-tip"><span class="adv-bnd" tabindex="0" aria-describedby="cc-c1"><b>≠</b>release</span><span role="tooltip" id="cc-c1">Expired lease / timeout ≠ safe resource release</span></span>
-  <span class="adv-tip end is-open"><span class="adv-w" tabindex="0" aria-describedby="cc-c2">end + owner</span><span role="tooltip" id="cc-c2">Release needs corroborated end of access + owner</span></span>
+  <span class="adv-tip"><span class="adv-bnd" role="button" tabindex="0" aria-describedby="cc-c1"><b>≠</b>release</span><span role="tooltip" id="cc-c1">Expired lease / timeout ≠ safe resource release</span></span>
+  <span class="adv-tip end"><span class="adv-w" role="button" tabindex="0" aria-describedby="cc-c2">end + owner</span><span role="tooltip" id="cc-c2">Release needs corroborated end of access + owner</span></span>
  </div></li></ul>
+<span class="kicker">Tip pinned</span>
+<div class="adv-chips"><span class="adv-tip is-open"><button type="button" class="adv-w" aria-expanded="true" aria-describedby="cc-c2p">end + owner</button><span role="tooltip" id="cc-c2p">Release needs corroborated end of access + owner</span></span></div>
 </div>

@@ -29,3 +29,10 @@ A task's position in its lifecycle rail, with terminal and side states. Its comp
 - The compact variant is text ("Rename: running, job a3f9" → "Rename: finished"), referenced from its row by `aria-describedby`; glyphs are `aria-hidden`. Nothing is announced on pending; one polite message per job transition; a batch is coalesced when its last job ends ("Run on 4 rows ended: 3 finished, 1 failed."). In-cell progress is not live.
 
 **Removes switching:** opening the Jobs dock after every run to learn whether it finished and what it wrote (J21, J22; counts in the plan ledger).
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- Key (moved text): "Rail: backend states only; the now-frame is in ink-strong."
+- 202 ∅: "after HTTP 202 · nothing announced" (nothing is announced on pending).

@@ -70,3 +70,15 @@ Two panes side by side inside the Code Browser, or up to three in the Compare wo
 - A program-level range diff mode (X02). It is aligned by anchors, never raw addresses. Categories: bytes, code units, references, comments, symbols, functions, bookmarks, properties and context. It needs a catalog read action.
 - A difference-detail Peek at a location (X04).
 - Apply or ignore stays PropagationTransfer's job (X03).
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- Key (moved text): "the legend under the panes keys the rows."
+- ✓ build-a stays (chip removed): "Opening this split changed nothing: the selection and inspected build stay build-a."
+- ∅ no aligned counterpart: "No aligned counterpart to step through."
+- inlined/split: the dashed chip drops ≈ (reserved for compile variance).
+- ≠ accept (chip removed): "Nothing is aligned until one is chosen, and opening one does not accept it."
+- ≠ counterpart (chip removed): "The review pair header names the candidate edge and never calls the other endpoint a counterpart."
+- Text diff key (now a disclosure): "Each line says anchor, same, differs, only in target or only in rebuilt. It reflows instead of scrolling."

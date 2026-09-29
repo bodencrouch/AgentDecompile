@@ -1,15 +1,16 @@
 <!-- @dsCard group="Shell" height=140 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <div style="display:flex;align-items:flex-start;gap:8px;min-width:0">
-<div class="ad-tabs" role="tablist" aria-label="Sessions" aria-describedby="st-key-tip" style="flex:1;min-width:0">
+<div class="ad-tabs" role="tablist" aria-label="Sessions" style="flex:1;min-width:0">
 <div class="ad-tab is-active" role="none"><button class="ad-tab-btn" role="tab" id="st-1" aria-selected="true" tabindex="0" aria-describedby="st-del" aria-keyshortcuts="Delete F2"><span class="ad-chip shared-fs">shared-fs</span>corpus-alpha</button><button class="ad-tab-close" tabindex="-1" aria-hidden="true">×</button></div>
 <div class="ad-tab" role="none"><button class="ad-tab-btn" role="tab" id="st-2" aria-selected="false" tabindex="-1" aria-describedby="st-del"><span class="ad-chip gpr">gpr</span>local-analysis</button><button class="ad-tab-close" tabindex="-1" aria-hidden="true">×</button></div>
 <div class="ad-tab" role="none"><button class="ad-tab-btn" role="tab" id="st-3" aria-selected="false" tabindex="-1" aria-describedby="st-del"><span class="ad-chip shared-http">server</span>team-repository</button><button class="ad-tab-close" tabindex="-1" aria-hidden="true">×</button></div>
 <div class="ad-tab" role="none"><button class="ad-tab-btn" role="tab" id="st-4" aria-selected="false" tabindex="-1" aria-describedby="st-del st-other"><span class="ad-chip bin">bin</span>corpus-beta</button><button class="ad-tab-close" tabindex="-1" aria-hidden="true">×</button></div>
 <div class="ad-tab" role="none"><button class="ad-tab-btn" role="tab" id="st-5" aria-selected="false" tabindex="-1" aria-describedby="st-del"><span class="ad-chip draft">draft</span>scratch 2</button><button class="ad-tab-close" tabindex="-1" aria-hidden="true">×</button></div></div>
-<span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="st-key-tip">?</button><span role="tooltip" id="st-key-tip">Manual activation: arrows move focus, Enter or Space activates. The × is for pointers; Delete or the tab's menu ("Close ‹title›") closes from the keyboard.</span></span>
+<button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="st-key">?</button>
 </div>
+<dl class="adv-key strip" id="st-key" hidden><dt><span class="ad-chip shared-fs" aria-hidden="true">shared-fs</span></dt><dd>Shared folder</dd><dt><span class="ad-chip gpr" aria-hidden="true">gpr</span></dt><dd>Local project</dd><dt><span class="ad-chip shared-http" aria-hidden="true">server</span></dt><dd>Server repository</dd><dt><span class="ad-chip bin" aria-hidden="true">bin</span></dt><dd>Binary only</dd><dt><span class="ad-chip draft" aria-hidden="true">draft</span></dt><dd>Draft</dd><dt><kbd class="ad-kbd">← →</kbd></dt><dd>Move</dd><dt><kbd class="ad-kbd">Enter</kbd></dt><dd>Open</dd><dt><kbd class="ad-kbd">Delete</kbd></dt><dd>Close</dd></dl>
 <span class="sr-only" id="st-del">Delete closes this session tab.</span><span class="sr-only" id="st-other">Project corpus-beta. Activating shows Switch to corpus-beta or Stay; it never switches by itself.</span>
-<ul class="adv-chips" aria-label="Keys"><li><span>move</span>← →</li><li><span>open</span>Enter · Space</li><li><span>close</span>Delete</li></ul>
+
 <div class="ad-tools" style="align-items:center"><span class="small" role="status">Closed scratch 1</span><span class="small muted" aria-hidden="true">·</span><button class="ad-btn compact" type="button" aria-describedby="st-reopen-d">Reopen</button><span class="sr-only" id="st-reopen-d">Restores the closed session tab and its place. The palette's Reopen closed session tab lists the last 10.</span></div>
 </div>

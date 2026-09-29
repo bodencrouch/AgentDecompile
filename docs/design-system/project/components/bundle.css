@@ -3575,3 +3575,20 @@ button.adv-w{background:transparent}
   :is(.ad [aria-selected="true"]:not(.adl-tree li,.adx-hier li,.ad-g3-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-matrix td.cell[aria-selected="true"],.ad-seg>button[aria-pressed="true"],.ad-seg>[role="radio"][aria-checked="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"],.adx-step[aria-current="step"],.adx-tt>li[aria-current="step"],.ad .adx-bc[aria-current="location"],.adx-hier [aria-selected="true"]>span,.ad-g3-tree [aria-selected="true"]>span) :not(.ad-rep,.ad-rep *,.ad-units,.ad-units *,.ad-meter .bar,.ad-meter .bar *,.ad-imap,.ad-imap *,.ad-scmp-key i){color:SelectedItemText!important;border-color:SelectedItemText!important;text-decoration-color:SelectedItemText!important}
  }
 }
+
+/* Guideline 25 revision sweep: the Key dl is a disclosure panel; hidden must win over .adv-key{display:grid} and .adv-key.strip{display:flex} */
+.adv-key[hidden],.adv-key.strip[hidden]{display:none}
+@media (forced-colors:active){.adv-key>dt{color:CanvasText}}
+/* Tip triggers that must be real controls: an unavailable mark (⊘), a stamp, or a lone glyph drawn as a <button> keep their drawn look and a 24px target */
+.ad button.adv-na,.ad button.ad-stamp,.ad button.adv-gl{min-width:24px;min-height:24px;margin:0;padding:0 var(--space-1);border:0;border-radius:var(--radius-chip);background:transparent;font:inherit;color:inherit;cursor:help}
+.ad button.adv-gl{display:inline-grid;place-items:center;font:400 13px/1 var(--font-mono);color:var(--ink-muted)}
+.ad button.adv-na:focus-visible,.ad button.ad-stamp:focus-visible,.ad button.adv-gl:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+@media (forced-colors:active){
+ .adv-key>dt{color:CanvasText}
+ .ad button.adv-na,.ad button.ad-stamp,.ad button.adv-gl{color:CanvasText;background:Canvas}
+ .ad button.adv-na:focus-visible,.ad button.ad-stamp:focus-visible,.ad button.adv-gl:focus-visible{outline:2px solid CanvasText}
+}
+/* A plain-text tip trigger (a cell word such as "none" or "unresolved") drawn as a <button>: no chrome, inherited text, 24px target */
+.ad button.adv-tx{display:inline-flex;align-items:center;min-height:24px;margin:0;padding:0;border:0;background:transparent;font:inherit;color:inherit;text-align:inherit;cursor:help}
+.ad button.adv-tx:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+@media (forced-colors:active){.ad button.adv-tx{color:CanvasText;background:Canvas}.ad button.adv-tx:focus-visible{outline:2px solid CanvasText}}

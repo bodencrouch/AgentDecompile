@@ -58,3 +58,13 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 - **Filter and select.** Program bookmarks filter by type and category with FilterChips; **Make address selection** makes the filtered bookmarks' addresses an address selection on that build, and **Collect into worklist** (w) works as for any result set.
 - Bookmarks stay per build: edits need that build's writer, may return a modification conflict and are never propagated by this list (propagation of bookmarks is PropagationTransfer's `propagateBookmarks` step). Per-viewer marks are unchanged and remain separate from program bookmarks.
 - The preview is unchanged; the verbs are link-menu items on the existing bookmark rows.
+
+## Behavior
+
+- Handled starts no work. Mark handled and go to next: Ctrl/Cmd+F8.
+- "Stepping moves the one selection and focus like Go and pushes one stop; views, split, held panes, dock and layout stay." (formerly the "+1 stop" chip)
+- "F8 stops once at this program boundary. Press F8 again to continue; nothing is cleared until you do."
+- The view state survives reload.
+- "Space and x on a row never toggle Handled; the grid is not checkable." (formerly the "≠ Space · x" chip)
+- End of worklist: "F8 stops here and never wraps. Shift+F8 goes back." (formerly the "≠ wrap" chip)
+- "Below 700px, one chip in the NavigationBar opens the stepper as a sheet."

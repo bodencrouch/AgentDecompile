@@ -45,3 +45,15 @@ The typed command line for one catalog verb: what will run, on which target, wit
 - Focus returns to the invoking row after Run or Cancel (WCAG 2.4.3); `.` moves focus to Run visibly. The armed strip counts in `sticky-offset`, so it never hides the focused row.
 
 **Removes switching:** reopening the palette and re-entering fields for the same verb on every row, and opening the dock to see whether it ran (J21, J22; counts in the plan ledger).
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- Key (moved text): "Armed · one Run · fields prefilled with their origin. After Run the strip stays armed, names its own target, and a duplicate is refused. When the selection moves the strip keeps its target until Rebind. A checked set: Run confirms through ConfirmDialog, and the run summary is its own chip. ≠: never."
+- ≠ last run: "target fields never come from the last run"
+- Duplicate: "Already submitted a3f9 for this target · running" (the render now shows the holding job, ● job a3f9).
+- ≠ posts: ". never posts." Keyboard hint: "j/k to the next row, then . rebinds the armed action to that row and focuses Run."
+- Fields kept: "after Rebind, a history move or Esc · fields kept"
+- Field required: "kb is required. Enter it in Fields… Your other fields are kept."
+- Keycap Key rows (removed; keycaps are not drawn encodings): ". · rebind row"; "Esc · disarm".

@@ -25,3 +25,9 @@ The resource-scoped ownership panel and the failover rule: which points serializ
 - Rows are a list; each reads "lock, writes to one Ghidra program's analysis DB". The glyph SVG is `aria-hidden`. In the SVG each lock is a `<g id="lock-1">` and the outline is the primary accessible form.
 
 **Removes switching:** opening the Jobs dock, the process list and the diagram to learn who owns a lock and what it serializes (J04, J28).
+
+## Behavior
+
+- Ownership is resource-scoped: "OWNERSHIP IS RESOURCE-SCOPED (eligible independent work overlaps)".
+- A deadline ends the attempt, not the objective (formerly the "≠ objective" chip: "Deadline ends attempt, not objective").
+- Expired ownership does not free resources (formerly the "≠ free" chip: "expired ownership does not free resources.").

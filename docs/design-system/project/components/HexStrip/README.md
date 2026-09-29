@@ -57,3 +57,9 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 - **Select Bytes (L23).** The link menu on a byte has **Select bytes…** with a count field ("Select 240 bytes from 0041c880 on build-a"). The result is the same transient extent as a drag, mapped back to Listing rows, and Esc collapses it (Esc order step 5). A count that runs past the region or section end is clipped and says so.
 - **Checksums (I03).** On a byte selection, the link menu's **Checksums** opens a Peek with checksum-8, -16 and -32, Adler-32, CRC-16 and CRC-32, MD5 and the SHA family over the selection, each value in mono with its algorithm, the range and the build. It is read-only and computes nothing until a catalog read action exists; until then it says "Checksums need a catalog read action; not computed". **On every build** hashes the anchor-mapped range on each build, one row per build naming the anchor used; an absent anchor reads "no anchor on build-d". Differing checksums are divergence evidence whose class is unknown unless a record states it.
 - Keymap ids (registered): `hex.selectCount` (no keys; link menu and palette), `hex.checksums` (no keys). The preview is unchanged: every addition is in the pane-header or link menu.
+
+## Behavior
+
+- "The shared cursor moved to 0041b21f; the Listing marks the row and the decompile marks line 6." (formerly the cursor chip tip)
+- "Rows are marked, never split or re-disassembled from the strip." (formerly the `≠ split` chip)
+- "The strip never disassembles or defines data." (formerly the `≠ disassemble` chip)

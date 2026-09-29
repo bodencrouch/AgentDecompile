@@ -53,3 +53,13 @@ The one narrow contract: the single-pane flow below 700px (`bp-single-pane`), ch
 - The sheet never covers the focused element (2.4.11).
 
 **Removes switching:** J37 (any cross-view journey at 598×912) goes from 6 switches to 2: Enter from Navigate, then Peek the counterpart as a sheet instead of switching to Inspect and back. It is 1 if the counterpart is only peeked, 3 if a job record must be opened, and 1 more below 480px of viewport height. The ledger credits J37 to U191.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- ⇣ 700px (chip removed): "Update panes: On Enter · forced below 700px, so arrows move focus only"
+- ▭ ≤ 64%: "Non-modal, at most 64% of the pane; the line that opened it stays visible above. Full height makes it modal."
+- ◇ derived: "A derived split reads \"build-a · primary | Counterpart of #88 · derived\"; Enter in it is Go, and Follow again returns a held segment to derived." (now a solid plain-frame chip; the dashed frame means hypothesis only)
+- ⧉ 8080 · window (chip removed): "On 8080 without split panes, Open beside opens a new window."
+- ≠ URL scroll (chip removed): "The URL carries the location, not scroll."

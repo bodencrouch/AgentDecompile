@@ -62,3 +62,18 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 **Prior art**
 
 Ghidra Project Repository (`VersionControl/project_repository.htm`), Merge Program Files (`Repository/Merge_Program_Files.htm`) and the Ghidra Server topics. The merge's three-value choice follows Ghidra's Latest, Checked Out and Original panels; its presentation reuses MergeReview's master-detail form.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- Key (moved text): "Stacked bar: conflicts per category. ≠ chip: a claim boundary. Target map: the one build a verb writes."
+- ● memory map (chip removed): "Memory map changes (MemoryMapTable) need an exclusive checkout, as in Ghidra."
+- ≠ options merged (chip removed; the check-in target map draws options as a replaced tile): "Program options, including analysis options, are not merged on check-in or update; the latest checked-in values can replace yours. Compare analysis options first."
+- Undo slot: "⊘ undo after" became the focusable undo-slot chip "⊘ no undo" before Cancel: after check-in these transactions cannot be undone here.
+- ≠ auto-pick (replaced by ⇄ 3): "Non-conflicting changes merged automatically; 3 conflicts wait for your choice. Nothing is picked for you."
+- MergeReview (tip removed; text for MergeReview README or Peek): "Each conflict opens in MergeReview with three values: the latest checked-in version, your checkout and the common original. A choice is a catalog action on build-b; \"use for all in this category\" confirms through ConfirmDialog."
+- ≠ checkout · analyze (chip removed): "Opening a version reads it; it never checks out, merges or analyzes."
+- ✕ oldest · latest (rule): "Only the oldest or latest version can be deleted, by its owner or a repository administrator, and never while it is checked out."
+- Not shared (rule): "corpus-alpha is not under version control. Builds are private files. Add to version control… names each build and confirms." Ghidra's label "Add to Version Control…" stays in the menu and palette only.
+- ⊘ End checkout (rule): "Ending another user's checkout needs a repository administrator and is not offered here."

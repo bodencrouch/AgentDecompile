@@ -112,3 +112,10 @@ The memory map of one build as a table: blocks with their range, length, permiss
 - Ghidra help `MemoryMapPlugin/Memory_Map.htm`: block types, overlays and their image-base exception, the editable columns, the uninitialize side effect, the add-block dialog, and the exclusive-checkout requirement for versioned programs.
 - Research: relocation- and layout-aware comparison (C3), placement maps (`docs/research/2026-09-29-msvc-optimization-for-decomp.md` §9, view 8), and the variance classes with evidence (Premise, `docs/research/2026-09-29-reference-re-ui-patterns.md`).
 - Existing components: ImageDeltaMap (rebuild deltas), ObjectDiff, LocatorGlyph (degraded and pinned anchors), ConfirmDialog, ActionStrip.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- ≠ propose (chip removed): "program-local: never proposed to other builds"
+- ≠ merge (chip removed): "Nothing here is merged, copied or proposed; memory maps are program-local."

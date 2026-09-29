@@ -30,3 +30,9 @@ Whole-image rebuild drawn as the work: the image's regions in file order, with t
 - The key is plain text with values, so the map is readable without color, hatching or the drawing.
 
 **Removes switching:** it serves J34 (from a whole-image delta to the offending region and its object diff, 4 → 1), credited to typed links (U171) in the plan ledger.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- Key (moved text): "Hatched regions differ; every value is also in this key. ✕ differs, = equal, width is the region's share of the file." The Key is now a disclosure; the visible legend line keeps every value.

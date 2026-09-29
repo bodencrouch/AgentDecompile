@@ -45,3 +45,10 @@ Where a job, receipt, problem or go-to row sits in the recovery pipeline, as one
 - Node ids and verbs carry `translate="no"`; stage titles are ordinary words and may be translated.
 
 **Removes switching:** J03, finding which stage produced a receipt or job, goes from 4 switches to 0 where §2.1 maps the verb; otherwise the row says "stage: unmapped". J02, fact → receipt → job, goes from 5 to 1: the Peek reads the receipt and its stage at 0, and the 1 is the dock-tab change to open the job (+1 below 700px). Both are credited to U180. From a row to the diagram node and its live view is one activation.
+
+## Behavior
+
+- Family color is only the 3px rule; the number and the model title carry the meaning.
+- An export verb shows its label, never the node title: “export · hookpack” for a v1 pack, not “hookpack v2”.
+- Stage 0 is open, add and resume; stage 8 has no verb, and no verb maps to a lane, so no chip names them.
+- “stage: unmapped” is words, not a link, and never a lane guess.

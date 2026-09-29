@@ -31,3 +31,8 @@ A confirm step for batch, destructive and cross-build verbs only: verb and objec
 **Accessibility**
 
 - APG Alert dialog: `aria-modal`, `aria-labelledby` the title and `aria-describedby` the consequence sentence. Focus starts on Cancel. Everything under it is inert.
+
+## Behavior
+
+- Single-target edits confirm in place and never open this dialog (formerly the "≠ single target" chip).
+- A history move closes it as Cancel; nothing is sent (formerly the "↶ = Cancel" chip).

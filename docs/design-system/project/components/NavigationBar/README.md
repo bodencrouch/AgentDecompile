@@ -99,3 +99,9 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 - **File offset (N02).** A `file:` prefix ("file:0x1c880") maps a file offset to an address through the build's memory map, one row per build that has the offset, or "offset 0x1c880 is outside every block on build-d".
 - **Evaluator (I04).** The `=` result row also shows the value in hex, decimal, signed and char forms; Alt+↓ on it opens the Peek scalar conversions. Evaluating is a read and never moves anything until Enter.
 - Keymap id: none new; `=` and `file:` are prefixes of `goto.anything` (Ctrl/Cmd+P) and `goto.address` (Ctrl/Cmd+G). The preview's prefix chips include `=` and `file:`, and it shows the no-match state with its Search the program row.
+
+## Behavior
+
+- Follows: panes update as you move ("follows · as I move"). The "As I move" option is now labelled "On move".
+- "Picking one is a Go: one stop, never a re-resolved address." (formerly the "≠ re-resolve" chip in the Builds footer)
+- "A link never carries the checked set, drafts or credentials, and never an action." (formerly the "≠ checked · drafts · action" chip)

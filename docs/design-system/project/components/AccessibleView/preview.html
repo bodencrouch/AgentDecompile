@@ -1,13 +1,22 @@
 <!-- @dsCard group="Shell" height=1120 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<div class="row"><span class="kicker">Invoker</span><span class="adv-tip"><span tabindex="0" role="img" aria-label="Invokers" aria-describedby="av-inv" style="display:inline-flex"><ul class="adv-chips" aria-hidden="true"><li>pane button</li><li><span class="ad-kbd">Alt+F2</span><b aria-hidden="true">⚠</b></li><li>palette</li><li>Help menu</li></ul></span><span role="tooltip" id="av-inv">The invoker · a pane-header button, Alt+F2, the palette or the Help menu (GNOME and KDE take Alt+F2)</span></span></div>
+<div class="row"><span class="kicker">Invoker</span><ul class="adv-chips" aria-label="Invokers"><li>pane button</li><li><span class="ad-kbd">Alt+F2</span><span class="adv-tip"><button type="button" class="adv-q" aria-label="Shortcut taken, Alt+F2" aria-describedby="av-inv">⚠</button><span role="tooltip" id="av-inv"><b>Shortcut taken</b> · <span class="ad-kbd">Alt+F2</span><br>GNOME and KDE bind it</span></span></li><li>palette</li><li>Help menu</li></ul></div>
 <div class="ad-av-invoker">
- <div class="ad-pane-h"><span class="small"><b class="strong">Listing</b> · build-b · <span translate="no">ResourceRef::Resolve</span></span><span style="display:inline-flex;gap:8px;align-items:center"><button class="ad-btn compact" aria-haspopup="dialog" aria-keyshortcuts="Alt+F2">Accessible View <span class="ad-kbd">Alt F2</span></button><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="av-key">?</button><span role="tooltip" id="av-key">Accessible View is text by design: its text area holds the words. ▸ focused row. ↩ where Esc returns focus. ◷ basis changed since opened. ≠ chip: a claim boundary. Chips: the snapshot's settings. ⚠ shortcut taken on some desktops.</span></span></span></div>
+ <div class="ad-pane-h"><span class="small"><b class="strong">Listing</b> · build-b · <span translate="no">ResourceRef::Resolve</span></span><span style="display:inline-flex;gap:8px;align-items:center"><button class="ad-btn compact" aria-haspopup="dialog" aria-keyshortcuts="Alt+F2">Accessible View <span class="ad-kbd">Alt F2</span></button><button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="av-key">?</button></span></div>
+ <dl class="adv-key" id="av-key" hidden>
+  <dt>▸</dt><dd>Focused row</dd>
+  <dt>↩</dt><dd>Return target</dd>
+  <dt>◷</dt><dd>Basis changed</dd>
+  <dt>⚠</dt><dd>Shortcut taken</dd>
+  <dt><kbd class="ad-kbd">Alt+F2</kbd></dt><dd>Open</dd>
+  <dt><kbd class="ad-kbd">Esc</kbd></dt><dd>Close</dd>
+  <dt><kbd class="ad-kbd">Alt+F1</kbd></dt><dd>Help</dd>
+ </dl>
  <div class="ad-listing well" role="grid" aria-readonly="true" aria-label="Listing, build-b, ResourceRef::Resolve" aria-rowcount="23">
   <div class="ad-ln" role="row" aria-rowindex="3"><span class="flow" aria-hidden="true"> </span><span class="addr" role="gridcell">0041b2c1</span><span class="bytes" role="gridcell">8b ec</span><span class="mn" role="gridcell">mov</span><span role="gridcell">ebp, esp</span><span role="gridcell"></span></div>
   <div class="ad-ln" role="row" aria-rowindex="4" aria-current="true"><span class="flow" aria-hidden="true">▸</span><span class="addr" role="gridcell">0041b2c3</span><span class="bytes" role="gridcell">8b 45 08</span><span class="mn" role="gridcell">mov</span><span role="gridcell">eax, dword ptr [ebp + 0x8]</span><span class="xref" role="gridcell"></span></div>
  </div>
- <p class="ad-av-note"><span class="adv-tip"><span tabindex="0" aria-describedby="av-fr" role="img" aria-label="Focused row 0041b2c3, Esc returns here"><span aria-hidden="true">▸ 0041b2c3 · ↩ </span><span class="ad-kbd">Esc</span><span class="sr-only">Focused row 0041b2c3</span></span><span role="tooltip" id="av-fr">Focused row 0041b2c3 · Esc from the Accessible View returns here</span></span></p>
+ <p class="ad-av-note"><span aria-hidden="true">▸ 0041b2c3 · ↩ <span class="ad-kbd">Esc</span></span><span class="sr-only">Focused row 0041b2c3, return target</span></p>
 </div>
 
 <div class="ad-av-stage">
@@ -15,7 +24,7 @@
   <header><h3 id="av1-t">Accessible View · Listing · <code translate="no">ResourceRef::Resolve</code> · build-b</h3>
    <button class="ad-av-x" aria-label="Close Accessible View" aria-keyshortcuts="Escape"><span aria-hidden="true">✕</span></button>
    <p id="av1-d" class="sr-only">Read-only snapshot of the current function, 23 instructions, as read 13:58:07. Esc returns focus to row 0041b2c3 in the Listing.</p><ul class="adv-chips" aria-hidden="true"><li>read-only</li><li><span>instr</span>23</li><li><span>read</span>13:58:07</li><li><span>Esc ↩</span>0041b2c3</li></ul></header>
-  <div class="ad-tools adl-av-verb"><span class="small">Verbosity</span><ul class="adv-chips" aria-label="Verbosity: address full, bytes off"><li><span>address</span>full</li><li><span>bytes</span>off</li></ul><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="av-vb"><b aria-hidden="true">≠</b>this dialog</button><span role="tooltip" id="av-vb">one per-viewer setting, not this dialog's</span></span><button class="ad-btn compact quiet" aria-haspopup="dialog">View settings…</button></div>
+  <div class="ad-tools adl-av-verb"><span class="small">Verbosity</span><ul class="adv-chips" aria-label="Verbosity: address full, bytes off"><li><span>address</span>full</li><li><span>bytes</span>off</li></ul><button class="ad-btn compact quiet" aria-haspopup="dialog">View settings…</button></div>
   <label class="sr-only" for="av1-ta">Text of Listing, build-b, ResourceRef::Resolve</label>
   <textarea id="av1-ta" class="ad-av-text" readonly wrap="soft" rows="17" spellcheck="false" translate="no">reused · existing analysis · build-b gen 42 · as read 13:58:07
 Listing, build-b, ResourceRef::Resolve, 0041b2c0 to 0041b2f7, 23 instructions
@@ -41,7 +50,7 @@ label LAB_0041b2e0, jump target from 0041b2c8
   <header><h3 id="av2-t">Accessible View · Object diff · r15</h3>
    <button class="ad-av-x" aria-label="Close Accessible View" aria-keyshortcuts="Escape"><span aria-hidden="true">✕</span></button>
    <p id="av2-d" class="sr-only">Diff lines carry the words “+ added”, “− removed”, “≠ differs”. Opened on a held pane; shown with the viewer's verbosity set to address last 4.</p><ul class="adv-chips" aria-hidden="true"><li>+ − ≠</li><li>held pane</li><li><span>address</span>last 4</li></ul></header>
-  <div class="ad-notice caution adl-av-note"><b aria-hidden="true">◷</b><div><p class="row" style="gap:8px"><span class="adv-tip"><span tabindex="0" aria-describedby="av-bc" role="img" aria-label="basis changed">basis changed</span><span role="tooltip" id="av-bc">Basis changed since opened · The text below stays as read; nothing changes under the caret.</span></span><button class="ad-btn compact">Refresh</button></p></div><span></span></div>
+  <div class="ad-notice caution adl-av-note"><b aria-hidden="true">◷</b><div><p class="row" style="gap:8px"><span class="adv-tip"><button type="button" style="border:0;background:none;padding:0;min-height:24px;font:inherit;color:inherit;cursor:help" aria-describedby="av-bc">basis changed</button><span role="tooltip" id="av-bc"><b>Basis changed</b> · r15<br>since read <span class="mono">13:58:07</span></span></span><button class="ad-btn compact">Refresh</button></p></div><span></span></div>
   <label class="sr-only" for="av2-ta">Text of object diff, ResourceRef::Resolve, build-a, target versus candidate r15</label>
   <textarea id="av2-ta" class="ad-av-text" readonly wrap="soft" rows="12" spellcheck="false" translate="no">Held · ResourceRef::Resolve @ build-a · 4 min
 fresh · object diff · basis 9f3c…a1e0 · as read 13:58:07

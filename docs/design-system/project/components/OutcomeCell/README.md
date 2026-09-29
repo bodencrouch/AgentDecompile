@@ -42,3 +42,9 @@ The outcome of a verb, landed on the row it acted on: the compact TaskLifecycle 
 - Text survives WCAG 1.4.12 spacing; the cell wraps, never truncates. Forced colors map state frames to `CanvasText`; the running frame keeps its 2px weight.
 
 **Removes switching:** reading each row's outcome without opening the Jobs dock (J21 and J22, credited to U184; counts in the plan ledger). It also helps J12, J19 and J30, which the ledger credits to other units.
+
+## Behavior
+
+- No target named: "No cell on either surface. Only the ActionStrip's line reads “outcome in dock · job 77c0”."
+- Announcements (formerly the visible "pending silent / run end polite · once / in-cell not live" chips and their tip): "Nothing is announced on pending. When the last job of the run ends, once, politely: “Run on 4 rows ended: 3 finished, 1 failed.” In-cell progress is never live."
+- Facts listed are only those whose receipts that job wrote, as of that job.

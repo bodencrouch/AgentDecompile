@@ -66,3 +66,13 @@ One output or result artifact in full. It says what the artifact proves and what
 - Never color alone: the historical frame is dashed and the word "historical" is text. "Provider differed" is ⇄ plus words. "Varies" is ◐ plus words.
 
 **Removes switching:** reading one artifact's proof boundary, provenance, per-build coverage and changes happens in one card, instead of opening the receipt list, the dock, the diff report and the docs separately.
+
+## Behavior
+
+- Percentages are truncated, never rounded up; “done” appears only at exactly 1,188 of 1,188.
+- Fuzzy is objdiff similarity, truncated, never rounded up; it is never summed with matched or linked.
+- Coverage across builds is not averaged.
+- Each bundle member keeps its own tier.
+- Ambiguous and contested records ship as structured outputs that refuse unsafe use.
+- A bundle is refused as a whole if any member fails its own verify gate.
+- A historical observation from a port the current mission forbids stays historical and is never shown as fresh.

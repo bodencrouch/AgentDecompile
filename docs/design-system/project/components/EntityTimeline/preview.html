@@ -1,4 +1,4 @@
-<!-- @dsCard group="Evidence" height=1390 -->
+<!-- @dsCard group="Evidence" height=1450 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <div class="ad-etl-demo">
 <section class="ad-etl" aria-labelledby="etl-h">
@@ -6,10 +6,31 @@
   <span class="kicker">History</span>
   <h4 id="etl-h" translate="no">ResourceRef::Resolve</h4>
   <span class="small muted">logical #88 · build-a <a class="ad-link addr" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no">0041b210</a></span>
-  <span class="adv-tip" style="margin-left:auto"><span class="ad-sync small adv-w" tabindex="0" aria-describedby="etl-fol"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Follows</span><span role="tooltip" id="etl-fol">Follows · as I move</span></span>
+  <span class="adv-tip" style="margin-left:auto"><button type="button" class="ad-sync small adv-w" aria-describedby="etl-fol"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Follows</button><span role="tooltip" id="etl-fol"><b>Follows</b> · build-a<br>current location, <span translate="no">ResourceRef::Resolve</span></span></span>
   <button class="ad-btn compact" aria-pressed="false" aria-keyshortcuts="Shift+K">Keep</button>
-  <span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="etl-key">?</button><span role="tooltip" id="etl-key">NEW: since you looked. ✓ passed · ◷ stale · ✕ failed or blocked · ○ not loaded · ✎ your edit · ← propagation in · → propagation out · › won over · FRESH, REUSED, dashed HISTORICAL provenance · bar: a share of one count · ≠: a claim boundary. Links chain fact → receipt → job → stage → changed entities.</span></span>
+  <button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="etl-key">?</button>
  </header>
+ <dl class="adv-key" id="etl-key" hidden>
+  <dt><span class="ad-etl-new">new</span></dt><dd>Since you looked</dd>
+  <dt>✓</dt><dd>Passed</dd>
+  <dt>◷</dt><dd>Stale</dd>
+  <dt>✕</dt><dd>Failed or blocked</dd>
+  <dt>○</dt><dd>Not loaded</dd>
+  <dt>✎</dt><dd>Your edit</dd>
+  <dt>←</dt><dd>Propagation in</dd>
+  <dt>→</dt><dd>Propagation out</dd>
+  <dt>›</dt><dd>Won over</dd>
+  <dt><span class="ad-stamp"><b class="fresh">fresh</b></span></dt><dd>Fresh</dd>
+  <dt><span class="ad-stamp"><b>reused</b></span></dt><dd>Reused</dd>
+  <dt><span class="ad-stamp"><b class="historical">historical</b></span></dt><dd>Historical</dd>
+  <dt><span class="adv-frac" style="--v:45"><i></i></span></dt><dd>Share of count</dd>
+  <dt>≠</dt><dd>Claim boundary</dd>
+  <dt>∅</dt><dd>No record</dd>
+  <dt><span class="adv-w">&nbsp;</span></dt><dd>Event store</dd>
+  <dt><kbd class="ad-kbd">Enter</kbd></dt><dd>Go</dd>
+  <dt><kbd class="ad-kbd">Alt+↓</kbd></dt><dd>Peek</dd>
+  <dt><kbd class="ad-kbd">Shift+F10</kbd></dt><dd>Link menu</dd>
+ </dl>
  <section class="ad-etl-since" aria-labelledby="etl-since-h">
   <h5 id="etl-since-h"><span class="ad-etl-newmark" aria-hidden="true"></span><span aria-hidden="true">4 new</span><span class="sr-only">4 changes since you looked</span> <span class="muted">· 13:02 · 56 min</span></h5>
   <ul>
@@ -23,7 +44,7 @@
  <div class="ad-tools ad-etl-tools" role="group" aria-label="History filters">
   <span class="ad-seg" role="group" aria-label="Builds"><button aria-pressed="true">This build</button><button aria-pressed="false">All builds</button></span>
   <span class="ad-seg" role="group" aria-label="Provenance"><button aria-pressed="true">All</button><button aria-pressed="false">Fresh</button><button aria-pressed="false">Reused</button><button aria-pressed="false">Historical</button></span>
-  <span class="row small" style="gap:8px"><span class="muted">actor ∅</span><span class="adv-frac" role="img" aria-label="Actor filter: actor not recorded for 3 of 8 events" style="--v:38"><i></i>3/8</span></span>
+  <span class="row small" style="gap:8px"><span class="muted">actor ∅</span><span class="adv-frac low" role="img" aria-label="Actor filter: actor not recorded for 3 of 8 events, 38 percent" style="--v:38"><i></i>38%</span></span>
  </div>
  <div class="ad-etl-list" role="grid" aria-label="History of ResourceRef::Resolve on build-a, newest first" aria-rowcount="31" data-scroll>
   <div role="row" class="ad-etl-ev new" aria-rowindex="1" aria-selected="true">
@@ -44,7 +65,7 @@
    <span role="rowheader" class="ad-etl-t"><time datetime="13:41:02">13:41</time></span>
    <div role="gridcell" class="ad-etl-what"><span class="ad-etl-k">Job <span class="ad-etl-new">new</span></span>
     <span class="ad-etl-s"><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" tabindex="-1">a3f9</a> <span class="mono">corpus.cross-place</span> <span>admitted · build-a → build-b</span></span>
-    <span class="ad-etl-why row" style="gap:8px">running <span class="adv-frac" role="img" aria-label="recipient 14 of 31 compiled" style="--v:45"><i></i>14/31</span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="etl-nm"><b aria-hidden="true">≠</b>match</button><span role="tooltip" id="etl-nm">A finished job is not a match.</span></span></span></div>
+    <span class="ad-etl-why row" style="gap:8px">running <span class="adv-frac" role="progressbar" aria-label="Recipients compiled, job a3f9" aria-valuemin="0" aria-valuenow="14" aria-valuemax="31" aria-valuetext="14 of 31 units done" style="--v:45"><i></i>14/31</span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="etl-nm"><b aria-hidden="true">≠</b>match</button><span role="tooltip" id="etl-nm"><b>Claim boundary</b> · job a3f9<br>A finished job is not a match.</span></span></span></div>
    <div role="gridcell" class="ad-etl-chain"><a class="ad-link mono" href="?project=corpus-alpha&amp;node=stage-5" tabindex="-1">stage-5</a></div></div>
   <div role="row" class="ad-etl-ev new" aria-rowindex="4">
    <span role="rowheader" class="ad-etl-t"><time datetime="13:30:15">13:30</time></span>
@@ -71,11 +92,11 @@
    <div role="gridcell" class="ad-etl-what"><span class="ad-etl-k">Basis</span>
     <span class="ad-etl-s">build-a generation 41 <span aria-hidden="true">→</span><span class="sr-only">to</span> 42</span>
     <span class="ad-etl-why"><span aria-hidden="true">2 receipts · gen 41</span><span class="sr-only">2 receipts made under gen 41 are now historical</span></span>
-    <span class="ad-stamp"><b class="historical">historical</b><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="etl-fence"><b aria-hidden="true">≠</b>current</button><span role="tooltip" id="etl-fence">gen 41 · fenced; not current acceptance</span></span></span></div>
+    <span class="ad-stamp"><b class="historical">historical</b><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="etl-fence"><b aria-hidden="true">≠</b>current</button><span role="tooltip" id="etl-fence"><b>Claim boundary</b> · build-a, gen 41<br>fenced; not current acceptance</span></span></span></div>
    <div role="gridcell" class="ad-etl-chain"><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=3c77" tabindex="-1">3c77</a><span aria-hidden="true">→</span><span class="muted">stage: unmapped</span></div></div>
-  <div role="row" class="ad-etl-more" aria-rowindex="9"><div role="gridcell" aria-colspan="3" class="adv-empty" style="display:flex;padding:8px 16px"><span class="adv-tip"><b tabindex="0" role="img" aria-label="Not loaded" aria-describedby="etl-more">○</b><span role="tooltip" id="etl-more">Not loaded · Enter to load. 22 older events are stored; reading them starts no work.</span></span><strong class="strong">Not loaded</strong><button class="ad-btn compact" tabindex="-1" aria-describedby="etl-more">Read older · 22</button></div></div>
+  <div role="row" class="ad-etl-more" aria-rowindex="9"><div role="gridcell" aria-colspan="3" class="adv-empty" style="display:flex;padding:8px 16px"><span class="adv-tip"><button type="button" class="adv-q" tabindex="-1" aria-label="Not loaded, 22 older events" aria-describedby="etl-more">○</button><span role="tooltip" id="etl-more"><span aria-hidden="true">○</span> <b>Not loaded</b> · build-a<br><span class="mono">22</span> older events stored<br><kbd class="ad-kbd">Enter</kbd> Read</span></span><strong class="strong">Not loaded</strong><button class="ad-btn compact" tabindex="-1" aria-describedby="etl-more">Read older · 22</button></div></div>
  </div>
- <footer class="ad-etl-foot"><ul class="adv-chips" aria-label="Keys: ↑↓ events · ←→ links · Enter go · Alt+↓ peek · Shift+F10 link menu"><li><span>↑↓</span>events</li><li><span>←→</span>links</li><li><span>Enter</span>go</li><li><span>Alt ↓</span>peek</li><li><span>Shift F10</span>link menu</li></ul><span class="adv-tip is-open"><span class="adv-w" tabindex="0" aria-describedby="etl-src"><b aria-hidden="true">◇</b>event store · 13:58:07</span><span role="tooltip" id="etl-src">Read from the event store · 13:58:07 · moving between events writes no history</span></span></footer>
+ <footer class="ad-etl-foot"><ul class="adv-chips" aria-label="Keys: ↑↓ events · ←→ links · Enter go · Alt+↓ peek · Shift+F10 link menu"><li><span>↑↓</span>events</li><li><span>←→</span>links</li><li><span>Enter</span>go</li><li><span>Alt ↓</span>peek</li><li><span>Shift F10</span>link menu</li></ul><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="etl-src">event store · 13:58:07</button><span role="tooltip" id="etl-src"><b>Event store</b> · build-a<br>read <span class="mono">13:58:07</span></span></span></footer>
  <p class="sr-only" role="status">4 changes since you looked at 13:02.</p>
 </section>
 
@@ -96,11 +117,13 @@
  </div>
  <section class="ad-etl-kept" aria-labelledby="etl-k">
   <header><span class="ad-etl-held">Kept</span><h4 id="etl-k"><span translate="no">Actor::LoadFromTemplate</span> <span class="muted">· history · build-a</span></h4><span class="small muted"><span aria-hidden="true">6 min</span><span class="sr-only">kept 6 min ago · not following</span></span></header>
-  <div class="ad-etl-note"><b aria-hidden="true">◷</b><p class="row" style="gap:8px"><strong>Basis changed</strong><span class="mono">+1 event</span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="etl-kn"><b aria-hidden="true">≠</b>auto-refresh</button><span role="tooltip" id="etl-kn">Basis changed since kept · Refresh. 1 new event on this entity. Nothing refreshes by itself.</span></span></p></div>
+  <div class="ad-etl-note"><b aria-hidden="true">◷</b><p class="row" style="gap:8px"><strong>Basis changed</strong><span class="mono">+1 event</span></p></div>
   <div class="ad-etl-acts"><button class="ad-btn compact">Refresh</button><button class="ad-btn compact" aria-pressed="true" aria-keyshortcuts="Shift+K">Keep</button><button class="ad-btn compact">Release</button></div>
  </section>
  <div class="ad-notice info"><b aria-hidden="true">∅</b><div><h4><span class="sr-only">No recorded changes for </span><span class="mono">FUN_0041c880</span> · build-a</h4><ul class="adv-chips" aria-hidden="true" style="margin-top:4px"><li><span>changes</span>0</li><li><span>import</span>gen 42</li></ul><p class="sr-only">Existing analysis only. Nothing has changed it since import at generation 42.</p></div><span></span></div>
  <div aria-busy="true"><div class="ad-notice info"><b aria-hidden="true">…</b><div><h4><span class="sr-only">Loading history for </span><span aria-hidden="true">Loading · </span><span class="mono">Archive::OpenMember</span></h4><ul class="adv-chips" aria-hidden="true" style="margin-top:4px"><li><span>dimmed</span>ResourceRef::Resolve</li><li><span>late answer</span>dropped</li></ul><p class="sr-only">Still showing ResourceRef::Resolve, dimmed. A late answer for the old selection is dropped.</p></div><span></span></div></div>
 </div>
+<span class="kicker">Tip pinned</span>
+<div class="row" style="padding-bottom:56px"><span class="adv-tip is-open"><button type="button" class="adv-w" aria-expanded="true" aria-describedby="etl-src2">event store · 13:58:07</button><span role="tooltip" id="etl-src2"><b>Event store</b> · build-a<br>read <span class="mono">13:58:07</span></span></span></div>
 </div>
 </div>

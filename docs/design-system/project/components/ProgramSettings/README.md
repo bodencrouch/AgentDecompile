@@ -110,3 +110,15 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 **Prior art**
 
 Ghidra Processor Languages and Set Language (`LanguageProviderPlugin/Languages.htm`) and Installed Processors (`RuntimeInfoPlugin/InstalledProcessors.htm`). Unlike Ghidra, the change never applies to the program you happen to have open: the build is named, the consequences are counted before the confirm, and re-analysis is a separate admission.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- ≠ toolchain (full original tip): "The compiler spec is Ghidra's model of calling conventions and data layout. It is not the toolchain that built the image; that is in Toolchain."
+- ≈ related: "Only closely related languages are offered." 32 → 64: "A move from 32-bit to 64-bit is allowed" ⊘ 64 → 32: "the reverse is refused because an address space would shrink."
+- Confirm steps (original tips): "Needs build-c's writer and an exclusive checkout. Writer: free. Checkout: exclusive, by you." · "Register and context values. Transferred by register name. 0 removed." · "1,204 functions keep their convention names; 0 become unknown. Each stored signature's storage is rechecked." · "Revalidated by the layout check under the new data organisation. CacheEntry stays 0x1c · 4. 0 types change size." · "Disassembly and analysis: Not run by this job. Analysis receipt e5a0 becomes stale; re-analysis needs its own admission in Analysis." · "Decompile caches, 3 comparisons and FID hashes on the old basis. Identity edges stay; their comparison evidence is marked stale." · "Undo checkout (discards unsaved work) or change the spec again. Archive the project first if you need a restorable copy."
+- Private copy (was "Save a private copy", ".keep · ≠ build"): writes a .keep copy beside the checkout; not a new build.
+- ≠ counterparts (footer chip replaced by the undo slot ⊘ no undo): "Other builds are unchanged. Nothing is proposed to counterparts."
+- ≠ killed (chip removed): "The change waits in admission; nothing is killed."
+- Not checked out: "Check out build-a exclusively first, in Version control." The Version control link now sits beside the disabled control, never inside the tip; the disabled control's glyph is ⊘ (● means a held writer).

@@ -50,3 +50,10 @@ The header treatment and rules for any held pane or kept evidence card, meaning 
 - `forced-colors`: the frame maps to `CanvasText`. The word "Held" or "Kept" still carries the state.
 
 **Removes switching:** held panes and kept cards contribute to J01, J07 and J20 (a reference kept in view while navigating, a held review pair, a work-view event opened beside); their counts are credited to U175, U186 and U180 in the plan ledger, which is authoritative.
+
+## Behavior
+
+- Following beside held: the frame and the word carry it, not color. A historical card shows what was read and is never refreshed by itself; `unknown` means the basis at hold time was not recorded.
+- A held pane never refreshes by itself (formerly the "≠ auto-refresh" chip): "This pane still shows the listing as read at 13:54. It never refreshes by itself."
+- Target gone: "The address link still goes to 0041d140."
+- Contested primary: entity-scoped verbs wait; "Address-scoped reads (listing, references, bytes) stay available."

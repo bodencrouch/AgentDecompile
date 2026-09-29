@@ -68,3 +68,9 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 **Research:** [MSVC transformations §2–§6, §9.9](../../../../research/2026-09-29-msvc-optimization-for-decomp.md#9-ui-implications); [reference UI patterns B2, B3](../../../../research/2026-09-29-reference-re-ui-patterns.md).
 
 **Prior art:** compiler-explorer `static/panes/opt-pipeline.ts` (per-pass before and after, hiding passes that changed nothing), `static/panes/opt-view.ts` (Passed, Missed and Analysis remarks with kind filters) · reccmp `docs/annotations.md` (compiler-generated entities kept apart).
+
+## Behavior
+
+- "Keys: ↑ ↓ step · Enter highlight its ranges and move the cursor to the first · Alt+↓ peek the evidence." (formerly in the Key tooltip)
+- "Order is the conventional stage order (front end → optimizer → code generation → link), not an observed sequence. The legacy toolchains here emit no optimization remarks." (formerly the stage-order tip)
+- "The timeline is not drawn from guesses; the other build pairs are unaffected." (formerly the `≠ guesses` chip on the build-d notice)

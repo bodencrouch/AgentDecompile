@@ -61,3 +61,11 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 **Research:** [MSVC transformations T2, T8, T9, T10, I6, I8, §9.5](../../../../research/2026-09-29-msvc-optimization-for-decomp.md#9-ui-implications); [reference UI patterns A5, B5](../../../../research/2026-09-29-reference-re-ui-patterns.md).
 
 **Prior art:** ghidra `Ghidra/Features/Base/src/main/help/help/topics/StackEditor/StackEditor.html` (the frame as a structure with signed offsets) · reccmp `reccmp/tools/stackcmp.py` (bijective and non-bijective slot pairing) · cheat-engine `Cheat Engine/StructuresFrm2.pas` (instances as columns).
+
+## Behavior
+
+- "An ESP frame is shown normalised to entry ESP and says so." (now the `ESP entry` key-value chip)
+- "An x64 RSP frame is described in words and never compared raw with EBP offsets." (formerly the "≠ raw x64" chip; now the hatched not-compared cells and ⊘ x86:LE:64 in the build-d header)
+- Keys: ↑ ↓ slot, ← → build column, Enter on a local goes to its decompiler variable, r reflects the row in the Listing.
+- /GS: a cookie needs a GS buffer; without recorded source identity the cause of a cookie present on one build and absent on another is not separated.
+- FPO: the research notes EH frames keep EBP (inference).

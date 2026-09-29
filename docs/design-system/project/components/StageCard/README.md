@@ -32,3 +32,9 @@ A pipeline stage card from the recovery overview: header band in the family fill
 - Live: a `section` named by its title; the family word, the ◇ glyph (`aria-hidden`) beside "Waiting at gate:", and counts that are never live regions. Explain never moves focus (WCAG 3.2.1); its tier is the word "context hint", not only the dotted frame.
 
 **Removes switching:** opening the diagram, the outline and then the Jobs dock to learn what a stage does and what is waiting at it now (helps J05, which the plan ledger credits to UX-08).
+
+## Behavior
+
+- "Nodes are links, never Run buttons." (formerly in the Key tooltip)
+- "Reuse a donor candidate only for compatible recipient implementation variants; each recipient earns its own acceptance." (formerly the stage 5 goal tip)
+- "compile + variant/ABI/layout compatibility gate; then byte-exact verify" · "in: compile receipts + identity table · out: recipient candidates; separate verification"

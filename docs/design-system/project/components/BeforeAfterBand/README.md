@@ -48,3 +48,11 @@ Its own component, not a variant of SourceRepairDiff: an in-place band inserted 
 - J11 rename or retype a local seen in the decompiler: 6 → 0 (F2, type, Enter; U185).
 - J12 edit a signature, calling convention or storage and verify the dependent views: 5 → 1, plus one per caller verified (Enter decompiles it; U185).
 - J13 inspect and refine a type: 5 → 2 (U185; changing the structure still opens the type view).
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- Key (moved text): "The band is inserted under the changed statements and pushes the lines below down."
+- ✎ 3 lines: "3 lines changed; they keep “✎ job a3f9” until the next navigation, and dismissing this band keeps those marks."
+- ◷ not read: "After: not read · Decompile predates job d09e · Enter to decompile"

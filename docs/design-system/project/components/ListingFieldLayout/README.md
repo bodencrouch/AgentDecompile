@@ -125,3 +125,9 @@ Reading an optional column is read-only and never analyzes. A following Listing 
 - Ghidra help: `CodeBrowserPlugin/Browser_Field_Formatter.htm` (formats per row kind, field controllers, disable versus remove, spacer text, custom formats, the PCode quick toggle), `CodeBrowserPlugin/CodeBrowserOptions.htm` (operand, XREF, EOL, p-code, source map and offset field options) and `CodeBrowserPlugin/CodeBrowser.htm` (margin markers, flow arrows). Ghidra's green selected arrow and dashed conditional arrows are replaced, because color is semantics here and dashed means hypothesis.
 - Research note C3 (`docs/research/2026-09-29-reference-re-ui-patterns.md`): objdiff's "(inferred)" suffix is the model for how optional derived columns name their basis.
 - Existing components: Listing (the grid these fields feed), KeymapSettings (a per-viewer diff against a shared default, with reset), HexStrip (the bytes column's other home).
+
+## Behavior
+
+- Presentation only: the layout is per viewer, never in the URL and never propagated.
+- Reading p-code or a file offset is a read on Enter; a following Listing never reads on a cache miss and never analyzes.
+- A field not available on this server: the other fields still read, and "What this server offers" opens as a Peek.

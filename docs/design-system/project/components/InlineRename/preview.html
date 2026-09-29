@@ -4,7 +4,19 @@
 <div>
  <span class="kicker">Editing</span>
  <form class="adc-ren pop" role="dialog" aria-modal="false" aria-labelledby="ir1-t" aria-describedby="ir1-d" id="ir1">
-  <header><h4 id="ir1-t">Rename or retype <code translate="no">local_8</code></h4><span class="end" style="display:inline-flex;gap:8px;align-items:center"><ul class="adv-chips" aria-label="catalog: Rename local · Retype local"><li><span>catalog</span>Rename local</li><li>Retype local</li></ul><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="ir-key">?</button><span role="tooltip" id="ir-key">Numbered chip: name tier, 1 human strongest, 5 placeholder. Target map: the one build a save writes; = builds keep their names. Chips: naming rule and type source. ⇄ another edit arrived. ≠ chip: a claim boundary. … running, ✎ saved, ? outcome unknown.</span></span></span></header>
+  <header><h4 id="ir1-t">Rename or retype <code translate="no">local_8</code></h4><span class="end" style="display:inline-flex;gap:8px;align-items:center"><ul class="adv-chips" aria-label="catalog: Rename local · Retype local"><li><span>catalog</span>Rename local</li><li>Retype local</li></ul><button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="ir-key">?</button></span></header>
+  <dl class="adv-key" id="ir-key" hidden>
+   <dt><span class="adc-nt after"><b>1</b></span></dt><dd>Name tier</dd>
+   <dt><ul class="adv-tmap"><li class="w"><b>✎</b></li></ul></dt><dd>Build written</dd>
+   <dt><ul class="adv-tmap"><li><b>=</b></li></ul></dt><dd>Build kept</dd>
+   <dt><ul class="adv-chips"><li>camelCase</li></ul></dt><dd>Naming rule</dd>
+   <dt>⇄</dt><dd>Edit arrived</dd>
+   <dt>…</dt><dd>Running</dd>
+   <dt>✎</dt><dd>Saved</dd>
+   <dt>?</dt><dd>Outcome unknown</dd>
+   <dt><kbd class="ad-kbd">Enter</kbd></dt><dd>Save</dd>
+   <dt><kbd class="ad-kbd">Esc</kbd></dt><dd>Cancel</dd>
+  </dl>
   <p class="sr-only" id="ir1-d">Editing · the editor is the review. Target · bound when opened.</p>
   <div class="tgt"><span class="kicker">Target</span><span>program <strong class="strong">build-a</strong> <span class="muted">corpus-alpha</span></span><span>function <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a> <span class="addr">0041b210</span></span><span>local <code translate="no">local_8</code> · stack [ebp − 0x4]</span><span class="muted">basis gen 42</span></div>
   <div class="flds">
@@ -15,10 +27,10 @@
    <span class="hint"><span class="sr-only" id="ir1-yh">Was char *. Types resolve in build-a's data type manager.</span><ul class="adv-chips" aria-hidden="true"><li><span>was</span>char *</li><li><span>types</span>build-a</li></ul></span>
    <span class="lbl">After save</span><span class="val"><span class="adc-nt weak"><b>5</b> placeholder</span><span aria-hidden="true">→</span><span class="adc-nt after"><b>1</b> human · you</span></span>
   </div>
-  <div class="rev" role="group" aria-label="Enter or Save posts once · confirmed here" aria-describedby="ir1-rev"><span class="kicker">Posts once</span><p class="sr-only" id="ir1-rev">Rename local: local_8 → nameText, and Retype local: char * → const char *, on build-a only. Counterparts on build-b and build-c keep their names; propagation is a separate reviewed step. No further confirm for a single-target edit.</p>
+  <div class="rev" role="group" aria-label="Enter or Save posts once · confirmed here" aria-describedby="ir1-rev"><span class="kicker">Review</span><p class="sr-only" id="ir1-rev">Rename local: local_8 → nameText, and Retype local: char * → const char *, on build-a only. Counterparts on build-b and build-c keep their names; propagation is a separate reviewed step. No further confirm for a single-target edit.</p>
    <div aria-hidden="true" style="display:grid;gap:8px"><ul class="adv-tmap"><li class="w"><b>✎</b>build-a<span></span><span class="mono">local_8 → nameText · const char *</span></li><li><b>=</b>build-b</li><li><b>=</b>build-c</li></ul>
    <ul class="adv-chips"><li><span>propagation</span>separate</li><li><span>confirm</span>here</li></ul></div></div>
-  <footer><button class="ad-btn primary" type="submit" aria-keyshortcuts="Enter">Save <span class="ad-kbd">Enter</span></button><button class="ad-btn" type="button" aria-keyshortcuts="Escape">Cancel <span class="ad-kbd">Esc</span></button><span class="note" style="display:inline-flex;gap:8px;align-items:center"><span class="mono">7f1e</span><span class="adv-tip end"><button type="button" class="adv-bnd" aria-describedby="ir1-opt"><b aria-hidden="true">≠</b>optimistic</button><span role="tooltip" id="ir1-opt">Intent 7f1e · nothing changes until the job's terminal result</span></span></span></footer>
+  <footer><button class="ad-btn primary" type="submit" aria-keyshortcuts="Enter">Save <span class="ad-kbd">Enter</span></button><button class="ad-btn" type="button" aria-keyshortcuts="Escape">Cancel <span class="ad-kbd">Esc</span></button><span class="note" style="display:inline-flex;gap:8px;align-items:center"><span class="mono">7f1e</span></span></footer>
  </form>
 </div>
 <div class="stack" style="gap:12px"><div>
@@ -47,7 +59,7 @@
   <div class="flds">
    <label class="lbl" for="ir3-n">Name</label><span class="val"><input class="adc-in" id="ir3-n" value="nameText" spellcheck="false" autocomplete="off" translate="no"></span>
   </div>
-  <footer><button class="ad-btn primary" type="submit">Save mine<span class="sr-only"> over</span> · gen 43</button><button class="ad-btn" type="button">Keep memberName</button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button><span class="note adv-tip end"><button type="button" class="adv-bnd" aria-describedby="ir3-tb"><b aria-hidden="true">≠</b>tie-breaker</button><span role="tooltip" id="ir3-tb">Arrival order is not a tie-breaker.</span></span></footer>
+  <footer><button class="ad-btn primary" type="submit">Save mine<span class="sr-only"> over</span> · gen 43</button><button class="ad-btn" type="button">Keep memberName</button><button class="ad-btn" type="button">Cancel <span class="ad-kbd">Esc</span></button></footer>
  </form>
 </div></div>
 </div>
@@ -62,7 +74,7 @@
    <span class="lbl">Now</span><span class="val"><span class="muted">none</span></span>
    <label class="lbl" for="ir5-c">Comment</label><span class="val"><input class="adc-in is-focus" id="ir5-c" value="opens the member by name" spellcheck="true" autocomplete="off"></span>
   </div>
-  <div class="rev" role="group" aria-label="Enter or Save posts once · confirmed here" aria-describedby="ir5-rev"><span class="kicker">Posts once</span><p class="sr-only" id="ir5-rev">Set comment (end of line) at 0041b229 on build-a only. Other builds keep theirs.</p>
+  <div class="rev" role="group" aria-label="Enter or Save posts once · confirmed here" aria-describedby="ir5-rev"><span class="kicker">Review</span><p class="sr-only" id="ir5-rev">Set comment (end of line) at 0041b229 on build-a only. Other builds keep theirs.</p>
    <ul class="adv-tmap" aria-hidden="true"><li class="w"><b>✎</b>build-a<span></span><span class="mono">EOL · 0041b229</span></li><li><b>=</b>build-b</li><li><b>=</b>build-c</li><li><b>=</b>build-d</li></ul></div>
   <footer><button class="ad-btn primary" type="submit" aria-keyshortcuts="Enter">Save <span class="ad-kbd">Enter</span></button><button class="ad-btn" type="button" aria-keyshortcuts="Escape">Cancel <span class="ad-kbd">Esc</span></button></footer>
  </form>

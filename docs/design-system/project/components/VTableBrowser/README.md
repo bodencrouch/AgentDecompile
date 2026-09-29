@@ -62,3 +62,9 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 **Research:** [MSVC transformations §6, T6, §9.7](../../../../research/2026-09-29-msvc-optimization-for-decomp.md#6-c-object-model-msvc-abi); [reference UI patterns A4, A6, C8, C11](../../../../research/2026-09-29-reference-re-ui-patterns.md).
 
 **Prior art:** ReClass.NET `ReClass.NET/ReClass.NET/Nodes/VirtualMethodTableNode.cs`, `Nodes/VirtualMethodNode.cs` (vtable node, slot rows) · reccmp `reccmp/tools/vtable.py` (full vtable diff), `docs/annotations.md` (VTABLE, SYNTHETIC, FOLDED) · ghidra `Ghidra/Features/Base/src/main/help/help/topics/DataTypeEditors/StructureEditor.htm`.
+
+## Behavior
+
+- Keys: ↑ ↓ slot · ← → build · Enter on a target goes to that build's function · Alt+↓ peeks the slot on every build.
+- build-d: every build-d cell reads unknown when no vftable is located; nothing on the build-d column is named from RTTI.
+- Folded names: "No name is chosen." (formerly the "≠ name" chip)

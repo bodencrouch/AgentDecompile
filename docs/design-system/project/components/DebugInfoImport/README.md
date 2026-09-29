@@ -128,3 +128,17 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 **Prior art**
 
 Ghidra Load PDB and Symbol Server Config (`Pdb/LoadPDB.html`, `Pdb/PDB.htm`), DWARF External Debug Files (`DWARFExternalDebugFilesPlugin`), SARIF (`Sarif/SARIF.htm`) and Source Files (`SourceFilesTablePlugin/SourceFilesTable.html`). Unlike Ghidra, a load never applies to whichever program is open: the build is named, the dry run counts conflicts first, and stronger names always win.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- ▣ stored: "All builds · stored debug records only · nothing is searched, downloaded or applied on open · each load is one admitted job on one build"
+- ≠ overwrite (chip removed): "Imported names and types enter at their own tier and never overwrite a stronger one. Loading is one admitted job per build."
+- Key (moved text): "Target map: the one build a load writes; struck builds stay unchanged."
+- 1 build · image: "One build per load. A PDB belongs to one image."
+- Stronger value stays: "human annotation on build-d; the PDB value becomes a rejected alternative; after the job, Why this name lists them"
+- ≠ Propose (footer chip removed): offering a name to counterparts is a separate Propose step.
+- ⊘ Save as default: "Save as server default: not available on this server yet. The draft still applies to the next job." What this server offers is a Peek (Server offers button, Alt+↓), not a link inside the tip.
+- ∅ build-a: "build-a records no PDB. The debug directory has no CodeView entry."
+- hand-picked: "A PDB chosen by hand stays a hypothesis until its GUID and age match."

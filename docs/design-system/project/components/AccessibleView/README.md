@@ -47,3 +47,11 @@ A modal plain-text snapshot of what the operator is reading: a read-only, soft-w
 - Opening and closing announce nothing beyond the dialog's own name; Copy all confirms once.
 
 **Removes switching:** no ledger credit. Reading an off-screen or virtualized range in browse mode becomes one modal read, and copying an exact range becomes one action, for every operator. J38 (4 → 2) is credited to U188 through `g j`; this view only reads the log or receipt in place. J04 and J39 read log excerpts and diagnostics without opening the Logs tab line by line.
+
+## Behavior
+
+- Accessible View is text by design: its text area holds the words.
+- Invokers: a pane-header button, Alt+F2, the palette or the Help menu (GNOME and KDE take Alt+F2).
+- Esc from the Accessible View returns focus to the focused row in the invoking pane.
+- Verbosity is one per-viewer setting, not this dialog's.
+- When the basis changes since opened, the text stays as read; nothing changes under the caret.

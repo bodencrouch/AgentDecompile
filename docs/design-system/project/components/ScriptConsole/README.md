@@ -84,3 +84,11 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 **Prior art**
 
 Ghidra Script Manager, Script Quick Launcher and Script Development (`GhidraScriptMgrPlugin`), the Console (`ConsolePlugin`), the Python interpreter and Bundle Manager (`BundleManager`). Unlike Ghidra, a run never uses an implicit current program: the build is named in the confirm.
+
+## Behavior
+
+- Scripts are not catalog entries and have no keys of their own; a key declared in a script header is not bound here.
+- When script management is not on this server, the script list still reads and script files are edited outside the workbench; "What this server offers" opens as a Peek.
+- When bundles are not on this server, bundle states still read. Bundles apply to script runs on every build.
+- Scripts are an advanced tool. Turn on Advanced in View settings to show Scripts. Reading past transcripts in the dock does not need it.
+- The quick launcher's Enter opens the run confirm; it never posts.

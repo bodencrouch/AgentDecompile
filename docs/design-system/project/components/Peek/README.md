@@ -81,3 +81,11 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 - **Checksums (I03).** The checksum card that HexStrip's selection opens is a Peek kind: algorithm rows, range, build, and the per-build rows when requested. It is read-only and keepable.
 - **Program properties (P12).** On an address, **Properties** lists the program's property maps that hold a value there (name, value, build). It is cache-only; "no properties at 0041b210 on build-c" when empty; "Property maps not loaded" until read.
 - The preview is unchanged; these are new content kinds in the existing card and inline forms, with the same Keep, Open beside and cache rules.
+
+## Behavior
+
+- The inline Peek shows up to 12 cached instructions and the card up to 6. The primary selection stays where it was.
+- Opening a candidate does not accept it.
+- Not loaded: open the build to read it. A Peek reads stored evidence only; it never opens a program, imports or starts analysis.
+- Open beside (new window): on 8080 without split panes, Open beside opens the same link in a new window and says so.
+- Stale: Open reads the current record.

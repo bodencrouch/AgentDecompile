@@ -147,3 +147,16 @@ The editor for one data type on one explicit build target: structure, union, enu
 - reccmp: field correspondence.
 - The research note [reference RE UI patterns](../../../../research/2026-09-29-reference-re-ui-patterns.md), A2–A4: rows keyed by field identity with a column per build, filler shown, and gaps and inferred members marked as inferred.
 - What changes here: the explicit target, the per-build layout check, and proposals gated by confirmation.
+
+## Behavior
+
+- Non-packed: every byte is a component or filler.
+- A size change resizes every use; it goes through ConfirmDialog.
+- Draft undo and redo change only this draft; program undo is per transaction in Edit history.
+- Only builds with an accepted identity edge for the type are listed.
+- A layout that differs blocks its recipient and says why.
+- Bit order follows each build's endianness.
+- An inferred structure: each field stays a hypothesis until it is named and each build's size check passes.
+- Opening from a pointer walk opens the editor in the center, bound to the inspected build; the menu lists the other builds by name, never all builds.
+- The editor reads stored layouts only; nothing is decompiled or analyzed.
+- Nothing is posted until you choose.

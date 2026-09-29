@@ -77,3 +77,13 @@ The register manager for one explicit build. Its register tree comes from that b
 - Ghidra's Register Manager and Set Register Values: the register tree, value ranges and default values.
 - IDA segment register values (Alt+G).
 - What changes here: one explicit build, per-language registers, the consequence stated before Save, re-disassembly only by admission, and cross-build comparison only through anchors.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- Key (moved text): "Framed build: the one build a save writes; struck builds stay unchanged."
+- ≠ re-disassemble (chip removed): "A context register would also change how the range disassembles; existing instructions are never re-disassembled here, and re-disassembly requires admission as a job."
+- flag ≠ context (chip is now kind · flag): DF is a flag, not a context register.
+- ≠ propose (chip removed): "Register values are never proposed to other builds."
+- ↔ anchors only: "Ranges are compared only through recorded anchors; between anchors the row names the anchor it used."

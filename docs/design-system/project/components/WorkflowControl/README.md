@@ -33,3 +33,9 @@ The one pipeline control: pause or resume write admission for the active project
 - The disclosure reflows at 320×256; family, gate and ownership are words.
 
 **Removes switching:** J29 (pause or resume admission and understand what it drains and which lanes it does not own) goes from 4 switches to 1: the disclosure beside the control, credited to U181.
+
+## Behavior
+
+- "≠ controlled: seen here, not controlled here." (formerly the `≠ controlled` chip; now `⊘ controlled` with the owner as its tip)
+- "Below 700px the control shows only ▸ while running and ❙❙ when paused, with the word."
+- "Composed from the backend's reported pause scope, as read 13:58." (the read-time chip no longer carries ◇, which is reserved for gates)

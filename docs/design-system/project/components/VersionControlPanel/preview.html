@@ -5,7 +5,8 @@
 <p class="sr-only" id="vc-sc">Ghidra Server repository · one row per build · an exclusive checkout is the one-writer lock · every verb is a catalog job</p>
  <header class="ad-g3-head">
   <h3 id="vc-t">Version control <span class="sub">· corpus-alpha</span></h3>
-  <p class="ad-vcs-conn"><span><strong>connected</strong> <span aria-hidden="true">· corpus-alpha · RMI/SSL</span><span class="sr-only">· Ghidra Server repository corpus-alpha (RMI over SSL)</span></span><span>as you</span><span><span class="sr-only">checkout state </span>read 14:02</span><a class="ad-link" href="?project=corpus-alpha&amp;node=lock-1" aria-label="Lock lock-1, writes to one Ghidra program's analysis DB: one writer per program">1 writer · program</a><span class="adv-tip end" style="margin-left:auto"><button type="button" class="adv-q" aria-label="Key" aria-describedby="vc-key">?</button><span role="tooltip" id="vc-key">✓ latest. ↓ update available. ● writer lock, exclusive. ○ free or not exclusive. ✎ local transactions. — read-only here. ↻ reconnecting. ⇄ conflict or hijack. Stacked bar: conflicts per category. ≠ chip: a claim boundary. Target map: the one build a verb writes.</span></span></p>
+  <p class="ad-vcs-conn"><span><strong>connected</strong> <span aria-hidden="true">· corpus-alpha · RMI/SSL</span><span class="sr-only">· Ghidra Server repository corpus-alpha (RMI over SSL)</span></span><span>as you</span><span><span class="sr-only">checkout state </span>read 14:02</span><a class="ad-link" href="?project=corpus-alpha&amp;node=lock-1" aria-label="Lock lock-1, writes to one Ghidra program's analysis DB: one writer per program">1 writer · program</a><button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="vc-key" style="margin-left:auto">?</button></p>
+  <dl class="adv-key strip" id="vc-key" aria-label="Key" hidden><dt aria-hidden="true">✓</dt><dd>latest</dd><dt aria-hidden="true">↓</dt><dd>update available</dd><dt aria-hidden="true">●</dt><dd>writer lock</dd><dt aria-hidden="true">○</dt><dd>free or shared</dd><dt aria-hidden="true">✎</dt><dd>local changes</dd><dt aria-hidden="true">—</dt><dd>read-only here</dd><dt aria-hidden="true">↻</dt><dd>reconnecting</dd><dt aria-hidden="true">⇄</dt><dd>conflict or hijack</dd><dt aria-hidden="true">⊘</dt><dd>no undo</dd><dt><ul class="adv-tmap"><li class="w">build-a</li></ul></dt><dd>build written</dd></dl>
  </header>
 
  <div class="ad-scroll" role="region" aria-label="Builds under version control, scrolls sideways">
@@ -44,32 +45,32 @@
  </table>
  </div>
  <span class="sr-only" id="vc-b-w">Update waits: build-b has a writer, job 77c0, external.</span>
- <div class="row" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-w" style="background:transparent" aria-describedby="vc-mm"><b aria-hidden="true">●</b>memory map</button><span role="tooltip" id="vc-mm">Memory map changes (MemoryMapTable) need an exclusive checkout, as in Ghidra.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="vc-opt"><b aria-hidden="true">≠</b>options merged</button><span role="tooltip" id="vc-opt">Program options, including analysis options, are not merged on check-in or update; the latest checked-in values can replace yours. Compare analysis options first.</span></span><a class="ad-link" href="?project=corpus-alpha&amp;panel=analysis" aria-label="Analysis panel, compare analysis options per build">Compare analysis options</a></div>
+ <div class="row" style="gap:8px"><a class="ad-link" href="?project=corpus-alpha&amp;panel=analysis" aria-label="Analysis panel, compare analysis options per build">Compare options</a></div>
 
  <div class="ad-g3-sec">
   <h4>Check in build-a</h4>
   <div class="ad-g3-dlg" role="alertdialog" aria-modal="true" aria-labelledby="vc-ci-t" aria-describedby="vc-ci-d">
-   <header><h3 id="vc-ci-t">Check in build-a as version 8</h3><ul class="adv-chips end" aria-label="catalog: Check in program"><li><span>catalog</span>Check in program</li></ul></header>
+   <header><h3 id="vc-ci-t">Check in build-a · v8</h3><ul class="adv-chips end" aria-label="catalog: Check in program"><li><span>catalog</span>Check in program</li></ul></header>
    <div class="body">
     <p class="sr-only" id="vc-ci-d">5 transactions on build-a become version 8 on the server. The server is at version 7, the same version you checked out, so nothing needs merging. After check-in these transactions cannot be undone here. Other builds are unchanged.</p>
     <div aria-hidden="true" style="display:grid;gap:8px">
-     <ul class="adv-tmap"><li class="w"><b>✎</b>build-a<span></span><span class="mono">5 → v8</span></li><li class="x"><b>—</b>build-b</li><li class="x"><b>—</b>build-c</li><li class="x"><b>—</b>build-d</li></ul>
-     <ul class="adv-chips"><li><span>server</span>v7 = checkout</li><li><span>merge</span>∅</li><li><span>undo after</span>⊘</li></ul>
+     <ul class="adv-tmap"><li class="w"><b>✎</b>build-a<span></span><span class="mono">5 → v8</span></li><li class="w"><b>↺</b>options<span></span><span class="mono">latest replaces</span></li><li class="x"><b>—</b>build-b</li><li class="x"><b>—</b>build-c</li><li class="x"><b>—</b>build-d</li></ul>
+     <ul class="adv-chips"><li><span>server</span>v7 = checkout</li><li><span>merge</span>∅</li></ul>
     </div>
     <div class="ad-g3-form">
      <label class="lbl" for="vc-cm">Comment</label><textarea class="adc-in sans" id="vc-cm" rows="2">Rename FUN_0041b210 to ResourceRef::Resolve; apply CacheEntry at 12 addresses</textarea>
-     <span class="lbl">After check-in</span><label class="ad-flag"><input type="checkbox" checked>Stay checked out <span class="m" aria-hidden="true">· ● yours</span><span class="sr-only">on build-a · the writer lock stays yours</span></label>
-     <span class="lbl" aria-hidden="true"></span><label class="ad-flag"><input type="checkbox">Keep private copy<span class="sr-only"> of this version</span> <span class="m">· .keep file</span></label>
+     <span class="lbl">After check-in</span><label class="ad-flag"><input type="checkbox" checked><span aria-hidden="true">Keep checkout</span><span class="sr-only">Stay checked out</span> <span class="m" aria-hidden="true">· ● yours</span><span class="sr-only">on build-a · the writer lock stays yours</span></label>
+     <span class="lbl" aria-hidden="true"></span><label class="ad-flag"><input type="checkbox">Private copy<span class="sr-only"> of this version</span> <span class="m">· .keep file</span></label>
     </div>
    </div>
-   <footer><span class="note adv-chips" aria-hidden="true" style="margin-right:auto"><span class="adv-bnd"><b>⊘</b>undo after</span></span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Check in</button></footer>
+   <footer><span class="adv-tip" style="margin-right:auto"><button type="button" class="adv-w" aria-describedby="vc-nu"><b aria-hidden="true">⊘</b>no undo</button><span role="tooltip" id="vc-nu"><b>no undo</b> · build-a<br>5 transactions become v8 on the server</span></span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Check in</button></footer>
   </div>
  </div>
 
  <div class="ad-g3-sec">
   <h4>Update build-b · merge result</h4>
   <p class="sr-only" id="vc-up-d">Update build-b · the merge result, once job 77c0 releases the writer. Shown for the state after Update runs: version 6 was merged into your checkout of build-b by job c4e1. Non-conflicting changes merged automatically; 3 conflicts wait for your choice. Nothing is picked for you.</p>
-  <div class="row" style="gap:8px"><ul class="adv-chips" aria-hidden="true"><li><span>after</span>77c0 ⧗</li><li><span>merged</span>v6</li><li><span>job</span>c4e1</li><li><span>conflicts</span>3</li></ul><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=c4e1" aria-label="Job c4e1, update build-b, waiting for conflict choices" aria-describedby="vc-up-d">c4e1</a><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="vc-np"><b aria-hidden="true">≠</b>auto-pick</button><span role="tooltip" id="vc-np">Non-conflicting changes merged automatically; 3 conflicts wait for your choice. Nothing is picked for you.</span></span></div>
+  <div class="row" style="gap:8px"><ul class="adv-chips" aria-hidden="true"><li><span>after</span>77c0 ⧗</li><li><span>merged</span>v6</li><li><span>job</span>c4e1</li></ul><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=c4e1" aria-label="Job c4e1, update build-b, waiting for conflict choices" aria-describedby="vc-up-d">c4e1</a><span class="adv-tip"><button type="button" class="adv-w" aria-label="3 conflicts" aria-describedby="vc-np"><b aria-hidden="true">⇄</b>3</button><span role="tooltip" id="vc-np"><b>conflict</b> · build-b · v6<br><span class="mono">data types 1 · listing 2</span></span></span></div>
   <ul class="ad-vcs-merge" aria-label="Merge results by category, build-b">
    <li><span>Memory</span><span class="muted">0 conflicts</span></li>
    <li><span>Program trees</span><span class="muted">0 conflicts</span></li>
@@ -78,13 +79,13 @@
    <li><span>Listing: functions, symbols, comments</span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-b&amp;ws=evidence&amp;f=merge:listing.conflicting" aria-label="2 listing conflicts on build-b">2 conflicts</a></li>
    <li><span>Externals · properties</span><span class="muted">0 conflicts</span></li>
   </ul>
-  <div class="row" style="gap:8px"><span class="adv-tip"><span tabindex="0" role="img" aria-label="Each conflict opens in MergeReview with three values" aria-describedby="vc-3w" style="display:inline-flex"><ul class="adv-chips" aria-hidden="true"><li><span>MergeReview</span>latest · yours · original</li></ul></span><span role="tooltip" id="vc-3w">Each conflict opens in MergeReview with three values: the latest checked-in version, your checkout and the common original. A choice is a catalog action on build-b; "use for all in this category" confirms through ConfirmDialog.</span></span></div>
+  <div class="row" style="gap:8px"><ul class="adv-chips" aria-label="MergeReview values: latest, yours, original"><li><span>MergeReview</span>latest · yours · original</li></ul></div>
  </div>
 
  <div class="ad-g3-sec">
   <h4>History · build-a</h4>
-  <div class="ad-scroll" role="region" aria-label="Version history of build-a">
-  <table class="ad-table ad-g3-grid"><caption class="sr-only">Version history of build-a</caption>
+  <div class="ad-scroll" role="region" aria-label="History · build-a">
+  <table class="ad-table ad-g3-grid"><caption class="sr-only">History · build-a</caption>
    <thead><tr><th scope="col">Version</th><th scope="col">Checked in</th><th scope="col">By</th><th scope="col">Comment</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
    <tbody>
     <tr><th scope="row" class="nw"><span class="nm mono">7</span></th><td class="mono">2026-09-28 17:40</td><td>you</td><td>Apply CacheEntry to table at 00447100</td><td><button class="ad-btn compact" type="button">Open read-only</button></td></tr>
@@ -93,7 +94,7 @@
    </tbody>
   </table>
   </div>
-  <div class="row" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="vc-rd"><b aria-hidden="true">≠</b>checkout · analyze</button><span role="tooltip" id="vc-rd">Opening a version reads it; it never checks out, merges or analyzes.</span></span><span class="adv-tip"><button type="button" class="adv-w" style="background:transparent" aria-describedby="vc-del"><b aria-hidden="true">✕</b>oldest · latest</button><span role="tooltip" id="vc-del">Only the oldest or latest version can be deleted, by its owner or a repository administrator, and never while it is checked out.</span></span></div>
+  <div class="row" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-w" style="background:transparent" aria-describedby="vc-del"><b aria-hidden="true">✕</b>oldest · latest</button><span role="tooltip" id="vc-del"><b>deletable</b> · build-a<br>v1 oldest, owner you · v7 latest, checked out</span></span></div>
  </div>
 </section>
 
@@ -104,7 +105,8 @@
  </div>
  <div>
   <span class="kicker">Not shared</span>
-  <div class="adv-empty"><span class="adv-tip"><b tabindex="0" role="img" aria-label="corpus-alpha is not under version control" aria-describedby="vc-s2d">○</b><span role="tooltip" id="vc-s2d">corpus-alpha is not under version control. Builds are private files. Add to version control… names each build and confirms.</span></span><button class="ad-btn primary" type="button" aria-haspopup="dialog" aria-label="Add to version control…">Add to VCS…</button></div>
+  <div class="adv-ghost" aria-hidden="true"><table class="ad-table ad-g3-grid" style="min-width:0"><thead><tr><th>Build</th><th>Version</th><th>Checkout</th></tr></thead><tbody><tr><td>build-a</td><td></td><td></td></tr><tr><td>build-b</td><td></td><td></td></tr></tbody></table></div>
+  <div class="adv-empty"><span class="adv-tip"><b tabindex="0" role="button" aria-label="corpus-alpha not shared" aria-describedby="vc-s2d">○</b><span role="tooltip" id="vc-s2d"><b>not shared</b> · corpus-alpha<br>4 builds · private files</span></span><span>not shared</span><button class="ad-btn primary" type="button" aria-haspopup="dialog">Share corpus-alpha…</button></div>
  </div>
  <div>
   <span class="kicker">Hijacked file</span>
@@ -116,7 +118,11 @@
  </div>
  <div>
   <span class="kicker">Another user</span>
-  <div class="ad-notice info" role="group" aria-labelledby="vc-s5" aria-describedby="vc-s5d"><b aria-hidden="true">●</b><div><h4 id="vc-s5">Checkouts of build-c: 1</h4><p class="sr-only" id="vc-s5d">Checkout of another user. analyst-2, exclusive, since 11:20, as the server reports. Ending another user's checkout needs a repository administrator and is not offered here.</p><div class="row" style="gap:8px;margin-top:6px"><ul class="adv-chips" aria-hidden="true"><li>analyst-2</li><li>exclusive</li><li><span>since</span>11:20</li></ul><span class="adv-tip is-open end"><span class="adv-na" tabindex="0" role="img" aria-label="End checkout not offered here" aria-describedby="vc-end"><b aria-hidden="true">⊘</b>End checkout</span><span role="tooltip" id="vc-end">Ending another user's checkout needs a repository administrator and is not offered here.</span></span></div></div><span></span></div>
+  <div class="ad-notice info" role="group" aria-labelledby="vc-s5" aria-describedby="vc-s5d"><b aria-hidden="true">●</b><div><h4 id="vc-s5">Checkouts of build-c: 1</h4><p class="sr-only" id="vc-s5d">Checkout of another user. analyst-2, exclusive, since 11:20, as the server reports. Ending another user's checkout needs a repository administrator and is not offered here.</p><div class="row" style="gap:8px;margin-top:6px"><ul class="adv-chips" aria-hidden="true"><li>analyst-2</li><li>exclusive</li><li><span>since</span>11:20</li></ul><span class="adv-tip end"><span class="adv-na" tabindex="0" role="button" aria-label="End checkout not offered here" aria-describedby="vc-end" style="min-height:24px"><b aria-hidden="true">⊘</b>End checkout</span><span role="tooltip" id="vc-end"><b>not offered</b> · End checkout<br>● analyst-2 · exclusive since 11:20</span></span></div></div><span></span></div>
+ </div>
+ <div style="padding-bottom:56px">
+  <span class="kicker">Tip pinned</span>
+  <div><span class="adv-tip is-open"><span class="adv-na" tabindex="0" role="button" aria-expanded="true" aria-label="End checkout not offered here" aria-describedby="vc-endp" style="min-height:24px"><b aria-hidden="true">⊘</b>End checkout</span><span role="tooltip" id="vc-endp"><b>not offered</b> · End checkout<br>● analyst-2 · exclusive since 11:20</span></span></div>
  </div>
 </div>
 </div>

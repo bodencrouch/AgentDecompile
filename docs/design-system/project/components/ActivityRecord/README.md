@@ -42,3 +42,8 @@ One job in the dock with its three separate readouts (liveness, execution progre
 - The FilterChip and StageChip are words plus a number, never color alone.
 
 **Removes switching:** opening the Functions list, the receipt list and the logs to learn which entities and builds a job changed and what it produced (J03, J19, J30 and J38; J22 is credited to U184; counts in the plan ledger).
+
+## Behavior
+
+- A free-text address in a log line of a job that spans several programs is not linked (formerly the "≠ link" chip): "3 programs, so the address stays text".
+- "Not cancellable here": a job owned by an external process shows ⊘ Cancel.

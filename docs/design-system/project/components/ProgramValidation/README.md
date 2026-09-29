@@ -117,3 +117,12 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 **Prior art**
 
 Ghidra Validate Program (`ValidateProgram/ValidateProgram.html`): post-analysis problem detection, the validator list and the per-validator result icon. Unlike Ghidra, results are per build with the build named, and findings are linked rows, not a text area.
+
+## Behavior
+
+- "Validators read the program and change nothing." (formerly the `≠ writes` chip)
+- "Running them is one admitted job per build." (formerly the `1 job / build` chip)
+- "Each cell is that build's own result; nothing is summed across builds." (formerly in the Key tooltip and the `≠ sum` chip)
+- "Opening this panel did not run it. Validate waits while job 77c0 (external) owns build-b." (formerly the not-run tip)
+- "Validators check analysis results. Validate is unavailable until analysis is admitted in Analysis." (formerly the no-analysis tip)
+- "Not available on this server yet. Stored findings still read." What this server offers is a Peek (Peek offers, Alt+↓), not a link inside the tip.

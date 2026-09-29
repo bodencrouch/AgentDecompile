@@ -4,7 +4,8 @@
 <section class="ad-g3" aria-labelledby="op-t">
  <header class="ad-g3-head">
   <h3 id="op-t">Tool options</h3>
-  <div class="adv-chips" style="gap:8px"><ul class="adv-chips"><li><span>yours</span>6</li></ul><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="op-t1">server</span><span role="tooltip" id="op-t1">6 overrides by you, stored beside View settings and keys</span></span><span class="adv-tip"><span class="adv-bnd" tabindex="0" aria-describedby="op-t2"><b>≠</b>link · storage</span><span role="tooltip" id="op-t2">never in a link or browser storage</span></span><span class="adv-tip end" style="margin-left:auto"><button type="button" class="adv-q" aria-label="Key" aria-describedby="op-key">?</button><span role="tooltip" id="op-key">Tags under an option: kind, basis, not default, default value. Basis: part of the decompile basis. ± differs across builds. ⊘ not available on this server. ↗ lives in another panel. Target map: builds a write touches, others struck. ≠ chip: a boundary.</span></span></div>
+  <div class="adv-chips" style="gap:8px"><ul class="adv-chips"><li><span>yours</span>6</li></ul><span class="adv-tip"><span class="adv-w" role="button" tabindex="0" aria-describedby="op-t1">server</span><span role="tooltip" id="op-t1"><b>stored</b> · server · 6 overrides<br>beside View settings and keys</span></span><button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="op-key" style="margin-left:auto">?</button></div>
+  <dl class="adv-key strip" id="op-key" aria-label="Key" hidden><dt><ul class="adv-chips"><li><span>in</span>basis</li></ul></dt><dd>option tag</dd><dt aria-hidden="true">±</dt><dd>differs</dd><dt aria-hidden="true">⊘</dt><dd>not on server</dd><dt aria-hidden="true">↗</dt><dd>other panel</dd><dt aria-hidden="true">◷</dt><dd>other options</dd><dt aria-hidden="true">—</dt><dd>unchanged build</dd><dt aria-hidden="true">⊡</dt><dd>restored</dd><dt aria-hidden="true">≠</dt><dd>claim boundary</dd></dl>
   <p class="ad-opt-rel"><span aria-hidden="true">↗</span><span class="sr-only">Kept in their own homes, not repeated here:</span> <button class="ad-btn compact" type="button" aria-describedby="op-vs">View settings…</button><button class="ad-btn compact" type="button">Keyboard…</button><button class="ad-btn compact" type="button" aria-describedby="op-lf">Listing fields…</button><span class="sr-only" id="op-vs">Density, Increase contrast, Reduce motion, Screen-reader verbosity, Advanced and the pointer options.</span><span class="sr-only" id="op-lf">Listing columns and field layout, in ListingFieldLayout.</span></p>
   <div class="ad-tools" role="search" aria-label="Find an option"><span><label class="lbl" for="op-f">Find</label><input class="adc-in sans auto" id="op-f" type="text" value=""></span></div>
  </header>
@@ -30,7 +31,7 @@
 
   <div class="ad-g3-sec">
    <h4>Decompiler · per viewer</h4>
-   <p class="sr-only" id="op-dp">Changes apply to your decompile views at once. Ghidra keeps the decompiler's analysis options as tool options, so here they are per-viewer request options and part of the decompile basis: views decompiled with other options say so and are not re-decompiled.</p><div class="adv-chips" aria-hidden="true"><ul class="adv-chips"><li><span>applies</span>at once</li><li><span>in</span>basis</li></ul><span class="adv-bnd"><b>≠</b>re-decompile</span></div>
+   <p class="sr-only" id="op-dp">Changes apply to your decompile views at once. Ghidra keeps the decompiler's analysis options as tool options, so here they are per-viewer request options and part of the decompile basis: views decompiled with other options say so and are not re-decompiled.</p><div class="adv-chips" aria-hidden="true"><ul class="adv-chips"><li><span>applies</span>at once</li><li><span>in</span>basis</li></ul></div>
    <ul class="ad-g3-opts" aria-label="Decompiler options">
     <li><span><span class="nm" id="op-o1">Eliminate unreachable code</span><span class="d"><span aria-hidden="true"><span>analysis</span> · <span>basis</span> · <span>not default</span> · <span>default on</span></span><span class="sr-only">analysis · request option · part of the basis · changed by you, default on</span></span></span><span class="ctl"><span class="ad-seg" role="group" aria-labelledby="op-o1"><button aria-pressed="false">On</button><button aria-pressed="true">Off</button></span><button class="ad-btn quiet compact" type="button" aria-label="Reset Eliminate unreachable code to default, on">Reset</button></span></li>
     <li><span><span class="nm" id="op-o2">Respect read-only flags</span><span class="d"><span aria-hidden="true"><span>analysis</span> · <span>basis</span> · <span>default on</span></span><span class="sr-only">analysis · request option · part of the basis · default on</span></span></span><span class="ctl"><span class="ad-seg" role="group" aria-labelledby="op-o2"><button aria-pressed="true">On</button><button aria-pressed="false">Off</button></span></span></li>
@@ -39,17 +40,17 @@
    </ul>
    <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>2 views · other options</h4><p class="sr-only">2 views were decompiled with other options. ResourceRef::Resolve on build-a and build-c show "decompiled with Eliminate unreachable code on · Enter to decompile". Nothing re-decompiles by itself.</p><ul class="adv-tmap" aria-hidden="true" style="margin-top:6px"><li class="w"><b>◷</b>build-a</li><li class="x"><b>—</b>build-b</li><li class="w"><b>◷</b>build-c</li><li class="x"><b>—</b>build-d</li></ul></div><span></span></div>
 
-   <h4>Program options<span class="sr-only"> Decompiler program options · per build, read-only</span> <span class="small muted" aria-hidden="true">· per build · read-only</span></h4>
+   <h4>Program options<span class="sr-only"> Decompiler program options · per build, read-only</span> <span class="small muted" aria-hidden="true">· read-only</span></h4>
    <p class="sr-only">Options for program stored in each build (Ghidra's Edit › Options for ‹program› › Decompiler). They shape every decompile of that build and are recorded in its basis. They change only through a catalog action, per build, confirmed.</p><ul class="adv-chips" aria-hidden="true"><li><span>stored</span>per build</li><li><span>in</span>basis</li><li><span>change</span>catalog · confirm</li></ul>
    <div class="ad-scroll" style="position:relative" role="region" aria-label="Decompiler program options per build, scrolls sideways">
    <table class="ad-table ad-g3-grid" aria-label="Decompiler program options per build">
     <thead><tr><th scope="col">Program option</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th></tr></thead>
     <tbody>
-     <tr><th scope="row"><span class="adv-tip"><span tabindex="0" aria-describedby="op-t3"><span class="nm">Prototype evaluation</span></span><span role="tooltip" id="op-t3">the convention used where a function's convention is unknown; from that build's own compiler spec</span></span></th><td class="b mono">__stdcall</td><td class="b mono">__stdcall</td><td class="b"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b><span class="mono">__fastcall</span><span class="m">differs</span></span></td><td class="b muted">not read</td></tr>
+     <tr><th scope="row"><span class="adv-tip"><span role="button" tabindex="0" aria-describedby="op-t3"><span class="nm">Prototype evaluation</span></span><span role="tooltip" id="op-t3"><b>Prototype evaluation</b> · per build<br>convention used where a function's convention is unknown; from each build's compiler spec</span></span></th><td class="b mono">__stdcall</td><td class="b mono">__stdcall</td><td class="b"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b><span class="mono">__fastcall</span><span class="m">differs</span></span></td><td class="b muted">not read</td></tr>
     </tbody>
    </table>
    </div>
-   <div class="ad-tools" role="group" aria-label="Program option actions"><span class="adv-tip"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="op-nc"><span class="adv-na"><b aria-hidden="true">⊘</b>Set on build-c…</span></button><span role="tooltip" id="op-nc">Not available on this server yet. The values still read. <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span></span></div>
+   <div class="ad-tools" role="group" aria-label="Program option actions"><span class="adv-tip"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="op-nc"><span class="adv-na"><b aria-hidden="true">⊘</b>Set on build-c…</span></button><span role="tooltip" id="op-nc"><b>not on server</b> · Set on build-c<br><kbd class="ad-kbd">Alt+↓</kbd>Peek</span></span></div>
   </div>
  </div>
 </section>
@@ -63,12 +64,12 @@
    <table class="ad-table ad-g3-grid" style="min-width:0"><caption class="sr-only">Prototype and call-fixup extensions of build-a</caption>
     <thead><tr><th scope="col">Extension</th><th scope="col">Kind</th><th scope="col">Also present in</th></tr></thead>
     <tbody>
-     <tr><th scope="row"><span class="nm mono" translate="no">__resolvecall</span></th><td>prototype</td><td>build-b <span class="adv-tip end"><span class="adv-bnd" tabindex="0" aria-describedby="op-t4"><b>≠</b>shared</span><span role="tooltip" id="op-t4">build-b · compared, not shared; same compiler spec</span></span></td></tr>
+     <tr><th scope="row"><span class="nm mono" translate="no">__resolvecall</span></th><td>prototype</td><td>build-b <span class="adv-tip end"><span class="adv-bnd" role="button" tabindex="0" aria-describedby="op-t4"><b>≠</b>shared</span><span role="tooltip" id="op-t4"><b>claim boundary</b> · build-b<br>compared, not shared; same compiler spec</span></span></td></tr>
      <tr><th scope="row"><span class="nm mono" translate="no">fixup_cacheentry</span></th><td>call-fixup</td><td>build-a only</td></tr>
     </tbody>
    </table>
    </div>
-   <div class="ad-tools" role="group" aria-label="Extension actions"><span class="adv-tip"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="op-sx-n"><span class="adv-na"><b aria-hidden="true">⊘</b>Import…</span></button><span role="tooltip" id="op-sx-n">Not available on this server yet. The extension list still reads. <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span></span><span class="sr-only" id="op-sx-n2">Not available on this server yet. The extension list still reads.</span><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="op-sx-n2"><span class="adv-na"><b aria-hidden="true">⊘</b>Remove…</span></button></div>
+   <div class="ad-tools" role="group" aria-label="Extension actions"><span class="adv-tip"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="op-sx-n"><span class="adv-na"><b aria-hidden="true">⊘</b>Import…</span></button><span role="tooltip" id="op-sx-n"><b>not on server</b> · Import<br><kbd class="ad-kbd">Alt+↓</kbd>Peek</span></span><span class="sr-only" id="op-sx-n2">Not available on this server.</span><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="op-sx-n2"><span class="adv-na"><b aria-hidden="true">⊘</b>Remove…</span></button></div>
    <p class="sr-only">When the catalog offers them, Import and Remove confirm through ConfirmDialog and need build-a's writer. build-d's compiler spec differs, so an extension from build-a never applies there.</p><ul class="adv-tmap" aria-hidden="true"><li class="w"><b>✎</b>build-a<span></span><span class="mono">writer</span></li><li class="x"><b>—</b>build-b</li><li class="x"><b>—</b>build-c</li><li class="x"><b>±</b>build-d</li></ul>
   </section>
  </div>
@@ -84,11 +85,15 @@
  </div>
  <div>
   <span class="kicker">Restore defaults</span><span class="sr-only">Restore defaults · per section, inline Restore, no dialog</span>
-  <div class="ad-notice info"><b aria-hidden="true">⊡</b><div><h4>Decompiler · restored to defaults</h4><p class="adv-chips"><span class="adv-tip"><span tabindex="0" aria-describedby="op-t5">−2 overrides</span><span role="tooltip" id="op-t5">Decompiler options restored to defaults. 2 of your overrides were removed. Other sections keep theirs.</span></span></p></div><button class="ad-btn" type="button">Restore</button></div>
+  <div class="ad-notice info"><b aria-hidden="true">⊡</b><div><h4>Decompiler · defaults restored</h4><p class="adv-chips"><span class="adv-tip"><span role="button" tabindex="0" aria-describedby="op-t5">−2 overrides</span><span role="tooltip" id="op-t5"><b>restored</b> · Decompiler<br><span class="mono">2 / 6 overrides removed</span></span></span></p></div><button class="ad-btn" type="button">Restore</button></div>
  </div>
  <div>
   <span class="kicker">Server settings</span><span class="sr-only">Server settings · not a viewer option</span>
-  <div class="ad-notice unknown"><b aria-hidden="true">⊘</b><div><h4>Program caching · server</h4><p class="adv-chips"><span class="adv-tip is-open"><span class="adv-bnd" tabindex="0" aria-describedby="op-t6"><b>≠</b>read here</span><span role="tooltip" id="op-t6">Program caching is a server setting. Tool and program caching are configured on the server, not here. This panel reads nothing from them.</span></span></p></div><span></span></div>
+  <div class="ad-notice unknown"><b aria-hidden="true">⊘</b><div><h4>Program caching · server</h4><p class="small muted" style="margin:0">server only</p></div><span></span></div>
+ </div>
+ <div style="padding-bottom:64px">
+  <span class="kicker">Tip pinned</span>
+  <div><span class="adv-tip is-open"><span role="button" tabindex="0" aria-expanded="true" aria-describedby="op-t3p"><span class="nm">Prototype evaluation</span></span><span role="tooltip" id="op-t3p"><b>Prototype evaluation</b> · per build<br>convention used where a function's convention is unknown; from each build's compiler spec</span></span></div>
  </div>
 </div>
 </div>

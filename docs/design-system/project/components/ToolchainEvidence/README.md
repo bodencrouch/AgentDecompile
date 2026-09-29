@@ -53,3 +53,12 @@ Which compiler, linker and flags produced each build, as a facts × builds grid 
 - Identifiers (product ids, addresses, symbols, command-line switches) carry `translate="no"`.
 
 **Removes switching:** comparing builds' toolchains no longer means opening each program's headers, PDB and detector output one at a time; the same facts line up in one grid, each with its evidence level.
+
+## Behavior
+
+- The evidence grid reads stored image parses, PDB records and detector results; nothing is run from here. Dashed HYPOTHESIS cells carry their basis in the cell's description.
+- Grid cells hold no Tab stops of their own and open no floating tip: focus or hover writes the cell into the readout under the grid, and Alt+↓ opens the Peek.
+- Conflict · build-c: "A modern cl.exe cannot byte-match this build; its compiles are compile checks only."
+- Not available on this server yet: the evidence still reads; "What this server offers" is a Peek beside the ⊘ control, never a link inside its tip.
+- build-c ↔ build-d: "Source identity is recorded on build-d only (PDB), so no class for this pair can be solid." (formerly the "≠ solid" chip; the corpus-wide "≠ solid · corpus-alpha" chip still states the boundary)
+- "A hypothesis never becomes a witness by repetition." (formerly the "≠ witness" chip in the hypothesis peek)

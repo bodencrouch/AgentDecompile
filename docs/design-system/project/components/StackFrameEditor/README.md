@@ -103,3 +103,11 @@ The editor adds these on top: the explicit target, editable cells on the target 
 - Binary Ninja's Stack panel.
 - reccmp `stackcmp`: bijective and non-bijective slot pairing.
 - The research note [reference RE UI patterns](../../../../research/2026-09-29-reference-re-ui-patterns.md) A5 and B5, and [MSVC optimization for decomp](../../../../research/2026-09-29-msvc-optimization-for-decomp.md) T2 on frame-pointer omission.
+
+## Behavior
+
+- Rows are logical slots, never offsets.
+- "build-c is an ESP (FPO) frame normalised to entry ESP and says so." (now the `build-c entry ESP` key-value chip)
+- "Frame-pointer and stack-pointer offsets are never compared raw." (formerly the "≠ raw compare" chip)
+- "Rename and comment alone confirm in place."
+- "Offsets, local size and parameter size are never proposed; each build keeps its own frame." (formerly the "≠ offsets · sizes" chip)

@@ -1,7 +1,18 @@
-<!-- @dsCard group="Evidence" height=190 -->
+<!-- @dsCard group="Evidence" height=250 -->
 <div class="ad" style="padding:16px 16px 40px;display:grid;gap:12px">
 <div class="ad-scroll"><table class="ad-table"><thead><tr><th scope="col">build-a</th><th scope="col">Byte-accurate C+floor</th><th scope="col">Max-C</th></tr></thead><tbody>
 <tr><th scope="row">Reconstruction</th><td><a class="ad-fact passed" href="?project=corpus-alpha&amp;build=build-a&amp;receipt=5e0a" aria-label="Whole-file equality, reconstruction, byte-accurate C+floor, equal, receipt 5e0a"><b aria-hidden="true">✓</b><span class="label">equal</span></a> <span class="mono muted small">sha256 5e0a… · floor 780</span></td><td><a class="ad-fact failed" href="?project=corpus-alpha&amp;build=build-a&amp;receipt=0c4d" aria-label="Whole-file equality, reconstruction, max-C, differs, receipt 0c4d"><b aria-hidden="true">✕</b><span class="label">differs</span></a> <a class="ad-link mono small" href="?project=corpus-alpha&amp;build=build-a&amp;ws=recovery&amp;panel=report&amp;receipt=0c4d">312 bytes in .text</a></td></tr>
 <tr><th scope="row">Original-style rebuild</th><td><span class="ad-fact not_run"><b aria-hidden="true">○</b>not run</span></td><td><span class="ad-fact not_run"><b aria-hidden="true">○</b>not run</span></td></tr></tbody></table></div>
-<div class="adv-chips"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="vl-b1"><b aria-hidden="true">≠</b>executable</button><span role="tooltip" id="vl-b1">Real C and a complete executable are separate facts.</span></span><span class="adv-tip is-open"><button type="button" class="adv-bnd" aria-describedby="vl-b2"><b aria-hidden="true">≠</b>whole-image</button><span role="tooltip" id="vl-b2">Whole-image recovery on build-a is unproven for max-C.</span></span><span class="adv-tip end" style="margin-left:auto"><button type="button" class="adv-q" aria-label="Key" aria-describedby="vl-key">?</button><span role="tooltip" id="vl-key">One column per variant, one build. ✓ equal, ✕ differs, ○ not run. ≠ chip: a claim boundary; its tip holds the full boundary.</span></span></div>
+<div class="adv-chips"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="vl-b1"><b aria-hidden="true">≠</b>executable</button><span role="tooltip" id="vl-b1"><b>Claim boundary</b> · build-a<br>Real C and a complete executable are separate facts.</span></span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="vl-b2"><b aria-hidden="true">≠</b>whole-image</button><span role="tooltip" id="vl-b2"><b>Claim boundary</b> · build-a, max-C<br>Whole-image recovery on build-a is unproven for max-C.</span></span><button type="button" class="adv-q" style="margin-left:auto" aria-label="Key" aria-expanded="false" aria-controls="vl-key">?</button></div>
+<dl class="adv-key" id="vl-key" hidden>
+ <dt><span class="ad-fact passed"><b>✓</b></span></dt><dd>Equal</dd>
+ <dt><span class="ad-fact failed"><b>✕</b></span></dt><dd>Differs</dd>
+ <dt><span class="ad-fact not_run"><b>○</b></span></dt><dd>Not run</dd>
+ <dt>≠</dt><dd>Claim boundary</dd>
+ <dt><kbd class="ad-kbd">Alt+F1</kbd></dt><dd>Help</dd>
+</dl>
+<span class="kicker">Tip pinned</span>
+<div class="row" style="padding-bottom:48px"><span class="adv-tip is-open"><button type="button" class="adv-bnd" aria-expanded="true" aria-describedby="vl-b3"><b aria-hidden="true">≠</b>whole-image</button><span role="tooltip" id="vl-b3"><b>Claim boundary</b> · build-a, max-C<br>Whole-image recovery on build-a is unproven for max-C.</span></span></div>
+</div>
+
 </div>

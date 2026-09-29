@@ -132,3 +132,15 @@ One search surface for memory bytes, program text, decompiled text, instruction 
   - `Search_for_Strings.htm`, `Search_for_DirectReferences.htm`, `Search_for_AddressTables.htm` and `SearchAndReplace.htm`: element kinds and capture groups.
 - Research: register-rename awareness (C2) and why pattern hits are candidates, not identity (C9 and the variance classes), in `docs/research/2026-09-29-reference-re-ui-patterns.md`; the reccmp HTML report's search modes (§C11 notes).
 - Existing components: ResultsTable, OverviewBar, MarksList, ActionStrip, ConfirmDialog, PropagationTransfer, CommandPalette (entry point).
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- read-only (tip removed): "read-only · never analyzes"
+- → ResultsTable (tip removed): "results go to a ResultsTable"
+- Key (moved text): "Enter search · Ctrl/Cmd+↓ ↑ next and previous on this build · Space masks an operand."
+- Cancel keeps the hits found (visible label shortened to Cancel).
+- ≠ carried (chip removed): "each build searched for its own counterpart address · never an address carried across builds"
+- Per-build progress bars are role=progressbar with aria-valuetext "N of 7 blocks done".
+- Keycap Key rows (removed; keycaps are not drawn encodings): "Enter · search"; "Space · mask operand".

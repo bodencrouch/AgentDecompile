@@ -69,3 +69,15 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 **Prior art**
 
 Ghidra Auto Analysis, Program Options › Analysis, One Shot analyzers, Ask To Analyze and saved options configurations (`AutoAnalysisPlugin/AutoAnalysis.htm`); the Show Log and task monitor topics. The per-build columns follow the project's multi-variant rule; the draft frame is the shared solid draft frame; it is not a hypothesis and is never dashed.
+
+## Behavior
+
+- "Nothing runs on open; every change and run is an admitted catalog job." (formerly in the Key tooltip)
+- "Values that differ from the standard defaults say "not default"; rows whose builds disagree say "differs across builds"." (formerly the stored-options tip)
+- "The Stack draft on build-d is yours and is not posted; the grid counts stored values only."
+- "Options change only through the catalog; a draft never runs analysis." (formerly the `≠ runs` chip)
+- "Multi-user merge does not merge analysis options, so a check-in can replace them: VersionControlPanel says so before check-in." (formerly the `≠ merged` chip)
+- "No receipt and no analysis job for build-d. Opening it did not start analysis. Analyze build-d… prepares it; Run admits it under the one-writer rule." (formerly the never-analyzed tip)
+- "The stored analysis matches basis 9f3c and is reused." (formerly the valid-receipt tip)
+- "Run stays disabled; nothing is killed or restarted to make room." (formerly the writer-owned tip)
+- "Not available on this server yet. Options still read. GET /api/v1/actions lists no action that sets analyzer options. Set buttons say why they are unavailable." What this server offers is a Peek (Peek offers, Alt+↓), not a link inside the tip.

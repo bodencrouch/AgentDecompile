@@ -34,3 +34,8 @@ The resolution ladder as it actually ran for one entity on one build: members tr
 - An `<ol>` in ladder order; the member used carries `aria-current="step"` and the words "member used". The header names entity and build. "Kept" and "Follows · as I move" are words with the sync icon, never color alone; the tier of Explain is the word "context hint", not only its dotted frame.
 
 **Removes switching:** opening the readiness report and the diagram to learn which ladder member resolved an entity and why the others did not (J06, J33; counts in the plan ledger).
+
+## Behavior
+
+- A following card follows the selection as you move.
+- On a kept card, Enter on a link goes.

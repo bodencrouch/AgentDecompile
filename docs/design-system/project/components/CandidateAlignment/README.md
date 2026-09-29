@@ -35,3 +35,7 @@ Matching drawn as the work: counterpart blocks from two builds aligned on record
 - Accessible View (Alt+F2, or the palette, Help menu and pane-header button) opens both wells as text with the words "anchor", "differs" and "unchanged".
 
 **Removes switching:** it serves J07 (review a candidate match and check both endpoints, 8 → 0 plus one confirm), credited to U186 in the plan ledger.
+
+## Behavior
+
+- The cursor maps through anchors only; rows between anchors are not paired.

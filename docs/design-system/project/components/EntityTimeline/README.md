@@ -50,3 +50,10 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 - **Comment history (A07).** Comment edits become events of kind "comment": the comment type (EOL, pre, post, plate, repeatable), the address, before and after text, who made it (you, agent, external) and the job or inline edit. Read from the program's comment history through a catalog read action; until one exists, older comment edits read "comment history not recorded before ‹time›" and only edits made through this workbench appear.
 - **Label history (S10).** Label adds, renames and removals become events of kind "label", with before and after names, the symbol source (user, analysis, imported, default) and the job. NameProvenance keeps the tier; the timeline keeps the order.
 - Both kinds are per build: an entity's timeline shows the build on each event, and a propagated rename shows one event per recipient. The existing filter gains "Comments" and "Labels". The preview is unchanged.
+
+## Behavior
+
+- "Links chain fact → receipt → job → stage → changed entities." (formerly in the Key tooltip)
+- "Not loaded · Enter to load. 22 older events are stored; reading them starts no work." (formerly the not-loaded tip)
+- "Read from the event store · 13:58:07 · moving between events writes no history" (formerly the event-store tip; the chip no longer carries ◇, which is reserved for gates)
+- "Basis changed since kept · Refresh. 1 new event on this entity. Nothing refreshes by itself." (formerly the `≠ auto-refresh` chip)

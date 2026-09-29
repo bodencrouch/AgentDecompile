@@ -50,3 +50,15 @@ When a propagation spans more than one field, the operator chooses, per category
 - A table with the recipient as row header; gate results are glyph plus words; "kept" and "blocked" are words.
 
 **Removes switching:** opening each recipient build to see whether a field arrived and why it was blocked (J20).
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- Key (moved text): "Target map: the one recipient a proposal writes; struck builds are proposed separately."
+- shift: the dashed chip drops ≈ (≈ is reserved for compile variance).
+- Bytes conditions (anchor-aligned, = length, = toolchain) are key-value chips, not dashed hypothesis chips: "Anchor-aligned, equal-length ranges, same toolchain family only."
+- Merge preview: "Merge appends the donor text under yours with a separator line."
+- ≠ stronger tier (chip removed): "A stronger-tier name on build-b is never replaced."
+- = x86-32 · x86-32: "Offered only between builds with the same language; build-a and build-b are both x86-32."
+- ⊘ source maps: "Source maps are not offered."

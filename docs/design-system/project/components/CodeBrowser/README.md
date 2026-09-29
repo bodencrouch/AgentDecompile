@@ -71,3 +71,9 @@ The composite center pane: Listing and DecompileView side by side on one cursor,
 - J09 follow a cross-reference and return: 4 → 0 view switches, credited to References in place (U177). Counted as 1 region move for the first reference, 0 for each further one, and 1 Alt+← back; below 700px, 2 per reference by tab, or 0 with `]`/`[`.
 - J16 explore the call graph beside code: 3 → 0 when Graph and Decompile are the two panes (2 per node below 700px).
 - J36 and J37 are credited elsewhere (typed links; NarrowFlow, 6 → 2); this composite keeps the cursor across every narrow view switch.
+
+## Behavior
+
+- "One cursor across Listing, Decompile and Hex. Follows: the panes move with the selection; Held: a pane stays on its target." (formerly in the Key tooltip)
+- "Enter moves every view; Alt+← goes back." (formerly in the Key tooltip)
+- "This pane still shows the decompile as read at 13:54." (formerly the `≠ auto-refresh` chip on the held note; now the `stale` stamp)

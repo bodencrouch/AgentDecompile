@@ -81,3 +81,12 @@ Every export, output and result the project can produce, in one grid keyed by ar
 - Forced colors: chip and member frames map to `CanvasText`. The dotted optional member keeps its dots and the word "optional".
 
 **Removes switching:** from "is this output real?" to the receipt, the job and the stage in one grid. There is no separate trip to the dock, the diagram and the docs to find out which outputs exist and which are only designed.
+
+## Behavior
+
+- A bundle is refused if any member fails its own verify gate.
+- Portable pack v2 status is per entity × build, never summed.
+- Readiness: observed status stays separate from locator readiness.
+- Source projects: one variant never borrows the other's receipt.
+- Names and types stay advisory until objdiff reports 0 differences.
+- Nothing is correlated by timing.

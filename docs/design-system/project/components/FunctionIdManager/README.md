@@ -116,3 +116,11 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 **Prior art**
 
 Ghidra Function ID (`FunctionID/FunctionID.html`), the Function ID plug-in (`FunctionIDPlugin.html`) and the Function ID Debug plug-in (`FunctionIDDebug.html`). Unlike Ghidra, the active set is a confirmed catalog change, hashes are compared per build within one language, and a match never names a function above a stronger tier.
+
+## Behavior
+
+- "Hashes compare only between builds with the same language." (formerly the stored-hashes tip)
+- "Choosing active databases affects every later Function ID run on every build; recorded runs retain their receipts." (formerly the `⇉ later runs` chip)
+- "Nothing hashes on open. Hashes are computed only by an admitted job: the Function ID analyzer in Analysis, or a hash-only run." (formerly the not-hashed tip; Run hashing… prepares that hash-only run)
+- "Not available on this server yet. Stored hashes still read." What this server offers is a Peek (Peek offers, Alt+↓), not a link inside the tip.
+- Ghidra's "Create new empty FidDb…" keeps its full label in menus and the palette; the layout uses "Create empty…".

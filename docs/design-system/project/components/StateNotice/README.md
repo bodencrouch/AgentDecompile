@@ -34,3 +34,10 @@ An inline explanation of a surface's lifecycle state, the designed empty and dea
 - The armed button's accessible name says it prepares, not runs: "Prepare: resume from receipts for build-e, nothing runs until Run". Switch and Stay are named with both projects.
 
 **Removes switching:** hunting through the palette and catalog for the verb that fixes an empty build, and opening the Corpus workspace to check what already exists. J27 (4 → 2: notice, armed strip, confirm) is credited to U182; J25's +1 confirm for another project is credited to U172.
+
+## Behavior
+
+- Another project never switches by itself.
+- Not loaded: "Nothing is fetched on hover or focus." (formerly the "≠ hover" chip)
+- No counterpart: "Root unresolved on build-d; members tried: 7. Nothing is guessed." (formerly the pinned "≠ guess" chip)
+- Dead end, checking: "Checking what already exists for build-f. Nothing is armed until read-only discovery has loaded."

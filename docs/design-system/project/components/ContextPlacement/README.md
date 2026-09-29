@@ -28,3 +28,7 @@ Context fusion results: puzzle pieces placed by address, left unplaced, conflict
 - The piece is the row header; placement and label states are words ("conflict", "ready"), never color alone. The detail is a labelled region. The context-hint tier is a word, not only a dotted frame.
 
 **Removes switching:** opening the placed address, the names view and the piece file separately to resolve a proposed-label conflict (J32, credited to UX-01; counts in the plan ledger).
+
+## Behavior
+
+- Propose ≠ apply: a proposal is never applied by placement. A label changes only through InlineRename (one target) or the action strip with a confirm (a batch).

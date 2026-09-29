@@ -92,3 +92,12 @@ A vertical navigation margin beside the Listing that shows one build's whole vie
 - Ghidra help `OverviewPlugin/Overview.htm`: address-type precedence and its approximation note, entropy calculation per chunk, palette and ranges, click-to-navigate and the legend popup. Also `CodeBrowserPlugin/CodeBrowser.htm`: navigation markers with point and area areas kept apart. Ghidra's per-type colors and black-to-white palette become graphite patterns and a key with values here.
 - Research: the variance classes and their evidence (Premise and B8 in `docs/research/2026-09-29-reference-re-ui-patterns.md`), and view 8, the placement map (`docs/research/2026-09-29-msvc-optimization-for-decomp.md` §9).
 - Existing components: ImageDeltaMap (the rebuild-versus-target analog and the owner of divergence regions), MarksList (marks and worklists), LocatorGlyph (anchor words).
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- Key (moved text): "Show key focuses regions · ] [ next region · Enter go · Alt+↓ peek."
+- Compare Key (moved text): "Equal byte entropy is advisory evidence, never a match. Byte entropy (this lane) and entropy variance (a class) are different things."
+- ○ not read: "Byte entropy not read for build-c · Enter to read"
+- Dashed hypothesis chips no longer carry an inner H.

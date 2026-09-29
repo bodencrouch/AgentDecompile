@@ -13,3 +13,9 @@ A contract box from the execution and resilience companions: a role-colored titl
 **Accessibility**
 
 - Each box is a list item with a heading; in the SVG a `<g id>` in reading order, with the outline as the primary accessible form.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- donor label: "Donor labels remain hypotheses until accepted"

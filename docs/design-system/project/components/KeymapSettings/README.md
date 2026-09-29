@@ -52,3 +52,15 @@ The editor for the one shared keymap, and its two runtime faces: every command f
 - Targets are 24px, 44px below 700px (2.5.8). Nothing here changes context on focus (3.2.1).
 
 **Removes switching:** J38 ("from an announcement to the result and back") goes from 4 switches to 2 with "Go to last announcement" (`g j`) to the job row, Go and Back, credited to U188; Ctrl/Cmd+J only shows or hides the dock. For J22 the keymap is error prevention, not fewer switches: a stray Esc no longer drops the checked set. Learning a key no longer needs the docs or a settings page: the sheet and which-key show the viewer's own keys where they are used.
+
+## Behavior
+
+- Precedence: edit > code > composite > region > global. Default profile: modifier globals plus focus-scoped single keys. Ghidra adds l, ;, t, d, c and f in code wells; IDA adds n, y, ; and d; all arm only. Go to address is g then g and Ctrl/Cmd+G in every profile. Off turns every single-character key off.
+- Keys only navigate or arm; no key posts or admits work.
+- Esc never clears the checked set, held panes, kept cards, drafts, or Back.
+- Two commands bound to the same key in the same scope do nothing until the conflict is resolved; the status line says which binding is blocked and why.
+- Ctrl+Alt combinations type characters on AltGr keyboards, so the editor warns when a remap uses one.
+- Bound on purpose: Ctrl/Cmd+P (go to) and Ctrl/Cmd+F inside a code well; a second Ctrl/Cmd+F in the well's find field passes to browser find.
+- Menus, tooltips and aria-keyshortcuts read the same file plus your diff.
+- Ctrl / opens the shortcut sheet from anywhere; the Help menu and the palette words “keys” and “shortcuts” open it too. It shows your keys and profile.
+- F8 with no active worklist says so. Keep: the letter works only inside the Peek or card, never on list rows, where k moves; it is carried as keep=…. Link menu: Shift+right-click keeps the browser menu. Layout presets push history only when the workspace changes.

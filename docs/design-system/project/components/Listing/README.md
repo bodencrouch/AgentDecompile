@@ -136,3 +136,10 @@ Each block below follows the house order: what it is, anatomy and states, linkin
 - **Multi-build.** Every item acts on one build. Create function may afterwards be proposed to counterparts only at accepted anchors (PropagationTransfer, Functions). Delete, stack depth changes and entry points are program-local and never proposed: stack depth is code generation, which differs between builds.
 - **Keyboard.** Keymap ids with no default keys: `code.createFunction`, `code.recreateFunction`, `code.createFunctions`, `code.deleteFunction`, `code.stackDepth` and `code.entryPoint`. They open or arm; the ActionStrip's Run or the dialog's primary button posts.
 - **One writer.** With build-a's lock owned elsewhere, the items stay listed with "build-a has a writer: another session (agent) · your edit waits for it".
+
+## Behavior
+
+- "Nothing is inferred from line order or the nearest address." (formerly the `≠ nearest` chip on the no-line note)
+- "Shift reverses one step · stays on build-a · never analyzes" (formerly the Shift reverse tip)
+- "Global opens SignatureEditor's purge and confirms there, because it changes every caller." (formerly the all-callers tip)
+- "Local is program-local and never proposed." (formerly the `≠ proposed` chip)

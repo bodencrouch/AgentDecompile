@@ -89,3 +89,11 @@ Difference classes use VariantRelation's glyphs and words: `≈` same source, co
 **Research:** [MSVC transformations §2–§5, §9.2](../../../../research/2026-09-29-msvc-optimization-for-decomp.md#9-ui-implications); [reference UI patterns B1, B2, B6, B7, C8](../../../../research/2026-09-29-reference-re-ui-patterns.md).
 
 **Prior art:** compiler-explorer `static/panes/opt-view.ts` (remarks under source lines, filtered by kind), `static/line-colouring.ts` (source↔asm correlation) · reccmp `docs/annotations.md` (FOLDED, SYNTHETIC, LIBRARY), `reccmp/compare/asm/fixes.py` (jump tables kept as structure) · objdiff `objdiff-core/src/diff/display.rs` (branch and relocation marks) · ghidra `Ghidra/Features/Decompiler/src/main/help/help/topics/DecompilePlugin/DecompilerAnnotations.html`.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- ▤ stored: "Annotations are read from stored detector output; nothing is re-analyzed."
+- LTCG (full original tip): "inlined in build-b, build-c; call in build-a → LTCG on build-b and build-c, none on build-a (witnesses in ToolchainEvidence) · hypothesis (heuristic), basis: cross-module inlining needs LTCG; no recorded source identity for build-a, build-b or build-c"
+- Dashed hypothesis chips no longer carry an inner H (Guideline 25, One meaning per mark).

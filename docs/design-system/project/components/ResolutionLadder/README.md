@@ -14,3 +14,7 @@ A bounded resolution ladder: methods tried in order, joined by dashed failover c
 
 - Steps are an `<ol>`; numbers are text, not only circles. In the SVG each ladder is a `<g id="ladder-C">` and the outline is the primary accessible form.
 
+
+## Behavior
+
+- "then: unresolved — never a silent zero" (formerly the `≠ zero` chip on ladder C)

@@ -102,3 +102,19 @@ The Types navigator scope: one tree of archives, categories and data types, keye
 - Binary Ninja: the Types sidebar with platform type libraries.
 - The research note [reference RE UI patterns](../../../../research/2026-09-29-reference-re-ui-patterns.md), A2 and A10: one row set keyed by identity with a column per build, and one model with provenance and sync state.
 - What changes here: the per-build columns, the variance words with their evidence level, the writer lines and the explicit write target.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- Key (moved text): "\"absent\" is a word, never a guess · \"not loaded\" is never fetched from here. Target map: the one build or archive a write touches. Enter opens the type editor · Shift+F10 link menu · f favourite."
+- ⊘ not loaded (build-d cell): "not loaded. Open build-d to read it."
+- Replace confirm: the ⊘ undo chip becomes the focusable undo slot ⊘ no undo before Cancel; "this cannot be undone here".
+- 1 destination: "destination is one archive or one build's program types, never all builds"
+- ≠ layout proof (full original tip): "A parse is not layout proof; applying it to build-c is blocked until its size check passes."
+- ≠ applied (chip removed): "Nothing is applied to any build by this step."
+- ≠ kill (chip removed): "The owner is never offered kill or restart."
+- ○ not loaded: "Not loaded. Open to read it. build-d's program is not open, so its type presence, size and sync state are not shown. Opening reuses its existing analysis; it never analyzes."
+- ∅ +0x40: "No structure has a field at +0x40 on build-a. Find by struct offset searched build-a only. Switch the scope to all builds for one hit column per build."
+- ⇄ capture (chip removed): "Capture function data types is the reverse: from one build into one archive."
+- Keycap Key rows (removed; keycaps are not drawn encodings): "Enter · type editor"; "f · favourite".

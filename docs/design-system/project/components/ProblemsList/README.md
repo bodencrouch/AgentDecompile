@@ -49,3 +49,12 @@ The dock's Problems tab: one row per unmet predicate, failure or external action
 - Every state is a glyph and a word; the waiting age is text, not a bar.
 
 **Removes switching:** J04 ("why is this blocked and what continues") goes from 5 switches to 1: the record, diagnostic and job are in the row or its Peek, credited to U182. It supports J28 (the oldest wait, credited to U181), J35 (the stale Peek, credited to U174) and J02 (credited to U180); add 1 below 700px wherever the dock is involved.
+
+## Behavior
+
+- A problem is shown once across objectives and repeats only on material change.
+- Some problems have no automatic action; they need a calibration profile.
+- The same rows drive 8080, /react/, the CLI and agents.
+- Actions from these rows act on the current record.
+- Ages keep counting from the snapshot and say so.
+- With no active worklist: Collect into worklist (w) or Step problems on the Problems tab.

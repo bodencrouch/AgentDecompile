@@ -18,8 +18,8 @@
  },
  "lastChange": {
   "by": "Claude",
-  "at": "2026-09-29T12:14:15Z",
+  "at": "2026-09-29T21:50:00Z",
   "via": "Claude Code",
-  "note": "Round 4: all 224 Ghidra Code Browser features designed (FunctionStartPatterns; script key bindings); one line-style vocabulary (dashed = unproven only); usability audit (40 fixes): one typeahead rule, Ghidra key profile, menubar, Location and history landmark, Corpus workspace and Dock with Events and Objectives, plain unavailable-action copy; 237 keymap commands; 114 components"
+  "note": "Round 5\u20136: every preview visual-first (guideline 25 Show, don't tell): words live in tips, Key is a disclosure list, no behavior text on screen, one pinned-tip specimen per preview, real tip triggers; adv-* visual vocabulary"
  }
 }

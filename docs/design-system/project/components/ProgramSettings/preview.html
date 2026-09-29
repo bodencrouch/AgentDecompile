@@ -4,7 +4,8 @@
 <section class="ad-g3" aria-labelledby="ps-t">
  <header class="ad-g3-head">
   <h3 id="ps-t">Program settings <span class="sub">· corpus-alpha · 4 builds</span><span class="sr-only"> · language and compiler spec</span></h3>
-  <div class="ad-tools" role="group" aria-label="View status" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ps-t1"><b aria-hidden="true">≠</b>toolchain</button><span role="tooltip" id="ps-t1">The compiler spec is Ghidra's model of calling conventions and data layout. It is not the toolchain that built the image; that is in Toolchain.</span></span><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=toolchain" aria-label="Toolchain evidence, all builds">Toolchain</a><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="ps-key">?</button><span role="tooltip" id="ps-key">Solid chip: witness or record. ± differs across builds; ⇄ conflicts with Toolchain. Target map: the one build a change writes, framed with ✎; others struck. ≠ chip: a boundary. ◷ becomes stale. ⊘ not run or refused.</span></span></div>
+  <div class="ad-tools" role="group" aria-label="View status" style="gap:8px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ps-t1"><b aria-hidden="true">≠</b>toolchain</button><span role="tooltip" id="ps-t1"><b>claim boundary</b> · compiler spec<br>Ghidra's model of conventions and layout; not the toolchain that built the image.</span></span><a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=toolchain" aria-label="Toolchain evidence, all builds">Toolchain</a><button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="ps-key">?</button></div>
+  <dl class="adv-key strip" id="ps-key" aria-label="Key" hidden><dt><span class="ad-evd solid"><b>record</b></span></dt><dd>witness or record</dd><dt aria-hidden="true">±</dt><dd>differs</dd><dt aria-hidden="true">⇄</dt><dd>conflicts</dd><dt aria-hidden="true">✎</dt><dd>build written</dd><dt aria-hidden="true">—</dt><dd>unchanged build</dd><dt aria-hidden="true">◷</dt><dd>becomes stale</dd><dt aria-hidden="true">⊘</dt><dd>refused</dd><dt aria-hidden="true">●</dt><dd>writer held</dd><dt aria-hidden="true">≠</dt><dd>claim boundary</dd></dl>
  </header>
 
  <div class="ad-g3-sec">
@@ -14,7 +15,7 @@
    <thead><tr><th scope="col">Setting</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col" aria-current="true">build-c</th><th scope="col">build-d</th><th scope="col">Across builds</th></tr></thead>
    <tbody>
     <tr tabindex="-1">
-     <th scope="row"><span class="adv-tip"><span tabindex="0" aria-describedby="ps-t2"><span class="nm">Language id</span></span><span role="tooltip" id="ps-t2">processor : endian : size : variant</span></span></th>
+     <th scope="row"><span class="adv-tip"><span role="button" tabindex="0" aria-describedby="ps-t2"><span class="nm">Language id</span></span><span role="tooltip" id="ps-t2">processor : endian : size : variant</span></span></th>
      <td role="gridcell"><span class="mono" translate="no">x86:LE:32:default</span><br><span class="ad-evd solid"><b>witness</b>PE machine 0x14c · <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=00400084" aria-label="Address 00400084, file offset 0x84, build-a" translate="no">00400084</a></span></td>
      <td role="gridcell"><span class="mono" translate="no">x86:LE:32:default</span><br><span class="ad-evd solid"><b>witness</b>PE machine 0x14c</span></td>
      <td role="gridcell"><span class="mono" translate="no">x86:LE:32:default</span><br><span class="ad-evd solid"><b>witness</b>PE machine 0x14c</span></td>
@@ -22,10 +23,10 @@
      <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs<span class="m">build-d x86:LE:64</span></span></td>
     </tr>
     <tr aria-selected="true" class="is-focus" tabindex="0">
-     <th scope="row"><span class="adv-tip"><span tabindex="0" aria-describedby="ps-t3"><span class="nm">Compiler spec</span></span><span role="tooltip" id="ps-t3">calling conventions and data organisation</span></span></th>
+     <th scope="row"><span class="adv-tip"><span role="button" tabindex="0" aria-describedby="ps-t3"><span class="nm">Compiler spec</span></span><span role="tooltip" id="ps-t3">calling conventions and data organisation</span></span></th>
      <td role="gridcell"><span class="mono">windows</span><br><span class="ad-evd solid"><b>record</b><span aria-hidden="true">loader choice</span><span class="sr-only">import record · loader choice</span></span></td>
      <td role="gridcell"><span class="mono">windows</span><br><span class="ad-evd solid"><b>record</b><span aria-hidden="true">loader choice</span><span class="sr-only">import record · loader choice</span></span></td>
-     <td role="gridcell"><span class="mono">gcc</span><br><span class="ad-evd solid"><b>record</b><span aria-hidden="true">loader choice</span><span class="sr-only">import record · loader choice</span></span><br><span class="ad-g3-st fail col"><b aria-hidden="true">⇄</b>conflicts with Toolchain<span class="m"><span class="adv-tip"><span tabindex="0" aria-describedby="ps-t4">VC 8.0 · windows</span><span role="tooltip" id="ps-t4">the Rich header records VC 8.0 (witness); windows expected</span></span></span></span></td>
+     <td role="gridcell"><span class="mono">gcc</span><br><span class="ad-evd solid"><b>record</b><span aria-hidden="true">loader choice</span><span class="sr-only">import record · loader choice</span></span><br><span class="ad-g3-st fail col"><b aria-hidden="true">⇄</b>conflicts with Toolchain<span class="m"><span class="adv-tip"><span role="button" tabindex="0" aria-describedby="ps-t4">VC 8.0 · windows</span><span role="tooltip" id="ps-t4">the Rich header records VC 8.0 (witness); windows expected</span></span></span></span></td>
      <td role="gridcell"><span class="mono">windows</span><br><span class="ad-evd solid"><b>record</b><span aria-hidden="true">loader choice</span><span class="sr-only">import record · loader choice</span></span></td>
      <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs<span class="m">build-c gcc</span></span></td>
     </tr>
@@ -67,30 +68,30 @@
     </ul>
    </div>
    <div class="ad-g3-sec">
-    <div class="adv-chips"><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="ps-t5">≈ related</span><span role="tooltip" id="ps-t5">Only closely related languages are offered.</span></span><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="ps-t6">32 → 64 ✓</span><span role="tooltip" id="ps-t6">A move from 32-bit to 64-bit is allowed</span></span><span class="adv-tip"><span class="adv-bnd" tabindex="0" aria-describedby="ps-t7"><b>⊘</b>64 → 32</span><span role="tooltip" id="ps-t7">the reverse is refused because an address space would shrink.</span></span></div><span class="sr-only" id="ps-sai">Show all installed lists the rest with the reason each cannot be chosen.</span>
+    <div class="adv-chips"><span class="adv-tip"><span class="adv-w" role="button" tabindex="0" aria-describedby="ps-t5">≈ related</span><span role="tooltip" id="ps-t5"><b>related</b> · offered languages · build-c</span></span><span class="adv-tip"><span class="adv-w" role="button" tabindex="0" aria-describedby="ps-t6">32 → 64 ✓</span><span role="tooltip" id="ps-t6"><b>allowed</b> · 32 → 64</span></span><span class="adv-tip"><span class="adv-na" role="button" tabindex="0" aria-describedby="ps-t7" style="min-height:24px"><b>⊘</b>64 → 32</span><span role="tooltip" id="ps-t7"><b>refused</b> · 64 → 32<br>an address space would shrink</span></span></div><span class="sr-only" id="ps-sai">Show all installed lists the rest with the reason each cannot be chosen.</span>
     <div class="ad-tools"><button class="ad-btn" type="button" aria-haspopup="dialog">Review consequences…</button><button class="ad-btn" type="button" aria-describedby="ps-sai">Show all installed</button></div>
    </div>
   </div>
  </div>
 
  <div class="ad-g3-sec">
-  <h4>Confirm the change</h4>
+  <h4>Confirm change</h4>
   <div class="ad-g3-dlg" role="alertdialog" aria-modal="true" aria-labelledby="ps-cf-t" aria-describedby="ps-cf-d">
    <header><h3 id="ps-cf-t">Change build-c spec: gcc → windows</h3><span class="end"><ul class="adv-chips" aria-label="catalog: Change processor · 1 job · destructive"><li><span>catalog</span>Change processor</li><li><span>jobs</span>1</li><li>destructive</li></ul></span></header>
    <div class="body">
-    <p class="sr-only" id="ps-cf-d">The language stays x86:LE:32:default. This rewrites build-c's program settings and cannot be undone with Undo. Counts are from the server's dry run at 14:03. Other builds are unchanged. Nothing is proposed to counterparts.</p><div class="adv-chips" aria-hidden="true"><ul class="adv-tmap" aria-hidden="true"><li class="x"><b>—</b>build-a</li><li class="x"><b>—</b>build-b</li><li class="w"><b>✎</b>build-c<span></span><span class="mono">gcc → windows</span></li><li class="x"><b>—</b>build-d</li></ul><ul class="adv-chips"><li><span>lang</span>= x86:LE:32:default</li><li><span>dry run</span>14:03</li></ul><span class="adv-bnd"><b>⊘</b>Undo</span></div>
+    <p class="sr-only" id="ps-cf-d">The language stays x86:LE:32:default. This rewrites build-c's program settings and cannot be undone with Undo. Counts are from the server's dry run at 14:03. Other builds are unchanged. Nothing is proposed to counterparts.</p><div class="adv-chips" aria-hidden="true"><ul class="adv-tmap" aria-hidden="true"><li class="x"><b>—</b>build-a</li><li class="x"><b>—</b>build-b</li><li class="w"><b>✎</b>build-c<span></span><span class="mono">gcc → windows</span></li><li class="x"><b>—</b>build-d</li></ul><ul class="adv-chips"><li><span>lang</span>= x86:LE:32:default</li><li><span>dry run</span>14:03</li></ul></div>
     <ol class="ad-g3-opts" style="padding-left:0">
-     <li><span><span class="nm">1 · Ownership</span><span class="d"><span class="adv-tip"><span tabindex="0" aria-describedby="ps-t8">writer free · checkout yours</span><span role="tooltip" id="ps-t8">Needs build-c's writer and an exclusive checkout. Writer: free. Checkout: exclusive, by you.</span></span></span></span></li>
-     <li><span><span class="nm">2 · Registers</span><span class="d"><span class="adv-tip"><span tabindex="0" aria-describedby="ps-t9">by name · 0 removed</span><span role="tooltip" id="ps-t9">Register and context values. Transferred by register name. 0 removed.</span></span></span></span></li>
-     <li><span><span class="nm">3 · Calling conventions</span><span class="d"><span class="adv-tip"><span tabindex="0" aria-describedby="ps-t10">1,204 kept · 0 unknown · ↻</span><span role="tooltip" id="ps-t10">1,204 functions keep their convention names; 0 become unknown. Each stored signature's storage is rechecked.</span></span></span></span></li>
-     <li><span><span class="nm">4 · Types</span><span class="d"><span class="adv-tip"><span tabindex="0" aria-describedby="ps-t11">CacheEntry 0x1c · 4 · 0 resized</span><span role="tooltip" id="ps-t11">Revalidated by the layout check under the new data organisation. CacheEntry stays 0x1c · 4. 0 types change size.</span></span></span></span></li>
-     <li><span><span class="nm">5 · Analysis</span><span class="d"><span class="adv-tip"><span tabindex="0" aria-describedby="ps-t12">⊘ not run · ◷ e5a0</span><span role="tooltip" id="ps-t12">Disassembly and analysis: Not run by this job. Analysis receipt e5a0 becomes stale; re-analysis needs its own admission in Analysis.</span></span></span></span></li>
-     <li><span><span class="nm">6 · Stale · build-c</span><span class="d"><span class="adv-tip"><span tabindex="0" aria-describedby="ps-t13">◷ decompile · 3 cmp · FID</span><span role="tooltip" id="ps-t13">Decompile caches, 3 comparisons and FID hashes on the old basis. Identity edges stay; their comparison evidence is marked stale.</span></span></span></span></li>
-     <li><span><span class="nm">7 · Reverting</span><span class="d"><span class="adv-tip"><span tabindex="0" aria-describedby="ps-t14">undo checkout · archive</span><span role="tooltip" id="ps-t14">Undo checkout (discards unsaved work) or change the spec again. Archive the project first if you need a restorable copy.</span></span></span></span></li>
+     <li><span><span class="nm">1 · Ownership</span><span class="d"><span class="adv-tip"><span role="button" tabindex="0" aria-describedby="ps-t8">writer free · checkout yours</span><span role="tooltip" id="ps-t8"><b>ownership</b> · build-c<br>writer free · checkout exclusive, yours</span></span></span></span></li>
+     <li><span><span class="nm">2 · Registers</span><span class="d"><span class="adv-tip"><span role="button" tabindex="0" aria-describedby="ps-t9">by name · 0 removed</span><span role="tooltip" id="ps-t9"><b>registers</b> · context values<br>by register name · 0 removed</span></span></span></span></li>
+     <li><span><span class="nm">3 · Calling conventions</span><span class="d"><span class="adv-tip"><span role="button" tabindex="0" aria-describedby="ps-t10">1,204 kept · 0 unknown · ↻</span><span role="tooltip" id="ps-t10"><b>calling conventions</b> · build-c<br>1,204 kept · 0 unknown · storage rechecked</span></span></span></span></li>
+     <li><span><span class="nm">4 · Types</span><span class="d"><span class="adv-tip"><span role="button" tabindex="0" aria-describedby="ps-t11">CacheEntry 0x1c · 4 · 0 resized</span><span role="tooltip" id="ps-t11"><b>types</b> · layout check<br><span translate="no">CacheEntry</span> 0x1c · 4 · 0 resized</span></span></span></span></li>
+     <li><span><span class="nm">5 · Analysis</span><span class="d"><span class="adv-tip"><span role="button" tabindex="0" aria-describedby="ps-t12">⊘ not run · ◷ e5a0</span><span role="tooltip" id="ps-t12"><b>analysis</b> · not run by this job<br>receipt e5a0 becomes stale</span></span></span></span></li>
+     <li><span><span class="nm">6 · Stale · build-c</span><span class="d"><span class="adv-tip"><span role="button" tabindex="0" aria-describedby="ps-t13">◷ decompile · 3 cmp · FID</span><span role="tooltip" id="ps-t13"><b>becomes stale</b> · build-c<br>decompile caches · 3 comparisons · FID hashes; identity edges stay</span></span></span></span></li>
+     <li><span><span class="nm">7 · Reverting</span><span class="d"><span class="adv-tip"><span role="button" tabindex="0" aria-describedby="ps-t14">undo checkout · archive</span><span role="tooltip" id="ps-t14"><b>reverting</b> · build-c<br>undo checkout · change spec again · archive</span></span></span></span></li>
     </ol>
-    <label class="ad-g3-choice"><input type="checkbox"><span class="nm">Save a private copy</span><span class="d"><span aria-hidden="true">.keep · ≠ build</span><span class="sr-only">Save a private copy of build-c first. Writes a .keep copy beside the checkout; not a new build.</span></span></label>
+    <label class="ad-g3-choice"><input type="checkbox"><span class="nm">Private copy</span><span class="d"><span aria-hidden="true">.keep copy</span><span class="sr-only">Save a private copy of build-c first. Writes a .keep copy beside the checkout; not a new build.</span></span></label>
    </div>
-   <footer><span class="note"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ps-t15"><b aria-hidden="true">≠</b>counterparts</button><span role="tooltip" id="ps-t15">Other builds are unchanged. Nothing is proposed to counterparts.</span></span></span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Change build-c · 1 job</button></footer>
+   <footer><span class="note"><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="ps-t15"><b aria-hidden="true">⊘</b>no undo</button><span role="tooltip" id="ps-t15"><b>no undo</b> · build-c<br>rewrites program settings; Undo does not reverse it</span></span></span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Change build-c · 1 job</button></footer>
   </div>
  </div>
 </section>
@@ -102,13 +103,18 @@
  </div>
  <div>
   <span class="kicker">Writer owned</span>
-  <div class="ad-notice caution"><b aria-hidden="true">●</b><div><h4>Waiting: build-b has a writer</h4><div class="adv-chips"><ul class="adv-chips" aria-label="Owner job 77c0 · external · pid 48211 · started 13:02."><li><span>job</span>77c0</li><li>external</li><li><span>pid</span>48211</li><li><span>start</span>13:02</li></ul><span class="adv-tip end"><button type="button" class="adv-bnd" aria-describedby="ps-t16"><b aria-hidden="true">≠</b>killed</button><span role="tooltip" id="ps-t16">The change waits in admission; nothing is killed.</span></span></div></div><span></span></div>
+  <div class="ad-notice caution"><b aria-hidden="true">●</b><div><h4>Waiting · build-b writer</h4><div class="adv-chips"><ul class="adv-chips" aria-label="Owner job 77c0 · external · pid 48211 · started 13:02."><li><span>job</span>77c0</li><li>external</li><li><span>pid</span>48211</li><li><span>start</span>13:02</li></ul></div></div><span></span></div>
  </div>
  <div>
   <span class="kicker">Not checked out</span><span class="sr-only">Versioned, not checked out</span>
   <div class="ad-tools" role="group" aria-label="Change on build-a">
-   <span class="adv-tip is-open"><button class="ad-btn" type="button" aria-disabled="true" aria-label="Change language or compiler spec on build-a…" aria-describedby="ps-nco"><span class="adv-na"><b aria-hidden="true">●</b>Change build-a…</span></button><span role="tooltip" id="ps-nco">Check out build-a exclusively first, in <a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;panel=versions" aria-label="Version control, build-a">Version control</a>.</span></span>
+   <span class="adv-tip"><button class="ad-btn" type="button" aria-disabled="true" aria-label="Change language or compiler spec on build-a…" aria-describedby="ps-nco"><span class="adv-na"><b aria-hidden="true">⊘</b>Change build-a…</span></button><span role="tooltip" id="ps-nco"><b>not checked out</b> · build-a<br>exclusive checkout needed</span></span>
+   <a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;panel=versions" aria-label="Version control, build-a">Version control</a>
   </div>
+ </div>
+ <div style="padding-bottom:56px">
+  <span class="kicker">Tip pinned</span>
+  <div class="ad-tools"><span class="adv-tip is-open"><button class="ad-btn" type="button" aria-disabled="true" aria-expanded="true" aria-label="Change language or compiler spec on build-a…" aria-describedby="ps-ncop"><span class="adv-na"><b aria-hidden="true">⊘</b>Change build-a…</span></button><span role="tooltip" id="ps-ncop"><b>not checked out</b> · build-a<br>exclusive checkout needed</span></span></div>
  </div>
 </div>
 </div>

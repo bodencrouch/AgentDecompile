@@ -61,3 +61,10 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 **Prior art**
 
 Ghidra Undo/Redo (`Tool/Undo_Redo.htm`): a limit of 20, redo cleared by a new edit, a drop-down list that undoes an item and all above it. The boundary sentence reuses the Copy guideline's "byte journal rollback ≠ undo of executed side effects".
+
+## Behavior
+
+- Undo reverts the program's changes on build-a. It does not delete jobs, logs, receipts, artifacts or files a job wrote: byte journal rollback ≠ undo of executed side effects.
+- Undone work leaves its receipts marked ◷ stale.
+- Undo on build-b waits while another writer owns it; nothing is killed or restarted.
+- Undo refused: the build changed since you armed it. Nothing was undone. Review the new change, then Undo again on the new top.

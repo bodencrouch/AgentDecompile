@@ -1,8 +1,23 @@
-<!-- @dsCard group="Code" height=900 -->
+<!-- @dsCard group="Code" height=960 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <section class="ad-calls" aria-labelledby="ch1-h">
  <header><span class="kicker">Calls</span><h4 id="ch1-h">Incoming to <code translate="no">ResourceRef::Resolve</code></h4><ul class="adv-chips" aria-label="build-a · follows at depth 1 · 2 levels read · 12 direct callers"><li>build-a</li><li><span>depth</span>1</li><li><span>read</span>2 levels</li><li><span>direct</span>12</li></ul>
-  <span class="end"><span class="adv-tip"><span class="ad-sync small adv-w" tabindex="0" aria-describedby="ch1-fol"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Follows</span><span role="tooltip" id="ch1-fol">Follows · as I move</span></span><button class="ad-btn compact" aria-pressed="false" aria-keyshortcuts="Shift+K">Keep</button><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="ch1-key">?</button><span role="tooltip" id="ch1-key">▾ ▸ expand · ⊣ depth limit reached · ↺ recursive · ∅ not indexed here · ○ not loaded · ◌ unresolved · ⇉ contested · italic: absent. Per-build words are locator words: paths on other builds use accepted identity edges and recorded locators only; builds that are not open are never fetched.</span></span></span></header>
+  <span class="end"><span class="adv-tip"><button type="button" class="ad-sync small adv-w" aria-describedby="ch1-fol"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Follows</button><span role="tooltip" id="ch1-fol"><b>Follows</b> · build-a<br>current location, <span translate="no">ResourceRef::Resolve</span></span></span><button class="ad-btn compact" aria-pressed="false" aria-keyshortcuts="Shift+K">Keep</button><button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="ch1-key">?</button></span></header>
+ <dl class="adv-key" id="ch1-key" hidden>
+  <dt>▾ ▸</dt><dd>Expand</dd>
+  <dt>⊣</dt><dd>Depth limit</dd>
+  <dt>↺</dt><dd>Recursive</dd>
+  <dt>∅</dt><dd>Not indexed</dd>
+  <dt>○</dt><dd>Not loaded</dd>
+  <dt>◌</dt><dd>Unresolved</dd>
+  <dt>⇉</dt><dd>Contested</dd>
+  <dt><span class="ad-absent">absent</span></dt><dd>Absent</dd>
+  <dt>≠</dt><dd>Claim boundary</dd>
+  <dt><span class="adv-w">&nbsp;</span></dt><dd>Stored index</dd>
+  <dt><kbd class="ad-kbd">→</kbd></dt><dd>Read level</dd>
+  <dt><kbd class="ad-kbd">Alt+↓</kbd></dt><dd>Peek</dd>
+  <dt><kbd class="ad-kbd">Alt+F1</kbd></dt><dd>Help</dd>
+ </dl>
  <div class="ad-tools" role="toolbar" aria-label="Call hierarchy options">
   <span><span class="lbl" id="ch1-ld">Direction</span><span class="ad-seg" role="group" aria-labelledby="ch1-ld"><button aria-pressed="true" aria-keyshortcuts="i"><span aria-hidden="true">←</span> Incoming <span class="n">12</span></button><button aria-pressed="false" aria-keyshortcuts="o"><span aria-hidden="true">→</span> Outgoing <span class="n">4</span></button></span></span>
   <span><span class="lbl" id="ch1-ldp">Expand to depth</span><span class="ad-seg" role="group" aria-labelledby="ch1-ldp"><button aria-pressed="false">1</button><button aria-pressed="true">2</button><button aria-pressed="false">3</button></span></span>
@@ -34,7 +49,7 @@
     <td><a class="ad-link addr" href="?project=corpus-alpha&amp;entity=90&amp;build=build-a&amp;addr=0041d0f4" tabindex="-1" translate="no">0041d0f4</a></td><td class="mono">2</td>
     <td class="pb pbh resolved">resolved</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb resolved">resolved</td></tr>
    <tr aria-level="2" aria-setsize="1" aria-posinset="1" style="--lvl:1">
-    <td class="fn" colspan="6"><span class="tw" aria-hidden="true">∅</span><span class="adv-tip"><span class="adv-na" tabindex="0" aria-describedby="ch1-ni">not indexed</span><span role="tooltip" id="ch1-ni">Callers of Archive::OpenMember: not indexed here. The stored index covers build-a gen 40; this function changed in gen 42. Nothing is analysed from this view.</span></span> <span class="adv-chips" aria-hidden="true" style="display:inline-flex"><span class="adv-bnd" style="cursor:default"><span class="mono">gen 40</span><b>≠</b><span class="mono">gen 42</span></span></span></td></tr>
+    <td class="fn" colspan="6"><span class="tw" aria-hidden="true">∅</span><span class="adv-tip"><button type="button" class="adv-na" style="border:0;background:none;padding:0;min-height:24px;font:inherit;color:inherit;cursor:help" aria-describedby="ch1-ni">not indexed</button><span role="tooltip" id="ch1-ni"><span aria-hidden="true">∅</span> <b>Not indexed</b> · <span translate="no">Archive::OpenMember</span><br>index build-a gen 40 · function changed gen 42</span></span> <span class="adv-chips" aria-hidden="true" style="display:inline-flex"><span class="adv-bnd" style="cursor:default"><span class="mono">gen 40</span><b>≠</b><span class="mono">gen 42</span></span></span></td></tr>
    <tr aria-level="1" aria-setsize="5" aria-posinset="4" style="--lvl:0">
     <td class="fn"><span class="tw" aria-hidden="true"></span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041e3a0" tabindex="-1" translate="no">thunk_ResourceRef_Resolve</a><span class="note">jump · <span aria-hidden="true">0 callers</span><span class="sr-only">no callers in the index</span></span></td>
     <td><a class="ad-link addr" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041e3a8" tabindex="-1" translate="no">0041e3a8</a></td><td class="mono">1</td>
@@ -45,14 +60,22 @@
     <td class="pb pbh resolved">resolved</td><td class="pb nl"><b aria-hidden="true">○</b> not loaded</td><td class="pb unres"><b aria-hidden="true">◌</b> unresolved</td></tr>
    <tr aria-level="1" style="--lvl:0"><td class="fn" colspan="6"><span class="tw" aria-hidden="true"></span><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;ws=code&amp;f=xref.mode:calls&amp;f=calls.dir:in&amp;f=calls.depth:1" tabindex="-1" aria-label="7 more callers at depth 1">+7 more</a></td></tr>
   </tbody></table></div>
- <div class="ad-calls-cap"><span class="sr-only" id="ch1-cap">path in stored index ≠ runtime reachability. Per-build words are locator words: paths on other builds use accepted identity edges and recorded locators only; builds that are not open are never fetched.</span><span class="adv-tip is-open"><button type="button" class="adv-bnd" aria-describedby="ch1-bnd"><b aria-hidden="true">≠</b>reachability</button><span role="tooltip" id="ch1-bnd">path in stored index ≠ runtime reachability.</span></span></div>
- <footer style="margin-top:32px"><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="ch1-src"><b aria-hidden="true">◇</b>xref index · gen 42 · 13:58:07</span><span role="tooltip" id="ch1-src">From the stored xref index · build-a gen 42 · 13:58:07</span></span><ul class="adv-chips" aria-label="Keys: → read one level · ← close · Enter go · Alt+↓ peek · i/o direction · * siblings"><li><span>→</span>read</li><li><span>←</span>close</li><li><span>Enter</span>go</li><li><span>Alt ↓</span>peek</li><li><span>i/o</span>direction</li><li><span>*</span>siblings</li></ul></footer>
+ <div class="ad-calls-cap"><span class="sr-only" id="ch1-cap">path in stored index ≠ runtime reachability.</span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="ch1-bnd"><b aria-hidden="true">≠</b>reachability</button><span role="tooltip" id="ch1-bnd"><b>Claim boundary</b> · build-a<br>path in stored index ≠ runtime reachability.</span></span></div>
+ <footer><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="ch1-src">xref index · gen 42 · 13:58:07</button><span role="tooltip" id="ch1-src"><b>Stored index</b> · build-a<br>xref gen 42 · read <span class="mono">13:58:07</span></span></span><ul class="adv-chips" aria-label="Keys: → read one level · ← close · Enter go · Alt+↓ peek · i/o direction · * siblings"><li><span>→</span>read</li><li><span>←</span>close</li><li><span>Enter</span>go</li><li><span>Alt ↓</span>peek</li><li><span>i/o</span>direction</li><li><span>*</span>siblings</li></ul></footer>
  <p class="sr-only" role="status">Incoming calls to ResourceRef::Resolve on build-a: 12 direct callers.</p>
 </section>
 
 <section class="ad-calls" aria-labelledby="ch2-h">
  <header><span class="kicker">Calls</span><h4 id="ch2-h">Outgoing from <code translate="no">ResourceRef::Resolve</code></h4><ul class="adv-chips" aria-label="build-a · depth 1 · 4 call sites"><li>build-a</li><li><span>depth</span>1</li><li><span>sites</span>4</li></ul>
-  <span class="end"><span class="adv-tip"><span class="ad-sync small adv-w" tabindex="0" aria-describedby="ch2-kept"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1M3 3l2 2M11 11l2 2"/></svg>Kept</span><span role="tooltip" id="ch2-kept">Kept · not following selection</span></span><button class="ad-btn compact" aria-pressed="true" aria-keyshortcuts="Shift+K">Keep</button><button class="ad-btn compact">Follow selection</button><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="ch2-key">?</button><span role="tooltip" id="ch2-key">▸ expand · ⊣ depth limit reached · ◌ target unresolved; no target is guessed · Kept: not following selection.</span></span></span></header>
+  <span class="end"><span class="adv-tip"><button type="button" class="ad-sync small adv-w" aria-describedby="ch2-kept"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1M3 3l2 2M11 11l2 2"/></svg>Kept</button><span role="tooltip" id="ch2-kept"><b>Kept</b> · build-a<br><span translate="no">ResourceRef::Resolve</span> · kept <span class="mono">13:52</span></span></span><button class="ad-btn compact" aria-pressed="true" aria-keyshortcuts="Shift+K">Keep</button><button class="ad-btn compact">Follow selection</button><button type="button" class="adv-q" aria-label="Key" aria-expanded="false" aria-controls="ch2-key">?</button></span></header>
+ <dl class="adv-key" id="ch2-key" hidden>
+  <dt>▸</dt><dd>Expand</dd>
+  <dt>⊣</dt><dd>Depth limit</dd>
+  <dt>◌</dt><dd>Unresolved target</dd>
+  <dt><span class="adv-w">Kept</span></dt><dd>Kept</dd>
+  <dt><kbd class="ad-kbd">i</kbd></dt><dd>Incoming</dd>
+  <dt><kbd class="ad-kbd">o</kbd></dt><dd>Outgoing</dd>
+ </dl>
  <div class="ad-tools" role="toolbar" aria-label="Call hierarchy options">
   <span><span class="lbl" id="ch2-ld">Direction</span><span class="ad-seg" role="group" aria-labelledby="ch2-ld"><button aria-pressed="false" aria-keyshortcuts="i"><span aria-hidden="true">←</span> Incoming <span class="n">12</span></button><button aria-pressed="true" aria-keyshortcuts="o"><span aria-hidden="true">→</span> Outgoing <span class="n">4</span></button></span></span>
   <span><span class="lbl" id="ch2-ldp">Expand to depth</span><span class="ad-seg" role="group" aria-labelledby="ch2-ldp"><button aria-pressed="true">1</button><button aria-pressed="false">2</button><button aria-pressed="false">3</button></span></span>
@@ -68,4 +91,6 @@
   </tbody></table></div>
  <footer><ul class="adv-chips" aria-label="Kept at 13:52 · stored index gen 42 · unchanged since kept"><li><span>kept</span>13:52</li><li><span>index</span>gen 42</li><li><span>since</span>unchanged</li></ul><ul class="adv-chips" aria-label="Keys: i incoming · o outgoing"><li><span>i</span>incoming</li><li><span>o</span>outgoing</li></ul></footer>
 </section>
+<span class="kicker">Tip pinned</span>
+<div class="row" style="padding-bottom:56px"><span class="adv-tip is-open"><button type="button" class="adv-bnd" aria-expanded="true" aria-describedby="ch1-bnd2"><b aria-hidden="true">≠</b>reachability</button><span role="tooltip" id="ch1-bnd2"><b>Claim boundary</b> · build-a<br>path in stored index ≠ runtime reachability.</span></span></div>
 </div>

@@ -64,3 +64,14 @@ Rows from the [Ghidra Code Browser parity specification](../../../../dashboard-d
 **Prior art**
 
 Ghidra Tool Options (`Tool/ToolOptions_Dialog.htm`), Decompiler Options, Byte Viewer Options and the structure editor's options. VS Code's settings editor (one searchable tree, "modified" per row, reset per row) for the row form.
+
+## Behavior
+
+Moved from the preview's tips and chips (Guideline 25).
+
+- ≠ link · storage (chip removed): "never in a link or browser storage"
+- ≠ re-decompile (chip removed): views decompiled with other options say so and are not re-decompiled.
+- ⊘ Set on build-c: "Not available on this server yet. The values still read." ⊘ Import / Remove: "Not available on this server yet. The extension list still reads." What this server offers is a Peek (Alt+↓), not a link in the tip.
+- −2 overrides: "Decompiler options restored to defaults. 2 of your overrides were removed. Other sections keep theirs."
+- ≠ read here (chip removed; the notice keeps ⊘ and "server only"): "Program caching is a server setting. Tool and program caching are configured on the server, not here. This panel reads nothing from them."
+- Title (shortened): visible "· per build · read-only" is now "· read-only"; "per build" stays in the accessible name. "Decompiler · restored to defaults" is now "Decompiler · defaults restored".

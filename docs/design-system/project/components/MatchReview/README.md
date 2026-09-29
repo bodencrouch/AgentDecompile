@@ -40,3 +40,7 @@ The cross-match review queue: token-bound decisions over pairs, with the U17 mat
 - Change words are text ("changed since you looked", "new since you looked"); glyphs are `aria-hidden` beside them.
 
 **Removes switching** (counts from the plan ledger): J07 review a candidate match and check both endpoints, 8 → 0 plus one modal confirm per decision (U186); J08 recover from a refused decision, 4 → 1 (U186).
+
+## Behavior
+
+- After a refused decision, the page cursor, the scroll on the focused match and your other checks are kept. Deciding again opens a new ConfirmDialog that names the new count.

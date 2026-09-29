@@ -112,3 +112,15 @@ The spec maps E01, E04 and E05 to the Listing link menu → ActionStrip. PatchEd
 - IDA's Patch program (Assemble and Change byte) and its patched-bytes list.
 - x64dbg's Assemble and Fill.
 - What changes here: one explicit build and never all builds, original-byte and before/after preview, a post-write read, and "Patched bytes are not recovery evidence".
+
+## Behavior
+
+- "Target map: the one build a write touches, framed with ✎; other builds struck." · "≠ chip: what the action does not do or claim; its tip holds the full sentence." (formerly in the Key tooltip)
+- "After the terminal result the bytes are read back and compared with this preview." (formerly the `✓ read back` chip)
+- "Cached decompile of ResourceRef::Resolve on build-a is marked stale; nothing is re-disassembled or re-analyzed." (formerly the `◷ decompile` chip; now the `stale` stamp)
+- "Never proposed to counterparts." (formerly the `≠ counterparts` chip; the target map shows the one build written)
+- "Nothing is corrected automatically." (formerly the `≠ auto-fix` chip on Read back · differs)
+- "Clear flow and repair is a separate verb." (formerly the `flow repair ↗` chip)
+- "Nothing is in build-a's listing until posted." · "Restricted to selection over a range is a batch and opens ConfirmDialog." (formerly on the Disassemble preview)
+- "No function is created and nothing is analyzed." (formerly the `≠ function` chip)
+- "Counts and widths are never copied to other builds; each build's own data layout applies there." (formerly the `≠ copied` chip)

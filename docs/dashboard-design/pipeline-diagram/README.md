@@ -14,16 +14,16 @@ provenance audit; this authority correction does not require regenerating visual
 
 | File | What it is |
 |---|---|
-| `pipeline-model.json` | Source of truth for **content**: every drawn string of all four diagrams, stable node ids and typed edges. See [content model](#content-model-outlines-and-accessibility--2026-09-29). |
+| `pipeline-model.json` | Source of truth for **content**: every drawn string of all four diagrams, stable node ids, typed edges, the catalog-verb map and the lifecycle crosswalks. See [content model](#content-model-outlines-and-accessibility--2026-09-29). |
 | `agentdecompile-recovery-pipeline.drawio` | The editable diagram. Open with draw.io desktop (`drawio <file>`), the VS Code "Draw.io Integration" extension, or app.diagrams.net. One layer per row, one group per model node (nested where the model nests). |
 | `agentdecompile-recovery-pipeline.svg` | The same diagram as plain SVG; opens and edits in Inkscape or any browser. |
-| `agentdecompile-recovery-pipeline.outline.md` | Text outline: the primary accessible reading form, with one anchor per node id. |
+| `agentdecompile-recovery-pipeline.outline.md` | Text outline: the primary accessible reading form, with one anchor and one in-app location per node id. |
 | `agentdecompile-recovery-pipeline.png` | A rendered copy for quick viewing (resvg, 1:1 with the SVG canvas, DejaVu fonts only). |
 | `generate_pipeline_diagram.py` | Source of truth for overview **layout and palette**; reads its text from `pipeline-model.json`. |
 | `generate_execution_diagram.py`, `generate_resilience_diagram.py`, `generate_capabilities_diagram.py` | Companion generators; same split (layout here, content in the model). |
-| `generate_outlines.py` | Writes the four `.outline.md` files from the model and verifies model ↔ SVG ↔ outline agreement. |
+| `generate_outlines.py` | Writes the four `.outline.md` files from the model and verifies model ↔ SVG ↔ outline agreement, plus the catalog-verb map, crosswalks and edge flags. |
 | `diagram_common.py` | Shared model loader, accessible SVG root, `<g id>` node wrapping, DejaVu metrics and the layout checks. |
-| `svg_to_drawio.py` | Turns a generated SVG into its `.drawio` file (native cells, layers, node groups with outline tooltips/links, connectors). |
+| `svg_to_drawio.py` | Turns a generated SVG into its `.drawio` file (native cells, layers, node groups with outline tooltips and one outline link each, connectors). |
 | `render_pngs.py` | Renders the four PNGs with resvg (resvg-py 0.5.0), 1:1 with each SVG canvas. |
 
 Regenerate everything (run from this directory, in this order):
@@ -34,6 +34,7 @@ python generate_execution_diagram.py
 python generate_resilience_diagram.py
 python generate_capabilities_diagram.py
 python generate_outlines.py                # writes outlines; fails on model/SVG/outline drift
+                                           # (in-app locations stay code text; see "Outline links" below)
 for f in agentdecompile-recovery-pipeline execution-contracts resilience-contracts autonomous-capabilities; do
   python svg_to_drawio.py "$f.svg" "$f.drawio"   # picks up "$f.outline.md" for tooltips and links
 done
@@ -210,7 +211,41 @@ bracketed locator kind, e.g. `anchor_rel`), `lock-1`…`lock-5`, `failover-rule`
 `worked-interruption`, `cap-step-1`…`6`, `milestone-M0`…`M7`). These ids are the shared
 deep-link vocabulary for the GUI (Pipeline Map, pipeline breadcrumb): the same id is the
 SVG `<g id>`, the draw.io UserObject id and the outline anchor. Edges drawn as arrows carry
-`drawn: true`; every other edge carries `inferred: true` (see below).
+`drawn: true`; every other edge carries `inferred: true` (see below). A drawn edge that was
+first read from diagram text keeps `inference: "stated"` and its quoted `basis`; only
+stated edges are drawn.
+
+**Catalog verbs.** The top-level `catalog_verbs` map is keyed by catalog verb:
+`{verb: {"stages": [...], "lanes": [...], "source": "consolidated plan §2.1", "quote": ...}}`.
+It is filled only from §2.1 of the
+[consolidated design plan](../2026-09-21-consolidated-design-plan.md#21-canonical-stage-order-recovery),
+which maps verbs to stages 1–7: `corpus.extract-stabs` and `corpus.match-pair` (stage 1),
+`corpus.calibrate-global` (2), `corpus.workspace` (3), `corpus.ghidra-bulk` (4),
+`corpus.cross-place` (5), `corpus.genproject` (6, "leftovers") and `corpus.objdiff-check` (7).
+`quote` is the §2.1 table cell. Stage 0, stage 8 (§2.1 shows "—") and every lane stay unmapped
+until a recorded decision; a chip example therefore reads "5 Propagation" with no lane part.
+The per-node view is derived from this map: each stage and lane section of the overview outline
+has a "Catalog verbs" line ("unmapped" when the map gives it none), and `generate_outlines.py`
+refuses to write when a verb names an unknown stage or lane id or a section's line differs from
+the map. The live catalog (`GET /api/v1/actions`) is the verb authority. A future check, not run
+under the current mission, compares the map with a catalog snapshot; a verb missing on either
+side renders "stage: unmapped".
+
+**Crosswalks.** The top-level `crosswalks` array reads lifecycle states as design steps:
+TaskLifecycle state → execution step, and FailureRecord lifecycle state → resilience step. Each
+entry has `inference: "interpretation"`, a `basis` quoted from the
+[task acceptance design](../../plans/2026-09-22-task-acceptance-and-continuation-design.md), the
+step text it `matches` (checked against the target node) and its `source`. `lifecycle_states`
+lists every state and where its name comes from; a state without an entry has no supporting text.
+The companion outlines render them under "Crosswalks (interpretation)". They are design readings,
+never the runtime's state machine. Mapped: TaskLifecycle `ready` and `admitted` → `exec-step-2`,
+`running` → `exec-step-3`, `awaiting_acceptance` and `accepted` → `accept-4`; FailureRecord
+`observed` and `classified` → `resil-step-1`, `contained`, `recovery_pending` and `reconciling` →
+`resil-step-3`, `eligible` → `resil-step-5`. Unmapped for lack of supporting text: `proposed`,
+`waiting`, the terminals `negative`, `unsupported`, `cancelled` and the side states `retry_wait`,
+`budget_exhausted`. The task acceptance design does not name the FailureRecord states (they come
+from the design-system FailureRecord README), so each of those bases quotes the behaviour the state
+name describes.
 
 **Outlines.** `generate_outlines.py` writes
 [agentdecompile-recovery-pipeline.outline.md](agentdecompile-recovery-pipeline.outline.md),
@@ -220,10 +255,22 @@ SVG `<g id>`, the draw.io UserObject id and the outline anchor. Edges drawn as a
 accessible reading form. Each heading or node item carries `<a id="<node id>"></a>`;
 meaning-carrying symbols are spelled out (≠ as "is not", ↔ as "refines, both ways" or
 "one-to-one", ∥ as "in parallel", → as "then", ranges such as 1–8 as "1 to 8"). Each
-outline's Relationships list marks arrows "(drawn arrow)" and text-derived edges
-"(inferred)" with their basis. The script fails without writing when a model string is
-missing from its SVG, or when the SVG `<g id>` sequence differs from the outline's anchor
-sequence (same ids, same reading order).
+outline's Relationships list marks arrows "(drawn arrow)" (with the stating text when the arrow
+was first read from text) and text-derived edges "(inferred)" with their basis. The script fails
+without writing when a model string is missing from its SVG, or when the SVG `<g id>` sequence
+differs from the outline's anchor sequence (same ids, same reading order).
+
+**Outline links.** The outline anchors stay. Every node also names its in-app location as code
+text, for example "In the app: `?node=gate-4`": a heading gets it as its first line, and a
+node item or paragraph gets it at its end. The app resolves `?node=` against the active
+project, so the outline never emits a host, port or project parameter. It becomes a link only in
+a rendering configured with an explicit app base: `python generate_outlines.py --app-base /dashboard
+--out-dir <dir>` (or the `PIPELINE_OUTLINE_APP_BASE` environment variable), meant for a
+backend-served rendering. The base must be a root-relative path; a scheme, host, port, query or
+fragment is refused. An app base also requires `--out-dir`, so the committed outlines keep code
+text. A draw.io cell carries one link, because a UserObject has a single `link` attribute: it
+points to the outline anchor. The outline carries the in-app location, and so does the cell's
+tooltip, which is the outline text.
 
 **Accessibility guarantees of the generated SVGs.**
 - Root `<svg role="img" aria-labelledby="<diagram>-title <diagram>-desc" lang="en">` with
@@ -271,8 +318,10 @@ commands quoted in the older sections above.
 ### Inferred edges (review)
 
 51 edges in `pipeline-model.json` were read from diagram text rather than drawn as
-arrows. Each has `inferred: true`, a quoted `basis`, and `inference: "stated"` (the text says
-it directly) or `"interpretation"` (a reading of the text). The outlines mark them "(inferred)".
+arrows. Each has a quoted `basis`, and `inference: "stated"` (the text says it directly) or
+`"interpretation"` (a reading of the text). Six of the stated ones are now drawn (see
+[verifier follow-up](#verifier-follow-up--2026-09-29)); the other 45 keep `inferred: true`, and
+the outlines mark them "(inferred)".
 
 Interpretations to review first (22):
 
@@ -297,9 +346,16 @@ Interpretations to review first (22):
 - `stage-8 produces export-projects` — stage 8 How: byte-accurate+floor vs max-C measured separately, matched to the export card 'byte-accurate C+floor and max-C … independent image receipts'
 - `fence gates accept-4` — FENCE row: 'Keep artifact; refuse current acceptance/promotion'
 - `accept-4 serialized_by lock-5` — box 4 'Independent acceptance, short commit' matched to overview lock 5 'short acceptance commit' (cross-diagram)
-- `resil-step-6 feedback resil-step-1` — step 6 'Prevent recurrence without blind tuning' returns to step 1 'Prevent, detect, classify' (preventive policy feedback)
+- `resil-step-6 feedback resil-step-1` — step 6 'Prevent recurrence without blind tuning' returns to step 1 'Prevent, detect, classify' (preventive policy feedback). Not drawn: it stays an interpretation until this review concludes.
 
-Stated directly in diagram text (29): `gate-0 gates stage-0`, `gate-1 gates stage-1`, `gate-3 gates stage-3`, `gate-4 gates stage-4`, `gate-5 gates stage-5`, `gate-6 gates stage-6`, `gate-7 gates stage-7`, `gate-8 gates stage-8`, `lane-A consumes stage-1`, `lane-A consumed_by stage-5`, `lane-A feeds export-readiness`, `lane-B consumes stage-1`, `lane-B consumes stage-2`, `lane-B feeds lane-C`, `lane-B feeds export-target`, `lane-C consumes lane-B`, `lane-C feeds stage-1`, `lane-C feeds export-readiness`, `lane-D wraps main-pipeline`, `lane-D wraps lanes`, `lane-D gates export-target`, `lane-E wraps main-pipeline`, `lane-E wraps lanes`, `accept-4 consumes contract-bytes`, `accept-4 consumes contract-identity`, `accept-4 consumes contract-operation`, `cap-5A depends_on accept-4`, `cap-5B depends_on accept-4`, `resil-step-4 depends_on resil-step-3`.
+Stated directly in diagram text and still undrawn (23): `gate-0 gates stage-0`, `gate-1 gates stage-1`, `gate-3 gates stage-3`, `gate-4 gates stage-4`, `gate-5 gates stage-5`, `gate-6 gates stage-6`, `gate-7 gates stage-7`, `gate-8 gates stage-8`, `lane-A consumes stage-1`, `lane-A consumed_by stage-5`, `lane-A feeds export-readiness`, `lane-B consumes stage-1`, `lane-B consumes stage-2`, `lane-B feeds lane-C`, `lane-B feeds export-target`, `lane-C consumes lane-B`, `lane-C feeds stage-1`, `lane-C feeds export-readiness`, `lane-D wraps main-pipeline`, `lane-D wraps lanes`, `lane-D gates export-target`, `lane-E wraps main-pipeline`, `lane-E wraps lanes`.
+
+Stated and now drawn (6): `accept-4 consumes contract-bytes`, `accept-4 consumes contract-identity`, `accept-4 consumes contract-operation`, `cap-5A depends_on accept-4`, `cap-5B depends_on accept-4`, `resil-step-4 depends_on resil-step-3`.
+
+Not added: an `exec-step-3` → `contract-bytes|identity|operation` edge. No text of the execution
+companion (diagram strings, `desc` or the companion section above) says that compute (step 3)
+produces or feeds the binding proofs, and the proofs are independent evidence, so there is no
+quotable basis.
 
 ### Supersession — 2026-09-29
 

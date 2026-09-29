@@ -69,6 +69,16 @@ Divergence classes: **1↔1** structural match · **1↔N** split-or-inlined can
 
 ◇ (the gate diamond) plus "waiting at gate: ‹gate text›" in `gate` amber marks work waiting at a stage gate. It is distinct from ◷ stale (changed dependencies) and never shares its glyph. "Held" is reserved for held panes.
 
+## Work-view events (WorkTimeline)
+
+| Event | Mark | Word |
+|---|---|---|
+| accepted | tall tick plus ✓ | accepted |
+| rejected | short tick plus ✕ | rejected |
+| observed | plain tick | observed |
+
+The cursor is a 2px `ink-strong` frame, never the accent. A text list of the events is the accessible form. ◇ and ◆ are reserved for gates and never mark an event.
+
 ## Alignment markers (SplitCompare, diffs)
 
 Row markers in aligned views, always with a word for assistive tech: ↔ anchor (matched anchor), ± differs, − only on the left, + only on the right, and a hatched filler for "no line". Aligned is not equivalent: every split header shows the divergence class (1↔1, 1↔N, ≠) and the identity-edge state, and equal rows say "local; ≠ whole-image proof".

@@ -67,6 +67,18 @@ The symbol hierarchy of the project as an APG treegrid: Imports, Exports, Functi
 - **One writer.** When the build's lock is owned elsewhere, Edit items stay listed with "build-b has a writer: another session (agent) · your edit waits for it". Run is refused with that reason. Admission never offers to stop the other owner.
 - **Undo is honest.** After a terminal result, the status line offers Undo only when the catalog exposes undo for that program's transaction. It states the scope ("Undo on build-a only; build-c's proposed copy has its own outcome"). A deleted symbol's references stay unnamed if undo is not available, and the dialog says so before Delete.
 
+## Set external entry point (S11)
+
+Ghidra marks an address as an external entry point: an address where execution can start from outside the program (the program entry, a DLL's exports). The property belongs to the address, so every label there shares it; it needs at least one symbol at the address; and a default label there reads `EXT_` with an "EXTERNAL" plate.
+
+- **Where.** The row menu's Edit group on a function or label, and the Listing link menu's Function group: **Set as external entry point on build-a** and **Remove external entry point on build-a**. Each is present only when the catalog exposes it; on a node with no address (a class or namespace) it is not listed; on an address with no symbol it is `aria-disabled` with "Add a label first; entry points need a symbol".
+- **One build, confirmed.** Set confirms in place in the ActionStrip, naming the build, the address and the catalog action ("Set external entry point (catalog) · build-a · 0041b210"). Remove uses ConfirmDialog when the importer recorded the entry point: "Remove external entry point at 0041b210 on build-a? The importer recorded it from the export table." A batch over checked nodes uses ConfirmDialog with the count.
+- **Evidence, per build.** The Exports category lists entry points per build with their basis in words: "entry point · importer record (export table)" (solid, a record) or "entry point · set by you · job 6e21". A set entry point is an operator statement, not a witness: it never makes the export table say anything.
+- **Program-local.** Entry points are never proposed to counterparts, because each build's export set is its own fact: build-b may export a function build-a does not. A logical row shows each build's own state ("entry point on build-a · not an entry point on build-c"), never merged.
+- **What it does not do.** Setting an entry point starts no analysis and creates no function. If a function should start there, Create function… is a separate Listing action.
+- **States.** Pending and terminal OutcomeCell words on the row; "⇄ conflict on build-b" when another session changed the symbol meanwhile; the writer line when the lock is owned elsewhere.
+- **Keyboard.** `code.entryPoint` (no default key) opens the item from the Listing; in the tree it is in the row menu (Shift+F10). Keys arm; Run or the dialog posts.
+
 ## States
 
 | State | Shown as |
@@ -116,6 +128,7 @@ The symbol hierarchy of the project as an APG treegrid: Imports, Exports, Functi
 - **S12**: namespaces and classes for functions and labels, through Move to… and the class and namespace nodes. SignatureEditor's namespace field uses the same picker.
 - **F05**: external functions under Imports, with a logical row per import across builds.
 - **S04** (navigation mode and snapshot) stays with Following and HeldPane. This tree adds "Reveal current".
+- **S11**: set and remove an external entry point, per build and never proposed, with its basis (importer record or set by you) under Exports.
 - **I10**: the tree-filter part: strategies, multi-term, globbing, case sensitivity, invert and use path.
 - Also from `SymbolTree.htm`: show references to, make selection, create table from selection, and disable or enable a category (as per-viewer hide and show).
 

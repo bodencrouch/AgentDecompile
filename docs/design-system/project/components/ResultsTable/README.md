@@ -76,6 +76,34 @@ The one generic results table behind every Ghidra-style list: search hits, refer
 - One writer: with the build's lock owned elsewhere, actions stay listed with the reason, and Run is refused.
 - Each affected row gets its OutcomeCell after the terminal result. Nothing is optimistic.
 
+## Translate strings and charsets (A03)
+
+Ghidra decorates a string with a translated value from a translation service, shown in »chevrons« in place of the original, and lets the charset of string data be chosen. Here a translation is a hypothesis about a string's meaning, with its service named as the basis. It never replaces bytes, the decoded string or a name, and it is never evidence for identity or recovery.
+
+- **Where.** The Defined strings kind: **Translate…**, **Clear translations…** and **Show translations** (a per-viewer toggle, `aria-pressed`) in the ActionStrip arming menu and the row menu; the Listing link menu on string data offers the same items. The checked set must be on one build; rows on other builds are unchecked first, and the strip says so.
+- **Service choice.** The Translate… form lists the services the catalog's translate job accepts, each by its generic kind and host ("Manual", "self-hosted translation server · translate.lab.internal:5000"); none is hardcoded. **Manual** is always offered: one string, a value typed by you, confirmed in place.
+- **Settings**, per service, stored per viewer in durable workspace state beside the other request options:
+  - server URL; API key (a credential: entered once, stored by the server's secret store, shown as "set" or "not set", never in the URL, the page or an export);
+  - source language: **auto-detect** or **ask each time**; target language (default `en`);
+  - batch size (strings per request); timeout, plus extra time per string.
+- **Network approval.** A service outside this machine is a network dependency. Run opens ConfirmDialog every time: "Send 12 strings from build-b to translate.lab.internal? Their text leaves this machine." The primary button is **Send 12 strings**. Nothing is sent from a preview.
+- **One build, one job.** Translate runs the catalog job for the checked strings on one build and writes each translation as a string setting on that build (mutating; one writer; it never touches bytes). It is not offered while the build's lock is owned elsewhere. Clear translations on more than one row uses ConfirmDialog.
+- **How a translation shows.**
+  - In the String column, the original decoded text always stays visible. The translation sits under it: »resource not found« with a 1px dashed frame and the words "translation · hypothesis · basis: self-hosted server, auto → en, 14:02".
+  - A manual translation says "basis: manual, by you".
+  - **Show translations** off hides the line for this viewer only; stored translations are unchanged.
+  - Alt+↓ peeks the bytes, the charset, the decoded text and the translation with its basis, side by side.
+- **Stale.** When a string's bytes or charset change after it was translated, the translation reads "◷ string changed since translated · Translate again". It is never re-sent on its own.
+- **Across builds.** A translation belongs to the string on one build. Rows joined by content ("joined by content ≠ same entity") show each build's own translation state; translating build-b's row does not translate build-c's. A new column, **Translation**, reads "none", "hypothesis" or "stale" per build, and filters by `f=results.translation:` (proposed).
+- **Charsets.** **Settings…** on string rows opens the charset picker:
+  - a table of the charsets the build's server offers: Name (non-registry names start `x-`), Description, Fixed length, Min and max bytes per character, and Scripts; the details show the aligned size (UTF-16 and UTF-32 only) and sample characters;
+  - a **preview** column for the checked rows, decoded client-side from bytes already read: "decodes as ‹text› · 2 bytes not decodable (shown as �)". Previewing writes nothing and fetches nothing new;
+  - **Apply charset on build-b** is the catalog's data-settings write: in place for one row, ConfirmDialog for more ("Set charset UTF-16LE on 4 strings on build-b · their translations become stale").
+  Charset changes and translations are never proposed to counterparts.
+- **States.** No service in the catalog: "No translation service on this server · Manual only". Service unreachable: "✕ translate.lab.internal did not respond in 30 s · nothing was changed · Retry". Partial batch: "9 of 12 translated · 3 failed, listed". Pending and terminal OutcomeCell words per row.
+- **Keyboard.** `results.translate` (no default key) opens Translate… for the checked rows. In the form, Tab order is service, settings, strings preview, Cancel, Run.
+- **Accessibility.** The translation line's name is "Translation, hypothesis, basis self-hosted server, auto to English: resource not found"; the dashed frame is the second cue after the word. Chevrons are `aria-hidden`.
+
 ## States
 
 | State | Shown as |
@@ -129,7 +157,7 @@ The one generic results table behind every Ghidra-style list: search hits, refer
 - **S05** and **S06**: the Symbol Table, with its columns, filters, rename, delete symbols or references, set primary, pin (as "keep at address on rebase"), make selection and temporary tables.
 - **T17**: data types as a flat table with a program-types filter.
 - **P05**: the relocation table. **P06**: the equates table with rename, remove, apply enum and convert display.
-- **A01**: defined strings, with refresh and settings. **A02**: defined data. **A03**: translate as a row action. **A08**: the comment window.
+- **A01**: defined strings, with refresh and settings. **A02**: defined data. **A03**: translate strings with service choice, service settings, network approval, manual translation, clear and show, and charset handling, with every translation a hypothesis naming its service. **A08**: the comment window.
 - **F14**: the function tag window.
 - **E11**: make address tables and disassemble their targets.
 - **Q09**: the search results window: navigation (Navigate on focus), renaming the window (Rename table…), make selection, remove items, and stepping through worklists. Its marker-margin part is the OverviewBar hits lane and the Listing marker margin.

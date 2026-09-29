@@ -27,7 +27,7 @@ The per-viewer field formatter for the Listing: which fields each row kind shows
    - **P-code**: raw varnodes; maximum lines.
    - **Source map**: file name only; show at every address; maximum entries; show the file identifier (digest).
    - **Offsets**: show the name prefix; hexadecimal or decimal.
-6. **Margins** (rows L15, L16): the flow-arrow margin width (0 hides it), and which marker kinds the marker margin draws: program bookmarks by category, the viewer's marks, selection, highlights A–D, "changed by job", search hits of the active result set, and differences from an open comparison.
+6. **Margins** (rows L15, L16): the flow-arrow margin width (0 hides it), and which marker kinds the marker margin draws: program bookmarks by category, the viewer's marks, selection, highlights A–D (token and range highlights share the letters), program colors (row L20), "changed by job", search hits of the active result set, and differences from an open comparison.
 7. **Preview key.** One line under the band restates the margin glyphs in words.
 
 **Optional columns** (rows L10, L11). Each names its source and never guesses:
@@ -54,7 +54,8 @@ Reading an optional column is read-only and never analyzes. A following Listing 
 
 **Marker margin** (row L16). It sits left of the flow margin.
 - **Point markers** use one glyph each: ▪ program bookmark, a–z mark, • search hit, ✎ changed by job.
-- **Area markers** are a 2px bar with a word: selection, highlight A–D, differs.
+- **Area markers** are a 2px bar with a word: selection, highlight A–D, differs, and "color" for a color the program stores on this build (row L20, read-only; see the Listing).
+- **Program colors are not marks.** The toggle only shows or hides colors the build already stores; it writes nothing. The viewer's own marks stay a separate kind ("a–z mark"), and a stored color never fills the row, because row fills mean selection, reflection and raised.
 - Each marker is restated in the row's accessible name ("bookmark Analysis; search hit 3 of 40").
 - The navigation margin for the whole view is the OverviewBar.
 
@@ -114,6 +115,7 @@ Reading an optional column is read-only and never analyzes. A following Listing 
 - **L12** (Browser Field Formatter: add, remove, move, enable, disable, insert and remove rows, spacer text, custom formats, reset and reset all). Custom formats are per viewer; "save to program" is deliberately not offered.
 - **L31** (open and close functions), as the collapsible body option and `code.fold`.
 - The display-option parts of **L02** (address), **L03** (bytes), **L04** (operand display options), **L08** (EOL options) and **L09** (XREF field options). The row kinds themselves remain Listing extensions.
+- The display part of **L20** (program colors as a read-only marker kind; setting and navigating colors are Listing extensions) and the margin part of **L25** (range highlights share letters A–D).
 - The margin parts of **L15** (flow-arrow margin: select an arrow, go to source and target, width 0 to disable) and **L16** (marker margin). The navigation margin is the OverviewBar.
 
 **Ownership (decided):** ListingFieldLayout owns the Listing operand (L04), EOL (L08) and XREF field (L09) display options. OptionsPanel's Listing display and Cross-reference hints rows are links to this component's Field settings group and hold no values, so there is one store and one set of words (guideline 30, Listing, navigation and search tools).

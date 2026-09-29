@@ -108,7 +108,7 @@ After the terminal result, BeforeAfterBand shows old → new under the signature
 
 - D13 retype the return; D17 the Edit Function Signature dialog; D18 call-site signature overrides.
 - F04 thunk target; F06 calling convention from the build's spec; F07 custom storage (hosted StorageEditor).
-- F08 varargs, No return and inline; F09 call fixup; F10 purge.
+- F08 varargs, No return and inline; F09 call fixup; F10 purge. The other half of F10, the stack depth change at one instruction, is the Listing's (Function group, **Set stack depth change…**). On a call instruction that dialog asks Local or Global; **Global** opens this editor on the callee with the Purge field focused and prefilled with the entered value, and it confirms here through ConfirmDialog, as every callee-signature edit does ("Set purge of String::CStr to 4 on build-a · 31 callers"). A purge is a per-build fact of each build's code generation: it is compared across builds in the last row of the per-build conventions, never copied between them. Removing a function (the Listing's Delete function…) removes its purge with it.
 - S12 the namespace field.
 - Also F11: parameter rename and retype stay in InlineRename. This editor shows them in the grid for batch edits.
 

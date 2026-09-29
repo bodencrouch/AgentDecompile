@@ -1,0 +1,114 @@
+<!-- @dsCard group="Project" height=1700 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">All builds · stored program settings only · a change is one destructive job on one named build · never all builds</span>
+<section class="ad-g3" aria-labelledby="ps-t">
+ <header class="ad-g3-head">
+  <h3 id="ps-t">Program settings <span class="sub">· corpus-alpha · 4 builds · language and compiler spec</span></h3>
+  <p class="ad-g3-note" role="note">The compiler spec is Ghidra's model of calling conventions and data layout. It is not the toolchain that built the image; that is in <a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=toolchain" aria-label="Toolchain evidence, all builds">Toolchain</a>.</p>
+ </header>
+
+ <div class="ad-g3-sec">
+  <h4>Settings <span class="n">· read 14:02</span></h4>
+  <div class="ad-scroll" role="region" aria-label="Program settings grid, scrolls sideways">
+  <table class="ad-table ad-g3-grid" role="grid" aria-label="Program settings per build" aria-rowcount="6" aria-colcount="6" style="min-width:880px">
+   <thead><tr><th scope="col">Setting</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col" aria-current="true">build-c</th><th scope="col">build-d</th><th scope="col">Across builds</th></tr></thead>
+   <tbody>
+    <tr tabindex="-1">
+     <th scope="row"><span class="nm">Language id</span><span class="d">processor : endian : size : variant</span></th>
+     <td role="gridcell"><span class="mono" translate="no">x86:LE:32:default</span><br><span class="ad-evd solid"><b>witness</b>PE machine 0x14c · <a class="ad-link mono" href="?project=corpus-alpha&amp;build=build-a&amp;addr=00400084" aria-label="Address 00400084, file offset 0x84, build-a" translate="no">00400084</a></span></td>
+     <td role="gridcell"><span class="mono" translate="no">x86:LE:32:default</span><br><span class="ad-evd solid"><b>witness</b>PE machine 0x14c</span></td>
+     <td role="gridcell"><span class="mono" translate="no">x86:LE:32:default</span><br><span class="ad-evd solid"><b>witness</b>PE machine 0x14c</span></td>
+     <td role="gridcell"><span class="mono" translate="no">x86:LE:64:default</span><br><span class="ad-evd solid"><b>witness</b>PE machine 0x8664</span></td>
+     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs<span class="m">build-d x86:LE:64</span></span></td>
+    </tr>
+    <tr aria-selected="true" class="is-focus" tabindex="0">
+     <th scope="row"><span class="nm">Compiler spec</span><span class="d">calling conventions and data organisation</span></th>
+     <td role="gridcell"><span class="mono">windows</span><br><span class="ad-evd solid"><b>record</b>import record · loader choice</span></td>
+     <td role="gridcell"><span class="mono">windows</span><br><span class="ad-evd solid"><b>record</b>import record · loader choice</span></td>
+     <td role="gridcell"><span class="mono">gcc</span><br><span class="ad-evd solid"><b>record</b>import record · loader choice</span><br><span class="ad-g3-st fail col"><b aria-hidden="true">⇄</b>conflicts with Toolchain<span class="m">the Rich header records VC 8.0 (witness); windows expected</span></span></td>
+     <td role="gridcell"><span class="mono">windows</span><br><span class="ad-evd solid"><b>record</b>import record · loader choice</span></td>
+     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs<span class="m">build-c gcc</span></span></td>
+    </tr>
+    <tr tabindex="-1">
+     <th scope="row"><span class="nm">Pointer size</span></th>
+     <td role="gridcell">4 bytes</td><td role="gridcell">4 bytes</td><td role="gridcell">4 bytes</td><td role="gridcell">8 bytes</td>
+     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs<span class="m">follows the language</span></span></td>
+    </tr>
+    <tr tabindex="-1">
+     <th scope="row"><span class="nm">Image base</span><span class="d">read-only here</span></th>
+     <td role="gridcell"><span class="mono">00400000</span></td><td role="gridcell"><span class="mono">00400000</span></td><td role="gridcell"><span class="mono">00010000</span></td><td role="gridcell"><span class="mono">00400000</span></td>
+     <td role="gridcell"><button class="ad-btn compact" type="button" tabindex="-1" aria-describedby="ps-mm">Memory map…</button></td>
+    </tr>
+    <tr tabindex="-1">
+     <th scope="row"><span class="nm">Program properties</span><span class="d">owned by Peek and Options</span></th>
+     <td role="gridcell" colspan="4"><span class="small muted">Property maps at an address: Peek › Properties. Program options per build: Options › Program options.</span></td>
+     <td role="gridcell" class="muted">not compared here</td>
+    </tr>
+   </tbody>
+  </table>
+  </div>
+  <span class="sr-only" id="ps-mm">Opens the memory map of the focused build; Set image base lives there.</span>
+  <div class="ad-tools" role="group" aria-label="Program settings actions">
+   <button class="ad-btn primary" type="button" aria-haspopup="dialog">Change language or compiler spec on build-c (catalog)…</button>
+   <span class="small muted">One build per change. There is no all-builds change.</span>
+  </div>
+ </div>
+
+ <div class="ad-g3-sec">
+  <h4>Choose · build-c</h4>
+  <div class="ad-g3-cols">
+   <div>
+    <span class="lbl" id="ps-ch-l">Compatible with x86:LE:32:default · 3 of 12 shown · 186 installed</span>
+    <ul class="ad-g3-tree" role="listbox" aria-labelledby="ps-ch-l" aria-activedescendant="ps-o2" tabindex="0">
+     <li role="option" id="ps-o1" aria-selected="false"><span>x86:LE:32:default · gcc · current</span></li>
+     <li role="option" id="ps-o2" aria-selected="true"><span>x86:LE:32:default · windows</span></li>
+     <li role="option" id="ps-o3" aria-selected="false"><span>x86:LE:64:default · windows · 32 → 64</span></li>
+    </ul>
+   </div>
+   <div class="ad-g3-sec">
+    <p class="ad-g3-note">Only closely related languages are offered. A move from 32-bit to 64-bit is allowed; the reverse is refused because an address space would shrink. Show all installed lists the rest with the reason each cannot be chosen.</p>
+    <div class="ad-tools"><button class="ad-btn" type="button" aria-haspopup="dialog">Review consequences…</button><button class="ad-btn" type="button">Show all installed</button></div>
+   </div>
+  </div>
+ </div>
+
+ <div class="ad-g3-sec">
+  <h4>Confirm the change</h4>
+  <div class="ad-g3-dlg" role="alertdialog" aria-modal="true" aria-labelledby="ps-cf-t" aria-describedby="ps-cf-d">
+   <header><h3 id="ps-cf-t">Change build-c's compiler spec from gcc to windows</h3><span class="end">catalog: Change processor · 1 job · destructive</span></header>
+   <div class="body">
+    <p class="ad-g3-note" id="ps-cf-d">The language stays x86:LE:32:default. This rewrites build-c's program settings and cannot be undone with Undo. Counts are from the server's dry run at 14:03.</p>
+    <ol class="ad-g3-opts" style="padding-left:0">
+     <li><span><span class="nm">1 · Ownership</span><span class="d">Needs build-c's writer and an exclusive checkout. Writer: free. Checkout: exclusive, by you.</span></span></li>
+     <li><span><span class="nm">2 · Register and context values</span><span class="d">Transferred by register name. 0 removed.</span></span></li>
+     <li><span><span class="nm">3 · Calling conventions</span><span class="d">1,204 functions keep their convention names; 0 become unknown. Each stored signature's storage is rechecked.</span></span></li>
+     <li><span><span class="nm">4 · Types</span><span class="d">Revalidated by the layout check under the new data organisation. CacheEntry stays 0x1c · 4. 0 types change size.</span></span></li>
+     <li><span><span class="nm">5 · Disassembly and analysis</span><span class="d">Not run by this job. Analysis receipt e5a0 becomes stale; re-analysis needs its own admission in Analysis.</span></span></li>
+     <li><span><span class="nm">6 · Stale on build-c</span><span class="d">Decompile caches, 3 comparisons and FID hashes on the old basis. Identity edges stay; their comparison evidence is marked stale.</span></span></li>
+     <li><span><span class="nm">7 · Reverting</span><span class="d">Undo checkout (discards unsaved work) or change the spec again. Archive the project first if you need a restorable copy.</span></span></li>
+    </ol>
+    <label class="ad-g3-choice"><input type="checkbox"><span class="nm">Save a private copy of build-c first</span><span class="d">Writes a .keep copy beside the checkout; not a new build.</span></label>
+   </div>
+   <footer><span class="note">Other builds are unchanged. Nothing is proposed to counterparts.</span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Change build-c · 1 job</button></footer>
+  </div>
+ </div>
+</section>
+
+<div class="adc-states">
+ <div>
+  <span class="kicker">After the job · read back</span>
+  <div class="ad-notice info"><b aria-hidden="true">✓</b><div><h4>read back · compiler spec windows on build-c</h4><p>Job a3f9 finished. Analysis receipt e5a0 is stale; nothing re-ran. <a class="ad-link" href="?project=corpus-alpha&amp;build=build-c&amp;panel=analysis" aria-label="Analysis panel, build-c">Analysis for build-c</a></p></div><span></span></div>
+ </div>
+ <div>
+  <span class="kicker">Writer owned · waits</span>
+  <div class="ad-notice caution"><b aria-hidden="true">●</b><div><h4>Waiting: build-b has a writer</h4><p>Owner job 77c0 · external · pid 48211 · started 13:02. The change waits in admission; nothing is killed.</p></div><span></span></div>
+ </div>
+ <div>
+  <span class="kicker">Versioned, not checked out</span>
+  <div class="ad-tools" role="group" aria-label="Change on build-a">
+   <button class="ad-btn" type="button" aria-disabled="true" aria-describedby="ps-nco">Change language or compiler spec on build-a…</button>
+   <span class="small muted" id="ps-nco">Check out build-a exclusively first, in <a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;panel=versions" aria-label="Version control, build-a">Version control</a>.</span>
+  </div>
+ </div>
+</div>
+</div>

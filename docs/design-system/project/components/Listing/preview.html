@@ -1,4 +1,4 @@
-<!-- @dsCard group="Code" height=900 -->
+<!-- @dsCard group="Code" height=2250 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">Decompile focused on line 7 · the Listing marks the rows that produced it · h on eax boxes and letters every use</span>
 <section class="adc-pane" aria-labelledby="ls-h">
@@ -69,4 +69,112 @@
  </div>
 </div>
 <p class="sr-only" role="status">Decompiled C, line 7, from 3 instructions, 0041b213 to 0041b21b</p>
+<span class="kicker">Round 3 · program color and a range highlight · both belong to build-a and carry words · Step with Invert</span>
+<section class="adc-pane" aria-labelledby="ls3-h">
+ <header><span class="kicker" id="ls3-h">Listing</span><span class="small muted">build-a · <span translate="no">ResourceRef::Resolve</span> · Follows · as I move</span></header>
+ <div class="ad-tools ad3-step" role="toolbar" aria-label="Step by kind">
+  <span class="lbl" id="ls3-stl">Step</span>
+  <button class="ad-btn compact" aria-haspopup="menu" aria-expanded="false" aria-describedby="ls3-stl">Matching bytes <span class="mono small" translate="no">8b 45 08</span> ▾</button>
+  <button class="ad-btn compact" aria-label="Previous matching bytes">Previous</button><button class="ad-btn compact" aria-label="Next matching bytes">Next</button>
+  <button class="ad-btn compact" aria-pressed="false" aria-describedby="ls3-inv">Invert</button><span class="sr-only" id="ls3-inv">Inverted, Next goes to the first unit whose first byte differs from this unit's first byte.</span>
+  <span class="small muted">Shift reverses one step · stays on build-a · never analyzes</span>
+ </div>
+ <div class="adc-hlbar" role="group" aria-label="Highlights and program colors"><button type="button" class="adc-hlchip" aria-label="Remove highlight B: 3 ranges, 32 bytes, from selection, build-a"><b aria-hidden="true">B</b>3 ranges · 32 bytes · from selection · build-a</button><span>Program colors: 1 range on build-a · read 14:02 · read-only here</span></div>
+ <div class="ad-listing well adc-lst" role="grid" translate="no" aria-readonly="true" aria-label="Listing, build-a, ResourceRef::Resolve, with program colors and highlight B" aria-rowcount="-1" aria-colcount="6" data-scroll>
+  <div class="ad-ln" role="row" aria-rowindex="2" aria-label="0041b211, mov ebp, esp, highlight B"><span class="flow ad3-mk" aria-hidden="true">B</span><span class="addr" role="rowheader">0041b211</span><span class="bytes" role="gridcell">8b ec</span><span class="mn" role="gridcell">mov</span><span role="gridcell">ebp, esp</span><span class="xref" role="gridcell"><span class="ad3-w">highlight B</span></span></div>
+  <div class="ad-ln" role="row" aria-rowindex="3" aria-label="0041b213, mov eax, dword ptr [ebp + 0x8], highlight B, program color #c8d8ff, build-a, range 0041b213 to 0041b21b"><span class="flow ad3-mk" aria-hidden="true">B</span><span class="addr" role="rowheader">0041b213</span><span class="bytes" role="gridcell">8b 45 08</span><span class="mn" role="gridcell">mov</span><span role="gridcell">eax, dword ptr [ebp + 0x8]</span><span class="xref" role="gridcell"><span class="ad3-w"><span class="ad3-bar" aria-hidden="true"></span>color · program · #c8d8ff</span></span></div>
+  <div class="ad-ln" role="row" aria-rowindex="5" aria-current="true" aria-label="cursor, 0041b216, call String::CStr, highlight B, program color"><span class="flow" aria-hidden="true">▸</span><span class="addr" role="rowheader">0041b216</span><span class="bytes" role="gridcell">e8 45 12 00 00</span><span class="mn" role="gridcell">call</span><span role="gridcell"><a class="ad-link sym" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c460" tabindex="0" aria-label="Address 0041c460, build-a, String::CStr">String::CStr</a></span><span class="xref" role="gridcell"><span class="ad3-w"><span class="ad3-bar" aria-hidden="true"></span>color</span></span></div>
+  <div class="ad-ln" role="row" aria-rowindex="6" aria-label="stack depth change at 0041b216, StackDepth = StackDepth + 4, set by you"><span class="flow" aria-hidden="true"> </span><span class="addr" role="rowheader"><span class="sr-only">0041b216</span></span><span class="bytes" role="gridcell"></span><span class="mn" role="gridcell"></span><span role="gridcell">StackDepth = StackDepth + 0x4</span><span class="xref" role="gridcell"><span class="ad3-w">set by you · job 77c0</span></span></div>
+  <div class="ad-ln" role="row" aria-rowindex="9" aria-label="0041b221, ret 0x4, comment with annotations"><span class="flow" aria-hidden="true"> </span><span class="addr" role="rowheader">0041b221</span><span class="bytes" role="gridcell">c2 04 00</span><span class="mn" role="gridcell">ret</span><span role="gridcell">0x4</span><span class="xref" role="gridcell"><span class="ad3-cmt">; opens via <a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;build=build-a" tabindex="-1" aria-label="Symbol Archive::OpenMember, build-a, in comment" aria-description='{@symbol "Archive::OpenMember"}'>Archive::OpenMember</a>, then <span class="ad3-unres" aria-description='{@symbol "Archive::Close"}'>Archive::Close · unresolved</span></span></span></div>
+ </div>
+ <div class="adc-status"><span>Next matching bytes <span class="mono" translate="no">8b 45 08</span> → <span class="addr">0041b27a</span></span><span>Inverted on <span class="addr">0041b300</span>: first unit whose first byte is not 00 → <span class="addr">0041b320</span> · skipped 32 bytes of 00</span></div>
+</section>
+
+<div class="adc-states">
+<div>
+ <span class="kicker">Shift+F10 on 0041c880 · the Selection and Function groups (Open, Edit, Reveal in and Copy as above) · each names its build · nothing posts from the menu</span>
+ <div class="ad-pop adc-menu adc-lm">
+  <span class="kicker" id="ls3m-h">FUN_0041c880 · function header · build-a</span>
+  <ul class="ad-menu" role="menu" aria-labelledby="ls3m-h">
+   <li role="group" aria-labelledby="ls3m-g1"><span class="kicker grp" id="ls3m-g1" aria-hidden="true">Selection · 3 ranges selected</span><ul role="none">
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Highlight selection</span><span class="m">as B</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Add selection to highlight B</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Subtract selection from highlight B</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Clear highlight B</span></div></li>
+   </ul></li>
+   <li role="separator"></li>
+   <li role="group" aria-labelledby="ls3m-g2"><span class="kicker grp" id="ls3m-g2" aria-hidden="true">Function · from the catalog · build-a</span><ul role="none">
+    <li role="none"><div role="menuitem" tabindex="-1" aria-disabled="true" aria-describedby="ls3m-n1"><span class="t">Create function…</span><span class="note" id="ls3m-n1">A function already starts at 0041c880.</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" class="is-active"><span class="t">Re-create function…</span><span class="m">body from flow</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Create multiple functions…</span><span class="m">over the selection</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1" aria-haspopup="dialog"><span class="t">Delete function…</span><span class="m">confirms</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Set stack depth change…</span><span class="m">at the cursor</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Set as external entry point</span><span class="m">build-a</span></div></li>
+   </ul></li>
+  </ul>
+ </div>
+</div>
+<div>
+ <span class="kicker">Delete function… · ConfirmDialog lists the consequences from stored reads</span>
+ <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="ls3d-t" aria-describedby="ls3d-d">
+  <h3 id="ls3d-t">Delete function <span translate="no">FUN_0041c880</span> on build-a</h3>
+  <div id="ls3d-d" class="ad3-dlgb">
+   <ul class="ad3-list">
+    <li>6 stack variables are removed; 9 references to them become <code translate="no">Stack[offset]</code>.</li>
+    <li>Register references in the body are removed. Signature, tags and purge go. The edited plate comment stays.</li>
+    <li>The label stays. Name tier: placeholder <code translate="no">FUN_0041c880</code> → placeholder <code translate="no">SUB_0041c880</code> (4 call references remain).</li>
+    <li>2 identity edges and 1 cached decompile that name this function on build-a become stale ◷; they are not deleted.</li>
+   </ul>
+   <p class="small">No analysis runs. Undo applies to build-a only. Nothing is proposed to other builds.</p>
+  </div>
+  <footer><button class="ad-btn is-focus">Cancel</button><button class="ad-btn primary">Delete function</button></footer>
+ </div>
+</div>
+</div>
+
+<div class="adc-states">
+<div>
+ <span class="kicker">Ctrl/Cmd+V arms Paste · preview first · one explicit build</span>
+ <section class="ad-g3" aria-labelledby="ls3p-h">
+  <div class="ad-g3-head"><h3 id="ls3p-h">Paste to build-a at <span class="mono" translate="no">0041c880</span> <span class="sub">· from build-a 0041b210 · labels and comments</span></h3></div>
+  <div class="ad-scroll"><table class="ad-table" aria-label="Paste preview, 3 items"><thead><tr><th scope="col">Offset</th><th scope="col">Target</th><th scope="col">Item</th><th scope="col">Result</th></tr></thead><tbody>
+   <tr><td class="mono">+0x0</td><td class="mono">0041c880</td><td class="small">label <span translate="no">ResolveEntry</span></td><td class="small">replaces a default label</td></tr>
+   <tr><td class="mono">+0x6</td><td class="mono">0041c886</td><td class="small">EOL comment</td><td class="small">added</td></tr>
+   <tr><td class="mono">+0x9</td><td class="mono">0041c889</td><td class="small">label <span translate="no">LAB_0041b219</span></td><td class="small muted">skipped: a default label cannot be pasted</td></tr>
+  </tbody></table></div>
+  <div class="ad-tools"><button class="ad-btn">Cancel</button><button class="ad-btn primary" aria-haspopup="dialog">Paste 2 items on build-a…</button></div>
+ </section>
+</div>
+<div>
+ <span class="kicker">Across builds · labels and comments are refused · bytes go to PatchEditor</span>
+ <div class="ad-notice info"><b aria-hidden="true">⊘</b><div><h4>Labels and comments copied from build-a place by offset, and offsets do not carry across builds.</h4><p>Use Propose to build-b to carry names along identity edges. A single label or comment string can still be pasted into the focused editor.</p></div><span></span></div>
+ <div class="ad-notice info"><b aria-hidden="true"></b><div><h4>Paste 12 bytes to build-b at 0045f200 · copied on build-a</h4><p>Opens PatchEditor · Bytes, with original, current and after. Bytes paste only over undefined bytes. Every byte write confirms. Patched bytes are not recovery evidence.</p></div><button class="ad-btn compact">Open in PatchEditor</button></div>
+</div>
+</div>
+
+<div class="adc-states">
+<div>
+ <span class="kicker">Comment editor · Add annotation wraps the selected text · the preview renders on this build</span>
+ <section class="ad-g3" aria-labelledby="ls3a-h">
+  <div class="ad-g3-head"><h3 id="ls3a-h">EOL comment · <span class="mono" translate="no">0041b221</span> <span class="sub">· build-a</span></h3></div>
+  <label class="small muted" for="ls3a-t">Comment text (raw)</label>
+  <textarea class="adc-in ad3-ta" id="ls3a-t" rows="2" translate="no">opens via {@symbol "Archive::OpenMember"}, then {@symbol "Archive::Close"}</textarea>
+  <div class="ad-tools"><button class="ad-btn compact" aria-haspopup="menu" aria-expanded="false">Add annotation ▾</button><span class="small muted">Symbol · Address · URL · Program · Variable</span></div>
+  <p class="small" id="ls3a-pv"><span class="muted">Renders as:</span> opens via <a class="ad-link" href="?project=corpus-alpha&amp;entity=90&amp;build=build-a" aria-label="Symbol Archive::OpenMember, build-a, in comment">Archive::OpenMember</a>, then <span class="ad3-unres">Archive::Close · unresolved</span></p>
+  <div class="ad-tools"><button class="ad-btn">Cancel</button><button class="ad-btn primary">Save comment</button><span class="small muted">Enter or Save posts once · build-a</span></div>
+ </section>
+</div>
+<div>
+ <span class="kicker">Set stack depth change… on a call · Local or Global</span>
+ <section class="ad-g3" aria-labelledby="ls3s-h">
+  <div class="ad-g3-head"><h3 id="ls3s-h">Stack depth change · <span class="mono" translate="no">0041b216</span> <span class="sub">· build-a · call String::CStr</span></h3></div>
+  <label class="small muted" for="ls3s-v">Change (decimal or 0x hex)</label>
+  <input class="adc-in" id="ls3s-v" value="0x4" size="8">
+  <span class="small muted" id="ls3s-l">Apply as</span>
+  <span class="ad-seg" role="radiogroup" aria-labelledby="ls3s-l"><span role="radio" aria-checked="true" tabindex="0">Local · at 0041b216</span><span role="radio" aria-checked="false" tabindex="-1">Global · purge of String::CStr</span></span>
+  <p class="ad-g3-note">Global opens SignatureEditor's purge and confirms there, because it changes every caller. Local is program-local and never proposed.</p>
+  <div class="ad-tools"><button class="ad-btn">Cancel</button><button class="ad-btn primary">Set on build-a</button></div>
+ </section>
+</div>
+</div>
 </div>

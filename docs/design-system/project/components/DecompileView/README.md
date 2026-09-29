@@ -77,3 +77,25 @@ Decompiled C in a code well that shares one cursor with the Listing: the selecte
   - Force Field and Adjust Pointer Offset (D20);
   - Auto Create/Fill Structure, whose result opens TypeEditor (D21);
   - Convert/Set Equate (D24).
+
+**Parity extension, round 3 (2026-09-29): Debug Function Decompilation (D06)** ([spec](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): D06)
+
+Ghidra's Debug Function Decompilation performs a full decompile of the current function and saves everything that decompile used (instruction bytes, symbols, data types and the settings that affect decompilation) as an XML file, for decompiler bug reports. Here it is a job that captures that XML as an artifact for one function on one build.
+
+- **Where.** The function-name token's link menu and the pane header's **More** menu: **Capture decompiler debug XML…**, in a **Diagnostics** group after Edit. It is listed only when the catalog exposes the capture job; otherwise it is `aria-disabled` with "No catalog job captures debug XML on this server".
+- **What it binds.** It arms the ActionStrip with the catalog job, bound to one function and one build: "Capture debug XML · ResourceRef::Resolve · build-a 0041b210". The fields state the decompiler options the capture will use, from the build's program options and the viewer's request options, with each value's origin. Run posts once. No ConfirmDialog is needed: the job is read-only for the program (not mutating; it writes only to the output tree).
+- **Reuse first.** Before Run, the strip checks OutputsCatalog for a capture of the same function, build and basis (program generation and options). If one exists it says "A capture with this basis exists · artifact d07a · 13:40 · Open" and Run becomes **Capture again**, which says why it would be needed.
+- **What it is not.**
+  - It does not update this view. The job decompiles inside its own run; the pane's cached decompile, its "predates job" marks and its cursor are unchanged. A capture made under other options than the pane's says so on the artifact.
+  - It is not recovery evidence. It carries no claim tier and no fact, and nothing counts it toward a match.
+  - It never runs from following, hover, Peek or prefetch, never analyzes, and never runs for another build. Each build is its own capture.
+- **Output.** After the terminal result, the job's receipt lists the artifact, and the pane's status line says once: "Debug XML captured for ResourceRef::Resolve on build-a · artifact d07a · job e5a0". The artifact appears in OutputsCatalog (`ws=evidence&panel=outputs&artifact=d07a`) and opens as an ArtifactCard:
+  - status ▣ delivered only when the receipt records the file and its hash; "delivered" means only that a bounded receipt exists;
+  - the basis: build, function address, program generation, decompiler options and the capture time; ◷ stale when any of these changes;
+  - its contents in words: instruction bytes, symbols, data types, options;
+  - "not observed on 8080" as a separate axis;
+  - **Copy path** (`outputs.copyPath`, `c`). The file lives in the output tree; the design has no file chooser.
+- **Sensitivity.** The capture contains the function's bytes and types. The ArtifactCard says so ("contains program bytes and types from build-a"), and the artifact belongs to this project only.
+- **States.** Armed · pending (202) · running · finished with artifact · failed with its FailureRecord ("decompiler exited with an error · log line 211", linking `f=log.line:211`) · cancelled · already captured with this basis.
+- **Keyboard.** `code.debugDecompile` (code scope, no default key) arms the strip; Run posts. The palette has "Capture decompiler debug XML".
+- **Accessibility.** The menu item's description says "Runs a job that decompiles this function on build-a and saves the debug XML as an artifact. This view does not change." The terminal message is announced once in the polite region.

@@ -55,3 +55,25 @@ The master-detail form of MatchReview. The selected queue row expands in place, 
 
 - J07 review a candidate match and check both endpoints before deciding: 8 → 0, plus one modal confirm per decision and one Review preset per session (U186).
 - J08 recover from a refused decision: 4 → 1, the new confirm; only changed rows are re-read (U186).
+
+**Parity extension (2026-09-29): manual match (X07)** ([spec](../../../../dashboard-design/2026-09-29-ghidra-code-browser-parity.md): X07)
+
+Ghidra's Version Tracking offers Create Manual Match, Create And Accept Manual Match and Create And Apply Manual Match between the function under the cursor in two tools. Here only the first exists: a manual match proposes a candidate identity edge that enters this queue for review. It never accepts and never applies markup.
+
+- **Where.** **New manual match…** in the queue header and the palette; **Match with…** in the link menu of a function in the Code Browser, which fills the source side; and, from the Review held pair or two SplitCompare panes, **Match these two…**, which fills both sides from the panes' functions.
+- **Anatomy.** A form in the detail position (in place or beside, as for a row):
+  1. **Source**: a build chooser and a function picker over the stored function index of that build (name, address, signature), with the filter **Only functions without an accepted counterpart on the other build** on by default.
+  2. **Destination**: the same, for a different build. The same build on both sides is refused: "A match joins two builds; choose a different destination build."
+  3. **Relation**: one_to_one (default), clone, inline, thunk, split, fold, region or unroll, with the divergence class left "unavailable" until a check runs.
+  4. **Reason** (required): the evidence you cite, in words ("build-b folds FUN_0041c880 into FUN_0041c940; same body bytes after relocation"). It becomes the edge's reason field.
+  5. What exists already, read from stored edges only: "A match already exists between these: match 18424 · rejected · Open match 18424" (Ghidra's Select Existing Match), or "FUN_0041c880 on build-a already has an accepted counterpart on build-b. A second edge makes this 1↔N; choose split or fold, or review the existing edge."
+- **Propose.** **Propose manual edge…** opens ConfirmDialog: "Propose a manual identity edge between FUN_0041c880 on build-a and FUN_0041c940 on build-b? It enters review as a candidate; nothing is accepted." The primary button is **Propose edge**. It posts the catalog's identity-decision write with the decision "manual match" and the cited reason, carrying the observed basis token like every decision here.
+- **What it becomes.** After the terminal result, a new queue row (match 18426) with:
+  - the edge drawn dashed in `lane-identity-ink`, the word "candidate", and the evidence level "hypothesis (manual)" with "basis: manual · cited by you: ‹reason›";
+  - evidence channels read "manual · no channel run", and the ABI check "○ not run";
+  - producing_channel `manual` and the author (by you, by agent or external).
+  Until then the form shows the OutcomeCell words (pending, running) and nothing optimistic.
+- **Never auto-accepts.** Accepting is a later, separate decision on that row, with its own ConfirmDialog and basis token, exactly as for a matcher's candidate. The form has no Accept or Apply button, and says so: "A manual match is a candidate. Accept it later from its row; nothing is applied to either program." Propagation along it is possible only after acceptance, through PropagationTransfer.
+- **Keyboard.** `review.manualMatch` (no default key) opens the form. Tab moves source, destination, relation, reason, Cancel, Propose. The function pickers are APG comboboxes with a listbox; typeahead filters by name or address.
+- **Accessibility.** The form is a `section` named "New manual match". The existing-edge line is a polite status message when it appears. The ConfirmDialog is an `alertdialog`. The new row is announced once, after the terminal result: "Manual match 18426 proposed, candidate, job b7e2."
+- **One writer.** The write is to the identity database, not to a program, so program locks do not block it; a refused basis follows BasisDelta as for every decision.

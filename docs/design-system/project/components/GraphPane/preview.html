@@ -1,4 +1,4 @@
-<!-- @dsCard group="Code" height=1426 -->
+<!-- @dsCard group="Code" height=2456 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <span class="kicker">Beside the code · Blocks · follows the cursor inside the function, commits on Enter across functions</span>
 <section class="ad-gp" aria-labelledby="gp1-h">
@@ -108,9 +108,68 @@
  <div class="stack" style="gap:8px">
   <span class="kicker">States</span>
   <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Shows ResourceRef::Resolve; selection is now FUN_0041c880 · Enter to load</h4><p>Blocks commits on Enter across functions. The old graph stays dimmed with dashed frames; nothing is drawn until Enter or Load, and then only from existing analysis.</p></div><button class="ad-btn compact">Load</button></div>
-  <div class="ad-notice info"><b aria-hidden="true">↺</b><div><h4>Selection is outside this graph · Re-root here</h4><p>The selection moved to Log::Warn, which the Calls graph from Actor::LoadFromTemplate does not draw. Root, zoom and scroll stay until you re-root.</p></div><button class="ad-btn compact">Re-root here</button></div>
+  <div class="ad-notice info"><b aria-hidden="true">⊡</b><div><h4>Selection is outside this graph · Re-root here</h4><p>The selection moved to Log::Warn, which the Calls graph from Actor::LoadFromTemplate does not draw. Root, zoom and scroll stay until you re-root.</p></div><button class="ad-btn compact">Re-root here</button></div>
   <div class="ad-notice info"><b aria-hidden="true">◐</b><div><h4>Truncated · 412 blocks</h4><p>Drawing the 40 blocks nearest the cursor. The list form has all 412; nothing beyond existing analysis is read.</p></div><button class="ad-btn compact">List form</button></div>
   <div class="ad-notice unknown"><b aria-hidden="true">○</b><div><h4>Not loaded. Open to read it.</h4><p>build-c is not open in this session. A graph is drawn from existing analysis only; it never opens a program or starts analysis.</p></div><span></span></div>
  </div>
+</div>
+<span class="kicker">Round 3 · layout, satellite and filters · per-viewer view state · nothing relayouts or decompiles on its own</span>
+<section class="ad-gp" aria-labelledby="gpr-h">
+ <header><span class="kicker">Graph</span><h4 id="gpr-h">Blocks · <code translate="no">ResourceRef::Resolve</code></h4><span class="small muted">build-a · 5 blocks · 7 edges · 3 hidden</span></header>
+ <div class="ad-tools" role="toolbar" aria-label="Graph layout and filters">
+  <button class="ad-btn compact" aria-haspopup="menu" aria-expanded="false">Layout: Flow chart ▾</button>
+  <button class="ad-btn compact">Relayout</button>
+  <button class="ad-btn compact">Reset view</button>
+  <button class="ad-btn compact" aria-pressed="true">Satellite</button>
+  <button class="ad-btn compact" aria-haspopup="dialog" aria-expanded="true" aria-controls="gpr-f">Filter… <span class="n">1 hidden kind</span></button>
+ </div>
+ <div class="ad-notice info"><b aria-hidden="true"></b><div><h4>Restored your view of ResourceRef::Resolve on build-a · saved 13:52</h4><p>Flow chart · 80% · 1 group · on open: Restore my view. This view is per viewer and never applies to another build.</p></div><button class="ad-btn compact">Reset view</button></div>
+ <div class="ad3-gpbody">
+  <div class="ad-pop ad3-gpf" role="dialog" aria-modal="false" aria-labelledby="gpr-fh" id="gpr-f">
+   <span class="kicker" id="gpr-fh">Filter · kinds found in this graph</span>
+   <fieldset class="ad3-fs"><legend>Vertices</legend>
+    <label class="ad-check"><input type="checkbox" checked> entry · 1</label>
+    <label class="ad-check"><input type="checkbox" checked> exit · 1</label>
+    <label class="ad-check"><input type="checkbox" checked> contains a call · 2</label>
+    <label class="ad-check"><input type="checkbox" checked> body · 1</label>
+   </fieldset>
+   <fieldset class="ad3-fs"><legend>Edges</legend>
+    <label class="ad-check"><input type="checkbox" checked> taken · 3</label>
+    <label class="ad-check"><input type="checkbox"> fall-through · 3 hidden</label>
+    <label class="ad-check"><input type="checkbox" checked> back edge · 1</label>
+   </fieldset>
+   <footer><span>Kinds come from the read; none is guessed.</span><button class="ad-btn compact">Show all</button></footer>
+  </div>
+  <div class="ad3-sat" aria-hidden="true"><span class="ad3-satn"></span><span class="ad3-satn" style="left:40%;top:30%"></span><span class="ad3-satn" style="left:12%;top:58%"></span><span class="ad3-satn" style="left:64%;top:58%"></span><span class="ad3-lens"></span><span class="ad3-satl">satellite · viewport framed</span></div>
+ </div>
+ <div class="adc-status"><span>3 fall-through edges hidden by filter · <button class="ad-btn compact">Show all</button></span><span>0041b216: 1 successor hidden</span></div>
+</section>
+
+<div class="adc-states">
+<div>
+ <span class="kicker">Shift+F10 on 0041b240 with 2 nodes checked · Graph selection group · no Edit group, by decision</span>
+ <div class="ad-pop adc-menu adc-lm">
+  <span class="kicker" id="gprm-h">0041b240 · block · build-a · 2 checked</span>
+  <ul class="ad-menu" role="menu" aria-labelledby="gprm-h">
+   <li role="group" aria-labelledby="gprm-g"><span class="kicker grp" id="gprm-g" aria-hidden="true">Graph selection</span><ul role="none">
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Uncheck node</span><span class="m">Space</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Invert checked</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Grow from sources</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Grow to targets</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Grow to whole component</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Hide checked</span><span class="m">listed in footer</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Show checked as a new graph</span><span class="m">Held pane</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Make selection</span><span class="m">Listing · build-a</span></div></li>
+    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Clear checked</span></div></li>
+   </ul></li>
+  </ul>
+  <footer><span>Edits happen in the Listing: r moves focus to 0041b240 there. Nodes are links, not editors.</span></footer>
+ </div>
+</div>
+<div>
+ <span class="kicker">Nested code without a cached decompile · the graph never decompiles</span>
+ <div class="ad-notice info"><b aria-hidden="true">○</b><div><h4>Nested code needs a decompile of ResourceRef::Resolve on build-a.</h4><p>Not decompiled in this session · Enter to decompile. The graph keeps its Flow chart layout until then.</p></div><span></span></div>
+ <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Graph predates job a3f9</h4><p>Refresh keeps positions; Relayout re-runs Flow chart. Nothing relayouts on its own.</p></div><span class="acts"><button class="ad-btn compact">Refresh</button><button class="ad-btn compact">Relayout</button></span></div>
+</div>
 </div>
 </div>

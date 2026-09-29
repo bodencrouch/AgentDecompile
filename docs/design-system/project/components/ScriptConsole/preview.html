@@ -57,9 +57,22 @@
      <button class="ad-btn primary" type="button" aria-haspopup="dialog">Run on build-a (catalog)…</button>
      <button class="ad-btn" type="button" aria-haspopup="dialog">Run on other builds…</button>
      <button class="ad-btn" type="button" aria-describedby="sc-last">Run last…</button>
-     <button class="ad-btn" type="button" aria-disabled="true" aria-describedby="sc-nofile">New · Rename · Delete</button>
      <span class="sr-only" id="sc-last">Arms ApplyCacheEntryLayout.py against the current selection's build, never the last run's build.</span>
-     <span class="sr-only" id="sc-nofile">No catalog action writes script files. Script files are edited outside the workbench.</span>
+    </div>
+    <div class="ad-tools" role="toolbar" aria-label="Manage scripts, catalog action needed">
+     <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-new">New script…</button>
+     <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-edit">Edit…</button>
+     <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-ren">Rename…</button>
+     <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nocat sc-d-del">Delete…</button>
+     <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-nokey">Assign key binding…</button>
+     <button class="ad-btn compact" type="button" aria-describedby="sc-d-dir">Script directories…</button>
+     <span class="small muted" id="sc-nocat">catalog action needed · not offered yet. Script files are edited outside the workbench.</span>
+     <span class="sr-only" id="sc-d-new">Will choose a script language and a user directory, then open the new file in Edit.</span>
+     <span class="sr-only" id="sc-d-edit">Will open the source in a code well; Save posts one catalog write, confirmed in place.</span>
+     <span class="sr-only" id="sc-d-ren">Will rename the file; past runs keep the old name as recorded.</span>
+     <span class="sr-only" id="sc-d-del">Will confirm in a dialog; past runs and transcripts are kept; system scripts are not offered.</span>
+     <span class="sr-only" id="sc-nokey">Scripts are not catalog entries, so they cannot have keys. A key would arm the run confirm, never post.</span>
+     <span class="sr-only" id="sc-d-dir">Opens the Bundles tab: script directories and source bundles are one list.</span>
     </div>
    </div>
   </div>
@@ -116,7 +129,7 @@
   </section>
  </div>
  <div>
-  <span class="kicker">Bundles · read-only · no catalog action</span>
+  <span class="kicker">Bundles · actions need a catalog action</span>
   <div class="ad-scroll" role="region" aria-label="Script bundles">
   <table class="ad-table ad-g3-grid" style="min-width:0"><caption class="sr-only">Script source bundles</caption>
    <thead><tr><th scope="col">Bundle</th><th scope="col">State</th></tr></thead>
@@ -127,7 +140,29 @@
    </tbody>
   </table>
   </div>
-  <p class="ad-g3-note">Enable, Disable, Clean and Refresh need a catalog action that does not exist yet; they are not offered. Bundles apply to script runs on every build.</p>
+  <div class="ad-tools" role="toolbar" aria-label="Bundle actions, catalog action needed" style="margin-top:8px">
+   <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat">Enable</button>
+   <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat sc-b-dis">Disable…</button>
+   <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat sc-b-cln">Clean…</button>
+   <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat">Refresh</button>
+   <button class="ad-btn compact" type="button" aria-disabled="true" aria-describedby="sc-bnocat">Add directory…</button>
+   <span class="sr-only" id="sc-b-dis">Will stop dependents first, then remove the bundle's scripts from the manager, with both counts.</span>
+   <span class="sr-only" id="sc-b-cln">Will deactivate the bundle and wipe its compiled output; the next run recompiles.</span>
+  </div>
+  <p class="ad-g3-note" id="sc-bnocat">catalog action needed · not offered yet. Bundles apply to script runs on every build.</p>
+ </div>
+ <div>
+  <span class="kicker">Quick launcher · design for when scripts are catalog entries (G13) · not available today</span>
+  <div class="ad-g3-dlg" role="dialog" aria-label="Command palette, Scripts section (future design)" style="max-width:none">
+   <div class="body" style="padding-top:12px">
+    <input class="adc-in sans" type="text" value="&gt; cache" aria-label="Palette query" readonly>
+    <ul class="ad-g3-tree" role="listbox" aria-label="Scripts">
+     <li role="option" id="sc-q1" aria-selected="true"><span><span translate="no">ApplyCacheEntryLayout.py</span> · recent · Data types · writes: unknown · Enter arms Run on build-a</span></li>
+     <li role="option" id="sc-q2" aria-selected="false" aria-disabled="true"><span><span translate="no">ListCacheEntryUses.java</span> · compile error, line 41</span></li>
+    </ul>
+    <p class="ad-g3-note">A Scripts section after Actions in Ctrl/Cmd+K. No new key. Recent first (up to 10), then by name. Enter opens the run confirm; it never posts.</p>
+   </div>
+  </div>
  </div>
  <div>
   <span class="kicker">Advanced off · the panel is hidden, not disabled</span>

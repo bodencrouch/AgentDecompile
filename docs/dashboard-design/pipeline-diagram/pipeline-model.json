@@ -1,0 +1,2760 @@
+{
+  "schema": "agentdecompile.recovery-diagram-model/1",
+  "about": "Single content model for the four recovery design diagrams. Stable node ids are the shared deep-link vocabulary for the GUI (Pipeline Map, pipeline breadcrumb): each id is a <g id> in its SVG, a UserObject id in its .drawio file and an <a id> anchor in its .outline.md file. Generators own layout and palette; this file owns every content string. Design artifacts only; no product, game or binary names.",
+  "conventions": {
+    "node": "Every node has id, diagram, kind, family and title; nested nodes also name their semantic parent (used for breadcrumbs). Text arrays are drawn one element per line.",
+    "how_lines": "In stage and lane-card 'how' arrays, a line that starts with two spaces continues the previous bullet.",
+    "try_lines": "'try' arrays and milestone 'body'/'proof' arrays are one wrapped paragraph.",
+    "nested_ids": "Lane cards (lane-X-card-N) and ladder members (ladder-X-N) carry their own ids inside their parent node and are deep-link targets too.",
+    "ladder_members": "slug is the locator kind the diagram shows in brackets (null when none is shown); label is present only when the bracket text differs from the slug.",
+    "stage_gate": "A stage's gate_id names its gate node (null for stage 2, which has no gate).",
+    "edges": "drawn=true marks an arrow that appears in the diagram. Labelled drawn edges carry an id (also a <g id> and outline anchor), the drawn label, a spoken form for the outline, and 'follows', the id after which the edge is read."
+  },
+  "edge_types": {
+    "depends_on": "`from` requires `to` first; drawn as a solid arrow from `to` to `from`.",
+    "feedback": "`from` returns evidence to the earlier `to`; drawn dashed (4 4) with a ↺ label.",
+    "failover": "`from` retries through bounded fallbacks without blocking siblings; drawn dashed (6 4).",
+    "gates": "`from` must pass before `to` may claim its result.",
+    "consumes": "`from` reads outputs or evidence produced by `to`.",
+    "feeds": "`from` supplies outputs or evidence to `to`.",
+    "wraps": "`from` applies across every member of `to`.",
+    "produces": "`from` creates the artifact `to`.",
+    "consumed_by": "outputs of `from` are read by `to`.",
+    "serialized_by": "mutations by `from` take the one-owner lock `to`."
+  },
+  "families": {
+    "identity": {
+      "word": "IDENTITY",
+      "legend": "identity"
+    },
+    "recovery": {
+      "word": "SOURCE RECOVERY",
+      "legend": "source recovery"
+    },
+    "unify": {
+      "word": "UNIFICATION & EXPORT",
+      "legend": "cross-build unification & export"
+    },
+    "runtime": {
+      "word": "RUNTIME",
+      "legend": "runtime reuse / learn"
+    },
+    "verify": {
+      "word": "VERIFICATION",
+      "legend": "verification & determinism"
+    },
+    "intake": {
+      "word": "INTAKE",
+      "legend": "intake / cross-cutting"
+    }
+  },
+  "roles": {
+    "step": "numbered process step (role-step)",
+    "bytes": "BYTES, recovered source, resume, implemented foundation (role-bytes)",
+    "operation": "OPERATION, original code (role-operation)",
+    "acceptance": "independent acceptance; creative and playback milestones (role-acceptance)",
+    "gate": "gate-like question, CONTINUE, POLICY, qualification and feasibility (role-gate)",
+    "contain": "FENCE, QUARANTINE, CONTROL PLANE, DATA/PROVIDER, locks and failover (role-contain)",
+    "note": "neutral header, section, note or worked example"
+  },
+  "diagrams": {
+    "agentdecompile-recovery-pipeline": {
+      "title": "AgentDecompile — the recovery pipeline, end to end",
+      "desc": "Reading order: header and key, then the main pipeline left to right from stage 0 (open, add or resume) through stage 8 (whole-image byte identity), then concurrent lanes A–E, bounded resolution ladders A–F, ownership locks, the failover rule, the export target and the full legend. Solid arrows are prerequisites, dashed arrows are failover or labelled feedback, and every gate must pass before its claim is accepted. Candidates, compiled code, local parity zeros, runtime calls and original bytes never count as recovered source or whole-image proof; only whole-file hash equality is terminal. Design only: future checks are not run; agentdecompile-recovery-pipeline.outline.md is the text outline with the same node ids.",
+      "svg": "agentdecompile-recovery-pipeline.svg",
+      "drawio": "agentdecompile-recovery-pipeline.drawio",
+      "png": "agentdecompile-recovery-pipeline.png",
+      "outline": "agentdecompile-recovery-pipeline.outline.md",
+      "generator": "generate_pipeline_diagram.py"
+    },
+    "execution-contracts": {
+      "title": "Execution and evidence contracts",
+      "desc": "Reading order: three task steps (declare, admit, compute outside the commit), three independent binding proofs (bytes, identity, operation), independent acceptance feeding separate original-code and recovered-source capabilities, then fence, quarantine and continue, and the late-worker design challenge. Missing evidence blocks only its own claim, an unhealthy resource blocks its dependents, and ready independent work continues. Design specification only: the late-worker experiment and all future software acceptance checks are NOT RUN; execution-contracts.outline.md is the text outline.",
+      "svg": "execution-contracts.svg",
+      "drawio": "execution-contracts.drawio",
+      "png": "execution-contracts.png",
+      "outline": "execution-contracts.outline.md",
+      "generator": "generate_execution_diagram.py"
+    },
+    "resilience-contracts": {
+      "title": "Prevention, containment and recovery",
+      "desc": "Reading order: six lifecycle steps (prevent, detect and classify; record the decision; repair, reroute or wait; accept against the current basis; resume only the justified capability; prevent recurrence), then the control-plane, data/provider and policy/canary containment boundaries and a worked interruption. Every recovery action returns through independent acceptance, and an available process is not a repaired capability. Design only: failure-injection checks are NOT RUN; resilience-contracts.outline.md is the text outline.",
+      "svg": "resilience-contracts.svg",
+      "drawio": "resilience-contracts.drawio",
+      "png": "resilience-contracts.png",
+      "outline": "resilience-contracts.outline.md",
+      "generator": "generate_resilience_diagram.py"
+    },
+    "autonomous-capabilities": {
+      "title": "Autonomous capability delivery: current foundation and future milestones",
+      "desc": "Reading order: six workflow steps from request to continuation, the reconciliation banner, milestones M0 to M7, the first complete product demonstration and the human-input boundary. One existing task authority connects evidence, admission, isolated operations, independent acceptance and continuation. M0 has implemented foundations and partial software verification; M1 through M7 are future capabilities and the first demonstration is NOT RUN; autonomous-capabilities.outline.md is the text outline.",
+      "svg": "autonomous-capabilities.svg",
+      "drawio": "autonomous-capabilities.drawio",
+      "png": "autonomous-capabilities.png",
+      "outline": "autonomous-capabilities.outline.md",
+      "generator": "generate_capabilities_diagram.py"
+    }
+  },
+  "nodes": [
+    {
+      "id": "overview-header",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "header",
+      "family": "note",
+      "title": "AgentDecompile — the recovery pipeline, end to end",
+      "subtitle": "Reading order: named stages retain prerequisites; evidence feeds back and verification starts early. Every card answers: what we're trying to do · how · what goes in and comes out · what gates it.",
+      "design_target": "Design target: recover from the best evidence, reuse only what transfers, verify at the level of use — packs, generated bindings, headers and readiness reports with explicit capability limits.",
+      "scale_note": "Runs on a laptop; scales by concurrency, then by donated idle compute and free cloud nodes; task-specific budgets and isolated storage probes; complete prepared inputs enable independent continuation; see execution-contracts companion."
+    },
+    {
+      "id": "how-to-read",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "panel",
+      "family": "note",
+      "title": "HOW TO READ THIS IN 20 SECONDS",
+      "items": [
+        "1. Follow prerequisites; identity/calibration iterate and parity runs continuously.",
+        "2. Lanes may overlap within ownership, resource and snapshot-dependency limits.",
+        "3. Try applicable lookups; exports state capabilities, uncertainty and evidence."
+      ],
+      "key": "Key: solid arrow = dependency · dashed red arrow = failover · ↺ feedback = dashed arrow back to an earlier stage · G diamond = gate · padlock = one owner · uppercase header word = family · full legend at the bottom."
+    },
+    {
+      "id": "main-pipeline",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "section",
+      "family": "recovery",
+      "title": "MAIN PIPELINE — compatible reuse · validated reconstruction · independent claim gates",
+      "subtitle": "0 + eight named stages · feedback allowed · reuse valid unchanged receipts"
+    },
+    {
+      "id": "stage-0",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "stage",
+      "family": "intake",
+      "parent": "main-pipeline",
+      "title": "Open · add · resume (priority-zero)",
+      "n": "0",
+      "try": [
+        "Start from the actual project, never a setup ritual:",
+        "open, add or resume admits only missing eligible work;",
+        "pause/resume controls admission — no Start ritual."
+      ],
+      "how": [
+        "reconcile bindings; reuse dependency-valid receipts",
+        "gate writes; reads use stable versioned snapshots",
+        "the one control is pause/resume (+ scope), never start",
+        "checkpoint-trusting; repair only on detected breakage:",
+        "  NULL content_sha256 / mixed basis_hash → receipted",
+        "  backfill, never auto-run",
+        "revisit affected evidence only; no blanket reanalysis",
+        "reopen reuses valid work; changed evidence re-keys work"
+      ],
+      "io": [
+        "in: .gpr / repo / binaries / prior receipts",
+        "out: one active project, known state, no duplicate work"
+      ],
+      "gate_id": "gate-0"
+    },
+    {
+      "id": "gate-0",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "gate",
+      "family": "gate",
+      "parent": "stage-0",
+      "title": "mutation-admission only (real owner state)",
+      "stage": "stage-0"
+    },
+    {
+      "id": "stage-1",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "stage",
+      "family": "identity",
+      "parent": "main-pipeline",
+      "title": "Identity",
+      "n": "1",
+      "try": [
+        "Decide which functions/entities across builds are",
+        "logical entity, implementation variant and instance;",
+        "similarity does not prove interchangeable behavior."
+      ],
+      "how": [
+        "extract facts once; short-circuit identical images",
+        "cheap-first cascade: symbols/provenance → exact &",
+        "  reloc-normalized hashes → rare refs / C++ meta →",
+        "  neighborhood → CFG/SPP → BSim → ABI → optional",
+        "  BinDiff/BinExport → optional emulation on residue",
+        "require uniqueness + margin; keep ambiguity;",
+        "  withdraw bad seeds + unsupported descendants"
+      ],
+      "io": [
+        "in: analyzed programs, debug info, formats",
+        "out: entity / variant / instance + evidence lineage"
+      ],
+      "tag": "∥ extraction + indexing run in parallel",
+      "gate_id": "gate-1"
+    },
+    {
+      "id": "gate-1",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "gate",
+      "family": "gate",
+      "parent": "stage-1",
+      "title": "candidate ≠ acceptance",
+      "stage": "stage-1"
+    },
+    {
+      "id": "stage-2",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "stage",
+      "family": "recovery",
+      "parent": "main-pipeline",
+      "title": "Incremental calibration",
+      "n": "2",
+      "try": [
+        "Establish minimum platform facts, then refine",
+        "compiler, ABI and layout hypotheses with",
+        "identity and function evidence; version each input."
+      ],
+      "how": [
+        "compiler/linker + headers/libs + macros + FP mode",
+        "scope: build / library / TU / function overrides",
+        "group fragments into TUs/LTCG as required",
+        "probe legacy switches; record scoped dependencies"
+      ],
+      "io": [
+        "in: identified builds + toolchain evidence",
+        "out: calibration record (part of the basis)"
+      ],
+      "gate_id": null
+    },
+    {
+      "id": "stage-3",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "stage",
+      "family": "recovery",
+      "parent": "main-pipeline",
+      "title": "Validated linkable regions",
+      "n": "3",
+      "try": [
+        "Reconstruct objects and placement from the image;",
+        "keep uncertain boundaries in larger regions;",
+        "prove reconstruction before scaling source work."
+      ],
+      "how": [
+        "bytes + fixups + refs + data + unwind metadata",
+        "architecture-specific objects / external assembly",
+        "extract → emit → place → compare original bytes",
+        "then prove a compiled replacement actually contributes"
+      ],
+      "io": [
+        "in: calibration + donor build",
+        "out: validated region scaffold; floor ≠ recovered C"
+      ],
+      "gate_id": "gate-3"
+    },
+    {
+      "id": "gate-3",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "gate",
+      "family": "gate",
+      "parent": "stage-3",
+      "title": "round trip + independent linked-image oracle",
+      "stage": "stage-3"
+    },
+    {
+      "id": "stage-4",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "stage",
+      "family": "recovery",
+      "parent": "main-pipeline",
+      "title": "C/C++ candidates",
+      "n": "4",
+      "try": [
+        "Produce readable candidates; preserve the floor",
+        "until replacement acceptance passes."
+      ],
+      "how": [
+        "recovery unit ≠ compilation unit ≠ comparison unit",
+        "compile pass → candidate (real_c is compile-only)",
+        "fail → deterministic helpers (sanitizer/preparse) →",
+        "  retry → ONE bounded LLM cleanup → retry → keep asm",
+        "never repeat valid unchanged work",
+        "repair explains preserved machine behavior"
+      ],
+      "io": [
+        "in: scaffold + decompiler output",
+        "out: compiled candidates + scoped compile receipts"
+      ],
+      "tag": "isolated mutable outputs / PDB / Wine state",
+      "gate_id": "gate-4"
+    },
+    {
+      "id": "gate-4",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "gate",
+      "family": "gate",
+      "parent": "stage-4",
+      "title": "compile admits candidate, not replacement",
+      "stage": "stage-4"
+    },
+    {
+      "id": "gate-4-5",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "gate_marker",
+      "family": "gate",
+      "parent": "main-pipeline",
+      "title": "candidate",
+      "sub": "compile + compatibility",
+      "between": [
+        "stage-4",
+        "stage-5"
+      ]
+    },
+    {
+      "id": "stage-5",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "stage",
+      "family": "recovery",
+      "parent": "main-pipeline",
+      "title": "Propagation (cross-place)",
+      "n": "5",
+      "try": [
+        "Reuse a donor candidate only for compatible",
+        "recipient implementation variants;",
+        "each recipient earns its own acceptance."
+      ],
+      "how": [
+        "compile + variant/ABI/layout compatibility gate",
+        "then byte-exact verify → permuter → LLM last",
+        "a logical_id bind alone NEVER authorizes copying",
+        "ABI-sensitive types re-validated per recipient",
+        "field-level knowledge fusion runs alongside (lane A)"
+      ],
+      "io": [
+        "in: compile receipts + identity table",
+        "out: recipient candidates; separate verification"
+      ],
+      "tag": "the cross-match tier",
+      "gate_id": "gate-5"
+    },
+    {
+      "id": "gate-5",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "gate",
+      "family": "gate",
+      "parent": "stage-5",
+      "title": "candidate distribution ≠ accepted source",
+      "stage": "stage-5"
+    },
+    {
+      "id": "stage-6",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "stage",
+      "family": "recovery",
+      "parent": "main-pipeline",
+      "title": "Targeted AI (leftovers only)",
+      "n": "6",
+      "try": [
+        "Spend model effort ONLY on what deterministic",
+        "methods left behind — leaves before callers."
+      ],
+      "how": [
+        "residue queue, tagged with WHY AI was needed",
+        "diagnose behavior/types → ABI → context → codegen",
+        "LLM output is a candidate — never a trusted edge",
+        "ReAgent checker; record exact proposals + bounds"
+      ],
+      "io": [
+        "in: residue after 4–5",
+        "out: candidate C for review + provenance"
+      ],
+      "gate_id": "gate-6"
+    },
+    {
+      "id": "gate-6",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "gate",
+      "family": "gate",
+      "parent": "stage-6",
+      "title": "candidate only",
+      "stage": "stage-6"
+    },
+    {
+      "id": "stage-7",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "stage",
+      "family": "verify",
+      "parent": "main-pipeline",
+      "title": "Continuous parity",
+      "n": "7",
+      "try": [
+        "Compare emitted code/data against validated",
+        "targets and independently against linked bytes."
+      ],
+      "how": [
+        "objdiff local + linked-region checks (LTCG aware)",
+        "reccmp: supported MSVC / PDB diagnostics",
+        "compile / ABI / tested behavior / local / linked",
+        "a function-level zero is NOT whole-image proof"
+      ],
+      "io": [
+        "in: emitted regions + validated original references",
+        "out: separate facts with mapping, bounds + evidence"
+      ],
+      "gate_id": "gate-7"
+    },
+    {
+      "id": "gate-7",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "gate",
+      "family": "gate",
+      "parent": "stage-7",
+      "title": "local zero ≠ full-image or behavior proof",
+      "stage": "stage-7"
+    },
+    {
+      "id": "stage-8",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "stage",
+      "family": "verify",
+      "parent": "main-pipeline",
+      "title": "Whole-image byte identity",
+      "n": "8",
+      "try": [
+        "The terminal goal: relink into a file whose",
+        "whole-file hash EQUALS the shipped binary."
+      ],
+      "how": [
+        "early stage-3 round trips; fresh terminal compilation",
+        "reproduce section order, padding, headers, IAT, relocs",
+        "prove replacement use → whole-file byte/hash check",
+        "two variants measured separately: byte-accurate+floor",
+        "  vs max-C; never borrow a receipt between them",
+        "reconstruction ≠ original-style rebuild; record method"
+      ],
+      "io": [
+        "in: scoped parity + contribution map + layout recipe",
+        "out: rebuilt image + whole-file hash receipt"
+      ],
+      "tag": "terminal",
+      "gate_id": "gate-8"
+    },
+    {
+      "id": "gate-8",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "gate",
+      "family": "gate",
+      "parent": "stage-8",
+      "title": "whole-file hash equality",
+      "stage": "stage-8"
+    },
+    {
+      "id": "lanes",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "section",
+      "family": "gate",
+      "title": "RUNS CONCURRENTLY WITH STAGES 1–8 (where ownership permits)"
+    },
+    {
+      "id": "lane-A",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "lane",
+      "family": "unify",
+      "parent": "lanes",
+      "title": "Knowledge fusion — bidirectional, per field",
+      "letter": "A",
+      "subtitle": "labels · comments · structs/types · debug-info names flow between every build sharing a logical id; strongest source per field wins; a build donates a FIELD, never everything",
+      "connects": "consumes stage 1 identity · runs beside stages 4–5 · feeds every sibling build",
+      "cards": [
+        {
+          "id": "lane-A-card-1",
+          "title": "Name precedence (per field)",
+          "try": [
+            "Keep the strongest name for every field,",
+            "never let a placeholder win."
+          ],
+          "how": [
+            "human annotation → debug info / STABS →",
+            "  authentic symbols → analysis names → placeholders",
+            "provenance + rejected alternatives retained"
+          ],
+          "io": [
+            "in: all builds' names",
+            "out: merged names with origin"
+          ],
+          "tag": "field-level"
+        },
+        {
+          "id": "lane-A-card-2",
+          "title": "Types & layouts",
+          "try": [
+            "Merge struct/type knowledge only where",
+            "compatibility gates allow."
+          ],
+          "how": [
+            "types/layouts keep their own gates (never auto-copied)",
+            "platform-gated donors: (arch, bits, endian, compiler)",
+            "per-build layouts; unknown spans opaque; no scaling"
+          ],
+          "io": [
+            "in: per-build type rows",
+            "out: logical structs + field correspondence"
+          ],
+          "gate": "compatibility gate"
+        },
+        {
+          "id": "lane-A-card-3",
+          "title": "Comments · bookmarks · evidence",
+          "try": [
+            "Nothing authored is lost; conflicts stay visible."
+          ],
+          "how": [
+            "per-field precedence merge, never wholesale",
+            "conflicts and human edits preserved",
+            "receipt per merged field"
+          ],
+          "io": [
+            "in: annotations",
+            "out: merged annotations + conflicts"
+          ]
+        },
+        {
+          "id": "lane-A-card-4",
+          "title": "Runs alongside recovery",
+          "try": [
+            "Fusion never waits for source recovery",
+            "and never blocks it."
+          ],
+          "how": [
+            "overlaps when transactions don't collide",
+            "serialized only at the shared corpus mutation point",
+            "resource-aware admission (measured memory/swap)"
+          ],
+          "io": [],
+          "tag": "concurrent"
+        }
+      ],
+      "outputs": [
+        "merged names / types / comments PER FIELD, each with origin and rejected alternatives",
+        "consumed by stage 5 placement (type-compatibility gate) and by the ABI + struct blocks of the pack",
+        "surfaces in the readiness report as which build donated which field",
+        "never overwrites a stronger field; conflicts stay visible for review"
+      ]
+    },
+    {
+      "id": "lane-B",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "lane",
+      "family": "unify",
+      "parent": "lanes",
+      "title": "Cross-build entity unification & export — every entity, not just functions",
+      "letter": "B",
+      "subtitle": "portable signatures · entity catalog · data-root locator families with fallbacks · divergence · codecaves · ABI — feeds the runtime pack",
+      "connects": "consumes stages 1–2 (+ raw images) · feeds lane C and the export bundle",
+      "cards": [
+        {
+          "id": "lane-B-card-1",
+          "title": "Portable signatures (identity ≠ locator)",
+          "try": [
+            "Discover supported entities across related builds;",
+            "record absent, ambiguous and unsupported outcomes."
+          ],
+          "how": [
+            "identity evidence cascade ≠ runtime locator search",
+            "runtime LOCATOR family: reloc-masked window →",
+            "  anchor-relative (import/export/string) → verify hash",
+            "corpus-computed uniqueness + margin shipped in pack",
+            "library/CRT excluded; identical bodies → anchors"
+          ],
+          "io": [
+            "in: raw image + decode + reloc table",
+            "out: logical_signature per entity + coverage"
+          ],
+          "tag": "deterministic"
+        },
+        {
+          "id": "lane-B-card-2",
+          "title": "Entity catalog",
+          "try": [
+            "Everything a mod could want, unified:"
+          ],
+          "how": [
+            "functions · patch points · immediates · call sites",
+            "globals · singletons · structs & fields · vtables · RTTI",
+            "strings · tables · enums · imports/exports · dispatch",
+            "TLS · unwind · sections · resources · integrity checks"
+          ],
+          "io": [
+            "in: analysis + formats",
+            "out: entities[] with kind, shape, locators"
+          ],
+          "tag": "30 kinds (pack enum)"
+        },
+        {
+          "id": "lane-B-card-3",
+          "title": "Data-root locator families",
+          "try": [
+            "Known build: identity → RVA → live check.",
+            "Unknown build: applicable discovery + refusal."
+          ],
+          "how": [
+            "symbol → xref-from-identified-function → anchor-rel",
+            "  → masked adjacency → pointer chain → vtable/RTTI",
+            "  known-build RVA is preferred; portable:false",
+            "resolver: verify · memoize per build hash · report",
+            "  member · REFUSE, never zero"
+          ],
+          "io": [
+            "in: entities + xrefs",
+            "out: per-root recipes + per-build coverage"
+          ],
+          "gate": "verify before trust"
+        },
+        {
+          "id": "lane-B-card-4",
+          "title": "Divergence (3-way, never forced)",
+          "try": [
+            "When the surrounding logic is too different,",
+            "SAY so and SHOW it — never fake a match."
+          ],
+          "how": [
+            "CFG delta + neighborhood symmetric difference",
+            "integer components, rational thresholds (no floats)",
+            "1↔1 · split-or-inlined · diverged",
+            "review lane shows why; nothing propagates silently"
+          ],
+          "io": [
+            "in: cross-build pairs",
+            "out: relation + class + evidence"
+          ]
+        },
+        {
+          "id": "lane-B-card-5",
+          "title": "Codecaves & ABI (Lua-ready)",
+          "try": [
+            "Export what injection needs, portable:",
+            "caves as plan templates, ABI as data."
+          ],
+          "how": [
+            "cave = anchor-sig + offset + capacity REQUIREMENT +",
+            "  relocation rules + originals + restoration + claim",
+            "ABI: convention · this-kind · per-arg storage · sret",
+            "allocation policy + lifetime checks; refusal supported"
+          ],
+          "io": [
+            "in: entities + validation rules",
+            "out: caves[] + abi blocks in pack v2"
+          ],
+          "gate": "exported plan ≠ live detour permission"
+        },
+        {
+          "id": "lane-B-card-6",
+          "title": "Generic core · adapters",
+          "try": [
+            "No product ever in the core."
+          ],
+          "how": [
+            "L1 core: any PE/ELF/Mach-O/XBE — masks, CFG, caves",
+            "L2 arch adapter: detour width, relocs, reach",
+            "L3 engine adapter + build profile: script API, this-kind",
+            "names live in external data packs only",
+            "pack.json + sha256 in the basis; missing pack →",
+            "  missing_adapter, never a default"
+          ],
+          "io": [],
+          "tag": "3 layers"
+        }
+      ],
+      "outputs": [
+        "logical_signature per entity + per-build coverage · entities[] catalog (30 kinds, pack enum)",
+        "data-root recipes with ordered fallbacks · divergence class per pair · caves[] + ABI blocks",
+        "all of it lands in hookpack v2 → consumed by lane C (runtime) and the export bundle",
+        "generic core + adapters: a new engine adds an L3 data pack, never core code"
+      ]
+    },
+    {
+      "id": "lane-C",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "lane",
+      "family": "runtime",
+      "parent": "lanes",
+      "title": "Runtime reuse & learn-the-build — branches after identity/ABI evidence, before whole-image recovery",
+      "letter": "C",
+      "subtitle": "calling original code never counts as recovered source; observations feed back as evidence with provenance",
+      "connects": "branches after stages 1–2 evidence · consumes lane B's pack · feeds evidence back into stage 1",
+      "cards": [
+        {
+          "id": "lane-C-card-1",
+          "title": "Pack → resolve",
+          "try": [
+            "Verify build identity and live evidence before",
+            "authorizing each requested runtime operation."
+          ],
+          "how": [
+            "try members in order; verify each; memoize by image hash",
+            "known: recorded RVA first → expected live bytes",
+            "unknown: bounded discovery; report uncertainty"
+          ],
+          "io": [
+            "in: hookpack v2 + live image",
+            "out: located/readable/callable/detourable/writable"
+          ],
+          "gate": "verify or refuse"
+        },
+        {
+          "id": "lane-C-card-2",
+          "title": "Preflight → controlled call/install",
+          "try": [
+            "Never write into a process blind."
+          ],
+          "how": [
+            "capacity + originals + page protection checked live",
+            "tested install/remove + safe trampoline reclamation",
+            "ABI / object lifetime / thread / policy / owner checked",
+            "byte journal rollback ≠ undo of executed side effects"
+          ],
+          "io": [
+            "in: resolved sites",
+            "out: installed hooks / typed calls"
+          ],
+          "gate": "quiescence + claim"
+        },
+        {
+          "id": "lane-C-card-3",
+          "title": "Observe → evidence",
+          "try": [
+            "Turn runtime behavior into corpus evidence."
+          ],
+          "how": [
+            "traces: calls, args, returns, field changes",
+            "provenance-bearing; refines names/types/behavior",
+            "never promotes source parity"
+          ],
+          "io": [
+            "in: live behavior",
+            "out: observations with provenance"
+          ]
+        },
+        {
+          "id": "lane-C-card-4",
+          "title": "Learn the build",
+          "try": [
+            "Each new build contributes provisional evidence;",
+            "contradictions may lower accepted coverage."
+          ],
+          "how": [
+            "export per-member resolution results as a build report",
+            "corpus ingests runtime_claim rows — never identity;",
+            "  bind_identities promotes or rejects (receipt + delete)",
+            "residue re-attacked offline (BSim, emulation)"
+          ],
+          "io": [
+            "in: build report",
+            "out: accepted/rejected evidence; updated coverage"
+          ],
+          "tag": "records uncertainty"
+        }
+      ],
+      "outputs": [
+        "resolved sites per build + WHICH ladder member resolved each (feeds coverage + readiness)",
+        "observations → runtime_claim + observed_status; promotion only through bind_identities",
+        "build reports → provisional claims → independent acceptance or named unresolved outcomes",
+        "never promotes source parity; never counts original bytes as recovered C"
+      ]
+    },
+    {
+      "id": "lane-D",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "lane",
+      "family": "verify",
+      "parent": "lanes",
+      "title": "Verification & determinism — same inputs → byte-identical outputs, under a declared basis",
+      "letter": "D",
+      "subtitle": "replay recorded proposals and observations under a versioned basis; discovery itself need not be deterministic",
+      "connects": "wraps every stage and lane · gates every export",
+      "cards": [
+        {
+          "id": "lane-D-card-1",
+          "title": "Determinism basis",
+          "try": [
+            "Make 'same result' meaningful."
+          ],
+          "how": [
+            "decoder/analyzer revision + option set + cspec id",
+            "algorithm / masking / threshold versions",
+            "toolchain identity per build; filler set; seeds",
+            "data-pack hashes; per-binary basis_hash",
+            "refuse on unknown / empty / mixed basis",
+            "corpus hash only for corpus-dependent work"
+          ],
+          "io": [
+            "in: environment",
+            "out: basis object in every pack"
+          ],
+          "tag": "recorded"
+        },
+        {
+          "id": "lane-D-card-2",
+          "title": "Two gates",
+          "try": [
+            "Prove reproducibility, don't assume it."
+          ],
+          "how": [
+            "export byte-diff: export twice → identical bytes",
+            "cascade harness: three layouts (canonical · shuffled",
+            "  rows + shuffled binary order · + VACUUM/ANALYZE)",
+            "  + key-stability run → identity, match (incl. id),",
+            "  logical_function, recovery_family equal as sorted row-sets"
+          ],
+          "io": [
+            "in: store",
+            "out: pass / first differing key"
+          ],
+          "gate": "both must pass"
+        },
+        {
+          "id": "lane-D-card-3",
+          "title": "Ordering discipline",
+          "try": [
+            "No hidden order can reach a persisted value."
+          ],
+          "how": [
+            "every SELECT feeding a decision has a total ORDER BY",
+            "every 'best/first' pick has a total tie-break",
+            "sets/dicts sorted before hashing or serializing",
+            "floats rounded before persistence"
+          ],
+          "io": []
+        },
+        {
+          "id": "lane-D-card-4",
+          "title": "Receipts & re-baseline",
+          "try": [
+            "Change the basis deliberately, never silently."
+          ],
+          "how": [
+            "receipts hash relevant dependencies + snapshot",
+            "changed input → invalidate affected descendants",
+            "acceptance rejects stale versions; old packs readable"
+          ],
+          "io": []
+        }
+      ],
+      "outputs": [
+        "the basis object stamped into every pack, header, report and receipt",
+        "two pass/fail gates in CI: export byte-diff and the cascade harness",
+        "content-addressed receipts → identical-basis re-runs are cache hits",
+        "basis change → deliberate re-baseline with a recorded supersession, never silent drift"
+      ]
+    },
+    {
+      "id": "lane-E",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "lane",
+      "family": "intake",
+      "parent": "lanes",
+      "title": "Distributed compute (agentdecompile_grid) — laptop → concurrency → donated idle compute and free cloud nodes",
+      "letter": "E",
+      "subtitle": "content-addressed objects · per-partition logs · every result a proposal · capability by canary, never by role · SQLite as a materialized view",
+      "connects": "wraps every stage and lane · one-command join · fleet of free cloud nodes",
+      "cards": [
+        {
+          "id": "lane-E-card-1",
+          "title": "Objects & logs",
+          "try": [
+            "Working state supports independent replicas:",
+            "content-addressed, log-structured, network-capable."
+          ],
+          "how": [
+            "sha256 objects, write-once (If-None-Match / atomic rename)",
+            "per-partition append-only logs of signed, chained records",
+            "heads = one CAS pointer per partition; rebuilt by chain scan",
+            "adapters: local · S3-compatible · static mirror · peer HTTP",
+            "compaction: signed checkpoints; peers prune below them"
+          ],
+          "io": [
+            "in: inputs, sources, objects, receipts",
+            "out: immutable objects + verifiable partition chains"
+          ],
+          "gate": "write-once; chain verifies offline",
+          "tag": "substrate"
+        },
+        {
+          "id": "lane-E-card-2",
+          "title": "Tasks & frontier",
+          "try": [
+            "Jobs bounded and addressable; resume where inputs exist;",
+            "result exists ≠ independently accepted claim."
+          ],
+          "how": [
+            "task_id = sha256(kind, version, inputs, params, basis projection)",
+            "frontier from log; admission checks live resources separately",
+            "expired lease fences publication; uncertain resources quarantine",
+            "persistent input-scoped retry budget; deadline ≠ termination",
+            "a basis field change re-keys only the kinds that consume it"
+          ],
+          "io": [
+            "in: partition chain + checkpoint index",
+            "out: offered tasks · result objects · timeout records"
+          ],
+          "gate": "basis projection admitted",
+          "tag": "never awaited"
+        },
+        {
+          "id": "lane-E-card-3",
+          "title": "Join (one command)",
+          "try": [
+            "Any machine, one verb: laptop, donated idle box,",
+            "free cloud node, browser tab."
+          ],
+          "how": [
+            "attach-first: find the running local agent, never a second start",
+            "canaries prove capability: python · parity · toolchain · analyzer",
+            "capability decides lanes and fetches — a role never does",
+            "roles decide only mirrors + who signs invites / verifies / applies",
+            "outbound HTTPS only; no inbound port; --idle-only, --cores N"
+          ],
+          "io": [
+            "in: invite URL + what the node can prove",
+            "out: lanes offered by canary; inputs fetched by task"
+          ],
+          "gate": "canary hash = pinned value",
+          "tag": "capability-only"
+        },
+        {
+          "id": "lane-E-card-4",
+          "title": "Verify (every result a proposal)",
+          "try": [
+            "Trust the hash, never the key — fleet nodes included."
+          ],
+          "how": [
+            "acceptance requires independent evidence roots, not just keys",
+            "recompute or hash-lookup; byte-exact = recompile + parity",
+            "no quorum, no credit, no reputation; a liar wastes ≤ 4 verifies",
+            "donated .obj / .bin never evidence (byte-emitter refuted)",
+            "verification ordered before generation (no livelock)"
+          ],
+          "io": [
+            "in: proposals from any key",
+            "out: result-verified / result-refuted records"
+          ],
+          "gate": "independent evidence lineage",
+          "tag": "H8"
+        },
+        {
+          "id": "lane-E-card-5",
+          "title": "Views (SQLite as a materialized view)",
+          "try": [
+            "The corpus store and the similarity index are replays of",
+            "verified records: deletable, rebuildable, never locked by work."
+          ],
+          "how": [
+            "one applier per view; bounded transactions; ack after commit",
+            "identity / logical / match / knowledge / receipts from deltas",
+            "view-stale is a named state with an age (H11), never a stall",
+            "no worker ever opens a view for writing (H1 by construction)",
+            "adgrid view materialize rebuilds from record 1"
+          ],
+          "io": [
+            "in: result-verified records",
+            "out: grid_* tables · similarity index · receipts"
+          ],
+          "gate": "materialize twice → identical dump",
+          "tag": "H1 / H11"
+        },
+        {
+          "id": "lane-E-card-6",
+          "title": "Fleet (free cloud nodes)",
+          "try": [
+            "The operator never depends on volunteers: rented",
+            "free-tier nodes join with the same command in cloud-init."
+          ],
+          "how": [
+            "adgrid fleet up / down / status / replace; manifest as objects",
+            "providers: manual · ssh · declared cloud adapters",
+            "lane placement by canary, never by tier or role",
+            "host failover needs independent replica + capable worker",
+            "host loss: continue only with complete surviving input closure"
+          ],
+          "io": [
+            "in: provider credentials via the secret path; an invite",
+            "out: nodes that joined; fleet manifest objects"
+          ],
+          "gate": "user-data = the join command only",
+          "tag": "conditional host failover"
+        }
+      ],
+      "outputs": [
+        "one package (CLI adgrid) reusable for any CPU/IO-heavy work; the pipeline's lanes are adapters over it",
+        "planned grid contracts; implementation status belongs to delivery evidence, not this design diagram",
+        "every stage runs as grid tasks: compile / parity / decompile / cascade / export lanes, each a proposal",
+        "timeouts record attempt outcomes, not termination; resource release requires evidence; independent acceptance only"
+      ]
+    },
+    {
+      "id": "ladders",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "section",
+      "family": "note",
+      "title": "BOUNDED RESOLUTION — try applicable methods; stop with absent / inlined-only / ambiguous / unsupported / insufficient evidence / budget exhausted."
+    },
+    {
+      "id": "ladder-A",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "ladder",
+      "family": "identity",
+      "parent": "ladders",
+      "title": "Function whose bytes changed",
+      "letter": "A",
+      "members": [
+        {
+          "id": "ladder-A-1",
+          "n": 1,
+          "slug": "anchor_rel",
+          "text": "anchor-relative (import/export/string)"
+        },
+        {
+          "id": "ladder-A-2",
+          "n": 2,
+          "slug": "caller_callsite",
+          "text": "via a resolved CALLER (decode its call)"
+        },
+        {
+          "id": "ladder-A-3",
+          "n": 3,
+          "slug": "callee_order",
+          "text": "via resolved CALLEES (order match)"
+        },
+        {
+          "id": "ladder-A-4",
+          "n": 4,
+          "slug": "data_xref",
+          "text": "via data it references (inverse xref)"
+        },
+        {
+          "id": "ladder-A-5",
+          "n": 5,
+          "slug": "vtable_slot",
+          "text": "via its vtable slot"
+        },
+        {
+          "id": "ladder-A-6",
+          "n": 6,
+          "slug": "neighbour_position",
+          "text": "positional neighbour (order-preserving)"
+        },
+        {
+          "id": "ladder-A-7",
+          "n": 7,
+          "slug": "structural",
+          "text": "structural match (embedded decoder)"
+        },
+        {
+          "id": "ladder-A-8",
+          "n": 8,
+          "slug": "region",
+          "label": "region · review-only",
+          "text": "region match (inlined / split)"
+        },
+        {
+          "id": "ladder-A-9",
+          "n": 9,
+          "slug": "symbol",
+          "text": "symbol/debug info at runtime"
+        },
+        {
+          "id": "ladder-A-10",
+          "n": 10,
+          "slug": "offline",
+          "text": "emulation, BSim on residue"
+        },
+        {
+          "id": "ladder-A-11",
+          "n": 11,
+          "slug": "annotation",
+          "text": "annotation with provenance (a claim, never resolved)"
+        }
+      ],
+      "outcomes": [
+        "then: unresolved (per-member reasons)",
+        "two verified hits disagree → contested"
+      ]
+    },
+    {
+      "id": "ladder-B",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "ladder",
+      "family": "unify",
+      "parent": "ladders",
+      "title": "Cave missing or too small",
+      "letter": "B",
+      "members": [
+        {
+          "id": "ladder-B-1",
+          "n": 1,
+          "slug": null,
+          "text": "N candidate caves per anchor"
+        },
+        {
+          "id": "ladder-B-2",
+          "n": 2,
+          "slug": null,
+          "text": "live cave discovery (validated)"
+        },
+        {
+          "id": "ladder-B-3",
+          "n": 3,
+          "slug": null,
+          "text": "section slack only with expendability proof"
+        },
+        {
+          "id": "ladder-B-4",
+          "n": 4,
+          "slug": null,
+          "text": "header / stub space only with explicit proof"
+        },
+        {
+          "id": "ladder-B-5",
+          "n": 5,
+          "slug": null,
+          "text": "executable allocation if process policy permits"
+        },
+        {
+          "id": "ladder-B-6",
+          "n": 6,
+          "slug": null,
+          "text": "image extension (on-disk patches)"
+        }
+      ],
+      "outcomes": [
+        "then: no_placement / unsupported_dynamic_code"
+      ]
+    },
+    {
+      "id": "ladder-C",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "ladder",
+      "family": "unify",
+      "parent": "ladders",
+      "title": "Data root unresolved",
+      "letter": "C",
+      "members": [
+        {
+          "id": "ladder-C-1",
+          "n": 1,
+          "slug": "known_build",
+          "label": "known build",
+          "text": "identity → RVA → live check"
+        },
+        {
+          "id": "ladder-C-2",
+          "n": 2,
+          "slug": "unknown",
+          "text": "symbol / debug info"
+        },
+        {
+          "id": "ladder-C-3",
+          "n": 3,
+          "slug": "xref_from_function",
+          "text": "xref from identified function"
+        },
+        {
+          "id": "ladder-C-4",
+          "n": 4,
+          "slug": "data_xref",
+          "text": "inverse access-instruction scan"
+        },
+        {
+          "id": "ladder-C-5",
+          "n": 5,
+          "slug": "anchor_rel",
+          "text": "relative to import/export/string"
+        },
+        {
+          "id": "ladder-C-6",
+          "n": 6,
+          "slug": "masked_window",
+          "text": "data-section adjacency"
+        },
+        {
+          "id": "ladder-C-7",
+          "n": 7,
+          "slug": "pointer_chain",
+          "text": "from a resolved root"
+        },
+        {
+          "id": "ladder-C-8",
+          "n": 8,
+          "slug": null,
+          "text": "via constructor / initializer"
+        },
+        {
+          "id": "ladder-C-9",
+          "n": 9,
+          "slug": "vtable_slot",
+          "text": "vtable / RTTI-derived"
+        },
+        {
+          "id": "ladder-C-10",
+          "n": 10,
+          "slug": null,
+          "text": "value-shape probe + independent confirmation"
+        }
+      ],
+      "outcomes": [
+        "then: unresolved — never a silent zero"
+      ]
+    },
+    {
+      "id": "ladder-D",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "ladder",
+      "family": "unify",
+      "parent": "ladders",
+      "title": "Struct field moved / stripped build",
+      "letter": "D",
+      "members": [
+        {
+          "id": "ladder-D-1",
+          "n": 1,
+          "slug": null,
+          "text": "name / debug-info donor"
+        },
+        {
+          "id": "ladder-D-2",
+          "n": 2,
+          "slug": null,
+          "text": "ACCESSOR DECODE → exact per-build offset"
+        },
+        {
+          "id": "ladder-D-3",
+          "n": 3,
+          "slug": null,
+          "text": "constructor initializer sequence"
+        },
+        {
+          "id": "ladder-D-4",
+          "n": 4,
+          "slug": null,
+          "text": "field-access fingerprint match"
+        },
+        {
+          "id": "ladder-D-5",
+          "n": 5,
+          "slug": null,
+          "text": "sibling-field anchoring"
+        },
+        {
+          "id": "ladder-D-6",
+          "n": 6,
+          "slug": null,
+          "text": "pointer-width hints only; verify actual layout"
+        }
+      ],
+      "outcomes": [
+        "then: ambiguous / insufficient_evidence / absent"
+      ]
+    },
+    {
+      "id": "ladder-E",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "ladder",
+      "family": "unify",
+      "parent": "ladders",
+      "title": "VTable / dispatch slots",
+      "letter": "E",
+      "members": [
+        {
+          "id": "ladder-E-1",
+          "n": 1,
+          "slug": null,
+          "text": "RTTI"
+        },
+        {
+          "id": "ladder-E-2",
+          "n": 2,
+          "slug": null,
+          "text": "constructor vtable-store decode"
+        },
+        {
+          "id": "ladder-E-3",
+          "n": 3,
+          "slug": null,
+          "text": "slot matched by METHOD identity"
+        },
+        {
+          "id": "ladder-E-4",
+          "n": 4,
+          "slug": null,
+          "text": "dispatch entries by HANDLER identity"
+        }
+      ],
+      "outcomes": [
+        "then: per-slot unresolved"
+      ]
+    },
+    {
+      "id": "ladder-F",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "ladder",
+      "family": "runtime",
+      "parent": "ladders",
+      "title": "Unknown build",
+      "letter": "F",
+      "members": [
+        {
+          "id": "ladder-F-1",
+          "n": 1,
+          "slug": null,
+          "text": "admit in signature-only mode"
+        },
+        {
+          "id": "ladder-F-2",
+          "n": 2,
+          "slug": null,
+          "text": "run applicable ladders within declared budget"
+        },
+        {
+          "id": "ladder-F-3",
+          "n": 3,
+          "slug": null,
+          "text": "record every resolution + residue"
+        },
+        {
+          "id": "ladder-F-4",
+          "n": 4,
+          "slug": null,
+          "text": "ingest as runtime_claim → bind_identities confirms → KNOWN"
+        },
+        {
+          "id": "ladder-F-5",
+          "n": 5,
+          "slug": null,
+          "text": "residue re-attacked offline"
+        }
+      ],
+      "outcomes": [
+        "coverage may regress when collisions are found"
+      ]
+    },
+    {
+      "id": "locks",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "panel",
+      "family": "contain",
+      "title": "OWNERSHIP IS RESOURCE-SCOPED (eligible independent work overlaps)",
+      "note": "Atomic resource-set admission; measured process-tree budgets and pressure; external owners remain external."
+    },
+    {
+      "id": "lock-1",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "lock",
+      "family": "contain",
+      "parent": "locks",
+      "title": "writes to one Ghidra program's analysis DB",
+      "n": 1
+    },
+    {
+      "id": "lock-2",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "lock",
+      "family": "contain",
+      "parent": "locks",
+      "title": "shared corpus mutation / conflict resolution",
+      "n": 2
+    },
+    {
+      "id": "lock-3",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "lock",
+      "family": "contain",
+      "parent": "locks",
+      "title": "shared mutable compiler outputs / Wine context (private outputs may overlap)",
+      "n": 3
+    },
+    {
+      "id": "lock-4",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "lock",
+      "family": "contain",
+      "parent": "locks",
+      "title": "one scenario bundle: staged tree + saves + Wine + display + ports + harness",
+      "n": 4
+    },
+    {
+      "id": "lock-5",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "lock",
+      "family": "contain",
+      "parent": "locks",
+      "title": "short acceptance commit: current basis + generation + independent proof",
+      "n": 5
+    },
+    {
+      "id": "failover-rule",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "rule",
+      "family": "contain",
+      "title": "FAILOVER RULE",
+      "lines": [
+        "The affected branch stops VISIBLY at its real unmet dependency;",
+        "every eligible sibling lane continues.",
+        "Show the named owner/provider failure, last evidence, chosen fallback,",
+        "one retry owner and persistent budget; deterministic negatives require changed basis.",
+        "Deadline ends attempt, not objective; expired ownership does not free resources;",
+        "quarantine uncertain resources; show wake conditions, progress unknown and aging."
+      ]
+    },
+    {
+      "id": "export-target",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "section",
+      "family": "unify",
+      "title": "EXPORT TARGET — reusable recovery projects + vanilla-game bindings; capabilities and unknowns explicit",
+      "subtitle": "re-run under the same basis → byte-identical bundle"
+    },
+    {
+      "id": "export-hookpack",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "export",
+      "family": "unify",
+      "parent": "export-target",
+      "title": "hookpack v2",
+      "lines": [
+        "every entity kind, locator families,",
+        "per-build coverage, ABI blocks, caves,",
+        "integrity ranges, basis, pack hash"
+      ]
+    },
+    {
+      "id": "export-lua",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "export",
+      "family": "unify",
+      "parent": "export-target",
+      "title": "Generated Lua bindings",
+      "lines": [
+        "roots by name · typed struct accessors",
+        "table/handle/bitfield/string helpers",
+        "typed call stubs only for ABIs the",
+        "descriptor layer expresses; else refuse",
+        "NO literal address"
+      ]
+    },
+    {
+      "id": "export-headers",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "export",
+      "family": "unify",
+      "parent": "export-target",
+      "title": "Per-build C/C++ headers",
+      "lines": [
+        "evidenced per-build layouts;",
+        "opaque unknown spans · prototypes with",
+        "conventions + storage · build manifest"
+      ]
+    },
+    {
+      "id": "export-readiness",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "export",
+      "family": "unify",
+      "parent": "export-target",
+      "title": "Readiness report",
+      "lines": [
+        "per entity × build: resolved(member) /",
+        "pinned(member) / degraded(member, reason) /",
+        "ambiguous / unresolved / contested",
+        "observed_status separate · what a mod",
+        "can do here"
+      ]
+    },
+    {
+      "id": "export-divergence",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "export",
+      "family": "unify",
+      "parent": "export-target",
+      "title": "Divergence report",
+      "lines": [
+        "1↔1 · split-or-inlined · diverged",
+        "field-map, slot and table deltas",
+        "between any two builds"
+      ]
+    },
+    {
+      "id": "export-receipts",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "export",
+      "family": "unify",
+      "parent": "export-target",
+      "title": "Receipts",
+      "lines": [
+        "content-addressed, keyed by",
+        "hash(inputs+basis) · every artifact",
+        "identical-basis re-run = cache hit"
+      ]
+    },
+    {
+      "id": "export-projects",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "export",
+      "family": "unify",
+      "parent": "export-target",
+      "title": "Source + comparison projects",
+      "lines": [
+        "byte-accurate C+floor and max-C",
+        "with manifests",
+        "reccmp reports + independent image receipts"
+      ]
+    },
+    {
+      "id": "legend",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "legend",
+      "family": "note",
+      "title": "LEGEND",
+      "note": "DESIGN ONLY · future checks NOT RUN. Companions: execution-contracts.svg — evidence/admission; resilience-contracts.svg — prevention, containment, recovery. Replay records observations + dependencies."
+    },
+    {
+      "id": "legend-dependency",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "legend_entry",
+      "family": "note",
+      "parent": "legend",
+      "title": "data / dependency flow",
+      "glyph": "arrow"
+    },
+    {
+      "id": "legend-failover",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "legend_entry",
+      "family": "contain",
+      "parent": "legend",
+      "title": "failover / fallback",
+      "glyph": "arrow-dashed-6-4"
+    },
+    {
+      "id": "legend-feedback",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "legend_entry",
+      "family": "note",
+      "parent": "legend",
+      "title": "↺ feedback — dashed arrow back to an earlier stage",
+      "glyph": "arrow-dashed-4-4"
+    },
+    {
+      "id": "legend-gate",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "legend_entry",
+      "family": "gate",
+      "parent": "legend",
+      "title": "gate — must pass (compile receipt, verify, hash)",
+      "glyph": "gate-diamond"
+    },
+    {
+      "id": "legend-lock",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "legend_entry",
+      "family": "contain",
+      "parent": "legend",
+      "title": "serialized — one owner",
+      "glyph": "lock"
+    },
+    {
+      "id": "legend-bracket",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "legend_entry",
+      "family": "gate",
+      "parent": "legend",
+      "title": "bracket — eligible independent work may overlap",
+      "glyph": "bracket"
+    },
+    {
+      "id": "legend-outputs",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "legend_entry",
+      "family": "note",
+      "parent": "legend",
+      "title": "OUTPUTS → who consumes them",
+      "glyph": "box-dashed-5-4"
+    },
+    {
+      "id": "legend-family-identity",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "legend_entry",
+      "family": "identity",
+      "parent": "legend",
+      "title": "identity",
+      "glyph": "swatch"
+    },
+    {
+      "id": "legend-family-recovery",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "legend_entry",
+      "family": "recovery",
+      "parent": "legend",
+      "title": "source recovery",
+      "glyph": "swatch"
+    },
+    {
+      "id": "legend-family-unify",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "legend_entry",
+      "family": "unify",
+      "parent": "legend",
+      "title": "cross-build unification & export",
+      "glyph": "swatch"
+    },
+    {
+      "id": "legend-family-runtime",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "legend_entry",
+      "family": "runtime",
+      "parent": "legend",
+      "title": "runtime reuse / learn",
+      "glyph": "swatch"
+    },
+    {
+      "id": "legend-family-verify",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "legend_entry",
+      "family": "verify",
+      "parent": "legend",
+      "title": "verification & determinism",
+      "glyph": "swatch"
+    },
+    {
+      "id": "legend-family-intake",
+      "diagram": "agentdecompile-recovery-pipeline",
+      "kind": "legend_entry",
+      "family": "intake",
+      "parent": "legend",
+      "title": "intake / cross-cutting",
+      "glyph": "swatch"
+    },
+    {
+      "id": "exec-header",
+      "diagram": "execution-contracts",
+      "kind": "header",
+      "family": "note",
+      "title": "Execution and evidence contracts",
+      "status": "Design specification · companion to the recovery overview · future software acceptance checks NOT RUN",
+      "tagline": "Missing evidence blocks its claim. An unhealthy resource blocks its dependents. Ready independent work continues."
+    },
+    {
+      "id": "exec-step-1",
+      "diagram": "execution-contracts",
+      "kind": "contract",
+      "family": "step",
+      "title": "Declare one task contract",
+      "label": "1",
+      "rows": [
+        "Immutable input manifest + dependency versions",
+        "Claim or capability requested; required evidence",
+        "Provider alternatives; prerequisite-producing tasks",
+        "Mutable resource set; process-tree resource budget",
+        "Progress units; outputs; deadline; retry owner/budget",
+        "Capability priority + capped aging / reservations"
+      ]
+    },
+    {
+      "id": "exec-step-2",
+      "diagram": "execution-contracts",
+      "kind": "contract",
+      "family": "step",
+      "title": "Admit one eligible attempt",
+      "label": "2",
+      "rows": [
+        "Complete input closure on healthy working storage",
+        "Capacity reserve + pressure + storage + limit events",
+        "Acquire entire resource set atomically or release",
+        "Current ownership generation + private outputs",
+        "Share nested build budget; external jobs not adopted",
+        "No provider: record exact dependency/wake condition"
+      ]
+    },
+    {
+      "id": "exec-step-3",
+      "diagram": "execution-contracts",
+      "kind": "contract",
+      "family": "step",
+      "title": "Compute outside commit",
+      "label": "3",
+      "rows": [
+        "Stable analysis snapshot; immutable proposals",
+        "Durable completed-unit receipts, including negatives",
+        "Liveness ≠ execution progress ≠ goal progress",
+        "Uninstrumented external worker: progress unknown",
+        "No corpus transaction during compiler / model / game",
+        "Stage, validate, flush, rename BEFORE DB commit"
+      ]
+    },
+    {
+      "id": "exec-binding",
+      "diagram": "execution-contracts",
+      "kind": "section",
+      "family": "note",
+      "title": "Runtime use requires presence, identity and operation evidence"
+    },
+    {
+      "id": "contract-bytes",
+      "diagram": "execution-contracts",
+      "kind": "contract",
+      "family": "bytes",
+      "parent": "exec-binding",
+      "title": "Are these bytes here?",
+      "label": "BYTES",
+      "rows": [
+        "Exact target digest + image/address mapping",
+        "Observed region and independent byte comparison",
+        "Receipt names region, input basis and verifier",
+        "Does not establish the selected function name"
+      ]
+    },
+    {
+      "id": "contract-identity",
+      "diagram": "execution-contracts",
+      "kind": "contract",
+      "family": "gate",
+      "parent": "exec-binding",
+      "title": "Is this the intended entity?",
+      "label": "IDENTITY",
+      "rows": [
+        "Target-side boundaries and discriminating evidence",
+        "Donor labels remain hypotheses until accepted",
+        "Signature from selected RVA cannot prove its label",
+        "Withdraw bad seed → invalidate dependent claims"
+      ]
+    },
+    {
+      "id": "contract-operation",
+      "diagram": "execution-contracts",
+      "kind": "contract",
+      "family": "operation",
+      "parent": "exec-binding",
+      "title": "Is this use supported?",
+      "label": "OPERATION",
+      "rows": [
+        "ABI + layout + runtime state + policy requirements",
+        "Located / readable / callable / detourable / writable",
+        "Object lifetime and dynamic-root resolution recipe",
+        "Hook install AND removal; reclaim only when safe"
+      ]
+    },
+    {
+      "id": "exec-proof-flow",
+      "diagram": "execution-contracts",
+      "kind": "note",
+      "family": "note",
+      "title": "All applicable proof receipts → acceptance (4) → original-code (5A) and recovered-source (5B) independently."
+    },
+    {
+      "id": "accept-4",
+      "diagram": "execution-contracts",
+      "kind": "contract",
+      "family": "acceptance",
+      "title": "Independent acceptance, short commit",
+      "label": "4",
+      "rows": [
+        "Verifier checks exact claimed level and raw evidence",
+        "Check input versions AND current generation",
+        "Commit manifest + ledger; no artifact IO here",
+        "Task complete only when required predicates pass",
+        "Producers cannot self-promote or change criteria"
+      ]
+    },
+    {
+      "id": "cap-5A",
+      "diagram": "execution-contracts",
+      "kind": "contract",
+      "family": "operation",
+      "title": "Original-code capability",
+      "label": "5A",
+      "rows": [
+        "Original implementation may remain assembly floor",
+        "Accept only operation-specific prerequisites",
+        "Scenario: build + fixture + driver + postconditions",
+        "Oracle and recording share one scenario attempt",
+        "Unknown command outcome → inspect before replay"
+      ]
+    },
+    {
+      "id": "cap-5B",
+      "diagram": "execution-contracts",
+      "kind": "contract",
+      "family": "bytes",
+      "title": "Recovered-source capability",
+      "label": "5B",
+      "rows": [
+        "Recovery / compilation / comparison units may differ",
+        "Validated fixups + metadata + unchanged round trip",
+        "Compile ≠ local match ≠ linked match ≠ full equality",
+        "Prove replacement contributes; fallback is separate",
+        "C+assembly-floor and max-C have separate ledgers"
+      ]
+    },
+    {
+      "id": "exec-separate-outputs",
+      "diagram": "execution-contracts",
+      "kind": "note",
+      "family": "note",
+      "title": "Separate outputs, never an implied readiness ladder"
+    },
+    {
+      "id": "fence",
+      "diagram": "execution-contracts",
+      "kind": "contract",
+      "family": "contain",
+      "title": "Reject obsolete publication",
+      "label": "FENCE",
+      "rows": [
+        "Old generation or changed inputs → historical only",
+        "Keep artifact; refuse current acceptance/promotion",
+        "Re-key only affected dependency descendants",
+        "Collision discovery may reduce accepted coverage",
+        "Fencing does NOT prove a worker has stopped",
+        "Representation totals disjoint; capabilities overlap"
+      ]
+    },
+    {
+      "id": "quarantine",
+      "diagram": "execution-contracts",
+      "kind": "contract",
+      "family": "contain",
+      "title": "Keep resources occupied",
+      "label": "QUARANTINE",
+      "rows": [
+        "Expired lease / timeout ≠ safe resource release",
+        "Late or kernel-blocked worker may still access state",
+        "Release needs corroborated end of access + owner",
+        "Atomic local locks; PID identity alone is insufficient",
+        "Private replacement only on disjoint safe resources",
+        "Bound isolated storage probes; never block scheduler"
+      ]
+    },
+    {
+      "id": "continue",
+      "diagram": "execution-contracts",
+      "kind": "contract",
+      "family": "gate",
+      "title": "Only ready independent work",
+      "label": "CONTINUE",
+      "rows": [
+        "Transient failure: one owner, bounded durable retry",
+        "Deterministic negative: changed hypothesis required",
+        "Provider circuit break; split task or compatible route",
+        "No ready work: persist dependency sets + wake event",
+        "Complete remote replica + worker needed for host loss",
+        "New user message does not reset retry budget"
+      ]
+    },
+    {
+      "id": "challenge-late-worker",
+      "diagram": "execution-contracts",
+      "kind": "example",
+      "family": "note",
+      "title": "Concrete design challenge · the late worker",
+      "lines": [
+        "Attempt A loses its lease while still writing. B runs on disjoint resources. A later submits a byte-perfect artifact.",
+        "Expected: reject A’s stale publication; retain A’s resource quarantine; permit B only with complete independent inputs.",
+        "Future proof: inject this race and inspect accepted-generation receipts, ownership events and B’s dependency manifest."
+      ],
+      "status": "NOT RUN. This diagram defines the acceptance mechanism; it does not claim a scheduler, binding or recovery result exists."
+    },
+    {
+      "id": "exec-footer",
+      "diagram": "execution-contracts",
+      "kind": "note",
+      "family": "note",
+      "title": "Failure lifecycle and control-plane recovery: resilience-contracts.svg · detailed future checks in the linked plan"
+    },
+    {
+      "id": "resil-header",
+      "diagram": "resilience-contracts",
+      "kind": "header",
+      "family": "note",
+      "title": "Prevention, containment and recovery",
+      "status": "DESIGN ONLY · future failure-injection checks NOT RUN · implement locally first using existing task/corpus contracts",
+      "tagline": "One durable decision owner. Recover the affected dependency; retain the objective, evidence and independent work."
+    },
+    {
+      "id": "resil-step-1",
+      "diagram": "resilience-contracts",
+      "kind": "contract",
+      "family": "step",
+      "title": "Prevent, detect, classify",
+      "label": "1",
+      "rows": [
+        "Fixture recheck after ownership, before mutation",
+        "Observe process tree, unit receipts and goal facts",
+        "Classify: mismatch / transient / resource / policy",
+        "Distinguish missing evidence from unhealthy resource",
+        "Unknown outcome stays unknown until reconciled",
+        "No health decision from one noisy sample alone",
+        "Capture exact input, policy and observation versions"
+      ]
+    },
+    {
+      "id": "resil-step-2",
+      "diagram": "resilience-contracts",
+      "kind": "contract",
+      "family": "step",
+      "title": "Record the decision before effects",
+      "label": "2",
+      "rows": [
+        "Pure reducer: frozen facts + policy → next action",
+        "Atomically reserve attempt budget + effect intent",
+        "One durable retry budget; no nested retry owners",
+        "Persist reason, scope, wake predicate + event cursor",
+        "Deterministic negative requires changed hypothesis",
+        "New user message does not reset attempt spending",
+        "Ledger unavailable → pause new managed mutations"
+      ]
+    },
+    {
+      "id": "resil-step-3",
+      "diagram": "resilience-contracts",
+      "kind": "contract",
+      "family": "step",
+      "title": "Repair, reroute or wait",
+      "label": "3",
+      "rows": [
+        "Repair only classified prerequisites with evidence",
+        "Reroute only to declared compatible capabilities",
+        "Checkpoint/split within the unchanged claim scope",
+        "Reconcile cursor + exact version/owner/provider wake",
+        "Unknown non-idempotent effect: inspect, never replay",
+        "Quarantine resources until end of access is proven",
+        "Independent work continues only if fully supplied"
+      ]
+    },
+    {
+      "id": "resil-acceptance",
+      "diagram": "resilience-contracts",
+      "kind": "note",
+      "family": "note",
+      "title": "Every recovery action returns through independent acceptance; an available process is not a repaired capability."
+    },
+    {
+      "id": "resil-step-4",
+      "diagram": "resilience-contracts",
+      "kind": "contract",
+      "family": "acceptance",
+      "title": "Accept against the current basis",
+      "label": "4",
+      "rows": [
+        "Inspect new artifact and claim-specific proof roots",
+        "Recheck dependencies, generation and policy version",
+        "Prepare durable artifact outside acceptance commit",
+        "Short commit: manifest reference + corpus receipt",
+        "Required task predicates determine completion",
+        "Failure retains useful units without promoting claim",
+        "Resource release is separate from acceptance"
+      ]
+    },
+    {
+      "id": "resil-step-5",
+      "diagram": "resilience-contracts",
+      "kind": "contract",
+      "family": "bytes",
+      "title": "Resume only the justified capability",
+      "label": "5",
+      "rows": [
+        "Revalidate affected descendants, preserve others",
+        "Clear quarantine only on resource-release evidence",
+        "Expire old runtime preflight and reacquire live facts",
+        "Record liveness / unit progress / accepted progress",
+        "No ready work → durable wait, no repeated audit loop",
+        "Expose exact reason and next eligible wake condition",
+        "Unknown empirical results remain explicitly unknown"
+      ]
+    },
+    {
+      "id": "resil-step-6",
+      "diagram": "resilience-contracts",
+      "kind": "contract",
+      "family": "gate",
+      "title": "Prevent recurrence without blind tuning",
+      "label": "6",
+      "rows": [
+        "Aggregate failure signatures by input/policy basis",
+        "Propose narrow policy change with deciding metric",
+        "Canary uses frozen baseline and bounded population",
+        "Independent reviewer accepts evidence, not opinion",
+        "Regression → restore prior admission policy version",
+        "Preserve failure history; never reset spent budgets",
+        "Roll back policy, not arbitrary already-run effects"
+      ]
+    },
+    {
+      "id": "control-plane",
+      "diagram": "resilience-contracts",
+      "kind": "contract",
+      "family": "contain",
+      "title": "Fail read-only",
+      "label": "CONTROL PLANE",
+      "rows": [
+        "Lost durable decision or acceptance authority:",
+        "pause new managed mutation/admission in that scope",
+        "Keep cached read-only evidence available with age",
+        "Old outputs stay private/quarantined until reconciled",
+        "Do not kill external owners or assume children stop",
+        "Reconcile owner/generation and durable log on return",
+        "Unknown command outcome → inspect before retry",
+        "Wake: healthy durable authority + reconciled state"
+      ]
+    },
+    {
+      "id": "data-provider",
+      "diagram": "resilience-contracts",
+      "kind": "contract",
+      "family": "contain",
+      "title": "Isolate dependency",
+      "label": "DATA / PROVIDER",
+      "rows": [
+        "Bound storage probes outside coordinator loop",
+        "One recovery probe per provider + shared retry budget",
+        "Complete input closure required for alternate worker",
+        "Partial copies never become launchable manifests",
+        "Tmpfs is budgeted cache, not durable rescue default",
+        "Host loss needs independent replica AND worker",
+        "Retry requires budget + safe resources + current basis",
+        "Wake: new verified inputs / capability / released owner"
+      ]
+    },
+    {
+      "id": "policy-canary",
+      "diagram": "resilience-contracts",
+      "kind": "contract",
+      "family": "gate",
+      "title": "Bound the change",
+      "label": "POLICY / CANARY",
+      "rows": [
+        "Policy is immutable versioned data; producer cannot edit",
+        "Canary declares baseline, population and abort rule",
+        "Compare acceptance errors, useful throughput and cost",
+        "No broader rollout from a successful process exit",
+        "Revert routing/admission version if metric regresses",
+        "Reassess active attempts under their recorded policy",
+        "Accept only with pinned/current policy compatibility",
+        "Wake: accepted policy version or corrected evidence"
+      ]
+    },
+    {
+      "id": "worked-interruption",
+      "diagram": "resilience-contracts",
+      "kind": "example",
+      "family": "note",
+      "title": "Worked interruption · the command was sent, then the decision store disappeared",
+      "lines": [
+        "Observe: command ID C may have changed the game; the connection closed before its result was durably recorded.",
+        "Contain: pause new managed mutations in this scope; preserve read-only status and existing evidence; do not replay C.",
+        "Recover: reconcile C against observed engine state and ownership. Resume only after durable authority and state agree.",
+        "Future proof: inject disconnect; show no blind duplicate dispatch, retained unknown outcome, reconciliation and scoped resumption.",
+        "If the effect cannot be determined, keep the affected operation waiting and expose the exact required observation."
+      ],
+      "status": "NOT RUN · design acceptance is artifact consistency; runtime recovery needs the future measurements specified in the plan."
+    },
+    {
+      "id": "cap-header",
+      "diagram": "autonomous-capabilities",
+      "kind": "header",
+      "family": "note",
+      "title": "Autonomous capability delivery",
+      "subtitle": "Desired capability + exact eligible game/build → supported operation + understandable proof",
+      "tagline": "One task/acceptance authority • reuse preparation, corpus receipts, recovery supervision and runtime adapters"
+    },
+    {
+      "id": "cap-step-1",
+      "diagram": "autonomous-capabilities",
+      "kind": "step",
+      "family": "step",
+      "title": "Request",
+      "n": "1",
+      "rows": [
+        "Behavior, target, predicates",
+        "Allowed effects and cost"
+      ]
+    },
+    {
+      "id": "cap-step-2",
+      "diagram": "autonomous-capabilities",
+      "kind": "step",
+      "family": "step",
+      "title": "Resolve evidence",
+      "n": "2",
+      "rows": [
+        "Reuse valid receipts",
+        "Name missing prerequisites"
+      ]
+    },
+    {
+      "id": "cap-step-3",
+      "diagram": "autonomous-capabilities",
+      "kind": "step",
+      "family": "step",
+      "title": "Deterministic admit",
+      "n": "3",
+      "rows": [
+        "Pinned observations + policy",
+        "Ownership and budget gates"
+      ]
+    },
+    {
+      "id": "cap-step-4",
+      "diagram": "autonomous-capabilities",
+      "kind": "step",
+      "family": "step",
+      "title": "Isolated action",
+      "n": "4",
+      "rows": [
+        "Typed catalog operation",
+        "Qualified engine adapter"
+      ]
+    },
+    {
+      "id": "cap-step-5",
+      "diagram": "autonomous-capabilities",
+      "kind": "step",
+      "family": "step",
+      "title": "Accept independently",
+      "n": "5",
+      "rows": [
+        "Observe required behavior",
+        "Retain scoped proof"
+      ]
+    },
+    {
+      "id": "cap-step-6",
+      "diagram": "autonomous-capabilities",
+      "kind": "step",
+      "family": "step",
+      "title": "Continue",
+      "n": "6",
+      "rows": [
+        "Reuse accepted observations",
+        "Exact wake; no blind replay"
+      ]
+    },
+    {
+      "id": "cap-banner",
+      "diagram": "autonomous-capabilities",
+      "kind": "note",
+      "family": "gate",
+      "title": "Unknown effects → reconcile; unavailable authority → pause new mutations; unrelated eligible work → keep progressing."
+    },
+    {
+      "id": "cap-milestones",
+      "diagram": "autonomous-capabilities",
+      "kind": "section",
+      "family": "note",
+      "title": "Useful native capabilities first; platform and browser investigations can proceed independently."
+    },
+    {
+      "id": "milestone-M0",
+      "diagram": "autonomous-capabilities",
+      "kind": "milestone",
+      "family": "bytes",
+      "parent": "cap-milestones",
+      "title": "Reliable continuation",
+      "n": "M0",
+      "status": "IMPLEMENTED FOUNDATION · PARTIALLY VERIFIED",
+      "body": [
+        "Preserve attempts across resume.",
+        "Explain exhaustion, unknown outcomes",
+        "and the exact next action."
+      ],
+      "proof": [
+        "Evidence: bounded coordinator and",
+        "isolated worker software checks.",
+        "Broader M0 obligations remain open.",
+        "Native live delivery is unverified."
+      ]
+    },
+    {
+      "id": "milestone-M1",
+      "diagram": "autonomous-capabilities",
+      "kind": "milestone",
+      "family": "step",
+      "parent": "cap-milestones",
+      "title": "Effective scenario",
+      "n": "M1",
+      "status": "FUTURE DELIVERY",
+      "body": [
+        "Pin fixture and effective script.",
+        "Prepare, run, observe, capture, clean.",
+        "Resume a mixed pass/blocked batch."
+      ],
+      "proof": [
+        "Acceptance: actual game receipt;",
+        "no routine user repair of paths,",
+        "manifests or lifecycle state."
+      ]
+    },
+    {
+      "id": "milestone-M2",
+      "diagram": "autonomous-capabilities",
+      "kind": "milestone",
+      "family": "step",
+      "parent": "cap-milestones",
+      "title": "Operation bundle",
+      "n": "M2",
+      "status": "FUTURE DELIVERY",
+      "body": [
+        "Generate ABI, units, ID domains,",
+        "lifetime and effect/restore contract.",
+        "Share help, CLI, Lua and harness."
+      ],
+      "proof": [
+        "Acceptance: consumed binding +",
+        "independent game-state oracle.",
+        "Unsupported builds refuse."
+      ]
+    },
+    {
+      "id": "milestone-M3",
+      "diagram": "autonomous-capabilities",
+      "kind": "milestone",
+      "family": "step",
+      "parent": "cap-milestones",
+      "title": "F12 workspace",
+      "n": "M3",
+      "status": "FUTURE DELIVERY",
+      "body": [
+        "Select/query object; execute Lua.",
+        "Edit supported property; inspect",
+        "result/error; undo; Copy as Lua."
+      ],
+      "proof": [
+        "Acceptance: real key/focus/input,",
+        "engine-thread execution and shared",
+        "operation IDs in UI/script/harness."
+      ]
+    },
+    {
+      "id": "milestone-M4",
+      "diagram": "autonomous-capabilities",
+      "kind": "milestone",
+      "family": "acceptance",
+      "parent": "cap-milestones",
+      "title": "Creative projects",
+      "n": "M4",
+      "status": "FUTURE DELIVERY",
+      "body": [
+        "Compose meaningful scene + shot.",
+        "Reopen in a fresh game session.",
+        "Record the defining native effect."
+      ],
+      "proof": [
+        "Acceptance: behavior + capture +",
+        "presentation; protected installs;",
+        "no cross-script state collisions."
+      ]
+    },
+    {
+      "id": "milestone-M5",
+      "diagram": "autonomous-capabilities",
+      "kind": "milestone",
+      "family": "acceptance",
+      "parent": "cap-milestones",
+      "title": "Playback / checkpoints",
+      "n": "M5",
+      "status": "FUTURE DELIVERY",
+      "body": [
+        "Owned pause, save and restore.",
+        "Replay supported dialog branches.",
+        "Stable selectors; fresh lifetimes."
+      ],
+      "proof": [
+        "Acceptance: inventory/quest/party",
+        "and script restoration; exclusions.",
+        "No arbitrary-memory rewind claim."
+      ]
+    },
+    {
+      "id": "milestone-M6",
+      "diagram": "autonomous-capabilities",
+      "kind": "milestone",
+      "family": "gate",
+      "parent": "cap-milestones",
+      "title": "Native host matrix",
+      "n": "M6",
+      "status": "FUTURE QUALIFICATION",
+      "body": [
+        "Exact native builds per platform;",
+        "compatible Windows/Linux workers.",
+        "Qualify each build and architecture."
+      ],
+      "proof": [
+        "Acceptance: ABI, graphics, input",
+        "and capture results per build.",
+        "Windows proof does not qualify Mac."
+      ]
+    },
+    {
+      "id": "milestone-M7",
+      "diagram": "autonomous-capabilities",
+      "kind": "milestone",
+      "family": "gate",
+      "parent": "cap-milestones",
+      "title": "Whole-game browser",
+      "n": "M7",
+      "status": "FUTURE FEASIBILITY → DELIVERY",
+      "body": [
+        "Inspect prior browser-runtime work.",
+        "Prove an executable runtime route.",
+        "Then prove interactive game use."
+      ],
+      "proof": [
+        "Acceptance: rendering/input/audio,",
+        "save, main loop, sustained play",
+        "and shared devtools protocol."
+      ]
+    },
+    {
+      "id": "cap-demo",
+      "diagram": "autonomous-capabilities",
+      "kind": "panel",
+      "family": "bytes",
+      "title": "First complete product demonstration — FUTURE / NOT RUN",
+      "lines": [
+        "One requested native capability: discovery → binding → UI or Lua → prepared scenario,",
+        "independent state observation → verified supported restoration → useful recorded clip.",
+        "Behavior, capture integrity and presentation are separate acceptance predicates.",
+        "A job result, syntax pass, browser shell or Wasm utility does not prove this delivery.",
+        "Source parity, native game behavior and platform qualification keep separate receipts."
+      ]
+    },
+    {
+      "id": "cap-human",
+      "diagram": "autonomous-capabilities",
+      "kind": "panel",
+      "family": "acceptance",
+      "title": "Human input only for genuine exceptions",
+      "lines": [
+        "Material objective / acceptance changes; unavailable",
+        "legal, credential or device access; required external",
+        "interaction; uninferable subjective creative direction.",
+        "Deduplicate requests; continue independent work.",
+        "Local artifact creation ≠ external publication authority."
+      ]
+    },
+    {
+      "id": "cap-footer",
+      "diagram": "autonomous-capabilities",
+      "kind": "note",
+      "family": "note",
+      "title": "Design status: M1–M7 are ambitions, not completed features. M0 software evidence does not establish live-game autonomy.",
+      "contract": "Contract: docs/plans/2026-09-22-autonomous-capability-product-roadmap.md • 2026-09-22"
+    }
+  ],
+  "edges": [
+    {
+      "from": "stage-1",
+      "type": "depends_on",
+      "to": "stage-0",
+      "drawn": true
+    },
+    {
+      "from": "stage-2",
+      "type": "depends_on",
+      "to": "stage-1",
+      "drawn": true
+    },
+    {
+      "from": "stage-3",
+      "type": "depends_on",
+      "to": "stage-2",
+      "drawn": true
+    },
+    {
+      "from": "stage-4",
+      "type": "depends_on",
+      "to": "stage-3",
+      "drawn": true
+    },
+    {
+      "from": "stage-5",
+      "type": "depends_on",
+      "to": "stage-4",
+      "drawn": true
+    },
+    {
+      "from": "stage-6",
+      "type": "depends_on",
+      "to": "stage-5",
+      "drawn": true
+    },
+    {
+      "from": "stage-7",
+      "type": "depends_on",
+      "to": "stage-6",
+      "drawn": true
+    },
+    {
+      "from": "stage-8",
+      "type": "depends_on",
+      "to": "stage-7",
+      "drawn": true
+    },
+    {
+      "id": "feedback-1-2",
+      "from": "stage-2",
+      "type": "feedback",
+      "to": "stage-1",
+      "drawn": true,
+      "follows": "stage-2",
+      "label": "↺ feedback · 1 ↔ 2 refine scoped hypotheses",
+      "spoken": "Feedback (dashed arrow from stage 2 back to stage 1): stages 1 and 2 refine scoped hypotheses, both ways."
+    },
+    {
+      "id": "stage-4-failover",
+      "from": "stage-4",
+      "type": "failover",
+      "to": "stage-4",
+      "drawn": true,
+      "follows": "gate-4",
+      "label": "compile fails → helpers → bounded LLM → retry (dashed = failover, never blocks siblings)",
+      "spoken": "Failover loop (dashed, below stage 4): when compile fails, run helpers, then one bounded LLM cleanup, then retry; failover never blocks sibling work."
+    },
+    {
+      "id": "feedback-7-8",
+      "from": "stage-7",
+      "type": "feedback",
+      "to": "stage-3",
+      "drawn": true,
+      "follows": "stage-8",
+      "label": "↺ feedback · 7–8 verify early scaffold and candidates",
+      "spoken": "Feedback (dashed arrow from stages 7 and 8 back to stage 3): stages 7 and 8 verify the early scaffold and candidates."
+    },
+    {
+      "from": "gate-0",
+      "type": "gates",
+      "to": "stage-0"
+    },
+    {
+      "from": "gate-1",
+      "type": "gates",
+      "to": "stage-1"
+    },
+    {
+      "from": "gate-3",
+      "type": "gates",
+      "to": "stage-3"
+    },
+    {
+      "from": "gate-4",
+      "type": "gates",
+      "to": "stage-4"
+    },
+    {
+      "from": "gate-5",
+      "type": "gates",
+      "to": "stage-5"
+    },
+    {
+      "from": "gate-6",
+      "type": "gates",
+      "to": "stage-6"
+    },
+    {
+      "from": "gate-7",
+      "type": "gates",
+      "to": "stage-7"
+    },
+    {
+      "from": "gate-8",
+      "type": "gates",
+      "to": "stage-8"
+    },
+    {
+      "from": "gate-4-5",
+      "type": "gates",
+      "to": "stage-5",
+      "drawn": true
+    },
+    {
+      "from": "lane-A",
+      "type": "consumes",
+      "to": "stage-1"
+    },
+    {
+      "from": "lane-A",
+      "type": "consumed_by",
+      "to": "stage-5"
+    },
+    {
+      "from": "lane-A",
+      "type": "consumed_by",
+      "to": "export-hookpack"
+    },
+    {
+      "from": "lane-A",
+      "type": "feeds",
+      "to": "export-readiness"
+    },
+    {
+      "from": "lane-A",
+      "type": "serialized_by",
+      "to": "lock-2"
+    },
+    {
+      "from": "lane-B",
+      "type": "consumes",
+      "to": "stage-1"
+    },
+    {
+      "from": "lane-B",
+      "type": "consumes",
+      "to": "stage-2"
+    },
+    {
+      "from": "lane-B",
+      "type": "feeds",
+      "to": "lane-C"
+    },
+    {
+      "from": "lane-B",
+      "type": "feeds",
+      "to": "export-target"
+    },
+    {
+      "from": "lane-B",
+      "type": "produces",
+      "to": "export-hookpack"
+    },
+    {
+      "from": "lane-B",
+      "type": "produces",
+      "to": "export-divergence"
+    },
+    {
+      "from": "lane-C",
+      "type": "depends_on",
+      "to": "stage-1"
+    },
+    {
+      "from": "lane-C",
+      "type": "depends_on",
+      "to": "stage-2"
+    },
+    {
+      "from": "lane-C",
+      "type": "consumes",
+      "to": "lane-B"
+    },
+    {
+      "from": "lane-C",
+      "type": "feeds",
+      "to": "stage-1"
+    },
+    {
+      "from": "lane-C",
+      "type": "feeds",
+      "to": "export-readiness"
+    },
+    {
+      "from": "lane-C",
+      "type": "consumes",
+      "to": "ladder-A"
+    },
+    {
+      "from": "lane-C",
+      "type": "consumes",
+      "to": "ladder-B"
+    },
+    {
+      "from": "lane-C",
+      "type": "consumes",
+      "to": "ladder-C"
+    },
+    {
+      "from": "lane-C",
+      "type": "consumes",
+      "to": "ladder-D"
+    },
+    {
+      "from": "lane-C",
+      "type": "consumes",
+      "to": "ladder-E"
+    },
+    {
+      "from": "lane-C",
+      "type": "consumes",
+      "to": "ladder-F"
+    },
+    {
+      "from": "lane-C",
+      "type": "serialized_by",
+      "to": "lock-4"
+    },
+    {
+      "from": "lane-D",
+      "type": "wraps",
+      "to": "main-pipeline"
+    },
+    {
+      "from": "lane-D",
+      "type": "wraps",
+      "to": "lanes"
+    },
+    {
+      "from": "lane-D",
+      "type": "gates",
+      "to": "export-target"
+    },
+    {
+      "from": "lane-D",
+      "type": "produces",
+      "to": "export-receipts"
+    },
+    {
+      "from": "lane-D",
+      "type": "serialized_by",
+      "to": "lock-5"
+    },
+    {
+      "from": "lane-E",
+      "type": "wraps",
+      "to": "main-pipeline"
+    },
+    {
+      "from": "lane-E",
+      "type": "wraps",
+      "to": "lanes"
+    },
+    {
+      "from": "stage-0",
+      "type": "serialized_by",
+      "to": "lock-1"
+    },
+    {
+      "from": "stage-4",
+      "type": "serialized_by",
+      "to": "lock-3"
+    },
+    {
+      "from": "stage-7",
+      "type": "produces",
+      "to": "export-projects"
+    },
+    {
+      "from": "stage-8",
+      "type": "produces",
+      "to": "export-projects"
+    },
+    {
+      "from": "exec-step-2",
+      "type": "depends_on",
+      "to": "exec-step-1",
+      "drawn": true
+    },
+    {
+      "from": "exec-step-3",
+      "type": "depends_on",
+      "to": "exec-step-2",
+      "drawn": true
+    },
+    {
+      "from": "accept-4",
+      "type": "consumes",
+      "to": "contract-bytes"
+    },
+    {
+      "from": "accept-4",
+      "type": "consumes",
+      "to": "contract-identity"
+    },
+    {
+      "from": "accept-4",
+      "type": "consumes",
+      "to": "contract-operation"
+    },
+    {
+      "from": "cap-5A",
+      "type": "depends_on",
+      "to": "accept-4"
+    },
+    {
+      "from": "cap-5B",
+      "type": "depends_on",
+      "to": "accept-4"
+    },
+    {
+      "from": "fence",
+      "type": "gates",
+      "to": "accept-4"
+    },
+    {
+      "from": "accept-4",
+      "type": "serialized_by",
+      "to": "lock-5"
+    },
+    {
+      "from": "resil-step-2",
+      "type": "depends_on",
+      "to": "resil-step-1",
+      "drawn": true
+    },
+    {
+      "from": "resil-step-3",
+      "type": "depends_on",
+      "to": "resil-step-2",
+      "drawn": true
+    },
+    {
+      "from": "resil-step-4",
+      "type": "depends_on",
+      "to": "resil-step-3"
+    },
+    {
+      "from": "resil-step-5",
+      "type": "depends_on",
+      "to": "resil-step-4",
+      "drawn": true
+    },
+    {
+      "from": "resil-step-6",
+      "type": "depends_on",
+      "to": "resil-step-5",
+      "drawn": true
+    },
+    {
+      "from": "resil-step-6",
+      "type": "feedback",
+      "to": "resil-step-1"
+    },
+    {
+      "from": "cap-step-2",
+      "type": "depends_on",
+      "to": "cap-step-1",
+      "drawn": true
+    },
+    {
+      "from": "cap-step-3",
+      "type": "depends_on",
+      "to": "cap-step-2",
+      "drawn": true
+    },
+    {
+      "from": "cap-step-4",
+      "type": "depends_on",
+      "to": "cap-step-3",
+      "drawn": true
+    },
+    {
+      "from": "cap-step-5",
+      "type": "depends_on",
+      "to": "cap-step-4",
+      "drawn": true
+    },
+    {
+      "from": "cap-step-6",
+      "type": "depends_on",
+      "to": "cap-step-5",
+      "drawn": true
+    }
+  ]
+}

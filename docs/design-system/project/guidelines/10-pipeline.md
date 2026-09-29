@@ -1,10 +1,12 @@
 # Pipeline and lanes
 
+**One model, one address space.** Everything below is also data in `docs/dashboard-design/pipeline-diagram/pipeline-model.json`: stable node ids (`stage-0`…`stage-8`, `gate-0`…`gate-8`, `lane-A`…`lane-E`, `ladder-A`…`ladder-F` with members `ladder-A-1`…, `lock-1`…`lock-5`, `failover-rule`, `export-*`, the companion contracts and `milestone-M0`…`M7`) and typed edges (depends_on, feedback, failover, gates, consumes, feeds, wraps, produces, consumed_by, serialized_by). The diagrams, their text outlines and both frontends render from it, and every node id is a deep-link target: the PipelineMap, PipelineBreadcrumb, go-to field and diagram outlines all address the same ids.
+
 The recovery pipeline is the product's organizing structure. The app and the diagrams draw the same stages, lanes, ladders and export targets, with the same names and family colors. Stage order and prerequisites follow STRATEGY; the UI presents actual state and never reimplements the ladder.
 
 ## Main pipeline: stage 0 plus eight named stages
 
-Left to right is dependency order. Feedback is allowed: identity and calibration refine each other (dashed `dash-feedback` arrow, "1 ↔ 2: refine scoped hypotheses"), and parity runs continuously ("7–8 verify early scaffold and candidates"). There is no ninth stage.
+Left to right is dependency order. Feedback is allowed: identity and calibration refine each other (dashed `dash-feedback` arrow labelled "↺ feedback · 1 ↔ 2 refine scoped hypotheses"), and parity runs continuously ("↺ feedback · 7–8 verify early scaffold and candidates"). There is no ninth stage.
 
 | # | Stage | Family | Gate (drawn with `gate`) |
 |---|---|---|---|

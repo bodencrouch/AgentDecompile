@@ -1,10 +1,15 @@
-<!--SEC:Canvas--> 
-<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1510" viewBox="0 0 1800 1510">
+<!--SEC:Canvas-->
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="execution-contracts-title execution-contracts-desc" lang="en" width="1800" height="1510" viewBox="0 0 1800 1510">
+<title id="execution-contracts-title">Execution and evidence contracts</title>
+<desc id="execution-contracts-desc">Reading order: three task steps (declare, admit, compute outside the commit), three independent binding proofs (bytes, identity, operation), independent acceptance feeding separate original-code and recovered-source capabilities, then fence, quarantine and continue, and the late-worker design challenge. Missing evidence blocks only its own claim, an unhealthy resource blocks its dependents, and ready independent work continues. Design specification only: the late-worker experiment and all future software acceptance checks are NOT RUN; execution-contracts.outline.md is the text outline.</desc>
 <rect x="0" y="0" width="1800" height="1510" rx="8" fill="#16181c" stroke="#16181c"/>
+<g id="exec-header">
 <text x="35" y="43" font-family="DejaVu Sans, sans-serif" font-size="32" fill="#f2f4f7" font-weight="bold">Execution and evidence contracts</text>
 <text x="35" y="76" font-family="DejaVu Sans, sans-serif" font-size="18" fill="#f0c060" font-weight="normal">Design specification · companion to the recovery overview · future software acceptance checks NOT RUN</text>
 <text x="35" y="107" font-family="DejaVu Sans, sans-serif" font-size="18" fill="#d8dbe0" font-weight="normal">Missing evidence blocks its claim. An unhealthy resource blocks its dependents. Ready independent work continues.</text>
+</g>
 <!--SEC:Task and acceptance contract-->
+<g id="exec-step-1">
 <rect x="35" y="135" width="550" height="240" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="51" y="164" font-family="DejaVu Sans, sans-serif" font-size="20" fill="#8cbaff" font-weight="bold">1 · Declare one task contract</text>
 <text x="51" y="195" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Immutable input manifest + dependency versions</text>
@@ -13,6 +18,10 @@
 <text x="51" y="270" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Mutable resource set; process-tree resource budget</text>
 <text x="51" y="295" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Progress units; outputs; deadline; retry owner/budget</text>
 <text x="51" y="320" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Capability priority + capped aging / reservations</text>
+</g>
+<line x1="585" y1="255" x2="625" y2="255" stroke="#8cbaff" stroke-width="3"/>
+<polygon points="625,255 614,249 614,261" fill="#8cbaff"/>
+<g id="exec-step-2">
 <rect x="625" y="135" width="550" height="240" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="641" y="164" font-family="DejaVu Sans, sans-serif" font-size="20" fill="#8cbaff" font-weight="bold">2 · Admit one eligible attempt</text>
 <text x="641" y="195" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Complete input closure on healthy working storage</text>
@@ -21,6 +30,10 @@
 <text x="641" y="270" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Current ownership generation + private outputs</text>
 <text x="641" y="295" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Share nested build budget; external jobs not adopted</text>
 <text x="641" y="320" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">No provider: record exact dependency/wake condition</text>
+</g>
+<line x1="1175" y1="255" x2="1215" y2="255" stroke="#8cbaff" stroke-width="3"/>
+<polygon points="1215,255 1204,249 1204,261" fill="#8cbaff"/>
+<g id="exec-step-3">
 <rect x="1215" y="135" width="550" height="240" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="1231" y="164" font-family="DejaVu Sans, sans-serif" font-size="20" fill="#8cbaff" font-weight="bold">3 · Compute outside commit</text>
 <text x="1231" y="195" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Stable analysis snapshot; immutable proposals</text>
@@ -29,31 +42,40 @@
 <text x="1231" y="270" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Uninstrumented external worker: progress unknown</text>
 <text x="1231" y="295" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">No corpus transaction during compiler / model / game</text>
 <text x="1231" y="320" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Stage, validate, flush, rename BEFORE DB commit</text>
-<line x1="585" y1="255" x2="625" y2="255" stroke="#8cbaff" stroke-width="3"/>
-<polygon points="625,255 614,249 614,261" fill="#8cbaff"/>
-<line x1="1175" y1="255" x2="1215" y2="255" stroke="#8cbaff" stroke-width="3"/>
-<polygon points="1215,255 1204,249 1204,261" fill="#8cbaff"/>
+</g>
 <!--SEC:Independent binding evidence-->
+<g id="exec-binding">
 <text x="35" y="423" font-family="DejaVu Sans, sans-serif" font-size="24" fill="#f2f4f7" font-weight="bold">Runtime use requires presence, identity and operation evidence</text>
+<g id="contract-bytes">
 <rect x="35" y="445" width="550" height="205" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="51" y="474" font-family="DejaVu Sans, sans-serif" font-size="20" fill="#7fd6a4" font-weight="bold">BYTES · Are these bytes here?</text>
 <text x="51" y="505" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Exact target digest + image/address mapping</text>
 <text x="51" y="530" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Observed region and independent byte comparison</text>
 <text x="51" y="555" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Receipt names region, input basis and verifier</text>
 <text x="51" y="580" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Does not establish the selected function name</text>
+</g>
+<g id="contract-identity">
 <rect x="625" y="445" width="550" height="205" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="641" y="474" font-family="DejaVu Sans, sans-serif" font-size="20" fill="#f0c060" font-weight="bold">IDENTITY · Is this the intended entity?</text>
 <text x="641" y="505" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Target-side boundaries and discriminating evidence</text>
 <text x="641" y="530" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Donor labels remain hypotheses until accepted</text>
 <text x="641" y="555" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Signature from selected RVA cannot prove its label</text>
 <text x="641" y="580" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Withdraw bad seed → invalidate dependent claims</text>
+</g>
+<g id="contract-operation">
 <rect x="1215" y="445" width="550" height="205" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="1231" y="474" font-family="DejaVu Sans, sans-serif" font-size="20" fill="#67d3d0" font-weight="bold">OPERATION · Is this use supported?</text>
 <text x="1231" y="505" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">ABI + layout + runtime state + policy requirements</text>
 <text x="1231" y="530" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Located / readable / callable / detourable / writable</text>
 <text x="1231" y="555" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Object lifetime and dynamic-root resolution recipe</text>
 <text x="1231" y="580" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Hook install AND removal; reclaim only when safe</text>
+</g>
+</g>
 <!--SEC:Acceptance and readiness fork-->
+<g id="exec-proof-flow">
+<text x="45" y="690" font-family="DejaVu Sans, sans-serif" font-size="16" fill="#98a0ad" font-weight="normal">All applicable proof receipts → acceptance (4) → original-code (5A) and recovered-source (5B) independently.</text>
+</g>
+<g id="accept-4">
 <rect x="35" y="710" width="550" height="215" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="51" y="739" font-family="DejaVu Sans, sans-serif" font-size="20" fill="#c9a4f0" font-weight="bold">4 · Independent acceptance, short commit</text>
 <text x="51" y="770" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Verifier checks exact claimed level and raw evidence</text>
@@ -61,6 +83,8 @@
 <text x="51" y="820" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Commit manifest + ledger; no artifact IO here</text>
 <text x="51" y="845" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Task complete only when required predicates pass</text>
 <text x="51" y="870" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Producers cannot self-promote or change criteria</text>
+</g>
+<g id="cap-5A">
 <rect x="625" y="710" width="550" height="215" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="641" y="739" font-family="DejaVu Sans, sans-serif" font-size="20" fill="#67d3d0" font-weight="bold">5A · Original-code capability</text>
 <text x="641" y="770" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Original implementation may remain assembly floor</text>
@@ -68,6 +92,8 @@
 <text x="641" y="820" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Scenario: build + fixture + driver + postconditions</text>
 <text x="641" y="845" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Oracle and recording share one scenario attempt</text>
 <text x="641" y="870" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Unknown command outcome → inspect before replay</text>
+</g>
+<g id="cap-5B">
 <rect x="1215" y="710" width="550" height="215" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="1231" y="739" font-family="DejaVu Sans, sans-serif" font-size="20" fill="#7fd6a4" font-weight="bold">5B · Recovered-source capability</text>
 <text x="1231" y="770" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Recovery / compilation / comparison units may differ</text>
@@ -75,9 +101,12 @@
 <text x="1231" y="820" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Compile ≠ local match ≠ linked match ≠ full equality</text>
 <text x="1231" y="845" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Prove replacement contributes; fallback is separate</text>
 <text x="1231" y="870" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">C+assembly-floor and max-C have separate ledgers</text>
-<text x="45" y="690" font-family="DejaVu Sans, sans-serif" font-size="16" fill="#98a0ad" font-weight="normal">All applicable proof receipts → acceptance (4) → original-code (5A) and recovered-source (5B) independently.</text>
+</g>
+<g id="exec-separate-outputs">
 <text x="1181" y="946" font-family="DejaVu Sans, sans-serif" font-size="16" fill="#98a0ad" font-weight="normal">Separate outputs, never an implied readiness ladder</text>
+</g>
 <!--SEC:Failure containment and continuation-->
+<g id="fence">
 <rect x="35" y="980" width="550" height="235" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="51" y="1009" font-family="DejaVu Sans, sans-serif" font-size="20" fill="#ef968b" font-weight="bold">FENCE · Reject obsolete publication</text>
 <text x="51" y="1040" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Old generation or changed inputs → historical only</text>
@@ -86,6 +115,8 @@
 <text x="51" y="1115" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Collision discovery may reduce accepted coverage</text>
 <text x="51" y="1140" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Fencing does NOT prove a worker has stopped</text>
 <text x="51" y="1165" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Representation totals disjoint; capabilities overlap</text>
+</g>
+<g id="quarantine">
 <rect x="625" y="980" width="550" height="235" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="641" y="1009" font-family="DejaVu Sans, sans-serif" font-size="20" fill="#ef968b" font-weight="bold">QUARANTINE · Keep resources occupied</text>
 <text x="641" y="1040" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Expired lease / timeout ≠ safe resource release</text>
@@ -94,6 +125,8 @@
 <text x="641" y="1115" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Atomic local locks; PID identity alone is insufficient</text>
 <text x="641" y="1140" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Private replacement only on disjoint safe resources</text>
 <text x="641" y="1165" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Bound isolated storage probes; never block scheduler</text>
+</g>
+<g id="continue">
 <rect x="1215" y="980" width="550" height="235" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="1231" y="1009" font-family="DejaVu Sans, sans-serif" font-size="20" fill="#f0c060" font-weight="bold">CONTINUE · Only ready independent work</text>
 <text x="1231" y="1040" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Transient failure: one owner, bounded durable retry</text>
@@ -102,12 +135,17 @@
 <text x="1231" y="1115" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">No ready work: persist dependency sets + wake event</text>
 <text x="1231" y="1140" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">Complete remote replica + worker needed for host loss</text>
 <text x="1231" y="1165" font-family="DejaVu Sans, sans-serif" font-size="17" fill="#d8dbe0" font-weight="normal">New user message does not reset retry budget</text>
+</g>
 <!--SEC:Design challenge and future evidence-->
+<g id="challenge-late-worker">
 <rect x="35" y="1250" width="1730" height="215" rx="8" fill="#20232a" stroke="#495364"/>
 <text x="52" y="1282" font-family="DejaVu Sans, sans-serif" font-size="23" fill="#f2f4f7" font-weight="bold">Concrete design challenge · the late worker</text>
 <text x="52" y="1316" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">Attempt A loses its lease while still writing. B runs on disjoint resources. A later submits a byte-perfect artifact.</text>
 <text x="52" y="1349" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">Expected: reject A’s stale publication; retain A’s resource quarantine; permit B only with complete independent inputs.</text>
 <text x="52" y="1382" font-family="DejaVu Sans, sans-serif" font-size="19" fill="#d8dbe0" font-weight="normal">Future proof: inject this race and inspect accepted-generation receipts, ownership events and B’s dependency manifest.</text>
 <text x="52" y="1421" font-family="DejaVu Sans, sans-serif" font-size="18" fill="#f0c060" font-weight="normal">NOT RUN. This diagram defines the acceptance mechanism; it does not claim a scheduler, binding or recovery result exists.</text>
+</g>
+<g id="exec-footer">
 <text x="35" y="1492" font-family="DejaVu Sans, sans-serif" font-size="16" fill="#98a0ad" font-weight="normal">Failure lifecycle and control-plane recovery: resilience-contracts.svg · detailed future checks in the linked plan</text>
+</g>
 </svg>

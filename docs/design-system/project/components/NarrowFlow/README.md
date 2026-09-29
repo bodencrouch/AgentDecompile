@@ -33,7 +33,7 @@ The single-pane flow below 700px, accepted at 598×912: a bottom rail bar (Navig
 **Accessibility**
 
 - Reflow (WCAG 1.4.10): at 320 CSS px only code rows and matrices scroll horizontally, each in its own container.
-- The sheet is `role="dialog"` with `aria-modal="false"`, named by its title; the trigger has `aria-expanded` and `aria-controls`. The rail bar tabs have `aria-controls` to their panes; each tab's name includes its memory ("Analyze, 0041b216").
+- The sheet is `role="dialog"` with `aria-modal="false"`, named by its title; the trigger has `aria-expanded` and `aria-controls`. The selected rail-bar tab has `aria-controls` to its pane (unrendered panes are not referenced); each tab's name includes its memory ("Analyze, 0041b216").
 - Switching panes is announced by the tab itself; opening the sheet with Alt+↓ is announced once ("Peek: FUN_0041c880, reused peek cache"); nothing else speaks.
 - Targets are 44px (2.5.8 and the narrow rule); the sheet never covers the focused element (2.4.11).
 

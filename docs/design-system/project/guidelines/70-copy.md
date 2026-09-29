@@ -13,7 +13,10 @@ Calm engineer. Plain, operational English from the operator's side. Say what hap
 - "diverged — counterpart structurally different, possibly inlined/split"
 - "root unresolved on this build; members tried: …" · "Refuse, never zero."
 - Match review confirm: "Move 3 rows to verification? This cannot be undone here." Single row: "Accept split for match 18421? This cannot be undone here."
-- Held and kept: "Held · build-c · 4 min ago", "Current differs · Refresh", "Kept", "Make primary", "Follow again", "Release". Refused decision: "What changed since you looked".
+- Held and kept: toggle name "Hold this pane" (never changes); state words "Following · sync A" / "Held · ResourceRef::Resolve @ build-c · 4 min"; "Held · read 14:02"; "◷ Basis changed since held · Refresh"; "Basis at hold time not recorded"; "Kept", "Make primary", "Follow again", "Release". Refused decision: "What changed since you looked".
+- Navigation: "Open beside" (on 8080 without split panes, "Open beside (new window)"); "Update panes: As I move / On Enter"; "Not loaded. Open to read it."; "Not decompiled in this session · Enter to decompile"; "no earlier location in this tab"; Back's description before a program change, "Back · clears 12 checked rows on build-a"; copy confirmations, "Copied address 0041b210, build-b".
+- Another project: "This link is for project corpus-beta. You are in corpus-alpha. Opening a project admits its eligible missing work and reuses its receipts." Buttons "Switch to corpus-beta" and "Stay". Never switch silently.
+- Unresolved locations are words: "Event ‹id› is no longer retained", "Worklist not available here", "Address 0041b210 has no build; it exists in build-a, build-c", "contested · no winner".
 - Operator mantra: "Selection is intent. Strip is command. Dock is truth. Palette is jump. Save is metadata. Finished ≠ match."
 
 ## Claim boundaries use ≠

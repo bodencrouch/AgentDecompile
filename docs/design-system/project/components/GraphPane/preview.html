@@ -1,0 +1,104 @@
+<!-- @dsCard group="Code" height=1300 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">Beside the code · Blocks · follows the cursor inside the function, commits on Enter across functions</span>
+<section class="ad-gp" aria-labelledby="gp1-h">
+ <header><span class="kicker">Graph</span><h4 id="gp1-h">Blocks · <code translate="no">ResourceRef::Resolve</code></h4><span class="small muted">build-a · 5 blocks · 7 edges</span>
+  <span class="end"><span class="ad-sync small"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.5 9.5l3-3M7.5 4.5l1-1a2.5 2.5 0 0 1 3.5 3.5l-1 1M8.5 11.5l-1 1A2.5 2.5 0 0 1 4 9l1-1"/></svg>Follows selection · commits on Enter</span>
+   <span class="ad-seg" role="group" aria-label="Graph form"><button aria-pressed="true">Graph</button><button aria-pressed="false">List</button></span>
+   <button class="ad-btn compact" aria-pressed="false">Hold</button></span></header>
+ <div class="ad-tools" role="toolbar" aria-label="Graph view">
+  <span class="ad-seg" role="group" aria-label="Graph kind"><button aria-pressed="true">Blocks</button><button aria-pressed="false">Calls</button></span>
+  <span class="ad-gp-zoom"><button class="ad-btn compact" aria-label="Zoom out" aria-keyshortcuts="-"><span aria-hidden="true">−</span></button><output class="mono small" aria-label="Zoom">100%</output><button class="ad-btn compact" aria-label="Zoom in" aria-keyshortcuts="+"><span aria-hidden="true">+</span></button><button class="ad-btn compact" aria-keyshortcuts="0">Fit</button></span>
+  <span class="ad-gp-pan" role="group" aria-label="Pan"><button class="ad-btn compact" aria-label="Pan left"><span aria-hidden="true">←</span></button><button class="ad-btn compact" aria-label="Pan up"><span aria-hidden="true">↑</span></button><button class="ad-btn compact" aria-label="Pan down"><span aria-hidden="true">↓</span></button><button class="ad-btn compact" aria-label="Pan right"><span aria-hidden="true">→</span></button></span>
+  <button class="ad-btn compact">Center on cursor</button>
+ </div>
+ <div class="ad-gp-vp" data-scroll>
+  <div class="ad-gp-canvas" role="group" aria-label="Control-flow graph of ResourceRef::Resolve, build-a, 5 blocks, 7 edges" aria-describedby="gp1-key" style="width:560px;height:346px">
+   <svg width="560" height="346" viewBox="0 0 560 346" aria-hidden="true" focusable="false">
+    <defs><marker id="gp1-ah" viewBox="0 0 8 8" refX="7.5" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="ah" d="M0 0L8 4L0 8z"/></marker></defs>
+    <path class="e ft" d="M280 67V96" marker-end="url(#gp1-ah)"/>
+    <path class="e" d="M372 40H548V303H376" marker-end="url(#gp1-ah)"/><text class="el" x="470" y="34">taken</text>
+    <path class="e ft" d="M250 155V170H116V184" marker-end="url(#gp1-ah)"/>
+    <path class="e" d="M310 155V170H444V184" marker-end="url(#gp1-ah)"/><text class="el" x="382" y="165">taken</text>
+    <path class="e" d="M116 243V303H184" marker-end="url(#gp1-ah)"/>
+    <path class="e ft" d="M444 243V260H330V272" marker-end="url(#gp1-ah)"/>
+    <path class="e back" d="M510 188V128H376" marker-end="url(#gp1-ah)"/><text class="el" x="420" y="122">taken · loop</text>
+   </svg>
+   <a class="ad-gp-node" style="left:188px;top:12px;width:184px" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" tabindex="-1" aria-label="0041b210, entry block, 3 instructions, ends je 0041b246. Successors: 0041b216 fall-through, 0041b246 taken." aria-keyshortcuts="Alt+ArrowDown"><span class="h"><span class="a" translate="no">0041b210</span><span class="k">entry · 3</span></span><span class="i" translate="no"><span class="mn">test</span> eax, eax</span><span class="i" translate="no"><span class="mn">je</span> 0041b246</span></a>
+   <a class="ad-gp-node" style="left:188px;top:100px;width:184px" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b216" tabindex="0" aria-current="true" aria-label="0041b216, block holding the cursor, 6 instructions, ends je 0041b240. Successors: 0041b22a fall-through, 0041b240 taken. Predecessors: 0041b210, 0041b240 loop." aria-keyshortcuts="Alt+ArrowDown"><span class="h"><span class="a" translate="no">0041b216</span><span class="k">cursor · 6</span></span><span class="i" translate="no"><span class="mn">call</span> <span class="sym">Archive::FindEntry</span></span><span class="i" translate="no"><span class="mn">je</span> 0041b240</span></a>
+   <a class="ad-gp-node" style="left:24px;top:188px;width:184px" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b22a" tabindex="-1" aria-label="0041b22a, 4 instructions, ends jmp 0041b246. Successor: 0041b246." aria-keyshortcuts="Alt+ArrowDown"><span class="h"><span class="a" translate="no">0041b22a</span><span class="k">4</span></span><span class="i" translate="no"><span class="mn">call</span> <span class="sym">ResourceRef::Load</span></span><span class="i" translate="no"><span class="mn">jmp</span> 0041b246</span></a>
+   <a class="ad-gp-node is-focus" style="left:352px;top:188px;width:184px" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b240" tabindex="-1" aria-label="0041b240, 3 instructions, ends jne 0041b216. Successors: 0041b216 taken, loop back edge; 0041b246 fall-through." aria-keyshortcuts="Alt+ArrowDown"><span class="h"><span class="a" translate="no">0041b240</span><span class="k">3</span></span><span class="i" translate="no"><span class="mn">cmp</span> esi, 0x4</span><span class="i" translate="no"><span class="mn">jne</span> 0041b216</span></a>
+   <a class="ad-gp-node" style="left:188px;top:276px;width:184px" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b246" tabindex="-1" aria-label="0041b246, exit block, 2 instructions, ends ret 0x4. Predecessors: 0041b210, 0041b22a, 0041b240." aria-keyshortcuts="Alt+ArrowDown"><span class="h"><span class="a" translate="no">0041b246</span><span class="k">exit · 2</span></span><span class="i" translate="no"><span class="mn">pop</span> ebp</span><span class="i" translate="no"><span class="mn">ret</span> 0x4</span></a>
+  </div>
+ </div>
+ <div class="ad-gp-key" id="gp1-key"><span><svg width="28" height="8" aria-hidden="true"><path class="e" d="M0 4H28"/></svg>taken or unconditional</span><span><svg width="28" height="8" aria-hidden="true"><path class="e ft" d="M0 4H28"/></svg>fall-through</span><span><svg width="28" height="8" aria-hidden="true"><path class="e back" d="M1 4H28"/></svg>loop (back edge)</span><span><span class="sw" aria-hidden="true"></span>block holding the cursor, word “cursor”</span></div>
+ <footer><span>Read from existing analysis · build-a gen 42 · 13:58:07</span><span>↓↑ follow edges · ←→ other edge · Enter go · Alt+↓ peek</span></footer>
+</section>
+
+<span class="kicker">Held · a navigator · Enter moves the selection, the graph keeps its exploration</span>
+<section class="ad-gp held" aria-labelledby="gp2-h" aria-describedby="gp2-d">
+ <header><span class="kicker strong-k">Held</span><h4 id="gp2-h">Calls around <code translate="no">Actor::LoadFromTemplate</code></h4><span class="small muted">build-a · held 6 min · depth 2</span>
+  <span class="end"><span class="ad-gp-hist" role="group" aria-label="Held graph history"><button class="ad-btn compact" aria-label="Back in held graph"><span aria-hidden="true">◂</span></button><button class="ad-btn compact" aria-label="Forward in held graph" disabled><span aria-hidden="true">▸</span></button></span>
+   <span class="ad-seg" role="group" aria-label="Graph form"><button aria-pressed="true">Graph</button><button aria-pressed="false">List</button></span>
+   <button class="ad-btn compact">Make primary</button><button class="ad-btn compact">Release</button></span>
+  <p id="gp2-d" class="small">Selection here: <a class="ad-link" href="?project=corpus-alpha&amp;entity=91&amp;build=build-a&amp;addr=0041d0a0" translate="no">Archive::OpenMember</a>, set from this graph. The graph did not re-center.</p></header>
+ <div class="ad-tools" role="toolbar" aria-label="Held graph view">
+  <span><span class="lbl" id="gp2-dl">Depth</span><span class="ad-seg" role="group" aria-labelledby="gp2-dl"><button aria-pressed="false">1</button><button aria-pressed="true">2</button><button aria-pressed="false">3</button></span></span>
+  <span class="ad-gp-zoom"><button class="ad-btn compact" aria-label="Zoom out" aria-keyshortcuts="-"><span aria-hidden="true">−</span></button><output class="mono small" aria-label="Zoom">100%</output><button class="ad-btn compact" aria-label="Zoom in" aria-keyshortcuts="+"><span aria-hidden="true">+</span></button><button class="ad-btn compact" aria-keyshortcuts="0">Fit</button></span>
+ </div>
+ <div class="ad-gp-vp" data-scroll>
+  <div class="ad-gp-canvas" role="group" aria-label="Call graph from Actor::LoadFromTemplate, build-a, depth 2, 7 functions drawn, 4 callees not drawn" style="width:580px;height:250px">
+   <svg width="580" height="250" viewBox="0 0 580 250" aria-hidden="true" focusable="false">
+    <defs><marker id="gp2-ah" viewBox="0 0 8 8" refX="7.5" refY="4" markerWidth="7" markerHeight="7" orient="auto"><path class="ah" d="M0 0L8 4L0 8z"/></marker></defs>
+    <path class="e" d="M290 52V74H88V92" marker-end="url(#gp2-ah)"/>
+    <path class="e" d="M290 52V74H240V92" marker-end="url(#gp2-ah)"/>
+    <path class="e" d="M290 52V74H390V92" marker-end="url(#gp2-ah)"/>
+    <path class="e ft" d="M290 52V74H526V92" marker-end="url(#gp2-ah)"/>
+    <path class="e" d="M88 136V158H72V176" marker-end="url(#gp2-ah)"/>
+    <path class="e" d="M88 136V158H218V176" marker-end="url(#gp2-ah)"/>
+    <path class="e" d="M390 136V176" marker-end="url(#gp2-ah)"/>
+   </svg>
+   <a class="ad-gp-node fn" style="left:198px;top:12px;width:184px" href="?project=corpus-alpha&amp;entity=90&amp;build=build-a&amp;addr=0041a3f0" tabindex="-1" aria-label="Actor::LoadFromTemplate, 0041a3f0, root, 7 callees, 3 drawn"><span class="i nm" translate="no">Actor::LoadFromTemplate</span><span class="h"><span class="a" translate="no">0041a3f0</span><span class="k">root</span></span></a>
+   <a class="ad-gp-node fn" style="left:8px;top:96px;width:160px" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" tabindex="-1" aria-label="ResourceRef::Resolve, 0041b210, 2 callees"><span class="i nm" translate="no">ResourceRef::Resolve</span><span class="h"><span class="a" translate="no">0041b210</span></span></a>
+   <a class="ad-gp-node fn" style="left:180px;top:96px;width:120px" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" tabindex="-1" aria-label="FUN_0041c880, 0041c880, no callees in the index"><span class="i nm" translate="no">FUN_0041c880</span><span class="h"><span class="a" translate="no">0041c880</span></span></a>
+   <a class="ad-gp-node fn is-focus" style="left:312px;top:96px;width:156px" href="?project=corpus-alpha&amp;entity=91&amp;build=build-a&amp;addr=0041d0a0" tabindex="0" aria-current="true" aria-label="Archive::OpenMember, 0041d0a0, selection here, 1 callee"><span class="i nm" translate="no">Archive::OpenMember</span><span class="h"><span class="a" translate="no">0041d0a0</span><span class="k">selection</span></span></a>
+   <button class="ad-gp-more" style="left:480px;top:96px;width:92px">+4 more <span>not drawn</span></button>
+   <a class="ad-gp-node fn" style="left:8px;top:180px;width:128px" href="?project=corpus-alpha&amp;entity=95&amp;build=build-a&amp;addr=0041c460" tabindex="-1" aria-label="String::CStr, 0041c460, depth limit reached, 1 callee not shown"><span class="i nm" translate="no">String::CStr</span><span class="h"><span class="a" translate="no">0041c460</span></span><span class="lim">depth limit · 1</span></a>
+   <a class="ad-gp-node fn" style="left:144px;top:180px;width:148px" href="?project=corpus-alpha&amp;entity=93&amp;build=build-a&amp;addr=0041b300" tabindex="-1" aria-label="ResourceRef::Load, 0041b300, depth limit reached, 3 callees not shown"><span class="i nm" translate="no">ResourceRef::Load</span><span class="h"><span class="a" translate="no">0041b300</span></span><span class="lim">depth limit · 3</span></a>
+   <a class="ad-gp-node fn" style="left:312px;top:180px;width:156px" href="?project=corpus-alpha&amp;entity=94&amp;build=build-a&amp;addr=0041d2c0" tabindex="-1" aria-label="Archive::FindEntry, 0041d2c0, depth limit reached, 2 callees not shown"><span class="i nm" translate="no">Archive::FindEntry</span><span class="h"><span class="a" translate="no">0041d2c0</span></span><span class="lim">depth limit · 2</span></a>
+  </div>
+ </div>
+ <footer><span>Truncated: depth limit reached on 3 functions; 4 callees of the root not drawn (3 per node). From the stored call index, gen 42.</span></footer>
+ <p class="sr-only" role="status">Selection: Archive::OpenMember, build-a. The held graph keeps its place.</p>
+</section>
+
+<div class="ad-gp-cols">
+ <div class="stack" style="gap:8px">
+  <span class="kicker">List form of the held graph · APG tree, always available</span>
+  <div class="ad-gp-list">
+   <ul class="ad-gp-tree" role="tree" aria-label="Calls from Actor::LoadFromTemplate, build-a, depth 2, list form">
+    <li role="none"><a role="treeitem" href="?project=corpus-alpha&amp;entity=90&amp;build=build-a&amp;addr=0041a3f0" aria-level="1" aria-setsize="1" aria-posinset="1" aria-expanded="true" aria-owns="gpt-g1" tabindex="-1" style="--lvl:0"><span class="tw" aria-hidden="true">▾</span><span class="nm" translate="no">Actor::LoadFromTemplate</span><span class="addr" translate="no">0041a3f0</span><span class="meta">root · 7 callees</span></a>
+     <ul role="group" id="gpt-g1">
+      <li role="none"><a role="treeitem" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" aria-level="2" aria-setsize="4" aria-posinset="1" aria-expanded="true" aria-owns="gpt-g2" tabindex="-1" style="--lvl:1"><span class="tw" aria-hidden="true">▾</span><span class="nm" translate="no">ResourceRef::Resolve</span><span class="addr" translate="no">0041b210</span></a>
+       <ul role="group" id="gpt-g2">
+        <li role="none"><a role="treeitem" href="?project=corpus-alpha&amp;entity=95&amp;build=build-a&amp;addr=0041c460" aria-level="3" aria-setsize="2" aria-posinset="1" tabindex="-1" style="--lvl:2"><span class="tw" aria-hidden="true"></span><span class="nm" translate="no">String::CStr</span><span class="addr" translate="no">0041c460</span><span class="meta">depth limit reached · 1 callee</span></a></li>
+        <li role="none"><a role="treeitem" href="?project=corpus-alpha&amp;entity=93&amp;build=build-a&amp;addr=0041b300" aria-level="3" aria-setsize="2" aria-posinset="2" tabindex="-1" style="--lvl:2"><span class="tw" aria-hidden="true"></span><span class="nm" translate="no">ResourceRef::Load</span><span class="addr" translate="no">0041b300</span><span class="meta">depth limit reached · 3 callees</span></a></li>
+       </ul></li>
+      <li role="none"><a role="treeitem" href="?project=corpus-alpha&amp;build=build-a&amp;addr=0041c880" aria-level="2" aria-setsize="4" aria-posinset="2" tabindex="-1" style="--lvl:1"><span class="tw" aria-hidden="true"></span><span class="nm" translate="no">FUN_0041c880</span><span class="addr" translate="no">0041c880</span><span class="meta">no callees in the index</span></a></li>
+      <li role="none"><a role="treeitem" class="is-focus" href="?project=corpus-alpha&amp;entity=91&amp;build=build-a&amp;addr=0041d0a0" aria-level="2" aria-setsize="4" aria-posinset="3" aria-expanded="true" aria-owns="gpt-g3" aria-current="true" tabindex="0" style="--lvl:1"><span class="tw" aria-hidden="true">▾</span><span class="nm" translate="no">Archive::OpenMember</span><span class="addr" translate="no">0041d0a0</span><span class="meta">selection here</span></a>
+       <ul role="group" id="gpt-g3">
+        <li role="none"><a role="treeitem" href="?project=corpus-alpha&amp;entity=94&amp;build=build-a&amp;addr=0041d2c0" aria-level="3" aria-setsize="1" aria-posinset="1" tabindex="-1" style="--lvl:2"><span class="tw" aria-hidden="true"></span><span class="nm" translate="no">Archive::FindEntry</span><span class="addr" translate="no">0041d2c0</span><span class="meta">depth limit reached · 2 callees</span></a></li>
+       </ul></li>
+      <li role="none"><span role="treeitem" class="more" aria-level="2" aria-setsize="4" aria-posinset="4" tabindex="-1" style="--lvl:1"><span class="tw" aria-hidden="true">+</span>4 more callees · truncated · Enter lists them from the index</span></li>
+     </ul></li>
+   </ul>
+  </div>
+ </div>
+ <div class="stack" style="gap:8px">
+  <span class="kicker">States</span>
+  <div class="ad-notice caution"><b aria-hidden="true">◷</b><div><h4>Showing ResourceRef::Resolve</h4><p>The selection moved to <span translate="no">FUN_0041c880</span>. The graph is an expensive pane: it draws on Enter, or on Draw now, from existing analysis. Block frames are dashed until then.</p></div><button class="ad-btn compact">Draw now</button></div>
+  <div class="ad-notice info"><b aria-hidden="true">◐</b><div><h4>Truncated · 412 blocks</h4><p>Drawing the 40 blocks nearest the cursor. The list form has all 412; nothing beyond existing analysis is read.</p></div><button class="ad-btn compact">List form</button></div>
+  <div class="ad-notice unknown"><b aria-hidden="true">○</b><div><h4>Not loaded. Open to read it.</h4><p>build-c is not open in this session. A graph is drawn from existing analysis only; it never opens a program or starts analysis.</p></div><span></span></div>
+ </div>
+</div>
+</div>

@@ -15,6 +15,7 @@ flowchart TD
 
 | Folder | What it is |
 |--------|------------|
+| [agentdecompile-product/](./agentdecompile-product/README.md) | **Current target.** The product as the user means it: drop, the machine at work, products, and each product's showcase. Intent in [NORTH_STAR.md](../NORTH_STAR.md) |
 | [dashboard-operator-feel/](./dashboard-operator-feel/feel.md) | Experiential north star + [decisions](./dashboard-operator-feel/decisions.md) + HTML mocks |
 | [dashboard-flow-evolution/](./dashboard-flow-evolution/decisions.md) | Palette / jobs-dock decisions + [mock](./dashboard-flow-evolution/mock.html) |
 

@@ -445,11 +445,11 @@ simplification after accepting diminishing returns. [D2:35561–36106]
 | Historical permission to push, delete repos or change account state | Historical task authorization is not renewed by archive consolidation. No publication/destructive actions inferred. |
 | Pasted roadmap's mandatory local Rizin-first implementation order | Retain browser-local provider direction and capability coverage; current recovery priority is STRATEGY and existing useful Ghidra analysis must not be replaced/recomputed for architectural uniformity. |
 | Old prototype says secondary corpus panels, manual stage buttons and quiet status text | Current corpus-first navigation and actual-work visual feedback supersede that presentation; retain useful parity/durability principles. |
-
 | “Enter opens the action strip with the last action” (Aug 31 feel) | 2026-09-29: Enter always means Go on every link; `.` repeats the armed action on the focused row (U184). |
 | Toolbar search filters functions only; Ctrl+P searches functions | 2026-09-29: Ctrl/Cmd+P is go to anything; the Functions filter stays a grid typeahead (U178). |
 | Checked set persists “until Esc” | 2026-09-29: Esc never clears the checked set; the count chip × or Clear checked does (U174, U188). |
 | Analysis tablist with a “More…” select; single-letter global shortcuts | 2026-09-29: a Views toolbar of co-visible views; global commands use modifiers and single letters are focus-scoped and remappable (U173, U188). |
+| `pin=` links; a Back-button history menu; a “Link panes” toggle | 2026-09-29: `keep=` for Kept cards and `hold=` for held panes; a Recent menu (right-click on Back), and Back/Forward never change holds; “Update panes: As I move / On Enter” (U172, U176). |
 
 ## 10. Acceptance and unfinished-outcome ledger
 

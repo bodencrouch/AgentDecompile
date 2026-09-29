@@ -1,6 +1,18 @@
-<!-- @dsCard group="Activity" height=258 -->
+<!-- @dsCard group="Activity" height=520 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<div class="ad-record"><header class="fault"><h4>✕ Provider paused for this input revision</h4><span class="ad-chip">mismatch</span></header>
-<div class="body"><div class="ad-rail"><span class="done">observed</span><span class="done">classified</span><span class="done">contained</span><span class="now">recovery_pending</span><span>reconciling</span><span>eligible</span></div>
-<dl class="ad-dl"><dt>Scope</dt><dd>compile of ResourceRef.cpp for build-c</dd><dt>Evidence</dt><dd>C2440 at resource.c(41) · observed 13:57:10</dd><dt>Spent</dt><dd>2 of 3 attempts · 1 bounded LLM cleanup</dd><dt>Recovery</dt><dd>deterministic cast helper, then recompile</dd><dt>Wake</dt><dd>new candidate revision or changed helper policy</dd><dt>Continues</dt><dd>38 independent tasks on build-c, all of build-b</dd></dl></div></div>
+<article class="ad-record" aria-labelledby="fr-t"><header class="fault"><h3 id="fr-t" class="adl-rh"><span aria-hidden="true">✕ </span>Provider paused for this input revision</h3><span class="ad-chip">mismatch</span><span class="adl-recacts"><button class="ad-btn compact">Expand all</button><button class="ad-btn compact">Collapse all</button></span></header>
+<div class="body"><ol class="ad-rail" aria-label="Failure lifecycle"><li class="done">observed</li><li class="done">classified</li><li class="done">contained</li><li aria-current="step"><a class="ad-link" href="?project=corpus-alpha&amp;node=resil-step-3" aria-label="recovery_pending, resilience step 3, repair, reroute or wait">recovery_pending</a></li><li>reconciling</li><li>eligible</li></ol>
+<dl class="adl-fields">
+<dt>Scope</dt><dd><a class="adl-stg fam-recovery" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;node=stage-4" aria-label="Scope stage 4, C/C++ candidates, ResourceRef.cpp, build-c"><span class="n">4</span><span class="nm">C/C++ candidates</span></a> compile of ResourceRef.cpp for <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c" aria-label="Counterpart ResourceRef::Resolve, build-c, candidate">ResourceRef::Resolve · build-c</a></dd>
+<dt>Evidence</dt><dd class="d"><button class="adl-disc" aria-expanded="true" aria-controls="fr-ev"><b aria-hidden="true">▾</b>C2440 at resource.c(41) · observed 13:57:10</button>
+ <div class="adl-open" id="fr-ev"><pre class="adl-excerpt" role="log" aria-live="off" aria-label="Log excerpt, job 0b17, lines 210 to 212">210  cl /O2 /Gy resource.c
+211  resource.c(41): error C2440: cannot convert from 'int' to 'ResourceRef *'
+212  1 error</pre><span><a class="ad-link small" href="?project=corpus-alpha&amp;dock=logs&amp;job=0b17&amp;f=log.line:211">Open log at line 211</a> · <a class="ad-link small" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;ws=recovery&amp;f=src.line:resource.c:41">resource.c(41) in the repair diff</a></span></div></dd>
+<dt>Owner, resource</dt><dd class="d"><button class="adl-disc" aria-expanded="false"><b aria-hidden="true">▸</b>job 0b17 · managed · output: build-c objects free</button></dd>
+<dt>Freshness</dt><dd><span class="ad-stamp adl-lg" role="group" aria-label="Provenance: fresh compile"><b class="fresh">fresh</b><span class="w">compile</span><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;receipt=5a90">receipt 5a90</a><span class="adl-sep" aria-hidden="true">·</span><a class="ad-link" href="?project=corpus-alpha&amp;dock=jobs&amp;job=0b17" aria-label="Job 0b17, recovery.compile, failed">job 0b17</a><span class="adl-sep" aria-hidden="true">·</span><span>13:57:10</span></span></dd>
+<dt>Spend</dt><dd>2 of 3 attempts · 1 bounded LLM cleanup · next: deterministic cast helper, then recompile</dd>
+<dt>Wake</dt><dd>a new candidate revision, or <a class="ad-link" href="?project=corpus-alpha&amp;dock=jobs&amp;job=0b18" aria-label="Job 0b18, recovery.helper, waiting">job 0b18 (helper policy)</a> reaching its terminal result</dd>
+<dt>Continues</dt><dd><a class="ad-link" href="?project=corpus-alpha&amp;build=build-c&amp;f=eligible:build-c">38 independent tasks on build-c</a> · all of <a class="ad-link" href="?project=corpus-alpha&amp;build=build-b&amp;f=eligible:build-b">build-b</a></dd>
+<dt>Explain</dt><dd class="d"><button class="adl-disc" aria-expanded="false"><b aria-hidden="true">▸</b>Explain stage 4 and its gate</button></dd>
+</dl></div></article>
 </div>

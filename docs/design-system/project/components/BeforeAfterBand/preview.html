@@ -1,0 +1,84 @@
+<!-- @dsCard group="Evidence" height=804 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">Rename finished · the band sits over the changed statements · Decompile, build-a</span>
+<div class="ad-baband-code well" role="grid" aria-readonly="true" aria-label="Decompile, build-a, ResourceRef::Resolve" aria-rowcount="31">
+ <div class="ln" role="row" aria-rowindex="1"><span class="g" aria-hidden="true"></span><span class="no" aria-hidden="true">1</span><span role="gridcell" translate="no">ResourceRef * __thiscall ResourceRef::Resolve(ResourceRef *this, char *key)</span><span class="nt" role="gridcell"></span></div>
+ <div class="ln" role="row" aria-rowindex="2"><span class="g" aria-hidden="true"></span><span class="no" aria-hidden="true">2</span><span role="gridcell" translate="no">{</span><span class="nt" role="gridcell"></span></div>
+ <div class="ln chg" role="row" aria-rowindex="3"><span class="g" aria-hidden="true"></span><span class="no" aria-hidden="true">3</span><span role="gridcell" translate="no">  int <b>itemCount</b>;</span><span class="nt" role="gridcell">changed by job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" translate="no">a3f9</a></span></div>
+ <div class="bandrow" role="row"><div role="gridcell" aria-colspan="3"><div class="ad-baband" role="group" aria-labelledby="ba1-t" aria-describedby="ba1-f">
+  <header><span class="kicker">Before and after</span><h4 id="ba1-t">Rename local · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, rename, finished" aria-keyshortcuts="Alt+ArrowDown" translate="no">a3f9</a> · finished</h4>
+   <span class="ad-stamp"><b class="fresh">fresh</b>re-read 14:02:11 · decompile gen 43</span>
+   <button class="ad-baband-x is-focus" aria-label="Dismiss before and after for job a3f9" aria-keyshortcuts="Escape"><span aria-hidden="true">✕</span></button></header>
+  <dl class="rows">
+   <div class="fld"><dt>Name · local variable in <span translate="no">ResourceRef::Resolve</span> · build-a</dt>
+    <dd class="b"><span class="w">before</span><code translate="no">local_8</code></dd>
+    <dd class="a"><span class="w">after</span><code translate="no"><mark>itemCount</mark></code></dd></div>
+  </dl>
+  <p class="foot" id="ba1-f">3 lines changed. They keep “changed by job a3f9” until the next navigation; dismissing this band keeps those marks.</p>
+ </div></div></div>
+ <div class="ln chg" role="row" aria-rowindex="4"><span class="g" aria-hidden="true"></span><span class="no" aria-hidden="true">4</span><span role="gridcell" translate="no">  <b>itemCount</b> = 0;<span class="sr-only"> changed by job a3f9</span></span><span class="nt" role="gridcell"></span></div>
+ <div class="ln chg" role="row" aria-rowindex="5"><span class="g" aria-hidden="true"></span><span class="no" aria-hidden="true">5</span><span role="gridcell" translate="no">  while (<b>itemCount</b> &lt; 4) {<span class="sr-only"> changed by job a3f9</span></span><span class="nt" role="gridcell"></span></div>
+ <div class="ln" role="row" aria-rowindex="6"><span class="g" aria-hidden="true"></span><span class="no" aria-hidden="true">6</span><span role="gridcell" translate="no">    if (Archive::FindEntry(this-&gt;archive, key) == 0) break;</span><span class="nt" role="gridcell"></span></div>
+</div>
+
+<span class="kicker">Signature and storage · every after value comes from the re-read</span>
+<div class="ad-baband-code well" role="grid" aria-readonly="true" aria-label="Decompile, build-a, ResourceRef::Resolve, signature" aria-rowcount="31">
+ <div class="ln chg" role="row" aria-rowindex="1"><span class="g" aria-hidden="true"></span><span class="no" aria-hidden="true">1</span><span role="gridcell" translate="no"><b>ResourceRef *</b> <b>__thiscall</b> ResourceRef::Resolve(<b>ResourceRef *this</b>, char *key)</span><span class="nt" role="gridcell">changed by job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=b1c4" translate="no">b1c4</a></span></div>
+ <div class="bandrow" role="row"><div role="gridcell" aria-colspan="3"><div class="ad-baband" role="group" aria-labelledby="ba2-t">
+  <header><span class="kicker">Before and after</span><h4 id="ba2-t">Edit signature · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=b1c4" aria-label="Job b1c4, edit signature, finished" aria-keyshortcuts="Alt+ArrowDown" translate="no">b1c4</a> · finished</h4>
+   <span class="ad-stamp"><b class="fresh">fresh</b>re-read 14:05:40 · function gen 44</span>
+   <button class="ad-baband-x" aria-label="Dismiss before and after for job b1c4" aria-keyshortcuts="Escape"><span aria-hidden="true">✕</span></button></header>
+  <dl class="rows">
+   <div class="fld wide"><dt>Signature</dt>
+    <dd class="b"><span class="w">before</span><code translate="no">int __cdecl ResourceRef::Resolve(void *param_1)</code></dd>
+    <dd class="a"><span class="w">after</span><code translate="no"><mark>ResourceRef *</mark> <mark>__thiscall</mark> ResourceRef::Resolve(<mark>ResourceRef *this</mark>, <mark>char *key</mark>)</code></dd></div>
+   <div class="fld"><dt>Storage · parameter 1</dt>
+    <dd class="b"><span class="w">before</span><code translate="no">Stack[0x4]:4 param_1</code></dd>
+    <dd class="a"><span class="w">after</span><code translate="no"><mark>ECX:4 this</mark></code></dd></div>
+   <div class="fld"><dt>Storage · parameter 2</dt>
+    <dd class="b"><span class="w">before</span><span class="none">none</span></dd>
+    <dd class="a"><span class="w">after</span><code translate="no"><mark>Stack[0x4]:4 key</mark></code></dd></div>
+   <div class="fld"><dt>Return</dt>
+    <dd class="b"><span class="w">before</span><code translate="no">int · EAX:4</code></dd>
+    <dd class="a"><span class="w">after</span><code translate="no"><mark>ResourceRef *</mark> · EAX:4</code></dd></div>
+  </dl>
+  <p class="foot">Signature line and 12 call-site lines re-read. Callers on other builds are unchanged: this edit is scoped to build-a.</p>
+ </div></div></div>
+</div>
+
+<div class="ad-baband-cols">
+ <div class="stack" style="gap:8px">
+  <span class="kicker">Pending · before only</span>
+  <div class="ad-baband solo" role="group" aria-labelledby="ba3-t">
+   <header><span class="kicker">Before and after</span><h4 id="ba3-t">Retype local · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=d09e" translate="no">d09e</a> · pending</h4>
+    <button class="ad-baband-x" aria-label="Dismiss before and after for job d09e" aria-keyshortcuts="Escape"><span aria-hidden="true">✕</span></button></header>
+   <dl class="rows"><div class="fld"><dt>Type · <span translate="no">itemCount</span></dt>
+    <dd class="b"><span class="w">before</span><code translate="no">int</code></dd>
+    <dd class="a pending"><span class="w">after</span><span class="none">pending · read after the job ends; nothing is predicted</span></dd></div></dl>
+  </div>
+ </div>
+ <div class="stack" style="gap:8px">
+  <span class="kicker">The re-read differs from the request</span>
+  <div class="ad-baband solo" role="group" aria-labelledby="ba4-t">
+   <header><span class="kicker">Before and after</span><h4 id="ba4-t">Rename local · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=b1c7" translate="no">b1c7</a> · finished</h4>
+    <button class="ad-baband-x" aria-label="Dismiss before and after for job b1c7" aria-keyshortcuts="Escape"><span aria-hidden="true">✕</span></button></header>
+   <dl class="rows"><div class="fld"><dt>Name · local variable</dt>
+    <dd class="b"><span class="w">before</span><code translate="no">local_c</code></dd>
+    <dd class="a"><span class="w">after</span><code translate="no"><mark>itemCount_1</mark></code></dd></div></dl>
+   <p class="foot">Requested <code translate="no">itemCount</code>; the function already had one. The band shows what the program now holds.</p>
+  </div>
+ </div>
+ <div class="stack" style="gap:8px">
+  <span class="kicker">Failed · the re-read shows no change</span>
+  <div class="ad-baband solo fail" role="group" aria-labelledby="ba5-t">
+   <header><span class="kicker">Before and after</span><h4 id="ba5-t">Rename local · job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=c7d2" translate="no">c7d2</a> · <span class="g g-fail" aria-hidden="true">✕</span> failed</h4>
+    <button class="ad-baband-x" aria-label="Dismiss before and after for job c7d2" aria-keyshortcuts="Escape"><span aria-hidden="true">✕</span></button></header>
+   <dl class="rows"><div class="fld"><dt>Name · local variable</dt>
+    <dd class="b"><span class="w">before</span><code translate="no">local_8</code></dd>
+    <dd class="a"><span class="w">after</span><span><code translate="no">local_8</code> <span class="none">· unchanged</span></span></dd></div></dl>
+   <p class="foot">Worker exited 1. No line is marked changed.</p>
+  </div>
+ </div>
+</div>
+<p class="sr-only" role="status">Renamed local_8 to itemCount; decompile updated.</p>
+</div>

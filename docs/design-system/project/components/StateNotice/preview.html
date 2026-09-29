@@ -1,7 +1,10 @@
-<!-- @dsCard group="Activity" height=420 -->
+<!-- @dsCard group="Activity" height=560 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<div class="ad-notice info"><b>↻</b><div><h4>Reconnecting</h4><p>Showing the function list from 14:02. Nothing is lost.</p></div><span></span></div>
-<div class="ad-notice unknown"><b>⊡</b><div><h4>Unavailable</h4><p>The project locator for build-d is not reachable. Its receipts are kept.</p></div><button class="ad-btn">Show path</button></div>
-<div class="ad-notice fault"><b>⇄</b><div><h4>Conflict</h4><p>build-b was renamed in Ghidra while this edit was open. Review both values.</p></div><button class="ad-btn">Resolve</button></div>
-<div class="ad-empty panel"><h3>Select a function to decompile, rename, and match siblings.</h3><p>The function list for build-a is loaded from existing analysis.</p><button class="ad-btn">Go to address <span class="ad-kbd">G</span></button></div>
+<div class="ad-notice info"><b aria-hidden="true">↻</b><div><h4>Reconnecting</h4><p>Showing the function list from 14:02. Nothing is lost.</p></div><span></span></div>
+<div class="ad-notice info"><b aria-hidden="true">○</b><div><h4>Not loaded</h4><p>Not loaded. Open to read it. The program for <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c">build-c</a> is not open in this session.</p></div><button class="ad-btn">Open build-c</button></div>
+<div class="ad-notice unknown"><b aria-hidden="true">⊡</b><div><h4>Unavailable</h4><p>The project locator for build-d is not reachable. Its receipts are kept.</p></div><button class="ad-btn">Show path</button></div>
+<div class="ad-notice fault"><b aria-hidden="true">⇄</b><div><h4>Conflict</h4><p>build-b was renamed in Ghidra while this edit was open. <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;ws=evidence&amp;panel=names">Review both values</a>.</p></div><button class="ad-btn">Resolve</button></div>
+<div class="ad-empty panel adl-dead"><h3>No function inventory in the corpus store for build-e.</h3><p>The Ghidra program for <a class="ad-link" href="?project=corpus-alpha&amp;build=build-e">build-e</a> is bound. Nothing has been imported or analyzed again.</p>
+<div class="row"><button class="ad-btn primary" aria-describedby="sn-arm">Arm extract-inventory for build-e</button><a class="ad-link" href="?project=corpus-alpha&amp;build=build-e&amp;ws=evidence&amp;panel=reuse">What already exists for build-e</a></div><p class="small muted" id="sn-arm" style="margin:8px 0 0">Arms the action strip with build-e bound. Nothing runs until you confirm there.</p></div>
+<div class="ad-empty panel"><h3>Select a function to decompile, rename, and match siblings.</h3><p>The function list for build-a is loaded from existing analysis.</p><button class="ad-btn" aria-keyshortcuts="Control+G Meta+G">Go to address <span class="ad-kbd">Ctrl/Cmd G</span></button></div>
 </div>

@@ -1,5 +1,12 @@
-<!-- @dsCard group="Activity" height=96 -->
+<!-- @dsCard group="Activity" height=260 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<div class="ad-rail"><span class="done">proposed</span><span class="done">waiting</span><span class="done">ready</span><span class="done">admitted</span><span class="now">running</span><span>awaiting_acceptance</span><span>accepted</span></div>
-<div class="ad-rail"><span class="branch">↻ retry_wait</span><span class="branch">∅ budget_exhausted</span><span class="branch g-fail">✕ negative</span><span class="branch">⊘ unsupported</span><span class="branch">⊗ cancelled</span></div>
+<ol class="ad-rail" aria-label="Task lifecycle, job a3f9"><li class="done">proposed</li><li class="done">waiting</li><li class="done">ready</li><li class="done"><a class="ad-link" href="?node=exec-step-2" aria-label="admitted, execution step 2, admit one eligible attempt">admitted</a></li><li aria-current="step"><a class="ad-link" href="?node=exec-step-3" aria-label="running, execution step 3, compute outside commit">running</a></li><li><a class="ad-link" href="?node=accept-4" aria-label="awaiting_acceptance, independent acceptance">awaiting_acceptance</a></li><li>accepted</li></ol>
+<ul class="ad-rail" aria-label="Terminal and side states"><li class="branch">↻ retry_wait</li><li class="branch">∅ budget_exhausted</li><li class="branch"><b class="g-fail" aria-hidden="true">✕</b> negative</li><li class="branch">⊘ unsupported</li><li class="branch">⊗ cancelled</li></ul>
+<span class="kicker">Compact form · OutcomeCell on a row</span>
+<ul class="adl-ocdemo">
+<li><span class="adl-oc run"><a class="ad-link" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, match siblings, running, unit 3 of 6">a3f9</a><b>running</b><span>unit 3 of 6</span></span></li>
+<li><span class="adl-oc pend"><b>pending</b><span>job</span><a class="ad-link" href="?project=corpus-alpha&amp;dock=jobs&amp;job=c4e1" aria-label="Job c4e1, review decision, pending">c4e1</a></span><span class="small muted">after HTTP 202</span></li>
+<li><span class="adl-oc fin"><a class="ad-link" href="?project=corpus-alpha&amp;dock=jobs&amp;job=b7e2" aria-label="Job b7e2, compile, finished">b7e2</a><b>finished</b><span class="w">Compilation: passed, <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;receipt=7c21">new receipt 7c21</a></span></span></li>
+<li><span class="adl-oc fail"><a class="ad-link" href="?project=corpus-alpha&amp;dock=jobs&amp;job=0b17" aria-label="Job 0b17, compile, failed">0b17</a><b><i aria-hidden="true">✕</i>failed</b><span>C2440</span></span></li>
+<li><span class="adl-oc"><span>outcome in dock · job</span><a class="ad-link" href="?project=corpus-alpha&amp;dock=jobs&amp;job=77c0" aria-label="Job 77c0, external, running">77c0</a></span></li></ul>
 </div>

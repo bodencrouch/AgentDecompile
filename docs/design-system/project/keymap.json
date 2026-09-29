@@ -1950,6 +1950,14 @@
    "note": "Menu and palette only; no default key."
   },
   {
+   "id": "patterns.open",
+   "label": "Function start patterns",
+   "keys": [],
+   "scope": "global",
+   "where": "FunctionStartPatterns (panel=patterns)",
+   "note": "Menu and palette only; no default key. No key gathers, mines, evaluates, exports or creates."
+  },
+  {
    "id": "project.saveAll",
    "label": "Save all programs…",
    "keys": [],

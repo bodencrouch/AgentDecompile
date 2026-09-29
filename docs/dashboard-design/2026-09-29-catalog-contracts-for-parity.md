@@ -19,8 +19,8 @@ the compiler-aware and outputs components (PointerWalk, CompilerLayer,
 TransformTimeline, MatchExplain, FrameLayout, VTableBrowser, OutputsCatalog,
 ArtifactCard, ToolchainEvidence, VariantRelation).
 
-**Counts.** 107 contract entries: 36 reads (R01–R36), 37 writes (W01–W37),
-18 jobs (J01–J18) and 16 contract or schema gaps (G01–G16). R35–R36, W35–W37 and J16–J18 were added in round 3 (see "Round 3 additions"). The parity rows each
+**Counts.** 113 contract entries: 39 reads (R01–R39), 37 writes (W01–W37),
+21 jobs (J01–J21) and 16 contract or schema gaps (G01–G16). R35–R36, W35–W37 and J16–J18 were added in round 3 (see "Round 3 additions"); R37–R39 and J19–J21 in round 4 (see "Round 4 additions"). The parity rows each
 entry unblocks are named in the entry; the parity matrix's "Backend status"
 column names the entry ids per row.
 
@@ -1100,6 +1100,45 @@ These entries were added when parity round 3 designed the last 26 rows. Earlier 
 - **Flags:** `mutating=true`, `identity_scope=project` for create and delete; `open_readonly` admits nothing.
 - **Rules:** opening another project always goes through the cross-project StateNotice; delete uses ConfirmDialog.
 - **Consumers:** ProjectWindow. **Unblocks:** V09. **New.**
+
+### Round 4 additions
+
+Function start patterns (parity X08, FunctionStartPatterns). Every entry reads
+recorded function starts and stored results; none analyzes, and only
+`manage-function`'s existing create mode writes a program.
+
+#### J19 · `corpus.gather-function-windows` · proposed · job
+- **In:** `builds`; number of first bytes, pre-bytes and return bytes; number of first, pre and return instructions; context registers (may be empty).
+- **Flags:** `mutating=false` for every program, `long_running=true`, `identity_scope=evidence-store`. Offered only for builds with an analysis receipt; confirmed in a dialog. `stage: "none"` (G15).
+- **Out:** one gather receipt per build: the windows around every recorded function start and return, with each start's origin (debug info, authentic symbols, analysis) and the basis. Reuse first: same parameters and an unchanged basis return the stored receipt, labelled reused.
+- **Consumers:** FunctionStartPatterns. **Unblocks:** X08. **New.**
+
+#### R37 · `corpus.function-window-views` · proposed · read
+- **In:** gather ids; `view` (`bytes` with `window` first, pre or return, a length filter and an optional context register filter; `instructions` with `window` and an optional percentage filter; `alignment` with a modulus; `context_registers`).
+- **Out:** per build, sequences with exact counts and totals (never pooled across builds), instruction trees with instruction lengths and path shares, residue counts, and recorded context register values. A build of another language id is returned in its own group, never compared.
+- **Consumers:** FunctionStartPatterns. **Unblocks:** X08. **New.**
+
+#### J20 · `corpus.mine-closed-patterns` · proposed · job
+- **In:** gather id and window; the selected sequences; minimum support percentage; minimum fixed bits; `unit` (`bits` or `characters`).
+- **Flags:** `mutating=false`, `long_running=true`, `identity_scope=evidence-store`. `stage: "none"` (G15).
+- **Out:** closed sequential patterns with support and fixed-bit counts, each carrying evidence level hypothesis (G05) with its basis ("support 38% of 1,152 first-byte windows on build-b").
+- **Consumers:** FunctionStartPatterns. **Unblocks:** X08. **New.**
+
+#### R38 · `program.evaluate-patterns` · proposed · read
+- **In:** `build` (one); PRE and POST patterns with alignment and context register values; limit.
+- **Out:** matches with address and class (`at_recorded_start`, `inside_function`, `undefined`, `defined_data`), exact counts per class even when rows are truncated, and the read envelope (G04). Agreement with recorded starts is reported as agreement, never as accuracy.
+- **Consumers:** FunctionStartPatterns. **Unblocks:** X08. **New.**
+
+#### J21 · `corpus.export-pattern-file` · proposed · job
+- **In:** patterns; total bits; post bits.
+- **Flags:** `mutating=false` for programs, `identity_scope=output-tree`. `stage: "none"` (G15).
+- **Out:** a pattern file the Function Start Search analyzer reads, as an artifact with its hash and inputs (OutputsCatalog by job record). Using it in analysis is a separate AnalyzerPanel draft on one build.
+- **Consumers:** FunctionStartPatterns, AnalyzerPanel. **Unblocks:** X08. **New.**
+
+#### R39 · `corpus.read-pattern-file` · proposed · read
+- **In:** a pattern file, or a directory of pattern-info files.
+- **Out:** the parsed patterns, or the parsed windows labelled external with file name and hash. An unsupported attribute is refused by name, never dropped.
+- **Consumers:** FunctionStartPatterns. **Unblocks:** X08. **New.**
 
 ## Contract and schema gaps
 

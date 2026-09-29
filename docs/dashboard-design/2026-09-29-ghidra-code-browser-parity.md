@@ -40,9 +40,9 @@ pages in 98 help topic directories. Per-topic counts are in
 
 | Design | Rows | Share |
 |---|---|---|
-| designed | 222 | 99% |
+| designed | 224 | 100% |
 | partial | 0 | 0% |
-| missing | 2 | 1% (both by decision: X08 not planned, C05 until scripts are catalog entries) |
+| missing | 0 | 0% |
 
 | Backend status | Rows | Share |
 |---|---|---|
@@ -51,9 +51,11 @@ pages in 98 help topic directories. Per-topic counts are in
 
 | Design × backend | backed | needed | Rows |
 |---|---|---|---|
-| designed | 121 | 101 | 222 |
+| designed | 121 | 103 | 224 |
 | partial | 0 | 0 | 0 |
-| missing | 0 | 2 | 2 |
+| missing | 0 | 0 | 0 |
+
+**Before (round 3):** 222 designed, 2 missing by decision. Round 4 designed both: X08 as FunctionStartPatterns (backend J19–J21, R37–R39) and C05 as the KeymapSettings Scripts group with the CommandPalette Scripts section (backend G13).
 
 **Before (round 2):** 196 designed, 23 partial, 5 missing. Round 3 closed 26 rows through Listing, GraphPane, DecompileView, SymbolTree, ResultsTable, PropagationTransfer, ReviewDetail and SignatureEditor extensions and five new components (ProgramValidation, ProgramSettings, DebugInfoImport, FunctionIdManager, ProjectWindow), plus ScriptConsole manager actions. The per-group and per-topic tables below are recomputed from the matrix.
 
@@ -75,20 +77,19 @@ design and a backend; its nearest equivalent now is designed and backed,
 | 9. Disassembly, clearing, data creation, references | 11 | 11 | 0 | 0 | 1 | 10 | 0 / 2 / 9 |
 | 10. Searches | 12 | 12 | 0 | 0 | 4 | 8 | 0 / 7 / 5 |
 | 11. Analysis | 9 | 9 | 0 | 0 | 4 | 5 | 4 / 2 / 3 |
-| 12. Patching, Program Diff, Version Tracking | 8 | 7 | 0 | 1 | 3 | 5 | 2 / 3 / 3 |
-| 13. Scripting | 5 | 4 | 0 | 1 | 2 | 3 | 1 / 2 / 2 |
+| 12. Patching, Program Diff, Version Tracking | 8 | 8 | 0 | 0 | 3 | 5 | 2 / 3 / 3 |
+| 13. Scripting | 5 | 5 | 0 | 0 | 2 | 3 | 1 / 2 / 2 |
 | 14. Undo, transactions, multi-user, import and export | 10 | 10 | 0 | 0 | 3 | 7 | 3 / 6 / 1 |
 | 15. Identification tools, utilities, keyboard and options | 10 | 10 | 0 | 0 | 7 | 3 | 5 / 1 / 4 |
-| **Total** | **224** | **222** | **0** | **2** | **121** | **103** | **47 / 94 / 83** |
+| **Total** | **224** | **224** | **0** | **0** | **121** | **103** | **47 / 94 / 83** |
 
 What the counts say:
 
-- **The design caught up.** Every component the first pass marked NEW now
-  exists, and after round 3, 222 rows are designed. The two that are not are
-  missing by decision: X08 is not planned, and C05 waits until scripts are
-  catalog entries ([Rows not yet designed](#rows-not-yet-designed)).
-- **The backend is now the gap.** 101 rows need a catalog action, and 84 of
-  them are fully designed, so their designs wait only on a backend contract. The
+- **The design is complete.** Every component the first pass marked NEW now
+  exists, and after round 4 all 224 rows are designed
+  ([Rows not yet designed](#rows-not-yet-designed) is empty).
+- **The backend is now the only gap.** 103 rows need a catalog action, and all
+  of them are fully designed, so their designs wait only on a backend contract. The
   [catalog contracts](2026-09-29-catalog-contracts-for-parity.md) propose each
   one. The heaviest clusters are disassembly and references (10 of 11 rows
   need an action), types (10 of 19), program-level objects (9 of 12) and
@@ -104,23 +105,19 @@ What the counts say:
 - **The static 8080 surface still has no split panes** (LayoutPresets). On
   8080, every "Open beside" and held-pane row opens a new window; the function
   exists, the side-by-side presentation does not.
-- **Design inconsistencies to reconcile** (owned by those components, not
-  changed here): the Listing extension says operand and EOL display options are
-  read from OptionsPanel's Listing display section, and the XrefPanel extension
-  puts its display options in OptionsPanel's Cross-reference hints section, but
-  ListingFieldLayout owns those options and OptionsPanel's rows only link to it.
-  OptionsPanel's own D30 bullet still says "analysis and program options per
-  build", while its body now makes the decompiler analysis options per-viewer
-  request options and leaves only Prototype evaluation as a program option.
+- **Options ownership is reconciled.** ListingFieldLayout owns the operand,
+  EOL and XREF display options; Listing, XrefPanel and OptionsPanel only link to
+  it. OptionsPanel's D30 makes the decompiler options per-viewer request
+  options, with Prototype evaluation the one read-only program option.
 
 Top ten gaps by recovery value, now all backend: the paged Listing read (R01);
 anchor pairs (R25); the layout check (R24); Commit Params/Return and Local Names
 (W01); reference, flow and fallthrough edits (W13, W10); the stack frame
 (R20, W07); byte and instruction search (R10, R03); relocations, equates and
 register ranges (R12); patching (W26, R05); type archives and sync (W17, R23).
-The largest remaining design gaps are the debug-decompile capture (D06), Set
-external entry point (S11), Validate Program (P11) and the stack-depth change
-(F10).
+No design gaps remain; the rows round 3 closed last were the debug-decompile
+capture (D06), Set external entry point (S11), Validate Program (P11) and the
+stack-depth change (F10), and round 4 closed X08 and C05.
 
 ### Coverage by Ghidra help topic
 
@@ -180,7 +177,7 @@ listed in the
 | Base | FunctionPlugin [`Ghidra/Features/Base/src/main/help/help/topics/FunctionPlugin/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/Base/src/main/help/help/topics/FunctionPlugin) | 2 | 2 | 15 | 15 | 0 | 0 | 12 | 3 | 3 / 10 / 2 |
 | Base | FunctionTagPlugin [`Ghidra/Features/Base/src/main/help/help/topics/FunctionTagPlugin/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/Base/src/main/help/help/topics/FunctionTagPlugin) | 1 | 1 | 1 | 1 | 0 | 0 | 1 | 0 | 0 / 1 / 0 |
 | Base | FunctionWindowPlugin [`Ghidra/Features/Base/src/main/help/help/topics/FunctionWindowPlugin/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/Base/src/main/help/help/topics/FunctionWindowPlugin) | 1 | 1 | 1 | 1 | 0 | 0 | 1 | 0 | 1 / 0 / 0 |
-| Base | GhidraScriptMgrPlugin [`Ghidra/Features/Base/src/main/help/help/topics/GhidraScriptMgrPlugin/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/Base/src/main/help/help/topics/GhidraScriptMgrPlugin) | 2 | 2 | 2 | 1 | 0 | 1 | 0 | 2 | 0 / 1 / 1 |
+| Base | GhidraScriptMgrPlugin [`Ghidra/Features/Base/src/main/help/help/topics/GhidraScriptMgrPlugin/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/Base/src/main/help/help/topics/GhidraScriptMgrPlugin) | 2 | 2 | 2 | 2 | 0 | 0 | 0 | 2 | 0 / 1 / 1 |
 | Base | GhidraServer [`Ghidra/Features/Base/src/main/help/help/topics/GhidraServer/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/Base/src/main/help/help/topics/GhidraServer) | 1 | 1 | 1 | 1 | 0 | 0 | 0 | 1 | 0 / 1 / 0 |
 | Base | Graph [`Ghidra/Features/Base/src/main/help/help/topics/Graph/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/Base/src/main/help/help/topics/Graph) | 2 | 2 | 1 | 1 | 0 | 0 | 1 | 0 | 0 / 1 / 0 |
 | Base | HeadlessAnalyzer [`Ghidra/Features/Base/src/main/help/help/topics/HeadlessAnalyzer/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/Base/src/main/help/help/topics/HeadlessAnalyzer) | 1 | 1 | 1 | 1 | 0 | 0 | 1 | 0 | 1 / 0 / 0 |
@@ -216,7 +213,7 @@ listed in the
 | Base | TranslateStringsPlugin [`Ghidra/Features/Base/src/main/help/help/topics/TranslateStringsPlugin/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/Base/src/main/help/help/topics/TranslateStringsPlugin) | 1 | 1 | 1 | 1 | 0 | 0 | 0 | 1 | 0 / 0 / 1 |
 | Base | ValidateProgram [`Ghidra/Features/Base/src/main/help/help/topics/ValidateProgram/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/Base/src/main/help/help/topics/ValidateProgram) | 1 | 1 | 1 | 1 | 0 | 0 | 0 | 1 | 0 / 0 / 1 |
 | Base | VersionControl [`Ghidra/Features/Base/src/main/help/help/topics/VersionControl/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/Base/src/main/help/help/topics/VersionControl) | 1 | 1 | 1 | 1 | 0 | 0 | 0 | 1 | 0 / 1 / 0 |
-| BytePatterns | FunctionBitPatternsExplorerPlugin [`Ghidra/Features/BytePatterns/src/main/help/help/topics/FunctionBitPatternsExplorerPlugin/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/BytePatterns/src/main/help/help/topics/FunctionBitPatternsExplorerPlugin) | 1 | 1 | 1 | 0 | 0 | 1 | 0 | 1 | 0 / 0 / 1 |
+| BytePatterns | FunctionBitPatternsExplorerPlugin [`Ghidra/Features/BytePatterns/src/main/help/help/topics/FunctionBitPatternsExplorerPlugin/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/BytePatterns/src/main/help/help/topics/FunctionBitPatternsExplorerPlugin) | 1 | 1 | 1 | 1 | 0 | 0 | 0 | 1 | 0 / 0 / 1 |
 | ByteViewer | ByteViewerPlugin [`Ghidra/Features/ByteViewer/src/main/help/help/topics/ByteViewerPlugin/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/ByteViewer/src/main/help/help/topics/ByteViewerPlugin) | 2 | 2 | 3 | 3 | 0 | 0 | 2 | 1 | 0 / 1 / 2 |
 | DataGraph | DataGraphPlugin [`Ghidra/Features/DataGraph/src/main/help/help/topics/DataGraphPlugin/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/DataGraph/src/main/help/help/topics/DataGraphPlugin) | 1 | 1 | 1 | 1 | 0 | 0 | 1 | 0 | 0 / 0 / 1 |
 | Decompiler | DecompilePlugin [`Ghidra/Features/Decompiler/src/main/help/help/topics/DecompilePlugin/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/Decompiler/src/main/help/help/topics/DecompilePlugin) | 5 | 5 | 33 | 33 | 0 | 0 | 20 | 13 | 10 / 9 / 14 |
@@ -233,7 +230,7 @@ listed in the
 | VersionTracking | VersionTrackingPlugin [`Ghidra/Features/VersionTracking/src/main/help/help/topics/VersionTrackingPlugin/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/VersionTracking/src/main/help/help/topics/VersionTrackingPlugin) | 13 | 13 | 4 | 4 | 0 | 0 | 3 | 1 | 2 / 2 / 0 |
 | VersionTrackingBSim | BSimCorrelator [`Ghidra/Features/VersionTrackingBSim/src/main/help/help/topics/BSimCorrelator/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/VersionTrackingBSim/src/main/help/help/topics/BSimCorrelator) | 1 | 1 | 1 | 1 | 0 | 0 | 1 | 0 | 1 / 0 / 0 |
 | WildcardAssembler | WildcardAssemblerModule [`Ghidra/Features/WildcardAssembler/src/main/help/help/topics/WildcardAssemblerModule/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Features/WildcardAssembler/src/main/help/help/topics/WildcardAssemblerModule) | 1 | 1 | 1 | 1 | 0 | 0 | 0 | 1 | 0 / 0 / 1 |
-| Docking | KeyboardNavigation [`Ghidra/Framework/Docking/src/main/help/help/topics/KeyboardNavigation/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Framework/Docking/src/main/help/help/topics/KeyboardNavigation) | 1 | 1 | 2 | 1 | 0 | 1 | 1 | 1 | 1 / 0 / 1 |
+| Docking | KeyboardNavigation [`Ghidra/Framework/Docking/src/main/help/help/topics/KeyboardNavigation/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Framework/Docking/src/main/help/help/topics/KeyboardNavigation) | 1 | 1 | 2 | 2 | 0 | 0 | 1 | 1 | 1 / 0 / 1 |
 | Docking | Search [`Ghidra/Framework/Docking/src/main/help/help/topics/Search/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Framework/Docking/src/main/help/help/topics/Search) | 1 | 1 | 1 | 1 | 0 | 0 | 1 | 0 | 0 / 1 / 0 |
 | Docking | Tables [`Ghidra/Framework/Docking/src/main/help/help/topics/Tables/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Framework/Docking/src/main/help/help/topics/Tables) | 1 | 1 | 1 | 1 | 0 | 0 | 1 | 0 | 0 / 1 / 0 |
 | Docking | Trees [`Ghidra/Framework/Docking/src/main/help/help/topics/Trees/`](https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/Framework/Docking/src/main/help/help/topics/Trees) | 1 | 1 | 1 | 1 | 0 | 0 | 1 | 0 | 0 / 1 / 0 |
@@ -634,7 +631,7 @@ Deferred and out of core scope: decompiler taint (source/sink slice tree)
 | X05 | Version Tracking sessions: correlators (exact bytes, instructions, mnemonics, symbol name, data, references, implied, manual, BSim), matches table, markup items, accept, apply markup, dual listing [vt] [vtcorr] [vtmatch] [vtmark] [gvt] [vt-wiz] [vt-flow] [vt-pre] [vt-fn] [vt-impl] [vt-rel] | RO+MUT | MatchReview, ReviewDetail, CandidateAlignment, CounterpartMatrix, PropagationTransfer | `match-function`, `migrate-metadata`, `bsim-report`; stage-1 catalog verbs `corpus.match-pair` and `corpus.extract-stabs` (the consolidated plan) | the product's native N-way form; accepted edges drive propagation | CAT, CF-dlg (decisions), 1W, NP (similarity proposes; evidence accepts) | designed | backed |
 | X06 | Auto Version Tracking [vt] [vt-auto] | MUT | pipeline stage 1 (automatic, no button) | `manage-workflow` | corpus | NA, 1W | designed | backed |
 | X07 | Version Tracking manual match: create, accept, apply [vt-tool] | MUT | ReviewDetail decision controls; round 3: ReviewDetail (manual match) | catalog action needed for a manual edge | the identity edge between two builds | CAT, CF-dlg, 1W | designed | needed: W31 |
-| X08 | Function Bit Patterns Explorer: mine function-start byte patterns [fbp] | RO | not planned | catalog action needed | across builds | RO | missing | needed (not planned) |
+| X08 | Function Bit Patterns Explorer: mine function-start byte patterns [fbp] | RO | FunctionStartPatterns (round 4): gather, byte and instruction views, alignment, mining, clipboard, evaluate, create functions, export and import | catalog action needed | across builds | RO | designed | needed: J19–J21, R37–R39 |
 
 ### 13. Scripting
 
@@ -644,7 +641,7 @@ Deferred and out of core scope: decompiler taint (source/sink slice tree)
 | C02 | Console: output, scroll lock, clear, find, navigation from addresses [con] | RO | ActivityRecord log tail with typed links | `read-workspace-activity` | per job | RO | designed | backed |
 | C03 | PyGhidra interpreter: interactive session, interrupt, reset [pyi] | MUT | ScriptConsole (REPL mode) | `execute-script` | one build | CAT, 1W | designed | backed |
 | C04 | Bundle Manager: script source bundles, enable, clean, refresh [bun] | MUT | not planned; round 3: ScriptConsole (bundle actions, catalog-gated) | catalog action needed | none | none | designed | needed: R34, W34 |
-| C05 | Script key bindings and Quick Action (Ctrl-3) launcher [sm] [kbn] | RO | CommandPalette actions from `GET /api/v1/actions` | catalog | none | RO | missing | needed: G13 |
+| C05 | Script key bindings and Quick Action (Ctrl-3) launcher [sm] [kbn] | RO | CommandPalette Scripts section (Enter arms the run confirm); KeymapSettings Scripts group; ScriptConsole Assign key binding… | catalog | none | RO | designed | needed: G13 |
 
 ### 14. Undo, transactions, multi-user, import and export
 
@@ -688,7 +685,7 @@ exists under
 Each follows the design system: typed links, one selection owner, words beside
 glyphs, the Linking block, and catalog-only mutation. The Rows column repeats
 each README's "Parity rows covered" section as read on 2026-09-29 after the
-round-2 review.
+round-2 review; the last six rows were added in rounds 3 and 4.
 
 | Component | Purpose | Rows its README claims | Actions it still needs |
 |---|---|---|---|
@@ -712,6 +709,12 @@ round-2 review.
 | [ExportDialog](../design-system/project/components/ExportDialog/README.md) | One exporter per call over a function, selection, program, graph or archive, one job per build, artifacts in Outputs. | D03, G10, V06; V10 (one build's GZF), T09 (type export) | J06, R33 |
 | [OptionsPanel](../design-system/project/components/OptionsPanel/README.md) | Per-viewer tool options (decompiler display and analysis request options, byte viewer, structure editor, search) beside read-only program options per build. | I06, D30, D31, D05, N11, T19; links to L04, L08, L09 | G16, R17, W29, W30 |
 | [EditHistory](../design-system/project/components/EditHistory/README.md) | One build's transactions with Undo, Redo and Undo to here; a single top undo of a single-target edit confirms in place. | V01; V02, V03 (saved versus checked in) | R18, W27 |
+| [ProgramValidation](../design-system/project/components/ProgramValidation/README.md) | Post-analysis validators per build: which ran, the result word per build, findings linked to their addresses; advisory, never a gate. | P11 | R14, R35, J16 |
+| [ProgramSettings](../design-system/project/components/ProgramSettings/README.md) | Language and compiler spec per build with their evidence, and the one destructive per-build change flow with a dry run. | P08 | J17 |
+| [DebugInfoImport](../design-system/project/components/DebugInfoImport/README.md) | What each image records about its debug data, what was found and applied; load PDB, DWARF or SARIF per build at its own tier; source files and map. | Z07, Z09 | J04, J18, R36 |
+| [FunctionIdManager](../design-system/project/components/FunctionIdManager/README.md) | FidDb databases (active, attach, create, detach, populate) and stored hashes per entity × build; FID names as a candidate tier. | I01 | J09 |
+| [ProjectWindow](../design-system/project/components/ProjectWindow/README.md) | The project and its program files, archive and restore, save and save all, project create, delete and read-only open through the cross-project notice. | V03, V09, V10 | W32, W36, W37, J07 |
+| [FunctionStartPatterns](../design-system/project/components/FunctionStartPatterns/README.md) | Byte and instruction patterns around function starts per build, alignment, closed-pattern mining, a clipboard that evaluates on one build, creates functions on one build, and exports a pattern file. | X08 | J19–J21, R37–R39 |
 
 ### Extensions to existing components
 
@@ -748,12 +751,10 @@ Each is a "Parity extensions (2026-09-29)" section in that component's README.
 
 ## Rows not yet designed
 
-2 rows are not designed, both by decision. Round 3 designed the other 26 rows this section listed in round 2 (see each row's "round 3" mapping).
+None. Round 3 designed the 26 rows this section listed in round 2 (see each row's "round 3" mapping). Round 4 designed the last two:
 
-| ID | Feature | Design | Backend status | Reason |
-|---|---|---|---|---|
-| X08 | Function Bit Patterns Explorer | missing | needed (not planned) | Not planned: it authors function-start pattern files for the analysers, a tool-level change that would force re-analysis of every build instead of reusing receipts, and its evidence is heuristic (recorded in ProgramValidation). |
-| C05 | Script key bindings and Quick Action launcher | missing | needed: G13 | By decision until scripts are catalog entries. The future design is specified: a Scripts section in the CommandPalette, with no new key, where Enter opens the run confirm and never runs. |
+- **X08** Function Bit Patterns Explorer → FunctionStartPatterns. The earlier objection (a tool-level change forcing re-analysis of every build) is met by design: gathering reads recorded starts only, every pattern is a hypothesis, and a pattern file reaches analysis only as a confirmed AnalyzerPanel draft on one build.
+- **C05** Script key bindings and the Quick Action launcher → the KeymapSettings Scripts group, the CommandPalette Scripts section and ScriptConsole's Assign key binding…; backend G13.
 
 ## Backend and catalog gaps
 
@@ -868,6 +869,8 @@ batch verbs also need CF-dlg, and MC where custom data can be overwritten.
   (V04, V05) → W33, J15.
 - Script files and bundles (C01, C04) → R34, W34; scripts as catalog entries
   (C05) → G13.
+- Function start patterns: gather, views, mining, evaluation, pattern-file
+  export and import (X08) → J19, R37, J20, R38, J21, R39.
 - The compiler-aware and outputs views (no parity rows): R26–R33, J10–J13 and
   G09–G12, G14.
 

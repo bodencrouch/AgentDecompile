@@ -1,0 +1,153 @@
+<!-- @dsCard group="Project" height=2000 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<span class="kicker">Selected builds · stored gathers and results only · nothing is gathered, mined or searched on open · a pattern is a hypothesis</span>
+<section class="ad-g3" aria-labelledby="fsp-t">
+ <header class="ad-g3-head">
+  <h3 id="fsp-t">Function start patterns <span class="sub">· corpus-alpha</span></h3>
+  <p class="ad-g3-note" role="note"><strong>A pattern is a hypothesis about code generation, not evidence that a function exists.</strong> Agreement with recorded starts is not accuracy: recorded starts are themselves analysis results.</p>
+  <fieldset class="ad-g3-sum" style="border:0;padding:0"><legend class="kicker">Builds</legend>
+   <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-a</span><span class="d">x86:LE:32</span></label>
+   <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-b</span><span class="d">x86:LE:32</span></label>
+   <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-c</span><span class="d">x86:LE:32</span></label>
+   <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-d</span><span class="d">x86:LE:64 · compared separately</span></label>
+  </fieldset>
+  <div class="ad-tabs" role="tablist" aria-label="Function start pattern views">
+   <button class="ad-tab" role="tab" aria-selected="true" aria-controls="fsp-p1" id="fsp-tab1">Byte sequences</button>
+   <button class="ad-tab" role="tab" aria-selected="false" tabindex="-1" id="fsp-tab2">Instruction trees</button>
+   <button class="ad-tab" role="tab" aria-selected="false" tabindex="-1" id="fsp-tab3">Alignment</button>
+   <button class="ad-tab" role="tab" aria-selected="false" tabindex="-1" id="fsp-tab4">Context registers</button>
+   <button class="ad-tab" role="tab" aria-selected="false" tabindex="-1" id="fsp-tab5">Clipboard <span class="n mono">3</span></button>
+  </div>
+ </header>
+
+ <div id="fsp-p1" role="tabpanel" aria-labelledby="fsp-tab1" class="ad-g3-sec">
+  <div class="ad-subtabs" role="tablist" aria-label="Byte sequence windows">
+   <span role="tab" aria-selected="true" tabindex="0">First bytes</span><span role="tab" aria-selected="false" tabindex="-1">Pre-bytes</span><span role="tab" aria-selected="false" tabindex="-1">Return bytes</span>
+  </div>
+  <p class="ad-g3-sum"><span>Gathers: build-a g41c · build-b g41d · build-c g41e · build-d g420, <span class="ad-stamp"><b>reused</b>basis unchanged</span></span><span>Length filter: at least 3 bytes · prefix 3</span><span>Context register filter: none</span></p>
+  <div class="ad-scroll" role="region" aria-label="First-byte sequences per build, scrolls sideways">
+  <table class="ad-table ad-g3-grid" role="grid" aria-label="First-byte sequences per build" aria-rowcount="5" aria-colcount="6" style="min-width:900px">
+   <thead><tr><th scope="col">Sequence</th><th scope="col">build-a</th><th scope="col">build-b</th><th scope="col">build-c</th><th scope="col">build-d</th><th scope="col">Across builds (x86-32)</th></tr></thead>
+   <tbody>
+    <tr aria-selected="true" class="is-focus" tabindex="0">
+     <th scope="row"><span class="nm mono" translate="no">55 8B EC</span><span class="d">push ebp · mov ebp, esp</span></th>
+     <td role="gridcell">812 of 1,144 · 71%</td>
+     <td role="gridcell">46 of 1,152 · 4%</td>
+     <td role="gridcell">790 of 1,197 · 66%</td>
+     <td role="gridcell" class="muted">not comparable · x86:LE:64</td>
+     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs: consistent pattern<span class="m">rare on build-b only</span></span><br><span class="ad-evd hyp"><b>hypothesis (heuristic)</b>≈ compile variance: /Oy on build-b (ToolchainEvidence hypothesis); no source identity recorded</span></td>
+    </tr>
+    <tr tabindex="-1">
+     <th scope="row"><span class="nm mono" translate="no">83 EC ..</span><span class="d">sub esp, imm8 · 1 byte ditted</span></th>
+     <td role="gridcell">61 of 1,144 · 5%</td>
+     <td role="gridcell">438 of 1,152 · 38%</td>
+     <td role="gridcell">72 of 1,197 · 6%</td>
+     <td role="gridcell" class="muted">not comparable · x86:LE:64</td>
+     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs: consistent pattern<span class="m">common on build-b only</span></span></td>
+    </tr>
+    <tr tabindex="-1">
+     <th scope="row"><span class="nm mono" translate="no">56 8B F1</span><span class="d">push esi · mov esi, ecx</span></th>
+     <td role="gridcell">97 of 1,144 · 8%</td>
+     <td role="gridcell">139 of 1,152 · 12%</td>
+     <td role="gridcell">104 of 1,197 · 8%</td>
+     <td role="gridcell" class="muted">not comparable · x86:LE:64</td>
+     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">±</b>differs<span class="m">8% to 12% · no variance class drawn</span></span></td>
+    </tr>
+    <tr tabindex="-1">
+     <th scope="row"><span class="nm mono" translate="no">8B FF 55</span><span class="d">mov edi, edi · push ebp</span></th>
+     <td role="gridcell">0 of 1,144 · absent</td>
+     <td role="gridcell">0 of 1,152 · absent</td>
+     <td role="gridcell">31 of 1,197 · 3%</td>
+     <td role="gridcell" class="muted">not comparable · x86:LE:64</td>
+     <td role="gridcell"><span class="ad-g3-st diff col"><b aria-hidden="true">−</b>absent in build-a, build-b</span></td>
+    </tr>
+   </tbody>
+  </table>
+  </div>
+  <div class="ad-tools" role="group" aria-label="Sequence actions">
+   <button class="ad-btn" type="button">Analyze sequences</button>
+   <button class="ad-btn" type="button">Show all occurrences</button>
+   <button class="ad-btn" type="button" aria-haspopup="dialog">Gather windows…</button>
+  </div>
+ </div>
+
+ <div class="ad-g3-cols">
+  <div class="ad-g3-sec">
+   <h4>Instruction tree · first instructions · build-a</h4>
+   <ul class="ad-g3-tree" role="tree" aria-label="First instructions, build-a">
+    <li role="treeitem" aria-expanded="true" aria-level="1" aria-setsize="2" aria-posinset="1" aria-selected="true" tabindex="0"><span>push ebp (1 byte) <span class="small muted">· 71% of 1,144 paths</span></span>
+     <ul role="group">
+      <li role="treeitem" aria-level="2" aria-setsize="1" aria-posinset="1" aria-selected="false" tabindex="-1"><span>mov ebp, esp (2 bytes) <span class="small muted">· 71%</span></span></li>
+     </ul>
+    </li>
+    <li role="treeitem" aria-expanded="false" aria-level="1" aria-setsize="2" aria-posinset="2" aria-selected="false" tabindex="-1"><span>push esi (1 byte) <span class="small muted">· 8%</span></span></li>
+   </ul>
+   <p class="small muted" style="margin:0">Percentage filter 5% · 12 nodes under 5% hidden</p>
+  </div>
+  <div class="ad-g3-sec">
+   <h4>Alignment · modulus 16</h4>
+   <div class="ad-scroll" role="region" aria-label="Start residues per build">
+   <table class="ad-table ad-g3-grid" style="min-width:0" aria-label="Function start residues modulo 16">
+    <thead><tr><th scope="col">Residue</th><th scope="col">build-a</th><th scope="col">build-d</th></tr></thead>
+    <tbody>
+     <tr><th scope="row" class="mono">0</th><td>212</td><td><strong>1,391</strong></td></tr>
+     <tr><th scope="row" class="mono">other 15</th><td>932</td><td>11</td></tr>
+    </tbody>
+   </table>
+   </div>
+   <p class="small" style="margin:0">build-a: no dominant residue. <span class="ad-evd hyp"><b>hypothesis (heuristic)</b>build-d: 16-byte aligned · 1,391 of 1,402 starts at residue 0</span></p>
+  </div>
+ </div>
+
+ <div class="ad-g3-sec">
+  <h4>Clipboard · evaluate on build-a</h4>
+  <div class="ad-scroll" role="region" aria-label="Pattern clipboard">
+  <table class="ad-table ad-g3-grid" role="grid" aria-label="Pattern clipboard" style="min-width:720px">
+   <thead><tr><th scope="col">Pattern</th><th scope="col">Kind</th><th scope="col">Bits</th><th scope="col">Alignment</th><th scope="col">Source</th></tr></thead>
+   <tbody>
+    <tr aria-selected="true" tabindex="0"><th scope="row"><span class="nm">P1</span></th><td>POST</td><td class="mono" translate="no">55 8B EC · 24 fixed</td><td>1</td><td class="small">merged on build-a · 3 sequences</td></tr>
+    <tr aria-selected="true" tabindex="-1"><th scope="row"><span class="nm">P2</span></th><td>PRE</td><td class="mono" translate="no">CC CC · 16 fixed</td><td>1</td><td class="small">pre-bytes, build-a</td></tr>
+    <tr aria-selected="false" tabindex="-1"><th scope="row"><span class="nm">P3</span></th><td>PRE</td><td class="mono" translate="no">C3 · 8 fixed</td><td>1</td><td class="small">return bytes, build-a</td></tr>
+   </tbody>
+  </table>
+  </div>
+  <p class="ad-g3-sum" role="status"><span><strong>1,204 matches on build-a</strong> for P1 with P2</span><span>802 at recorded starts (67% agreement with recorded starts, not accuracy)</span><span>311 in undefined bytes</span><span>58 inside functions</span><span>33 in data</span></p>
+  <div class="ad-tools" role="group" aria-label="Clipboard actions">
+   <button class="ad-btn" type="button">Evaluate on…</button>
+   <button class="ad-btn" type="button" aria-haspopup="dialog">Create functions…</button>
+   <button class="ad-btn" type="button" aria-haspopup="dialog">Export pattern file…</button>
+   <button class="ad-btn" type="button">Use in analysis…</button>
+   <button class="ad-btn" type="button" aria-haspopup="dialog">Import pattern file…</button>
+  </div>
+ </div>
+
+ <div class="ad-g3-sec">
+  <h4>Confirm create functions</h4>
+  <div class="ad-g3-dlg" role="alertdialog" aria-modal="true" aria-labelledby="fsp-cf-t" aria-describedby="fsp-cf-d">
+   <header><h3 id="fsp-cf-t">Create 311 functions on build-a</h3><span class="end">catalog: function creation · 311 transactions</span></header>
+   <div class="body">
+    <p class="ad-g3-note" id="fsp-cf-d">Writes build-a only. Each new start is recorded as "created from pattern P1 with P2 · hypothesis" and is undoable in Edit history. Nothing is created on build-b, build-c or build-d.</p>
+    <dl class="ad-dl">
+     <dt>Matches</dt><dd>311 in undefined bytes · 58 inside functions and 33 in data are not included</dd>
+     <dt>Writer</dt><dd>build-a's one writer; this job waits if another holds it</dd>
+    </dl>
+   </div>
+   <footer><span class="note">A created function is not a recovery claim.</span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Create · 311 functions</button></footer>
+  </div>
+ </div>
+</section>
+
+<div class="adc-states">
+ <div>
+  <span class="kicker">Never gathered · nothing analyzes</span>
+  <div class="ad-notice info"><b aria-hidden="true">○</b><div><h4>No gather on build-c for pre-bytes</h4><p>Gather windows… reads its recorded function starts. Nothing is analyzed.</p></div><span></span></div>
+ </div>
+ <div>
+  <span class="kicker">No catalog action</span>
+  <div class="ad-tools" role="group" aria-label="Gather unavailable">
+   <button class="ad-btn" type="button" aria-disabled="true" aria-describedby="fsp-nocat">Gather windows…</button>
+   <span class="small muted" id="fsp-nocat">catalog action needed · not offered yet. Stored gathers still read.</span>
+  </div>
+ </div>
+</div>
+</div>

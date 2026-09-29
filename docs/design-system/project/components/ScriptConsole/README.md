@@ -28,7 +28,7 @@ An advanced panel that holds the script manager, a read-only console transcript,
   - **Refresh** re-scans the bundle's directory. It is a read, and a changed script list is announced once.
   - **Add directory…** and **Remove…** edit the directory list, and Remove says which scripts leave the manager.
   A system bundle cannot be removed; it can only be disabled.
-- **Quick launcher (C05, missing by decision).** Today the palette's **Run script…** opens the Manager with the filter focused and recent scripts first. When scripts become catalog entries (G13), the launcher is a **Scripts** section in the CommandPalette, after Actions. It gets no new key: Ctrl/Cmd+K and typing reach it.
+- **Quick launcher (C05; designed, backend needed: G13).** Today the palette's **Run script…** opens the Manager with the filter focused and recent scripts first. When scripts become catalog entries (G13), the launcher is a **Scripts** section in the CommandPalette, after Actions. It gets no new key: Ctrl/Cmd+K and typing reach it.
   - Its rows are up to 10 recent scripts (most recently used first), then all scripts in name order. The palette query filters them by name or description, with `*` and `?` wildcards as in Ghidra.
   - Each row shows the script, its category, its declared write scope ("writes: unknown" until one is declared) and its key binding if the viewer assigned one.
   - Enter arms the run's ConfirmDialog for the inspected build. It never posts. An unavailable script stays listed, `aria-disabled` with its reason ("compile error, line 41").

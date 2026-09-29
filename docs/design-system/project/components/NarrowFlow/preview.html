@@ -1,0 +1,79 @@
+<!-- @dsCard group="Shell" height=960 -->
+<div class="ad" style="padding:16px;display:grid;gap:12px">
+<div class="ad-narrow-demo">
+<div class="ad-narrow" aria-label="Single-pane workbench at 598 by 912">
+ <nav class="ad-narrow-nav" aria-label="Navigation">
+  <button class="ad-narrow-btn" aria-label="Back to Actor::LoadFromTemplate" aria-keyshortcuts="Alt+ArrowLeft"><span class="g" aria-hidden="true">←</span></button>
+  <button class="ad-narrow-btn goto" aria-haspopup="dialog" aria-keyshortcuts="Control+P Meta+P"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5l3 3"/></svg>Go to…</button>
+  <button class="ad-narrow-btn crumb" aria-haspopup="menu" aria-expanded="false" aria-label="Location: corpus-alpha, build-a, .text, ResourceRef::Resolve. Breadcrumb menu"><span class="lvl" aria-hidden="true">build-a · .text</span><span class="nm" translate="no">ResourceRef::Resolve</span><span aria-hidden="true">▾</span></button>
+ </nav>
+ <section class="ad-narrow-pane" id="nf-p-analyze" role="tabpanel" aria-labelledby="nf-t-analyze">
+  <header class="ad-narrow-ph"><span class="kicker">Analyze</span><span class="small muted">logical #88 · build-a <span class="addr">0041b213</span></span></header>
+  <div class="ad-subtabs ad-narrow-tabs" role="tablist" aria-label="Analysis view"><button role="tab" aria-selected="true">Listing</button><button role="tab" aria-selected="false" tabindex="-1">Decompile</button><button role="tab" aria-selected="false" tabindex="-1">Xrefs</button></div>
+  <div class="ad-narrow-code well" role="grid" aria-label="Listing, ResourceRef::Resolve, build-a" aria-rowcount="23" data-scroll>
+   <div role="row" class="ad-narrow-ln lbl" aria-rowindex="1"><span role="gridcell" class="addr">0041b210</span><span role="gridcell" class="op" translate="no">ResourceRef::Resolve:</span></div>
+   <div role="row" class="ad-narrow-ln" aria-rowindex="2"><span role="gridcell" class="addr">0041b210</span><span role="gridcell" class="mn">push</span><span role="gridcell" class="op">ebp</span></div>
+   <div role="row" class="ad-narrow-ln" aria-rowindex="3"><span role="gridcell" class="addr">0041b211</span><span role="gridcell" class="mn">mov</span><span role="gridcell" class="op">ebp, esp</span></div>
+   <div role="row" class="ad-narrow-ln" aria-rowindex="4"><span role="gridcell" class="addr">0041b213</span><span role="gridcell" class="mn">mov</span><span role="gridcell" class="op">eax, [ebp + 0x8]</span></div>
+   <div role="row" class="ad-narrow-ln" aria-current="true" aria-rowindex="5"><span role="gridcell" class="addr">0041b216</span><span role="gridcell" class="mn">call</span><span role="gridcell" class="op"><a class="ad-link sym is-focus" href="?p=corpus-alpha&amp;b=build-a&amp;a=0041c880" aria-expanded="true" aria-controls="nf-sheet" aria-keyshortcuts="Alt+ArrowDown" translate="no">FUN_0041c880</a></span></div>
+   <div role="row" class="ad-narrow-ln under" aria-rowindex="6"><span role="gridcell" class="addr">0041b21b</span><span role="gridcell" class="mn">pop</span><span role="gridcell" class="op">ebp</span></div>
+  </div>
+  <section class="ad-narrow-sheet" id="nf-sheet" role="dialog" aria-modal="false" aria-labelledby="nf-sh-t">
+   <span class="ad-narrow-grab" aria-hidden="true"></span>
+   <header><span class="kicker">Peek · function · build-a</span><h4 id="nf-sh-t" translate="no">FUN_0041c880</h4>
+    <span class="acts"><button class="ad-narrow-btn sq" aria-pressed="false" aria-label="Expand peek to full height">⤢</button><button class="ad-narrow-btn sq" aria-label="Close peek" aria-keyshortcuts="Escape">✕</button></span>
+    <span class="sub"><span class="ad-stamp"><b>reused</b>peek cache · gen 42 · 13:58</span></span></header>
+   <div class="pb">
+    <span class="ad-fact failed"><b aria-hidden="true">✕</b><span><span class="label">Compilation</span> failed</span></span> <span class="small muted">· other six facts not run · no identity</span>
+    <div class="ad-narrow-well" role="group" aria-label="Listing, first 4 of 31 instructions"><div><span class="addr">0041c880</span><span class="mn">push</span><span>ebp</span></div><div><span class="addr">0041c881</span><span class="mn">mov</span><span>ebp, esp</span></div><div><span class="addr">0041c883</span><span class="mn">sub</span><span>esp, 0x10</span></div><div><span class="addr">0041c8d2</span><span class="mn">call</span><span class="sym" translate="no">ResourceRef::Resolve</span></div></div>
+    <span class="small muted">Cached, 4 of 31 instructions. The line that opened it stays visible above.</span>
+   </div>
+   <footer><button class="ad-narrow-btn">Open</button><button class="ad-narrow-btn">Open beside <span class="small muted">in Inspect</span></button><button class="ad-narrow-btn" aria-pressed="false">Keep</button></footer>
+  </section>
+ </section>
+ <nav class="ad-narrow-rail" aria-label="Panes">
+  <div role="tablist" aria-label="Pane">
+   <button role="tab" id="nf-t-nav" aria-selected="false" aria-controls="nf-p-nav" tabindex="-1"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7"/></svg><span class="w">Navigate</span><span class="mem">row 212</span></button>
+   <button role="tab" id="nf-t-analyze" aria-selected="true" aria-controls="nf-p-analyze"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 4.5L2.5 8l3 3.5M10.5 4.5l3 3.5-3 3.5"/></svg><span class="w">Analyze</span><span class="mem">0041b216</span></button>
+   <button role="tab" id="nf-t-insp" aria-selected="false" aria-controls="nf-p-insp" tabindex="-1"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="2.5" width="11" height="11"/><path d="M5 6h6M5 9h4"/></svg><span class="w">Inspect</span><span class="mem">Facts</span></button>
+   <button role="tab" id="nf-t-act" aria-selected="false" aria-controls="nf-p-act" tabindex="-1"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 8h2.5l1.5-4 3 8 1.5-4h2.5"/></svg><span class="w">Activity</span><span class="mem">5 problems</span></button>
+  </div>
+ </nav>
+</div>
+
+<div class="ad-narrow-side">
+ <section class="ad-narrow-card" aria-labelledby="nf-a-h">
+  <h5 class="kicker" id="nf-a-h">Navigate · focus moves, nothing advances</h5>
+  <div class="ad-narrow-list" role="grid" aria-label="Functions, build-a" aria-rowcount="2418">
+   <div role="row" class="ad-narrow-li" aria-selected="true" aria-rowindex="211"><span role="gridcell" class="addr">0041b210</span><span role="gridcell" translate="no">ResourceRef::Resolve</span></div>
+   <div role="row" class="ad-narrow-li" aria-rowindex="212"><span role="gridcell" class="addr">0041d0a0</span><span role="gridcell" class="is-focus" tabindex="0" translate="no">Archive::OpenMember</span></div>
+   <div role="row" class="ad-narrow-li" aria-rowindex="213"><span role="gridcell" class="addr">0041e310</span><span role="gridcell" translate="no">TextureCache::Load</span></div>
+  </div>
+  <p class="small">↓ moved focus to <span translate="no">Archive::OpenMember</span>. Analyze still shows <span translate="no">ResourceRef::Resolve</span>. <strong class="strong">Enter or a tap</strong> selects it and opens Analyze.</p>
+ </section>
+ <section class="ad-narrow-card" aria-labelledby="nf-b-h">
+  <h5 class="kicker" id="nf-b-h">Breadcrumb menu</h5>
+  <ul class="ad-menu ad-narrow-menu" role="menu" aria-labelledby="nf-b-h">
+   <li role="none"><a role="menuitem" href="?p=corpus-alpha" tabindex="-1"><span class="t"><span class="muted">Project</span> corpus-alpha</span><span class="m">▸</span></a></li>
+   <li role="none"><a role="menuitem" href="?p=corpus-alpha&amp;b=build-a" tabindex="-1"><span class="t"><span class="muted">Build</span> build-a</span><span class="m">4 builds ▸</span></a></li>
+   <li role="none"><a role="menuitem" href="?p=corpus-alpha&amp;b=build-a&amp;a=00401000" tabindex="-1"><span class="t"><span class="muted">Section</span> .text</span><span class="m">▸</span></a></li>
+   <li role="none"><a role="menuitem" class="is-active" aria-current="location" href="?p=corpus-alpha&amp;e=88&amp;b=build-a&amp;a=0041b216" tabindex="-1"><span class="t" translate="no"><span class="muted">Function</span> ResourceRef::Resolve</span><span class="m">0041b216</span></a></li>
+   <li role="separator"></li>
+   <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Forward</span><span class="m">Alt →</span></div></li>
+   <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Recent…</span></div></li>
+   <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Copy link</span></div></li>
+  </ul>
+ </section>
+ <section class="ad-narrow-card" aria-labelledby="nf-c-h">
+  <h5 class="kicker" id="nf-c-h">Each pane returns where you left it</h5>
+  <dl class="ad-narrow-mem">
+   <dt>Navigate</dt><dd>row 212 of 2,418 · filter “Resolve” · scroll kept</dd>
+   <dt>Analyze</dt><dd>Listing tab · caret <span class="addr">0041b216</span></dd>
+   <dt>Inspect</dt><dd>Facts section · scroll kept</dd>
+   <dt>Activity</dt><dd>Problems tab · focus on the expanded failure</dd>
+  </dl>
+  <p class="small muted">Per viewer, in durable workspace state. The URL carries the location, not scroll.</p>
+ </section>
+</div>
+</div>
+</div>

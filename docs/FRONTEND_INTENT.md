@@ -211,9 +211,17 @@ not the whole workspace. Do not silently remove these requirements to ship a she
 | F26 | Distributed contribution | Optional explicit opt-in for other machines/browser visitors to contribute suitable compute. Show leased work, resource limits, ownership, cancellation and returned evidence. A browser visit is not consent to consume resources or upload proprietary data. Native toolchain/Ghidra writers require appropriate workers and serialized ownership, not arbitrary browser execution. |
 | F27 | Collaboration and CI | Retain requested linkable analysis/scratch, annotation collaboration, project event/history and Git/CI-report direction. Sharing/publishing is opt-in; no automatic upstream PR, public binary upload or public service exposure. |
 | F28 | Language/engine extensibility | C/C++ is the current recovery target, not a universal language assumption. Normalize actual provider outputs behind existing contracts; expose supported operations and gaps without forcing one engine or an entirely new generic framework. |
+| F29 | Typed links and location | Every mention of an address, symbol, counterpart, fact, receipt, job, logical id, basis or pipeline node is a real link over one location schema shared by both surfaces, with one activation grammar (Enter go, Shift+Enter open beside, Alt+↓ peek, K keep, Shift+F10 reveal in). Back, Forward, reload, shared links and surface switches restore the exact place and focus. Opening a link is read-only. |
+| F30 | Co-visible code and counterparts | Listing, decompile, hex and graph are visible together with one reflected cursor; references, calls, vtable slots and outline sit beside the code; counterparts on other builds are named in place and open beside without replacing the inspected build. Missing mappings are written, never guessed. |
+| F31 | Information comes to the selection | Peek (cache-only, WCAG 1.4.13), follow vs held panes with one selection owner, kept evidence cards, and selection-scoped rail sections replace trips to other tabs, pages and dock tabs just to read something. |
+| F32 | Navigation memory | Go to anything with scope prefixes; marks, recent locations and worklists stepped with F8; walkable provenance from fact to receipt to job to stage to changed entities, both ways. |
+| F33 | Pipeline map and diagnosis in place | The pipeline diagram is live navigation over shared node ids (map, per-entity breadcrumb, Explain); failures, problems and starvation expand in place with typed links; dead ends arm, never run, the one fix. |
+| F34 | Act where you read | Outcomes land on the row that invoked them; the action strip stays armed; token menus and inline rename edit where the code is read, with before/after from a re-read; match review is master-detail from the keyboard. |
+| F35 | Accessible by construction | Landmarks and headings, F6 regions, one remappable keymap with focus-scoped single keys, APG patterns per component, exact screen-reader reading of code rows, Accessible View, one live-region policy, visible focus and selection in every mode (forced colors, increased contrast, reduced motion), 24px targets, drag alternatives, reflow at 320×256, layout presets. |
 
 Sources: VISION §§2,5–9; H1:1453,1663; H2:525,530,713; C1–C9; D1:8079;
 current user-attached AIO reference [A1]; current Ghidra guide [R14].
+F29–F35: user request of 2026-09-29 to find UI improvements and accessibility features that eliminate tedious clicking between views and implement them into the design plan [Q1]; detailed in [linked views and accessibility](dashboard-design/2026-09-29-linked-views-and-accessibility.md) (units U171–U191) and the design system's Linked views and Accessibility sections. Design only; not delivered.
 
 ### KotORXID is substantive scope, not just a visual theme
 
@@ -438,6 +446,11 @@ simplification after accepting diminishing returns. [D2:35561–36106]
 | Pasted roadmap's mandatory local Rizin-first implementation order | Retain browser-local provider direction and capability coverage; current recovery priority is STRATEGY and existing useful Ghidra analysis must not be replaced/recomputed for architectural uniformity. |
 | Old prototype says secondary corpus panels, manual stage buttons and quiet status text | Current corpus-first navigation and actual-work visual feedback supersede that presentation; retain useful parity/durability principles. |
 
+| “Enter opens the action strip with the last action” (Aug 31 feel) | 2026-09-29: Enter always means Go on every link; `.` repeats the armed action on the focused row (U184). |
+| Toolbar search filters functions only; Ctrl+P searches functions | 2026-09-29: Ctrl/Cmd+P is go to anything; the Functions filter stays a grid typeahead (U178). |
+| Checked set persists “until Esc” | 2026-09-29: Esc never clears the checked set; the count chip × or Clear checked does (U174, U188). |
+| Analysis tablist with a “More…” select; single-letter global shortcuts | 2026-09-29: a Views toolbar of co-visible views; global commands use modifiers and single letters are focus-scoped and remappable (U173, U188). |
+
 ## 10. Acceptance and unfinished-outcome ledger
 
 Do not mark any row complete from this document. Implementation acceptance needs
@@ -547,6 +560,7 @@ migrated sessions may retain import timestamps rather than original send times.
   Related implementation requests: sessione7b1c769-92d4-49fd-8b36-0073f87f5dc0 turn3,
   session33b0d663-1e0b-43e1-8330-366729380127 turn0. These are not proof of delivery.
 - **A1:** [Supplied AIO research](/home/brunner56/.codex/attachments/f8ba7cd0-912f-4208-9d2e-d3dfa9333209/pasted-text.txt), all356 lines read. Its embedded citation IDs and malformed `https:$$` URLs are historical artifacts; use the actual primary links in §7. Its implementation direction is relevant; its claims and effort estimates are not independently established here.
+- **Q1:** Claude Code conversation, 2026-09-29: “investigate the design system and diagrams and determine any relevant/robust ui improvements/accessibility features … eliminate tedious clicking between views … implement solutions into the design plan.”
 - **R14:** [Ghidra guide](https://github.com/OpenKotOR/PyKotor/wiki/Ghidra-Reversing-Guide), plus the detailed guide inventory above.
 
 ### Coverage and limitations — not an “all history exhausted” claim

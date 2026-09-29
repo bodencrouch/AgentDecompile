@@ -19,6 +19,10 @@ execution/acceptance companion. Historical implementation and guard-lifting note
 below retain their dates; they do not authorize execution in this design task.
 
 
+## Revision — 2026-09-29
+
+[Linked views and accessibility](2026-09-29-linked-views-and-accessibility.md) adds units U171–U191 and FRONTEND_INTENT F29–F35: typed links over one location schema, co-visible code views with a reflected cursor, Peek and held panes, go to anything, worklists, a live pipeline map over the shared diagram model, diagnosis and outcomes in place, and an accessibility contract. It supersedes this plan's §4.2 keyboard notes where they conflict (Enter means Go; Ctrl/Cmd+P is go to anything; single-letter keys are focus-scoped). Design only.
+
 ## How to read this file
 
 Scope clarification — 2026-09-27: the [weekend scope index](../plans/2026-09-27-weekend-design-scope.md)

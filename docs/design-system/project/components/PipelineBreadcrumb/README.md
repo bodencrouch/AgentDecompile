@@ -10,7 +10,7 @@ Where one entity stands on one concrete build: one crumb per stage 1–8, each s
 - Each crumb shows its governing fact as glyph + word from that fact's own vocabulary: the IdentityEdge state (1), the calibration profile check (2), the region round trip (3), Compilation and ABI checks (4), the transfer or recipient acceptance (5), the leftover candidate (6), Local match and Linked match (7), and Whole-file equality per variant (8). Never a percentage, bar, score, ratio or "done".
 - Each crumb is one link to the evidence that decides it: 1 → IdentityEdge; 2 → the calibration receipt; 3 → the region round-trip receipt; 4 → the compile receipt and SourceRepairDiff; 5 → PropagationTransfer; 6 → the leftover candidate's SourceRepairDiff; 7 → ObjectDiff; 8 → VariantLedger. Following it opens that evidence in place and pushes history; the link carries `entity`, `build` and `node`.
 - Stage 8 keeps **C+floor** and **max-C** as two separate glyph + word lines and names the method (reconstruction or original-style rebuild). It is image-level for the build and says so. One variant never borrows the other's receipt.
-- Waiting: a `gate` ◷ glyph, the words "Waiting at gate:" and the gate text from the model. The crumb where the selection waits has `aria-current="step"`, the selection shape (`selection` fill plus a 3px `accent` bar) and the words "Selection waits here".
+- Waiting: a `gate` ◇ glyph, the words "Waiting at gate:" and the gate text from the model. The crumb where the selection waits has `aria-current="step"`, the selection shape (`selection` fill plus a 3px `accent` bar) and the words "Selection waits here".
 - A stage that does not apply says why, in italic `ink-muted` ("not applicable: not a leftover"). A build with no counterpart shows one StateNotice instead of eight empty crumbs; nothing is inferred for an absent counterpart.
 - A 3px top rule in the stage's family `-fill` (identity, recovery, verify) ties the crumb to the diagram. It is decorative: the stage name carries the meaning.
 - The breadcrumb is per concrete build. The header names the build and offers an explicit "Build ▾" menu. A new selection never switches the build silently.
@@ -27,7 +27,7 @@ Where one entity stands on one concrete build: one crumb per stage 1–8, each s
 
 - `<nav aria-label="Pipeline for ‹entity› on ‹build›">` around an ordered list of eight links. Each link reads as one sentence, for example "4, C/C++ candidates: Compilation passed, ABI checks not run, waiting at gate: compile admits candidate, not replacement". Glyphs are `aria-hidden` beside their words.
 - `aria-current="step"` marks where the selection waits; the words "Selection waits here" say the same visibly.
-- Amber touches only the ◷ glyph and the "Waiting at gate:" label; text stays `ink` on `pane` and `ink-strong` on `selection`.
+- Amber touches only the ◇ glyph and the "Waiting at gate:" label; text stays `ink` on `pane` and `ink-strong` on `selection`.
 - A stage change for the selected entity is announced once in the polite region after its acceptance event ("ResourceRef::Resolve on build-a passed gate 4"). Polls announce nothing.
 - Each crumb is a whole-cell target well above 24px; 44px below 700px. It reflows to one column at 320px.
 

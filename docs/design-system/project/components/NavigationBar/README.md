@@ -40,7 +40,7 @@ Both `/dashboard` on 8080 and `/react/` parse and emit the same parameters, so a
 | `tab` | analysis tab | `tool` |
 | `pin` | repeatable: pinned side panes and kept peeks, as `kind:id@build` | — |
 | `cmp` | compare pair, `build-a..build-b` | — |
-| `node` | pipeline node id: `stage-0`…`stage-8`, `gate-0`…`gate-8` (no `gate-2`), `lane-A`…`lane-E`, `ladder-A`…`ladder-F`, `lock-1`…`lock-5`, `export-*`, and nested `lane-X-card-N`, `ladder-X-N` | — (`focus` still scrolls to a section) |
+| `node` | any pipeline-model.json node id: `stage-0`…`stage-8`, `gate-0`…`gate-8` (no `gate-2`), `lane-A`…`lane-E`, `ladder-A`…`ladder-F`, `lock-1`…`lock-5`, `failover-rule`, `export-*`, and nested `lane-X-card-N`, `ladder-X-N` | — (`focus` still scrolls to a section) |
 | `job`, `receipt` | the job or receipt opened from go-to or a peek | — |
 | `f` | repeatable filters as `axis:value`, for example `fact.local_match:failed`, `xref.dir:in`, `xref.scope:token` | — |
 

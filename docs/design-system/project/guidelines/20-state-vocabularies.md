@@ -63,6 +63,10 @@ candidate (dashed `lane-identity-ink`) · accepted (solid) · rejected (struck, 
 
 Divergence classes: **1↔1** structural match · **1↔N** split-or-inlined candidate · **≠** diverged, no confident counterpart. Copy: "diverged — counterpart structurally different, possibly inlined/split". Relation kinds: one_to_one, clone, inline, thunk, split, fold, region, unroll. Split, inlined and diverged go to review, never silent auto. Struct field correspondence: same · shifted · resized · retyped · added · removed · reordered.
 
+## Waiting at a gate
+
+◇ (the gate diamond) plus "waiting at gate: ‹gate text›" in `gate` amber marks work held at a stage gate. It is distinct from ◷ stale (changed dependencies) and never shares its glyph.
+
 ## Named non-success outcomes (OutcomeTag)
 
 absent · inlined_only · ambiguous · unsupported · insufficient_evidence · budget_exhausted · contested · unresolved · no_placement · unsupported_dynamic_code · missing_adapter. Each is a terminal reason, not a forced match and not a claim of exhaustive failure. Unresolved data roots "refuse, never zero".
@@ -92,6 +96,7 @@ Prepared bundle: preparing → verified → launchable. Incomplete closure is ne
 | State | Glyph | Variant |
 |---|---|---|
 | loading | … | info |
+| not loaded | ○ | info ("Not loaded. Open to read it."; never auto-fetched from hover or peek) |
 | empty | ∅ | info |
 | disconnected | ⌁ | fault |
 | unavailable | ⊡ | unknown |

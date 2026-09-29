@@ -13,7 +13,7 @@ Accessibility is part of the operating model, not a later pass. A keyboard-only,
 
 - **Selection is a shape, not a color.** The one primary selection uses `selection` fill **plus** a 3px `accent` bar at the inline start. On the fill, `ink-muted` is promoted to `ink` automatically, and state words switch to `ink-strong` (glyphs keep their color). The fill alone is 1.6:1 against its surroundings; the bar and the promoted text carry the meaning.
 - **Focus** is a solid 2px `focus` outline inset 2px, 3:1 or better on every surface including `selection`. Scroll containers set `scroll-padding-block` so sticky headers never cover the focused item (WCAG 2.4.11).
-- **Links look like links.** Anything that navigates (addresses, symbols, counterparts, job ids, receipt ids, logical ids, node ids) is `.ad-link`: its own color token plus a dotted underline at rest and a solid underline on hover and focus. Affordance never depends on color.
+- **Links look like links.** Anything that navigates (addresses, symbols, counterparts, job ids, receipt ids, logical ids, node ids) is `.ad-link`: its own color token plus a dotted underline at rest and a solid underline on hover and focus. Affordance never depends on color. Items inside composite widgets whose role already says they act (menu items, listbox options, tree items, grid rows) are exempt from the underline; inside a block link only the name is underlined.
 - **The accent is not a status.** Fresh evidence, the current rail step, the running unit and primary buttons use `ink-strong` and a 2px frame, not the accent.
 
 ## Contrast

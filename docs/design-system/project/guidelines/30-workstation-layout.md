@@ -50,7 +50,7 @@ Activity, Recovery, Logs, Jobs and Problems live together at the bottom. There a
 
 ## Keyboard
 
-Ctrl/Cmd+K palette · Ctrl+P search functions · S save · O open · N new · ↑↓ Enter in lists and the palette · Esc closes and returns focus · j/k move the function selection · Enter opens the action strip with the last action · x or Space checks a row · Shift extends a range. Every action has a palette path, a menu path and a keyboard path.
+Ctrl/Cmd+K palette · Ctrl/Cmd+P go to anything (addresses, symbols, logical ids, jobs, receipts, pipeline nodes) · Ctrl/Cmd+G go to address · Alt+← / Alt+→ back and forward · F6 cycles regions · Alt+↓ peeks the focused link · Ctrl/Cmd+S save. Inside a focused list, grid or listing only: ↑↓ Enter, j/k move the selection, x or Space checks a row, Shift extends a range, Enter opens the action strip with the last action. Esc closes and returns focus. Single-letter keys never act outside a focused list and can be turned off or remapped (see Accessibility). Every action has a palette path, a menu path and a keyboard path.
 
 ## Accessibility
 

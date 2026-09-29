@@ -1,8 +1,9 @@
-<!-- @dsCard group="Diagram" height=258 -->
+<!-- @dsCard group="Diagram" height=268 -->
 <div class="ad ad-dia" style="padding:16px;display:grid;gap:12px">
 <div class="ad-panel-lock"><h5>OWNERSHIP IS RESOURCE-SCOPED (eligible independent work overlaps)</h5>
-<div><svg width="22" height="24" viewBox="0 0 22 24" aria-hidden="true"><path d="M6 11 V7 A5 5 0 0 1 16 7 V11" fill="none" stroke="var(--lock)" stroke-width="2.2"/><rect x="2" y="11" width="18" height="12" rx="2" fill="var(--lock)" opacity="0.9"/></svg>writes to one Ghidra program's analysis DB</div>
-<div><svg width="22" height="24" viewBox="0 0 22 24" aria-hidden="true"><path d="M6 11 V7 A5 5 0 0 1 16 7 V11" fill="none" stroke="var(--lock)" stroke-width="2.2"/><rect x="2" y="11" width="18" height="12" rx="2" fill="var(--lock)" opacity="0.9"/></svg>shared corpus mutation / conflict resolution</div>
-<div><svg width="22" height="24" viewBox="0 0 22 24" aria-hidden="true"><path d="M6 11 V7 A5 5 0 0 1 16 7 V11" fill="none" stroke="var(--lock)" stroke-width="2.2"/><rect x="2" y="11" width="18" height="12" rx="2" fill="var(--lock)" opacity="0.9"/></svg>short acceptance commit: current basis + generation + independent proof</div></div>
-<div class="ad-failrule"><h5>FAILOVER RULE</h5><p>The affected branch stops VISIBLY at its real unmet dependency; every eligible sibling lane continues.</p><p>Deadline ends attempt, not objective; expired ownership does not free resources.</p></div>
+<ul class="adl-locks">
+<li><svg width="22" height="24" viewBox="0 0 22 24" aria-hidden="true"><path d="M6 11 V7 A5 5 0 0 1 16 7 V11" fill="none" stroke="var(--lock)" stroke-width="2.2"/><rect x="2" y="11" width="18" height="12" rx="2" fill="var(--lock)" opacity="0.9"/></svg><span class="sr-only">lock, </span><a class="ad-link" href="?node=lock-1">writes to one Ghidra program's analysis DB</a></li>
+<li><svg width="22" height="24" viewBox="0 0 22 24" aria-hidden="true"><path d="M6 11 V7 A5 5 0 0 1 16 7 V11" fill="none" stroke="var(--lock)" stroke-width="2.2"/><rect x="2" y="11" width="18" height="12" rx="2" fill="var(--lock)" opacity="0.9"/></svg><span class="sr-only">lock, </span><a class="ad-link" href="?node=lock-2">shared corpus mutation / conflict resolution</a></li>
+<li><svg width="22" height="24" viewBox="0 0 22 24" aria-hidden="true"><path d="M6 11 V7 A5 5 0 0 1 16 7 V11" fill="none" stroke="var(--lock)" stroke-width="2.2"/><rect x="2" y="11" width="18" height="12" rx="2" fill="var(--lock)" opacity="0.9"/></svg><span class="sr-only">lock, </span><a class="ad-link" href="?node=lock-5">short acceptance commit: current basis + generation + independent proof</a></li></ul></div>
+<div class="ad-failrule"><h5><a class="ad-link" href="?node=failover-rule">FAILOVER RULE</a></h5><p>The affected branch stops VISIBLY at its real unmet dependency; every eligible sibling lane continues.</p><p>Deadline ends attempt, not objective; expired ownership does not free resources.</p></div>
 </div>

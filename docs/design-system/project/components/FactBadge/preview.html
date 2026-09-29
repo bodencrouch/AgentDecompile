@@ -1,12 +1,27 @@
-<!-- @dsCard group="Evidence" height=132 -->
+<!-- @dsCard group="Evidence" height=520 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px 20px">
-<span class="ad-fact passed"><b>✓</b><span class="label">Compilation</span> passed</span>
-<span class="ad-fact passed"><b>✓</b><span class="label">Local match</span> passed</span>
-<span class="ad-fact failed"><b>✕</b><span class="label">Linked match</span> failed</span>
-<span class="ad-fact stale"><b>◷</b><span class="label">ABI checks</span> stale</span>
-<span class="ad-fact unknown"><b>?</b><span class="label">Replacement contribution</span> unknown</span>
-<span class="ad-fact unsupported"><b>⊘</b><span class="label">Tested behavior</span> unsupported</span>
-<span class="ad-fact not_run"><b>○</b><span class="label">Whole-file equality</span> not run</span></div>
-<div class="row small"><span class="muted">Compact strip:</span><span class="ad-facts" role="img" aria-label="Compilation passed, ABI checks stale, Tested behavior unsupported, Local match passed, Linked match failed, Replacement contribution unknown, Whole-file equality not run"><b class="passed" aria-hidden="true">✓</b><b class="stale" aria-hidden="true">◷</b><b class="unsupported" aria-hidden="true">⊘</b><b class="passed" aria-hidden="true">✓</b><b class="failed" aria-hidden="true">✕</b><b class="unknown" aria-hidden="true">?</b><b class="not_run" aria-hidden="true">○</b></span></div>
+<span class="kicker">Full badges · receipt links where a receipt decided the state</span>
+<ul class="adl-factlist" aria-label="Facts for ResourceRef::Resolve, build-a">
+<li><a class="ad-fact passed" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;receipt=7c21" aria-label="Fact Compilation, passed, receipt 7c21, build-a"><b aria-hidden="true">✓</b><span class="label">Compilation</span> passed</a></li>
+<li><a class="ad-fact passed" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;receipt=3e10" aria-label="Fact Local match, passed, receipt 3e10, build-a"><b aria-hidden="true">✓</b><span class="label">Local match</span> passed</a></li>
+<li><a class="ad-fact failed" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;receipt=5d42" aria-label="Fact Linked match, failed, receipt 5d42, build-a"><b aria-hidden="true">✕</b><span class="label">Linked match</span> failed</a></li>
+<li><a class="ad-fact stale" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;receipt=b7e2" aria-label="Fact ABI checks, stale, receipt b7e2, basis changed r14 to r15"><b aria-hidden="true">◷</b><span class="label">ABI checks</span> stale</a><span class="small muted">basis changed r14 → r15</span></li>
+<li><span class="ad-fact unknown"><b aria-hidden="true">?</b><span class="label">Replacement contribution</span> unknown</span><span class="small muted">legacy record</span></li>
+<li><span class="ad-fact unsupported"><b aria-hidden="true">⊘</b><span class="label">Tested behavior</span> unsupported</span><span class="small muted">no receipt</span></li>
+<li><span class="ad-fact not_run"><b aria-hidden="true">○</b><span class="label">Whole-file equality</span> not run</span><span class="small muted">no receipt</span></li></ul>
+<span class="kicker">Compact strip · one button · Peek open</span>
+<div class="ad-peek-anchor">
+ <div class="row small"><button class="adl-factbtn is-focus" aria-haspopup="dialog" aria-expanded="true" aria-controls="fb-pk" aria-keyshortcuts="Alt+ArrowDown" aria-label="Facts for ResourceRef::Resolve, build-a: Compilation passed, ABI checks stale, Tested behavior unsupported, Local match passed, Linked match failed, Replacement contribution unknown, Whole-file equality not run. Open peek."><span class="ad-facts" aria-hidden="true"><b class="passed">✓</b><b class="stale">◷</b><b class="unsupported">⊘</b><b class="passed">✓</b><b class="failed">✕</b><b class="unknown">?</b><b class="not_run">○</b></span></button><span class="muted">Legend: ✓ passed · ✕ failed · ◷ stale · ? unknown · ⊘ unsupported · ○ not run</span></div>
+ <section class="ad-peek" id="fb-pk" role="dialog" aria-modal="false" aria-labelledby="fb-pk-t">
+  <header><span class="kicker">Facts · build-a</span><h4 id="fb-pk-t" translate="no">ResourceRef::Resolve</h4><button class="ad-peek-x" aria-label="Close peek" aria-keyshortcuts="Escape">✕</button>
+   <div class="sub"><span class="ad-stamp"><b>reused</b>fact rows · basis 9f3c…a1e0 · read 13:58:07</span></div></header>
+  <div class="pb"><ul class="adl-pkfacts">
+   <li><span class="ad-fact passed"><b aria-hidden="true">✓</b><span class="label">Compilation</span> passed</span><a class="ad-link mono" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;receipt=7c21" aria-label="Receipt 7c21, compile, build-a">7c21</a><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=0b17" aria-label="Job 0b17, recovery.compile, finished">job 0b17</a><a class="adl-stg fam-recovery" href="?project=corpus-alpha&amp;node=stage-4" aria-label="Stage 4, C/C++ candidates"><span class="n">4</span><span class="nm">C/C++ candidates</span></a></li>
+   <li><span class="ad-fact stale"><b aria-hidden="true">◷</b><span class="label">ABI checks</span> stale</span><a class="ad-link mono" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;receipt=b7e2" aria-label="Receipt b7e2, ABI check, stale">b7e2</a><a class="ad-link mono" href="?project=corpus-alpha&amp;receipt=9f3c" aria-label="Basis 9f3c, changed r14 to r15">basis r14 → r15</a></li>
+   <li><span class="ad-fact failed"><b aria-hidden="true">✕</b><span class="label">Linked match</span> failed</span><a class="ad-link mono" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;receipt=5d42" aria-label="Receipt 5d42, linked objdiff, build-a">5d42</a><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=c4e1" aria-label="Job c4e1, verify.objdiff, finished">job c4e1</a><a class="adl-stg fam-verify" href="?project=corpus-alpha&amp;node=stage-7" aria-label="Stage 7, Continuous parity"><span class="n">7</span><span class="nm">Continuous parity</span></a></li>
+   <li><span class="ad-fact not_run"><b aria-hidden="true">○</b><span class="label">Whole-file equality</span> not run</span><span class="small muted">no receipt</span></li></ul>
+   <span class="small muted">3 more facts in the evidence rail. Nothing here was fetched on hover.</span></div>
+  <footer><button class="ad-btn compact">Open in Evidence <span class="ad-kbd">Enter</span></button><button class="ad-btn compact" aria-pressed="false">Keep <span class="ad-kbd">K</span></button></footer>
+ </section>
+</div>
 </div>

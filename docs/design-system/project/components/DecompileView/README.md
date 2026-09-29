@@ -15,7 +15,7 @@ Decompiled C in a code well that shares one cursor with the Listing: the selecte
 - The status line under the well names the token under the caret, its kind and target, and the mapping of the cursor line: "Callee Archive::OpenMember → function 0041d0a0 · line 7 ← 4 instructions 0041b222–0041b22e".
 - **Following.** A linked pane follows the primary selection after the 200ms settle. The previous function stays, dimmed to `ink-muted` (still 4.5:1), under an inline "… Loading ‹name› ‹address›" notice; a response for a superseded selection is dropped and never lands. Reading uses the decompile cache and the program that is already open. An unopened program shows `fact-unknown` ○ "Not loaded. Open to read it." with an explicit Open button. Following, hover, peek and prefetch never open a program, decompile on another build or start analysis.
 - Panes narrower than 640px soft-wrap long lines with a 4ch hanging indent. Below 460px the address gutter hides and the status line carries the mapping.
-- Nothing here mutates except InlineRename's Save, and its outcome lands on the token only after the terminal result.
+- Nothing here mutates. InlineRename's Save… arms the catalog action in the ActionStrip and its ConfirmDialog posts it; the outcome lands on the token only after the terminal result. No key posts or admits work (Keymap).
 - Both surfaces render the same lines, mapping and token kinds from the same decompile projection. The static 8080 surface may draw the well as a table and open the editor as an anchored dialog; the words and states are identical.
 
 **Linking**
@@ -29,11 +29,11 @@ Decompiled C in a code well that shares one cursor with the Listing: the selecte
 
 - APG Grid with one tab stop. ↑/↓ move by line, ←/→ move token to token and wrap to the next line, Home/End go to the first and last token of the line, Ctrl+Home/Ctrl+End to the first and last line, PageUp/PageDown by a page.
 - **Enter** on a navigable token goes there and pushes one history stop. **Shift+Enter** opens it to the side as a read-only held pane; the selection does not change. Ctrl/Cmd+Enter keeps the browser's new-tab meaning.
-- **Enter** or **F2** on a local opens InlineRename with the name field focused. F2 on a label renames the label. F2 anywhere else does nothing and says why in the status line: "F2 renames locals and labels. Use Rename… in the menu for functions."
+- **Enter** or **F2** on a local opens InlineRename with the name field focused (F2 is the keymap's `tabs.rename`). F2 on a label renames the label. F2 anywhere else does nothing and says why in the status line: "F2 renames locals and labels. Use Rename… in the menu for functions."
 - **Alt+↓** peeks the focused token inline under the line (Peek inline form). On a local the peek shows type, storage, tier and uses. Inside an open peek, K keeps it.
-- **Shift+F10** or the Menu key opens the token menu: Rename…, Retype…, Peek, Find references, Open to the side, Copy address, then Reveal in (Compare, Evidence, Navigator, Dock). Items that do not apply stay listed, `aria-disabled`, with the reason: "A local is not a place to open."; "Locals have storage, not an address: stack [ebp − 0x4]."
-- **Esc** closes the menu, peek or editor and returns focus to the token. A second Esc leaves the grid for its pane.
-- Letter commands work only while focus is in the grid and can be remapped or turned off (WCAG 2.1.4). The only default here is `O`, which opens the CodeBrowser Outline.
+- **Shift+F10** or the Menu key opens the token menu: Rename…, Retype…, Peek, Find references, Open to the side, Copy address, then the Reveal in group (Compare, Evidence, Navigator, Dock), which is the keymap's `link.revealIn`. Items that do not apply stay listed, `aria-disabled`, with the reason: "A local is not a place to open."; "Locals have storage, not an address: stack [ebp − 0x4]."
+- **Esc** follows the keymap order: it closes the open peek or menu first, then leaves the editor restoring the text, returning focus to the token. It never clears held panes.
+- Code-scope single keys from `keymap.json`, active only while focus is in the well, remappable and off under the `off` profile (WCAG 2.1.4): `r` focuses the reflected row in the Listing, `h` highlights every occurrence of the focused token, `x` focuses the references panel, `]` and `[` step to the next and previous reference, `g o` opens the CodeBrowser Outline (leader). Ctrl/Cmd+F finds in this well. The `ida` profile adds `n` (rename) and `y` (set type) on locals, which open the same editor.
 
 **Accessibility**
 

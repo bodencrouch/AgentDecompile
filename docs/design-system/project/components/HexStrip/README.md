@@ -28,7 +28,7 @@ A compact hex and ASCII strip for the current region, synchronized with the shar
 - Shift+←/→/↑/↓ extend the byte selection; Esc collapses it to the cursor.
 - **Enter** goes to the first mapped listing row: one history stop, focus moves to the Listing. **Alt+↓** peeks the instruction that holds the cursor byte.
 - **Shift+F10** opens the menu: Copy bytes, Copy address, Go to listing row, Peek, Find references to this address, Reveal in.
-- No letter commands by default. Any added ones work only inside the focused strip and can be remapped (WCAG 2.1.4).
+- Code-scope keys from `keymap.json` apply inside the strip, remappable (WCAG 2.1.4): `r` focuses the reflected row in the Listing, `x` focuses References for the cursor address.
 
 **Accessibility**
 

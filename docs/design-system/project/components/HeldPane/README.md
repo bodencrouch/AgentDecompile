@@ -16,7 +16,7 @@ The header treatment and rules for any held pane or kept evidence card, meaning 
   - **Follow again** turns the pane back into a following or derived pane, showing the current selection's counterpart on the same build.
   - **Release** closes the pane or removes the card, and returns focus to the primary pane.
   - None of them asks for confirmation, because none mutates evidence.
-- **Read-only.** A held pane and a kept card carry no mutation verbs. A footer line on held panes says "Read-only. Actions apply to the primary selection, build-a 0041d0a4." The ActionStrip always binds the primary selection.
+- **Read-only.** A held pane and a kept card carry no mutation verbs. A footer line on held panes says "Read-only. Actions apply to the primary selection, build-a 0041d0a0." The ActionStrip always binds the primary selection.
 - **Limits.** There are at most two center panes (primary plus one secondary; SplitCompare's third column lives only in Compare). A further Hold becomes a kept evidence card in the rail. Kept cards stack in the rail in the order they were kept.
 - **Card form.** A kept card uses the same frame, tag, meta, notice and stamp at `evidence-w` (260px). The header wraps and actions go to their own line.
 - **Both surfaces** render the same frame, words and notices from the same change signal. The static 8080 surface may drop the pane's own Back and Forward, but never the Held word, the age or Current differs.

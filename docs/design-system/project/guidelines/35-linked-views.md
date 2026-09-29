@@ -32,7 +32,7 @@ The same keys and gestures on every link, on both surfaces:
 | Go | Enter, click | The primary location changes; one history stop is pushed. |
 | Open beside | Shift+Enter, Shift+click | The target opens in a secondary pane (SplitCompare); the primary selection does not change. |
 | Peek | Alt+↓; a 400ms pointer rest or 800ms focus rest | A read-only Peek card opens in place (WCAG 1.4.13 rules). Alt+Enter and Ctrl/Cmd+I are rejected (properties in many tools; Page Info in Firefox). |
-| Keep | K inside a Peek or evidence card | The card stays in the evidence rail, labelled "Kept" (carried as `hold=card:…`). |
+| Keep | Shift+K inside a Peek or evidence card | The card stays in the evidence rail, labelled "Kept" (carried as `hold=card:…`). |
 | Reveal in | Shift+F10, context-menu key, right-click | Menu: Code Browser · Compare · Evidence · Navigator · Dock · Pipeline map, plus Copy link and Copy value. |
 | New browser tab | Ctrl/Cmd+Enter, Ctrl/Cmd+click, middle-click | Native; works because every target is a real URL. |
 
@@ -42,10 +42,14 @@ Space stays select or check in grids. Every component README carries a **Linking
 
 There is exactly one selection owner: the primary location (project, logical entity, inspected build, address). Every other pane is one of two things.
 
-- **Following** (default): a pure function of the primary location. When the selection moves with arrows or j/k, focus moves at once; following panes update after a 200ms settle, keep their previous content dimmed with its address and an inline "Loading ‹name›" notice, and drop late responses for superseded selections. A **Link panes** toggle (aria-pressed) in the NavigationBar switches to commit-on-Enter. Cached panes (Listing, Decompile, Evidence) follow by default; expensive panes (Graph, Matching, corpus sections) commit on Enter.
+- **Following** (default): a pure function of the primary location. When the selection moves with arrows or j/k, focus moves at once; following panes update after a 200ms settle, keep their previous content dimmed with its address and an inline "Loading ‹name›" notice, and drop late responses for superseded selections. A **Link panes** toggle (aria-pressed) in the NavigationBar switches to commit-on-Enter. Cached panes (Listing, Decompile, Evidence) follow by default; expensive panes (Graph, Matching, corpus sections) commit on Enter. A following pane never decompiles, fetches expensive evidence or starts work on a cache miss: it says "Not decompiled in this session · Enter to decompile" and waits for an explicit Go.
 - **Held**: frozen to one entity × build × address. Its header says **Held** with what it holds and its age, in a 2px `ink-strong` frame. It keeps its own Back/Forward, never refreshes by itself, and shows "◷ Basis changed since held · Refresh" when its basis changes. **Make primary** moves the one selection to it. Held panes and kept cards are read-only; the ActionStrip always binds the primary selection.
 
 At most two center panes in the Code Browser; the Compare workspace may show a three-way split as its one secondary area. Further holds become kept evidence cards. Inside a held pane, Enter moves that pane through its own history and Alt+←/→ step it while focus is there; **Make primary** (Enter on its Held chip) is the only way a held pane changes the primary selection. In a derived pane, Alt+PageDown/PageUp move it to the next or previous build with a counterpart. Held state is a word and a frame, never color alone; "Held" and "Kept" are reserved words distinct from the locator word `pinned` and the ownership word `lock`.
+
+## Confirming edits
+
+Inline edits (rename, retype, comment) confirm in place: the inline field names its exact binding and the tier change, and Enter commits through the catalog action path. ConfirmDialog is reserved for batch, destructive or cross-build mutations. No key commits a mutation outside an open inline editor or the ActionStrip.
 
 ## In place, not elsewhere
 
@@ -69,6 +73,7 @@ Both surfaces parse the same query parameters and the same alias table; acceptan
 | `cmp` | split pair, e.g. `build-a..build-c` |
 | `hold` | repeatable `kind:id@build` for held panes and kept cards |
 | `dock` · `job` · `receipt` | dock tab, focused job, focused receipt |
+| `type` | a type or field path, e.g. `CacheEntry.name_len` |
 | `f` · `q` | `axis:value` filters and free text |
 | `page` | review match-id cursor |
 | `t` | work-view event |

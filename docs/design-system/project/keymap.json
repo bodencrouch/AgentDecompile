@@ -71,11 +71,11 @@
    "id": "link.keep",
    "label": "Keep",
    "keys": [
-    "K"
+    "Shift+K"
    ],
    "scope": "region",
    "where": "inside a Peek or evidence card",
-   "note": "Carried as hold=card:…"
+   "note": "Only inside a Peek or evidence card, never on list rows (where k moves). Carried as hold=card:…"
   },
   {
    "id": "link.revealIn",
@@ -281,10 +281,10 @@
    "id": "layout.preset",
    "label": "Layout preset 1–5",
    "keys": [
-    "Ctrl/Cmd+Alt+1…5"
+    "g then 1…5"
    ],
-   "scope": "global",
-   "note": "Read, Compare, Review, Triage, Verify rebuild."
+   "scope": "composite",
+   "note": "Read, Compare, Review, Triage, Verify rebuild; also in the View menu, the palette and the NavigationBar layout menu. Ctrl/Cmd+Alt+digit was rejected because it types characters on AltGr keyboards. A switch pushes history only when it changes the workspace."
   },
   {
    "id": "help.keys",
@@ -368,7 +368,8 @@
     "m then letter"
    ],
    "scope": "composite",
-   "where": "lists, grids, code wells"
+   "where": "lists, grids, code wells",
+   "note": "Lowercase a–z per viewer; named marks through the palette ('Set mark…'). Marks resolve per build through the locator."
   },
   {
    "id": "list.jumpMark",
@@ -542,7 +543,18 @@
     "g"
    ],
    "scope": "composite",
-   "note": "Shows which-key hints: g d decompile, g l listing, g x references, g c counterparts, g j dock, g ' marks."
+   "note": "Shows which-key hints. Regions: g n navigator, g m main, g e evidence, g w work view, g j dock. Views: g l listing, g d decompile, g h hex, g r graph. Panels: g o outline, g x references, g c counterparts, g ' marks. Layouts: g 1…5."
+  },
+  {
+   "id": "code.outline",
+   "label": "Function outline",
+   "keys": [
+    "g then o"
+   ],
+   "scope": "code",
+   "note": "Blocks, locals, calls and strings of the current function; the same content as the rail's Outline section."
   }
- ]
+ ],
+ "conflictPolicy": "Two commands bound to the same key in the same scope do nothing until the conflict is resolved; the status line says which binding is blocked and why.",
+ "altGrCaution": "Ctrl+Alt combinations type characters on AltGr keyboards; the editor warns when a remap uses one."
 }

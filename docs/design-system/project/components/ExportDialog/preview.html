@@ -1,85 +1,97 @@
-<!-- @dsCard group="Project" height=2020 -->
+<!-- @dsCard group="Project" height=1620 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<span class="kicker">One exporter, its options, and the builds · one job per build · outputs land as artifacts with their basis</span>
+<span class="kicker">Export · per build<span class="sr-only">: one exporter, its options, and the builds · one job per build · outputs land as artifacts with their basis</span></span>
 <div class="ad-g3-dlg" role="dialog" aria-modal="true" aria-labelledby="xp-t" aria-describedby="xp-d">
- <header><h3 id="xp-t">Export ResourceRef::Resolve</h3><span class="end">catalog: Export · formats from <code>GET /api/v1/actions</code></span></header>
+ <header><h3 id="xp-t">Export ResourceRef::Resolve</h3><span class="end row" style="gap:8px"><ul class="adv-chips" aria-label="catalog: Export · formats from GET /api/v1/actions"><li><span>catalog</span>Export</li><li><span>formats</span>GET /api/v1/actions</li></ul><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="xp-key">?</button><span role="tooltip" id="xp-key">⊘ not available on this server · ◌ unresolved · ↔ through accepted identity edges · framed tile: one job and its files · struck tile: not exported · ≠ a claim boundary · ◇ a recorded basis.</span></span></span></header>
  <div class="body">
-  <p class="ad-g3-note" id="xp-d">Invoked from the link menu on <a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a>. Exporting reads the program as it is; it never analyzes or decompiles a function that has no cached decompile unless you choose so below.</p>
+  <p class="sr-only" id="xp-d">Invoked from the link menu on ResourceRef::Resolve. Exporting reads the program as it is; it never analyzes or decompiles a function that has no cached decompile unless you choose so below.</p>
+  <div class="row" style="gap:8px"><ul class="adv-chips" aria-label="Invoked from the link menu"><li><span>from</span>link menu</li></ul><a class="ad-link" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b210" translate="no" aria-label="Function ResourceRef::Resolve, 0041b210, build-a">ResourceRef::Resolve</a><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="xp-d-tip"><b aria-hidden="true">≠</b>analyze</button><span role="tooltip" id="xp-d-tip">Exporting reads the program as it is; it never analyzes or decompiles a function that has no cached decompile unless you choose so below.</span></span></div>
 
   <fieldset>
    <legend>What</legend>
-   <label class="ad-g3-choice"><input type="radio" name="xp-w" checked><span class="nm">This function</span><span class="end small muted">counterpart on each chosen build</span><span class="d">ResourceRef::Resolve through its accepted identity edges.</span></label>
-   <label class="ad-g3-choice"><input type="radio" name="xp-w"><span class="nm">Address selection</span><span class="end small mono muted">0041b210–0041b30f · build-a</span><span class="d">Only on build-a: an address selection belongs to one build. Not every format supports it.</span></label>
-   <label class="ad-g3-choice"><input type="radio" name="xp-w"><span class="nm">Whole program</span><span class="d">Every function and data item of each chosen build.</span></label>
+   <label class="ad-g3-choice"><input type="radio" name="xp-w" checked><span class="nm">This function</span><span class="end small muted"><span aria-hidden="true">↔ </span>each build<span class="sr-only">: counterpart on each chosen build</span></span><span class="d sr-only">ResourceRef::Resolve through its accepted identity edges.</span></label>
+   <label class="ad-g3-choice"><input type="radio" name="xp-w"><span class="nm">Address selection</span><span class="end small mono muted">0041b210–0041b30f · build-a</span><span class="d sr-only">Only on build-a: an address selection belongs to one build. Not every format supports it.</span></label>
+   <label class="ad-g3-choice"><input type="radio" name="xp-w"><span class="nm">Whole program</span><span class="d sr-only">Every function and data item of each chosen build.</span></label>
   </fieldset>
 
   <fieldset>
    <legend>Format</legend>
-   <label class="ad-g3-choice"><input type="radio" name="xp-f" checked><span class="nm">C/C++</span><span class="d">Decompiled functions and, optionally, type definitions. Exported C ≠ recovered source.</span></label>
-   <label class="ad-g3-choice"><input type="radio" name="xp-f"><span class="nm">SARIF</span><span class="d">Program facts as SARIF records.</span></label>
-   <label class="ad-g3-choice"><input type="radio" name="xp-f"><span class="nm">XML</span><span class="d">Program facts in Ghidra's XML schema.</span></label>
-   <label class="ad-g3-choice"><input type="radio" name="xp-f"><span class="nm">ASCII · HTML</span><span class="d">The listing as text or hypertext, with the fields chosen in options.</span></label>
-   <label class="ad-g3-choice dis"><input type="radio" name="xp-f" disabled aria-describedby="xp-gzf"><span class="nm">GZF</span><span class="end small muted">whole program only</span><span class="d" id="xp-gzf">A packed copy of the whole program database; a function or selection is not supported.</span></label>
-   <label class="ad-g3-choice dis"><input type="radio" name="xp-f" disabled aria-describedby="xp-raw"><span class="nm">Raw bytes · Original file · Intel Hex</span><span class="end small muted">not available yet</span><span class="d"><span id="xp-raw">Not available on this server yet. The formats above still export.</span> · <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a>. Original file can include byte patches (PatchEditor); patched bytes are not recovery evidence.</span></label>
+   <label class="ad-g3-choice"><input type="radio" name="xp-f" checked><span class="nm">C/C++</span><span class="d sr-only">Decompiled functions and, optionally, type definitions. Exported C ≠ recovered source.</span></label>
+   <label class="ad-g3-choice"><input type="radio" name="xp-f"><span class="nm">SARIF</span><span class="d sr-only">Program facts as SARIF records.</span></label>
+   <label class="ad-g3-choice"><input type="radio" name="xp-f"><span class="nm">XML</span><span class="d sr-only">Program facts in Ghidra's XML schema.</span></label>
+   <label class="ad-g3-choice"><input type="radio" name="xp-f"><span class="nm">ASCII · HTML</span><span class="d sr-only">The listing as text or hypertext, with the fields chosen in options.</span></label>
+   <label class="ad-g3-choice dis"><input type="radio" name="xp-f" disabled aria-describedby="xp-gzf"><span class="nm">GZF</span><span class="end small muted">whole program only</span><span class="d sr-only" id="xp-gzf">A packed copy of the whole program database; a function or selection is not supported.</span></label>
+   <div class="ad-g3-choice dis"><input type="radio" name="xp-f" disabled aria-labelledby="xp-raw-n" aria-describedby="xp-raw"><span class="nm" id="xp-raw-n"><span>Raw bytes</span> · <span>Original file</span> · <span>Intel Hex</span></span><span class="end adv-tip end"><span class="adv-na small" tabindex="0" aria-describedby="xp-raw"><b aria-hidden="true">⊘</b>not available</span><span role="tooltip" id="xp-raw">Not available on this server yet. The formats above still export. <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span></span><span class="d"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="xp-patch"><b aria-hidden="true">≠</b>evidence</button><span role="tooltip" id="xp-patch">Original file can include byte patches (PatchEditor); patched bytes are not recovery evidence.</span></span></span></div>
   </fieldset>
 
   <fieldset>
    <legend>C/C++ options</legend>
-   <label class="ad-flag"><input type="checkbox" checked>Create C file (.c)</label>
-   <label class="ad-flag"><input type="checkbox" checked>Create header file (.h)</label>
-   <label class="ad-flag"><input type="checkbox" checked>Emit data type definitions <span class="m">· CacheEntry (name_len, flags, next) and its uses</span></label>
-   <label class="ad-flag"><input type="checkbox">Use C++ style comments (//)</label>
+   <label class="ad-flag"><input type="checkbox" checked><span aria-hidden="true">C file (.c)</span><span class="sr-only">Create C file (.c)</span></label>
+   <label class="ad-flag"><input type="checkbox" checked><span aria-hidden="true">Header file (.h)</span><span class="sr-only">Create header file (.h)</span></label>
+   <label class="ad-flag"><input type="checkbox" checked><span aria-hidden="true">Type definitions <span class="m">· CacheEntry + uses</span></span><span class="sr-only">Emit data type definitions · CacheEntry (name_len, flags, next) and its uses</span></label>
+   <label class="ad-flag"><input type="checkbox"><span aria-hidden="true">// comments</span><span class="sr-only">Use C++ style comments (//)</span></label>
    <label class="ad-flag"><input type="checkbox">Emit referenced globals</label>
-   <label class="ad-flag"><input type="checkbox">Decompile functions that have no cached decompile <span class="m">· part of the job; off by default</span></label>
-   <p class="ad-g3-note">Decompiler options in the basis: each build's program options, read-only (OptionsPanel). Builds exported with different options are flagged in the artifact's basis.</p>
+   <label class="ad-flag"><input type="checkbox"><span aria-hidden="true">Decompile uncached <span class="m">· in job</span></span><span class="sr-only">Decompile functions that have no cached decompile · part of the job; off by default</span></label>
+   <span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="xp-opt"><b aria-hidden="true">◇</b>decompiler options</span><span role="tooltip" id="xp-opt">Decompiler options in the basis: each build's program options, read-only (OptionsPanel). Builds exported with different options are flagged in the artifact's basis.</span></span>
   </fieldset>
 
   <fieldset>
-   <legend>Builds · one job each</legend>
+   <legend>Builds · 1 job each</legend>
    <div class="ad-xpd-builds">
-    <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-a</span><span class="end small mono muted">0041b210</span><span class="d">analyzed · receipt 5c1e reused · decompile cached 14:02 · writer free</span></label>
-    <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-c</span><span class="end small mono muted">00082f40</span><span class="d">analyzed · decompile cached 13:40 · writer free · an export with this basis and these options exists: artifact from job 6e21, 3 d, reused unless you export again</span></label>
-    <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-b</span><span class="end small mono muted">0041b2c0</span><span class="d">analyzed · decompile cached 13:52 · program has a writer (job 77c0, external); the export reads the last saved state</span></label>
-    <label class="ad-g3-choice dis"><input type="checkbox" disabled aria-describedby="xp-d-d"><span class="nm">build-d</span><span class="end small muted">◌ unresolved</span><span class="d" id="xp-d-d">ResourceRef::Resolve is unresolved on build-d; there is no function to export there.</span></label>
+    <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-a</span><span class="end small mono muted">0041b210</span><span class="d adv-kv" aria-label="analyzed · receipt 5c1e reused · decompile cached 14:02 · writer free"><span>analyzed</span><span><i>receipt</i>5c1e reused</span><span><i>cached</i>14:02</span><span><i>writer</i>free</span></span></label>
+    <div class="ad-g3-choice"><input type="checkbox" checked aria-labelledby="xp-bc-n" aria-describedby="xp-bc-d"><span class="nm" id="xp-bc-n">build-c</span><span class="end small mono muted">00082f40</span><span class="d adv-kv" aria-hidden="true"><span>analyzed</span><span><i>cached</i>13:40</span><span><i>writer</i>free</span></span><span class="d sr-only" id="xp-bc-d">analyzed · decompile cached 13:40 · writer free · an export with this basis and these options exists: artifact from job 6e21, 3 d, reused unless you export again</span><span class="d"><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="xp-bc-r"><b aria-hidden="true">↺</b>reused · 6e21 · 3 d</span><span role="tooltip" id="xp-bc-r">an export with this basis and these options exists: artifact from job 6e21, 3 d, reused unless you export again</span></span></span></div>
+    <label class="ad-g3-choice"><input type="checkbox" checked><span class="nm">build-b</span><span class="end small mono muted">0041b2c0</span><span class="d adv-kv" aria-label="analyzed · decompile cached 13:52 · program has a writer (job 77c0, external); the export reads the last saved state"><span>analyzed</span><span><i>cached</i>13:52</span><span><i>writer</i>77c0 external</span><span><i>reads</i>last saved</span></span></label>
+    <label class="ad-g3-choice dis"><input type="checkbox" disabled aria-describedby="xp-d-d"><span class="nm">build-d</span><span class="end small muted">◌ unresolved</span><span class="d sr-only" id="xp-d-d">ResourceRef::Resolve is unresolved on build-d; there is no function to export there.</span></label>
    </div>
   </fieldset>
 
-  <div class="ad-xpd-out" aria-label="Where outputs land">
+  <div class="ad-xpd-out" role="group" aria-label="Where outputs land" aria-describedby="xp-out-d">
    <span class="kicker">Lands as artifacts</span>
-   <span>One .c and one .h per build, 6 files for 3 builds, in Outputs › Exports: <span class="mono" translate="no">export/build-a/ResourceRef_Resolve.c</span> and <span class="mono" translate="no">.h</span>; <span class="mono" translate="no">export/build-b/…</span>; <span class="mono" translate="no">export/build-c/…</span></span>
-   <span class="muted">Each ArtifactCard records the build, program version, format, options and decompiler options. <span class="ad-tier advisory">advisory</span> Exported C ≠ recovered source. <span class="ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed on 8080</span></span>
+   <span class="sr-only" id="xp-out-d">One .c and one .h per build, 6 files for 3 builds, in Outputs › Exports: export/build-a/ResourceRef_Resolve.c and .h; export/build-b/…; export/build-c/… Each ArtifactCard records the build, program version, format, options and decompiler options.</span>
+   <ul class="adv-tmap" aria-hidden="true"><li class="w"><b>⤓</b>build-a<span></span><span class="mono">.c .h</span></li><li class="w"><b>⤓</b>build-b<span></span><span class="mono">.c .h</span></li><li class="w"><b>⤓</b>build-c<span></span><span class="mono">.c .h</span></li><li class="x"><b>—</b>build-d</li></ul>
+   <ul class="adv-chips" aria-hidden="true"><li><span>Outputs ›</span>Exports</li><li>export/build-a/ResourceRef_Resolve.c</li><li><span>files</span>6</li></ul>
+   <div class="row" style="gap:8px"><span class="adv-tip"><span class="adv-w" tabindex="0" aria-describedby="xp-card"><b aria-hidden="true">◇</b>basis</span><span role="tooltip" id="xp-card">Each ArtifactCard records the build, program version, format, options and decompiler options.</span></span><span class="ad-tier advisory">advisory</span><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="xp-src"><b aria-hidden="true">≠</b>source</button><span role="tooltip" id="xp-src">Exported C ≠ recovered source.</span></span><span class="ad-ast unobserved"><b aria-hidden="true">⊡</b>not observed on 8080</span></div>
   </div>
  </div>
- <footer><span class="note">3 builds → confirms before posting</span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button" aria-haspopup="dialog">Export 3 builds…</button></footer>
+ <footer><span class="note"><span aria-hidden="true">3 → confirm</span><span class="sr-only">3 builds → confirms before posting</span></span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button" aria-haspopup="dialog">Export 3 builds…</button></footer>
 </div>
 
 <div class="adc-states">
  <div>
-  <span class="kicker">Several builds · ConfirmDialog names each job</span>
+  <span class="kicker">Several builds<span class="sr-only"> · ConfirmDialog names each job</span></span>
   <div class="ad-dialog" role="alertdialog" aria-modal="true" aria-labelledby="xp-c-t" aria-describedby="xp-c-d">
    <h3 id="xp-c-t">Export ResourceRef::Resolve from 3 builds</h3>
-   <p id="xp-c-d">Three export jobs as C/C++: build-a at 0041b210, build-b at 0041b2c0 and build-c at 00082f40. build-b has a writer, so its export reads the last saved state. build-c already has an export with this basis; exporting again makes a second artifact and keeps the first. build-d is not included: unresolved.</p>
+   <p class="sr-only" id="xp-c-d">Three export jobs as C/C++: build-a at 0041b210, build-b at 0041b2c0 and build-c at 00082f40. build-b has a writer, so its export reads the last saved state. build-c already has an export with this basis; exporting again makes a second artifact and keeps the first. build-d is not included: unresolved.</p>
+   <div style="display:grid;gap:8px;padding:0 var(--space-7) var(--space-5)" aria-hidden="true">
+    <ul class="adv-tmap"><li class="w"><b>⤓</b>build-a<span></span><span class="mono">0041b210</span></li><li class="w"><b>⤓</b>build-b<span></span><span class="mono">saved</span></li><li class="w"><b>⤓</b>build-c<span></span><span class="mono">+1</span></li><li class="x"><b>◌</b>build-d</li></ul>
+    <span class="adv-chips"><span class="adv-w"><b>C</b>C/C++</span><span class="adv-w"><b>3</b>jobs</span></span>
+   </div>
    <footer><button class="ad-btn" type="button">Cancel</button><button class="ad-btn primary" type="button">Export 3 builds</button></footer>
   </div>
  </div>
  <div>
-  <span class="kicker">After posting · outcomes per build, never one summary word</span>
-  <div class="ad-notice info"><b aria-hidden="true">…</b><div><h4>3 exports: 2 running · 1 finished</h4><p>build-a: job <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, export build-a, running">a3f9</a> running. build-b: running, reading the last saved state. build-c: finished; <a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=export-build-c" aria-label="Artifact export of ResourceRef::Resolve, build-c, C">artifact in Outputs</a>. Nothing here says the C compiles or matches, and nothing is observed on 8080 yet.</p></div><span></span></div>
+  <span class="kicker">Per-build outcomes<span class="sr-only">: after posting · outcomes per build, never one summary word</span></span>
+  <div class="ad-notice info"><b aria-hidden="true">…</b><div><h4>3 exports<span class="sr-only">: 2 running · 1 finished</span></h4>
+   <p class="sr-only">build-a: job a3f9 running. build-b: running, reading the last saved state. build-c: finished; artifact in Outputs. Nothing here says the C compiles or matches, and nothing is observed on 8080 yet.</p>
+   <ul class="adv-chips" style="margin-top:6px"><li><span>build-a</span>… <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, export build-a, running">a3f9</a></li><li><span>build-b</span>… saved</li><li><span>build-c</span>✓ <a class="ad-link" href="?project=corpus-alpha&amp;ws=evidence&amp;panel=outputs&amp;artifact=export-build-c" aria-label="Artifact export of ResourceRef::Resolve, build-c, C">artifact</a></li></ul>
+   <div class="row" style="gap:8px;margin-top:6px"><span class="adv-tip"><button type="button" class="adv-bnd" aria-describedby="xp-post-b"><b aria-hidden="true">≠</b>compiles</button><span role="tooltip" id="xp-post-b">Nothing here says the C compiles or matches, and nothing is observed on 8080 yet.</span></span></div></div><span></span></div>
  </div>
  <div>
-  <span class="kicker">Graph export · from GraphPane</span>
+  <span class="kicker">Graph export<span class="sr-only"> · from GraphPane</span></span>
   <div class="ad-g3-dlg" role="dialog" aria-modal="true" aria-labelledby="xp-g-t">
    <header><h3 id="xp-g-t">Export Calls graph of ResourceRef::Resolve</h3></header>
    <div class="body">
-    <div class="ad-g3-form"><label class="lbl" for="xp-g-f">Format</label><select class="adc-in sans auto" id="xp-g-f"><option>GraphML</option><option>DOT</option><option>GML</option><option>JSON</option><option>CSV (vertices and edges)</option></select>
-    <span class="lbl">Basis</span><span class="small">build-a · depth 2 · the graph as drawn, including collapsed groups · read 14:02</span></div>
+    <div class="ad-g3-form"><label class="lbl" for="xp-g-f">Format</label><select class="adc-in sans auto" id="xp-g-f"><option>GraphML</option><option>DOT</option><option>GML</option><option>JSON</option><option>CSV (vertices, edges)</option></select>
+    <span class="lbl">Basis</span><ul class="adv-chips" aria-label="build-a · depth 2 · the graph as drawn, including collapsed groups · read 14:02"><li>build-a</li><li><span>depth</span>2</li><li><span>as drawn</span>+ collapsed</li><li><span>read</span>14:02</li></ul></div>
    </div>
-   <footer><span class="note"><span id="xp-g-n">Not available on this server yet. The graph still reads.</span> · <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span><button class="ad-btn" type="button">Cancel</button><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="xp-g-n">Export</button></footer>
+   <footer><button class="ad-btn" type="button">Cancel</button><span class="adv-tip end"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="xp-g-n"><span class="adv-na"><b aria-hidden="true">⊘</b>Export</span></button><span role="tooltip" id="xp-g-n">Not available on this server yet. The graph still reads. <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span></span></footer>
   </div>
  </div>
  <div>
-  <span class="kicker">Types · from TypeManager</span>
-  <div class="ad-notice unknown"><b aria-hidden="true">⊘</b><div><h4>GDT export · Not available on this server yet. C header export still works.</h4><p>Exporting the program archive of build-a as a data type archive (GDT) is not among the actions this server lists. C header export with Emit data type definitions covers CacheEntry today.</p></div><a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></div>
+  <span class="kicker">Types<span class="sr-only"> · from TypeManager</span></span>
+  <div class="ad-notice unknown"><b aria-hidden="true">⊘</b><div><h4>GDT export<span class="sr-only"> · Not available on this server yet. C header export still works.</span></h4>
+   <p class="sr-only">Exporting the program archive of build-a as a data type archive (GDT) is not among the actions this server lists. C header export with Emit data type definitions covers CacheEntry today.</p>
+   <div class="adv-empty"><span class="adv-tip"><button class="ad-btn" type="button" aria-disabled="true" aria-describedby="xp-gdt"><span class="adv-na"><b aria-hidden="true">⊘</b>GDT…</span></button><span role="tooltip" id="xp-gdt">Not available on this server yet. C header export still works. <a class="ad-link" href="?project=corpus-alpha&amp;help=server-offers">What this server offers</a></span></span><span class="adv-tip end is-open"><span class="adv-w" tabindex="0" aria-describedby="xp-hdr"><b aria-hidden="true">✓</b>C header</span><span role="tooltip" id="xp-hdr">C header export with Emit data type definitions covers CacheEntry today.</span></span></div></div><span></span></div>
  </div>
 </div>
 </div>

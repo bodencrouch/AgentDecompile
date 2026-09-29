@@ -1,4 +1,4 @@
-<!-- @dsCard group="Shell" height=1600 -->
+<!-- @dsCard group="Shell" height=1440 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <div class="ad-narrow-demo">
 <div class="ad-narrow" aria-label="Single-pane workbench at 598 by 912">
@@ -7,11 +7,11 @@
   <button class="ad-narrow-btn goto" aria-haspopup="dialog" aria-keyshortcuts="Control+P Meta+P"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5l3 3"/></svg>Go to…</button>
   <button class="ad-narrow-btn crumb" aria-haspopup="menu" aria-expanded="false" aria-label="Location: corpus-alpha, build-a, .text, ResourceRef::Resolve. Breadcrumb menu"><span class="lvl" aria-hidden="true">build-a · .text</span><span class="nm" translate="no">ResourceRef::Resolve</span><span aria-hidden="true">▾</span></button>
  </nav>
- <p class="adl-nf-upd small">Update panes: On Enter · forced below 700px, so arrows move focus only</p>
+ <p class="adl-nf-upd small" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px"><span>Update panes</span><strong>On Enter</strong><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="nf-up"><b aria-hidden="true">⇣</b>700px</button><span role="tooltip" id="nf-up">Update panes: On Enter · forced below 700px, so arrows move focus only</span></span><span class="adv-tip end"><button type="button" class="adv-q" aria-label="Key" aria-describedby="nf-key">?</button><span role="tooltip" id="nf-key">Solid chip: witnessed. Dashed chip: hypothesis. unresolved: nothing located. Bar: share of one count. ≠: a boundary. ⇕ kept: scroll kept. ▸: cursor or caret.</span></span></p>
  <section class="ad-narrow-pane" id="nf-p-analyze" role="tabpanel" aria-labelledby="nf-t-analyze">
   <header class="ad-narrow-ph"><span class="kicker">Code</span><span class="strong" translate="no">ResourceRef::Resolve</span><span class="small muted">debug info</span><button class="adl-factbtn" aria-haspopup="dialog" aria-label="Facts: Compilation passed, ABI checks not run, Tested behavior not run, Local match passed, Linked match stale, Replacement contribution unknown, Whole-file equality not run. Peek the facts"><span class="ad-facts" aria-hidden="true"><b class="passed">✓</b><b class="not_run">○</b><b class="not_run">○</b><b class="passed">✓</b><b class="stale">◷</b><b class="unknown">?</b><b class="not_run">○</b></span></button><span class="small muted">build-a · cursor <span class="addr">0041b216</span></span></header>
   <div class="ad-subtabs ad-narrow-tabs" role="tablist" aria-label="Code views"><button role="tab" aria-selected="true">Listing</button><button role="tab" aria-selected="false" tabindex="-1">Decompile</button><button role="tab" aria-selected="false" tabindex="-1">Hex</button><button role="tab" aria-selected="false" tabindex="-1">Graph</button><button role="tab" aria-selected="false" tabindex="-1">References</button></div>
-  <p class="adl-nf-cur small muted">Cursor 0041b216 · line 7 · kept when you switch views · Listing · Follows · on Enter</p>
+  <p class="adl-nf-cur small muted"><span class="sr-only">Cursor 0041b216 · line 7 · kept when you switch views · Listing · Follows · on Enter</span><span aria-hidden="true">▸ <span class="addr">0041b216</span> · <span class="mono">L7</span> · <span>Listing</span> · <span>Follows</span></span></p>
   <div class="ad-narrow-code well" role="grid" aria-label="Listing, ResourceRef::Resolve, build-a" aria-rowcount="23" data-scroll>
    <div role="row" class="ad-narrow-ln lbl" aria-rowindex="1"><span role="gridcell" class="addr">0041b210</span><span role="gridcell" class="op" translate="no">ResourceRef::Resolve:</span></div>
    <div role="row" class="ad-narrow-ln" aria-rowindex="2"><span role="gridcell" class="addr">0041b210</span><span role="gridcell" class="mn">push</span><span role="gridcell" class="op">ebp</span></div>
@@ -28,16 +28,16 @@
    <span class="ad-narrow-grab" aria-hidden="true"></span>
    <header><span class="kicker">Peek · function · build-a</span><h4 id="nf-sh-t" translate="no">FUN_0041c880</h4>
     <span class="acts"><button class="ad-narrow-btn" aria-pressed="false">Full height</button><button class="ad-narrow-btn sq" aria-label="Close peek" aria-keyshortcuts="Escape">✕</button></span>
-    <span class="sub"><span class="ad-stamp"><b>reused</b>peek cache · gen 42 · 13:58</span></span></header>
+    <span class="sub"><span class="ad-stamp"><b>reused</b><span class="sr-only">peek cache ·</span><span class="mono">gen 42 · 13:58</span></span></span></header>
    <div class="pb">
-    <span class="small"><span class="ad-fact failed"><b aria-hidden="true">✕</b><span><span class="label">Compilation</span> failed</span></span> <span class="muted">· other six facts not run · no identity</span></span>
+    <span class="small"><span class="ad-fact failed"><b aria-hidden="true">✕</b><span><span class="label">Compilation</span> failed</span></span> <span class="muted"><span class="sr-only">· other six facts not run · no identity</span><span aria-hidden="true">· ○ ×6 · ∅ identity</span></span></span>
     <div class="ad-narrow-well" role="group" aria-label="Listing, first 4 of 31 instructions"><div><span class="addr">0041c880</span><span class="mn">push</span><span>ebp</span></div><div><span class="addr">0041c881</span><span class="mn">mov</span><span>ebp, esp</span></div><div><span class="addr">0041c883</span><span class="mn">sub</span><span>esp, 0x10</span></div><div><span class="addr">0041c8d2</span><span class="mn">call</span><span class="sym" translate="no">ResourceRef::Resolve</span></div></div>
-    <span class="small muted">Cached, 4 of 31 instructions. Non-modal, at most 64% of the pane; the line that opened it stays visible above. Full height makes it modal.</span>
+    <span class="adv-chips"><span class="adv-frac" role="img" aria-label="Cached, 4 of 31 instructions" style="--v:13"><i></i>4/31</span><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="nf-sh"><b aria-hidden="true">▭</b>≤ 64%</button><span role="tooltip" id="nf-sh">Non-modal, at most 64% of the pane; the line that opened it stays visible above. Full height makes it modal.</span></span></span>
    </div>
    <footer><button class="ad-narrow-btn">Open</button><button class="ad-narrow-btn">Open beside</button><button class="ad-narrow-btn" aria-pressed="false">Keep</button></footer>
   </section>
  </section>
- <p class="adl-nf-status small"><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, corpus.cross-place, finished">a3f9</a> finished · 2 running, 1 failed elsewhere</p>
+ <p class="adl-nf-status small"><a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=a3f9" aria-label="Job a3f9, corpus.cross-place, finished">a3f9</a> finished · <span class="sr-only">2 running, 1 failed elsewhere</span><span aria-hidden="true"><span class="mono">▶ 2 · ✕ 1</span></span></p>
  <nav class="ad-narrow-rail" aria-label="Panes">
   <div role="tablist" aria-label="Pane">
    <button role="tab" id="nf-t-nav" aria-selected="false" tabindex="-1"><svg class="ad-ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7"/></svg><span class="w">Navigate</span><span class="mem">row 212</span></button>
@@ -50,23 +50,23 @@
 
 <div class="ad-narrow-side">
  <section class="ad-narrow-card" aria-labelledby="nf-a-h">
-  <h5 class="kicker" id="nf-a-h">Navigate · focus moves, nothing advances</h5>
+  <h5 class="kicker" id="nf-a-h">Navigate<span class="sr-only"> · focus moves, nothing advances</span></h5>
   <div class="ad-narrow-list" role="grid" aria-label="Functions, build-a" aria-rowcount="2418">
    <div role="row" class="ad-narrow-li" aria-selected="true" aria-rowindex="211"><span role="gridcell" class="addr">0041b210</span><span role="gridcell" translate="no">ResourceRef::Resolve</span></div>
    <div role="row" class="ad-narrow-li" aria-rowindex="212"><span role="gridcell" class="addr">0041d0a0</span><span role="gridcell" class="is-focus" tabindex="0" translate="no">Archive::OpenMember</span></div>
    <div role="row" class="ad-narrow-li" aria-rowindex="213"><span role="gridcell" class="addr">0041e310</span><span role="gridcell" translate="no">FUN_0041e310</span></div>
   </div>
-  <p class="small">↓ moved focus to <span translate="no">Archive::OpenMember</span>. Update panes is On Enter below 700px, so Code still shows <span translate="no">ResourceRef::Resolve</span>. <strong class="strong">Enter or a tap</strong> selects it, opens Code and lands on the Listing row; one message says "Code: Archive::OpenMember, build-a".</p>
+  <p class="sr-only">↓ moved focus to Archive::OpenMember. Update panes is On Enter below 700px, so Code still shows ResourceRef::Resolve. Enter or a tap selects it, opens Code and lands on the Listing row; one message says "Code: Archive::OpenMember, build-a".</p><ul class="adv-chips" aria-hidden="true"><li><span>↓ focus</span><span translate="no">Archive::OpenMember</span></li><li><span>Code</span><span translate="no">ResourceRef::Resolve</span></li><li><strong>Enter</strong>→ Code · Listing</li></ul>
  </section>
  <section class="ad-narrow-card" aria-labelledby="nf-b-h">
-  <h5 class="kicker" id="nf-b-h">Breadcrumb menu · flat, no submenus</h5>
+  <h5 class="kicker" id="nf-b-h">Breadcrumb menu<span class="sr-only"> · flat, no submenus</span></h5>
   <ul class="ad-menu ad-narrow-menu" role="menu" aria-labelledby="nf-b-h">
    <li role="none"><a role="menuitem" href="?project=corpus-alpha" tabindex="-1"><span class="t"><span class="muted">Project</span> corpus-alpha</span></a></li>
    <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;build=build-a&amp;addr=00401000" tabindex="-1"><span class="t"><span class="muted">Section</span> .text</span></a></li>
    <li role="none"><a role="menuitem" class="is-active" aria-current="location" href="?project=corpus-alpha&amp;entity=88&amp;build=build-a&amp;addr=0041b216" tabindex="-1"><span class="t" translate="no"><span class="muted">Function</span> ResourceRef::Resolve</span><span class="m">0041b216</span></a></li>
    <li role="separator"></li>
    <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;entity=88&amp;build=build-b&amp;addr=0041b2c0" tabindex="-1" aria-label="build-b, 0041b2c0, 1↔1, accepted"><span class="t">build-b</span><span class="m">0041b2c0</span><span class="note">1↔1 · accepted</span></a></li>
-   <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=00082f40" tabindex="-1" aria-label="build-c, 00082f40, 1↔N, candidate. Opening one does not accept it"><span class="t">build-c</span><span class="m">00082f40</span><span class="note">1↔N · candidate · Opening one does not accept it</span></a></li>
+   <li role="none"><a role="menuitem" href="?project=corpus-alpha&amp;entity=88&amp;build=build-c&amp;addr=00082f40" tabindex="-1" aria-label="build-c, 00082f40, 1↔N, candidate. Opening one does not accept it"><span class="t">build-c</span><span class="m">00082f40</span><span class="note">1↔N · candidate</span></a></li>
    <li role="none"><div role="menuitem" aria-disabled="true" tabindex="-1" aria-label="build-d, absent"><span class="t">build-d</span><span class="m">absent</span></div></li>
    <li role="separator"></li>
    <li role="none"><div role="menuitem" tabindex="-1"><span class="t">Forward</span><span class="m">Alt →</span></div></li>
@@ -76,28 +76,28 @@
   </ul>
  </section>
 <section class="ad-narrow-card" aria-labelledby="nf-s-h">
-  <h5 class="kicker" id="nf-s-h">Open beside · the second segment</h5>
+  <h5 class="kicker" id="nf-s-h">Open beside<span class="sr-only"> · the second segment</span></h5>
   <div class="ad-subtabs ad-narrow-tabs" role="tablist" aria-label="Split" style="flex-wrap:wrap"><button role="tab" aria-selected="false" tabindex="-1">build-a · primary</button><button role="tab" aria-selected="true" tabindex="0">Held · #88 @ build-c · 4 min</button></div>
-  <p class="small" style="margin:0"><span class="adl-kepttag">Held</span> Read-only. Actions apply to the primary selection, build-a <span class="addr">0041b216</span>.</p>
-  <p class="small muted" style="margin:0">A derived split reads "build-a · primary | Counterpart of #88 · derived"; Enter in it is Go, and Follow again returns a held segment to derived. On 8080 without split panes, Open beside opens a new window.</p>
+  <p class="small adv-chips" style="margin:0"><span class="adl-kepttag">Held</span><span class="sr-only">Read-only. Actions apply to the primary selection, build-a 0041b216.</span><span aria-hidden="true"><span class="adv-w" style="cursor:default">read-only</span> <span>→ primary</span> <span class="addr">0041b216</span></span></p>
+  <p class="small adv-chips" style="margin:0"><span class="adv-tip"><button type="button" class="adv-h" aria-describedby="nf-dv"><b aria-hidden="true">◇</b>derived</button><span role="tooltip" id="nf-dv">A derived split reads "build-a · primary | Counterpart of #88 · derived"; Enter in it is Go, and Follow again returns a held segment to derived.</span></span><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="nf-80"><b aria-hidden="true">⧉</b>8080 · window</button><span role="tooltip" id="nf-80">On 8080 without split panes, Open beside opens a new window.</span></span></p>
  </section>
  <section class="ad-narrow-card" aria-labelledby="nf-g-h">
-  <h5 class="kicker" id="nf-g-h">Build-column grid below a 480px container · one item per row</h5>
-  <ul aria-label="FrameLayout, ResourceRef::Resolve, one item per stack slot" style="list-style:none;margin:0;padding:0;display:grid;gap:8px">
-   <li><span class="strong" translate="no">ref</span> <span class="small muted">local · ResourceRef *</span><br><span class="small">build-a: −0x08 · witnessed</span><br><span class="small">build-b: −0x08 · witnessed</span><br><span class="small">build-c: +0x18 · hypothesis</span><br><span class="small"><span class="ad-absent">build-d: unresolved</span></span></li>
-   <li><span class="strong" translate="no">name</span> <span class="small muted">param · char const *</span><br><span class="small">build-a: +0x08 · witnessed</span><br><span class="small">build-b: +0x08 · witnessed</span><br><span class="small">build-c: +0x04 · hypothesis</span><br><span class="small"><span class="ad-absent">build-d: unresolved</span></span></li>
+  <h5 class="kicker" id="nf-g-h">Build-column grid</h5>
+  <p class="sr-only" id="nf-g-d">Build-column grid below a 480px container · one item per row. Each build is a labelled line, so nothing scrolls sideways and no build is dropped. CompilerLayer tags wrap under their row.</p>
+  <ul aria-label="FrameLayout, ResourceRef::Resolve, one item per stack slot" aria-describedby="nf-g-d" style="list-style:none;margin:0;padding:0;display:grid;gap:8px">
+   <li><span class="strong" translate="no">ref</span> <span class="small muted">local · ResourceRef *</span><br><span class="small"><span class="mono">build-a</span> <span class="adv-w" style="cursor:default;min-height:20px" aria-label="−0x08, witnessed">−0x08</span></span><br><span class="small"><span class="mono">build-b</span> <span class="adv-w" style="cursor:default;min-height:20px" aria-label="−0x08, witnessed">−0x08</span></span><br><span class="small"><span class="mono">build-c</span> <span class="adv-h" style="cursor:default;min-height:20px" aria-label="+0x18, hypothesis">+0x18</span></span><br><span class="small"><span class="ad-absent">build-d: unresolved</span></span></li>
+   <li><span class="strong" translate="no">name</span> <span class="small muted">param · char const *</span><br><span class="small"><span class="mono">build-a</span> <span class="adv-w" style="cursor:default;min-height:20px" aria-label="+0x08, witnessed">+0x08</span></span><br><span class="small"><span class="mono">build-b</span> <span class="adv-w" style="cursor:default;min-height:20px" aria-label="+0x08, witnessed">+0x08</span></span><br><span class="small"><span class="mono">build-c</span> <span class="adv-h" style="cursor:default;min-height:20px" aria-label="+0x04, hypothesis">+0x04</span></span><br><span class="small"><span class="ad-absent">build-d: unresolved</span></span></li>
   </ul>
-  <p class="small muted" style="margin:0">Each build is a labelled line, so nothing scrolls sideways and no build is dropped. CompilerLayer tags wrap under their row.</p>
  </section>
  <section class="ad-narrow-card" aria-labelledby="nf-c-h">
-  <h5 class="kicker" id="nf-c-h">Each pane returns where you left it</h5>
+  <h5 class="kicker" id="nf-c-h">Pane memory<span class="sr-only"> · each pane returns where you left it</span></h5>
   <dl class="ad-narrow-mem">
-   <dt>Navigate</dt><dd>row 212 of 2,418 · filter “Resolve” · scroll kept</dd>
-   <dt>Code</dt><dd>Code views: Listing · caret <span class="addr">0041b216</span></dd>
-   <dt>Inspect</dt><dd>Facts section · scroll kept</dd>
-   <dt>Events</dt><dd>Problems tab · focus on the expanded failure</dd>
+   <dt>Navigate</dt><dd><span class="sr-only">row 212 of 2,418 · filter “Resolve” · scroll kept</span><span aria-hidden="true"><span class="mono">212/2,418</span> · “Resolve” · ⇕ kept</span></dd>
+   <dt>Code</dt><dd><span class="sr-only">Code views: Listing · caret 0041b216</span><span aria-hidden="true">Listing · ▸ <span class="addr">0041b216</span></span></dd>
+   <dt>Inspect</dt><dd><span class="sr-only">Facts section · scroll kept</span><span aria-hidden="true">Facts · ⇕ kept</span></dd>
+   <dt>Events</dt><dd><span class="sr-only">Problems tab · focus on the expanded failure</span><span aria-hidden="true">Problems · ▸ ✕ failure</span></dd>
   </dl>
-  <p class="small muted">Per viewer, in durable workspace state. The URL carries the location, not scroll.</p>
+  <p class="small adv-chips"><span class="adv-tip"><button type="button" class="adv-w" aria-describedby="nf-pv"><b aria-hidden="true">◉</b>per viewer</button><span role="tooltip" id="nf-pv">Per viewer, in durable workspace state.</span></span><span class="adv-tip end is-open"><button type="button" class="adv-bnd" aria-describedby="nf-url"><b aria-hidden="true">≠</b>URL scroll</button><span role="tooltip" id="nf-url">The URL carries the location, not scroll.</span></span></p>
  </section>
 </div>
 </div>

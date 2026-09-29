@@ -45,6 +45,9 @@ The editor for one data type on one explicit build target: structure, union, enu
    - add and edit bitfields, in non-packed structures only;
    - go to offset;
    - search in the editor;
+   - go to the next or previous defined component;
+   - cycle a component's type through a cycle group (byte → word → dword, char → string), as a draft retype;
+   - show a component's type in TypeManager, and show its category;
    - hex display, a per-viewer toggle.
 6. **Bit view** for bitfields: one cell per bit of the storage unit. Field bits carry their bit numbers, dotted cells are padding, and a conflict gets a 2px `fact-failed` frame plus the word "conflict". It is a named image whose text key states the bit ranges. Bit order follows each build's endianness and says so.
 7. **Layout check per build**, read before Save. Each build gets one row: size before and after, the fields that move, and the result: "fits", "layout identical to build-a", "layout differs … (why)", "absent" or "not loaded". The check never opens a program. A build that is not loaded says "not loaded" and is not checked.
@@ -55,9 +58,16 @@ The editor for one data type on one explicit build target: structure, union, enu
 
 - **Structure and union.** Everything above. A union's rows all sit at +0x0 and its size is the largest member. The per-build column shows each member's size.
 - **Enum.** One row per constant, named in COBRA_CASE. Build columns show each value side by side, never merged; "absent" is a word, and a value present only on one build is marked "+ only on build-c". The header has the enum size and a Hex toggle. The actions are Add value, Delete value, and edit name, value or comment. Sort order is a viewer setting.
-- **Typedef and pointer.** The base type, then the pointer-typedef settings: offset (a shifted pointer, from Adjust Pointer Offset), address space, image-base relative, and component path (Force Field). The pointer width appears per build, from each build's language. A width difference is a solid compile-variance witness and blocks proposals.
+- **Typedef and pointer.** The base type, then Ghidra's pointer-typedef settings: component offset (a shifted pointer, from Adjust Pointer Offset: the pointer holds the base plus this signed offset), address space, offset mask, offset shift, and pointer type (default, image-base relative, relative, file offset). Force Field sets the component the pointer is read as. The pointer width appears per build, from each build's language. A width difference is a solid compile-variance witness (≈) and blocks proposals.
 - **Array.** Element type and count. A count is never copied between builds blindly; each recipient previews its own count.
 - **Function definition.** Created from a function on one build, with return type, parameters and the calling convention from that build's spec. It opens SignatureEditor for storage. It is not offered on builds whose function uses a convention that the definition cannot express (for example custom register storage from LTCG).
+- **Read-only following form** (the Walk pointers layout preset, in the evidence rail). It shows the type at PointerWalk's current step and follows that step after the settle. It has:
+  - no draft, no Save, no Propose, no edit actions and no editable cells (every cell is `aria-readonly="true"`);
+  - the component grid keyed by logical field, with one `+offset : size` column per build, filler rows and the size row, exactly as in structure mode;
+  - the current step's field marked with a 2px `ink-strong` frame and the visible word "current step" (the reflection shape, never the accent or the selection fill);
+  - a header that names the walk and step ("Following PointerWalk · step 3 of 3 · `next`") and the build the walk is inspected on;
+  - **Edit on ‹build›…**, a button that opens the real editor in the center, bound to that one explicit build. It defaults to the inspected build and lists the other loaded builds by name; it never offers "all builds".
+  It reads stored layouts only. When the step's type has no stored layout on a build, that column says "not read" or "not loaded"; it never decompiles, re-types or analyzes to fill it. When the walk has no current step, it says "No pointer walk · press p on an expression".
 - **Inferred (Auto Create or Auto Fill).** Inferred rows are dashed and read "hypothesis". Their basis is the access address and width on the build they were inferred from. They are never proof of layout (NP). A row becomes a normal row only once the operator names or retypes it. Even then, the other builds' size checks still gate any proposal.
 
 **Confirm tier** (35 Confirming edits)
@@ -77,13 +87,14 @@ The editor for one data type on one explicit build target: structure, union, enu
 - ambiguous outcome ("Checking whether the operation completed"), during which Save and Propose are disabled for this type;
 - conflict (⇄);
 - read-only, for a built-in or read-only archive, where Save is `aria-disabled` with its reason;
-- waiting at gate, when the writer is held elsewhere and its owner is named;
-- not loaded, for a comparison build.
+- waiting for the writer, when the target's writer is owned elsewhere: "● writer: ‹owner› as reported · Save waits"; it never starts a second writer or offers kill or restart;
+- not loaded, for a comparison build;
+- following (read-only form): "Following PointerWalk · step 3 of 3"; held: "Held · CacheEntry.next @ build-a · read 14:02"; no walk: "No pointer walk · press p on an expression".
 
 **Linking**
 
-- **Publishes:** `type=` (with `build=` for the target) when opened by Go. The draft is durable workspace state, never in the URL. A field row focus replaces `type=CacheEntry.name_len` after the settle.
-- **Follows:** nothing. The editor stays bound to its type and target build. A draft stays with its type when the selection moves and returns with it. It cannot be held, because held panes are read-only and never open editors.
+- **Publishes:** `type=` (with `build=` for the target) when opened by Go. The read-only following form publishes nothing on follow; its **Edit on ‹build›…** is a Go that pushes one stop with `type=` and `build=`. The draft is durable workspace state, never in the URL. A field row focus replaces `type=CacheEntry.name_len` after the settle.
+- **Follows:** the editor follows nothing. It stays bound to its type and target build. A draft stays with its type when the selection moves and returns with it. It cannot be held, because held panes are read-only and never open editors. The **read-only following form** follows PointerWalk's current step (`walk=` and the step's `type=`) after the settle, reading stored layouts only. It is holdable: a held form freezes on its step and type and says "Held · CacheEntry.next @ build-a"; it can also be kept as a card (`keep=type:CacheEntry.next@build-a`, registered kind `type`).
 - **Targets rendered:**
   - a field's datatype → that type's editor on the same build;
   - the source function (function-definition mode) → the Code Browser at that build and address;

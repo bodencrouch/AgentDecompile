@@ -54,7 +54,7 @@ The register manager for one explicit build. Its register tree comes from that b
   - the job → the dock Jobs record;
   - the armed re-disassembly → the ActionStrip.
 - **Peek source:** Alt+↓ on a range start reads the cached listing there. On a counterpart cell, it reads that build's stored ranges.
-- **Absent copy:** "no value" · "not loaded" · "language default" · "No explicit values for ‹reg› on ‹build›" · "No register change to submit" · "no anchor before ‹addr› on ‹build›".
+- **Absent copy:** "no value" · "not loaded" · "◌ unresolved" · "language default" · "No explicit values for ‹reg› on ‹build›" · "No register change to submit" · "no anchor before ‹addr› on ‹build›".
 - **Target-size exception:** none. Tree rows and controls are 24px or more, and 44px below 700px.
 
 **Keyboard**

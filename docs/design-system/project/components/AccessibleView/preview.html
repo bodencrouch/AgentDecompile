@@ -1,6 +1,6 @@
-<!-- @dsCard group="Shell" height=1061 -->
+<!-- @dsCard group="Shell" height=1120 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<span class="kicker">The invoker · a pane-header button, or Alt+F2 anywhere</span>
+<span class="kicker">The invoker · a pane-header button, Alt+F2, the palette or the Help menu (GNOME and KDE take Alt+F2)</span>
 <div class="ad-av-invoker">
  <div class="ad-pane-h"><span class="small"><b class="strong">Listing</b> · build-b · <span translate="no">ResourceRef::Resolve</span></span><button class="ad-btn compact" aria-haspopup="dialog" aria-keyshortcuts="Alt+F2">Accessible View <span class="ad-kbd">Alt F2</span></button></div>
  <div class="ad-listing well" role="grid" aria-readonly="true" aria-label="Listing, build-b, ResourceRef::Resolve" aria-rowcount="23">
@@ -14,14 +14,10 @@
  <section class="ad-av wide" role="dialog" aria-modal="true" aria-labelledby="av1-t" aria-describedby="av1-d">
   <header><h3 id="av1-t">Accessible View · Listing · <code translate="no">ResourceRef::Resolve</code> · build-b</h3>
    <button class="ad-av-x" aria-label="Close Accessible View" aria-keyshortcuts="Escape"><span aria-hidden="true">✕</span></button>
-   <p id="av1-d">Read-only text of the current function, 23 instructions, as loaded. It follows your verbosity settings. Esc returns focus to row 0041b2c3 in the Listing.</p></header>
-  <div class="ad-tools" role="group" aria-label="Verbosity">
-   <span><span class="lbl" id="av1-la">Address</span><span class="ad-seg" role="group" aria-labelledby="av1-la"><button aria-pressed="true">Full</button><button aria-pressed="false">Last 4</button><button aria-pressed="false">Off</button></span></span>
-   <span><span class="lbl" id="av1-lb">Bytes</span><span class="ad-seg" role="group" aria-labelledby="av1-lb"><button aria-pressed="false">On</button><button aria-pressed="true">Off</button></span></span>
-   <span class="small muted">Operands are exactly as displayed. Labels are their own lines.</span>
-  </div>
+   <p id="av1-d">Read-only snapshot of the current function, 23 instructions, as read 13:58:07. Esc returns focus to row 0041b2c3 in the Listing.</p></header>
+  <div class="ad-tools adl-av-verb"><span class="small">Verbosity: address full, bytes off <span class="muted">· one per-viewer setting, not this dialog's</span></span><button class="ad-btn compact quiet" aria-haspopup="dialog">View settings…</button></div>
   <label class="sr-only" for="av1-ta">Text of Listing, build-b, ResourceRef::Resolve</label>
-  <textarea id="av1-ta" class="ad-av-text" readonly wrap="off" rows="17" spellcheck="false" translate="no">reused · existing analysis · build-b gen 42 · read 13:58:07
+  <textarea id="av1-ta" class="ad-av-text" readonly wrap="soft" rows="17" spellcheck="false" translate="no">reused · existing analysis · build-b gen 42 · as read 13:58:07
 Listing, build-b, ResourceRef::Resolve, 0041b2c0 to 0041b2f7, 23 instructions
 label ResourceRef::Resolve, 12 xrefs
 0041b2c0  push ebp
@@ -30,9 +26,9 @@ label ResourceRef::Resolve, 12 xrefs
 0041b2c6  test eax, eax
 0041b2c8  je 0041b2e0
 0041b2ca  push eax
-0041b2cb  call String::CStr
+0041b2cb  call Archive::OpenMember
 0041b2d0  mov ecx, eax
-0041b2d2  call Archive::FindEntry
+0041b2d2  call FUN_0041c880
 0041b2d7  test eax, eax
 0041b2d9  jne 0041b2e4
 label LAB_0041b2e0, jump target from 0041b2c8
@@ -44,9 +40,11 @@ label LAB_0041b2e0, jump target from 0041b2c8
  <section class="ad-av" role="dialog" aria-modal="true" aria-labelledby="av2-t" aria-describedby="av2-d">
   <header><h3 id="av2-t">Accessible View · Object diff · r15</h3>
    <button class="ad-av-x" aria-label="Close Accessible View" aria-keyshortcuts="Escape"><span aria-hidden="true">✕</span></button>
-   <p id="av2-d">Diff lines carry the words “+ added”, “− removed”, “≠ differs”. Shown with Address set to Last 4.</p></header>
+   <p id="av2-d">Diff lines carry the words “+ added”, “− removed”, “≠ differs”. Opened on a held pane; shown with the viewer's verbosity set to address last 4.</p></header>
+  <div class="ad-notice caution adl-av-note"><b aria-hidden="true">◷</b><div><p>Basis changed since opened · <button class="ad-btn compact">Refresh</button> The text below stays as read; nothing changes under the caret.</p></div><span></span></div>
   <label class="sr-only" for="av2-ta">Text of object diff, ResourceRef::Resolve, build-a, target versus candidate r15</label>
-  <textarea id="av2-ta" class="ad-av-text" readonly wrap="off" rows="11" spellcheck="false" translate="no">fresh · objdiff · basis 9f3c…a1e0 · 13:58:07
+  <textarea id="av2-ta" class="ad-av-text" readonly wrap="soft" rows="12" spellcheck="false" translate="no">Held · ResourceRef::Resolve @ build-a · 4 min
+fresh · object diff · basis 9f3c…a1e0 · as read 13:58:07
 Object diff, ResourceRef::Resolve, build-a
 target vs candidate r15, 3 of 23 rows differ
             b210  push ebp
@@ -55,7 +53,7 @@ target vs candidate r15, 3 of 23 rows differ
                   candidate: mov eax, dword ptr [ebp + 0xc]
 − removed   b216  lea ecx, [eax + 0x4]
 + added     ----  mov ecx, eax
-            b219  call String::CStr
+            b219  call Archive::OpenMember
 Local match: failed. Local zero ≠ full-image or behavior proof.</textarea>
   <footer><button class="ad-btn">Copy all</button><button class="ad-btn">Close <span class="ad-kbd">Esc</span></button></footer>
  </section>
@@ -65,12 +63,12 @@ Local match: failed. Local zero ≠ full-image or behavior proof.</textarea>
    <button class="ad-av-x" aria-label="Close Accessible View" aria-keyshortcuts="Escape"><span aria-hidden="true">✕</span></button>
    <p id="av3-d">Log text is exact; verbosity applies to code rows only. Only the loaded tail is shown; nothing is fetched.</p></header>
   <label class="sr-only" for="av3-ta">Text of log, job a3f9, lines 412 to 431</label>
-  <textarea id="av3-ta" class="ad-av-text" readonly wrap="off" rows="8" spellcheck="false" translate="no">reused · dock log · job a3f9 · corpus.cross-place
-run started 13:41 · read 13:58:07
+  <textarea id="av3-ta" class="ad-av-text" readonly wrap="soft" rows="8" spellcheck="false" translate="no">reused · dock log · job a3f9 · corpus.cross-place
+run started 13:41 · as read 13:58:07
 Log, job a3f9, lines 412 to 431 of 431
 Lines 1 to 411: Not loaded. Open to read it.
 13:57:58  recipient 0041a4a0 Actor::LoadFromTemplate: ABI check passed
-13:58:01  compiling ResourceRef.cpp (cl 13.10 /O2 /Gy)
+13:58:01  compiling ResourceRef.cpp (compiler profile cc-1 /O2)
 13:58:04  resource.c(41): warning C4047: levels of indirection differ
 13:58:07  recipient 0041b2c0 ResourceRef::Resolve: compiled</textarea>
   <footer><button class="ad-btn">Copy all</button><button class="ad-btn">Close <span class="ad-kbd">Esc</span></button></footer>

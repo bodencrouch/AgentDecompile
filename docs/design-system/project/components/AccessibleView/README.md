@@ -1,47 +1,49 @@
 # AccessibleView
 
-A modal plain-text mirror of what the operator is looking at, opened with Alt+F2: a read-only text area holding the exact text of the current function, range, log, peek or receipt, with its ProvenanceStamp, verbosity settings, diff words and Copy all.
+A modal plain-text snapshot of what the operator is reading: a read-only, soft-wrapped text area holding the exact text of the current function, range, log, Peek or receipt, with its ProvenanceStamp line, diff words and Copy all.
 
-**Use it** from any code well (Listing, DecompileView, HexStrip, ObjectDiff, SourceRepairDiff), log tail, Peek or receipt card: Alt+F2 anywhere, a pane-header **Accessible View** button, "Open in Accessible View" on log tails, and the palette. It is the screen-reader path to exact code text and the everyone path to exact copyable text; virtualized rows cannot be drag-selected, this can.
+**Purpose.** It is the screen-reader path to character-exact code text, the reflow path for code at 320 CSS px (WCAG 1.4.10), and everyone's path to exact copyable text: virtualized rows cannot be drag-selected, this can. It is also the reading path where screen-reader punctuation settings would otherwise change what is spoken.
 
-**Consumer provides** the source kind and its title (view, entity, build); the already-loaded text lines in display order, exactly as displayed (operands, labels as their own lines, flow restated as words, diff lines with their kind); the focused line; which ranges are not loaded; the source's ProvenanceStamp text; and the viewer's verbosity settings.
+**Invokers.** `view.accessible` (Alt+F2) anywhere; the **Accessible View** button in a pane header (Listing, DecompileView, HexStrip, ObjectDiff, SourceRepairDiff, log tails, Peeks and receipt cards); "Open in Accessible View" on log tails; the palette and the Help menu. GNOME and KDE take Alt+F2 (`keymap.json` `platformCautions`), so the palette, the Help menu and the pane-header button always remain.
 
-- Modal dialog on `dialog-bg`, 1px `line-control`, `shadow-popup`, over the `overlay` scrim, square corners, at most the center pane's width. Title in `type-pane-title`: "Accessible View · Listing · ResourceRef::Resolve · build-b". One sentence under it says what the text is, how much, and where Esc returns.
-- The text area is a `<textarea readonly wrap="off">` in a `well` with `shadow-inset`, `type-code` 12/18 mono, `ink`. It is plain text: no color, no glyph that is not also a word, no hidden markup. It scrolls in two dimensions inside itself and can be resized vertically.
-- **First lines** are the ProvenanceStamp text ("reused · existing analysis · build-b gen 42 · read 13:58:07") and a title line naming the source, range and count ("Listing, build-b, ResourceRef::Resolve, 0041b2c0 to 0041b2f7, 23 instructions").
-- **Code rows** follow the verbosity settings: Address **Full | Last 4 | Off**, Bytes **On | Off** (off by default). Operands are exactly as displayed ("mov eax, dword ptr [ebp + 0x8]"). Labels are their own lines ("label ResourceRef::Resolve, 12 xrefs"); flow glyphs become words ("label LAB_0041b2e0, jump target from 0041b2c8"). Hex rows are an offset then 16 bytes.
-- **Diffs** prefix every changed line with a word: "+ added", "− removed", "≠ differs" (a differing pair shows "target:" and "candidate:" lines); unchanged lines are indented to the same column. Claim boundaries keep their words ("Local zero ≠ full-image or behavior proof").
+**Consumer provides** the source kind and its title (view, entity, build); every row already read for that source, in display order and exactly as displayed (operands, labels as their own lines, flow restated as words, diff lines with their kind); the focused line; which ranges are not read; the source's ProvenanceStamp text and read time; whether the source is a Held pane, a Kept card or historical evidence, with its target and age; and the viewer's global screen-reader verbosity value from View settings.
+
+- **A modal dialog.** `role="dialog"` with `aria-modal="true"` on `dialog-bg`, 1px `line-control`, `shadow-popup`, over the `overlay` scrim, square corners, at most the center pane's width. Title in `type-pane-title`: "Accessible View · Listing · ResourceRef::Resolve · build-b". One sentence under it says what the text is, how much, and where Esc returns.
+- **A text area, not markup.** The text is a labelled `<textarea readonly>` in a `well` with `shadow-inset`, `type-code` 12/18 mono, `ink`. It soft-wraps (`wrap="soft"`), so it reflows at 320px. A text area cannot draw a hanging indent, so every source line starts with its address, label or diff word and a continuation line starts with neither; that is how a reader tells them apart. It is plain text: no color, no glyph that is not also a word, no hidden markup. Browser find works because this is ordinary text.
+- **Buttons.** **Copy all** copies the text exactly as shown and says "Copied 17 lines" in the polite region. **Close**, and the 24px ✕ named "Close Accessible View", close it.
+- **It shows what was already read.** Every row already read for the current function, range, log, Peek or receipt is included; virtualization affects the DOM, not this text. Anything not read is one line of words ("Lines 1 to 411: Not loaded. Open to read it."). It never fetches, decompiles, opens a program or starts work.
+- **It is a snapshot.** The first line is the ProvenanceStamp text with "as read ‹time›" ("reused · existing analysis · build-b gen 42 · as read 13:58:07"); the second names the source, range and count ("Listing, build-b, ResourceRef::Resolve, 0041b2c0 to 0041b2f7, 23 instructions"). If the basis moves while it is open, a note under the header says "◷ Basis changed since opened · Refresh". The text never changes under the caret; Refresh re-reads on request.
+- **Held, Kept and historical sources are labelled.** Opened on a Held pane, a Kept card or historical evidence, the first line reads "Held · ResourceRef::Resolve @ build-c · 4 min", "Kept · receipt 7c21 · 12 min" or "historical · gen 41 · fenced; not current acceptance", followed by the ProvenanceStamp line.
+- **Code rows** follow the global screen-reader verbosity value (address full, last 4 or off; bytes off by default). Operands are exactly as the Listing renders them ("mov eax, dword ptr [ebp + 0x8]"). Labels are their own lines ("label ResourceRef::Resolve, 12 xrefs"); flow glyphs become words ("label LAB_0041b2e0, jump target from 0041b2c8"). Hex rows are an offset, 16 bytes and the ASCII column.
+- **Verbosity has one home.** The dialog shows the current value in words ("Verbosity: address full, bytes off") and a **View settings…** button that opens the one per-viewer group in the View menu. It has no private toggles.
+- **Diff words.** Every changed line starts with a word: "+ added", "− removed", "≠ differs" (a differing pair shows "target:" and "candidate:" lines); unchanged lines are indented to the same column. Claim boundaries keep their words ("Local zero ≠ full-image or behavior proof").
 - **Logs** are exact; verbosity does not rewrite them. Only the retained, loaded tail is shown, with its run stamp.
-- **Not loaded** ranges are one line of words ("Lines 1 to 411: Not loaded. Open to read it."). The view never fetches beyond what is already loaded or cached, never decompiles and never opens a program.
-- The verbosity toggles are the viewer's own settings (the same ones code-well row names use); a change applies at once, keeps the caret on the same source line, and is remembered per viewer. They are `ad-seg` toggle buttons with `aria-pressed`, bold `ink-strong` plus a 2px `tab-active-rule` when pressed, never color alone.
-- **Copy all** copies the text exactly as shown and says "Copied 17 lines" in the polite region. **Close** and ✕ (24px, "Close Accessible View") return focus.
-- The text is a snapshot of the source when opened. If the source changes underneath, a note under the header says "◷ Source changed since opened · Reload text"; it never refreshes by itself.
-- Both surfaces build the text from the same row-name template and diff words; the static 8080 surface renders the same dialog.
+- Both surfaces build the text from the same row-name templates and diff words; the static 8080 surface renders the same dialog.
 
 **Linking**
 
 - **Publishes:** nothing. It never moves the primary location, holds or keeps, and it pushes no history stop.
-- **Follows:** nothing while open: it mirrors the source captured when it opened. A change underneath shows "◷ Source changed since opened · Reload text"; it never refreshes by itself. Not holdable.
-- **Targets rendered:** none inside the text area, which is plain text. The header names the source, and Esc returns to it.
-- **Peek source:** none; it reads only the already-loaded text of its source (the listing rows, diff, log tail, peek or receipt in memory).
-- **Absent copy:** "Lines 1 to 411: Not loaded. Open to read it." · "∅ Nothing loaded in this view".
-- **Target-size exception:** none; buttons and toggles are 24px or larger, 44px below 700px.
+- **Follows:** nothing while open: it is a snapshot of the source captured when it opened. A basis change shows "◷ Basis changed since opened · Refresh"; it never refreshes by itself. Not holdable.
+- **Targets rendered:** none; the text area is plain text and View settings… is a button. The header names the source, and Esc returns to it.
+- **Peek source:** none; it reads only the already-read text of its source (the listing rows, diff, log tail, Peek or receipt in memory).
+- **Absent copy:** "Lines 1 to 411: Not loaded. Open to read it." · "∅ Nothing read in this view yet" · "Basis at hold time not recorded" on a held source without a basis token.
+- **Target-size exception:** none; buttons are 24px or larger, 44px below 700px and with a coarse pointer.
 
 **Keyboard**
 
-- Alt+F2 opens it on the focused view (and closes it again). Focus starts in the text area with the caret on the line of the focused row, cell or peek line.
-- In the text area: arrows, Home/End, PageUp/PageDown and Ctrl/Cmd+Home/End move the caret; Shift extends the selection; Ctrl/Cmd+A selects all; Ctrl/Cmd+C copies; browser find works because this is ordinary text.
-- Tab and Shift+Tab cycle through the text area, the verbosity toggles, Copy all, Close and ✕ inside the dialog; focus does not leave the modal and F6 does not cycle regions while it is open.
-- Esc closes and returns focus to the same row in the source view, or to the same index if that row is gone, never to `body`.
-- Alt+F2 and Esc are listed in Keyboard shortcuts and can be remapped (WCAG 2.1.4 does not require it for modifier keys; the keymap still shows them).
+- Alt+F2 (or its fallbacks) opens it on the focused view. Focus starts in the text area with the caret on the line of the focused row, cell or Peek line.
+- In the text area: arrows, Home/End, PageUp/PageDown and Ctrl/Cmd+Home/End move the caret; Shift extends the selection; Ctrl/Cmd+A selects all; Ctrl/Cmd+C copies.
+- Tab and Shift+Tab cycle through the text area, View settings…, Copy all, Close and ✕ inside the dialog; focus does not leave the modal and F6 does not cycle regions while it is open.
+- Esc follows the one Esc order in the Keymap section: the dialog is the topmost modal, so Esc closes it and returns focus to the same row in the source view, or to the same index if that row is gone, never to `body`.
+- Alt+F2 is listed in Keyboard shortcuts and can be remapped.
 
 **Accessibility**
 
 - `role="dialog"` with `aria-modal="true"`, `aria-labelledby` the title and `aria-describedby` the one-sentence summary. The text area has a `<label>` naming the source ("Text of Listing, build-b, ResourceRef::Resolve").
-- The mirror is the exact displayed text, so screen-reader line navigation and braille read the same characters a sighted operator sees; nothing is summarised or paraphrased.
+- The text is the exact displayed text, so screen-reader line navigation and braille read the characters a sighted operator sees; nothing is summarized or paraphrased.
 - Diff meaning is carried by the words "added", "removed" and "differs", not by color or position.
 - Identifiers carry `translate="no"`; the text area isolates direction with `unicode-bidi: isolate`.
 - Controls are at least 24px; 44px below 700px, where the dialog fills the viewport width. Focus is a 2px `focus` outline; inside the text area it is inset.
 - Opening and closing announce nothing beyond the dialog's own name; Copy all confirms once.
 
-**Removes switching:** reading an off-screen or virtualized range in browse mode (scroll-and-hunt through rows) becomes 1 key, and copying an exact range (drag-select across virtualized rows) becomes 1 action, for every operator. J38, from a job-transition announcement to the result and back, goes from 4 to 1 together with regions and the keymap: the log or receipt is read in place with Alt+F2 and Esc returns to the row. J04 and J39 read log excerpts and diagnostics without opening the Logs tab line by line.
+**Removes switching:** no ledger credit. Reading an off-screen or virtualized range in browse mode becomes one modal read, and copying an exact range becomes one action, for every operator. J38 (4 → 2) is credited to U188 through `g j`; this view only reads the log or receipt in place. J04 and J39 read log excerpts and diagnostics without opening the Logs tab line by line.

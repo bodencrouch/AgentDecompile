@@ -8,6 +8,7 @@ A dismantled delivery artifact as a navigable tree: installer payload, image sec
 - Unsupported or protected regions stay marked with a word, never hidden. Layout is context: the tree is a first-class view (a Navigator scope), not a side quest.
 - A member that is an imported build shows that build as a link; a member that is not imported says "not imported" and offers nothing that imports on activation.
 - Extraction is bounded; nested archives open recursively. The picture expands only as members are actually discovered.
+- Enter on a container expands it; it never advances to another pane (NarrowFlow). With a coarse pointer each row has one 44px row-menu button carrying the one link menu; there is no long-press.
 
 **Linking**
 
@@ -16,11 +17,11 @@ A dismantled delivery artifact as a navigable tree: installer payload, image sec
 - **Targets rendered:** an imported member → the Code Browser for that build · a section node → the Listing at the section start in that build · a member's extraction receipt → its receipt card · a duplicate member → the build it aliases.
 - **Peek source:** Alt+↓ on a member reads the stored extraction record (offset, parser, hash, protection).
 - **Absent copy:** "not imported" (plain) · "protected region · unsupported parser" · "not discovered yet" for unexpanded archives. Never an automatic import.
-- **Target-size exception:** none; tree rows are 24px.
+- **Target-size exception:** none; tree rows are 24px, the whole row is the target, and an imported member's build link sits inside that row; 44px below 700px and with a coarse pointer.
 
 **Keyboard**
 
-- APG Tree view: ↑/↓ move, → opens or moves to the first child, ← closes or moves to the parent, Home/End, typeahead. Enter goes to a member's build; Alt+↓ peeks; Shift+F10 opens the one link menu.
+- APG Tree view: ↑/↓ move, → opens or moves to the first child, ← closes or moves to the parent, Home/End, typeahead (the tree binds no letter commands, so it needs no `/`). Enter on a container expands it; Enter on an imported member goes to its build; Shift+Enter opens it beside; Alt+↓ peeks; Shift+F10 opens the one link menu. Esc follows the one Esc order in the Keymap section.
 
 **Accessibility**
 

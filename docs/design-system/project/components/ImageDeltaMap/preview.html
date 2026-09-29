@@ -1,13 +1,13 @@
 <!-- @dsCard group="Work view" height=130 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
 <ol class="ad-imap adl-imap" aria-label="Regions of the fresh rebuild, build-a, in file order" aria-describedby="idm-key">
-<li class="equal" style="flex:1"><span>hdr</span><span class="sr-only"> equal</span></li>
-<li class="delta" style="flex:9"><a href="?project=corpus-alpha&amp;build=build-a&amp;addr=00401000&amp;ws=code&amp;receipt=0c4d" aria-label="Region .text, differs, 312 bytes; Listing at 00401000, build-a"><span aria-hidden="true">≠ .text · 312 B</span></a></li>
-<li class="equal" style="flex:3"><span>.rdata</span><span class="sr-only"> equal</span></li>
-<li class="equal" style="flex:2"><span>.data</span><span class="sr-only"> equal</span></li>
-<li class="delta" style="flex:1"><a href="?project=corpus-alpha&amp;build=build-a&amp;addr=00452000&amp;ws=code&amp;receipt=0c4d" aria-label="Region IAT, differs, 24 bytes; Listing at 00452000, build-a"><span aria-hidden="true">≠ IAT</span></a></li>
-<li class="equal" style="flex:2"><span>.rsrc</span><span class="sr-only"> equal</span></li>
-<li class="delta" style="flex:1"><a href="?project=corpus-alpha&amp;build=build-a&amp;addr=0047e000&amp;ws=code&amp;receipt=0c4d" aria-label="Region .reloc, differs, 8 bytes; Listing at 0047e000, build-a"><span aria-hidden="true">≠ .reloc</span></a></li></ol>
-<p class="adl-legendline" id="idm-key"><span>Differs: .text 00401000–00401137 · 312 B</span><span>IAT 00452000–00452017 · 24 B</span><span>.reloc 0047e000–0047e007 · 8 B</span><span>other regions equal</span></p>
+<li class="equal" style="flex:1"><span aria-hidden="true">=</span><span class="sr-only">header, equal</span></li>
+<li class="delta" style="flex:9"><a href="?project=corpus-alpha&amp;build=build-a&amp;addr=00401000&amp;ws=code&amp;receipt=0c4d" aria-label="Region .text, differs, 312 bytes; Listing at 00401000, build-a"><span aria-hidden="true">✕ 312 bytes</span></a></li>
+<li class="equal" style="flex:3"><span aria-hidden="true">=</span><span class="sr-only">.rdata, equal</span></li>
+<li class="equal" style="flex:2"><span aria-hidden="true">=</span><span class="sr-only">.data, equal</span></li>
+<li class="delta" style="flex:1"><a href="?project=corpus-alpha&amp;build=build-a&amp;addr=00452000&amp;ws=code&amp;receipt=0c4d" aria-label="Region IAT, differs, 24 bytes; Listing at 00452000, build-a"><span aria-hidden="true">✕ 24 bytes</span></a></li>
+<li class="equal" style="flex:2"><span aria-hidden="true">=</span><span class="sr-only">.rsrc, equal</span></li>
+<li class="delta" style="flex:1"><a href="?project=corpus-alpha&amp;build=build-a&amp;addr=0047e000&amp;ws=code&amp;receipt=0c4d" aria-label="Region .reloc, differs, 8 bytes; Listing at 0047e000, build-a"><span aria-hidden="true">✕ 8 bytes</span></a></li></ol>
+<p class="adl-legendline" id="idm-key"><span><b aria-hidden="true">✕</b>.text 00401000–00401137 · 312 bytes differ</span><span><b aria-hidden="true">✕</b>IAT 00452000–00452017 · 24 bytes differ</span><span><b aria-hidden="true">✕</b>.reloc 0047e000–0047e007 · 8 bytes differ</span><span><b aria-hidden="true">=</b>header, .rdata, .data, .rsrc equal</span><span>Hatched regions differ; every value is also in this key.</span></p>
 <div class="row"><span class="ad-fact failed"><b aria-hidden="true">✕</b><span class="label">Whole-file equality</span> 3 regions differ</span><span class="ad-stamp adl-lg"><b class="fresh">fresh</b><span class="w">rebuild 0c4d… vs shipped 5e0a…</span><a class="ad-link" href="?project=corpus-alpha&amp;build=build-a&amp;receipt=0c4d">receipt 0c4d</a></span></div>
 </div>

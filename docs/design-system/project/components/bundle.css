@@ -127,7 +127,7 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 /* Representation */
 .ad-rep{display:flex;height:14px;border:1px solid var(--line-control);overflow:hidden}
 .ad-rep i{display:block;height:100%}
-.ad-rep .accepted{background:var(--rep-accepted)}.ad-rep .candidate{background:var(--rep-candidate)}.ad-rep .preserved{background:var(--rep-preserved)}
+.ad-rep .accepted{background:var(--rep-accepted)}.ad-rep .candidate{background:repeating-linear-gradient(45deg,var(--rep-candidate) 0 4px,var(--rep-accepted) 4px 5px)}.ad-rep .preserved{background:var(--rep-preserved)}
 .ad-rep .unclassified{background:var(--rep-unclassified);outline:1px dashed var(--ink-muted);outline-offset:-2px}
 .ad-rep .excluded{background:repeating-linear-gradient(135deg,var(--rep-excluded) 0 3px,var(--line) 3px 5px)}
 .ad-key{display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-6);font-size:12px}
@@ -296,10 +296,10 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-outputs div{font:400 11.5px/17px var(--font-sans)}
 .ad-ladder{background:var(--pane);border:1px solid var(--line);border-radius:var(--radius-card);overflow:hidden}
 .ad-ladder>header{padding:6px 10px;font:700 13px/18px var(--font-sans);color:var(--ink-strong)}
-.ad-ladder ol{list-style:none;margin:0;padding:var(--space-4) 10px}
+.ad-ladder ol{list-style:none;margin:0;padding:var(--space-4) 10px;display:grid;gap:6px}
 .ad-ladder li{display:grid;grid-template-columns:18px minmax(0,1fr);gap:var(--space-4);align-items:center;font:400 11px/14px var(--font-sans);min-height:24px;position:relative}
 .ad-ladder li b{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font:700 10px/1 var(--font-sans);color:var(--ink-strong);border:1.2px solid currentColor}
-.ad-ladder li+li::before{content:"";position:absolute;left:8.5px;top:-7px;height:8px;border-left:1.5px dashed var(--lock)}
+.ad-ladder li+li::before{content:"";position:absolute;left:8.5px;top:-9px;height:10px;border-left:1.5px dashed var(--lock)}
 .ad-ladder li code{color:var(--ink-muted);font-size:10px}
 .ad-ladder .then{padding:0 10px 10px;font:700 10.5px/14px var(--font-sans);color:var(--fact-failed)}
 .ad-contract{background:var(--pane);border:1px solid var(--line-node);border-radius:var(--radius-contract);padding:var(--space-5) var(--space-7)}
@@ -354,8 +354,6 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-ws-body table{table-layout:fixed}
 .ad-ws-body td{overflow:hidden;text-overflow:ellipsis}
 .ad-ws-body td.addr{width:78px}
-.ad-ladder ol{display:grid;gap:6px}
-.ad-ladder li+li::before{top:-9px;height:10px}
 
 /* ---------- Accessibility foundations (v3) ---------- */
 /* Selection: fill + inset bar (shape, not color alone). On the fill, ink-muted text is promoted to ink, control borders (line-control, 2.37:1 there)
@@ -383,7 +381,6 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad .row>*,.ad-split>*,.ad-ws-body>section,.ad-record .body>*{min-width:0}
 /* Data graphics: 2px chassis separators so adjacent segments never rely on hue contrast */
 .ad-rep i+i{border-left:2px solid var(--chassis)}
-.ad-rep .candidate{background:repeating-linear-gradient(45deg,var(--rep-candidate) 0 4px,var(--rep-accepted) 4px 5px)}
 /* Checkbox cells are 24px targets */
 .ad-check{display:inline-grid;place-items:center;min-width:24px;min-height:24px;cursor:pointer}
 .ad-check input{margin:0;width:14px;height:14px;accent-color:var(--accent)}
@@ -418,10 +415,12 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 /* Targets: 24px minimum everywhere; 44px (touch-h) below 700px and at any width with a coarse pointer (house rule after WCAG 2.5.5).
    Component blocks below use the same query for their own targets. */
 @media (max-width:699px),(pointer:coarse){
- .ad .ad-btn,.ad .ad-tab,.ad .ad-subtabs [role="tab"],.ad .ad-seg>button,.ad .ad-filt,.ad .ad-goto,.ad .ad-palette li,.ad .ad-palette input,.ad .ad-menu a,.ad .ad-menu [role="menuitem"],.ad .ad-menu [role="menuitemcheckbox"],.ad .ad-menu [role="menuitemradio"],.ad .ad-menu [role="option"]{min-height:var(--touch-h)}
+ .ad .ad-btn,.ad .ad-tab,.ad .ad-subtabs [role="tab"],.ad .ad-filt,.ad .ad-goto,.ad .ad-palette li,.ad .ad-palette input,.ad .ad-menu a,.ad .ad-menu [role="menuitem"],.ad .ad-menu [role="menuitemcheckbox"],.ad .ad-menu [role="menuitemradio"],.ad .ad-menu [role="option"]{min-height:var(--touch-h)}
  .ad .ad-tab{height:auto}
  .ad .ad-check,.ad .ad-seg>button{min-width:var(--touch-h);min-height:var(--touch-h)}
  .ad .ad-tab-close,.ad .ad-peek-x,.ad .ad-sib{width:var(--touch-h);height:var(--touch-h)}
+ .ad .adl-factbtn,.ad .adl-capbtn,.ad .adl-disc,.ad .adl-eqbtn,.ad .adl-hlchip,.ad .adl-cl,.ad .adl-t24,.ad a.ad-fact,.ad a.ad-outcome,.ad .ad-gp-more,.ad .ad-gp-chip,.ad .adc-olv{min-height:var(--touch-h)}
+ .ad .ad-goto input{height:auto;align-self:stretch}
 }
 /* Splitters are focusable separators: a 1px rule, a hit zone of splitter-hit (6px; WCAG 2.5.8 Equivalent exception: the splitter keys, the
    pane-header size menu and the View menu reach every size) and a grip drawn as a bordered element in splitter-grip, never a gradient.
@@ -432,25 +431,26 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad-split-h:is(:hover,:focus-visible,.is-focus,:active,.is-dragging){background:var(--splitter-active)}
 .ad-split-h:is(:hover,:focus-visible,.is-focus,:active,.is-dragging)::after{border-color:var(--splitter-active)}
 /* Forced colors (high-contrast system themes): system colors carry selection, focus, frames and links.
-   - Selected and current items use Highlight and HighlightText and keep forced colors, so descendants inherit HighlightText. SelectedItem and
-     SelectedItemText are an @supports enhancement only (last block of this file).
+   - Selected and current items use Highlight and HighlightText; everything inside them is HighlightText on a transparent fill, and the glyph
+     shape and the word carry state. SelectedItem and SelectedItemText are an @supports enhancement only. Both are in the last block of this file.
    - Only the selected row carries a 3px HighlightText inline-start border, with its inline padding reduced by 3px (2px where a 1px frame is
-     widened). Unselected rows never get transparent borders, because forced colors paints them.
+     widened). Unselected rows never get transparent borders, because forced colors paints them; resting tab and segment rules become Canvas.
    - Focus: 2px CanvasText at offset 0 on bordered controls, 3px inset elsewhere, HighlightText inside selected rows (through --focus).
    - Popups, menus, the palette and dialogs get a 1px CanvasText border; links use LinkText; disabled items GrayText.
    - Data graphics opt out (forced-color-adjust:none) only where their text key carries the values.
    Each component section below repeats this for its own selected items. */
 @media (forced-colors:active){
  .ad{--focus:CanvasText}
- .ad [aria-selected="true"],.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"]{background:Highlight;color:HighlightText}
+ .ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"]{background:Highlight;color:HighlightText}
  .ad :is([aria-selected="true"],[aria-current="true"],.is-selected):not(a:not([role])),.ad :is([aria-selected="true"],[aria-current="true"],.is-selected) *{--focus:HighlightText}
  .ad a:where([href]){color:LinkText;text-decoration-color:LinkText}
- .ad :is([aria-selected="true"],[aria-current="true"],.is-selected) a[href]{color:HighlightText;text-decoration-color:HighlightText}
  .ad-table tr:is([aria-selected="true"],.is-selected)>:first-child{border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-4) - 3px)}
  .ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"]{border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-5) - 3px)}
  .ad-ln[aria-current="true"]{border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-4) - 3px)}
  .ad-fact b,.ad-facts b,.ad-chip,.ad-tier,.ad-outcome,.ad-caps span,.ad-rail>span,.ad-rail>li,.ad-stamp b,.ad-edge{border-color:CanvasText}
  .ad-btn,.ad-tab{border:1px solid ButtonText}
+ .ad-subtabs :is(span,[role="tab"]):not([aria-selected="true"]),.adc-switch [role="tab"]:not([aria-selected="true"]),.adl-railbar [role="tab"]:not([aria-selected="true"]),.ad-scmp-switch [role="tab"]:not([aria-selected="true"]),.ad-seg>button:not([aria-pressed="true"]){border-bottom-color:Canvas}
+ .ad-narrow-rail [role="tab"]:not([aria-selected="true"]){border-top-color:Canvas}
  .ad-btn:disabled,.ad-btn[aria-disabled="true"],.ad [aria-disabled="true"]{color:GrayText;border-color:GrayText}
  .ad-palette,.ad-dialog{border:1px solid CanvasText}
  .ad-rep,.ad-imap,.adl-imap,.ad-units i,.ad-meter .bar{forced-color-adjust:none}
@@ -2090,7 +2090,6 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .adl-cps{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-1) var(--space-4);margin:0;min-height:28px;padding:var(--space-1) var(--space-4);background:var(--pane);border:1px solid var(--line)}
 .adl-cps .ad-loc{white-space:nowrap}
 .adl-cps .ad-link{min-height:24px;display:inline-flex;align-items:center}
-.ad-matrix td[role="gridcell"]:not(.cell){text-align:left}
 
 /* StorageEditor inline placement under the signature line */
 .adl-sig{padding:var(--space-3) var(--space-4);overflow-x:auto}
@@ -2187,7 +2186,6 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 @media (forced-colors:active){
  .adl-kept,.ad .adl-factbtn,.ad .adl-capbtn,.adl-sect,.adl-cps,.adl-origin,.ad .adl-hlchip,.ad .adl-rowmenu,.ad .adl-eqbtn,.adl-kept>header .tag,.adl-kepttag,.ad .adl-skip a:focus,.ad .adl-skip a.is-focus{border-color:CanvasText}
  .adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]{background:Highlight;color:HighlightText}
- .adl-tree li[aria-selected="true"]{background:Canvas;color:CanvasText}
  .adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div{border-inline-start:3px solid HighlightText;padding-inline-start:calc(var(--space-5) - 3px)}
  .adl-hlA,.adl-hlB,.adl-hlC,.adl-hlD{outline-color:CanvasText}
 }
@@ -2198,13 +2196,18 @@ ol.ad-rail,ul.ad-rail{list-style:none;margin:0;padding:0}
 .ad.more-contrast .adl-origin,.ad.more-contrast .adl-eqbtn{border-style:solid}
 .ad.more-contrast .adl-ws-dc .adl-refl2{box-shadow:inset 3px 0 0 var(--ink)}
 
-/* ---- Forced colors: SelectedItem enhancement (keep this block last) ----
-   Where the engine supports SelectedItem and SelectedItemText, selected and current items use them; Highlight and HighlightText above stay
-   the declared values. The selector list repeats every Highlight rule in this file with the same specificity, so this block wins by order. */
+/* ---- Forced colors: selected and current items (keep this block last) ----
+   Chromium paints a Canvas backplate behind every line of text when forced-color-adjust is auto, so HighlightText text on a Highlight block
+   lands on Canvas and disappears (HighlightText equals Canvas in the usual high-contrast palettes). Selected and current items therefore opt out,
+   and everything inside them is set to HighlightText on a transparent fill, so no author color survives and descendants read as the system
+   selection. Data graphics keep their own colors because their text key carries the values. Where supported, SelectedItem and SelectedItemText
+   replace Highlight and HighlightText. The selector list repeats every Highlight rule above with the same specificity. */
 @media (forced-colors:active){
+ .ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-seg>button[aria-pressed="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]{forced-color-adjust:none;box-shadow:none}
+ :is(.ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-seg>button[aria-pressed="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]) :not(.ad-rep,.ad-rep *,.ad-units,.ad-units *,.ad-meter .bar,.ad-meter .bar *,.ad-mark-bar,.ad-mark-bar *,.ad-imap,.ad-imap *,.ad-scmp-key i){color:HighlightText!important;background-color:transparent!important;border-color:HighlightText!important;text-decoration-color:HighlightText!important}
+ :is(.ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-seg>button[aria-pressed="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]) :is(input,select,textarea){forced-color-adjust:auto}
  @supports (color:SelectedItem){
-  .ad [aria-selected="true"],.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-seg>button[aria-pressed="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]{background:SelectedItem;color:SelectedItemText}
-  .ad :is([aria-selected="true"],[aria-current="true"],.is-selected) a[href]{color:SelectedItemText;text-decoration-color:SelectedItemText}
-  .adl-tree li[aria-selected="true"]{background:Canvas;color:CanvasText}
+  .ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-seg>button[aria-pressed="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]{background:SelectedItem;color:SelectedItemText;border-inline-start-color:SelectedItemText}
+  :is(.ad [aria-selected="true"]:not(.adl-tree li),.ad [aria-current="true"],.ad .is-selected,.ad-table tr:is([aria-selected="true"],.is-selected)>:is(td,th),.ad-table tr[aria-selected="true"] th[scope="row"],.ad-tree div[aria-selected="true"],.ad-palette li[aria-selected="true"],.ad-rail>span.now,.ad-rail>li.now,.ad-rail>li[aria-current="step"],.ad-btn[aria-pressed="true"],.ad-seg>button[aria-pressed="true"],.ad .ad-pcrumb a[aria-current="step"],.ad .ad-pmap [aria-current="step"],.ad-menu .is-active,.ad-menu [aria-selected="true"],.ad-xref .ad-table tr.is-selected td,.ad-xref .ad-table tr[aria-selected="true"] th[scope="row"],.ad .ad-cstrip .it[aria-current="location"],.ad-scmp-code .ln[aria-current="true"],.adc-l[aria-selected="true"],.adc-hb .sl,.adc-ha .sl,.adc-xl>li[aria-selected="true"],.adc-mini .c,.adc-switch [role="tab"][aria-selected="true"],.adc-outline .ad-menu a[aria-current="true"],.ad-prob-row[aria-selected="true"],.ad-prob-row[aria-selected="true"]:hover,.ad-etl-ev[aria-selected="true"],.ad-mark-row[aria-selected="true"],.ad-mark-row[aria-selected="true"]:hover,.ad-keymap-row[aria-selected="true"],.ad-keymap-row[aria-selected="true"]:hover,.ad-preset[aria-checked="true"],.ad-narrow-rail [role="tab"][aria-selected="true"],.ad-narrow-ln[aria-current="true"],.ad-narrow-li[aria-selected="true"],.ad-narrow-btn[aria-pressed="true"],.ad .ad-gp-node[aria-current="true"],.ad .ad-gp-tree [aria-current="true"],.ad-gp-key .sw,.adl-ladrun>li[aria-current="step"],.adl-tree li[aria-selected="true"]>div,.adl-pbc a[aria-current="step"]) :not(.ad-rep,.ad-rep *,.ad-units,.ad-units *,.ad-meter .bar,.ad-meter .bar *,.ad-mark-bar,.ad-mark-bar *,.ad-imap,.ad-imap *,.ad-scmp-key i){color:SelectedItemText!important;border-color:SelectedItemText!important;text-decoration-color:SelectedItemText!important}
  }
 }

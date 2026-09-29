@@ -13,8 +13,8 @@ How the project's builds relate, pair by pair: what differs in toolchain, flags 
   | compile variance | ≈ | Same source; different toolchain, flags or link settings (register choice, frame shape, inlining, cookie or EH scaffolding, ICF, ILT or padding). |
   | entropy variance | ∼ | Same source and same declared toolchain and flags; incidental build state differs: paths, declaration or object order, link order, timestamps. |
   | source variance | ≠ | The source changed: control flow, call set, constants or field set. |
-  | unknown | ? | Cannot tell yet: source identity is missing on one side, or the evidence conflicts. |
-  | identical | ≡ | Byte-identical after relocation normalisation. This is not a variance class and not a match claim. |
+  | unknown | ? | Cannot tell yet: source identity is missing on one side, source and flags both differ, or the evidence conflicts. |
+  | identical | ≡ | Byte-identical after relocation normalisation. This is not a variance class and not a match claim. Its count is plain text, never a drill link, because ≡ is not an `f=vrel:` value. |
 
 - **Evidence level of a class.** A class is **solid** only when source, toolchain and flag identity are recorded for both builds (source checksums, command lines, the toolchain record). In every other case it is a **dashed "hypothesis (heuristic)"** with its basis ("no checked transformation explains it: inlining, /Oy, LTCG, ICF, hotpatch"). This holds even when the bytes strongly suggest a class. Individual facts beside it (a Rich header entry, a differing constant) keep their own witness level, but they do not make the class solid. Where bodies were not compared, the word **unknown** is written and nothing is counted.
 - **The map** (top) is a small overview, not a claim. The four builds sit in the corners, and each pair's label sits on its connector; the two diagonal pairs are stacked in the centre.
@@ -24,18 +24,26 @@ How the project's builds relate, pair by pair: what differs in toolchain, flags 
 - **The pair table** carries the same information as a grid, one row per pair:
   - **Pair**: a `cmp` link.
   - **Toolchain · flags · link**: evidence values.
-  - **Entities by variance class**: each count with its glyph, its class word as a link that drills in, and its level word.
+  - **Entities by variance class**: each count with its glyph, its class word as a link that drills in, and its level word. The ≡ identical count follows as plain text. For one pair the counts add up to the entities compared on that pair ("271 + 15 + 0 + 902 = 1,188 on build-a × build-b").
   - **Reading**: one or two plain sentences composed from the stored counts ("Mostly the compiler. Same source, compiled differently, is plausible; 15 bodies change in ways no checked transformation explains."). The reading's own level is shown when it goes beyond the counts.
 
   A pair with no comparison reads "unknown · nothing is counted until the bodies are compared".
 - **Never merged, never averaged.** Counts are per pair. They are never summed across pairs or turned into a similarity score. A report is never merged across builds with different recorded source revisions. Where per-build results differ, the other views say "varies across builds".
 - **Drill-down.** Activating a class count is a Go that applies a FilterChip (`f=vrel:source` with the pair's `cmp`; `vrel` is a registered axis) and shows the entities behind it. Each row has the entity (a link that opens Compare with the pair), the address on each build (or "absent"), the evidence value that decided the class, and **Opinions**: each score with its own source ("0.81 BSim similarity", "38 bytes differ objdiff"). Scores from different tools are shown side by side and are never compared, ranked or averaged. The footer says "…and N more" and "opening one decides nothing".
+- **Rail form** (the Explain build difference preset, LayoutPresets 6). In the evidence rail the view shows only the current `cmp` pair, scoped to the selected entity, as a rail section headed "For ResourceRef::Resolve · build-a ↔ build-c":
+  - **This pair**: the toolchain, flag and link differences as evidence values, and whose source identity is recorded ("recorded on build-c only, so no class here can be solid"). A value links to ToolchainEvidence for that build.
+  - **This entity**: its stored class with glyph, word and evidence level, and the basis ("≠ Source changed · hypothesis (heuristic), basis: vftable slot 1 → 2 …"), then "One of 28 entities with source variance for this pair."
+  - **Differences**: a list, one item per stored difference of the entity (frame shape, vftable slot, field offset, registers), each with its own class and level. A difference never inherits the entity's class.
+  - **Opinions**: each tool's score with its tool, never combined.
+  - Footer: **Show all pairs**, a Go to `ws=compare&panel=variants` with the same `cmp` and `entity`.
+  - Layout: one column at the rail width (`evidence-w`, 200–480px); values wrap, nothing scrolls sideways, and there is no table or map. With no stored comparison for the pair it reads "unknown · nothing is counted until the bodies are compared" and names what is missing; with no `cmp` it reads "No pair selected · choose a counterpart in the CounterpartStrip".
+  - It follows the selection and the `cmp` pair after the settle, like other rail sections, and is kept as a card, never held.
 - Read-only by construction. It reads stored toolchain evidence, recorded identities and comparison results. It never compares bodies, runs a matcher or binds a program. A pair with no comparison names what is missing and arms nothing.
 
 **Linking**
 
 - **Publishes:** `cmp` on Enter on a pair row, or on a pair link (a Go, one stop). `f=vrel:‹class›` when a count is activated (a Go; replaceState when the chip is removed). An entity link is a Go to Compare with `entity` and `cmp`. Nothing else.
-- **Follows:** `project` and `cmp`; commit-on-Enter (an expensive corpus view). Arrows move focus only. The selected pair carries the selection shape. Not holdable; a drill list can be collected with `w` as a worklist of entity × pair.
+- **Follows:** `project` and `cmp`; commit-on-Enter (an expensive corpus view). Arrows move focus only. The selected pair carries the selection shape. Not holdable; a drill list can be collected with `w` as a worklist of entity × pair. The rail form follows `entity` and `cmp` after the settle, because it reads one stored row.
 - **Targets rendered:**
   - pair → this view with `cmp`;
   - class count → the filtered entity list;
@@ -43,7 +51,8 @@ How the project's builds relate, pair by pair: what differs in toolchain, flags 
   - address → the Code Browser at that build (always with `build`);
   - build node → the Navigator program row;
   - an evidence value's witness → its address;
-  - its record → the receipt card.
+  - its record → the receipt card;
+  - rail form: Show all pairs → this view with `cmp` and `entity`; a toolchain value → ToolchainEvidence for that build.
 
   Link names read "27 entities, source variance, build-c and build-d, record".
 - **Peek source:** Alt+↓ on a count reads the stored comparison summary for that class (the basis and the first rows). On an entity, it reads the stored per-entity result and its opinions. Nothing is compared on peek.
@@ -53,6 +62,7 @@ How the project's builds relate, pair by pair: what differs in toolchain, flags 
 **Keyboard**
 
 - The map is a group in Tab order with one stop per link. The pair table is a row-focus APG Grid with one tab stop: ↑/↓ move between pairs, and ←/→ move to the links in a row.
+- The rail form is an APG disclosure (an h3 holding a button); inside it Tab moves through its links in reading order, and F6 leaves the rail.
 - Enter on a row selects the pair (`cmp`). Enter on a count drills in, and Shift+Enter opens the drill beside. Alt+↓ peeks, and Shift+F10 opens the link menu.
 - The drill's FilterChip toolbar comes before its grid. Delete removes the chip. `w` collects the rows as a worklist.
 

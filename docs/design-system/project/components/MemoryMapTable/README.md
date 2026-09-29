@@ -42,9 +42,9 @@ The memory map of one build as a table: blocks with their range, length, permiss
    - Rows are blocks aligned by block name. The header says "aligned by name ≠ same role".
    - Columns are build-a…build-d; each cell holds start, length and permissions.
    - Cells that differ from the inspected build carry the ± marker and the word "differs". A block missing on a build reads "absent".
-   - A **Class** column classifies each differing row as compile variance, entropy variance, source variance or unknown, with its evidence level:
-     - solid when recorded provenance decides it ("same source digest 9f3c; flags differ");
-     - dashed "hypothesis" when only sizes suggest it ("basis: length only");
+   - A **Class** column classifies each differing row with the variance-class glyph and word (≈ compile variance, ∼ entropy variance, ≠ source variance, ? unknown), with its evidence level:
+     - solid only when source, toolchain and flag identity are recorded for both builds ("same source digest 9f3c; flags differ");
+     - dashed "hypothesis (heuristic)" otherwise, with its basis ("basis: length only");
      - "unknown" when no evidence exists.
    - Alignment is presentation only. Nothing is merged or copied between builds.
 

@@ -28,9 +28,9 @@ A vertical navigation margin beside the Listing that shows one build's whole vie
      - Point ticks: a left-half tick for a program bookmark, a centered tick for a search hit, a right-half tick for "changed by job", and the letter for a mark.
      - Area bars: selection (the accent, which is the selection color), highlight A–D (with the letter), and "differs" from an open diff.
      - The cursor is a 2px `ink-strong` rule across all lanes.
-   - **D · Divergence** (Compare only, or with **All builds** on). These are ranges where this build differs from its counterparts, classified as compile variance, entropy variance, source variance or unknown.
-     - Solid frame: the class came from recorded provenance (source digest, toolchain, flags, link inputs).
-     - Dashed frame, labelled "hypothesis": the class was inferred from instruction patterns only.
+   - **D · Divergence** (Compare only, or with **All builds** on). These are ranges where this build differs from its counterparts, each with its variance-class glyph and word (State vocabularies): ≈ compile variance, ∼ entropy variance, ≠ source variance or ? unknown. ≡ identical is not a divergence and draws nothing. The lane and key filter with the registered `f=variance:` axis.
+     - Solid frame: the class is recorded, which means source, toolchain and flag identity are recorded for **both** builds of the pair.
+     - Dashed frame, labelled "hypothesis (heuristic)" with its basis: any other case, however strongly the bytes suggest the class.
      - Dotted frame with the word "unknown": there is no evidence either way.
      - A "not read" hatch marks ranges whose divergence has not been computed.
 3. **Key** (always present, `aria-describedby` from the bar).
@@ -68,8 +68,8 @@ A vertical navigation margin beside the Listing that shows one build's whole vie
 - The bar itself takes no focus. **Show key**, or the palette command `overview.focus` (no default key; `g then v` belongs to VTableBrowser), moves focus to the ranges list, an APG Grid with row focus: ↑/↓ move by region, PageUp/PageDown by a screenful, Home/End go to the first and last region, Enter goes, Shift+Enter opens beside, Alt+↓ peeks, Shift+F10 opens the link menu.
 - Proposed composite-scope ids (where "Overview ranges list"; not yet in `keymap.json`):
   - `overview.nextMarker` and `overview.prevMarker`: `]` and `[` move to the next or previous region of the lane in focus.
-  - `overview.lane`: `t`, `e`, `m` and `d` filter the list to one lane, and Esc clears the filter.
-  - The letters match the typed character.
+  - `overview.lane`: no default key, because `m` is `list.mark` in lists. The lane menu and the key's lane rows filter the list to one lane, and Esc clears the filter.
+  - `]` and `[` match the typed character.
 - From the Listing, the existing Listing next/previous commands (row N03, extend) and F8 (the active worklist) step markers without leaving the code well.
 
 ## Accessibility

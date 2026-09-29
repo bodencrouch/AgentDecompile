@@ -4,7 +4,23 @@ The same projection drives both surfaces, the CLI and agents. Every objective sh
 
 ## Failure record
 
-A FailureRecord shows: stable reason · affected scope · evidence freshness · attempts and budget spent · recovery action · wake condition · the authority needed, only if an external intervention is unavoidable. It carries its lifecycle rail (observed → classified → contained → recovery_pending → reconciling → eligible) and its classification (mismatch, transient, resource, policy).
+A FailureRecord shows its fields in this order:
+
+1. the stable reason, as the header;
+2. the lifecycle rail (observed → classified → contained → recovery_pending → reconciling → eligible), an `<ol>` with `aria-current="step"`;
+3. the classification (mismatch, transient, resource, policy);
+4. the affected scope, as a crumb or node link;
+5. the evidence: an excerpt read only on expand, with its ProvenanceStamp; "log no longer retained" when it is gone; "Open log at line" only when an offset was recorded;
+6. owner and resource, inline as reported (OwnershipPanel, ResourceState), else "unknown";
+7. evidence freshness;
+8. attempts and budget spent;
+9. the recovery action: the chosen fallback, the one retry owner and its persistent budget;
+10. the wake condition, as a job or lock link;
+11. what continues, as a link to the dock's jobs filter;
+12. escalation and the authority needed, only when an external intervention is unavoidable;
+13. Explain, labelled as design text (Pipeline and lanes).
+
+It renders as a `<dl>`. Long values sit behind APG disclosure buttons, and heading levels are relative to the host. Expanded and collapsed state lives in durable workspace state. The static 8080 surface renders `<details>` in the same order.
 
 An escalation (external action required) additionally names the failed predicate, raw evidence references, the independent work still eligible, attempted recoveries and consumed budget, and the exact external change or decision required. It is emitted on meaningful transitions, not on every poll.
 
@@ -24,7 +40,7 @@ An escalation (external action required) additionally names the failed predicate
 
 ## Operator actions
 
-Operator actions carry versioned intent IDs through the same admission path as agent actions. Double-click, reconnect and stale-tab requests never create duplicate commands. A stale-version response refreshes the view with an explanation. Cancellation applies to a named scope, keeps independently accepted outputs, and reports unresolved side effects instead of pretending to roll back.
+Operator actions carry versioned intent IDs through the same admission path as agent actions. Double-click, reconnect and stale-tab requests never create duplicate commands. A stale-version response refreshes the view with an explanation. It keeps the page cursor, the scroll anchor and focus on the invoker. It keeps the checked set minus the rows that changed, which are unchecked and announced, and it never resubmits. Cancellation applies to a named scope, keeps independently accepted outputs, and reports unresolved side effects instead of pretending to roll back.
 
 ## Containment vocabulary
 

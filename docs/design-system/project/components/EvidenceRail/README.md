@@ -9,7 +9,7 @@ The resolution ladder as it actually ran for one entity on one build: members tr
 - Same order and numbering as the ResolutionLadder in the diagrams. The member that resolved is the current step (`aria-current="step"`, selection fill plus the 3px bar).
 - Untried members say "not tried (budget)" or "not applicable"; never imply exhaustive failure.
 - The terminal line is an OutcomeTag. An annotation is a claim, never resolved.
-- **Following** (default): the card follows the primary entity and build after the settle delay, keeping its old content dimmed with "Loading ‹name›". **Kept**: K keeps the card in the rail labelled "Kept", with its entity, build and age; it never refreshes by itself and shows "◷ Basis changed since kept · Refresh" when its basis changes.
+- **Following** (default): the card follows the primary entity and build after the settle delay, keeping its old content dimmed with "Loading ‹name›". **Kept**: the card's Keep button (`aria-pressed`; K while focus is inside the card) keeps it in the rail labelled "Kept", with its entity, build and age; it never refreshes by itself and shows "◷ Basis changed since kept · Refresh" when its basis changes.
 - **Entered from**: opened from a matrix cell or Peek, the header carries a back-link ("from ReadinessMatrix · row 12 · build-c").
 - **Contested split form**: a contested terminal shows both addresses with "contested · no winner"; Enter opens both as held panes.
 
@@ -24,7 +24,7 @@ The resolution ladder as it actually ran for one entity on one build: members tr
 
 **Keyboard**
 
-- A list of rows in Tab order through their links; Enter goes, Alt+↓ peeks, K keeps the card, Shift+F10 reveals in.
+- A list of rows in Tab order through their links; Enter goes, Alt+↓ peeks, Shift+F10 opens the one link menu; K keeps the card only while focus is inside it.
 
 **Accessibility**
 

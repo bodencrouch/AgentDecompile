@@ -10,7 +10,7 @@ Matching drawn as the work: counterpart blocks from two builds aligned, with the
 - The evidence channel names each highlight: exact hash, relocation-normalized hash, rare ref, CFG, BSim, ABI. Alternatives and margin stay visible.
 - **Linked cursor**: moving in one well moves the aligned row in the other. Differing rows carry ≠ plus the word "differs"; runs of equal rows collapse to one "N equal rows" line that expands in place.
 - **Embedded-in-row variant**: inside ReviewDetail it drops its own header and follows the focused review row after the settle.
-- **Open beside** opens both endpoints as a held pair in SplitCompare; the review queue keeps focus and selection.
+- **Open beside** opens both endpoints as a held pair in SplitCompare; the review queue keeps focus and selection. On the static 8080 surface without split panes the button reads "Open beside (new window)" and opens the same link in a new window.
 - The edge changes state only after its acceptance event. Candidate generation is not acceptance.
 
 **Linking**

@@ -65,7 +65,7 @@ Divergence classes: **1↔1** structural match · **1↔N** split-or-inlined can
 
 ## Waiting at a gate
 
-◇ (the gate diamond) plus "waiting at gate: ‹gate text›" in `gate` amber marks work held at a stage gate. It is distinct from ◷ stale (changed dependencies) and never shares its glyph.
+◇ (the gate diamond) plus "waiting at gate: ‹gate text›" in `gate` amber marks work waiting at a stage gate. It is distinct from ◷ stale (changed dependencies) and never shares its glyph. "Held" is reserved for held panes.
 
 ## Alignment markers (SplitCompare, diffs)
 
@@ -84,6 +84,23 @@ absent · inlined_only · ambiguous · unsupported · insufficient_evidence · b
 proposed → waiting → ready → admitted → running → awaiting_acceptance → accepted. Terminals: ✕ negative, ⊘ unsupported, ⊗ cancelled. Side states: ↻ retry_wait, ∅ budget_exhausted. Resource occupancy is not a negative result. Terminal task counts never define objective completion.
 
 Acceptance outcomes: accepted · rejected · stale · insufficient evidence · unsupported · contested ("arrival order is not a tie-breaker").
+
+## Job outcome (OutcomeCell, ActivityRecord)
+
+The words a submitted job shows on the row that invoked it and in the dock. One word per state; a job's words never replace the task's acceptance outcome or the seven facts.
+
+| Word | Glyph | TaskLifecycle | Meaning |
+|---|---|---|---|
+| pending | — | before admitted | HTTP 202 arrived and the job record exists. Nothing is shown optimistically. |
+| admitted | — | admitted | Admitted under ownership; not yet running. |
+| waiting | — | waiting | Names the blocking owner and resource. Resource occupancy is not a negative result. |
+| running | — | running | Measured durable units, or "Progress unknown · last event ‹time›". |
+| checking | — | none (ambiguous command outcome) | "Checking whether the operation completed". Mutation of that operation on that target is disabled until reconciled. |
+| finished | — | awaiting_acceptance, or a terminal the record names | The job ended. The facts its receipts wrote are listed separately. A finished job is not a match. |
+| failed | ✕ | none (the job's own failure; see FailureRecord) | The job itself failed ("worker exited 1"). It is not a failed fact and not ✕ negative. |
+| cancelled | ⊗ | cancelled | Names who cancelled and what was kept. Never claims a rollback. |
+
+Terminal words are finished, failed and cancelled. Batch copy uses the same words: "4 runs: 1 running · 2 finished · 1 failed". The job's submitter is a separate word: by you, by agent or external.
 
 ## Failure lifecycle (FailureRecord)
 

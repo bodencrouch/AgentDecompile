@@ -22,7 +22,7 @@ One named proof fact with its state, glyph and word; in rows, the compact seven-
 **Keyboard**
 
 - The strip button: Enter, Space or Alt+↓ opens the Peek; Esc closes it and focus returns to the strip. Focus rest (800ms) opens it as well, without moving focus.
-- Inside the Peek, receipt, job and stage links follow the linked-views grammar (Enter go, Shift+Enter open beside, Shift+F10 the one link menu); K keeps the Peek as a card.
+- Inside the Peek, receipt, job and stage links follow the linked-views grammar (Enter go, Shift+Enter open beside, Shift+F10 the one link menu); K (only while focus is inside the Peek) presses its Keep button and keeps it as a card.
 
 **Accessibility**
 

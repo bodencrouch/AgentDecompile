@@ -6,7 +6,7 @@ Who calls this function and what it calls, as a tree that expands lazily from th
 
 **Consumer provides** the root function and build; the direction; the depth; for each node from the stored xref index: the function (name, logical id, address), the call-site address in its parent, the number of call sites, how many callers or callees it has in the index, and whether its children are in the index; recursion (a node already on the path); unresolved indirect calls; the index's generation and read time; and, with the per-build column on, for each other build whether the same call path exists through accepted identity edges and resolved locators, is absent, has an unresolved counterpart, or cannot be read because the build is not open.
 
-- Header: kicker "Calls", "Incoming to ‹function›" or "Outgoing from ‹function›", the build, depth and direct count, the sync state ("Follows selection", or "Kept · not following selection" with a broken-chain icon and **Follow selection**) and **Keep**.
+- Header: kicker "Calls", "Incoming to ‹function›" or "Outgoing from ‹function›", the build, depth and direct count, the sync state ("Follows selection", or "Kept · not following selection" with a broken-chain icon and **Follow selection**) and **Keep** (`aria-pressed`; Shift+K while focus is inside the section). A kept tree is a Kept card in the evidence rail, like a kept XrefPanel.
 - Toolbar (APG Toolbar): **Direction** Incoming | Outgoing with counts, **Depth** 1 | 2 | 3, **Per-build column** (`aria-pressed`). Pressed toggles are bold `ink-strong` with a 2px `tab-active-rule`, never color alone.
 - Treegrid rows are 28px, `type-ui` 12 with mono names and addresses. The first column indents 20px per level and starts with a `ink-muted` twisty (▸ closed, ▾ open, `aria-hidden`). Columns: Caller (or Callee), Call site (`address` link), Calls (count), then one "‹build› path" column per build when the per-build column is on, divided by a 1px `line`.
 - **Lazy, from the index only.** Opening a node reads its children from the stored xref index; while that read is outstanding the row says "… Reading the stored index for N callers" and has `aria-busy`. No spinner. A node whose children are not in the index opens to one row "∅ Callers of ‹function›: not indexed here" with why ("The stored index covers build-a gen 40; this function changed in gen 42"). The view never runs reference analysis, decompiles or opens a program.
@@ -19,15 +19,17 @@ Who calls this function and what it calls, as a tree that expands lazily from th
 
 **Linking**
 
-- Publishes nothing on focus; Enter publishes the selection (Go).
-- Follows the primary selection (function and build) unless kept.
-- Renders function links (Code Browser at the function), call-site address links (the Listing at that call), and the "N more" filter link. Alt+↓ peeks the function or call site from cache; Shift+Enter opens it beside; K keeps the tree; Shift+F10 reveals in Code Browser, Graph (Calls), Compare and Copy link.
-- Absent: "not indexed here", "no callers in the index", "absent", "unresolved" and "not loaded" as words.
+- **Publishes:** the primary location on Enter (Go, one history stop; focus lands on the Listing row at the function or call site). Keep publishes `keep=calls:88@build-a~gen42` (replaceState). Direction, depth and the per-build column are view state of the section, never history.
+- **Follows:** the primary selection (function and build) after the settle, until kept. Lazy reads commit per node on → or Enter.
+- **Targets rendered:** function → the Code Browser at the function · call site → the Listing at that call, same build · "N more" → the full list filtered in place (`f=calls.dir:in`) · per-build words are text, not links, because reachability is not a location. Link names read "Symbol Actor::Spawn, build-a" and "Address 0041f11c, build-a".
+- **Peek source:** Alt+↓ reads the peek cache for the function or call site and, for a per-build word, the counterpart's locator word from the stored readiness rows. Shift+K inside a Peek keeps it. Nothing is fetched and no reference analysis runs.
+- **Absent copy:** "not indexed here" · "no callers in the index" · "depth limit reached · N callers" · "recursive · already in the path, not expanded" · "indirect · target unresolved; no target is guessed" · per build: "absent", "unresolved", "not loaded".
+- **Target-size exception:** none; rows are 28px and toolbar controls 24px; 44px below 700px.
 
 **Keyboard**
 
 - APG Treegrid with one tab stop and row focus first: ↓/↑ move between rows; → opens a closed row (reading its children from the index), or on an open row moves into its cells; ← closes an open row, or on a closed row moves to its parent, or from a cell moves back toward the row. Home/End go to the first or last row; Ctrl+Home/Ctrl+End likewise across the whole tree; PageUp/PageDown move a viewport.
-- Enter on a row goes to the function; Enter on the call-site cell goes to the call site (focus moves to that Listing row). Shift+Enter opens beside; Alt+↓ peeks; Shift+F10 opens the row menu.
+- Enter on a row goes to the function; Enter on the call-site cell goes to the call site (focus moves to that Listing row). Shift+Enter opens beside; Alt+↓ peeks; Shift+F10 opens the link menu (Open, Open beside, Peek; Reveal in Code Browser, Compare, Navigator; Copy link, Copy address).
 - While focus is inside the grid only, `i` and `o` switch direction (as in XrefPanel) and `*` opens every sibling of the focused row within the depth limit. They are remappable and can be turned off (WCAG 2.1.4).
 - The toolbar precedes the grid in Tab order.
 

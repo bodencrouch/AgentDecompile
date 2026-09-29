@@ -23,6 +23,7 @@ The primary feedback is a live, inspectable picture of the actual work. Counts, 
 - An animated edge or transfer appears only after its accepted or rejected event exists, on both surfaces.
 - When a provider exposes only start and finish, show exactly that. Unknown internals are drawn as unobserved.
 - Every animated view has freeze, step and history controls (WorkTimeline). Never auto-pan away from the operator.
+- Code panes never follow active work. The work view keeps its own freeze, step and history. Its header chip names the job and where it is ("Job a3f9 is at build-b · ResourceRef::Resolve · Go") and updates silently. Go is an explicit move that pushes one history stop, with build-switch and checked-set words when they apply. Work-view events link to the evidence they drew.
 - Reduced-motion and keyboard presentations convey the same change as a static before/after.
 - The static 8080 surface draws a truthful lighter form (inline row changes, stage details, expandable causes). The full workspace draws the rich animated form. Both replay the same accepted-event receipts.
 

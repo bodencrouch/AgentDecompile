@@ -1,8 +1,8 @@
-<!-- @dsCard group="Project" height=178 -->
+<!-- @dsCard group="Project" height=190 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<div class="ad-scroll"><table class="ad-table"><thead><tr><th>Input</th><th>Identity</th><th>Result</th></tr></thead><tbody>
-<tr><td>program-1.03.exe</td><td class="mono small">sha256 5e0a…</td><td class="small">accepted · analysis admitted</td></tr>
-<tr><td>program-copy.exe</td><td class="mono small">sha256 5e0a…</td><td class="small muted">alias of program-1.03.exe</td></tr>
-<tr><td>program-1.0b.exe</td><td class="mono small">sha256 c19d…</td><td class="small">accepted · variant group unresolved</td></tr></tbody></table></div>
-<div class="small muted">3 inputs durably accepted at 14:05. Work continues in the dock.</div>
+<div class="ad-scroll"><table class="ad-table" aria-label="Import batch accepted at 14:05"><thead><tr><th scope="col">Input</th><th scope="col">Identity</th><th scope="col">Result</th><th scope="col">Next</th></tr></thead><tbody>
+<tr aria-selected="true"><th scope="row" class="is-focus" tabindex="0">program-1.03.exe</th><td class="mono small"><a class="ad-link" href="?project=corpus-alpha&amp;build=build-e&amp;receipt=5e0a" aria-label="Identity receipt sha256 5e0a, build-e">sha256 5e0a…</a></td><td class="small">accepted · analysis admitted · <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=e5b1" aria-label="Job e5b1, import analysis, running">job e5b1</a></td><td class="small"><a class="ad-link" href="?project=corpus-alpha&amp;build=build-e">Go to build-e</a></td></tr>
+<tr><th scope="row">program-copy.exe</th><td class="mono small">sha256 5e0a…</td><td class="small muted">alias of <a class="ad-link" href="?project=corpus-alpha&amp;build=build-e">build-e</a></td><td class="small muted">—</td></tr>
+<tr><th scope="row">program-1.0b.exe</th><td class="mono small">sha256 c19d…</td><td class="small">accepted · variant group unresolved · <a class="ad-link mono" href="?project=corpus-alpha&amp;dock=jobs&amp;job=e5b2" aria-label="Job e5b2, import analysis, running">job e5b2</a></td><td class="small ad-absent">inventory not observed yet</td></tr></tbody></table></div>
+<div class="row small"><span class="muted">3 inputs durably accepted at 14:05. Work continues in the dock.</span><button class="ad-btn compact">Choose files…</button></div>
 </div>

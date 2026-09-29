@@ -20,10 +20,12 @@ A modal plain-text mirror of what the operator is looking at, opened with Alt+F2
 
 **Linking**
 
-- Publishes nothing and changes no selection.
-- Follows nothing while open: it mirrors the source captured at open time.
-- Renders no links inside the text area (it is plain text); the header names the source so the operator can return to it, and Esc does.
-- Absent: an empty source says "∅ Nothing loaded in this view" as text.
+- **Publishes:** nothing. It never moves the primary location, holds or keeps, and it pushes no history stop.
+- **Follows:** nothing while open: it mirrors the source captured when it opened. A change underneath shows "◷ Source changed since opened · Reload text"; it never refreshes by itself. Not holdable.
+- **Targets rendered:** none inside the text area, which is plain text. The header names the source, and Esc returns to it.
+- **Peek source:** none; it reads only the already-loaded text of its source (the listing rows, diff, log tail, peek or receipt in memory).
+- **Absent copy:** "Lines 1 to 411: Not loaded. Open to read it." · "∅ Nothing loaded in this view".
+- **Target-size exception:** none; buttons and toggles are 24px or larger, 44px below 700px.
 
 **Keyboard**
 

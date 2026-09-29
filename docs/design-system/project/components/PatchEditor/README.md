@@ -91,7 +91,7 @@ The spec maps E01, E04 and E05 to the Listing link menu → ActionStrip. PatchEd
 **Keyboard**
 
 - The mode tabs follow APG Tabs with manual activation. The encodings are a radio group. Enter in the assembly field previews, and Ctrl/Cmd+S (or Enter on the primary button) opens ConfirmDialog. Esc follows `escapeOrder`.
-- Proposed keymap ids (code scope, all in the `ida` profile only unless noted): `code.patchInstruction` (no default key; link menu and palette "Patch instruction"); `code.patchBytes` (no default key); `code.clear` (no default key; Delete is not bound, because a single key never destroys); `code.disassemble` (`d` in the `ida` profile only, matching its habit; default has none); `code.createData` (no default key).
+- Proposed keymap ids (code scope; keys only open the editor, never write): `code.patchInstruction` (no default key; link menu and palette "Patch instruction"); `code.patchBytes` (no default key); `code.clear` (no default key; Delete is not bound, because a single key never destroys); `code.disassemble` (`d` in the `ida` profile only, matching its habit; default has none); `code.createData` (no default key).
 
 **Accessibility**
 

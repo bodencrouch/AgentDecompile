@@ -18,8 +18,8 @@
  },
  "lastChange": {
   "by": "Claude",
-  "at": "2026-09-29T02:54:05Z",
+  "at": "2026-09-29T05:40:47Z",
   "via": "Claude Code",
-  "note": "Linked views and accessibility: typed links with one grammar and one link menu, follow/hold/keep, shared location-schema.json and history, one remappable keymap.json, Peek, reflection, View settings, forced-colors and coarse-pointer rules; 28 new components (78 total); 10 guideline sections; every component has a Linking block"
+  "note": "Compiler-aware views across variant builds (PointerWalk, CompilerLayer, TransformTimeline, MatchExplain, FrameLayout, VTableBrowser), project outputs (OutputsCatalog, ArtifactCard, ToolchainEvidence, VariantRelation) and 20 Ghidra Code Browser parity components; evidence levels, variance classes and artifact status vocabularies; 108 components"
  }
 }

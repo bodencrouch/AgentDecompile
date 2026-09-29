@@ -2381,7 +2381,7 @@ textarea.adc-in{height:auto;min-height:var(--control-h-comfortable);padding:var(
 /* In wrapping table cells the chip flows as inline text; in per-build editor grids it keeps a readable measure. overflow-wrap:anywhere
    would otherwise let an auto-layout table squeeze it to one character per line. */
 .ad-table td.wrap .ad-evd{display:inline;-webkit-box-decoration-break:clone;box-decoration-break:clone}
-.ade-grid .ad-evd{min-width:22ch;max-width:36ch}
+.ade-grid .ad-evd{min-width:0;max-width:36ch} /* bases live in tips now (Show, don't tell), so chips size to their words */
 /* A variance class word (compile, source, entropy variance) inside the chip; the level word stays .lv or the plain <b> */
 .ad-evd .cls{font-size:inherit;line-height:inherit;font-weight:700;letter-spacing:normal;text-transform:none;color:var(--ink-strong)}
 /* auto-lv: a hypothesis chip whose markup names only its basis gets the level word from the stylesheet */
@@ -3460,6 +3460,9 @@ tr[aria-selected="true"] .ad-g3-st .m{color:var(--ink)}
    scroll regions contain their own .sr-only text so it never widens the page */
 button.adv-w{background:transparent}
 .ad-scroll{position:relative}
+/* Show, don't tell (batch 4): a plain-text tip trigger (a focusable span that is not a chip, glyph or button) keeps a 24px target */
+.ad .adv-tip>span[tabindex][aria-describedby]{display:inline-flex;align-items:center;min-height:24px}
+@media (forced-colors:active){.ad .adv-tip>span[tabindex][aria-describedby]:focus-visible{outline:2px solid CanvasText;outline-offset:1px}}
 /* ---- Forced colors: selected and current items (keep this block last) ----
    Engines may paint a Canvas backplate behind every line of text when forced-color-adjust is auto, so HighlightText text on a Highlight block
    lands on Canvas and disappears (HighlightText equals Canvas in the usual high-contrast palettes). Selected and current items therefore opt out,

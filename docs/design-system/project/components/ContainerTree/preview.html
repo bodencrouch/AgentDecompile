@@ -1,11 +1,14 @@
-<!-- @dsCard group="Code" height=172 -->
+<!-- @dsCard group="Code" height=200 -->
 <div class="ad" style="padding:16px;display:grid;gap:12px">
-<div class="ad-tree well">
-<div><span>▾ installer-payload.exe</span><span class="meta">PE32 · 48.2 MB · sha256 1c7e…</span></div>
-<div><span>  ▾ .rsrc</span><span class="meta">section · 2.1 MB</span></div>
-<div><span>    ▸ VERSION_INFO</span><span class="meta">resource</span></div>
-<div aria-selected="true"><span>  ▾ overlay: payload.cab</span><span class="meta">CAB · 45.9 MB · offset 0x3a2000</span></div>
-<div><span>    ▸ app/bin/program.exe</span><span class="meta">PE32 · parsed</span></div>
-<div><span>    ▸ app/data/archive-01.pak</span><span class="meta g-stale">protected region · unsupported parser</span></div>
-</div>
+<ul class="ad-tree well adl-tree" role="tree" aria-label="installer-payload.exe contents">
+<li role="treeitem" aria-level="1" aria-expanded="true" tabindex="-1"><div><span><span aria-hidden="true">▾ </span>installer-payload.exe</span><span class="meta">PE32 · 48.2 MB · sha256 1c7e…</span></div>
+ <ul role="group">
+ <li role="treeitem" aria-level="2" aria-expanded="true" tabindex="-1"><div><span><span aria-hidden="true">  ▾ </span>.rsrc</span><span class="meta">section · 2.1 MB</span></div>
+  <ul role="group"><li role="treeitem" aria-level="3" aria-expanded="false" tabindex="-1"><div><span><span aria-hidden="true">    ▸ </span>VERSION_INFO</span><span class="meta">resource</span></div></li></ul></li>
+ <li role="treeitem" aria-level="2" aria-expanded="true" aria-selected="true" tabindex="0" class="is-focus"><div><span><span aria-hidden="true">  ▾ </span>overlay: payload.cab</span><span class="meta">CAB · 45.9 MB · offset 0x3a2000</span></div>
+  <ul role="group">
+  <li role="treeitem" aria-level="3" tabindex="-1"><div><span><span aria-hidden="true">    · </span>app/bin/program.exe → <a class="ad-link" href="?project=corpus-alpha&amp;build=build-a" tabindex="-1" aria-label="Imported build build-a, app/bin/program.exe">build-a</a></span><span class="meta">PE32 · parsed</span></div></li>
+  <li role="treeitem" aria-level="3" tabindex="-1"><div><span><span aria-hidden="true">    · </span>app/bin/helper.dll</span><span class="meta">PE32 · <span class="ad-absent">not imported</span></span></div></li>
+  <li role="treeitem" aria-level="3" tabindex="-1"><div><span><span aria-hidden="true">    · </span>app/data/archive-01.pak</span><span class="meta g-stale">protected region · unsupported parser</span></div></li></ul></li></ul></li>
+</ul>
 </div>

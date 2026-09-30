@@ -3357,6 +3357,14 @@ Operator: an autonomous Claude session. The work is on branch `feat/u13-reconcil
 - Out of repository (game runtime): FP-03, FP-06, FP-15, FP-24, A10, A18.
 - Still absent in code: A06 (bundle launchability), A11, FP-10, FP-23, FP-26, FP-27, FP-30.
 
+**E-0930-11 · U9 continuation (source; not installed).**
+- FP-26: `verify_periodic` suppresses a repeated automatic full audit when a provable input basis (complete compiler manifest plus source digests) is unchanged. Explicit requests and changed inputs still run full ([fp26.sh](evidence/2026-09-30-u9/fp26.sh)).
+- FP-27: pre-start entitlement denials are `external_action_required` (wake `external_entitlement_restored`), not failures, and become eligible once restored ([fp27.sh](evidence/2026-09-30-u9/fp27.sh)).
+- FP-10: one breaker per provider gives waiting tasks a retryable "recovering" answer while one probe runs, and bounds healing. With 100 waiting tasks, 0 provider calls were made during recovery ([fp10.sh](evidence/2026-09-30-u9/fp10.sh)).
+- A14 (existing, verified): an unresolved-ownership writer quarantines its resource. The next writer on it waits, and a disjoint writer finishes ([a14.sh](evidence/2026-09-30-u9/a14.sh)).
+- All evidence scripts now locate their own repository and rerun from the committed copies.
+- Still open in U9: A06, A11, FP-23 and FP-30 (need their design context); A03, A08, A12, FP-04 and FP-25 are partial.
+
 **E-0930-4 · Host.** RAM 31 GB with 4–6 GB available; swap 42/42 GB used; root disk 96% full; PSI full avg10 about 0.1. No full-corpus run was admitted.
 
 ## Decisions and blockers

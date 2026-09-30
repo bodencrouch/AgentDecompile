@@ -321,7 +321,7 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] `session-contract-2026-09-22:A11` — U9: Recorder fails after successful oracle; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A12` — U9: Disconnect after non-idempotent action; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A13` — U9: Interrupt destination copy/manifest commit; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:A14` — U9: Expired lease but old worker still alive; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A14` — U9: Expired lease but old worker still alive; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-11.
 - [ ] `session-contract-2026-09-22:A15` — U9: Near-full swap with qualified small task; spare swap with overloaded class; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-2 (decision + dispatch gate; not installed).
 - [ ] `session-contract-2026-09-22:A16` — U9: Large eligible task surrounded by small work; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-2, E-0930-7 (runtime queue reservation; not installed).
 - [ ] `session-contract-2026-09-22:A17` — U9: Change acceptance policy/input during verification; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-10 (input and policy recheck; no consumer yet).
@@ -337,7 +337,7 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] `session-contract-2026-09-22:FP-07` — U9: Coordinator; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-10 (report rejection verified; replacement clause open).
 - [ ] `session-contract-2026-09-22:FP-08` — U9: Storage owner; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-8 (bounded probe; partial-bundle clause unassessed).
 - [ ] `session-contract-2026-09-22:FP-09` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-10 (existing, verified).
-- [ ] `session-contract-2026-09-22:FP-10` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-10` — U9: Coordinator; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-11.
 - [ ] `session-contract-2026-09-22:FP-11` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-12` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-5.
 - [ ] `session-contract-2026-09-22:FP-13` — U9: Coordinator; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-2 (same as A15).
@@ -353,8 +353,8 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] `session-contract-2026-09-22:FP-23` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-24` — U9: Acceptance authority; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-25` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:FP-26` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:FP-27` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-26` — U9: Coordinator; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-11.
+- [ ] `session-contract-2026-09-22:FP-27` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-11.
 - [ ] `session-contract-2026-09-22:FP-28` — U9: Acceptance authority; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-29` — U9: Acceptance authority; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-30` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.

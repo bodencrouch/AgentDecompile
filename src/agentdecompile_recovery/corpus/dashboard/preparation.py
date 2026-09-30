@@ -15,7 +15,7 @@ from typing import Any
 
 from .common import live_db, live_root, query_db
 from . import admission_budget, mcp_budget
-from .retry_policy import MAX_ACTION_ATTEMPTS, decide_retry, refusal_outcome
+from .retry_policy import MAX_ACTION_ATTEMPTS, decide_retry, refusal_outcome, remaining_backoff
 from agentdecompile_recovery.corpus.ghidra_project import ghidra_program_path
 from agentdecompile_recovery.corpus.donor_schedule import spanning_forest_pairs
 from .workflow import DEFAULT_BUDGET_SECONDS, MAX_BUDGET_SECONDS, STAGES as RECOVERY_STAGES, VERSION, transient_failure, external_action_required
@@ -1251,6 +1251,13 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                    nextAction=decision['nextAction'], wakeCondition=decision['wakeCondition'],
                    retryDecision=decision, attempts=decision['attemptsSpent'])
             return refusal_outcome(prior, decision)
+        # A restart inside a recorded retry wait keeps the same eligibility time (A08).
+        wait = remaining_backoff(prior, time.time())
+        if wait > 0:
+            update(key, 'waiting', f'Resuming the recorded retry wait: {int(wait)} seconds remain.',
+                   attempts=decision['attemptsSpent'], retryAt=time.time() + wait)
+            if cancel.wait(wait):
+                raise InterruptedError('Workflow stopped during service backoff.')
         # A proven-unstarted launch resumes under its own dispatch reservation:
         # no second charge and no extra attempt.
         reuse_dispatch = prior.get('dispatchId') if prior.get('status') == 'undispatched' else None
@@ -1452,6 +1459,9 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                         'wakeCondition': decision['wakeCondition'], 'error': decision['reason'],
                         'previousError': outcome.get('error', '')}
             delay = 2 ** (attempt + 1)
+            with _LOCK:
+                history[action_id].update(nextEligibleAt=time.time() + delay, retryDelay=delay)
+                _write(row)
             update(key, 'waiting', f'Temporary service failure. Another attempt follows in {delay} seconds.', attempts=attempt + 1, nextFallback='Retry transient service failure', retryAt=time.time() + delay)
             if cancel.wait(delay):
                 raise InterruptedError('Workflow stopped during service backoff.')

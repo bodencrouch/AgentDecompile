@@ -63,3 +63,15 @@ def refusal_outcome(prior: Mapping[str, Any], decision: Mapping[str, Any]) -> di
         'nextAction': decision['nextAction'], 'wakeCondition': decision['wakeCondition'],
         'jobId': prior.get('jobId'), 'previousError': previous.get('error', ''),
     }
+
+
+def remaining_backoff(prior: Mapping[str, Any], now: float) -> float:
+    """Seconds left of a recorded retry wait (A08); restart neither skips nor extends it.
+
+    ``nextEligibleAt`` and ``retryDelay`` are stored with the failed attempt. A wall-clock
+    rollback cannot stretch the wait past the recorded delay.
+    """
+    eligible, delay = prior.get('nextEligibleAt'), prior.get('retryDelay')
+    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) for v in (eligible, delay)):
+        return 0.0
+    return max(0.0, min(float(delay), float(eligible) - now))

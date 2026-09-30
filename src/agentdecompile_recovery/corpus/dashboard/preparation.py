@@ -82,6 +82,23 @@ def _effective_recovery_family(stored: Any, locator: Any, program: Any, binary_i
     return stored_family or f'unclassified:{binary_id}'
 
 
+def _job_for_dispatch(dispatch_id: str) -> str | None:
+    from .actions import jobs
+    for job in jobs.list_jobs(compact=True):
+        if (job.params or {}).get('_dispatchId') == dispatch_id:
+            return job.id
+    from .actions.job_history import records
+    for job_id, record in records().items():
+        if (record.get('params') or {}).get('_dispatchId') == dispatch_id:
+            return job_id
+    return None
+
+
+def _dispatch_absence_provable() -> bool:
+    from .actions.job_history import directory
+    return directory() is not None
+
+
 def _discard_unverified_probe(checkpoint: dict[str, Any], requested: str, observed: str = '') -> bool:
     return _quarantine_probe(checkpoint, requested, observed, False)
 
@@ -1165,6 +1182,20 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             history = row.setdefault('actions', {})
             prior = (_matching_retry_prior(history, action_id, fields) if name == 'corpus.match-pair'
                      else dict(history.get(action_id, {})))
+        if (prior.get('dispatchId') and not prior.get('jobId')
+                and prior.get('status') in {'submitting', 'interrupted'}):
+            # Crash after the launch intent and budget commit, before the job id
+            # was recorded: find the actual owner by dispatch id. Only a readable
+            # job store can prove the launch never started.
+            owner_job = _job_for_dispatch(prior['dispatchId'])
+            if owner_job is not None:
+                prior.update(jobId=owner_job, ownerReconciledBy='dispatchId')
+            elif _dispatch_absence_provable():
+                prior.update(status='undispatched', undispatchedAt=time.time(),
+                             undispatchedReason='No job record carries this dispatch id; the launch never started.')
+            with _LOCK:
+                history[action_id] = prior
+                _write(row)
         if prior.get('status') == 'ok' and not (prior.get('result') or {}).get('ownershipUnresolved') and (probe or key in {'facts', 'calibrate-global', 'verify-byte-accuracy'}):
             prior = {}
         if not probe and prior.get('status') == 'ok' and not (prior.get('result') or {}).get('ownershipUnresolved') and key not in {'facts', 'calibrate-global', 'verify-byte-accuracy'}:
@@ -1218,7 +1249,11 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                    nextAction=decision['nextAction'], wakeCondition=decision['wakeCondition'],
                    retryDecision=decision, attempts=decision['attemptsSpent'])
             return refusal_outcome(prior, decision)
-        for attempt in range(int(prior.get('attempts', 0)), MAX_ACTION_ATTEMPTS):
+        # A proven-unstarted launch resumes under its own dispatch reservation:
+        # no second charge and no extra attempt.
+        reuse_dispatch = prior.get('dispatchId') if prior.get('status') == 'undispatched' else None
+        first_attempt = int(prior.get('attempts', 0)) - (1 if reuse_dispatch else 0)
+        for attempt in range(max(0, first_attempt), MAX_ACTION_ATTEMPTS):
             # Matching submits several independent candidates into the shared
             # job store. A pause must freeze that admission queue, while a
             # child already executing gets to write its durable receipt.
@@ -1233,7 +1268,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                     _write(row)
                     update(key, 'blocked', provider_decision['reason'], nextAction=provider_decision['nextAction'], wakeCondition=provider_decision['wakeCondition'], retryDecision=provider_decision)
                     return refusal_outcome(prior, provider_decision)
-                dispatch_id = uuid.uuid4().hex
+                dispatch_id, reuse_dispatch = reuse_dispatch or uuid.uuid4().hex, None
                 objective_decision = admission_budget.reserve(row, dispatch_id, action_id, name)
                 if objective_decision['nextAction'] != 'dispatch':
                     history.setdefault(action_id, {})['retryDecision'] = objective_decision
@@ -1259,6 +1294,7 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 _write(row)
             mcp_reserve = _mcp_reservation_capability(row, mcp_lease, dispatch_id=dispatch_id, action_id=action_id)
             job_fields = dict(fields)
+            job_fields['_dispatchId'] = dispatch_id  # lets a restart find this launch's owner
             if name == 'corpus.match-pair':
                 # This records the project's explicit budget decision with
                 # the child receipt. The subprocess remains cancellable; only

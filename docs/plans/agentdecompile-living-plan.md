@@ -10,7 +10,7 @@ Scope authority: `2026-09-28-comprehensive-agentdecompile-plan.md`. Queue: `agen
 
 ## Current state
 
-Latest evidence: [2026-09-29 continuation](#2026-09-29-continuation-e-0929-1--e-0929-4) (U2 fixture-validated, U13 assessed, U20 partial). Earlier: this consolidation performed source/document checks only. It did not establish new software, installed-consumer, runtime, gameplay, host or release acceptance. Prior source implementation is preserved in the frozen frontend status and unit records; it must not be flattened to either “nothing exists” or “complete”.
+Latest evidence: [2026-09-30 overnight](#2026-09-30-overnight-continuation-e-0930-1--e-0930-4) (U13 reconciled on a branch, U9 admission wired, U2 seams) and [2026-09-29](#2026-09-29-continuation-e-0929-1--e-0929-4). Earlier: this consolidation performed source/document checks only. It did not establish new software, installed-consumer, runtime, gameplay, host or release acceptance. Prior source implementation is preserved in the frozen frontend status and unit records; it must not be flattened to either “nothing exists” or “complete”.
 
 ## Evidence update contract
 
@@ -25,18 +25,18 @@ Each row tracks source implementation, installed consumer, software validation, 
 | Unit | Deliverable | Prerequisites | Current acceptance | Next bounded action |
 |---|---|---|---|---|
 | U1 | Scope, truth and evidence authority | None | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
-| U2 | Determinism, schema and generic data seams | U1 | partial (E-0929-2): D1–D6, D8 and D9 verified present in git `2c5d989f`, with the cascade harness passing on a real two-build fixture and on the source's synthetic tie-break fixture; D7 (open-ended sweep) and the other 19 U2 children unassessed; not installed (8080 runs the unreconciled NVMe tree) | Map each D1–D9 inherited acceptance onto E-0929-2, assess the 19 non-D children, and run V3 on a sibling-build pair with real tie pressure; the live store is blocked by the missing `content_sha256` and analyzer basis (U13) |
+| U2 | Determinism, schema and generic data seams | U1 | partial: D1–D6, D8, D9 fixture-validated (E-0929-2); U52, U65, U61 capture implemented on `feat/u13-reconcile` (E-0930-3); U66 present in the grid; 13 children absent | Land U8 `func_param` so U61 persists; decide the `ANALYZER_TIMEOUT_POLICY` re-baseline; then U49/U51/U53/U56–U60/U63/U64 |
 | U3 | Identity, field fusion and compatible cross-build reuse | U1, U2 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U4 | Recover, calibrate, reconstruct and compare | U1, U2 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U5 | Portable entities, signatures, roots and layouts | U2, U3 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U6 | Runtime consumer, caves and safe mutation | U5, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U7 | Exhaustive bounded fallback and learning | U5, U6 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U8 | Complete deterministic export bundle | U5, U7 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
-| U9 | One durable task authority, resource admission and failure continuation | U1 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
+| U9 | One durable task authority, resource admission and failure continuation | U1 | partial source (E-0930-2): resource admission wired into dispatch (A15/FP-13); aging reservation at decision level (A16/FP-14); dispatch-owner reconciliation (FP-17); grep triage of the rest (E-0929-4); not installed | A queued dispatcher so reservations exist at runtime; A03 N-unit checkpoint; FP-18/FP-19 store and receipt failure handling |
 | U10 | External verification and portable recovered projects | U1, U4, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U11 | Reusable donated compute foundation and adapters | U1, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U12 | Autonomous capability product M1–M7 | U6, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
-| U13 | Source and package reconciliation | None | assessed 2026-09-29 (E-0929-1): git and the serving tree diverge in both directions | Merge the 17 NVMe-newer files and the six NVMe-only source files (`catalog.py`, `introspect.py`, `containers/*`) into git without overwriting; regenerate the NVMe-only built React assets from git's Vite source instead of copying them; add the live-only schema columns to git; backfill `content_sha256` and analyzer basis on the live store through the catalog before activating git code; activation needs an owner-approved restart |
+| U13 | Source and package reconciliation | None | source reconciled on `feat/u13-reconcile` (E-0930-1); serving tree still runs the old copy | Merge the branch into the delivery branch once its other writer settles; catalog backfill of `content_sha256`/analyzer basis on the live store; owner-approved 8080 restart to activate |
 | U14 | Project lifecycle, admission and tab contexts | U13, U29, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U15 | Shared selection, navigation and accessible shell | U13 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U16 | Full CodeBrowser and Ghidra guide parity | U15, U29 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
@@ -3277,7 +3277,7 @@ Operator: Claude session, branch `feat/cockpit`. Nothing below is installed-cons
 - 18 files are only on NVMe: `catalog.py`, `introspect.py`, `containers/{detect,models,nds,registry}.py`, and built React assets.
 - 174 files differ. Git is newer in 157. NVMe is newer in 17, the hot-edited set: `agentdecompile_cli/{cli.py,launcher.py,mcp_utils/program_analysis.py}`, `corpus/{ghidra_project.py,dashboard/preparation.py,dashboard/workbench.py}`, `ProjectDialog.tsx`, dashboard static CSS/JS and `ghidra_db/{btree,master_table,project,store}.py`.
 - `pyproject.toml` is identical. NVMe's only revision hint is the stale `scm_version.json` (`g4167d4f0`, dirty).
-- The live store `kotorxid.sqlite` has columns git's schema lacks: `binary.code_func_count`, `func.stabs_name` and `func.stabs_type`.
+- The live store `kotorxid.sqlite` has columns git's schema lacks: `binary.code_func_count`, `func.stabs_name` and `func.stabs_type`. *(Corrected in E-0930-1: git adds these through lazy migrations; only its base schema lacks them.)*
 - All 49 builds lack `content_sha256` and the analyzer basis. Git's cascade and export refuse such a store by design, with `ContentHashError` and `BasisError`.
 
 Consequence: activating git code on 8080 needs, in order: the merge without overwrite, the schema columns, the catalog backfill, and an owner-approved restart. Adding routes cannot be done by hot reload. Nothing was copied. Full lists: [u13-reconciliation.md](evidence/2026-09-29/u13-reconciliation.md).
@@ -3303,6 +3303,32 @@ Consequence: activating git code on 8080 needs, in order: the merge without over
 **E-0929-4 · Grep-level triage of U1 (59 children) and U9 (50 children).** Read-only keyword search found partial seams: `cross_place_admission`, `recipient_acceptance`, `retry_policy`, `admission_budget` and `cross_place_checkpoint`. It found no swap- or aging-aware admission (A15/A16/FP-13/FP-14), no N-unit compiler checkpoint (A03), and no restart-time reservation reconciliation (FP-17). This is absence-of-evidence triage and does not assess acceptance.
 
 Host state observed: 31 GB RAM with 3 GB available, swap 42/42 GB used, root disk 96% full. Any full-corpus V3 run or new worker must be admitted against that.
+
+### 2026-09-30 overnight continuation (E-0930-1 … E-0930-4)
+
+Operator: an autonomous Claude session. The work is on branch `feat/u13-reconcile` (from `dd2e50f6`), which merges `feat/u2-seams` and `feat/u9-admission`. It is not merged into `feat/cockpit`: that checkout had another writer's uncommitted cockpit work. Nothing below is installed-consumer, runtime or publication acceptance. The 8080 server still runs the NVMe copy, and activating git code there still needs the backfill and an owner-approved restart.
+
+**E-0930-1 · U13 reconciliation, corrected.** A first attempt used the serving tree's apparent sync base `64d768ca` for every file. It would have reverted later git work, including the verification modules, and was discarded unmerged. Two sub-agents also reported merges they had not performed. The accepted method is in [evidence/2026-09-30-u13/README.md](evidence/2026-09-30-u13/README.md). A file's NVMe edits were ported only when it had lines that no git version of the path ever held, and its NVMe mtime was later than git's last commit to the path.
+- 16 files qualified and were ported (`f8c9a6f7`). They include the offline project `save-as`/`save` commands, ghidra_db B-tree/project/store work, the stricter preparation probe quarantine, hash-verified upload staging, and 777/782 novel lines of `workbench-app.js`.
+- The launcher's stale-lock auto-delete of a Ghidra project was replaced by the NVMe behaviour: preserve state and leave ownership to the operator.
+- Every file git changed later stays git, including all verification modules. The NVMe copies of those relabel exact-placement diagnostics as byte-identical.
+- Checks: all changed Python compiles, 505/505 modules import on the integrated branch, `tsc --noEmit` is clean and `node --check` passes.
+- Correction to E-0929-1: git does know `binary.code_func_count`, `func.stabs_name` and `func.stabs_type`. `fix_func_counts.py` and `stabs_link.py` add them as lazy migrations; only git's base `CREATE TABLE` lacks them, so no schema port is needed.
+
+**E-0930-2 · U9 admission and continuation (source; not installed).**
+- `resource_admission.decide()` and `dispatch_gate()` are wired into `jobs.start_job`. The executor measures each job's session RSS peak into a per-action profile store. Scenarios ([admission_scenarios.sh](evidence/2026-09-30-u9/admission_scenarios.sh), [dispatch_gate.sh](evidence/2026-09-30-u9/dispatch_gate.sh)):
+  - A15/FP-13: a qualified small task is admitted with swap 100% used. Spare swap does not rescue a class at its limit, recent limit events, rising PSI pressure or a need beyond available memory.
+  - A real 300 MiB child measured 313 MiB. The gate admitted it and refused a 250 GiB need.
+- A16/FP-14, decision level only. `plan()` gives the capped-age task its reservation ahead of higher-priority small work. Backfill that would consume that capacity is blocked, while a task that fits beside it runs. An urgent override is recorded, visible and does not reset age, and the ageing ledger survives a restart. The job system has no queue, so no runtime reservation exists yet.
+- FP-17: launched jobs carry `_dispatchId`. A restart finds the owner of a `submitting` dispatch by that id. If the readable job store proves the launch never started, it resumes under the same reservation with no second charge; with no job store nothing is claimed ([fp17.sh](evidence/2026-09-30-u9/fp17.sh)). The coordinator closure was verified in its parts, not end to end.
+
+**E-0930-3 · U2 seams.**
+- U52: `reloc_presence` reads relocation-table presence from the image (PE flag plus base-relocation directory; ELF REL/RELA sections), and a `reloc_table` backfill pass stores it. The basis reports `masking_inputs` per build, excluded from `basis_hash`. The corpus's `nwserver.exe` (`nwn2server.exe`) is RELOCS_STRIPPED, the case U52 names ([u52.sh](evidence/2026-09-30-u2/u52.sh)).
+- U65: enrichment records carry `timedOut`, `decompileTimeoutSeconds` and `prototypeSource`, with a distinct `timed-out` status; `high_emit` raises `DecompileTimeout`. `ANALYZER_TIMEOUT_POLICY` is unchanged, because moving it forces a re-baseline, which is an operator decision ([u65.sh](evidence/2026-09-30-u2/u65.sh)).
+- U61: the U8 collector captures `autoParameterCount` and per-parameter `autoParameter`, and emits one canonical `this` across dynamic and custom storage ([u61.sh](evidence/2026-09-30-u2/u61.sh)). Persistence waits on U8's `func_param` table.
+- Assessment of U2's other children: U66 is implemented in the grid; U48, U50, U54, U61 and U62 are partial; U49, U51, U53, U55–U60, U63 and U64 are absent.
+
+**E-0930-4 · Host.** RAM 31 GB with 4–6 GB available; swap 42/42 GB used; root disk 96% full; PSI full avg10 about 0.1. No full-corpus run was admitted.
 
 ## Decisions and blockers
 

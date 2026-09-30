@@ -22,7 +22,7 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] U10. External verification and portable recovered projects — prerequisites: U1, U4, U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U11. Reusable donated compute foundation and adapters — prerequisites: U1, U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U12. Autonomous capability product M1–M7 — prerequisites: U6, U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
-- [ ] U13. Source and package reconciliation — prerequisites: none; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors. Evidence 2026-09-29: E-0929-1 (divergence assessed; merge, schema, backfill and restart outstanding).
+- [ ] U13. Source and package reconciliation — prerequisites: none; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors. Evidence 2026-09-29: E-0929-1 (divergence assessed; merge, schema, backfill and restart outstanding). Evidence 2026-09-30: E-0930-1 (reconciled on feat/u13-reconcile; activation pending).
 - [ ] U14. Project lifecycle, admission and tab contexts — prerequisites: U13, U29, U9; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U15. Shared selection, navigation and accessible shell — prerequisites: U13; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
 - [ ] U16. Full CodeBrowser and Ghidra guide parity — prerequisites: U15, U29; close assigned child predicates; reconcile owned source coverage without gating unrelated predecessors.
@@ -135,7 +135,7 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] `portable-plan-2026-09-21:U49` — U2: - **U49. Identical-body collision rule.** When two `logical_id`s share a masked body; satisfy the full inherited acceptance, not just this label.
 - [ ] `portable-plan-2026-09-21:U50` — U2: - **U50. Packed / compressed-image gate.** Detect (entropy, section-name, entry-in-last-; satisfy the full inherited acceptance, not just this label.
 - [ ] `portable-plan-2026-09-21:U51` — U2: - **U51. Anchor definition for U5b.** An anchor is the **reference site** or the **import; satisfy the full inherited acceptance, not just this label.
-- [ ] `portable-plan-2026-09-21:U52` — U2: - **U52. Record `reloc_table_present` per build.** Old 32-bit images commonly set; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U52` — U2: - **U52. Record `reloc_table_present` per build.** Old 32-bit images commonly set; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-3 (reader, backfill pass, basis masking_inputs; masking rules themselves pending U4).
 - [ ] `portable-plan-2026-09-21:U53` — U2: - **U53. Producing-channel weight on divergence classes.** Record which cascade channel; satisfy the full inherited acceptance, not just this label.
 - [ ] `portable-plan-2026-09-21:U54` — U2: - **U54. Land the full determinism basis** — absorbed into the normative basis object in; satisfy the full inherited acceptance, not just this label.
 - [ ] `portable-plan-2026-09-21:U55` — U2: - **U55. Thread quiescence is mandatory in the C++ helper (U13/U23).** Suspend all other; satisfy the full inherited acceptance, not just this label.
@@ -144,11 +144,11 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] `portable-plan-2026-09-21:U58` — U2: - **U58. Filler and padding provenance in U12.** The allowed filler set is a toolchain; satisfy the full inherited acceptance, not just this label.
 - [ ] `portable-plan-2026-09-21:U59` — U2: - **U59. Anti-tamper / integrity policy.** Build-profile flag `self_integrity_checks:; satisfy the full inherited acceptance, not just this label.
 - [ ] `portable-plan-2026-09-21:U60` — U2: - **U60. Export-time detourability validation.** Run the MinHook-class length-disassembler; satisfy the full inherited acceptance, not just this label.
-- [ ] `portable-plan-2026-09-21:U61` — U2: - **U61. `this` / custom-storage normalization in U8.** Persist `hasCustomVariableStorage`; satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U61` — U2: - **U61. `this` / custom-storage normalization in U8.** Persist `hasCustomVariableStorage`; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-3 (capture and canonical `this`; persistence waits on U8).
 - [ ] `portable-plan-2026-09-21:U62` — U2: - **U62. The C/D seam contract (one paragraph, binding).** `binaries[].sha256` **is** the; satisfy the full inherited acceptance, not just this label.
 - [ ] `portable-plan-2026-09-21:U63` — U2: - **U63. sret triple + x64 rules.** Replace `ret.by_ref` with `ret.sret = {allocator,; satisfy the full inherited acceptance, not just this label.
 - [ ] `portable-plan-2026-09-21:U64` — U2: - **U64. Recompile-and-diff ABI verification** (added to U28). From the exported ABI; satisfy the full inherited acceptance, not just this label.
-- [ ] `portable-plan-2026-09-21:U65` — U2: Bound analyzer lifecycle with durable progress, deadlines and checkpoint continuation (C19 replaces effectively-unbounded wording); satisfy the full inherited acceptance, not just this label.
+- [ ] `portable-plan-2026-09-21:U65` — U2: Bound analyzer lifecycle with durable progress, deadlines and checkpoint continuation (C19 replaces effectively-unbounded wording); satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-3 (timeouts as data; basis policy constant unchanged pending re-baseline).
 - [ ] `portable-plan-2026-09-21:U66` — U2: - **U66. Content-addressed receipts** (required — grill 6: the draw-the-work replay has; satisfy the full inherited acceptance, not just this label.
 - [ ] `portable-plan-2026-09-21:U67` — U6: - **U67. Per-site calling shape from the pack, never from `#if _WIN32`.**; satisfy the full inherited acceptance, not just this label.
 - [ ] `portable-plan-2026-09-21:U13c` — U6: - **U13c. Descriptor-driven native call layer in the host.** Every native call is a; satisfy the full inherited acceptance, not just this label.
@@ -322,8 +322,8 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] `session-contract-2026-09-22:A12` — U9: Disconnect after non-idempotent action; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A13` — U9: Interrupt destination copy/manifest commit; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A14` — U9: Expired lease but old worker still alive; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:A15` — U9: Near-full swap with qualified small task; spare swap with overloaded class; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:A16` — U9: Large eligible task surrounded by small work; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A15` — U9: Near-full swap with qualified small task; spare swap with overloaded class; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-2 (decision + dispatch gate; not installed).
+- [ ] `session-contract-2026-09-22:A16` — U9: Large eligible task surrounded by small work; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-2 (decision level only; no runtime queue).
 - [ ] `session-contract-2026-09-22:A17` — U9: Change acceptance policy/input during verification; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A18` — U9: Wrong Lua bridge arguments/config owner/log prefix; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A19` — U9: Lose only host/input replica; satisfy the full inherited acceptance, not just this label.
@@ -340,11 +340,11 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] `session-contract-2026-09-22:FP-10` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-11` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-12` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:FP-13` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:FP-14` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-13` — U9: Coordinator; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-2 (same as A15).
+- [ ] `session-contract-2026-09-22:FP-14` — U9: Coordinator; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-2 (same as A16).
 - [ ] `session-contract-2026-09-22:FP-15` — U9: Scenario owner; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-16` — U9: Storage owner; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:FP-17` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-17` — U9: Coordinator; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-2 (owner reconciliation by dispatch id; parts verified).
 - [ ] `session-contract-2026-09-22:FP-18` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-19` — U9: Acceptance authority; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-20` — U9: Storage owner; satisfy the full inherited acceptance, not just this label.

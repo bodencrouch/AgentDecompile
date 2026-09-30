@@ -186,8 +186,20 @@ def connect(path: pathlib.Path | str, *, read_only: bool = False) -> sqlite3.Con
         # Cannot run inside a transaction, so it stays out of the migration.
         con.execute("PRAGMA journal_mode=WAL")
     migrations.apply_pending(con)
+    found = migrations.user_version(con)
+    if not read_only and found > migrations.SCHEMA_VERSION:
+        # A newer release migrated this store; this code does not know its schema (FP-20).
+        # Reads stay available through read_only=True; writing would mix incompatible layouts.
+        con.close()
+        raise SchemaTooNewError(
+            f"store schema version {found} is newer than this writer's {migrations.SCHEMA_VERSION}; "
+            "upgrade AgentDecompile before writing, or open read_only=True")
     backfill_recovery_family(con)
     return con
+
+
+class SchemaTooNewError(RuntimeError):
+    """A writer older than the store's schema refused to open it for writing."""
 
 
 def remove_binary(

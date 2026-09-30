@@ -63,3 +63,11 @@ Check: `verify-determinism` returns `{"identical": true}`.
   `AGENT_DECOMPILE_JOB_MAX_SECONDS` (default 24 h).
 - The launcher no longer deletes a Ghidra project on a stale-owner lock. The operator resolves
   ownership.
+
+## Rollback caveat
+
+The live store is at schema version 3 and the reconciled code is at 4 (`match_review`). The
+first writing connection from the new code migrates the store to 4. The new code refuses to
+write into a store newer than itself (`SchemaTooNewError`, U9 FP-20), but the old serving copy
+has no such guard. Before rolling back to the old copy after activation, restore the store from
+a pre-activation backup, or keep the old copy read-only.

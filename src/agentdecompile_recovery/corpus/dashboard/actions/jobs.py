@@ -1720,6 +1720,21 @@ def _mcp_executor(
     # makes a dashboard job wait forever for its own request to acquire the
     # lock.  Each bridge operation serializes its own session-critical call.
     from .. import mcp_budget
+    from ..provider_breaker import breaker_for, is_crash
+    breaker, caller = breaker_for("mcp"), uuid.uuid4().hex
+    admitted, why = breaker.admit(caller)
+    if not admitted:
+        # One shared recovery probe per provider (FP-10): waiting tasks do not call a crashed provider.
+        return 1, json.dumps({'ok': False, 'error': why, 'provider': 'mcp', 'providerBreaker': breaker.status()})
+    try:
+        return _mcp_dispatch(action, params, cancel, mcp_budget, mcp_reserve, breaker, caller, is_crash,
+                             trusted_preparation_facts_inventory, trusted_preparation_probe)
+    finally:
+        breaker.release(caller)  # no-op unless this call held the probe and never recorded it
+
+
+def _mcp_dispatch(action, params, cancel, mcp_budget, mcp_reserve, breaker, caller, is_crash,
+                  trusted_preparation_facts_inventory, trusted_preparation_probe):
     with mcp_budget.dispatch_scope(mcp_reserve) as dispatch:
         try:
             with MCP_EXECUTOR_LOCK:
@@ -1728,6 +1743,7 @@ def _mcp_executor(
                     trusted_preparation_facts_inventory=trusted_preparation_facts_inventory,
                     trusted_preparation_probe=trusted_preparation_probe,
                 )
+                breaker.record(caller, crashed=bool(code) and is_crash(log))
                 if dispatch['unknown']:
                     # A later clear response cannot reconcile an earlier
                     # uncertain provider effect in this execution sequence.

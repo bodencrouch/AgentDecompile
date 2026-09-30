@@ -312,7 +312,7 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] `session-contract-2026-09-22:A02` — U9: Withdraw shared donor root; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A03` — U9: Kill compiler after N durable units; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A04` — U9: Churn child PIDs on identical failing input; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:A05` — U9: Hang one device operation; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A05` — U9: Hang one device operation; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-8 (bounded probe).
 - [ ] `session-contract-2026-09-22:A06` — U9: Omit indirect staged library or fixture; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A07` — U9: Late old worker with correct result; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A08` — U9: Restart coordinator during retry wait; satisfy the full inherited acceptance, not just this label.
@@ -327,7 +327,7 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] `session-contract-2026-09-22:A17` — U9: Change acceptance policy/input during verification; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A18` — U9: Wrong Lua bridge arguments/config owner/log prefix; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A19` — U9: Lose only host/input replica; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:A20` — U9: Shuffle valid proposal completion order; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A20` — U9: Shuffle valid proposal completion order; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-8 (grid verifier order independence).
 - [ ] `session-contract-2026-09-22:FP-01` — U9: Acceptance authority; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-02` — U9: Acceptance authority; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-03` — U9: Scenario owner; satisfy the full inherited acceptance, not just this label.
@@ -335,7 +335,7 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] `session-contract-2026-09-22:FP-05` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-6 (existing admission behaviour verified).
 - [ ] `session-contract-2026-09-22:FP-06` — U9: Scenario owner; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-07` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:FP-08` — U9: Storage owner; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-08` — U9: Storage owner; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-8 (bounded probe; partial-bundle clause unassessed).
 - [ ] `session-contract-2026-09-22:FP-09` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-10` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-11` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.

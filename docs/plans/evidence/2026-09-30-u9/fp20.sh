@@ -1,7 +1,7 @@
 # U9 FP-20: an interrupted migration leaves the previous consistent version and finalizes once; an older writer is
 # refused on a newer store while read-only access remains. Real store.connect / migrations.apply_pending; temp files.
 D=/tmp/adplan/verify/u9/fp20; rm -rf $D; mkdir -p $D
-cd /home/brunner56/ad-wt/u13-reconcile/src && timeout 120 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && timeout 120 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 import sqlite3, dataclasses
 from agentdecompile_recovery.corpus import store, migrations as M
 db = "/tmp/adplan/verify/u9/fp20/s.sqlite"

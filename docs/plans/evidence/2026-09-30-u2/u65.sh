@@ -1,5 +1,5 @@
 # U65: decompiler timeouts become data (enrich records) or a distinct refusal (high_emit); driven with stub results.
-cd /home/brunner56/ad-wt/u2-seams/src && timeout 120 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && timeout 120 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 import sys, types
 task = types.ModuleType("ghidra.util.task"); task.TaskMonitor = types.SimpleNamespace(DUMMY=None)
 for name in ("ghidra", "ghidra.util"): sys.modules.setdefault(name, types.ModuleType(name))
@@ -27,4 +27,4 @@ for label, res in (("timed out", Res(False, True)), ("failed", Res(False, False)
     except DecompileTimeout as e: print(f"high_emit {label}: DecompileTimeout:", e)
     except RuntimeError as e: print(f"high_emit {label}: RuntimeError:", e)
 EOF
-grep -n '"timedOut": bool(result.get("timedOut"))' /home/brunner56/ad-wt/u2-seams/src/agentdecompile_recovery/pyghidra_enrich.py && echo "persisted record carries timedOut"
+grep -n '"timedOut": bool(result.get("timedOut"))' $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src/agentdecompile_recovery/pyghidra_enrich.py && echo "persisted record carries timedOut"

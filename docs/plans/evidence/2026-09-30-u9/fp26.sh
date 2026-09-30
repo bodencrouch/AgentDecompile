@@ -1,7 +1,7 @@
 # U9 FP-26: unchanged inputs suppress a repeated automatic full audit; explicit requests and changed inputs still
 # run full; without a provable basis nothing is suppressed. Real verify_periodic scheduling; the compile step stubbed.
 D=/tmp/adplan/verify/u9/fp26; rm -rf $D; mkdir -p $D/src
-cd /home/brunner56/ad-wt/u13-reconcile/src && timeout 60 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && timeout 60 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 import json, time, pathlib, io, contextlib
 from agentdecompile_recovery.corpus import verify_periodic as vp
 D = pathlib.Path("/tmp/adplan/verify/u9/fp26"); (D / "src/f.c").write_text("int f(void){return 1;}\n")

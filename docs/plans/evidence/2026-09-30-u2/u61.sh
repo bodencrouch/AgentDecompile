@@ -1,5 +1,5 @@
 # U61: auto-parameter capture and one canonical `this` across dynamic and custom storage (stub Ghidra objects).
-cd /home/brunner56/ad-wt/u2-seams/src && timeout 120 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && timeout 120 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 from types import SimpleNamespace as NS
 from agentdecompile_cli.mcp_server.providers.guide_function import canonical_this, _is_auto
 def addr(reg=None, stack=None): return NS(isStackAddress=lambda: stack is not None, isRegisterAddress=lambda: reg is not None, getOffset=lambda: stack or 0, __str__=lambda self=None: reg or f"Stack[{stack}]")

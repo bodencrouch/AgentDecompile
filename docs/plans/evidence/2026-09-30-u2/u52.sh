@@ -1,5 +1,5 @@
 # U52: relocation-table presence from real images, a stripped-flag copy, the backfill pass and the basis disclosure.
-W=/tmp/adplan/verify/u2seams; cd /home/brunner56/ad-wt/u2-seams/src
+W=/tmp/adplan/verify/u2seams; cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src
 timeout 300 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 import struct, sqlite3, shutil, json, os, subprocess, sys
 from agentdecompile_recovery.corpus.reloc_presence import relocation_table

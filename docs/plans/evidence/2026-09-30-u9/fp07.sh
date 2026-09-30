@@ -1,6 +1,6 @@
 # U9 FP-07: a report from an expired generation is rejected even with matching content. Real consume_report + Ledger.
 A=/tmp/adplan/verify/u9/fp07area; rm -rf $A; mkdir -p $A
-cd /home/brunner56/ad-wt/u13-reconcile/src && timeout 60 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && timeout 60 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 import json
 from agentdecompile_recovery.corpus.cross_place_checkpoint import Ledger, consume_report
 L = Ledger("/tmp/adplan/verify/u9/fp07area"); rep = L.root / "reports/worker-results.jsonl"; rep.parent.mkdir(parents=True, exist_ok=True)

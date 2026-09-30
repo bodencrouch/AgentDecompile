@@ -1,5 +1,5 @@
 # U9 FP-12: long units' deadlines follow distinct completed checkpoints, never PID liveness or chatter; hard cap holds.
-cd /home/brunner56/ad-wt/u13-reconcile/src && timeout 120 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && timeout 120 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 import sys, threading, pathlib, time, os
 from agentdecompile_recovery.corpus.dashboard.actions import jobs
 def run(code, **kw):

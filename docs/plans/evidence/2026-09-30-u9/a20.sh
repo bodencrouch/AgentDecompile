@@ -1,6 +1,6 @@
 # U9 A20: shuffling proposal arrival changes neither the capped set nor the chosen proposal. Drives the real
 # VerifierLoop._candidates (cap, independence policy, penalties, tie-break); only log reads and deadline are stubbed.
-cd /home/brunner56/ad-wt/u13-reconcile/src && timeout 120 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && timeout 120 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 import itertools, random
 from types import SimpleNamespace as NS
 from agentdecompile_grid.verify import loop as L

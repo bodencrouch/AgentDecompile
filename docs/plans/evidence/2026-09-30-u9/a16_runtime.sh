@@ -1,7 +1,7 @@
 # U9 A16/FP-14 at runtime: the real JobStore queue honours a capped-age reservation; backfill that would delay it
 # waits; a task that fits beside it runs. Simulated host capacity; injected executor; temp root and profiles.
 R=/tmp/adplan/verify/u9/a16root; rm -rf $R; mkdir -p $R
-cd /home/brunner56/ad-wt/u13-reconcile/src && AGENT_DECOMPILE_CORPUS_ROOT=$R AGENTDECOMPILE_RESOURCE_PROFILES=$R/profiles.json \
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && AGENT_DECOMPILE_CORPUS_ROOT=$R AGENTDECOMPILE_RESOURCE_PROFILES=$R/profiles.json \
   AGENTDECOMPILE_AGING_INTERVAL_S=0.5 AGENTDECOMPILE_AGING_CAP=2 timeout 120 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 import threading, time, os, pathlib
 from agentdecompile_recovery.corpus.dashboard import resource_admission as ra

@@ -1,5 +1,5 @@
 # U9 A15/A16/FP-13/FP-14 scenarios against resource_admission (pure decisions + ledger + live probe).
-cd /home/brunner56/ad-wt/u9-admission/src && rm -rf /tmp/adplan/verify/u9/ledger && /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && rm -rf /tmp/adplan/verify/u9/ledger && /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 from agentdecompile_recovery.corpus.dashboard.resource_admission import *
 G = 1024**3; P = AdmissionPolicy(class_concurrency={"ghidra": 1})
 # A15/FP-13 case 1: near-full swap, qualified small task -> admitted on the complete basis.

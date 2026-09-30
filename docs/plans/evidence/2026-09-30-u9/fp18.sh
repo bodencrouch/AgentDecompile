@@ -1,7 +1,7 @@
 # U9 FP-18: sole job-event store unavailable -> unsafe dispatch refused; failed receipts retried, never dropped;
 # acceptance resumes only after the backlog flushes. Temp live root; no real job is launched.
 R=/tmp/adplan/verify/u9/fp18root; chmod -R u+w $R 2>/dev/null; rm -rf $R; mkdir -p $R
-cd /home/brunner56/ad-wt/u13-reconcile/src && AGENT_DECOMPILE_CORPUS_ROOT=$R AGENTDECOMPILE_RESOURCE_ADMISSION=off timeout 120 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && AGENT_DECOMPILE_CORPUS_ROOT=$R AGENTDECOMPILE_RESOURCE_ADMISSION=off timeout 120 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 import os, time, pathlib
 from agentdecompile_recovery.corpus.dashboard.actions import jobs, catalog
 R = pathlib.Path(os.environ["AGENT_DECOMPILE_CORPUS_ROOT"]); store_dir = R / "workbench-jobs"

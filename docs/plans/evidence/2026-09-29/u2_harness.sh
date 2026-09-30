@@ -9,7 +9,7 @@ IMAGES = {30: "/home/brunner56/biodecompwarehouse/repos/NWN2/nwloader.exe",
           26: "/home/brunner56/biodecompwarehouse/repos/NWN2/nwn2server.exe"}
 src = sqlite3.connect(f"file:{sys.argv[1]}?mode=ro", uri=True); dst = sqlite3.connect(sys.argv[2])
 ids = ",".join(map(str, IMAGES))
-sys.path.insert(0, "/home/brunner56/ad-wt-u2/src")
+sys.path.insert(0, "$(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src")
 from agentdecompile_recovery.corpus import store as git_store
 dst.close(); dst = git_store.connect(sys.argv[2])   # git-tree schema, not the live one
 for t in ("binary", "func", "calledge"):
@@ -27,7 +27,7 @@ for bid, path in IMAGES.items():
     dst.execute("update binary set content_sha256=? where id=?", (hashlib.sha256(raw).hexdigest(), bid))
 dst.commit(); print("md5-corroborated content_sha256 set for", sorted(IMAGES))
 EOF
-cd /home/brunner56/ad-wt-u2
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)
 PYTHONPATH=src nice -n 10 timeout 1500 /usr/bin/time -f 'maxrss_kb=%M elapsed=%e' /home/brunner56/agentdecompile-nvme/.venv/bin/python -m agentdecompile_recovery.corpus.determinism_harness $W/fixture.sqlite --json > $W/result.json
 python3 - <<'EOF'
 import json; d = json.load(open("/tmp/adplan/verify/u2/result.json")); print("identical", d["identical"])
@@ -37,7 +37,7 @@ for s, r in d["seeds"].items():
         print("   ", run, {t: (v.get("identical"), v.get("rows"), v.get("first_diff")) for t, v in tabs.items()})
 EOF
 # Export half: hook pack from two temp copies of the cascaded store, byte-compared (the source's verify_export).
-cd /home/brunner56/ad-wt-u2
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)
 PYTHONPATH=src timeout 600 /home/brunner56/agentdecompile-nvme/.venv/bin/python -m agentdecompile_recovery.corpus.cli verify-determinism --db $W/fixture.canonical.sqlite
 # Analyzer basis is absent in the live rows: stamp a temp copy through the source's own labelled backfill, then export twice.
 cp $W/fixture.canonical.sqlite $W/export.sqlite

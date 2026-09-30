@@ -1,6 +1,6 @@
 # U9 wiring: real subprocess peak measurement, then the submit gate. Capacity that may free up is waited for
 # in the job queue (a16_runtime.sh); submit refuses only a need larger than this worker.
-cd /home/brunner56/ad-wt/u13-reconcile/src && rm -rf /tmp/adplan/verify/u9/profiles && AGENTDECOMPILE_RESOURCE_PROFILES=/tmp/adplan/verify/u9/profiles/p.json timeout 300 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && rm -rf /tmp/adplan/verify/u9/profiles && AGENTDECOMPILE_RESOURCE_PROFILES=/tmp/adplan/verify/u9/profiles/p.json timeout 300 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 import sys, threading, pathlib, json, os
 from agentdecompile_recovery.corpus.dashboard.actions import jobs
 from agentdecompile_recovery.corpus.dashboard import resource_admission as ra

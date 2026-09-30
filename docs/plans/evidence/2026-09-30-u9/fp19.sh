@@ -1,6 +1,6 @@
 # U9 FP-19: a damaged coverage receipt quarantines only the claims it could affect; unaffected receipts still qualify.
 D=/tmp/adplan/verify/u9/fp19; rm -rf $D; mkdir -p $D
-cd /home/brunner56/ad-wt/u13-reconcile/src && timeout 60 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && timeout 60 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 import json, pathlib
 from agentdecompile_recovery.corpus.ingest_recovered import load_coverage_index
 D = pathlib.Path("/tmp/adplan/verify/u9/fp19")
@@ -17,7 +17,7 @@ assert ("progC", "eta") in v and ("progC", "theta") in v                        
 q2 = {}; v2 = load_coverage_index(D, q2); print("after re-verifying alpha:", ("progA", "alpha") in v2, ("progA", "alpha") in q2)
 EOF
 # Real ledgers, read-only: how many claims the live coverage directory would quarantine today.
-cd /home/brunner56/ad-wt/u13-reconcile/src && timeout 300 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && timeout 300 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 from agentdecompile_recovery.corpus.ingest_recovered import load_coverage_index
 d = "/home/brunner56/biodecompwarehouse/kotorxid/data/mizuchi_home/reports/coverage"
 q = {}; v = load_coverage_index(d, q)

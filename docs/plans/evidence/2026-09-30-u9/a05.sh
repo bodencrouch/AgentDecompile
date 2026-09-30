@@ -1,6 +1,6 @@
 # U9 A05/FP-08: a hung receipt device leaves the coordinator responsive with exactly one outstanding probe.
 R=/tmp/adplan/verify/u9/a05root; rm -rf $R; mkdir -p $R
-cd /home/brunner56/ad-wt/u13-reconcile/src && AGENT_DECOMPILE_CORPUS_ROOT=$R timeout 60 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
+cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && AGENT_DECOMPILE_CORPUS_ROOT=$R timeout 60 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 import pathlib, threading, time
 from agentdecompile_recovery.corpus.dashboard.actions import jobs
 hang = threading.Event(); real = pathlib.Path.write_bytes

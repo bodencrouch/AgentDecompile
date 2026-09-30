@@ -32,7 +32,7 @@ Each row tracks source implementation, installed consumer, software validation, 
 | U6 | Runtime consumer, caves and safe mutation | U5, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U7 | Exhaustive bounded fallback and learning | U5, U6 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U8 | Complete deterministic export bundle | U5, U7 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
-| U9 | One durable task authority, resource admission and failure continuation | U1 | partial source (E-0930-2): resource admission wired into dispatch (A15/FP-13); aging reservation at decision level (A16/FP-14); dispatch-owner reconciliation (FP-17); grep triage of the rest (E-0929-4); not installed | A queued dispatcher so reservations exist at runtime; A03 N-unit checkpoint; FP-18/FP-19 store and receipt failure handling |
+| U9 | One durable task authority, resource admission and failure continuation | U1 | partial source (E-0930-2): resource admission wired into dispatch (A15/FP-13); aging reservation at decision level (A16/FP-14); dispatch-owner reconciliation (FP-17); store-unavailable refusal (FP-18), damaged-receipt quarantine (FP-19), checkpoint-following deadlines (FP-12) (E-0930-5); grep triage of the rest (E-0929-4); not installed | A queued dispatcher so reservations exist at runtime; A03 N-unit checkpoint; the remaining FP/A children (grep triage E-0929-4) |
 | U10 | External verification and portable recovered projects | U1, U4, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U11 | Reusable donated compute foundation and adapters | U1, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
 | U12 | Autonomous capability product M1–M7 | U6, U9 | unassessed-current | Reconcile retained source/evidence, then close the first missing child predicate |
@@ -3327,6 +3327,11 @@ Operator: an autonomous Claude session. The work is on branch `feat/u13-reconcil
 - U65: enrichment records carry `timedOut`, `decompileTimeoutSeconds` and `prototypeSource`, with a distinct `timed-out` status; `high_emit` raises `DecompileTimeout`. `ANALYZER_TIMEOUT_POLICY` is unchanged, because moving it forces a re-baseline, which is an operator decision ([u65.sh](evidence/2026-09-30-u2/u65.sh)).
 - U61: the U8 collector captures `autoParameterCount` and per-parameter `autoParameter`, and emits one canonical `this` across dynamic and custom storage ([u61.sh](evidence/2026-09-30-u2/u61.sh)). Persistence waits on U8's `func_param` table.
 - Assessment of U2's other children: U66 is implemented in the grid; U48, U50, U54, U61 and U62 are partial; U49, U51, U53, U55–U60, U63 and U64 are absent.
+
+**E-0930-5 · U9 failure continuation (source; not installed).**
+- FP-18: job receipts that fail to write stay queued and retry; they are no longer dropped. `JobStore.event_store_health()` gates mutating, identity-scoped and long-running dispatch (503, wake `event_store_available`), and acceptance resumes only after the backlog flushes ([fp18.sh](evidence/2026-09-30-u9/fp18.sh)).
+- FP-19: a damaged coverage-ledger line quarantines only the claims it could have superseded. If it names its function, only that function's earlier positive is held; otherwise, every earlier positive in that ledger. Later receipts and other ledgers still qualify, and re-verification releases the hold. The live ledgers show 773 qualifying and 0 quarantined ([fp19.sh](evidence/2026-09-30-u9/fp19.sh)).
+- FP-12: long-running jobs' idle deadline restarts only on a distinct completed checkpoint, never on PID liveness or chatter, under a hard cap ([fp12.sh](evidence/2026-09-30-u9/fp12.sh)).
 
 **E-0930-4 · Host.** RAM 31 GB with 4–6 GB available; swap 42/42 GB used; root disk 96% full; PSI full avg10 about 0.1. No full-corpus run was admitted.
 

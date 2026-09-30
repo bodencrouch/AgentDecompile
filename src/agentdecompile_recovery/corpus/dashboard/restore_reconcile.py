@@ -15,6 +15,7 @@ jobs continue.
 """
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
@@ -55,10 +56,14 @@ class WakeLog:
         marker = self.root / 'keys' / (_key(event_key) + '.json')
         if marker.exists():
             return json.loads(marker.read_text())['sequence'], False
-        sequence = self.head() + 1
-        _save(self.root / 'events' / f'{sequence:012d}.json',
-              {'sequence': sequence, 'eventKey': event_key, 'kind': kind, 'body': dict(body or {})})
-        _save(marker, {'sequence': sequence})
+        record = {'eventKey': event_key, 'kind': kind, 'body': dict(body or {})}
+        with open(self.root / '.append.lock', 'w') as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)  # one sequence per event, even across processes
+            if marker.exists():  # a concurrent redelivery won the race
+                return json.loads(marker.read_text())['sequence'], False
+            sequence = self.head() + 1
+            _save(self.root / 'events' / f'{sequence:012d}.json', {'sequence': sequence, **record})
+            _save(marker, {'sequence': sequence})
         return sequence, True
 
     def after(self, cursor: int) -> list[dict]:
@@ -126,7 +131,6 @@ def reconcile_after_restore(
     seen_late: set[str] = set()
     for row in sorted(late, key=lambda r: (str(r.get('id')), _version(r))):
         job_id = str(row.get('id'))
-        seen_late.add(job_id)
         current = merged.get(job_id)
         have = _version(current) if current else 0
         if current is not None and _version(row) <= have:
@@ -138,6 +142,7 @@ def reconcile_after_restore(
         if current is not None:  # limits and generations never go down
             new['executionAttempt'] = max(current.get('executionAttempt') or 0, row.get('executionAttempt') or 0)
         merged[job_id] = new
+        seen_late.add(job_id)  # only an accepted receipt says anything about the job now
         report['accepted'].append({'id': job_id, 'receiptVersion': _version(row)})
     for job_id, row in merged.items():
         if job_id in seen_late or row.get('status') not in ACTIVE:

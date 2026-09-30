@@ -13,6 +13,7 @@ import json
 import os
 import pwd
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 
@@ -32,18 +33,20 @@ def _marker(prefix: Path) -> dict | None:
 
 
 def _write_marker(prefix: Path, row: dict) -> None:
-    tmp = prefix / (MARKER + ".tmp")
-    tmp.write_text(json.dumps({"schema": SCHEMA, **row}, sort_keys=True))
+    fd, tmp = tempfile.mkstemp(dir=prefix, prefix=MARKER + ".")
+    with os.fdopen(fd, "w") as handle:
+        handle.write(json.dumps({"schema": SCHEMA, **row}, sort_keys=True))
     os.replace(tmp, prefix / MARKER)
 
 
 def state(prefix: Path | str) -> str:
+    """``ready`` also covers a prefix initialized before this module existed (no marker yet)."""
     prefix = Path(prefix)
     row = _marker(prefix)
-    if row and row.get("state") == "ready" and (prefix / "system.reg").is_file():
-        return "ready"
     if row and row.get("state") == "setup_failed":
         return "setup_failed"
+    if (prefix / "system.reg").is_file() and (row is None or row.get("state") == "ready"):
+        return "ready"
     return "uninitialized"
 
 
@@ -53,6 +56,8 @@ def ensure_prefix(prefix: Path | str, wine: str, *, timeout: float = 300.0, env:
     if os.path.realpath(prefix) == _default_prefix():
         return {"state": "refused", "reason": "the default ~/.wine prefix is never used"}
     if state(prefix) == "ready":
+        if _marker(prefix) is None:  # adopt an existing prefix without running anything
+            _write_marker(prefix, {"state": "ready", "adopted": True})
         return {"state": "reused", "prefix": str(prefix)}
     prefix.parent.mkdir(parents=True, exist_ok=True)
     lock_path = prefix.parent / f".{prefix.name}.setup.lock"

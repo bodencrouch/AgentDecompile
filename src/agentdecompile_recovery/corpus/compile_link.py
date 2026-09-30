@@ -109,6 +109,16 @@ def iter_compile_units(root: Path) -> list[Path]:
     return units
 
 
+def object_is_current(source: Path, obj: Path) -> bool:
+    """Legacy mtime check, kept for callers outside the tree compile; receipts decide reuse there."""
+    if not obj.is_file():
+        return False
+    try:
+        return obj.stat().st_size > 0 and obj.stat().st_mtime >= source.stat().st_mtime
+    except OSError:
+        return False
+
+
 UNIT_RECEIPT_SCHEMA = "agentdecompile.compile-unit-receipt.v1"
 
 
@@ -116,7 +126,7 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-def toolchain_identity(compiler: str, preamble: str = "") -> dict[str, Any]:
+def toolchain_identity(compiler: str, preamble: str = "", vcroot: Path | str | None = None) -> dict[str, Any]:
     """What a unit receipt is bound to besides its source: the compiler and any preamble."""
     path = Path(shutil.which(compiler) or compiler).resolve()
     ident: dict[str, Any] = {"compiler": str(path)}
@@ -130,6 +140,13 @@ def toolchain_identity(compiler: str, preamble: str = "") -> dict[str, Any]:
         ident["compilerMissing"] = True
     if preamble:
         ident["preambleSha256"] = hashlib.sha256(preamble.encode()).hexdigest()
+    if vcroot:
+        cl = Path(vcroot) / "bin" / "cl.exe"
+        ident["vcroot"] = str(Path(vcroot).resolve())
+        try:
+            ident["clStat"] = [cl.stat().st_size, cl.stat().st_mtime_ns]
+        except OSError:
+            ident["clStat"] = None
     return ident
 
 
@@ -286,6 +303,12 @@ def _win_z_path(path: Path) -> str:
     return text
 
 
+def _staged_image(output: Path) -> Path:
+    """Private link target; the stamp goes first so a killed linker can never look current."""
+    link_stamp_path(output).unlink(missing_ok=True)
+    return output.with_name(f".{output.stem}.linking{output.suffix}")
+
+
 def link_msvc(
     objects: list[Path],
     output: Path,
@@ -314,6 +337,8 @@ def link_msvc(
     link = Path(vcroot) / "bin" / "link.exe"
     if not link.is_file():
         return {"ok": False, "reason": f"no link.exe at {link}", "output": str(output)}
+    staged = _staged_image(output)
+    staged.unlink(missing_ok=True)
     rsp = output.parent / "objects.rsp"
     rsp.write_text("\n".join(_win_z_path(p) for p in objects) + "\n", encoding="utf-8")
     env = os.environ.copy()
@@ -330,7 +355,7 @@ def link_msvc(
             f"/LIBPATH:{_win_z_path(libdir)}",
             "kernel32.lib",
             "libc.lib",
-            f"/OUT:{_win_z_path(output)}",
+            f"/OUT:{_win_z_path(staged)}",
             f"@{_win_z_path(rsp)}",
         ],
         capture_output=True,
@@ -339,9 +364,11 @@ def link_msvc(
         check=False,
         env=env,
     )
-    ok = proc.returncode == 0 and output.is_file() and output.stat().st_size > 0
+    ok = proc.returncode == 0 and staged.is_file() and staged.stat().st_size > 0
     if ok:
+        os.replace(staged, output)
         write_link_stamp(output, LINK_FLAGS)
+    staged.unlink(missing_ok=True)
     return {
         "ok": ok,
         "output": str(output),
@@ -382,7 +409,8 @@ def compile_and_link_tree(
         write_entrypoint(main_c)
         units = [main_c, *units]
     script = Path(cc).suffix == ".sh" or Path(cc).name.startswith("compile-")
-    toolchain = toolchain_identity(str(cc), PREAMBLE if script else "")
+    vc = Path(vcroot or os.environ.get("AGENT_DECOMPILE_VCROOT") or "")
+    toolchain = toolchain_identity(str(cc), PREAMBLE if script else "", vc if script and vc.is_dir() else None)
 
     def _one(src: Path) -> tuple[Path, dict[str, Any]]:
         try:
@@ -436,7 +464,6 @@ def compile_and_link_tree(
                     flush=True,
                 )
 
-    vc = Path(vcroot or os.environ.get("AGENT_DECOMPILE_VCROOT") or "")
     prefix = wineprefix or os.environ.get("WINEPREFIX") or ""
     out = Path(output)
     if objects and image_is_current(objects, out):
@@ -498,16 +525,20 @@ def link_executable(
             ),
         }
     output.parent.mkdir(parents=True, exist_ok=True)
+    staged = _staged_image(output)
+    staged.unlink(missing_ok=True)
     proc = subprocess.run(
-        [compiler, *[str(path) for path in objects], "-o", str(output)],
+        [compiler, *[str(path) for path in objects], "-o", str(staged)],
         capture_output=True,
         text=True,
         timeout=timeout,
         check=False,
     )
-    ok = proc.returncode == 0 and output.is_file() and output.stat().st_size > 0
+    ok = proc.returncode == 0 and staged.is_file() and staged.stat().st_size > 0
     if ok:
+        os.replace(staged, output)
         write_link_stamp(output, LINK_FLAGS)
+    staged.unlink(missing_ok=True)
     return {
         "ok": ok,
         "output": str(output),

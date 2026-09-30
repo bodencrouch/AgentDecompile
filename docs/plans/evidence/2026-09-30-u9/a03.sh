@@ -1,6 +1,7 @@
 # U9 A03: kill the compile job after N durable units. The N unit receipts survive, the unit being
 # compiled leaves no object, nothing is linked, and a resumed run compiles only the remaining units.
-# A changed source or compiler invalidates exactly the receipts it affects. The compiler is a stub
+# A changed source or compiler invalidates exactly the receipts it affects. A linker killed mid-write
+# leaves the previous image in place and never marks it current. The compiler is a stub
 # that counts invocations and can stall mid-write so the whole job is SIGKILLed there.
 cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && timeout 120 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 import os, signal, subprocess, sys, tempfile, time
@@ -20,7 +21,11 @@ if "-c" in a:
         if os.path.basename(s) == os.environ.get("STALL_ON"): time.sleep(60)
         f.write(open(s, "rb").read())
 else:
-    o = a[a.index("-o")+1]; open(o, "wb").write(b"".join(open(p, "rb").read() for p in a[:a.index("-o")]))
+    o = a[a.index("-o")+1]
+    with open(o, "wb") as f:
+        f.write(b"PARTIAL-IMAGE"); f.flush()
+        if os.environ.get("STALL_LINK"): time.sleep(60)
+        f.write(b"".join(open(p, "rb").read() for p in a[:a.index("-o")]))
 """)
 cc.chmod(0o755)
 out = w / "out" / "image.exe"
@@ -43,4 +48,16 @@ print("u5 source changed  : compiled", log.read_text().split(), "| reused", r["s
 log.write_text(""); cc.write_text(cc.read_text() + "# new compiler build\n")
 r = t(src, out, compiler=str(cc), workers=1)
 print("compiler changed   : compiled", len(log.read_text().split()), "units | reused", r["skipped"])
+good_image = out.read_bytes()
+(src / "u6.c").write_text("int f6(void){return 66;}\n")
+p = subprocess.Popen([sys.executable, "-c", run], env={**os.environ, "STALL_LINK": "1"}, start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+while not list(out.parent.glob(".image.linking*")): time.sleep(0.05)
+time.sleep(0.3); os.killpg(p.pid, signal.SIGKILL); p.wait()
+from agentdecompile_recovery.corpus.compile_link import image_is_current
+objs = sorted((w / "out" / "obj").glob("u*.obj"))
+print("killed during link : image unchanged", out.read_bytes() == good_image, "| treated as current", image_is_current(objs, out))
+r = t(src, out, compiler=str(cc), workers=1)
+print("resume after link  : relinked", not r["link"].get("skipped", False), "| image is the complete link of current objects",
+      out.read_bytes() == b"PARTIAL-IMAGE" + b"".join(o.read_bytes() for o in sorted((w / "out" / "obj").glob("u*.obj"))))
 EOF

@@ -1,6 +1,7 @@
 # U9 FP-04: a prefix initialized once is reused by every consumer without another setup; a fresh
 # prefix raced by four consumers (processes) is set up exactly once; a failed or timed-out setup is
-# recorded and not retried until reset; ~/.wine is refused. Wine is a stub that counts wineboot runs.
+# recorded and not retried until reset; a prefix initialized before this module is adopted without
+# running anything; ~/.wine is refused. Wine is a stub that counts wineboot runs.
 cd $(git -C "$(dirname "$(readlink -f "$0")")" rev-parse --show-toplevel)/src && timeout 120 /home/brunner56/agentdecompile-nvme/.venv/bin/python - <<'EOF'
 import os, sys, subprocess, tempfile
 from pathlib import Path
@@ -25,5 +26,7 @@ print("after reset        :", wp.state(b), "| runs", runs())
 s = w / "prefixes" / "stuck"; log.write_text("")
 r = wp.ensure_prefix(s, slow, timeout=1)
 print("timed-out setup    :", r["state"], "|", r["detail"][:28], "| again:", wp.ensure_prefix(s, slow, timeout=1)["state"], "| runs", runs())
+old = w / "prefixes" / "preexisting"; old.mkdir(); (old / "system.reg").write_text("WINE REGISTRY"); log.write_text("")
+print("pre-existing prefix:", [wp.ensure_prefix(old, good)["state"] for _ in range(3)], "| runs", runs(), "| adopted", wp._marker(old)["adopted"])
 print("default ~/.wine    :", wp.ensure_prefix(Path.home() / ".wine", good)["state"])
 EOF

@@ -63,6 +63,9 @@ Check: `verify-determinism` returns `{"identical": true}`.
   `AGENT_DECOMPILE_JOB_MAX_SECONDS` (default 24 h).
 - The launcher no longer deletes a Ghidra project on a stale-owner lock. The operator resolves
   ownership.
+- The first `compile_and_link_tree` run after activation recompiles every unit, because existing
+  objects have no per-unit receipts (U9 A03). Check free disk and memory before starting a full
+  project compile; on 2026-09-30 swap was full and the root disk 96% used.
 
 ## Rollback caveat
 

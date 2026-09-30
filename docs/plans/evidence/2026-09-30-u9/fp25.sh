@@ -43,4 +43,15 @@ seq, new = log.append("release:ghidra-project:gen7", "resource_released", {"reso
 print("redelivered event   : new =", new, "| sequence", seq)
 print("dispatch claims     :", once.claim("dispatch:match-pair:gen7"), once.claim("dispatch:match-pair:gen7"))
 print("next check          :", w2.check("wait:match-pair", lambda ev: bool(ev)))
+_, rep3 = reconcile_after_restore({"f": {"id": "f", "status": "running", "receiptVersion": 5}},
+                                  [{"id": "f", "status": "running", "receiptVersion": 3}])
+print("only a stale receipt:", "unknown" if rep3["unknownOutcome"] == ["f"] else "NOT FLAGGED", "| ignored", rep3["ignoredStaleOrDuplicate"])
+import subprocess, sys
+root = w / "race"
+code = ("from agentdecompile_recovery.corpus.dashboard.restore_reconcile import WakeLog; import sys; L = WakeLog(sys.argv[1])\n"
+        "for i in range(25): L.append(f'{sys.argv[2]}:{i}', 'tick')")
+ps = [subprocess.Popen([sys.executable, "-c", code, str(root), f"p{n}"]) for n in range(4)]
+[p.wait() for p in ps]
+seqs = [e["sequence"] for e in WakeLog(root).after(0)]
+print("4 procs x 25 appends:", len(seqs), "events | sequences 1..", max(seqs), "| distinct keys", len({e["eventKey"] for e in WakeLog(root).after(0)}))
 EOF

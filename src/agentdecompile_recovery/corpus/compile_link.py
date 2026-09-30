@@ -7,6 +7,8 @@ later, separate stage.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -53,15 +55,30 @@ def compile_unit_msvc(cl: str, source: Path, obj: Path, *, timeout: int = 60) ->
     }
 
 
+def _staged_object(obj: Path) -> Path:
+    handle, name = tempfile.mkstemp(dir=obj.parent, prefix=".agentdecompile-", suffix=obj.suffix or ".obj")
+    os.close(handle)
+    staged = Path(name)
+    staged.unlink(missing_ok=True)
+    return staged
+
+
 def compile_unit(compiler: str, source: Path, obj: Path, *, timeout: int = 60) -> dict[str, Any]:
+    """Compile into a private name and rename on success: a killed compiler leaves no object."""
     obj.parent.mkdir(parents=True, exist_ok=True)
-    proc = subprocess.run(
-        [compiler, "-c", str(source), "-o", str(obj)],
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-        check=False,
-    )
+    staged = _staged_object(obj)
+    try:
+        proc = subprocess.run(
+            [compiler, "-c", str(source), "-o", str(staged)],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+        if proc.returncode == 0 and staged.is_file() and staged.stat().st_size > 0:
+            os.replace(staged, obj)
+    finally:
+        staged.unlink(missing_ok=True)
     return {
         "ok": proc.returncode == 0 and obj.is_file(),
         "source": str(source),
@@ -92,13 +109,54 @@ def iter_compile_units(root: Path) -> list[Path]:
     return units
 
 
-def object_is_current(source: Path, obj: Path) -> bool:
-    """True when a prior object is newer than its source and non-empty."""
-    if not obj.is_file():
-        return False
+UNIT_RECEIPT_SCHEMA = "agentdecompile.compile-unit-receipt.v1"
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def toolchain_identity(compiler: str, preamble: str = "") -> dict[str, Any]:
+    """What a unit receipt is bound to besides its source: the compiler and any preamble."""
+    path = Path(shutil.which(compiler) or compiler).resolve()
+    ident: dict[str, Any] = {"compiler": str(path)}
     try:
-        return obj.stat().st_size > 0 and obj.stat().st_mtime >= source.stat().st_mtime
+        info = path.stat()
+        if info.st_size < 1 << 20:  # wrapper scripts and small drivers: content
+            ident["compilerSha256"] = _sha256(path)
+        else:
+            ident["compilerStat"] = [info.st_size, info.st_mtime_ns]
     except OSError:
+        ident["compilerMissing"] = True
+    if preamble:
+        ident["preambleSha256"] = hashlib.sha256(preamble.encode()).hexdigest()
+    return ident
+
+
+def unit_receipt_path(obj: Path) -> Path:
+    return obj.with_name(obj.name + ".receipt.json")
+
+
+def write_unit_receipt(source: Path, obj: Path, toolchain: dict[str, Any]) -> None:
+    """Durable per-unit receipt, written only after the object itself was renamed into place."""
+    receipt = unit_receipt_path(obj)
+    body = json.dumps({"schema": UNIT_RECEIPT_SCHEMA, "sourceSha256": _sha256(source),
+                       "objectSha256": _sha256(obj), "toolchain": toolchain}, sort_keys=True)
+    handle, name = tempfile.mkstemp(dir=obj.parent, prefix=".receipt-", suffix=".tmp")
+    with os.fdopen(handle, "w") as out:
+        out.write(body)
+        out.flush()
+        os.fsync(out.fileno())
+    os.replace(name, receipt)
+
+
+def unit_receipt_current(source: Path, obj: Path, toolchain: dict[str, Any]) -> bool:
+    """A unit is reusable only with a receipt matching its source, object and toolchain (A03)."""
+    try:
+        row = json.loads(unit_receipt_path(obj).read_text())
+        return (row.get("schema") == UNIT_RECEIPT_SCHEMA and row.get("toolchain") == toolchain
+                and row.get("sourceSha256") == _sha256(source) and row.get("objectSha256") == _sha256(obj))
+    except (OSError, ValueError):
         return False
 
 
@@ -192,16 +250,8 @@ def compile_unit_script(
         else:
             shutil.copy2(source, staged_source)
         compile_source = staged_source
-    if staged_source is not None or any(char in obj.name for char in win32_illegal):
-        handle, temp_name = tempfile.mkstemp(
-            dir=obj.parent,
-            prefix=".agentdecompile-",
-            suffix=obj.suffix or ".obj",
-        )
-        os.close(handle)
-        staged_obj = Path(temp_name)
-        staged_obj.unlink(missing_ok=True)
-        compile_obj = staged_obj
+    # Always compile into a private name: a killed compiler must not leave an object.
+    staged_obj = compile_obj = _staged_object(obj)
 
     try:
         proc = subprocess.run(
@@ -332,6 +382,7 @@ def compile_and_link_tree(
         write_entrypoint(main_c)
         units = [main_c, *units]
     script = Path(cc).suffix == ".sh" or Path(cc).name.startswith("compile-")
+    toolchain = toolchain_identity(str(cc), PREAMBLE if script else "")
 
     def _one(src: Path) -> tuple[Path, dict[str, Any]]:
         try:
@@ -339,7 +390,7 @@ def compile_and_link_tree(
         except ValueError:
             rel = Path(src.name)
         obj = work / rel.with_suffix(".obj")
-        if object_is_current(src, obj):
+        if unit_receipt_current(src, obj, toolchain):
             return obj, {
                 "ok": True,
                 "source": str(src),
@@ -359,6 +410,10 @@ def compile_and_link_tree(
                                          preamble=PREAMBLE)
         else:
             result = compile_unit(str(cc), src, obj, timeout=timeout)
+        if result.get("ok"):
+            write_unit_receipt(src, obj, toolchain)
+        else:
+            unit_receipt_path(obj).unlink(missing_ok=True)
         return obj, result
 
     objects: list[Path] = []

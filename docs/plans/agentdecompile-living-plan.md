@@ -3333,6 +3333,8 @@ Operator: an autonomous Claude session. The work is on branch `feat/u13-reconcil
 - FP-19: a damaged coverage-ledger line quarantines only the claims it could have superseded. If it names its function, only that function's earlier positive is held; otherwise, every earlier positive in that ledger. Later receipts and other ledgers still qualify, and re-verification releases the hold. The live ledgers show 773 qualifying and 0 quarantined ([fp19.sh](evidence/2026-09-30-u9/fp19.sh)).
 - FP-12: long-running jobs' idle deadline restarts only on a distinct completed checkpoint, never on PID liveness or chatter, under a hard cap ([fp12.sh](evidence/2026-09-30-u9/fp12.sh)).
 
+**E-0930-6 · U9 A09/FP-05 (existing behaviour, verified).** The job admission loop already separates mutation channels. With writer A holding database X, a second writer on X stayed queued, while a status read and a writer on database Y both finished; the queued writer ran once A ended. This used the real `JobStore` with an injected executor on a temporary root ([fp05.sh](evidence/2026-09-30-u9/fp05.sh)). No code change. Game-runtime children such as FP-03 (party member absent) belong to the runtime harness, not this repository.
+
 **E-0930-4 · Host.** RAM 31 GB with 4–6 GB available; swap 42/42 GB used; root disk 96% full; PSI full avg10 about 0.1. No full-corpus run was admitted.
 
 ## Decisions and blockers

@@ -316,7 +316,7 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] `session-contract-2026-09-22:A06` — U9: Omit indirect staged library or fixture; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A07` — U9: Late old worker with correct result; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A08` — U9: Restart coordinator during retry wait; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:A09` — U9: Occupy mutation channel; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:A09` — U9: Occupy mutation channel; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-6 (existing admission behaviour verified).
 - [ ] `session-contract-2026-09-22:A10` — U9: Missing party member/driver/authentication; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A11` — U9: Recorder fails after successful oracle; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:A12` — U9: Disconnect after non-idempotent action; satisfy the full inherited acceptance, not just this label.
@@ -332,7 +332,7 @@ Contract: `2026-09-28-comprehensive-agentdecompile-plan.md`. Evidence: `agentdec
 - [ ] `session-contract-2026-09-22:FP-02` — U9: Acceptance authority; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-03` — U9: Scenario owner; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-04` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label.
-- [ ] `session-contract-2026-09-22:FP-05` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label.
+- [ ] `session-contract-2026-09-22:FP-05` — U9: Adapter owner; satisfy the full inherited acceptance, not just this label. Evidence 2026-09-30: E-0930-6 (existing admission behaviour verified).
 - [ ] `session-contract-2026-09-22:FP-06` — U9: Scenario owner; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-07` — U9: Coordinator; satisfy the full inherited acceptance, not just this label.
 - [ ] `session-contract-2026-09-22:FP-08` — U9: Storage owner; satisfy the full inherited acceptance, not just this label.

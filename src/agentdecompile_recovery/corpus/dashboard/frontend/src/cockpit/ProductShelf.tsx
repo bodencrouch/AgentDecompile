@@ -1,3 +1,5 @@
+// Product shelf: one ring per product, filled only from real corpus totals; a product the
+// data cannot measure yet shows an empty dashed ring.
 import { fmt, ratio, type Totals } from './api';
 
 export type Product = {
@@ -61,7 +63,7 @@ export function Ring({ frac, color, size = 46, stroke = 5, label }: { frac: numb
   );
 }
 
-export function Shelf({ totals, compact }: { totals: Totals | undefined; compact: boolean }) {
+export function ProductShelf({ totals, compact }: { totals: Totals | undefined; compact: boolean }) {
   const products = productsFrom(totals);
   if (compact) {
     return (

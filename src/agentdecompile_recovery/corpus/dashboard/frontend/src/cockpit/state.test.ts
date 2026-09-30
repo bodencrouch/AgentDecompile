@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { ActivityEvent, CellsResponse, Summary } from './api';
 import {
-  ACTIVITY_CAP, bucketsFor, callersOf, calleesOf, cellCounts, cellName, decodeCells, feedReducer, initialFeed,
-  searchCells, type FeedState,
+  ACTIVITY_CAP, NO_FILTER, QUEUE_CAP, applyDiff, callersOf, calleesOf, cellCounts, cellName, colorKey, decodeCells, diffCells, feedReducer,
+  filterActive, indexOfAddr, initialFeed, matchesFilter, maxNb, searchCells, toggleBit, type FeedState,
 } from './state';
 
 const cellsResponse = (): CellsResponse => ({
@@ -45,15 +45,43 @@ describe('decodeCells', () => {
     expect(callersOf(c, 3)).toEqual([1, 2]);
     expect(callersOf(c, 0)).toEqual([]);
     expect(cellName(c, 0)).toBe('sub_401000');
-    expect(cellCounts(c)).toEqual({ states: [2, 2, 1], named: 3 });
+    const counts = cellCounts(c);
+    expect(counts.states).toEqual([2, 2, 1]);
+    expect(counts.tiers.slice(0, 6)).toEqual([1, 1, 0, 1, 1, 1]);
+    expect(counts.named).toBe(3);
   });
 
-  it('assigns colour buckets and dims cells outside the filter', () => {
+  it('filters by combined state and tier bitmasks', () => {
     const c = decodeCells(cellsResponse());
-    expect(Array.from(bucketsFor(c, { kind: 'all' }))).toEqual([0, 4, 5, 4, 0]);
-    expect(Array.from(bucketsFor(c, { kind: 'state', value: 1 }))).toEqual([6, 4, 6, 4, 6]);
-    expect(Array.from(bucketsFor(c, { kind: 'tier', value: 4 }))).toEqual([6, 6, 6, 6, 0]);
-    expect(Array.from(bucketsFor(c, { kind: 'named' }))).toEqual([6, 4, 5, 4, 6]);
+    const keep = (f: typeof NO_FILTER) => [0, 1, 2, 3, 4].filter(i => matchesFilter(c, i, f));
+    expect(filterActive(NO_FILTER)).toBe(false);
+    expect(keep(NO_FILTER)).toEqual([0, 1, 2, 3, 4]);
+    const bound = { states: toggleBit(0, 1), tiers: 0 };
+    expect(keep(bound)).toEqual([1, 3]);
+    expect(keep({ states: toggleBit(bound.states, 2), tiers: 0 })).toEqual([1, 2, 3]);
+    expect(keep({ states: bound.states, tiers: toggleBit(0, 5) })).toEqual([3]);
+    expect(toggleBit(toggleBit(0, 2), 2)).toBe(0);
+  });
+
+  it('computes colour keys per mode', () => {
+    const c = decodeCells(cellsResponse());
+    const nbMax = maxNb(c);
+    expect(nbMax).toBe(4);
+    expect([0, 1, 2, 3, 4].map(i => colorKey(c, i, 'state', nbMax))).toEqual([0, 1, 2, 1, 0]);
+    expect([0, 1, 2, 3, 4].map(i => colorKey(c, i, 'tier', nbMax))).toEqual([0, 1, 3, 5, 4]);
+    const builds = [0, 1, 2, 3, 4].map(i => colorKey(c, i, 'builds', nbMax));
+    expect(builds[0]).toBe(0);
+    expect(builds[4]).toBe(0);
+    expect(builds[2]).toBe(7); // the most-shared function gets the brightest key
+    expect(builds[3]).toBeLessThan(builds[1]);
+  });
+
+  it('finds the function containing an address', () => {
+    const c = decodeCells(cellsResponse());
+    expect(indexOfAddr(c, 0x401000)).toBe(0);
+    expect(indexOfAddr(c, 0x40101f)).toBe(1);
+    expect(indexOfAddr(c, 0x400fff)).toBe(-1);
+    expect(indexOfAddr(c, 0x401050)).toBe(-1);
   });
 
   it('searches names first, then hex addresses', () => {
@@ -61,19 +89,19 @@ describe('decodeCells', () => {
     expect(searchCells(c, 'init')).toEqual([1, 3]);
     expect(searchCells(c, 'drawthing')).toEqual([2]);
     expect(searchCells(c, '0x401030')).toEqual([3]);
+    expect(searchCells(c, '0x401035')[0]).toBe(3); // inside a function
     expect(searchCells(c, '')).toEqual([]);
   });
 });
 
 describe('feedReducer', () => {
-  it('moves through connection states', () => {
-    let s = feedReducer(initialFeed, { type: 'connection', connection: 'offline', error: 'down' });
-    expect(s.connection).toBe('offline');
+  it('records hello and errors without touching data', () => {
+    let s = feedReducer(initialFeed, { type: 'error', error: 'down' });
     expect(s.error).toBe('down');
+    expect(feedReducer(s, { type: 'error', error: 'down' })).toBe(s);
     s = feedReducer(s, { type: 'hello', hello: { db: 'x', programs: ['P'] } });
-    expect(s.connection).toBe('live');
+    expect(s.hello?.programs).toEqual(['P']);
     expect(s.error).toBeUndefined();
-    expect(feedReducer(s, { type: 'connection', connection: 'live' })).toBe(s);
   });
 
   it('treats the first summary as history and later unseen events as live arrivals', () => {
@@ -101,7 +129,7 @@ describe('feedReducer', () => {
   it('applies cell diffs to the loaded program and flashes state changes', () => {
     let s = feedReducer(initialFeed, { type: 'cells', cells: cellsResponse(), now: 0 });
     const before = s.cells.P;
-    s = feedReducer(s, { type: 'diff', diff: { program_id: 'P', changes: [[0, 2, 5, 1], [3, 1, 3, 5], [42, 2, 1, 1]] }, now: 100 });
+    s = feedReducer(s, { type: 'diff', diff: { program_id: 'P', changes: [[0, 2, 5, 1], [3, 1, 3, 5], [42, 2, 1, 1], [-1, 2, 1, 1]] }, now: 100 });
     const after = s.cells.P;
     expect(after).not.toBe(before);
     expect(Array.from(before.state)).toEqual([0, 1, 2, 1, 0]); // previous snapshot untouched
@@ -111,6 +139,63 @@ describe('feedReducer', () => {
     expect(after.flashes.has(0)).toBe(true);
     expect(after.flashes.has(3)).toBe(false); // nb-only change: no flash
     expect(after.version).toBe(before.version + 1);
+    expect(after.changed).toEqual([0, 3]);
+    expect(s.applied).toBe(2);
+  });
+
+  it('applies a refetch with the same layout as a diff, and replaces a new layout', () => {
+    let s = feedReducer(initialFeed, { type: 'cells', cells: cellsResponse(), now: 0 });
+    const next = { ...cellsResponse(), state: '01211', tier: '01334' };
+    s = feedReducer(s, { type: 'cells', cells: next, now: 50 });
+    expect(Array.from(s.cells.P.state)).toEqual([0, 1, 2, 1, 1]);
+    expect(s.cells.P.changed).toEqual([3, 4]);
+    expect(s.cells.P.flashes.has(4)).toBe(true);
+    const moved = { ...cellsResponse(), n: 2, addr: [1, 2], size: [1, 1], state: '22', nb: [1, 1], tier: '11', logical: [1, 2], names: {}, edges: [] as [number, number][] };
+    s = feedReducer(s, { type: 'cells', cells: moved, now: 60 });
+    expect(s.cells.P.n).toBe(2);
+    expect(s.cells.P.flashes.size).toBe(0);
+  });
+
+  it('diffCells and applyDiff round-trip', () => {
+    const a = decodeCells(cellsResponse());
+    const b = decodeCells({ ...cellsResponse(), state: '22222', nb: [9, 9, 9, 9, 9] });
+    const changes = diffCells(a, b);
+    expect(changes).toHaveLength(5);
+    const c = applyDiff(a, changes, 10);
+    expect(Array.from(c.state)).toEqual([2, 2, 2, 2, 2]);
+    expect(diffCells(c, b)).toEqual([]);
+    expect(applyDiff(c, changes, 11)).toBe(c); // already applied: no-op
+  });
+
+  it('queues live data while paused and applies it in order on resume', () => {
+    let s = feedReducer(initialFeed, { type: 'cells', cells: cellsResponse(), now: 0 });
+    s = feedReducer(s, { type: 'summary', summary: summary([ev('a')]), now: 0 });
+    s = feedReducer(s, { type: 'pause', now: 1 });
+    expect(s.paused).toBe(true);
+    const held = s;
+    s = feedReducer(s, { type: 'diff', diff: { program_id: 'P', changes: [[0, 1, 1, 1]] }, now: 2 });
+    s = feedReducer(s, { type: 'diff', diff: { program_id: 'P', changes: [[0, 2, 1, 1]] }, now: 3 });
+    s = feedReducer(s, { type: 'activity', event: ev('bb'), now: 4 });
+    expect(s.cells).toBe(held.cells);
+    expect(s.activity).toBe(held.activity);
+    expect(s.queue).toHaveLength(3);
+    s = feedReducer(s, { type: 'resume', now: 10 });
+    expect(s.paused).toBe(false);
+    expect(s.queue).toHaveLength(0);
+    expect(s.cells.P.state[0]).toBe(2);
+    expect(s.cells.P.flashes.get(0)).toBe(10);
+    expect(s.activity[0].label).toBe('bb');
+    expect(feedReducer(s, { type: 'resume', now: 11 })).toBe(s);
+  });
+
+  it('still loads a program map and a first summary while paused, and caps the queue', () => {
+    let s = feedReducer(initialFeed, { type: 'pause', now: 0 });
+    s = feedReducer(s, { type: 'summary', summary: summary([]), now: 1 });
+    s = feedReducer(s, { type: 'cells', cells: cellsResponse(), now: 1 });
+    expect(s.summary).toBeDefined();
+    expect(s.cells.P).toBeDefined();
+    for (let k = 0; k < QUEUE_CAP + 5; k++) s = feedReducer(s, { type: 'activity', event: { ...ev('z'), ts: k }, now: k });
+    expect(s.queue).toHaveLength(QUEUE_CAP);
   });
 
   it('ignores diffs for programs that are not loaded and no-op diffs', () => {

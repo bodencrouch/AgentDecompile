@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { chooseView, cockpitHash, readCockpitHash, workstationHref } from './viewRoute';
-import { productsFrom } from './Shelf';
+import { productsFrom } from './ProductShelf';
 import { buildTree } from './DropZone';
 
 describe('chooseView', () => {
@@ -25,8 +25,8 @@ describe('links', () => {
     expect(cockpitHash({})).toBe('#cockpit');
     expect(cockpitHash({ program: 'K 1', fn: 12 })).toBe('#cockpit?program=K+1&fn=12');
     expect(readCockpitHash('#cockpit?program=K+1&fn=12')).toEqual({ program: 'K 1', fn: 12 });
-    expect(readCockpitHash('#cockpit?program=K1&fn=-3')).toEqual({ program: 'K1', fn: undefined });
-    expect(readCockpitHash('#workstation?program=K1')).toEqual({});
+    expect(readCockpitHash('#cockpit?program=alpha&fn=-3')).toEqual({ program: 'alpha', fn: undefined });
+    expect(readCockpitHash('#workstation?program=alpha')).toEqual({});
   });
 });
 

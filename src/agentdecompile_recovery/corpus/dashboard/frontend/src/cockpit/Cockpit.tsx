@@ -1,12 +1,16 @@
+// The cockpit: every program in the corpus drawn as a live map of its functions.
+// One page: programs × builds on the left, the map in the middle, the lens / product shelf
+// on the right, the machine lanes underneath. Everything comes from /dashboard/api/cockpit.
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
-import { COCKPIT_API, STATE_LABELS, TIER_LABELS, fmt, hex, type Program, type Summary } from './api';
-import { ALL, cellCounts, cellName, searchCells, type LiveActivity, type MapFilter, type ProgramCells } from './state';
-import { useCockpitFeed } from './useCockpitFeed';
-import { MapCanvas, type FlyRequest } from './MapCanvas';
+import { COCKPIT_API, fmt, hex, parseAddr, ratio, useCockpitStream, type Program, type Summary, type Transport } from './api';
+import { NO_FILTER, cellName, indexOfAddr, searchCells, type ColorBy, type LiveActivity, type MapFilter, type ProgramCells } from './state';
+import { ProgramMap, type FlyRequest } from './ProgramMap';
 import { Lens, shortSlug } from './Lens';
-import { Lanes } from './Lanes';
-import { Shelf } from './Shelf';
-import { CliStrip, DropZone } from './DropZone';
+import { VariantMatrix } from './VariantMatrix';
+import { ActivityLanes } from './ActivityLanes';
+import { ProductShelf } from './ProductShelf';
+import { CommandStrip } from './CommandStrip';
+import { DropZone } from './DropZone';
 import { TipLayer } from './Tips';
 import { cockpitHash, readCockpitHash } from './viewRoute';
 import './cockpit.css';
@@ -30,39 +34,47 @@ export function Cockpit() {
   const reducedMotion = useReducedMotion();
   const [programId, setProgramId] = useState<string | undefined>(initial.program);
   const [selected, setSelected] = useState(-1);
-  const [filter, setFilter] = useState<MapFilter>(ALL);
+  const [scope, setScope] = useState<string | null>(null);
+  const [filter, setFilter] = useState<MapFilter>(NO_FILTER);
+  const [colorBy, setColorBy] = useState<ColorBy>('state');
+  const [hits, setHits] = useState<number[]>([]);
   const [fly, setFly] = useState<FlyRequest | null>(null);
-  const pendingFn = useRef(initial.fn);
-  const { state, retry, cellsError } = useCockpitFeed(programId);
+  const pending = useRef<{ fn?: number; addr?: number }>({ fn: initial.fn });
+  const { state, transport, retry, setPaused, paused, queued, cellsError } = useCockpitStream(programId);
   const summary = state.summary;
-  const programs = summary?.programs || [];
+  const programs = useMemo(() => summary?.programs || [], [summary]);
   const program = programs.find(p => p.id === programId);
   const cells = programId ? state.cells[programId] : undefined;
+  const tierNames = useMemo(() => (summary?.tiers || []).map(t => t[0]), [summary]);
 
   useEffect(() => {
     document.title = 'AgentDecompile · Cockpit';
   }, []);
 
-  // Default to the first program; drop a selection that no longer exists.
+  // Default to the largest program; drop a selection that no longer exists.
   useEffect(() => {
     if (!summary || !programs.length) return;
     if (!programId || !programs.some(p => p.id === programId)) {
       setProgramId(programs[0].id);
       setSelected(-1);
+      setScope(null);
     }
   }, [summary, programs, programId]);
 
-  // Restore a function from the URL once its program's cells arrive.
+  const flyCount = useRef(0);
+  const jump = useCallback((index: number, scale?: number) => {
+    setSelected(index);
+    setFly({ index, nonce: ++flyCount.current, scale });
+  }, []);
+
+  // Restore a function (from the URL or an activity mark) once its program's cells arrive.
   useEffect(() => {
-    if (cells && pendingFn.current !== undefined) {
-      const fn = pendingFn.current;
-      pendingFn.current = undefined;
-      if (fn < cells.n) {
-        setSelected(fn);
-        setFly({ index: fn, nonce: Date.now() });
-      }
-    }
-  }, [cells]);
+    if (!cells) return;
+    const p = pending.current;
+    pending.current = {};
+    const i = p.fn !== undefined ? p.fn : p.addr !== undefined ? indexOfAddr(cells, p.addr) : -1;
+    if (i !== undefined && i >= 0 && i < cells.n) jump(i, 28);
+  }, [cells?.programId, cells?.n]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const hash = cockpitHash({ program: programId, fn: selected >= 0 ? selected : undefined });
@@ -72,32 +84,44 @@ export function Cockpit() {
   }, [programId, selected]);
 
   const choose = useCallback((id: string) => {
+    if (id === programId) return;
     setProgramId(id);
     setSelected(-1);
-    setFilter(ALL);
-  }, []);
+    setScope(null);
+    setHits([]);
+    setFilter(NO_FILTER);
+  }, [programId]);
 
-  const jump = useCallback((index: number, scale?: number) => {
-    setSelected(index);
-    setFly({ index, nonce: Date.now() + Math.random(), scale });
-  }, []);
+  const onScope = useCallback((pid: string, slug: string | null) => {
+    choose(pid);
+    setScope(slug);
+  }, [choose]);
 
-  const addrIndex = useMemo(() => {
-    const m = new Map<number, number>();
-    if (cells) cells.addr.forEach((a, i) => m.set(a, i));
-    return m;
-  }, [cells?.programId, cells?.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  const canFocus = useCallback((e: LiveActivity) => {
+    if (parseAddr(e.addr) === undefined) return false;
+    return !e.program_id || programs.some(p => p.id === e.program_id);
+  }, [programs]);
 
   const focusEvent = useCallback((e: LiveActivity) => {
-    if (!cells || !program || e.addr === undefined) return;
-    if (e.program_id && e.program_id !== program.id) return;
-    if (e.binary && e.binary !== program.ref) return; // the map shows the reference build only
-    const a = typeof e.addr === 'number' ? e.addr : parseInt(String(e.addr).replace(/^0x/i, ''), 16);
-    const i = addrIndex.get(a);
-    if (i !== undefined) jump(i, 32);
-  }, [cells, program, addrIndex, jump]);
+    const a = parseAddr(e.addr);
+    if (a === undefined) return;
+    const pid = e.program_id && programs.some(p => p.id === e.program_id) ? e.program_id : programId;
+    if (!pid) return;
+    const target = programs.find(p => p.id === pid);
+    if (e.binary && target && e.binary !== target.ref) setScope(target.builds.some(b => b.slug === e.binary) ? e.binary : null);
+    if (pid !== programId || !cells) {
+      pending.current = { addr: a };
+      if (pid !== programId) {
+        setProgramId(pid);
+        setSelected(-1);
+      }
+      return;
+    }
+    const i = indexOfAddr(cells, a);
+    if (i >= 0) jump(i, 28);
+  }, [programs, programId, cells, jump]);
 
-  // Esc closes the lens from anywhere outside inputs.
+  // "/" focuses search; Esc outside inputs clears the selection.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
@@ -105,8 +129,7 @@ export function Cockpit() {
       if (e.key === '/' && !typing) {
         e.preventDefault();
         document.getElementById('cp-search')?.focus();
-      }
-      if (e.key === 'Escape' && !typing && !e.defaultPrevented && selected >= 0 && !(t && t.classList.contains('cp-map-canvas'))) setSelected(-1);
+      } else if (e.key === 'Escape' && !typing && !e.defaultPrevented && selected >= 0 && !(t && t.classList.contains('cp-map-canvas'))) setSelected(-1);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -116,88 +139,98 @@ export function Cockpit() {
 
   return (
     <div className={`cockpit ${lensOpen ? 'lens-open' : ''}`} ref={rootRef}>
-      <TopBar summary={summary} connection={state.connection} error={state.error} />
+      <TopBar summary={summary} transport={transport} error={state.error} paused={paused} queued={queued} applied={state.applied} onPause={setPaused} />
       <aside className="cp-left" aria-label="Programs">
-        <DropZone />
         <div className="cp-section-h">
           <span>Programs</span>
-          <span className="cp-q" tabIndex={0} data-tip="Each program groups its builds · bars: blue bound to the shared identity, green C with a byte-exact receipt in this or a sibling build">?</span>
+          <span className="cp-q" tabIndex={0} data-tip="Each row is one program, each cell one of its builds · fill: share bound to a shared identity · green: C with a byte-exact receipt · click a cell to scope the lens to that build">?</span>
         </div>
-        <ProgramList programs={programs} selected={programId} onChoose={choose} loading={!summary} />
-        <CliStrip />
+        {summary ? (
+          programs.length ? <VariantMatrix programs={programs} selected={programId} scope={scope} onProgram={choose} onScope={onScope} /> : <div className="cp-empty-mini"><span className="cp-chip dash">0 programs</span></div>
+        ) : (
+          <div className="cp-matrix" aria-hidden="true"><div className="cp-mrow skeleton" /><div className="cp-mrow skeleton" /></div>
+        )}
+        <div className="cp-left-foot">
+          <DropZone />
+          <CommandStrip />
+        </div>
       </aside>
       <main className="cp-main" aria-label="Program map">
         <MainArea
-          summary={summary}
-          connection={state.connection}
-          error={state.error}
-          program={program}
-          cells={cells}
-          cellsError={cellsError}
-          selected={selected}
-          filter={filter}
-          fly={fly}
-          reducedMotion={reducedMotion}
-          onRetry={retry}
-          onSelect={i => setSelected(i)}
-          onJump={jump}
-          onFilter={setFilter}
+          summary={summary} transport={transport} error={state.error} program={program} cells={cells} cellsError={cellsError}
+          selected={selected} scope={scope} hits={hits} filter={filter} colorBy={colorBy} tierNames={tierNames} fly={fly} reducedMotion={reducedMotion}
+          onRetry={retry} onSelect={setSelected} onJump={jump} onFilter={setFilter} onColorBy={setColorBy} onHits={setHits} onUnscope={() => setScope(null)}
         />
       </main>
       <aside className="cp-right" aria-label={lensOpen ? 'Lens' : 'Products'}>
         {lensOpen ? (
           <>
-            <Shelf totals={summary?.totals} compact />
-            <Lens program={program!} cells={cells!} index={selected} onJump={i => jump(i)} onClose={() => setSelected(-1)} />
+            <ProductShelf totals={summary?.totals} compact />
+            <Lens program={program!} cells={cells!} index={selected} scope={scope} binaries={summary?.totals.binaries ?? 0} tierNames={tierNames}
+              onJump={i => jump(i)} onClose={() => setSelected(-1)} />
           </>
         ) : (
           <>
             <div className="cp-section-h"><span>Products</span></div>
-            <Shelf totals={summary?.totals} compact={false} />
+            <ProductShelf totals={summary?.totals} compact={false} />
           </>
         )}
       </aside>
-      <section className="cp-bottom" aria-label="Activity lanes">
-        <Lanes activity={state.activity} reducedMotion={reducedMotion} onFocusEvent={focusEvent} />
+      <section className="cp-bottom" aria-label="Machine lanes">
+        <ActivityLanes activity={state.activity} paused={paused} onFocusEvent={focusEvent} canFocus={canFocus} />
       </section>
       <TipLayer root={rootRef} />
     </div>
   );
 }
 
-function TopBar({ summary, connection, error }: { summary: Summary | undefined; connection: string; error?: string }) {
+function TopBar({ summary, transport, error, paused, queued, applied, onPause }: {
+  summary: Summary | undefined; transport: Transport; error?: string; paused: boolean; queued: number; applied: number; onPause: (p: boolean) => void;
+}) {
   const t = summary?.totals;
   const dbName = summary?.db?.path ? summary.db.path.split(/[\\/]/).pop() : '';
   const connTip =
-    connection === 'live' ? 'Live stream connected' :
-    connection === 'polling' ? 'Stream unavailable · summary refreshed every 5 s' :
-    connection === 'offline' ? `Cockpit API unreachable${error ? ` · ${error}` : ''}` : 'Connecting';
-  const stats: [string, number | undefined, string, string][] = [
-    ['binaries', t?.binaries, 'Binaries in the corpus', ''],
-    ['functions', t?.functions, 'Functions across every build', ''],
-    ['logical', t?.logical, 'Logical functions: one identity shared by every build', ''],
-    ['bound', t?.bound, 'Build functions bound to a logical function', 'var(--c-bound-named)'],
-    ['recovered', t?.recovered_logical, 'Shared identities with byte-exact-receipt C in any build', 'var(--c-rec)'],
+    transport === 'stream' ? 'Live stream' :
+    transport === 'polling' ? 'Stream unavailable · summary polled every 5 s' :
+    transport === 'offline' ? `Cockpit API unreachable${error ? ` · ${error}` : ''}` : 'Connecting';
+  const stats: { k: string; v: number | undefined; of?: number; tip: string; color: string }[] = [
+    { k: 'binaries', v: t?.binaries, tip: `Binaries in the corpus, grouped into ${fmt(summary?.programs.length)} programs`, color: '--muted' },
+    { k: 'functions', v: t?.functions, tip: 'Functions across every build', color: '--muted' },
+    { k: 'bound', v: t?.bound, of: t?.functions, tip: 'Build functions bound to a logical function shared across builds', color: '--c-bound' },
+    { k: 'named', v: t?.named_above_placeholder, of: t?.named_of, tip: 'Logical functions named above placeholder', color: '--f-verify' },
+    { k: 'real C', v: t?.recovered_logical, of: t?.logical, tip: 'Logical functions with C carrying a byte-exact receipt in some build', color: '--c-rec' },
   ];
   return (
     <header className="cp-top">
       <div className="cp-brand">
-        <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect x="1" y="1" width="20" height="20" rx="4" fill="none" stroke="var(--accent)" strokeWidth="1.5" /><path d="M5 15 L9 7 L13 13 L17 6" fill="none" stroke="var(--f-source)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /><circle cx="17" cy="6" r="1.8" fill="var(--f-unify)" /></svg>
+        <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect x="1" y="1" width="20" height="20" rx="4" fill="none" stroke="var(--accent)" strokeWidth="1.5" /><rect x="5" y="5" width="4" height="4" fill="var(--c-rec)" /><rect x="10" y="5" width="4" height="4" fill="var(--c-bound)" /><rect x="5" y="10" width="4" height="4" fill="var(--c-bound)" /><rect x="10" y="10" width="4" height="4" fill="var(--c-unbound)" /><rect x="15" y="5" width="2" height="12" fill="var(--accent)" opacity=".5" /></svg>
         AgentDecompile
       </div>
-      <div className={`cp-corpus ${connection}`} tabIndex={0} data-tip={`${connTip}${summary?.db?.path ? ` · ${summary.db.path}` : ''}${summary?.generated ? ` · ${new Date(summary.generated).toLocaleTimeString()}` : ''}`}>
+      <div className={`cp-corpus ${transport} ${paused ? 'paused' : ''}`} tabIndex={0}
+        data-tip={`${connTip}${summary?.db?.path ? ` · ${summary.db.path}` : ''}${summary?.generated ? ` · generated ${new Date(summary.generated).toLocaleTimeString()}` : ''} · ${fmt(applied)} cell changes applied`}>
         <span className="cp-pulse" aria-hidden="true" />
         <b>{dbName || 'corpus'}</b>
-        <span className="cp-mono cp-conn">{connection === 'polling' ? 'polling' : connection}</span>
+        <span className="cp-mono cp-conn">{transport === 'stream' ? 'live' : transport}</span>
       </div>
+      <button type="button" className={`cp-pause ${paused ? 'on' : ''}`} aria-pressed={paused} onClick={() => onPause(!paused)}
+        aria-label={paused ? 'Resume live updates' : 'Pause live updates'}
+        data-tip={paused ? `Resume · ${fmt(queued)} updates waiting` : 'Pause live updates in this view; updates that arrive meanwhile are applied on resume'}>
+        {paused
+          ? <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1.5l8 4.5-8 4.5z" fill="currentColor" /></svg>
+          : <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="2" y="1.5" width="3" height="9" fill="currentColor" /><rect x="7" y="1.5" width="3" height="9" fill="currentColor" /></svg>}
+        {paused && queued > 0 && <span className="cp-badge cp-mono">{queued > 999 ? '999+' : queued}</span>}
+      </button>
       <dl className="cp-stats-top">
-        {stats.map(([k, v, tip, color]) => (
-          <div key={k} className="cp-ts" tabIndex={0} data-tip={tip}>
-            {color && <i style={{ background: color }} aria-hidden="true" />}
-            <dt>{k}</dt>
-            <dd className="cp-num">{fmt(v)}</dd>
-          </div>
-        ))}
+        {stats.map(s => {
+          const f = s.of !== undefined ? ratio(s.v, s.of) : null;
+          return (
+            <div key={s.k} className="cp-ts" tabIndex={0} data-tip={`${s.tip} · ${fmt(s.v)}${s.of !== undefined ? ` of ${fmt(s.of)}` : ''}`}>
+              <dt>{s.k}</dt>
+              <dd className="cp-num">{f !== null ? `${(f * 100).toFixed(f < 0.1 ? 1 : 0)}%` : fmt(s.v)}</dd>
+              {s.of !== undefined && <span className="cp-ts-bar" aria-hidden="true"><span style={{ width: `${(f ?? 0) * 100}%`, background: `var(${s.color})` }} /></span>}
+            </div>
+          );
+        })}
       </dl>
       <nav className="cp-views" aria-label="Views">
         <a href="#cockpit" aria-current="page">Cockpit</a>
@@ -207,80 +240,57 @@ function TopBar({ summary, connection, error }: { summary: Summary | undefined; 
   );
 }
 
-function ProgramList({ programs, selected, onChoose, loading }: { programs: Program[]; selected?: string; onChoose: (id: string) => void; loading: boolean }) {
-  if (loading) return <div className="cp-programs"><div className="cp-prog skeleton" aria-hidden="true" /><div className="cp-prog skeleton" aria-hidden="true" /></div>;
-  return (
-    <ul className="cp-programs">
-      {programs.map(p => {
-        const fns = p.builds.reduce((s, b) => s + (b.functions || 0), 0);
-        return (
-          <li key={p.id}>
-            <button type="button" className={`cp-prog ${p.id === selected ? 'on' : ''}`} aria-pressed={p.id === selected} onClick={() => onChoose(p.id)}
-              data-tip={`${p.label} · ${p.builds.length} builds · ${fmt(fns)} functions · map: ${shortSlug(p.ref, p.id)}`}>
-              <span className="cp-prog-h">
-                <span className="cp-prog-name">{p.label}</span>
-                <span className="cp-mono cp-muted">{fmt(p.n)}</span>
-              </span>
-              <span className="cp-variants" aria-hidden="true">
-                {p.builds.map(b => {
-                  const f = Math.max(1, b.functions || 0);
-                  return (
-                    <span key={b.slug} className={`cp-vchip ${b.slug === p.ref ? 'ref' : ''}`}
-                      data-tip={`${shortSlug(b.slug, p.id)} · ${b.platform}${b.format ? `/${b.format}` : ''} · ${fmt(b.functions)} fns · ${fmt(b.bound)} bound · ${fmt(b.real_c)} C`}>
-                      <span className="b" style={{ height: `${Math.min(100, ((b.bound || 0) / f) * 100)}%` }} />
-                      <span className="r" style={{ height: `${Math.min(100, ((b.real_c || 0) / f) * 100)}%` }} />
-                      <span className="p">{(b.platform || '?').slice(0, 1).toUpperCase()}</span>
-                    </span>
-                  );
-                })}
-              </span>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
 type MainProps = {
   summary: Summary | undefined;
-  connection: string;
+  transport: Transport;
   error?: string;
   program: Program | undefined;
   cells: ProgramCells | undefined;
   cellsError?: string;
   selected: number;
+  scope: string | null;
+  hits: number[];
   filter: MapFilter;
+  colorBy: ColorBy;
+  tierNames: string[];
   fly: FlyRequest | null;
   reducedMotion: boolean;
   onRetry: () => void;
   onSelect: (i: number) => void;
   onJump: (i: number, scale?: number) => void;
   onFilter: (f: MapFilter) => void;
+  onColorBy: (c: ColorBy) => void;
+  onHits: (h: number[]) => void;
+  onUnscope: () => void;
 };
 
 function MainArea(p: MainProps) {
   if (!p.summary) {
-    return p.connection === 'offline'
-      ? <EmptyState kind="offline" detail={p.error} onRetry={p.onRetry} />
-      : <EmptyState kind="connecting" />;
+    return p.transport === 'offline' ? <EmptyState kind="offline" detail={p.error} onRetry={p.onRetry} /> : <EmptyState kind="connecting" />;
   }
   if (!p.summary.programs.length) return <EmptyState kind="empty" />;
   if (!p.program) return <EmptyState kind="connecting" />;
-  const counts = cellCounts(p.cells);
-  const buildCount = p.program.builds.length;
+  const scoped = p.scope ? p.program.builds.find(b => b.slug === p.scope) : undefined;
   return (
     <>
       <div className="cp-mainhead">
-        <h1>{p.program.label}</h1>
-        <span className="cp-chip" data-tip="Reference build: every function in address order">{shortSlug(p.program.ref, p.program.id)}</span>
-        <Search cells={p.cells} onPick={i => p.onJump(i, 48)} />
+        <h1 title={p.program.label}>{p.program.label}</h1>
+        <span className="cp-chip" data-tip={`Reference build ${p.program.ref}: the map is laid out from its functions, in address order`}>
+          {shortSlug(p.program.ref, p.program.id)}<span className="cp-muted">{fmt(p.cells?.n ?? p.program.n)}</span>
+        </span>
+        {scoped && (
+          <span className="cp-chip scope" data-tip={`Lens scoped to ${scoped.slug} · ${fmt(scoped.functions)} functions · ${fmt(scoped.bound)} bound · ${fmt(scoped.real_c)} real C`}>
+            {shortSlug(scoped.slug, p.program.id)}
+            <button type="button" onClick={p.onUnscope} aria-label="Clear build scope">×</button>
+          </span>
+        )}
+        <Search cells={p.cells} onPick={i => p.onJump(i, 28)} onHits={p.onHits} />
       </div>
-      <Legend counts={counts} filter={p.filter} onFilter={p.onFilter} disabled={!p.cells} />
       <div className="cp-mapwrap">
         {p.cells ? (
-          <MapCanvas cells={p.cells} buildCount={buildCount} selected={p.selected} filter={p.filter} fly={p.fly} reducedMotion={p.reducedMotion}
-            onSelect={i => i >= 0 ? p.onSelect(i) : p.onSelect(-1)} />
+          <ProgramMap cells={p.cells} buildCount={p.program.builds.length} binaries={p.summary.totals.binaries} selected={p.selected} hits={p.hits}
+            filter={p.filter} colorBy={p.colorBy} tierNames={p.tierNames} fly={p.fly} reducedMotion={p.reducedMotion}
+            onSelect={p.onSelect} onFilter={p.onFilter} onColorBy={p.onColorBy} />
         ) : p.cellsError ? (
           <EmptyState kind="cells-error" detail={p.cellsError} onRetry={p.onRetry} />
         ) : (
@@ -291,48 +301,13 @@ function MainArea(p: MainProps) {
   );
 }
 
-function Legend({ counts, filter, onFilter, disabled }: { counts: ReturnType<typeof cellCounts>; filter: MapFilter; onFilter: (f: MapFilter) => void; disabled: boolean }) {
-  const toggle = (f: MapFilter) => onFilter(JSON.stringify(f) === JSON.stringify(filter) ? ALL : f);
-  const tips = [
-    'No shared identity yet · click to highlight',
-    'Bound to a logical function shared across builds · click to highlight',
-    'C with a byte-exact receipt (this build or a sibling) · click to highlight',
-  ];
-  return (
-    <div className="cp-legend" role="toolbar" aria-label="Highlight">
-      {[0, 1, 2].map(s => (
-        <button key={s} type="button" className="cp-lg" aria-pressed={filter.kind === 'state' && filter.value === s} disabled={disabled}
-          onClick={() => toggle({ kind: 'state', value: s })} data-tip={`${STATE_LABELS[s]} · ${tips[s]}`}>
-          <i className={`cp-swatch s${s}`} />{STATE_LABELS[s]}<span className="cp-mono">{fmt(counts.states[s])}</span>
-        </button>
-      ))}
-      <button type="button" className="cp-lg" aria-pressed={filter.kind === 'named'} disabled={disabled}
-        onClick={() => toggle({ kind: 'named' })} data-tip="Named from human, debug-info or symbol sources · corner notch when zoomed in · click to highlight">
-        <i className="cp-swatch named" />Named<span className="cp-mono">{fmt(counts.named)}</span>
-      </button>
-      <label className="cp-tier" data-tip="Highlight one name tier">
-        <span className="cp-sr">Highlight name tier</span>
-        <select disabled={disabled} value={filter.kind === 'tier' ? String(filter.value) : ''}
-          onChange={e => onFilter(e.target.value === '' ? ALL : { kind: 'tier', value: Number(e.target.value) })}>
-          <option value="">All tiers</option>
-          {[1, 2, 3, 4, 5, 0].map(t => <option key={t} value={t}>{t ? `${t} · ` : ''}{TIER_LABELS[t]}</option>)}
-        </select>
-      </label>
-      {filter.kind !== 'all' && (
-        <button type="button" className="cp-iconbtn" onClick={() => onFilter(ALL)} aria-label="Clear highlight" data-tip="Clear highlight">
-          <svg width="10" height="10" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.6" /></svg>
-        </button>
-      )}
-    </div>
-  );
-}
-
-function Search({ cells, onPick }: { cells: ProgramCells | undefined; onPick: (i: number) => void }) {
+function Search({ cells, onPick, onHits }: { cells: ProgramCells | undefined; onPick: (i: number) => void; onHits: (h: number[]) => void }) {
   const [q, setQ] = useState('');
   const [active, setActive] = useState(0);
   const [open, setOpen] = useState(false);
-  const results = useMemo(() => searchCells(cells, q, 12), [cells, q]);
+  const results = useMemo(() => searchCells(cells, q, 40), [cells, q]);
   useEffect(() => setActive(0), [q]);
+  useEffect(() => onHits(q.trim() ? results : []), [results, q, onHits]);
   const pick = (i: number) => {
     onPick(i);
     setOpen(false);
@@ -349,18 +324,19 @@ function Search({ cells, onPick }: { cells: ProgramCells | undefined; onPick: (i
       <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="5" cy="5" r="3.6" fill="none" stroke="currentColor" strokeWidth="1.5" /><path d="M8 8l3 3" stroke="currentColor" strokeWidth="1.5" /></svg>
       <input id="cp-search" type="search" role="combobox" aria-expanded={show} aria-controls="cp-search-list" aria-autocomplete="list"
         aria-activedescendant={show && results.length ? `cp-sr-${results[active]}` : undefined}
-        placeholder="Function or address" value={q} disabled={!cells} autoComplete="off" spellCheck={false}
+        placeholder="name or address" value={q} disabled={!cells} autoComplete="off" spellCheck={false}
         onChange={e => { setQ(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 120)} onKeyDown={onKey}
-        data-tip="Search names or hex addresses · / to focus · Enter flies there" />
+        data-tip="Search function names or hex addresses · / to focus · Enter flies there; every match is ringed on the map" />
+      {q.trim() && cells && <span className="cp-mono cp-muted cp-hitcount">{results.length >= 40 ? '40+' : results.length}</span>}
       <kbd aria-hidden="true">/</kbd>
       {show && (
         <ul id="cp-search-list" role="listbox" className="cp-results" aria-label="Matching functions">
-          {results.map((i, k) => (
+          {results.slice(0, 14).map((i, k) => (
             <li key={i} id={`cp-sr-${i}`} role="option" aria-selected={k === active} className={k === active ? 'on' : ''}
               onMouseDown={e => { e.preventDefault(); pick(i); }} onMouseEnter={() => setActive(k)}>
               <i className={`cp-swatch s${cells!.state[i]}`} aria-hidden="true" />
               <span className="cp-res-name">{cellName(cells!, i)}</span>
-              <span className="cp-mono cp-addr">{hex(cells!.addr[i])}</span>
+              <span className="cp-addr">{hex(cells!.addr[i])}</span>
             </li>
           ))}
           {!results.length && <li className="cp-none cp-muted" role="option" aria-selected={false} aria-disabled="true">0</li>}
@@ -386,7 +362,7 @@ function EmptyState({ kind, detail, onRetry }: { kind: 'offline' | 'connecting' 
         <p className="cp-mono cp-muted" data-tip={detail || ''}>{kind === 'offline' ? `${COCKPIT_API}/summary` : detail}</p>
       )}
       {onRetry && <button type="button" className="cp-btn primary" onClick={onRetry}>Retry</button>}
-      {(kind === 'empty' || kind === 'offline') && <CliStrip />}
+      {(kind === 'empty' || kind === 'offline') && <CommandStrip />}
     </div>
   );
 }

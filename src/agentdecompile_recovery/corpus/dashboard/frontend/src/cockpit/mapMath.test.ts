@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  MAX_SCALE, MIN_SCALE, cellCenter, cellRect, centerOn, clampView, fitView, gridFor, hitTest, minimapViewport,
+  MAX_SCALE, MIN_SCALE, baseCellPx, cellCenter, lerpView, mixRgb, packRgb, paintBaseCell, parseColor, cellRect, centerOn, clampView, fitView, gridFor, hitTest, minimapViewport,
   rowsOf, stepIndex, viewFromMinimap, visibleRows, zoomAt, type View,
 } from './mapMath';
 
@@ -64,6 +64,14 @@ describe('hitTest', () => {
     expect(hitTest(tiny, grid, 20, 2.5)).toBe(-1);
   });
 
+  it('skips cells the filter rejects and snaps to the nearest accepted one', () => {
+    const odd = (i: number) => i % 2 === 1;
+    expect(hitTest(v, grid, 5, 5, 6, odd)).toBe(-1); // cell 0 rejected; cell 1 is 15px away
+    expect(hitTest(v, grid, 17, 5, 6, odd)).toBe(1); // 2px left of cell 1
+    expect(hitTest(v, grid, 25, 5, 6, odd)).toBe(1);
+    expect(hitTest(v, grid, 45, 5, 6, () => false)).toBe(-1);
+  });
+
   it('ignores empty slots on the last row', () => {
     const partial = { n: 95, cols: 10 };
     // Slot 97 does not exist and no real cell is within 6px of its centre.
@@ -120,5 +128,49 @@ describe('view helpers', () => {
     expect(stepIndex(grid, 99, 'ArrowRight')).toBe(99);
     expect(stepIndex(grid, 50, 'End')).toBe(99);
     expect(stepIndex(grid, 50, 'x')).toBe(50);
+  });
+});
+
+describe('base bitmap', () => {
+  it('keeps the bitmap within 4096 px and cells between 1 and 6 px', () => {
+    expect(baseCellPx({ n: 100, cols: 10 })).toBe(6);
+    expect(baseCellPx({ n: 74000, cols: 333 })).toBe(6);
+    const big = { n: 4_000_000, cols: 2000 };
+    expect(baseCellPx(big)).toBe(2);
+    expect(Math.max(big.cols, rowsOf(big)) * baseCellPx(big)).toBeLessThanOrEqual(4096);
+    expect(baseCellPx({ n: 50_000_000, cols: 7000 })).toBe(1);
+  });
+
+  it('paints one cell with a 1 px gap at 4+ px and none below', () => {
+    const g = { n: 4, cols: 2 };
+    const w = 2 * 4, u = new Uint32Array(w * 2 * 4);
+    paintBaseCell(u, w, g, 3, 4, 7);
+    const lit: number[] = [];
+    u.forEach((c, k) => c && lit.push(k));
+    // cell 3 = col 1, row 1 → x 4..6, y 4..6 (3×3 because of the gap)
+    expect(lit).toEqual([4 * w + 4, 4 * w + 5, 4 * w + 6, 5 * w + 4, 5 * w + 5, 5 * w + 6, 6 * w + 4, 6 * w + 5, 6 * w + 6]);
+    const u2 = new Uint32Array(4);
+    paintBaseCell(u2, 2, g, 3, 1, 9);
+    expect(Array.from(u2)).toEqual([0, 0, 0, 9]);
+  });
+
+  it('parses and packs colours', () => {
+    expect(parseColor('#8cbaff')).toEqual([0x8c, 0xba, 0xff]);
+    expect(parseColor('#abc')).toEqual([0xaa, 0xbb, 0xcc]);
+    expect(parseColor(' rgb(1, 2, 3) ')).toEqual([1, 2, 3]);
+    expect(parseColor('nonsense', [9, 9, 9])).toEqual([9, 9, 9]);
+    expect(packRgb([1, 2, 3])).toBe(0xff030201);
+    expect(mixRgb([0, 0, 0], [100, 200, 50], 0.5)).toEqual([50, 100, 25]);
+  });
+
+  it('interpolates zoom in log space and ends exactly on the target', () => {
+    const a: View = { scale: 1, ox: 0, oy: 0 }, b: View = { scale: 100, ox: -50, oy: 20 };
+    const start = lerpView(a, b, 0);
+    expect(start.scale).toBeCloseTo(1);
+    expect(start.ox).toBeCloseTo(0);
+    const end = lerpView(a, b, 1);
+    expect(end.scale).toBeCloseTo(100);
+    expect(end.ox).toBeCloseTo(-50);
+    expect(lerpView(a, b, 0.5).scale).toBeCloseTo(10);
   });
 });

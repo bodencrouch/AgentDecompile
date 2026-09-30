@@ -60,12 +60,13 @@ export function cellCenter(v: View, g: Grid, i: number) {
 
 /**
  * Cell under a screen point, or the nearest cell whose drawn square lies within
- * `snap` screen px. Returns -1 when nothing is close enough.
+ * `snap` screen px. With `accept`, only cells it accepts can be hit (so a filter
+ * makes dimmed cells transparent to the pointer). Returns -1 when nothing is close enough.
  */
-export function hitTest(v: View, g: Grid, sx: number, sy: number, snap = SNAP_PX): number {
+export function hitTest(v: View, g: Grid, sx: number, sy: number, snap = SNAP_PX, accept?: (i: number) => boolean): number {
   if (g.n <= 0) return -1;
   const fx = (sx - v.ox) / v.scale, fy = (sy - v.oy) / v.scale;
-  const reach = Math.min(8, Math.ceil(snap / v.scale) + 1);
+  const reach = Math.min(14, Math.ceil(snap / v.scale) + 1);
   // Clamp the search centre to the grid so points just outside still find edge cells.
   const c0 = Math.max(0, Math.min(g.cols - 1, Math.floor(fx)));
   const r0 = Math.max(0, Math.min(rowsOf(g) - 1, Math.floor(fy)));
@@ -76,7 +77,7 @@ export function hitTest(v: View, g: Grid, sx: number, sy: number, snap = SNAP_PX
     for (let c = c0 - reach; c <= c0 + reach; c++) {
       if (c < 0 || c >= g.cols) continue;
       const i = r * g.cols + c;
-      if (i >= g.n) continue;
+      if (i >= g.n || (accept && !accept(i))) continue;
       const x = v.ox + c * v.scale, y = v.oy + r * v.scale;
       const dx = sx < x ? x - sx : sx > x + size ? sx - (x + size) : 0;
       const dy = sy < y ? y - sy : sy > y + size ? sy - (y + size) : 0;
@@ -161,3 +162,45 @@ export function stepIndex(g: Grid, i: number, key: string, page = 10): number {
   }
   return Math.max(0, Math.min(g.n - 1, next));
 }
+
+/** Pixels per cell in the offscreen base bitmap: as large as possible while the bitmap stays ≤ 4096 px on a side. */
+export function baseCellPx(g: Grid): number {
+  return Math.max(1, Math.min(6, Math.floor(4096 / Math.max(g.cols, rowsOf(g)))));
+}
+
+/** Top-left pixel of cell i in the base bitmap. */
+export function basePixel(g: Grid, i: number, cp: number): { x: number; y: number } {
+  return { x: cellCol(g, i) * cp, y: cellRow(g, i) * cp };
+}
+
+/** Fill cell i's square (cp minus a 1 px gap when cp ≥ 4) with `color` in a row-major u32 bitmap `width` px wide. */
+export function paintBaseCell(u32: Uint32Array, width: number, g: Grid, i: number, cp: number, color: number) {
+  const { x, y } = basePixel(g, i, cp);
+  const e = cp >= 4 ? cp - 1 : cp;
+  for (let dy = 0; dy < e; dy++) {
+    let o = (y + dy) * width + x;
+    for (let dx = 0; dx < e; dx++) u32[o++] = color;
+  }
+}
+
+/** Pack an [r,g,b] triple as little-endian RGBA for a Uint32Array view over ImageData. */
+export const packRgb = (rgb: readonly [number, number, number], alpha = 255) =>
+  ((alpha << 24) | (rgb[2] << 16) | (rgb[1] << 8) | rgb[0]) >>> 0;
+
+/** Parse #rgb / #rrggbb / rgb(r,g,b); `fallback` otherwise. */
+export function parseColor(css: string, fallback: [number, number, number] = [128, 128, 128]): [number, number, number] {
+  const s = css.trim();
+  let m = /^#([0-9a-f]{3})$/i.exec(s);
+  if (m) return [0, 1, 2].map(k => parseInt(m![1][k] + m![1][k], 16)) as [number, number, number];
+  m = /^#([0-9a-f]{6})$/i.exec(s);
+  if (m) {
+    const n = parseInt(m[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  m = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i.exec(s);
+  if (m) return [Number(m[1]), Number(m[2]), Number(m[3])];
+  return fallback;
+}
+
+export const mixRgb = (a: readonly number[], b: readonly number[], t: number): [number, number, number] =>
+  [0, 1, 2].map(k => Math.round(a[k] + (b[k] - a[k]) * t)) as [number, number, number];

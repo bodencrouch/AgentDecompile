@@ -312,6 +312,10 @@ def _uint_of(nbytes: int) -> str:
     }.get(nbytes, "unsigned int")
 
 
+class DecompileTimeout(RuntimeError):
+    """The decompiler hit its wall-clock cutoff; callers record this, never emit partial facts."""
+
+
 def collect_high_facts(program, function, decompiler, monitor=None) -> HighFacts:
     """Live Ghidra: HighFunction + ClangTokenGroup + p-code + datatypes.
 
@@ -320,6 +324,9 @@ def collect_high_facts(program, function, decompiler, monitor=None) -> HighFacts
     timeout = 30
     result = decompiler.decompileFunction(function, timeout, monitor)
     if result is None or not result.decompileCompleted():
+        probe = getattr(result, "isTimedOut", None)
+        if callable(probe) and probe():
+            raise DecompileTimeout(f"decompile timed out after {timeout} s; no facts emitted")
         raise RuntimeError("decompile did not complete")
     hf = result.getHighFunction()
     markup = result.getCCodeMarkup()

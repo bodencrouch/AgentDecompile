@@ -35,9 +35,43 @@ def function_properties(program, func):
         "thunkTarget": str(target.getEntryPoint()) if target else "",
         "parameters": [{"ordinal": int(p.getOrdinal()), "name": str(p.getName()),
                         "dataType": str(p.getDataType()),
-                        "storage": storage_pieces(program, p.getVariableStorage())}
+                        "storage": storage_pieces(program, p.getVariableStorage()),
+                        "autoParameter": _is_auto(p)}
                        for p in func.getParameters()],
+        "autoParameterCount": int(func.getAutoParameterCount()),
+        **canonical_this(program, func),
     }
+
+
+def _is_auto(param) -> bool:
+    probe = getattr(param, "isAutoParameter", None)
+    return bool(probe()) if callable(probe) else False
+
+
+def canonical_this(program, func) -> dict:
+    """One ``this`` form whatever the storage mode (portable plan U61).
+
+    Under dynamic storage ``this`` is an auto-parameter; under custom storage the auto
+    count is always 0 and ``this`` is an ordinary first parameter. Both become the same
+    ``thisParameter`` plus ``canonicalArguments`` (every parameter except ``this``), so
+    ``args[]`` agrees between CLI-edited and untouched functions.
+    """
+    params = list(func.getParameters())
+    this = None
+    if params:
+        first = params[0]
+        auto = _is_auto(first)
+        explicit = (func.hasCustomVariableStorage() and str(first.getName()) == "this"
+                    and "thiscall" in str(func.getCallingConventionName() or "").lower())
+        if (auto and str(first.getName()) == "this") or explicit:
+            this = {"name": "this", "dataType": str(first.getDataType()),
+                    "storage": storage_pieces(program, first.getVariableStorage()),
+                    "source": "auto" if auto else "custom-storage"}
+    rest = params[1:] if this else params
+    return {"thisParameter": this,
+            "canonicalArguments": [{"index": i, "name": str(p.getName()), "dataType": str(p.getDataType()),
+                                    "storage": storage_pieces(program, p.getVariableStorage())}
+                                   for i, p in enumerate(rest)]}
 
 
 def make_storage(program, pieces):

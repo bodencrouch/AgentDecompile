@@ -18,7 +18,7 @@ from . import admission_budget, mcp_budget
 from .retry_policy import MAX_ACTION_ATTEMPTS, decide_retry, refusal_outcome
 from agentdecompile_recovery.corpus.ghidra_project import ghidra_program_path
 from agentdecompile_recovery.corpus.donor_schedule import spanning_forest_pairs
-from .workflow import DEFAULT_BUDGET_SECONDS, MAX_BUDGET_SECONDS, STAGES as RECOVERY_STAGES, VERSION, transient_failure
+from .workflow import DEFAULT_BUDGET_SECONDS, MAX_BUDGET_SECONDS, STAGES as RECOVERY_STAGES, VERSION, transient_failure, external_action_required
 
 _LOCK = threading.RLock()
 _BSIM_LOCK = threading.Lock()
@@ -1233,6 +1233,8 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
             and mcp_budget.initialize(row)['allocationRevision'] > previous_provider.get('allocationRevision', 0))
         decision = decide_retry(
             prior, transient=transient_failure(prior.get('result', {})),
+            external_action=external_action_required(prior.get('result', {})),
+            external_restored=bool(prior.get('retryPrerequisiteRecovered')),
             prerequisite_recovered=bool(prior.get('retryPrerequisiteRecovered')) or provider_revised,
             owner_available=available,
         )
@@ -1434,7 +1436,8 @@ def execute(params: dict[str, Any], cancel: threading.Event) -> tuple[int, str]:
                 decision = {k: provider_decision[k] for k in ('nextAction', 'reason', 'wakeCondition', 'attemptsSpent', 'attemptsRemaining', 'allocationRevision') if k in provider_decision}
                 decision.setdefault('attemptsSpent', mcp_budget.initialize(row)['consumed'])
             else:
-                decision = decide_retry(history[action_id], transient=transient_failure(outcome))
+                decision = decide_retry(history[action_id], transient=transient_failure(outcome),
+                                        external_action=external_action_required(outcome))
             with _LOCK:
                 history[action_id]['retryDecision'] = decision
                 _remember_retry_decision(row, action_id, name, decision)

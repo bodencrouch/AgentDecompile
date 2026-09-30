@@ -50,6 +50,23 @@ def transient_failure(result: dict[str, Any]) -> bool:
     ))
 
 
+_EXTERNAL_DENIAL = (
+    'entitlement', 'not entitled', 'billing', 'payment required', 'http 402', 'quota exceeded',
+    'spending limit', 'account suspended', 'runner disabled', 'actions are disabled',
+    'insufficient permissions to run', 'subscription required',
+)
+
+
+def external_action_required(result: dict[str, Any]) -> bool:
+    """A refusal before any work started that only an outside action can clear (FP-27).
+
+    Entitlement, billing, quota or a disabled runner is not a compile or behaviour failure,
+    earns no retry of its own and must never be promoted to a local result.
+    """
+    text = str(result.get('error') or result.get('log') or '').lower()
+    return bool(result.get('externalActionRequired')) or any(word in text for word in _EXTERNAL_DENIAL)
+
+
 def _compiler(profile: dict[str, Any]) -> str | None:
     value = profile.get('compilerScript')
     if not isinstance(value, str) or not value:

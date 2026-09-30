@@ -13,7 +13,8 @@ MAX_ACTION_ATTEMPTS = 3
 def decide_retry(
     prior: Mapping[str, Any], *, transient: bool = False,
     prerequisite_recovered: bool = False, owner_available: bool = False,
-    max_attempts: int = MAX_ACTION_ATTEMPTS,
+    max_attempts: int = MAX_ACTION_ATTEMPTS, external_action: bool = False,
+    external_restored: bool = False,
 ) -> dict[str, Any]:
     """Return eligibility, remaining spending and an exact non-dispatch reason."""
     raw_attempts = prior.get('attempts', 0)
@@ -39,9 +40,15 @@ def decide_retry(
         reason = ('An accepted job still owns this action; wait for its terminal receipt.' if owner_available
                   else 'Completion of the accepted job is unknown; reconcile its output and ownership before resubmission.')
         wake = 'reconciled_terminal_receipt_and_resource_release'
+    elif status == 'failed' and external_action and not external_restored:
+        # Denied before starting (entitlement, billing, quota, disabled runner): not a failure
+        # of the work itself, so it neither spends evidence nor retries until restored (FP-27).
+        kind, reason, wake = ('external_action_required',
+                              'An external entitlement or account action is required before this action can start.',
+                              'external_entitlement_restored')
     elif attempts >= max_attempts:
         kind, reason, wake = 'budget_exhausted', f'Action retry budget exhausted ({attempts}/{max_attempts}) for these inputs; resume does not reset spending.', 'changed_relevant_input_basis'
-    elif status == 'failed' and not (transient or prerequisite_recovered):
+    elif status == 'failed' and not (transient or prerequisite_recovered or (external_action and external_restored)):
         kind, reason, wake = 'wait_evidence', 'The recorded failure has no evidence that an unchanged retry can help.', 'changed_relevant_input_basis_or_verified_prerequisite'
     else:
         kind, reason, wake = 'dispatch', 'An attempt is available under the recorded input basis.', ''

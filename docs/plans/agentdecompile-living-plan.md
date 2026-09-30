@@ -3365,6 +3365,8 @@ Operator: an autonomous Claude session. The work is on branch `feat/u13-reconcil
 - All evidence scripts now locate their own repository and rerun from the committed copies.
 - Still open in U9: A06, A11, FP-23 and FP-30 (need their design context); A03, A08, A12, FP-04 and FP-25 are partial.
 
+**E-0930-12 · U9 control plane and runtime bundles (source only; no consumer yet).** FP-23: detector readings that are malformed, timed out, of unknown schema, stale or unrecognised become `detector_unknown` and quarantine only the decisions needing them, while alternates restore them. FP-30: routing canaries roll back to the baseline on a threshold or on missing metrics, keeping every observation ([fp23_fp30.sh](evidence/2026-09-30-u9/fp23_fp30.sh)). A06: a bundle is launchable only after its full closure, including indirect fixtures, verifies. A11: the combined behaviour-and-video claim is refused without a correlated recording, while the behaviour receipt is kept ([a06_a11.sh](evidence/2026-09-30-u9/a06_a11.sh)).
+
 **E-0930-4 · Host.** RAM 31 GB with 4–6 GB available; swap 42/42 GB used; root disk 96% full; PSI full avg10 about 0.1. No full-corpus run was admitted.
 
 ## Decisions and blockers

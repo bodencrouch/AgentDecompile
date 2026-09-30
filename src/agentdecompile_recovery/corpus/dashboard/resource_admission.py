@@ -288,3 +288,92 @@ class AgingLedger:
             os.fsync(dir_fd)
         finally:
             os.close(dir_fd)
+
+
+# --------------------------------------------------------------------------- measured profiles and the dispatch gate
+
+def session_rss_bytes(session_id: int) -> int:
+    """Summed resident memory of every process in one session (a job's process tree)."""
+    page = os.sysconf("SC_PAGE_SIZE")
+    total = 0
+    for entry in os.scandir("/proc"):
+        if not entry.name.isdigit():
+            continue
+        try:
+            with open(f"/proc/{entry.name}/stat") as handle:
+                fields = handle.read().rsplit(")", 1)[1].split()
+            if int(fields[3]) != session_id:  # field 6 (session) after the comm field
+                continue
+            with open(f"/proc/{entry.name}/statm") as handle:
+                total += int(handle.read().split()[1]) * page
+        except (OSError, IndexError, ValueError):
+            continue
+    return total
+
+
+class ProfileStore:
+    """Measured process-tree peaks per action. The profile is the max of the last few runs."""
+
+    KEEP = 5
+
+    def __init__(self, path: Path | str) -> None:
+        self.path = Path(path)
+        self._lock = __import__("threading").Lock()
+
+    def _load(self) -> dict:
+        if self.path.is_file():
+            data = json.loads(self.path.read_text())
+            if data.get("schema") == 1:
+                return data
+        return {"schema": 1, "peaks": {}}
+
+    def record(self, action_id: str, peak_bytes: int) -> None:
+        if peak_bytes <= 0:
+            return
+        with self._lock:
+            data = self._load()
+            peaks = data["peaks"].setdefault(action_id, [])
+            peaks.append(int(peak_bytes))
+            del peaks[:-self.KEEP]
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            fd, tmp = tempfile.mkstemp(dir=self.path.parent, prefix=self.path.name, suffix=".tmp")
+            with os.fdopen(fd, "w") as handle:
+                json.dump(data, handle, sort_keys=True)
+            os.replace(tmp, self.path)
+
+    def profile(self, action_id: str) -> ResourceProfile:
+        peaks = self._load()["peaks"].get(action_id) or []
+        return ResourceProfile(peak_bytes=max(peaks) if peaks else None)
+
+
+def default_profile_store() -> ProfileStore:
+    configured = os.environ.get("AGENTDECOMPILE_RESOURCE_PROFILES", "").strip()
+    if configured:
+        return ProfileStore(configured)
+    base = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
+    return ProfileStore(base / "agentdecompile" / "resource_profiles.json")
+
+
+def gate_enabled() -> bool:
+    return os.environ.get("AGENTDECOMPILE_RESOURCE_ADMISSION", "on").strip().lower() not in {"0", "off", "false", "no"}
+
+
+def dispatch_gate(action_id: str, running_action_ids: list[str], *, store: ProfileStore | None = None,
+                  host: HostState | None = None, policy: AdmissionPolicy = AdmissionPolicy()) -> Decision:
+    """Decide one dispatch against the live host and the reservations of running jobs.
+
+    An action never measured runs only as a lone profiling attempt for its class.
+    """
+    store = store or default_profile_store()
+    host = host or probe_host()
+    reserved = sum(need_bytes(store.profile(a), policy) or 0 for a in running_action_ids)
+    same = running_action_ids.count(action_id)
+    decision = decide(store.profile(action_id), host, task_class=action_id, running_in_class=same,
+                      reserved_bytes=reserved, policy=policy)
+    if decision.outcome == "profile_first":
+        if same:
+            return Decision("refuse", "a profiling attempt for this action is already running",
+                            basis=decision.basis)
+        return Decision("admit", "unmeasured action admitted as a lone profiling attempt",
+                        basis={**decision.basis, "profiling_attempt": True})
+    return decision

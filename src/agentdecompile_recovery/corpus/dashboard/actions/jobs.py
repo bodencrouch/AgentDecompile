@@ -1404,6 +1404,7 @@ class JobStore:
                         code, log = _default_executor(
                             argv, cwd, cancel, on_output=publish_log,
                             unlimited=unlimited_match, on_started=observe_owner,
+                            on_peak=_record_peak(job.action_id),
                             on_clearance=observe_clearance if job.action_id in LOCAL_RECONCILIATION_ACTIONS | _EXTERNAL_ACTION_CONTRACTS.keys() else None,
                         )
                 if action is not None and action.backend == "bsim-cli":
@@ -1861,8 +1862,13 @@ def _default_executor(
     on_clearance: Callable[[dict], None] | None = None,
     inherited_fds: tuple[int, ...] = (),
     on_not_started: Callable[[], None] | None = None,
+    on_peak: Callable[[int], None] | None = None,
 ) -> tuple[int, str]:
-    """Drain output without blocking cancellation when a child is silent."""
+    """Drain output without blocking cancellation when a child is silent.
+
+    ``on_peak`` receives the job's measured process-tree peak resident memory
+    (every process in its session, sampled about once a second) when it ends.
+    """
     if not argv:
         return 2, "empty command"
     from agentdecompile_recovery.native_verify_contract import _BOOTSTRAP, clean_environment
@@ -1928,8 +1934,14 @@ def _default_executor(
         cancellation_forced = False
         exited_at = None
         timed_out = False
+        peak_rss = 0
+        next_sample = 0.0
         while True:
             now = time.monotonic()
+            if on_peak is not None and os.name != "nt" and now >= next_sample and exited_at is None:
+                from agentdecompile_recovery.corpus.dashboard.resource_admission import session_rss_bytes
+                peak_rss = max(peak_rss, session_rss_bytes(proc.pid))
+                next_sample = now + 1.0
             if deadline is not None and now >= deadline and cancellation_at is None:
                 timed_out = True
                 cancellation_at = now
@@ -1980,6 +1992,11 @@ def _default_executor(
                 returncode = proc.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 returncode = None
+        if on_peak is not None and peak_rss:
+            try:
+                on_peak(peak_rss)
+            except Exception:  # profiling must never change a job's outcome
+                pass
         if returncode is None or session_clearance(admitted_process) != "clear":
             return 124, log + "\n[process did not reach a terminal state; ownership remains unresolved]\n"
         if on_clearance:
@@ -2049,6 +2066,28 @@ def match_pair_lock_key(params: dict[str, Any] | None) -> str | None:
 def ghidra_lock_key(params: dict[str, Any] | None) -> str:
     row = params or {}
     return str(row.get("locator") or row.get("programPath") or row.get("program") or "")
+
+
+def _record_peak(action_id: str) -> Callable[[int], None]:
+    def record(peak_bytes: int) -> None:
+        from agentdecompile_recovery.corpus.dashboard.resource_admission import default_profile_store
+        default_profile_store().record(action_id, peak_bytes)
+    return record
+
+
+def _admission_refusal(action_id: str) -> dict[str, Any] | None:
+    """Resource admission for one dispatch; None admits. Disabled by AGENTDECOMPILE_RESOURCE_ADMISSION=off."""
+    from agentdecompile_recovery.corpus.dashboard import resource_admission as ra
+    if not ra.gate_enabled():
+        return None
+    running = [job.action_id for job in STORE.list(compact=True) if job.status in {"queued", "running"}]
+    decision = ra.dispatch_gate(action_id, running)
+    if decision.outcome == "admit":
+        return None
+    return {"ok": False, "actionId": action_id, "error": decision.reason, "nextAction": "wait",
+            "wakeCondition": "capacity_available" if decision.outcome == "refuse" else "enforcement_available",
+            "admission": {"outcome": decision.outcome, "needBytes": decision.need_bytes,
+                          "availableBytes": decision.available_bytes, "basis": decision.basis}}
 
 
 def _active_duplicate(action_id: str, params: dict[str, Any]) -> JobRecord | None:
@@ -2162,6 +2201,9 @@ def start_job(
     argv = build_command(action, filled)
     if dry_run:
         return {"ok": True, "dryRun": True, "action": action.to_dict(), "argv": argv, "params": filled}, 200
+    refusal = _admission_refusal(action.id)
+    if refusal is not None:
+        return refusal, 503
     job = STORE.start(
         action,
         filled,
